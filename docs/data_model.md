@@ -405,53 +405,20 @@ Links redemption items to multiple photos/videos. Supports 1 or more photos.
 | `media_id` | `uuid` | Reference to `media_assets.id`. |
 | `display_order` | `integer` | Sorting order for photos. |
 
-### `redemption_merchandize_country_restrictions`
+### `redemption_merchandize_restrictions`
+
+Defines where specific redemption items are allowed or banned.
 
 | Column | Type | Description |
 | :--- | :--- | :--- |
 | `id` | `uuid` | Primary Key. |
 | `merchandize_id` | `uuid` | Reference to `redemption_merchandize.id`. |
-| `country_iso3` | `text` | e.g., 'USA'. |
-| `is_allowed` | `boolean` | Default `true`. |
-
-### `redemption_merchandize_state_restrictions`
-
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| `id` | `uuid` | Primary Key. |
-| `merchandize_id` | `uuid` | Reference to `redemption_merchandize.id`. |
-| `state` | `text` | State code. |
-| `country_iso3` | `text` | Country context. |
-| `is_allowed` | `boolean` | Default `true`. |
-
-### `redemption_merchandize_city_restrictions`
-
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| `id` | `uuid` | Primary Key. |
-| `merchandize_id` | `uuid` | Reference to `redemption_merchandize.id`. |
-| `city` | `text` | City name. |
-| `state` | `text` | State context. |
-| `country_iso3` | `text` | Country context. |
-| `is_allowed` | `boolean` | Default `true`. |
-
-### `redemption_merchandize_zip_restrictions`
-
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| `id` | `uuid` | Primary Key. |
-| `merchandize_id` | `uuid` | Reference to `redemption_merchandize.id`. |
-| `zip_code` | `text` | Zip code filter. |
-| `country_iso_3` | `text` | Required context for `zip_code`. |
-| `is_allowed` | `boolean` | Default `true`. |
-
-### `redemption_merchandize_community_restrictions`
-
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| `id` | `uuid` | Primary Key. |
-| `merchandize_id` | `uuid` | Reference to `redemption_merchandize.id`. |
-| `community_id` | `uuid` | Reference to `communities.id`. |
+| `scope` | `restriction_scope` | 'global', 'country', 'state', 'city', 'zip', 'community'. |
+| `country_iso_3` | `text` | Required for scopes >= 'country'. |
+| `state_id` | `uuid` | Required for scopes >= 'state'. |
+| `city_id` | `uuid` | Required for scopes >= 'city'. |
+| `zip_code` | `text` | Required for scopes >= 'zip'. |
+| `community_id` | `uuid` | Required for scopes == 'community'. |
 | `is_allowed` | `boolean` | Default `true`. |
 
 ### `redemptions`
@@ -1155,49 +1122,24 @@ create table redemption_merchandize_media (
   unique(merchandize_id, media_id)
 );
 
-create table redemption_merchandize_country_restrictions (
+create table redemption_merchandize_restrictions (
   id uuid primary key default gen_random_uuid(),
   merchandize_id uuid not null references redemption_merchandize(id) on delete cascade,
-  country_iso3 text not null,
-  is_allowed boolean not null default true,
-  created_at timestamptz default now()
-);
+  scope restriction_scope not null default 'global',
+  
+  -- Hierarchical Scopes
+  country_iso_3 text references countries(iso_3),
+  state_id uuid references states(id),
+  city_id uuid references cities(id),
+  zip_code text, -- Composite FK
+  community_id uuid references communities(id),
 
-create table redemption_merchandize_state_restrictions (
-  id uuid primary key default gen_random_uuid(),
-  merchandize_id uuid not null references redemption_merchandize(id) on delete cascade,
-  state text not null,
-  country_iso3 text not null,
-  is_allowed boolean not null default true,
-  created_at timestamptz default now()
-);
-
-create table redemption_merchandize_city_restrictions (
-  id uuid primary key default gen_random_uuid(),
-  merchandize_id uuid not null references redemption_merchandize(id) on delete cascade,
-  city text not null,
-  state text not null,
-  country_iso3 text not null,
-  is_allowed boolean not null default true,
-  created_at timestamptz default now()
-);
-
-create table redemption_merchandize_zip_restrictions (
-  id uuid primary key default gen_random_uuid(),
-  merchandize_id uuid not null references redemption_merchandize(id) on delete cascade,
-  zip_code text not null,
-  country_iso_3 text not null,
   is_allowed boolean not null default true,
   created_at timestamptz default now(),
-  foreign key (zip_code, country_iso_3) references zip_codes(zip_code, country_iso_3)
-);
 
-create table redemption_merchandize_community_restrictions (
-  id uuid primary key default gen_random_uuid(),
-  merchandize_id uuid not null references redemption_merchandize(id) on delete cascade,
-  community_id uuid not null references communities(id) on delete cascade,
-  is_allowed boolean not null default true,
-  created_at timestamptz default now()
+  foreign key (zip_code, country_iso_3) references zip_codes(zip_code, country_iso_3),
+
+  unique(merchandize_id, scope, country_iso_3, state_id, city_id, zip_code, community_id)
 );
 
 create table redemptions (
@@ -1517,7 +1459,7 @@ All tables must have RLS enabled. Policies follow a "Deny by Default" architectu
 
 ### 1. Reference Data & Rules
 
-**Scope**: `countries`, `states`, `cities`, `zip_codes`, `incentive_rules`, `sales_category_restrictions`, `experiments`, `experiment_variants`.
+**Scope**: `countries`, `states`, `cities`, `zip_codes`, `incentive_rules`, `sales_category_restrictions`, `redemption_merchandize_restrictions`, `experiments`, `experiment_variants`.
 
 - **SELECT**: `public` role (everyone) can read (filtered by `status='running'`).
 - **INSERT/UPDATE/DELETE**: `service_role` (Admin/Edge Functions) ONLY.
