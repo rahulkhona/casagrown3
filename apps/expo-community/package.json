@@ -13,10 +13,10 @@
   },
   "dependencies": {
     "@babel/runtime": "^7.26.0",
+    "@casagrown/app": "*",
+    "@casagrown/ui": "*",
     "@expo/config-plugins": "~54.0.4",
     "@expo/metro-runtime": "~6.1.2",
-    "@casagrown/ui": "*",
-    "@casagrown/app": "*",
     "babel-plugin-module-resolver": "^5.0.2",
     "babel-plugin-transform-inline-environment-variables": "^0.4.4",
     "burnt": "^0.12.2",

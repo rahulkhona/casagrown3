@@ -1,6 +1,7 @@
 import { useColorScheme } from 'react-native'
 import { TamaguiProvider, type TamaguiProviderProps } from 'tamagui'
-import { config } from '@my/config'
+import { config } from '@casagrown/config'
+import { SupabaseProvider } from './supabase'
 
 export function Provider({
   children,
@@ -16,7 +17,9 @@ export function Provider({
       defaultTheme={theme}
       {...rest}
     >
-      {children}
+      <SupabaseProvider>
+        {children}
+      </SupabaseProvider>
     </TamaguiProvider>
   )
 }

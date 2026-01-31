@@ -89,10 +89,19 @@ Deno.serve(async (req) => {
 
     // 2. Bulk UPSERT communities
     if (allFoundCommunities.length > 0) {
-      console.log(`Upserting ${allFoundCommunities.length} communities...`)
+      // Deduplicate before upsert to avoid "ON CONFLICT DO UPDATE command cannot affect row a second time"
+      const uniqueMap = new Map()
+      for (const item of allFoundCommunities) {
+        const key = `${item.zip_code}:${item.community_name}:${item.country_iso_3}`
+        uniqueMap.set(key, item)
+      }
+      const deduplicated = Array.from(uniqueMap.values())
+
+      console.log(`Upserting ${deduplicated.length} unique communities (filtered ${allFoundCommunities.length - deduplicated.length} duplicates)...`)
+      
       const { error: upsertError } = await supabase
         .from('communities')
-        .upsert(allFoundCommunities, { onConflict: 'zip_code, community_name, country_iso_3' })
+        .upsert(deduplicated, { onConflict: 'zip_code, community_name, country_iso_3' })
       
       if (upsertError) throw upsertError
     }
