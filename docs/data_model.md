@@ -1228,6 +1228,43 @@ create table delegations (
   updated_at timestamptz default now(),
   check (delegator_id <> delegatee_id)
 );
+
+create type feedback_type as enum ('feature_request', 'bug_report');
+create type feedback_status as enum ('open', 'under_review', 'planned', 'in_progress', 'completed', 'rejected', 'duplicate');
+
+create table user_feedback (
+  id uuid primary key default gen_random_uuid(),
+  author_id uuid not null references profiles(id) on delete cascade,
+  type feedback_type not null,
+  title text not null,
+  description text not null,
+  status feedback_status not null default 'open',
+  created_at timestamptz default now()
+);
+
+create table feedback_media (
+  id uuid primary key default gen_random_uuid(),
+  feedback_id uuid not null references user_feedback(id) on delete cascade,
+  media_id uuid not null references media_assets(id) on delete cascade,
+  display_order integer default 0,
+  unique(feedback_id, media_id)
+);
+
+create table feedback_votes (
+  feedback_id uuid not null references user_feedback(id) on delete cascade,
+  user_id uuid not null references profiles(id) on delete cascade,
+  primary key (feedback_id, user_id),
+  created_at timestamptz default now()
+);
+
+create table feedback_comments (
+  id uuid primary key default gen_random_uuid(),
+  feedback_id uuid not null references user_feedback(id) on delete cascade,
+  author_id uuid not null references profiles(id) on delete cascade,
+  content text not null,
+  is_official_response boolean default false,
+  created_at timestamptz default now()
+);
 ```
 
 ## Periodic Updates Automation
@@ -1527,3 +1564,15 @@ All tables must have RLS enabled. Policies follow a "Deny by Default" architectu
   - Participants: `auth.uid() = initiator_id` OR linked via `order_id` (requires generic join policy).
   - Admins: Special `admin` role or `service_role`.
 - **INSERT**: Authenticated users for their own orders.
+
+### 7. User Feedback System
+
+**Scope**: `user_feedback`, `feedback_votes`, `feedback_comments`.
+
+- **SELECT**: Public (Everyone can view requests/bugs).
+- **INSERT**: Authenticated Users only.
+- **UPDATE**:
+  - Author: Can update title/description.
+  - Staff: Can update `status` and `is_official_response`.
+- **VOTES**: 
+  - Insert/Delete: Authenticated users can vote once per item (`primary key` constraint).
