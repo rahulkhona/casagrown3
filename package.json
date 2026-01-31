@@ -1,0 +1,66 @@
+{
+  "name": "casagrown-universal",
+  "private": true,
+  "workspaces": [
+    "./apps/*",
+    "./packages/*"
+  ],
+  "scripts": {
+    "native": "cd apps/expo-community && yarn start",
+    "native:admin": "cd apps/expo-admin && yarn start",
+    "native:prebuild": "cd apps/expo-community && yarn prebuild",
+    "ios": "cd apps/expo-community && yarn ios",
+    "ios:admin": "cd apps/expo-admin && yarn ios",
+    "android": "cd apps/expo-community && yarn android",
+    "android:admin": "cd apps/expo-admin && yarn android",
+    "watch": "ultra -r --no-pretty --concurrency 400 watch",
+    "vercel:install": "yarn set version 3.5 && yarn install",
+    "web": "yarn workspace next-community run dev",
+    "web:admin": "yarn workspace next-admin run dev",
+    "web:extract": "DISABLE_EXTRACTION=false yarn workspace next-community dev",
+    "web:prod": "yarn workspace next-community build",
+    "web:prod:admin": "yarn workspace next-admin build",
+    "web:prod:serve": "yarn workspace next-community serve",
+    "postinstall": "yarn check-tamagui",
+    "build": "yarn workspaces foreach --all --exclude next-community --exclude next-admin run build",
+    "upgrade:tamagui": "yarn up '*tamagui*'@latest '@tamagui/*'@latest",
+    "upgrade:tamagui:canary": "yarn up '*tamagui*'@canary '@tamagui/*'@canary",
+    "check-tamagui": "tamagui check",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepare": "husky"
+  },
+  "resolutions": {
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-refresh": "^0.14.0",
+    "react-native": "0.81.5",
+    "react-native-svg": "15.12.1",
+    "react-native-web": "0.21.2",
+    "@tamagui/core": "^2.0.0-rc.0",
+    "@tamagui/web": "^2.0.0-rc.0",
+    "tamagui": "^2.0.0-rc.0",
+    "@react-navigation/native": "7.1.28"
+  },
+  "dependencies": {
+    "@babel/runtime": "^7.24.6",
+    "@tamagui/cli": "^2.0.0-rc.0",
+    "@tamagui/react-native-svg": "^2.0.0-rc.0",
+    "@tamagui/react-native-web-lite": "^2.0.0-rc.0",
+    "check-dependency-version-consistency": "^4.1.0",
+    "expo": "^54",
+    "husky": "^9.1.6",
+    "turbo": "^1.13.4",
+    "typescript": "~5.8.3",
+    "ultra-runner": "^3.10.5",
+    "vitest": "^2.1.1"
+  },
+  "packageManager": "yarn@4.5.0",
+  "engines": {
+    "node": "22",
+    "npm": "10.8"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.3"
+  }
+}

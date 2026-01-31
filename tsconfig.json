@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "esModuleInterop": true,
+    "strictNullChecks": true,
+    "noUncheckedIndexedAccess": true,
+    "paths": {
+      "@casagrown/app/*": ["./packages/app/*"],
+      "@casagrown/ui/*": ["./packages/ui/*"]
+    }
+  },
+  "extends": "./tsconfig.base",
+  "exclude": [
+    "**/node_modules",
+    "**/dist",
+    "**/types",
+    "apps/next-community/.next",
+    "apps/next-community/.tamagui",
+    "apps/next-admin/.next",
+    "apps/next-admin/.tamagui"
+  ]
+}
