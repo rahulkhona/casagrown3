@@ -479,7 +479,41 @@ User redemption transactions.
  | `city_id` | `uuid` | Required for scopes >= 'city'. |
  | `zip_code` | `text` | Required for scopes >= 'zip'. |
  | `community_id` | `uuid` | Required for scopes == 'community'. |
- | `is_allowed` | `boolean` | Default `false`. |
+ | `community_id` | `uuid` | References `communities.id`. |
+| `is_allowed` | `boolean` | Default `false`. |
+
+### `experiments`
+Definition of A/B tests.
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `id` | `uuid` | Primary Key. |
+| `name` | `text` | Internal name (e.g. "New Onboarding Flow"). |
+| `status` | `experiment_status` | Status lifecycle. |
+| `rollout_percentage` | `integer` | 0-100 traffic allocation. |
+| `target_criteria` | `jsonb` | Logic for eligibility. |
+
+### `experiment_variants`
+The buckets for each experiment (e.g. A vs B).
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `id` | `uuid` | Primary Key. |
+| `experiment_id` | `uuid` | FK `experiments`. |
+| `name` | `text` | 'Control', 'Variant A'. |
+| `weight` | `integer` | Traffic distribution weight. |
+| `config` | `jsonb` | Remote configuration payload. |
+
+### `experiment_assignments`
+**Persistent** recording of which user is in which variant.
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `id` | `uuid` | Primary Key. |
+| `user_id` | `uuid` | The user. |
+| `experiment_id` | `uuid` | The experiment. |
+| `variant_id` | `uuid` | The assigned bucket. |
+| `unique_constraint` | - | `(experiment_id, user_id)` ensures stickiness. |
 
 ---
 
@@ -840,6 +874,57 @@ create table sales_category_restrictions (
   foreign key (zip_code, country_iso_3) references zip_codes(zip_code, country_iso_3),
   
   unique(category, scope, country_iso_3, state_id, city_id, zip_code, community_id)
+);
+
+  created_at timestamptz default now()
+);
+
+-- EXPERIMENTATION SYSTEM
+-- First-class support for A/B testing with persistent assignments.
+
+create type experiment_status as enum ('draft', 'running', 'completed', 'rolled_out', 'rejected');
+
+create table experiments (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  description text,
+  status experiment_status not null default 'draft',
+  rollout_percentage integer default 0 check (rollout_percentage between 0 and 100),
+  target_criteria jsonb default '{}', -- e.g. {"country": "USA", "platform": "ios"}
+  started_at timestamptz,
+  ended_at timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table experiment_variants (
+  id uuid primary key default gen_random_uuid(),
+  experiment_id uuid not null references experiments(id) on delete cascade,
+  name text not null, -- e.g. 'control', 'variant_a'
+  weight integer not null default 50, -- Probability weight
+  is_control boolean default false,
+  config jsonb default '{}', -- Client payload (feature flags, UI props)
+  created_at timestamptz default now()
+);
+
+create table experiment_assignments (
+  id uuid primary key default gen_random_uuid(),
+  experiment_id uuid not null references experiments(id) on delete cascade,
+  variant_id uuid not null references experiment_variants(id) on delete cascade,
+  user_id uuid not null references profiles(id) on delete cascade,
+  device_id text, -- Optional: For unauthenticated assignments
+  assigned_at timestamptz default now(),
+  unique(experiment_id, user_id) -- ENFORCES PERSISTENCE: One variant per user per experiment
+);
+
+create table experiment_events (
+  id uuid primary key default gen_random_uuid(),
+  experiment_id uuid not null references experiments(id),
+  variant_id uuid not null references experiment_variants(id),
+  user_id uuid references profiles(id),
+  event_name text not null, -- e.g. 'click_signup', 'purchase'
+  metadata jsonb default '{}',
+  created_at timestamptz default now()
 );
 
 create table media_assets (
@@ -1345,6 +1430,14 @@ Some features span across communities or require global visibility.
     *   **Rule Tables**: `incentive_rules`, `sales_category_restrictions`.
     *   **Strategy**: These are high-read, low-write tables. They are typically **replicated** to all read replicas or stored in a common schema accessible by all shards within a region to ensure fast lookups.
 
+### 4. Experimentation (New)
+**Scope**: `experiments`, `variants`, `assignments`.
+
+*   **Persistence**: Assignments are durable (stored in `experiment_assignments`).
+*   **Strategy**:
+    *   `experiments` & `variants`: Replicated (Low cardinality, high read).
+    *   `assignments`: Sharded by `user_id` (High volume, partitioned by experiment).
+
 ### 4. Partitioning for High-Volume Data
 Independent of community sharding, high-volume logs use time-based partitioning to maintain velocity.
 
@@ -1365,12 +1458,19 @@ Independent of community sharding, high-volume logs use time-based partitioning 
 All tables must have RLS enabled. Policies follow a "Deny by Default" architecture.
 
 ### 1. Reference Data & Rules
-**Scope**: `countries`, `states`, `cities`, `zip_codes`, `incentive_rules`, `sales_category_restrictions`.
+**Scope**: `countries`, `states`, `cities`, `zip_codes`, `incentive_rules`, `sales_category_restrictions`, `experiments`, `experiment_variants`.
 
-*   **SELECT**: `public` role (everyone) can read.
-*   **INSERT/UPDATE/DELETE**: `service_role` (Edge Functions/Admin) ONLY. Use Supabase Dashboard or Admin API for updates.
+*   **SELECT**: `public` role (everyone) can read (filtered by `status='running'`).
+*   **INSERT/UPDATE/DELETE**: `service_role` (Admin/Edge Functions) ONLY.
 
-### 2. User Profiles & Communities
+### 2. Experimentation (User Sides)
+**Scope**: `experiment_assignments`, `experiment_events`.
+
+*   **SELECT**: Authenticated users can read their own assignments (`auth.uid() = user_id`).
+*   **INSERT**: `service_role` (via Edge Function) OR Authenticated User (if auto-assignment logic is client-initiated, though server-side is preferred).
+    *   *Recommendation*: Use a Postgres Function `assign_experiment(experiment_id)` to handle logic securely.
+
+### 3. User Profiles & Communities
 **Scope**: `profiles`, `communities`.
 
 *   **SELECT**: Authenticated users can read.
