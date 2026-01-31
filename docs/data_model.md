@@ -19,6 +19,7 @@ Reference table for all US Zip Codes. Updated monthly via automated fetch from S
 | `longitude` | `numeric` | Longitude for geo-spatial queries. |
 
 ### `countries`
+
 Reference for supported countries.
 
 | Column | Type | Description |
@@ -29,6 +30,7 @@ Reference for supported countries.
 | `phone_code` | `text` | e.g., '+1'. |
 
 ### `states`
+
 Administrative regions within a country.
 
 | Column | Type | Description |
@@ -39,6 +41,7 @@ Administrative regions within a country.
 | `name` | `text` | Full state name. |
 
 ### `cities`
+
 Cities belonging to a state.
 
 | Column | Type | Description |
@@ -478,11 +481,11 @@ User redemption transactions.
  | `state_id` | `uuid` | Required for scopes >= 'state'. |
  | `city_id` | `uuid` | Required for scopes >= 'city'. |
  | `zip_code` | `text` | Required for scopes >= 'zip'. |
- | `community_id` | `uuid` | Required for scopes == 'community'. |
- | `community_id` | `uuid` | References `communities.id`. |
+ | `community_id` | `uuid` | Required for scopes == 'community'. References `communities.id`. |
 | `is_allowed` | `boolean` | Default `false`. |
 
 ### `experiments`
+
 Definition of A/B tests.
 
 | Column | Type | Description |
@@ -494,6 +497,7 @@ Definition of A/B tests.
 | `target_criteria` | `jsonb` | Logic for eligibility. |
 
 ### `experiment_variants`
+
 The buckets for each experiment (e.g. A vs B).
 
 | Column | Type | Description |
@@ -505,6 +509,7 @@ The buckets for each experiment (e.g. A vs B).
 | `config` | `jsonb` | Remote configuration payload. |
 
 ### `experiment_assignments`
+
 **Persistent** recording of which user is in which variant.
 
 | Column | Type | Description |
@@ -543,16 +548,19 @@ The buckets for each experiment (e.g. A vs B).
 - `global`: Visible to the entire platform.
 
 #### `delegation_status` enum values
+
 - `pending`: Waiting for delegatee to accept.
 - `accepted`: Delegation active and authorized for posting.
 - `rejected`: Delegatee declined.
 - `revoked`: Agreement ended; no longer authorized for posting.
 
 #### `media_asset_type` enum values
+
 - `video`
 - `image`
 
 #### `sales_category` enum values
+
 - `fruits`
 - `vegetables`
 - `herbs`
@@ -570,6 +578,7 @@ The buckets for each experiment (e.g. A vs B).
 - `bag`
 
 #### `offer_status` enum values
+
 - `pending`: Active negotiation.
 - `accepted`: Basis for an order.
 - `rejected`: Declined by either party.
@@ -606,10 +615,12 @@ The buckets for each experiment (e.g. A vs B).
 - `failed`: Transaction reversed.
 
 #### `escalation_status` enum values
+
 - `open`: Dispute active.
 - `resolved`: Agreement reached or closed.
 
 #### `escalation_resolution` enum values
+
 - `refund_accepted`: Resolved by accepting a seller's refund offer.
 - `resolved_without_refund`: Buyer closed the dispute without requiring a refund.
 - `dismissed`: Invalid or fraudulent report.
@@ -617,6 +628,7 @@ The buckets for each experiment (e.g. A vs B).
 - `rejected`: Declined by the buyer.
 
 #### `chat_message_type` enum values
+
 - `text`: Pure text message.
 - `media`: Message containing a photo or video.
 - `mixed`: Message containing both text and media.
@@ -640,8 +652,9 @@ A user (`auth.uid()`) can only insert a post into a `community_id` if at the tim
 ### Delegated Sales Validation
 
 For `want_to_sell_details` marked with a `delegator_id`, the database enforces:
--   **Delegation Check**: The `delegator_id` must have an `accepted` delegation record pointing to the `posts.author_id`.
--   **Ownership**: If no `delegator_id` is provided, the `author_id` is assumed to be the owner of the produce.
+
+- **Delegation Check**: The `delegator_id` must have an `accepted` delegation record pointing to the `posts.author_id`.
+- **Ownership**: If no `delegator_id` is provided, the `author_id` is assumed to be the owner of the produce.
 
 ### RLS Policies (Conceptual)
 
@@ -790,13 +803,13 @@ create table incentive_rules (
   city_id uuid references cities(id),
   zip_code text, -- Composite FK
   community_id uuid references communities(id),
-  
+
   start_date timestamptz not null default now(),
   end_date timestamptz,
   created_at timestamptz default now(),
-  
+
   foreign key (zip_code, country_iso_3) references zip_codes(zip_code, country_iso_3),
-  
+
   -- Prevent duplicate active rules for same scope/target
   unique(action_type, scope, country_iso_3, state_id, city_id, zip_code, community_id, start_date)
 );
@@ -867,12 +880,12 @@ create table sales_category_restrictions (
   city_id uuid references cities(id),
   zip_code text, -- Composite FK
   community_id uuid references communities(id),
-  
+
   is_allowed boolean not null default false,
   created_at timestamptz default now(),
-  
+
   foreign key (zip_code, country_iso_3) references zip_codes(zip_code, country_iso_3),
-  
+
   unique(category, scope, country_iso_3, state_id, city_id, zip_code, community_id)
 );
 
@@ -1227,16 +1240,19 @@ create table delegations (
 ## Media Delivery & Scaling Strategy
 
 ### 1. Delivery via CDN
+
 All assets in `media_assets` are served via the Supabase (Cloudflare) CDN. This ensures that media is cached geographically close to the user, reducing latency and origin server load.
 
 ### 2. Image Optimization
+
 The application will use the Supabase Image Transformation API to serve appropriately sized images based on the user's device (e.g., thumbnails vs. full-screen previews).
 
 ### 3. Video Handling
+
 - **Short Videos**: Served directly via CDN with byte-range requests for seeking.
 - **Longer/High-Scale Video**: Future-proofed to transition to HLS (HTTP Live Streaming) if necessary, with `media_assets` tracking the manifest URLs.
 
-### Edge Function Logic (`update-zip-codes`)
+### Edge Function: update-zip-codes
 
 ```typescript
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -1287,7 +1303,7 @@ Deno.serve(async (req) => {
 })
 ```
 
-### Edge Function Logic (`scrape-communities`)
+### Edge Function: scrape-communities
 
 This function iterates through the `zip_codes` table, scrapes the NCES website for high schools in each zip code, and populates the `communities` table.
 
@@ -1399,53 +1415,58 @@ Deno.serve(async (req) => {
 The CasaGrown application is hyper-local by design but global in scope. The data architecture is designed to scale horizontally based on strict geographic and community boundaries.
 
 ### 1. Macro-Sharding: Geographic (Country/Region)
-*   **Physical Isolation**: Data is physically sharded by **Country (`country_iso_3`)**.
-*   **Rationale**: Data Sovereignty (GDPR/compliance), reduced latency, and fault isolation.
-*   **Implementation**: Database instances are deployed in regions corresponding to the country (e.g., `us-east-1` for USA, `eu-central-1` for Germany).
+
+- **Physical Isolation**: Data is physically sharded by **Country (`country_iso_3`)**.
+- **Rationale**: Data Sovereignty (GDPR/compliance), reduced latency, and fault isolation.
+- **Implementation**: Database instances are deployed in regions corresponding to the country (e.g., `us-east-1` for USA, `eu-central-1` for Germany).
 
 ### 2. Micro-Sharding: Community (Tenant-like Isolation)
+
 Within each Geographic Shard, `community_id` acts as a tenant identifier. Most user interactions are scoped to a single community.
 
-*   **Shard Key**: `community_id`.
-*   **Community-Scoped Tables**: These tables contain 90% of the system's data and can be easily partitioned or moved to separate physical nodes if a specific community becomes "hot".
-    *   `profiles` (Users belong to one primary community)
-    *   `user_garden`
-    *   `posts` (Type: `sell`, `buy`, `advice` - where `reach = 'community'`)
-    *   `orders` (transactions are local, except for delegation cases)
+- **Shard Key**: `community_id`.
+- **Community-Scoped Tables**: These tables contain 90% of the system's data and can be easily partitioned or moved to separate physical nodes if a specific community becomes "hot".
+  - `profiles` (Users belong to one primary community)
+  - `user_garden`
+  - `posts` (Type: `sell`, `buy`, `advice` - where `reach = 'community'`)
+  - `orders` (transactions are local, except for delegation cases)
 
 ### 3. Cross-Shard & Global Entities
+
 Some features span across communities or require global visibility.
 
-*   **Delegations**:
-    *   **Challenge**: A `delegator` and `delegatee` might be in neighboring communities (different `community_id` shards).
-    *   **Strategy**: Delegations are stored in a **Regional Shared Schema** within the Country Shard, or both profiles must be replicated if they cross physical shard boundaries (rare).
-*   **Cross-Community Chats**:
-    *   **Challenge**: Chats between a buyer and a delegate seller in different communities.
-    *   **Strategy**: Conversations are anchored to the `Country Shard` rather than a specific `Community Shard` to ensure accessibility by both parties.
-*   **Global Posts**:
-    *   **Challenge**: Posts with `reach = 'global'` must be visible to all communities.
-    *   **Strategy**: Stored in a dedicated "Global Feed" partition. Feed construction queries union the **Local Community Partition** + **Global Partition**.
-*   **(New) Reference Data & Rules**:
-    *   **Global/Regional Shared Tables**: `countries`, `states`, `cities`, `zip_codes`.
-    *   **Rule Tables**: `incentive_rules`, `sales_category_restrictions`.
-    *   **Strategy**: These are high-read, low-write tables. They are typically **replicated** to all read replicas or stored in a common schema accessible by all shards within a region to ensure fast lookups.
+- **Delegations**:
+  - **Challenge**: A `delegator` and `delegatee` might be in neighboring communities (different `community_id` shards).
+  - **Strategy**: Delegations are stored in a **Regional Shared Schema** within the Country Shard, or both profiles must be replicated if they cross physical shard boundaries (rare).
+- **Cross-Community Chats**:
+  - **Challenge**: Chats between a buyer and a delegate seller in different communities.
+  - **Strategy**: Conversations are anchored to the `Country Shard` rather than a specific `Community Shard` to ensure accessibility by both parties.
+- **Global Posts**:
+  - **Challenge**: Posts with `reach = 'global'` must be visible to all communities.
+  - **Strategy**: Stored in a dedicated "Global Feed" partition. Feed construction queries union the **Local Community Partition** + **Global Partition**.
+- **(New) Reference Data & Rules**:
+  - **Global/Regional Shared Tables**: `countries`, `states`, `cities`, `zip_codes`.
+  - **Rule Tables**: `incentive_rules`, `sales_category_restrictions`.
+  - **Strategy**: These are high-read, low-write tables. They are typically **replicated** to all read replicas or stored in a common schema accessible by all shards within a region to ensure fast lookups.
 
-### 4. Experimentation (New)
+### 4. Experimentation (Schema)
+
 **Scope**: `experiments`, `variants`, `assignments`.
 
-*   **Persistence**: Assignments are durable (stored in `experiment_assignments`).
-*   **Strategy**:
-    *   `experiments` & `variants`: Replicated (Low cardinality, high read).
-    *   `assignments`: Sharded by `user_id` (High volume, partitioned by experiment).
+- **Persistence**: Assignments are durable (stored in `experiment_assignments`).
+- **Strategy**:
+  - `experiments` & `variants`: Replicated (Low cardinality, high read).
+  - `assignments`: Sharded by `user_id` (High volume, partitioned by experiment).
 
-### 4. Partitioning for High-Volume Data
+### 5. Partitioning for High-Volume Data
+
 Independent of community sharding, high-volume logs use time-based partitioning to maintain velocity.
 
-*   **`point_ledger`**: Partitioned by **Month** (`created_at`).
-*   **`notifications`**: Partitioned by **Month** (`created_at`).
-*   **`chat_messages`**: Hash Partitioned by `conversation_id`(buckets) or Time Partitioned by **Month** (archival).
+- **`point_ledger`**: Partitioned by **Month** (`created_at`).
+- **`notifications`**: Partitioned by **Month** (`created_at`).
+- **`chat_messages`**: Hash Partitioned by `conversation_id`(buckets) or Time Partitioned by **Month** (archival).
 
-### 5. Potential Bottlenecks & Mitigations
+### 6. Potential Bottlenecks & Mitigations
 
 | Bottleneck | Description | Mitigation Strategy |
 | :--- | :--- | :--- |
@@ -1458,45 +1479,51 @@ Independent of community sharding, high-volume logs use time-based partitioning 
 All tables must have RLS enabled. Policies follow a "Deny by Default" architecture.
 
 ### 1. Reference Data & Rules
+
 **Scope**: `countries`, `states`, `cities`, `zip_codes`, `incentive_rules`, `sales_category_restrictions`, `experiments`, `experiment_variants`.
 
-*   **SELECT**: `public` role (everyone) can read (filtered by `status='running'`).
-*   **INSERT/UPDATE/DELETE**: `service_role` (Admin/Edge Functions) ONLY.
+- **SELECT**: `public` role (everyone) can read (filtered by `status='running'`).
+- **INSERT/UPDATE/DELETE**: `service_role` (Admin/Edge Functions) ONLY.
 
 ### 2. Experimentation (User Sides)
+
 **Scope**: `experiment_assignments`, `experiment_events`.
 
-*   **SELECT**: Authenticated users can read their own assignments (`auth.uid() = user_id`).
-*   **INSERT**: `service_role` (via Edge Function) OR Authenticated User (if auto-assignment logic is client-initiated, though server-side is preferred).
-    *   *Recommendation*: Use a Postgres Function `assign_experiment(experiment_id)` to handle logic securely.
+- **SELECT**: Authenticated users can read their own assignments (`auth.uid() = user_id`).
+- **INSERT**: `service_role` (via Edge Function) OR Authenticated User (if auto-assignment logic is client-initiated, though server-side is preferred).
+  - *Recommendation*: Use a Postgres Function `assign_experiment(experiment_id)` to handle logic securely.
 
 ### 3. User Profiles & Communities
+
 **Scope**: `profiles`, `communities`.
 
-*   **SELECT**: Authenticated users can read.
-*   **UPDATE**: Users can only update their own row (`auth.uid() = id`).
-*   **INSERT**: Managed via Auth Triggers.
+- **SELECT**: Authenticated users can read.
+- **UPDATE**: Users can only update their own row (`auth.uid() = id`).
+- **INSERT**: Managed via Auth Triggers.
 
-### 3. Marketplace Content
+### 4. Marketplace Content
+
 **Scope**: `posts`, `want_to_sell_details`, `want_to_buy_details`.
 
-*   **SELECT**: Authenticated users can read (filtered by application logic/UI, but generally public within community).
-*   **INSERT/UPDATE/DELETE**: Owners only.
-    *   `posts`: `auth.uid() = author_id`.
+- **SELECT**: Authenticated users can read (filtered by application logic/UI, but generally public within community).
+- **INSERT/UPDATE/DELETE**: Owners only.
+  - `posts`: `auth.uid() = author_id`.
 
-### 4. Transactional Privacy
+### 5. Transactional Privacy
+
 **Scope**: `offers`, `orders`, `conversations`, `chat_messages`.
 
-*   **SELECT**: Strictly limited to participants.
-    *   `conversations`: `auth.uid() IN (buyer_id, seller_id)`.
-    *   `offers`: `auth.uid() IN (buyer_id, seller_id)`. (Note: `created_by` check not sufficient for visibility, must check context).
-    *   `orders`: `auth.uid() IN (buyer_id, seller_id)`.
-*   **INSERT/UPDATE**: Participants only.
+- **SELECT**: Strictly limited to participants.
+  - `conversations`: `auth.uid() IN (buyer_id, seller_id)`.
+  - `offers`: `auth.uid() IN (buyer_id, seller_id)`. (Note: `created_by` check not sufficient for visibility, must check context).
+  - `orders`: `auth.uid() IN (buyer_id, seller_id)`.
+- **INSERT/UPDATE**: Participants only.
 
-### 5. Escalations & Admin
+### 6. Escalations & Admin
+
 **Scope**: `escalations`, `refund_offers`.
 
-*   **SELECT**:
-    *   Participants: `auth.uid() = initiator_id` OR linked via `order_id` (requires generic join policy).
-    *   Admins: Special `admin` role or `service_role`.
-*   **INSERT**: Authenticated users for their own orders.
+- **SELECT**:
+  - Participants: `auth.uid() = initiator_id` OR linked via `order_id` (requires generic join policy).
+  - Admins: Special `admin` role or `service_role`.
+- **INSERT**: Authenticated users for their own orders.
