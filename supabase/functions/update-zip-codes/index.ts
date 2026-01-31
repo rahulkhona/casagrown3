@@ -21,8 +21,8 @@ Deno.serve(async (req) => {
     // Using a sample static URL or the one provided in docs. 
     // Ideally this would be the live SimpleMaps URL, but they often require download tokens or have CAPTCHAs.
     // For this implementation I will use the URL from the docs, assuming it works or using a placeholder if I need to mock it.
-    // The docs had: https://simplemaps.com/static/data/us-zips.csv
-    const response = await fetch('https://simplemaps.com/static/data/us-zips.csv')
+    // Using a valid GitHub raw source found via search
+    const response = await fetch('https://raw.githubusercontent.com/akinniyi/US-Zip-Codes-With-City-State/master/uszips.csv')
     
     if (!response.ok) {
        throw new Error(`Failed to fetch CSV: ${response.statusText}`)
@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
       skipFirstRow: true, 
       columns: [
         'zip', 'lat', 'lng', 'city', 'state_id', 'state_name', 'zcta', 'parent_zcta', 'population', 
-        'density', 'county_fips', 'county_name', 'county_weights', 'county_names_all', 'county_fips_all', 
+        'density', 'county_fips', 'county_name', 'all_county_weights', 
         'imprecise', 'military', 'timezone'
       ]
     })
@@ -78,89 +78,126 @@ Deno.serve(async (req) => {
     // Challenge: We need `city_id`. 
     // Solution: We will extract unique States and Cities from this CSV and upsert them FIRST.
     
-    // 1. Unique States
-    const uniqueStates = [...new Set(data.map((d: any) => JSON.stringify({ code: d.state_id, name: d.state_name })))]
+    // 4. Upsert ALL Unique States
+    console.log('Extracting unique states...')
+    // Fix: Ensure we don't redeclare variable if it exists, or just use a new block.
+    // The previous edit likely messed up the file structure. I'll rewrite the block cleanly.
+    
+    // Logic: Extract States -> Upsert -> Get Map
+    const startStates = [...new Set(data.map((d: any) => JSON.stringify({ code: d.state_id, name: d.state_name })))]
         .map((s: string) => JSON.parse(s))
     
-    // Upsert States
-    for (const s of uniqueStates) {
-        // Need to get IDs back? Or just rely on natural keys? Schema uses UUID PKs.
-        // We need to SELECT to get IDs or use `onConflict`.
-        // But `states` table has `id` which is randomized if not provided.
-        // We need to find the state first.
-        
-        // This is getting complex for a single edge function without a dedicated pipeline.
-        // I will write the code to attempt this efficiently.
+    console.log(`Upserting ${startStates.length} states...`)
+    await supabase.from('states').upsert(
+       startStates.map(s => ({
+          country_iso_3: 'USA',
+          code: s.code,
+          name: s.name
+       })), 
+       { onConflict: 'country_iso_3, code' }
+    )
+    
+    const { data: allStates } = await supabase.from('states').select('code, id').eq('country_iso_3', 'USA')
+    const stateMap = new Map(allStates?.map(s => [s.code, s.id]))
+
+
+    // 5. Upsert ALL Unique Cities (Linked to State)
+    console.log('Extracting unique cities...')
+    const uniqueCities = [...new Set(data.map((d: any) => JSON.stringify({ state: d.state_id, city: d.city })))]
+        .map((s: string) => JSON.parse(s))
+
+    // Prepare city objects with state_id
+    const cityRows = uniqueCities.map(c => {
+        const sId = stateMap.get(c.state)
+        if (!sId) return null // Should not happen
+        return {
+            state_id: sId,
+            name: c.city
+        }
+    }).filter(c => c !== null)
+
+    console.log(`Upserting ${cityRows.length} cities...`)
+    
+    // Batch upsert cities (chunked to avoid limits)
+    // Upserting 30k cities might time out in one go, so we chunk it.
+    const cityChunkSize = 1000
+    for (let i = 0; i < cityRows.length; i += cityChunkSize) {
+        const chunk = cityRows.slice(i, i + cityChunkSize)
+        await supabase.from('cities').upsert(chunk, { onConflict: 'state_id, name' })
     }
 
-    // SIMPLIFICATION FOR V1: 
-    // I will write the logic to Upsert State -> Select ID -> Upsert City -> Select ID -> Upsert Zip.
-    // This will be slow for 40k zips if done one by one. I'll do it in batches for the unique sets.
-    
-    // ... ignoring full implementation of hierarchy sync here due to complexity ...
-    // Instead, I'll provide the 'updates' array but comment out the FK requirement warnings 
-    // or assume we use a known city for testing.
-    
-    // Actually, let's just do it right.
-    const chunkSize = 100
-    let processed = 0
-    
-    // We need a map of State Code -> UUID and City Name -> UUID to avoid 40k DB calls.
-    // For V1, I will fetch ALL states and cities first (assuming < 100k items, reasonable for edge memory).
-    
-    const { data: statesDB } = await supabase.from('states').select('code, id').eq('country_iso_3', 'USA')
-    const stateMap = new Map(statesDB?.map(s => [s.code, s.id]))
-    
-    // If stateMap is empty, we have a problem. We need to insert them.
-    // This function will become a "Monolith Seeder".
-    
-    // Let's stick to the core task: "Update Zip Codes".
-    // I will write the code assuming the States/Cities exist or are handled.
-    // However, to ensure it doesn't just crash, I'll add a helper to upsert the state/city if missing (slow path).
-    
-    // Re-evaluating: The user wants to "periodically populate".
-    // It's better to process a small batch (e.g. 50 zips) per run if doing full hierarchy sync.
-    // I'll limit the processing to 50 items for this iteration to ensure it finishes within timeout.
-    
-    const updatesLimited = data.slice(0, 50) 
-    
-    for (const row of updatesLimited) {
-       // 1. Ensure State
-       let stateId = stateMap.get(row.state_id)
-       if (!stateId) {
-          const { data: newState } = await supabase.from('states').upsert({
-             country_iso_3: 'USA',
-             code: row.state_id,
-             name: row.state_name
-          }, { onConflict: 'country_iso_3, code' }).select().single()
-          stateId = newState?.id
-          stateMap.set(row.state_id, stateId)
-       }
+    // Refresh Map for Zips
+    // We need City IDs to insert Zips. Fetching all cities might be heavy (30k rows).
+    // Refresh Map for Zips - PAGINATED to bypass hard limits
+    const allCitiesFromDB = []
+    let hasMore = true
+    let offset = 0
+    const cityFetchBatchSize = 1000
 
-       // 2. Ensure City
-       // Using simpler city lookup by name + state
-       const { data: city } = await supabase.from('cities').select('id').eq('state_id', stateId).eq('name', row.city).maybeSingle()
-       let cityId = city?.id
+    console.log('Fetching all cities from DB...')
+    while (hasMore) {
+        const { data: cityBatch, error: fetchError } = await supabase
+            .from('cities')
+            .select('state_id, name, id')
+            .range(offset, offset + cityFetchBatchSize - 1)
+        
+        if (fetchError) {
+            console.error('Error fetching cities batch:', fetchError.message)
+            break
+        }
+
+        if (cityBatch && cityBatch.length > 0) {
+            allCitiesFromDB.push(...cityBatch)
+            offset += cityFetchBatchSize
+            if (cityBatch.length < cityFetchBatchSize) hasMore = false
+        } else {
+            hasMore = false
+        }
+    }
+    console.log(`Fetched ${allCitiesFromDB.length} cities total.`)
+    
+    // Complex Key Map: state_id + city_name -> city_id
+    const cityMap = new Map()
+    allCitiesFromDB.forEach(c => {
+        cityMap.set(`${c.state_id}:${c.name}`, c.id)
+    })
+
+    // 6. Upsert ALL Zones (Zips) - CHUNKED
+    console.log(`Preparing to upsert all ${data.length} zip codes...`)
+    
+    const zipRows = data.map((row: any) => {
+       const stateId = stateMap.get(row.state_id)
+       const cityKey = `${stateId}:${row.city}`
+       const cityId = cityMap.get(cityKey)
        
-       if (!cityId) {
-           const { data: newCity } = await supabase.from('cities').upsert({
-               state_id: stateId,
-               name: row.city
-           }, { onConflict: 'state_id, name' }).select().single()
-           cityId = newCity?.id
+       if (!stateId || !cityId) {
+           // Debug a few failures
+           if (Math.random() < 0.001) {
+               console.log(`Mapping failure for zip ${row.zip}: stateFound=${!!stateId} (code=${row.state_id}), cityFound=${!!cityId} (key=${cityKey})`)
+           }
+           return null
        }
 
-       // 3. Upsert Zip
-       await supabase.from('zip_codes').upsert({
+       return {
            zip_code: row.zip,
            country_iso_3: 'USA',
            city_id: cityId,
-           latitude: parseFloat(row.lat),
-           longitude: parseFloat(row.lng)
-       }, { onConflict: 'zip_code, country_iso_3' })
-       
-       processed++
+           latitude: parseFloat(row.lat) || 0,
+           longitude: parseFloat(row.lng) || 0
+       }
+    }).filter(z => z !== null)
+
+    const zipChunkSize = 1000
+    for (let i = 0; i < zipRows.length; i += zipChunkSize) {
+        const chunk = zipRows.slice(i, i + zipChunkSize)
+        console.log(`Upserting zip chunk ${Math.floor(i / zipChunkSize) + 1}/${Math.ceil(zipRows.length / zipChunkSize)}...`)
+        const { error } = await supabase.from('zip_codes').upsert(chunk, { onConflict: 'zip_code, country_iso_3' })
+        if (error) {
+            console.error(`Error upserting zip chunk: ${error.message}`)
+        }
     }
+    
+    let processed = zipRows.length
 
     return new Response(JSON.stringify({ 
       success: true, 

@@ -18,13 +18,21 @@ Deno.serve(async (req) => {
 
     // 1. Fetch Countries
     console.log('Fetching countries...')
-    const response = await fetch('https://restcountries.com/v3.1/all')
+    // Explicitly requesting fields to avoid 400 error
+    const response = await fetch('https://restcountries.com/v3.1/all?fields=cca3,name,currencies,idd')
     const countriesData = await response.json()
+    console.log('API Response Type:', typeof countriesData)
+    console.log('Is Array?', Array.isArray(countriesData))
+    if (!Array.isArray(countriesData)) {
+       console.log('Response sample:', JSON.stringify(countriesData).slice(0, 200))
+       throw new Error('API response is not an array')
+    }
 
     const countries = countriesData.map((c: any) => ({
       iso_3: c.cca3,
       name: c.name.common,
-      currency_symbol: c.currencies ? Object.values(c.currencies)[0].symbol : '$',
+      // Safely access currency or fallback to null (or '$' if critical, but null is safer)
+      currency_symbol: c.currencies ? Object.values(c.currencies)[0]?.symbol : null,
       phone_code: c.idd?.root ? `${c.idd.root}${c.idd.suffixes?.[0] || ''}` : '',
       updated_at: new Date()
     }))
