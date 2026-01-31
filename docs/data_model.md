@@ -11,12 +11,11 @@ Reference table for all US Zip Codes. Updated monthly via automated fetch from S
 | Column | Type | Description |
 | :--- | :--- | :--- |
 | `zip_code` | `text` | Primary Key (part 1). |
-| `country_iso_3` | `text` | Primary Key (part 2). e.g., 'USA'. |
-| `city` | `text` | Primary City. |
-| `state` | `text` | State/Region code. |
-| `county` | `text` | County name (if applicable). |
+| `country_iso_3` | `text` | ISO 3-digit country code (e.g. 'USA'). |
+| `city_id` | `uuid` | Reference to `cities.id`. |
 | `latitude` | `numeric` | Latitude for geo-spatial queries. |
 | `longitude` | `numeric` | Longitude for geo-spatial queries. |
+| `last_scraped_at` | `timestamptz` | Last time NCES/Community scraping was performed. |
 
 ### `countries`
 
@@ -65,6 +64,19 @@ The `communities` table stores information about different local areas, identifi
 
 **Unique Constraint**: `unique(zip_code, community_name, country_iso_3)`
 **Foreign Key**: `(zip_code, country_iso_3)` references `zip_codes(zip_code, country_iso_3)`
+
+### `scraping_logs`
+
+Audit trail for NCES community scraping health.
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `id` | `uuid` | Primary Key. |
+| `zip_code` | `text` | Target zip. |
+| `status` | `scraping_status` | success, failure, zero_results. |
+| `error_message` | `text` | Detailed error for failure. |
+| `communities_count` | `integer` | Number of schools found. |
+| `scraped_at` | `timestamptz` | Timestamp. |
 
 ### `incentive_rules`
 
@@ -436,8 +448,8 @@ User redemption transactions.
 | `created_at` | `timestamptz` | |
 
 ### `sales_category_restrictions`
- 
- Defines where specific sales categories are allowed or banned.
+
+Defines where specific sales categories are allowed or banned.
  
  | Column | Type | Description |
  | :--- | :--- | :--- |
@@ -482,10 +494,27 @@ The buckets for each experiment (e.g. A vs B).
 | Column | Type | Description |
 | :--- | :--- | :--- |
 | `id` | `uuid` | Primary Key. |
-| `user_id` | `uuid` | The user. |
 | `experiment_id` | `uuid` | The experiment. |
 | `variant_id` | `uuid` | The assigned bucket. |
-| `unique_constraint` | - | `(experiment_id, user_id)` ensures stickiness. |
+| `user_id` | `uuid` | The user (Nullable for guests). |
+| `device_id` | `text` | Fallback identifier for guests. |
+| `context` | `jsonb` | Snapshot of device context (OS, platform, version) at assign-time. |
+| `unique_constraint` | - | `(experiment_id, user_id)` OR `(experiment_id, device_id)` ensures stickiness. |
+
+### `experiment_events`
+
+Tracks conversions and interactions tied to a variant.
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `id` | `uuid` | Primary Key. |
+| `experiment_id` | `uuid` | The experiment. |
+| `variant_id` | `uuid` | The variant. |
+| `user_id` | `uuid` | Reference to `profiles.id` (Nullable for guests). |
+| `device_id` | `text` | Device identifier for guest analytics. |
+| `event_name` | `text` | e.g., 'click_signup', 'purchase'. |
+| `metadata` | `jsonb` | Custom event data. |
+| `created_at` | `timestamptz` | |
 
 ---
 
@@ -742,7 +771,21 @@ create table zip_codes (
   city_id uuid not null references cities(id), -- Hierarchical link
   latitude numeric,
   longitude numeric,
+  last_scraped_at timestamptz,
   primary key (zip_code, country_iso_3)
+);
+
+create type scraping_status as enum ('success', 'failure', 'zero_results');
+
+create table scraping_logs (
+  id uuid primary key default gen_random_uuid(),
+  zip_code text not null,
+  country_iso_3 text not null,
+  status scraping_status not null,
+  error_message text,
+  communities_count integer default 0,
+  scraped_at timestamptz default now(),
+  foreign key (zip_code, country_iso_3) references zip_codes(zip_code, country_iso_3)
 );
 
 create type incentive_action as enum (
@@ -891,17 +934,22 @@ create table experiment_assignments (
   id uuid primary key default gen_random_uuid(),
   experiment_id uuid not null references experiments(id) on delete cascade,
   variant_id uuid not null references experiment_variants(id) on delete cascade,
-  user_id uuid not null references profiles(id) on delete cascade,
-  device_id text, -- Optional: For unauthenticated assignments
+  user_id uuid references profiles(id) on delete cascade,
+  device_id text,
+  context jsonb default '{}',
   assigned_at timestamptz default now(),
-  unique(experiment_id, user_id) -- ENFORCES PERSISTENCE: One variant per user per experiment
+  constraint experiment_assignments_identifier_check check (user_id is not null or device_id is not null)
 );
+
+create unique index experiment_assignments_user_idx on experiment_assignments (experiment_id, user_id) where user_id is not null;
+create unique index experiment_assignments_device_idx on experiment_assignments (experiment_id, device_id) where user_id is null;
 
 create table experiment_events (
   id uuid primary key default gen_random_uuid(),
   experiment_id uuid not null references experiments(id),
   variant_id uuid not null references experiment_variants(id),
   user_id uuid references profiles(id),
+  device_id text,
   event_name text not null, -- e.g. 'click_signup', 'purchase'
   metadata jsonb default '{}',
   created_at timestamptz default now()
