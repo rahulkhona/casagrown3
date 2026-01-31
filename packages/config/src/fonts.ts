@@ -9,33 +9,31 @@ export const headingFont = createInterFont({
     7: 'none',
   },
   weight: {
-    6: '400',
-    7: '700',
+    1: '400',
+    2: '700',
+    3: '800', // Heading weight
   },
   color: {
     6: '$colorFocus',
     7: '$color',
   },
-  letterSpacing: {
-    5: 2,
-    6: 1,
-    7: 0,
-    8: -1,
-    9: -2,
-    10: -3,
-    12: -4,
-    14: -5,
-    15: -6,
-  },
   face: {
     700: { normal: 'InterBold' },
+    800: { normal: 'InterExtraBold' },
   },
 })
 
 export const bodyFont = createInterFont(
   {
     face: {
+      400: { normal: 'Inter' },
+      500: { normal: 'InterMedium' },
       700: { normal: 'InterBold' },
+    },
+    weight: {
+      1: '400',
+      2: '500',
+      3: '700',
     },
   },
   {
