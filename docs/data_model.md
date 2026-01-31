@@ -1518,3 +1518,65 @@ All tables must have RLS enabled. Policies follow a "Deny by Default" architectu
   - Staff: Can update `status` and `is_official_response`.
 - **VOTES**: 
   - Insert/Delete: Authenticated users can vote once per item (`primary key` constraint).
+
+---
+
+## Appendix: Monitoring & Maintenance
+
+### Scraper Health & Progress
+
+Use these queries in the Supabase SQL Editor to monitor the automated US population progress.
+
+#### 1. Overall Progress
+
+```sql
+-- Count total communities found
+select count(*) as total_communities from communities;
+
+-- Count zip codes remaining to be scanned
+select count(*) as remaining_zips from zip_codes 
+where last_scraped_at is null;
+
+-- Count zip codes scanned in the last 24 hours
+select count(*) from scraping_logs 
+where scraped_at > now() - interval '24 hours';
+```
+
+#### 2. Failure & Site Change Monitoring
+
+If these queries start returning many rows with "Failed to parse DOM", it indicates a change in the NCES website structure.
+
+```sql
+-- Latest scraping failures (Health Check)
+select 
+  zip_code, 
+  status, 
+  error_message, 
+  scraped_at 
+from scraping_logs 
+where status = 'failure' 
+order by scraped_at desc 
+limit 50;
+
+-- Top recurring error messages
+select error_message, count(*) 
+from scraping_logs 
+where status = 'failure' 
+group by 1 
+order by 2 desc;
+```
+
+#### 3. Data Integrity & Re-scraping
+
+```sql
+-- Zip codes eligible for 90-day periodic re-scan
+select count(*) from zip_codes 
+where last_scraped_at < now() - interval '90 days';
+
+-- List zip codes that consistently return zero results
+select zip_code, count(*) 
+from scraping_logs 
+where status = 'zero_results' 
+group by 1 
+having count(*) > 1;
+```
