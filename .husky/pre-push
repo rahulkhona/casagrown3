@@ -1,5 +1,10 @@
-#!/bin/sh
-. "$(dirname "$0")/_/husky.sh"
+
+# Check if maestro is installed
+if ! command -v maestro &> /dev/null
+then
+    echo "⚠️  Maestro not found. Skipping E2E tests."
+    exit 0
+fi
 
 echo "🏃 Running Maestro E2E Tests..."
 maestro test .maestro/home_screen_flow.yaml
