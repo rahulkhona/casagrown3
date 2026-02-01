@@ -21,6 +21,7 @@
     "expo-constants": "~17.1.6",
     "expo-linking": "~7.1.4",
     "expo-localization": "^17.0.8",
+    "expo-secure-store": "^15.0.8",
     "i18next": "^25.8.0",
     "intl-pluralrules": "^2.0.1",
     "react-i18next": "^16.5.4",

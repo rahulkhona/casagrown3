@@ -12,7 +12,6 @@ export default function Login() {
         onBack={() => router.back()}
         onLogin={(email, name) => {
           console.log('Login attempt:', email, name)
-          alert(`Login logic not implemented yet.\nUser: ${name}\nEmail: ${email}`)
         }}
       />
     </>

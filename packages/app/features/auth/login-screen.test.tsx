@@ -23,6 +23,7 @@ jest.mock('@tamagui/lucide-icons', () => ({
   ArrowLeft: () => null,
   Mail: () => null,
   Chrome: () => null,
+  Facebook: () => null, // Added missing icons if needed
 }))
 
 // Mock image asset requires
@@ -31,6 +32,31 @@ jest.mock('react-native', () => {
     RN.Image.resolveAssetSource = jest.fn((source) => source);
     return RN;
 });
+
+// Mock Solito Router
+jest.mock('solito/navigation', () => ({
+  useRouter: () => ({
+    push: jest.fn(),
+    replace: jest.fn(),
+    back: jest.fn(),
+  }),
+}))
+
+// Mock useAuth HOOK
+const mockSignInWithOtp = jest.fn()
+const mockVerifyOtp = jest.fn()
+const mockSignInWithOAuth = jest.fn()
+
+jest.mock('./auth-hook', () => ({
+  useAuth: () => ({
+    signInWithOtp: mockSignInWithOtp,
+    verifyOtp: mockVerifyOtp,
+    signInWithOAuth: mockSignInWithOAuth,
+    user: null,
+    loading: false,
+  }),
+}))
+
 
 // Mock Tamagui components (since LoginScreen imports directly from 'tamagui')
 jest.mock('tamagui', () => {
@@ -46,7 +72,6 @@ jest.mock('tamagui', () => {
     ScrollView: ({ children, ...props }: any) => <View {...props}>{children}</View>,
     Separator: () => <View />,
     useMedia: () => ({ sm: false, md: true, lg: false }), // Mock useMedia hook
-    // Add other mocks as needed
   }
 })
 

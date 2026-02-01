@@ -9,5 +9,8 @@ then
     exit 1
 fi
 
+echo "🔄 Preparing Test Environment..."
+./scripts/reset-and-seed.sh || exit 1
+
 echo "🏃 Running Maestro E2E Tests..."
 maestro test .maestro/home_screen_flow.yaml

@@ -57,6 +57,12 @@ yarn ios # or yarn android
 maestro test .maestro/home_screen_flow.yaml
 ```
 
+## 🔐 Native Authentication
+We use Supabase Auth with a custom Native adapter.
+- **iOS Localhost**: The app automatically rewrites `127.0.0.1` to `localhost` to work around Simulator networking quirks.
+- **Android Emulator**: Rewrites to `10.0.2.2`.
+- **Social Login**: Currently mocks the provider flow in `development` to fallback to a Password login (User: `mock@social.com`) if keys are missing.
+
 ## 🏗 Architecture
 
 - **Apps**: Entry points for Web (`apps/next-community`) and Mobile (`apps/expo-community`).

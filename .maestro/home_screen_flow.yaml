@@ -1,6 +1,9 @@
 appId: dev.casagrown.community
 ---
 - launchApp
+- extendedWaitUntil:
+    visible: 'CasaGrown'
+    timeout: 30000
 
 # Verify Home Screen
 - assertVisible: 'CasaGrown'

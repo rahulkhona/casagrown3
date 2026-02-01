@@ -1,0 +1,15 @@
+appId: dev.casagrown.community
+---
+- launchApp
+- tapOn: 'Log In'
+- assertVisible: 'Welcome Back'
+- tapOn: 'Email' # Tap email button
+- assertVisible: 'Enter your email'
+- inputText: 'test@example.com'
+- tapOn: 'Send Code'
+- assertVisible: "Verify it's you"
+- inputText: '123456' # Mock OTP
+- tapOn: 'Verify & Continue'
+- assertVisible: 'Login Successful!'
+- tapOn: 'Logout & Return Home'
+- assertVisible: 'CasaGrown' # Back on Home

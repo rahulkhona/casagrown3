@@ -62,8 +62,10 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.3",
-    "lint-staged": "^16.2.7",
+    "@types/pg": "^8.16.0",
+    "lint-staged": "15",
     "patch-package": "^8.0.1",
+    "pg": "^8.18.0",
     "postinstall-postinstall": "^2.1.0"
   },
   "lint-staged": {

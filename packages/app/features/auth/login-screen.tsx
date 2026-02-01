@@ -1,10 +1,12 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Platform, Image } from 'react-native'
-import { YStack, XStack, Text, Button, Input, ScrollView, Separator, useMedia } from 'tamagui'
+import { YStack, XStack, Text, Button, Input, ScrollView, Separator, useMedia, Spinner } from 'tamagui'
 import { ArrowLeft, Mail, Chrome } from '@tamagui/lucide-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { colors } from '../../design-tokens'
 import { useTranslation } from 'react-i18next'
+import { useRouter } from 'solito/navigation'
+import { useAuth } from './auth-hook'
 
 import { EmailSchema, OtpSchema } from './schemas'
 
@@ -17,37 +19,96 @@ interface LoginScreenProps {
 export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
+  const router = useRouter()
+  const { signInWithOtp, verifyOtp, signInWithOAuth, user } = useAuth()
+  
   const [loginMethod, setLoginMethod] = useState<'select' | 'email' | 'otp'>('select')
   const [email, setEmail] = useState('')
   const [otp, setOtp] = useState('')
-  const [errors, setErrors] = useState<{ email?: string; otp?: string }>({})
+  const [errors, setErrors] = useState<{ email?: string; otp?: string; general?: string }>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const media = useMedia()
 
-  const handleSocialLogin = (provider: string) => {
-    console.log(`Login with ${provider}`)
-    // Mock login
-    if (onLogin) onLogin(`test@${provider.toLowerCase()}.com`, `User ${provider}`)
+  // Redirect if logged in
+  useEffect(() => {
+    if (user) {
+        // Fire callback if provided (non-blocking)
+        if (onLogin) onLogin(user.email || '', user.user_metadata.full_name || '')
+        
+        // Navigate to temporary success page for manual testing
+        router.replace('/login-success')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, router])
+
+  const handleSocialLogin = async (provider: 'google' | 'apple' | 'facebook') => {
+    setIsSubmitting(true)
+    try {
+        await signInWithOAuth(provider)
+    } catch (e: any) {
+        setErrors({ ...errors, general: e.message })
+    } finally {
+        setIsSubmitting(false)
+    }
   }
 
-  const handleEmailSubmit = () => {
+  const handleEmailSubmit = async () => {
     const result = EmailSchema.safeParse(email)
-    if (!result.success) {
+    if (result.success === false) {
       setErrors({ ...errors, email: result.error.errors[0].message })
       return
     }
     setErrors({ ...errors, email: undefined })
-    setLoginMethod('otp')
+    setIsSubmitting(true)
+    console.log('📧 Sending OTP to:', email)
+
+    try {
+        const { otpToken } = await signInWithOtp(email)
+        console.log('✅ OTP Sent successfully')
+        
+        // DEV MODE: Show OTP token for testing
+        if (otpToken) {
+          alert(`🔑 DEV MODE\n\nYour OTP Code:\n${otpToken}\n\n(Copy this to verify login)`)
+        }
+        
+        setLoginMethod('otp')
+    } catch (e: any) {
+        console.error('❌ OTP Send Failed:', e)
+        setErrors({ ...errors, general: e.message || 'Network Error' })
+    } finally {
+        setIsSubmitting(false)
+    }
   }
 
-  const handleOtpSubmit = () => {
+  const handleOtpSubmit = async () => {
     const result = OtpSchema.safeParse(otp)
-    if (!result.success) {
+    if (result.success === false) {
         setErrors({ ...errors, otp: result.error.errors[0].message })
         return
     }
-    if (onLogin) {
-      setErrors({ ...errors, otp: undefined })
-      onLogin(email, email.split('@')[0])
+    setErrors({ ...errors, otp: undefined })
+    setIsSubmitting(true)
+
+    try {
+        const { session } = await verifyOtp(email, otp)
+        if (session) {
+             // Success handled by useEffect
+        } else {
+             setErrors({ ...errors, general: 'Invalid code' })
+        }
+    } catch (e: any) {
+         setErrors({ ...errors, general: e.message })
+    } finally {
+        setIsSubmitting(false)
+    }
+  }
+
+  const handleResendOtp = async () => {
+    try {
+        await signInWithOtp(email)
+        alert(t('auth.login.codeResent')) // Simple feedback, replace with Toast in real app
+    } catch (e: any) {
+        setErrors({ ...errors, general: e.message })
     }
   }
 
@@ -114,6 +175,13 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
                 )}
             </YStack>
 
+            {/* General Error Message */}
+            {errors.general && (
+                <YStack backgroundColor="$red3" padding="$3" borderRadius="$4">
+                    <Text color="$red11" textAlign="center">{errors.general}</Text>
+                </YStack>
+            )}
+
             <YStack gap="$2">
                 <Text fontSize="$7" fontWeight="700" color={colors.gray[900]} textAlign="center">
                     {t('auth.login.welcome')}
@@ -129,17 +197,20 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
                     <SocialButton 
                         icon={<Chrome size={20} color={colors.gray[700]} />} 
                         label={t('auth.login.continueGoogle')}
-                        onPress={() => handleSocialLogin('Google')} 
+                        onPress={() => handleSocialLogin('google')} 
+                        isLoading={isSubmitting}
                     />
                     <SocialButton 
                         icon={<Text fontSize={20} fontWeight="900" color="#1877F2">f</Text>}
                         label={t('auth.login.continueFacebook')} 
-                        onPress={() => handleSocialLogin('Facebook')} 
+                        onPress={() => handleSocialLogin('facebook')} 
+                        isLoading={isSubmitting}
                     />
                     <SocialButton 
                         icon={<Text fontSize={20} fontWeight="900" color={colors.gray[900]}></Text>}
                         label={t('auth.login.continueApple')} 
-                        onPress={() => handleSocialLogin('Apple')} 
+                        onPress={() => handleSocialLogin('apple')} 
+                        isLoading={isSubmitting}
                     />
 
                     <XStack alignItems="center" marginVertical="$4">
@@ -176,11 +247,14 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
                             size="$5"
                             borderRadius="$4"
                             borderWidth={1}
-                            borderColor={errors.email ? colors.red[500] : colors.gray[300]}
-                            focusStyle={{ borderColor: errors.email ? colors.red[500] : colors.green[500], borderWidth: 2 }}
+                            autoCapitalize="none"
+                            keyboardType="email-address"
+                            fontWeight="400"
+                            borderColor={errors.email ? '$red10' : colors.gray[300]}
+                            focusStyle={{ borderColor: errors.email ? '$red9' : colors.green[500], borderWidth: 2 }}
                         />
                         {errors.email && (
-                            <Text color={colors.red[500]} fontSize="$2">{t(errors.email)}</Text>
+                            <Text color="$red10" fontSize="$2">{errors.email}</Text>
                         )}
                     </YStack>
 
@@ -189,10 +263,13 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
                         height="$5"
                         borderRadius="$4"
                         onPress={handleEmailSubmit}
+                        disabled={isSubmitting}
+                        opacity={isSubmitting ? 0.7 : 1}
                         pressStyle={{ backgroundColor: colors.green[700] }}
                         hoverStyle={{ backgroundColor: colors.green[700] }}
+                        icon={isSubmitting ? <Spinner color="white" /> : undefined}
                     >
-                        <Text color="white" fontWeight="600" fontSize="$4">{t('auth.login.sendCode')}</Text>
+                        {!isSubmitting && <Text color="white" fontWeight="600" fontSize="$4">{t('auth.login.sendCode')}</Text>}
                     </Button>
 
                     <Button unstyled onPress={() => setLoginMethod('select')} alignItems="center" marginTop="$2">
@@ -223,12 +300,13 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
                             fontSize="$6"
                             letterSpacing={5}
                             maxLength={6}
+                            fontWeight="400"
                             borderWidth={1}
-                            borderColor={errors.otp ? colors.red[500] : colors.gray[300]}
-                            focusStyle={{ borderColor: errors.otp ? colors.red[500] : colors.green[500], borderWidth: 2 }}
+                            borderColor={errors.otp ? '$red10' : colors.gray[300]}
+                            focusStyle={{ borderColor: errors.otp ? '$red9' : colors.green[500], borderWidth: 2 }}
                         />
                         {errors.otp && (
-                            <Text color={colors.red[500]} fontSize="$2" textAlign="center">{t(errors.otp)}</Text>
+                            <Text color="$red10" fontSize="$2" textAlign="center">{errors.otp}</Text>
                         )}
                     </YStack>
 
@@ -246,7 +324,7 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
                         <Button unstyled onPress={() => setLoginMethod('email')} alignItems="center">
                             <Text color={colors.gray[600]} fontSize="$3">{t('auth.login.back')}</Text>
                         </Button>
-                         <Button unstyled alignItems="center">
+                        <Button unstyled alignItems="center" onPress={handleResendOtp}>
                             <Text color={colors.green[600]} fontSize="$3">{t('auth.login.resend')}</Text>
                         </Button>
                     </YStack>
@@ -270,7 +348,7 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
 }
 
 // Helper Component for Social Buttons
-function SocialButton({ icon, label, onPress }: { icon: any, label: string, onPress: () => void }) {
+function SocialButton({ icon, label, onPress, isLoading }: { icon: any, label: string, onPress: () => void, isLoading?: boolean }) {
     return (
         <Button 
             backgroundColor="white"
@@ -279,12 +357,13 @@ function SocialButton({ icon, label, onPress }: { icon: any, label: string, onPr
             borderRadius="$4"
             height="$5"
             onPress={onPress}
-            icon={icon}
+            disabled={isLoading}
+            icon={isLoading ? <Spinner color={colors.gray[700]} /> : icon}
             pressStyle={{ backgroundColor: colors.gray[50] }}
             hoverStyle={{ backgroundColor: colors.gray[50] }}
             justifyContent="center"
         >
-            <Text color={colors.gray[700]} fontWeight="500" fontSize="$3">{label}</Text>
+            {!isLoading && <Text color={colors.gray[700]} fontWeight="500" fontSize="$3">{label}</Text>}
         </Button>
     )
 }

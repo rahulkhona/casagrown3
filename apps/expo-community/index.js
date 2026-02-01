@@ -1,3 +1,4 @@
+import 'react-native-url-polyfill/auto'
 import { Platform } from 'react-native'
 
 // workaround for EXPO_OS not being inlined by babel-preset-expo
