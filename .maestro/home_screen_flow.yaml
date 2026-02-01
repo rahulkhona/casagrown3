@@ -4,11 +4,11 @@ appId: dev.casagrown.community
 
 # Verify Home Screen
 - assertVisible: 'CasaGrown'
-- assertVisible: 'Homegrown food for everyone'
-- assertVisible: 'Join the Movement'
+- assertVisible: "Fresh from Neighbors' backyard 🌱"
+- assertVisible: 'Join the Movement!'
 
 # Test Navigation
-- tapOn: 'Join the Movement'
+- tapOn: 'Join the Movement!'
 
 # Verify Login Screen
 - assertVisible: 'Welcome to CasaGrown'
