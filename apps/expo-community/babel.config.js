@@ -8,16 +8,14 @@ module.exports = (api) => {
         {
           root: ['../..'],
           alias: {
-            // define aliases to shorten the import paths
             '@casagrown/app': '../../packages/app',
             '@casagrown/ui': '../../packages/ui',
-            'app': '../../packages/app',
+            '@casagrown/config': '../../packages/config',
           },
           extensions: ['.js', '.jsx', '.tsx', '.ios.js', '.android.js'],
         },
       ],
-      // if you want reanimated support
-      // 'react-native-reanimated/plugin',
+      // Tamagui plugin disabled for Android EAS builds
       ...(process.env.EAS_BUILD_PLATFORM === 'android'
         ? []
         : [
@@ -32,7 +30,7 @@ module.exports = (api) => {
             ],
           ]),
       ['transform-inline-environment-variables', {
-        include: ['TAMAGUI_USE_NATIVE_PORTAL', 'NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY'],
+        include: ['EXPO_OS', 'TAMAGUI_USE_NATIVE_PORTAL', 'NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY'],
       }],
     ],
   }

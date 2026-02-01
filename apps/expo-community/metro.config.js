@@ -23,7 +23,6 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ]
 
-
 // enable package exports - required for tamagui v2 subpath imports
 config.resolver.unstable_enablePackageExports = true
 

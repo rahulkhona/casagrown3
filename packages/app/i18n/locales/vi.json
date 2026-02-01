@@ -1,0 +1,117 @@
+{
+  "home": {
+    "tagline": "Tươi • Địa phương • Tin cậy",
+    "headline": "Tươi ngon từ vườn nhà hàng xóm 🌱",
+    "subheadline": "Mua và bán nông sản tươi, trồng tại địa phương từ sân sau của hàng xóm. Tham gia cộng đồng siêu địa phương cùng nhau làm việc để giảm lãng phí và mở rộng tiếp cận thực phẩm tươi.",
+    "joinMovement": "Tham gia Phong trào!",
+    "howItWorks": {
+      "title": "Cách Hoạt Động 🎯",
+      "subtitle": "Tham gia cộng đồng siêu địa phương của bạn và bắt đầu mua, bán và kết nối với hàng xóm",
+      "steps": {
+        "1": {
+          "title": "Tham Gia Cộng Đồng",
+          "description": "Đăng ký và tham gia các cộng đồng dựa trên khu phố, nơi làm việc hoặc các địa điểm thường lui tới của bạn"
+        },
+        "2": {
+          "title": "Mua hoặc Bán Nông Sản",
+          "description": "Liệt kê nông sản dư thừa của bạn hoặc tìm các mặt hàng tươi từ hàng xóm bằng hệ thống điểm của chúng tôi"
+        },
+        "3": {
+          "title": "Ủy Quyền Nhiệm Vụ (Tùy chọn)",
+          "description": "Tùy chọn trao quyền cho thanh thiếu niên hoặc người làm vườn của bạn để quản lý bán hàng và giao hàng thay mặt bạn"
+        },
+        "4": {
+          "title": "Giao Hàng",
+          "description": "Giao nông sản, chụp ảnh giao hàng và được trả tiền bằng điểm. Không cần gặp mặt khó xử..."
+        },
+        "5": {
+          "title": "Đổi hoặc Quyên Góp Điểm",
+          "description": "Đổi điểm của bạn lấy thẻ quà tặng hoặc quyên góp cho các tổ chức từ thiện địa phương và ngân hàng thực phẩm"
+        }
+      }
+    },
+    "pointsSection": {
+      "title": "Tại sao sử dụng hệ thống điểm?",
+      "description": "Hệ thống điểm khép kín của chúng tôi giảm thiểu phí xử lý thanh toán và giữ lại nhiều tiền hơn trong cộng đồng của bạn. Điểm có sẵn ngay lập tức (không giống như thẻ tín dụng mất 2-5 ngày), làm cho ký quỹ và trả lại liền mạch. Mua điểm một lần, giao dịch với hàng xóm và đổi lấy thẻ quà tặng hoặc quyên góp cho từ thiện.",
+      "cta": "Tham gia CasaGrown Ngay"
+    },
+    "safetySection": {
+      "title": "Được Xây Dựng cho An Toàn & Tiện Lợi",
+      "description": "CasaGrown được thiết kế với các tính năng giúp việc mua và bán nông sản nhà trồng trở nên đơn giản, an toàn và bổ ích",
+      "features": {
+        "transaction": {
+          "title": "An Toàn & Bảo Mật Giao Dịch",
+          "description": "",
+          "bullets": [
+             "Hệ thống ký quỹ tích hợp bảo vệ người mua và người bán",
+             "Tùy chọn giao hàng để an toàn và tiện lợi",
+             "An toàn cho người bán tuổi teen",
+             "Chỉ thành viên địa phương giữ cho cộng đồng đáng tin cậy",
+             "Xử lý tranh chấp để hoàn toàn yên tâm"
+          ]
+        },
+        "instant": {
+          "title": "Điểm Có Sẵn Ngay Lập Tức",
+          "description": "Không giống như thẻ tín dụng hoặc Venmo mất 2-5 ngày làm việc để có tiền, điểm CasaGrown có sẵn ngay lập tức sau khi hoàn thành đơn hàng.",
+          "bullets": [
+            "Không có thời gian chờ đợi hoặc chậm trễ ngân hàng",
+            "Bắt đầu chi tiêu điểm ngay lập tức",
+            "Đổi lấy thẻ quà tặng bất cứ lúc nào"
+          ]
+        },
+        "community": {
+          "title": "Đóng Góp cho Cộng Đồng Của Bạn",
+          "description": "Biến thặng dư sân sau của bạn thành hỗ trợ cộng đồng bằng cách quyên góp điểm cho các tổ chức từ thiện địa phương và ngân hàng thực phẩm.",
+          "bullets": [
+            "Quyên góp điểm cho các tổ chức từ thiện địa phương",
+            "Hỗ trợ các ngân hàng thực phẩm cộng đồng",
+            "Mỗi giao dịch giảm lãng phí thực phẩm",
+            "Tạo ra sự khác biệt với mỗi lần bán"
+          ]
+        }
+      }
+    },
+    "missionSection": {
+      "title": "Tại sao giao dịch đồ nhà trồng?",
+      "description": "Chúng tôi đang thực hiện sứ mệnh loại bỏ lãng phí thực phẩm được trồng ở sân sau của người Mỹ và mở rộng quyền truy cập vào nông sản mới hái cho nhiều người hơn nữa.",
+      "cards": {
+        "freshness": {
+          "title": "Độ Tươi Ngon Tuyệt Vời",
+          "description": "Trái cây trong các cửa hàng tạp hóa thường mất hàng tuần đến hàng tháng để lên kệ. CasaGrown kết nối bạn với hàng xóm để có nông sản hái tươi từ trên cây."
+        },
+        "waste": {
+          "title": "Ngăn Chặn Lãng Phí Thực Phẩm",
+          "description": "Hơn 11,5 tỷ pound nông sản sân sau bị lãng phí mỗi năm. Tham gia với chúng tôi để cứu nó và nuôi sống 28 triệu người."
+        },
+        "inflation": {
+           "title": "Đánh Bại Lạm Phát",
+           "description": "Kiếm thêm tiền từ khu vườn của bạn bằng cách bán sự phong phú cây nhà lá vườn cho hàng xóm, hoặc tiết kiệm tiền bằng cách tìm nông sản chất lượng cao ngay bên cạnh."
+        },
+        "teen": {
+          "title": "Cơ Hội Cho Tuổi Teen",
+          "description": "Trao quyền cho thanh thiếu niên học các kỹ năng kinh doanh và kiếm tiền tiêu vặt bằng cách bán và giao nông sản nhà trồng."
+        }
+      }
+    },
+    "ctaSection": {
+      "title": "Sẵn sàng tạo ra sự khác biệt?",
+      "description": "Tham gia cùng hàng ngàn hàng xóm đã giao dịch nông sản nhà trồng. Bắt đầu tiết kiệm tiền, giảm lãng phí và xây dựng cộng đồng ngay hôm nay.",
+      "button": "Bắt Đầu Miễn Phí"
+    },
+    "footer": {
+      "tagline": "Kết nối cộng đồng thông qua chia sẻ thực phẩm bền vững.",
+      "product": "Sản phẩm",
+      "features": "Tính năng",
+      "howItWorks": "Cách Hoạt Động",
+      "pricing": "Giá cả",
+      "company": "Công ty",
+      "about": "Giới thiệu",
+      "blog": "Blog",
+      "contact": "Liên hệ",
+      "legal": "Pháp lý",
+      "privacy": "Riêng tư",
+      "terms": "Điều khoản",
+      "copyright": "© 2026 CasaGrown. Bảo lưu mọi quyền."
+    }
+  }
+}

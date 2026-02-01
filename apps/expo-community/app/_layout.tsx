@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useColorScheme } from 'react-native'
+import { useColorScheme, Platform } from 'react-native'
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native'
 import { useFonts } from 'expo-font'
 import { SplashScreen, Stack } from 'expo-router'
@@ -11,7 +11,7 @@ export const unstable_settings = {
 }
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
-SplashScreen.preventAutoHideAsync()
+// SplashScreen.preventAutoHideAsync()
 
 export default function App() {
   const [interLoaded, interError] = useFonts({
@@ -20,13 +20,24 @@ export default function App() {
   })
 
   useEffect(() => {
+    const timeout = setTimeout(() => {
+      console.log('SplashScreen safety timeout triggered')
+      SplashScreen.hideAsync()
+    }, 5000)
+
     if (interLoaded || interError) {
+      if (interError) console.error('Font loading error:', interError)
+      clearTimeout(timeout)
       // Hide the splash screen after the fonts have loaded (or an error was returned) and the UI is ready.
       SplashScreen.hideAsync()
     }
+    return () => clearTimeout(timeout)
   }, [interLoaded, interError])
 
   if (!interLoaded && !interError) {
+    if (Platform.OS === 'ios') {
+      return <RootLayoutNav />
+    }
     return null
   }
 

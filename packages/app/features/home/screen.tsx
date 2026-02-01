@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-// ... (imports)
 import {
   Button,
   H1,
@@ -13,10 +12,10 @@ import {
   XStack,
   YStack,
 } from '@casagrown/ui'
-import { ArrowRight, Shield, Zap, Heart, Sprout, Leaf, TrendingUp, GraduationCap, Sparkles, Ban, HandHeart } from '@tamagui/lucide-icons'
-import { Platform, useWindowDimensions, Image as NativeImage } from 'react-native'
-// ...
-import { colors, typography, howItWorksSteps, whyTradeCards, safetyFeatures } from '../../design-tokens'
+import { ArrowRight, Shield, Zap, HandHeart, Sparkles, Ban, TrendingUp, GraduationCap } from '@tamagui/lucide-icons'
+import { Platform, useWindowDimensions, Image } from 'react-native'
+import { colors } from '../../design-tokens'
+import { useTranslation } from 'react-i18next'
 
 // ============================================================================
 // Hooks
@@ -43,9 +42,54 @@ interface HomeScreenProps {
 }
 
 // ============================================================================
+// Language Switcher (Dev / Verification)
+// ============================================================================
+function LanguageSwitcher() {
+  const { i18n } = useTranslation()
+  const languages = [
+    { code: 'en', label: '🇬🇧 EN' },
+    { code: 'es', label: '🇪🇸 ES' },
+    { code: 'vi', label: '🇻🇳 VI' },
+  ]
+
+  // On native platforms, we need extra top margin to clear the header
+  const topOffset = Platform.OS === 'web' ? '$4' : '$2'
+  
+  return (
+    <XStack 
+      gap="$2" 
+      backgroundColor="white" 
+      padding="$2" 
+      borderRadius="$3"
+      shadowColor="rgba(0,0,0,0.1)"
+      shadowOffset={{ width: 0, height: 2 }}
+      shadowRadius={4}
+      alignSelf="center"
+      marginTop={topOffset}
+    >
+      {languages.map((lang) => (
+        <Button
+          key={lang.code}
+          size="$2"
+          backgroundColor={i18n.language?.startsWith(lang.code) ? colors.primary : colors.gray[200]}
+          onPress={() => i18n.changeLanguage(lang.code)}
+          pressStyle={{ opacity: 0.8 }}
+        >
+          <Text color={i18n.language?.startsWith(lang.code) ? 'white' : colors.gray[800]} fontSize={12} fontWeight="700">
+            {lang.label}
+          </Text>
+        </Button>
+      ))}
+    </XStack>
+  )
+}
+
+// ============================================================================
 // Hero Section
 // ============================================================================
 function HeroSection({ onLinkPress, heroImageSrc, logoSrc }: { onLinkPress?: () => void, heroImageSrc?: any, logoSrc?: any }) {
+  const { t } = useTranslation()
+  
   return (
     <YStack
       width="100%"
@@ -69,7 +113,6 @@ function HeroSection({ onLinkPress, heroImageSrc, logoSrc }: { onLinkPress?: () 
           gap="$4" 
           alignItems="center"
           paddingBottom="$6"
-          // Desktop overrides
           $md={{ 
             flex: 1, 
             alignItems: 'flex-start',
@@ -86,7 +129,7 @@ function HeroSection({ onLinkPress, heroImageSrc, logoSrc }: { onLinkPress?: () 
               />
             ) : (
               logoSrc ? (
-                <NativeImage
+                <Image
                   source={logoSrc}
                   style={{ width: 48, height: 48 }}
                   resizeMode="contain"
@@ -126,7 +169,7 @@ function HeroSection({ onLinkPress, heroImageSrc, logoSrc }: { onLinkPress?: () 
                   letterSpacing={1.2}
                   textTransform="uppercase"
                 >
-                  Fresh • Local • Trusted
+                  {t('home.tagline')}
                 </Text>
               </XStack>
             </YStack>
@@ -138,7 +181,7 @@ function HeroSection({ onLinkPress, heroImageSrc, logoSrc }: { onLinkPress?: () 
             fontSize={24}
             $md={{ fontSize: 30 }}
           >
-            Fresh from Neighbors' backyard 🌱
+            {t('home.headline')}
           </Text>
           
           <Paragraph 
@@ -150,8 +193,7 @@ function HeroSection({ onLinkPress, heroImageSrc, logoSrc }: { onLinkPress?: () 
             lineHeight={24}
             $md={{ textAlign: 'left' }}
           >
-            Buy and sell fresh, locally-grown produce from your neighbors' backyards. 
-            Join a hyper-local community working together to reduce waste and expand access to fresh food.
+            {t('home.subheadline')}
           </Paragraph>
           
           <Button
@@ -165,7 +207,7 @@ function HeroSection({ onLinkPress, heroImageSrc, logoSrc }: { onLinkPress?: () 
             onPress={onLinkPress}
           >
             <Text color="$white" fontWeight="600" fontSize={16}>
-              Join the Movement!
+              {t('home.joinMovement')}
             </Text>
           </Button>
         </YStack>
@@ -180,7 +222,6 @@ function HeroSection({ onLinkPress, heroImageSrc, logoSrc }: { onLinkPress?: () 
           shadowOffset={{ width: 0, height: 6 }}
           shadowRadius={20}
           elevation={8}
-          // Desktop overrides
           $md={{ 
             flex: 1, 
             width: 'auto',
@@ -195,11 +236,11 @@ function HeroSection({ onLinkPress, heroImageSrc, logoSrc }: { onLinkPress?: () 
             />
           ) : (
             heroImageSrc ? (
-              <NativeImage
-                source={heroImageSrc}
-                style={{ width: '100%', height: '100%' }}
-                resizeMode="cover"
-              />
+            <Image
+              source={heroImageSrc}
+              style={{ width: '100%', height: '100%' }}
+              resizeMode="cover"
+            />
             ) : (
               <YStack flex={1} backgroundColor="#c5f0e0" alignItems="center" justifyContent="center">
                 <Text fontSize={60}>🥕</Text>
@@ -213,7 +254,7 @@ function HeroSection({ onLinkPress, heroImageSrc, logoSrc }: { onLinkPress?: () 
 }
 
 // ============================================================================
-// How It Works Section (5 steps in single horizontal line)
+// How It Works Section
 // ============================================================================
 function StepCard({ number, title, description }: {
   number: number
@@ -264,17 +305,25 @@ function StepCard({ number, title, description }: {
 
 function HowItWorksSection() {
   const isMobile = useIsMobile()
-  const steps = howItWorksSteps
+  const { t } = useTranslation()
+  
+  const steps = [
+    { number: 1, title: t('home.howItWorks.steps.1.title'), description: t('home.howItWorks.steps.1.description') },
+    { number: 2, title: t('home.howItWorks.steps.2.title'), description: t('home.howItWorks.steps.2.description') },
+    { number: 3, title: t('home.howItWorks.steps.3.title'), description: t('home.howItWorks.steps.3.description') },
+    { number: 4, title: t('home.howItWorks.steps.4.title'), description: t('home.howItWorks.steps.4.description') },
+    { number: 5, title: t('home.howItWorks.steps.5.title'), description: t('home.howItWorks.steps.5.description') },
+  ]
 
   return (
     <YStack width="100%" paddingHorizontal="$4" paddingVertical="$10" backgroundColor={colors.white} alignItems="center">
       <YStack maxWidth={1300} width="100%" gap="$8" alignItems="center">
         <YStack alignItems="center" gap="$2">
           <H2 color={colors.gray[800]} fontSize={isMobile ? 30 : 36} fontWeight="700" textAlign="center">
-            How It Works 🎯
+            {t('home.howItWorks.title')}
           </H2>
           <Paragraph color={colors.gray[600]} fontSize={15} fontWeight="400" textAlign="center" maxWidth={650}>
-            Join your hyper-local community and start buying, selling, and connecting with neighbors
+            {t('home.howItWorks.subtitle')}
           </Paragraph>
         </YStack>
 
@@ -284,10 +333,10 @@ function HowItWorksSection() {
           justifyContent="center" 
           width="100%"
         >
-          {steps.map((step, index) => (
+          {steps.map((step) => (
             <StepCard
-              key={step.title}
-              number={index + 1}
+              key={step.number}
+              number={step.number}
               title={step.title}
               description={step.description}
             />
@@ -299,21 +348,20 @@ function HowItWorksSection() {
 }
 
 // ============================================================================
-// Why Use a Points System Section
+// Points System Section
 // ============================================================================
 function PointsSystemSection({ onLinkPress }: { onLinkPress?: () => void }) {
   const isMobile = useIsMobile()
+  const { t } = useTranslation()
+  
   return (
     <YStack width="100%" paddingHorizontal="$4" paddingVertical="$12" backgroundColor={colors.primary} alignItems="center">
       <YStack maxWidth={700} width="100%" gap="$5" alignItems="center">
         <H2 color={colors.white} fontSize={isMobile ? 30 : 36} fontWeight="700" textAlign="center">
-          Why Use a Points System?
+          {t('home.pointsSection.title')}
         </H2>
-          <Paragraph color={colors.green[50]} fontSize={15} fontWeight="400" textAlign="center" lineHeight={26} opacity={0.95} maxWidth={680}>
-          Our closed-loop point system minimizes payment processing fees and keeps more money in 
-          your community. Points are available instantly (unlike credit cards that take 2-5 days), making 
-          escrow and returns seamless. Buy points once, trade with neighbors, and redeem for gift cards 
-          or donate to charity.
+        <Paragraph color={colors.green[50]} fontSize={15} fontWeight="400" textAlign="center" lineHeight={26} opacity={0.95} maxWidth={680}>
+          {t('home.pointsSection.description')}
         </Paragraph>
         
         <Button
@@ -325,7 +373,7 @@ function PointsSystemSection({ onLinkPress }: { onLinkPress?: () => void }) {
           iconAfter={ArrowRight}
           onPress={onLinkPress}
         >
-          <Text color={colors.primary} fontWeight="600">Join CasaGrown Today</Text>
+          <Text color={colors.primary} fontWeight="600">{t('home.pointsSection.cta')}</Text>
         </Button>
       </YStack>
     </YStack>
@@ -333,7 +381,7 @@ function PointsSystemSection({ onLinkPress }: { onLinkPress?: () => void }) {
 }
 
 // ============================================================================
-// Built for Safety & Convenience Section
+// Safety & Convenience Section
 // ============================================================================
 function FeatureCard({ icon: Icon, iconBg, title, bullets, introText }: {
   icon: any
@@ -384,7 +432,7 @@ function FeatureCard({ icon: Icon, iconBg, title, bullets, introText }: {
       )}
       
       <YStack gap="$2">
-        {bullets.map((bullet, i) => (
+        {Array.isArray(bullets) && bullets.map((bullet, i) => (
           <XStack key={i} gap="$2" alignItems="flex-start">
             <Text color={colors.primary} fontWeight="700" fontSize={15}>•</Text>
             <Text color={colors.gray[700]} fontSize={15} fontWeight="400" flex={1} lineHeight={20}>
@@ -399,41 +447,29 @@ function FeatureCard({ icon: Icon, iconBg, title, bullets, introText }: {
 
 function SafetyConvenienceSection() {
   const isMobile = useIsMobile()
+  const { t } = useTranslation()
+  
   const features = [
     {
       icon: Shield,
       iconBg: '#16a34a',
-      title: 'Transaction Safety & Security',
-      bullets: [
-        'Built-in escrow system protects buyers and sellers',
-        'Drop-off option for safety and convenience',
-        'Safe for teen sellers',
-        'Local-only membership keeps community trusted',
-        'Dispute handling for complete peace of mind',
-      ],
+      title: t('home.safetySection.features.transaction.title'),
+      introText: t('home.safetySection.features.transaction.description'),
+      bullets: t('home.safetySection.features.transaction.bullets', { returnObjects: true }) as string[],
     },
     {
       icon: Zap,
       iconBg: '#16a34a',
-      title: 'Instant Point Availability',
-      introText: 'Unlike credit cards or Venmo which take 2-5 business days to make funds available, CasaGrown points are available immediately upon order completion.',
-      bullets: [
-        'No waiting periods or banking delays',
-        'Start spending points instantly',
-        'Redeem for gift cards anytime',
-      ],
+      title: t('home.safetySection.features.instant.title'),
+      introText: t('home.safetySection.features.instant.description'),
+      bullets: t('home.safetySection.features.instant.bullets', { returnObjects: true }) as string[],
     },
     {
       icon: HandHeart,
       iconBg: '#16a34a',
-      title: 'Give Back to Your Community',
-      introText: 'Turn your backyard surplus into community support by donating points to local charities and food banks.',
-      bullets: [
-        'Donate points to local charities',
-        'Support community food banks',
-        'Every transaction reduces food waste',
-        'Make a difference with every sale',
-      ],
+      title: t('home.safetySection.features.community.title'),
+      introText: t('home.safetySection.features.community.description'),
+      bullets: t('home.safetySection.features.community.bullets', { returnObjects: true }) as string[],
     },
   ]
 
@@ -442,10 +478,10 @@ function SafetyConvenienceSection() {
       <YStack maxWidth={1200} width="100%" gap="$8" alignItems="center">
         <YStack alignItems="center" gap="$4">
           <H2 color={colors.gray[800]} fontSize={isMobile ? 30 : 36} fontWeight="700" textAlign="center">
-            Built for Safety & Convenience
+            {t('home.safetySection.title')}
           </H2>
           <Paragraph color={colors.gray[600]} fontSize={15} fontWeight="400" textAlign="center" maxWidth={750}>
-            CasaGrown is designed with features that make buying and selling homegrown produce, simple, safe and rewarding
+            {t('home.safetySection.description')}
           </Paragraph>
         </YStack>
 
@@ -461,68 +497,6 @@ function SafetyConvenienceSection() {
             />
           ))}
         </XStack>
-      </YStack>
-    </YStack>
-  )
-}
-
-// ============================================================================
-// Footer Section
-// ============================================================================
-function Footer() {
-  const isMobile = useIsMobile()
-
-  return (
-    <YStack width="100%" paddingHorizontal="$4" paddingVertical="$8" backgroundColor={colors.gray[800]} alignItems="center">
-      <YStack maxWidth={1000} width="100%" gap="$6">
-        <XStack
-          flexDirection={isMobile ? 'column' : 'row'}
-          justifyContent="space-between"
-          alignItems={isMobile ? 'center' : 'flex-start'}
-          gap="$6"
-        >
-          <YStack alignItems={isMobile ? 'center' : 'flex-start'} gap="$2">
-            <XStack alignItems="center" gap="$2">
-              {Platform.OS === 'web' ? (
-                <img src="/logo.png" alt="CasaGrown" style={{ width: 32, height: 32, objectFit: 'contain' }} />
-              ) : (
-                <Text>🏠</Text>
-              )}
-              <Text fontWeight="600" fontSize={18} color={colors.white}>
-                CasaGrown
-              </Text>
-            </XStack>
-            <Paragraph color={colors.gray[400]} fontSize={13} textAlign={isMobile ? 'center' : 'left'} maxWidth={280}>
-              Connecting communities through sustainable food sharing.
-            </Paragraph>
-          </YStack>
-
-          <XStack gap="$8" flexWrap="wrap" justifyContent="center">
-            <YStack gap="$2" alignItems={isMobile ? 'center' : 'flex-start'}>
-              <Text color={colors.white} fontWeight="600" fontSize={14}>Product</Text>
-              <Text color={colors.gray[400]} fontSize={13}>Features</Text>
-              <Text color={colors.gray[400]} fontSize={13}>How It Works</Text>
-              <Text color={colors.gray[400]} fontSize={13}>Pricing</Text>
-            </YStack>
-            <YStack gap="$2" alignItems={isMobile ? 'center' : 'flex-start'}>
-              <Text color={colors.white} fontWeight="600" fontSize={14}>Company</Text>
-              <Text color={colors.gray[400]} fontSize={13}>About</Text>
-              <Text color={colors.gray[400]} fontSize={13}>Blog</Text>
-              <Text color={colors.gray[400]} fontSize={13}>Contact</Text>
-            </YStack>
-            <YStack gap="$2" alignItems={isMobile ? 'center' : 'flex-start'}>
-              <Text color={colors.white} fontWeight="600" fontSize={14}>Legal</Text>
-              <Text color={colors.gray[400]} fontSize={13}>Privacy</Text>
-              <Text color={colors.gray[400]} fontSize={13}>Terms</Text>
-            </YStack>
-          </XStack>
-        </XStack>
-
-        <YStack borderTopWidth={1} borderColor={colors.gray[700]} paddingTop="$4" alignItems="center">
-          <Text color={colors.gray[500]} fontSize={12}>
-            © 2026 CasaGrown. All rights reserved.
-          </Text>
-        </YStack>
       </YStack>
     </YStack>
   )
@@ -577,38 +551,40 @@ function TradeCard({ bgColor, iconBg, iconColor, icon: Icon, title, description 
 
 function WhyTradeHomegrownSection() {
   const isMobile = useIsMobile()
+  const { t } = useTranslation()
+
   const cards = [
     {
       bgColor: colors.emerald[200],
       iconBg: colors.emerald[300],
       iconColor: colors.emerald[700],
       icon: Sparkles,
-      title: whyTradeCards[0].title,
-      description: whyTradeCards[0].description,
+      title: t('home.missionSection.cards.freshness.title'),
+      description: t('home.missionSection.cards.freshness.description'),
     },
     {
       bgColor: colors.amber[200],
       iconBg: colors.amber[300],
       iconColor: colors.amber[700],
       icon: Ban,
-      title: whyTradeCards[1].title,
-      description: whyTradeCards[1].description,
+      title: t('home.missionSection.cards.waste.title'),
+      description: t('home.missionSection.cards.waste.description'),
     },
     {
       bgColor: colors.sky[200],
       iconBg: colors.sky[300],
       iconColor: colors.sky[700],
       icon: TrendingUp,
-      title: whyTradeCards[2].title,
-      description: whyTradeCards[2].description,
+      title: t('home.missionSection.cards.inflation.title'),
+      description: t('home.missionSection.cards.inflation.description'),
     },
     {
       bgColor: colors.pink[200],
       iconBg: colors.pink[300],
       iconColor: colors.pink[700],
       icon: GraduationCap,
-      title: whyTradeCards[3].title,
-      description: whyTradeCards[3].description,
+      title: t('home.missionSection.cards.teen.title'),
+      description: t('home.missionSection.cards.teen.description'),
     },
   ]
 
@@ -617,17 +593,17 @@ function WhyTradeHomegrownSection() {
       <YStack maxWidth={1100} width="100%" gap="$8" alignItems="center">
         <YStack alignItems="center" gap="$2">
           <H2 color={colors.gray[800]} fontSize={isMobile ? 30 : 36} fontWeight="700" textAlign="center">
-            Why Trade Homegrown?
+            {t('home.missionSection.title')}
           </H2>
           <Paragraph color={colors.gray[600]} fontSize={15} fontWeight="400" textAlign="center" maxWidth={750}>
-            We're on a mission to eliminate wastage of food grown in American backyards and expand access to freshly picked produce to many more people.
+            {t('home.missionSection.description')}
           </Paragraph>
         </YStack>
 
         <XStack flexWrap="wrap" gap="$4" justifyContent="center" width="100%">
-          {cards.map((card) => (
+          {cards.map((card, i) => (
             <TradeCard
-              key={card.title}
+              key={i}
               bgColor={card.bgColor}
               iconBg={card.iconBg}
               iconColor={card.iconColor}
@@ -647,14 +623,16 @@ function WhyTradeHomegrownSection() {
 // ============================================================================
 function ReadyToMakeDifferenceSection({ onLinkPress }: { onLinkPress?: () => void }) {
   const isMobile = useIsMobile()
+  const { t } = useTranslation()
+
   return (
     <YStack width="100%" paddingHorizontal="$4" paddingVertical="$12" backgroundColor={colors.primary} alignItems="center">
       <YStack maxWidth={700} width="100%" gap="$5" alignItems="center">
         <H2 color={colors.white} fontSize={isMobile ? 30 : 36} fontWeight="700" textAlign="center">
-          Ready to Make a Difference?
+          {t('home.ctaSection.title')}
         </H2>
         <Paragraph color={colors.green[50]} fontSize={15} fontWeight="400" textAlign="center" lineHeight={28} opacity={0.95}>
-          Join thousands of neighbors already trading homegrown produce. Start saving money, reducing waste, and building community today.
+          {t('home.ctaSection.description')}
         </Paragraph>
         
         <Button
@@ -666,8 +644,71 @@ function ReadyToMakeDifferenceSection({ onLinkPress }: { onLinkPress?: () => voi
           iconAfter={ArrowRight}
           onPress={onLinkPress}
         >
-          <Text color={colors.primary} fontWeight="600">Get Started for Free</Text>
+          <Text color={colors.primary} fontWeight="600">{t('home.ctaSection.button')}</Text>
         </Button>
+      </YStack>
+    </YStack>
+  )
+}
+
+// ============================================================================
+// Footer Section
+// ============================================================================
+function Footer() {
+  const isMobile = useIsMobile()
+  const { t } = useTranslation()
+
+  return (
+    <YStack width="100%" paddingHorizontal="$4" paddingVertical="$8" backgroundColor={colors.gray[800]} alignItems="center">
+      <YStack maxWidth={1000} width="100%" gap="$6">
+        <XStack
+          flexDirection={isMobile ? 'column' : 'row'}
+          justifyContent="space-between"
+          alignItems={isMobile ? 'center' : 'flex-start'}
+          gap="$6"
+        >
+          <YStack alignItems={isMobile ? 'center' : 'flex-start'} gap="$2">
+            <XStack alignItems="center" gap="$2">
+              {Platform.OS === 'web' ? (
+                <img src="/logo.png" alt="CasaGrown" style={{ width: 32, height: 32, objectFit: 'contain' }} />
+              ) : (
+                <Text>🏠</Text>
+              )}
+              <Text fontWeight="600" fontSize={18} color={colors.white}>
+                CasaGrown
+              </Text>
+            </XStack>
+            <Paragraph color={colors.gray[400]} fontSize={13} textAlign={isMobile ? 'center' : 'left'} maxWidth={280}>
+              {t('home.footer.tagline')}
+            </Paragraph>
+          </YStack>
+
+          <XStack gap="$8" flexWrap="wrap" justifyContent="center">
+            <YStack gap="$2" alignItems={isMobile ? 'center' : 'flex-start'}>
+              <Text color={colors.white} fontWeight="600" fontSize={14}>{t('home.footer.product')}</Text>
+              <Text color={colors.gray[400]} fontSize={13}>{t('home.footer.features')}</Text>
+              <Text color={colors.gray[400]} fontSize={13}>{t('home.footer.howItWorks')}</Text>
+              <Text color={colors.gray[400]} fontSize={13}>{t('home.footer.pricing')}</Text>
+            </YStack>
+            <YStack gap="$2" alignItems={isMobile ? 'center' : 'flex-start'}>
+              <Text color={colors.white} fontWeight="600" fontSize={14}>{t('home.footer.company')}</Text>
+              <Text color={colors.gray[400]} fontSize={13}>{t('home.footer.about')}</Text>
+              <Text color={colors.gray[400]} fontSize={13}>{t('home.footer.blog')}</Text>
+              <Text color={colors.gray[400]} fontSize={13}>{t('home.footer.contact')}</Text>
+            </YStack>
+            <YStack gap="$2" alignItems={isMobile ? 'center' : 'flex-start'}>
+              <Text color={colors.white} fontWeight="600" fontSize={14}>{t('home.footer.legal')}</Text>
+              <Text color={colors.gray[400]} fontSize={13}>{t('home.footer.privacy')}</Text>
+              <Text color={colors.gray[400]} fontSize={13}>{t('home.footer.terms')}</Text>
+            </YStack>
+          </XStack>
+        </XStack>
+
+        <YStack borderTopWidth={1} borderColor={colors.gray[700]} paddingTop="$4" alignItems="center">
+          <Text color={colors.gray[500]} fontSize={12}>
+            {t('home.footer.copyright')}
+          </Text>
+        </YStack>
       </YStack>
     </YStack>
   )
@@ -683,6 +724,7 @@ export function HomeScreen({ onLinkPress, heroImageSrc, logoSrc }: HomeScreenPro
       backgroundColor="#ffffff"
       showsVerticalScrollIndicator={Platform.OS === 'web'}
     >
+      <LanguageSwitcher />
       <YStack flex={1} minHeight="100%">
         <HeroSection onLinkPress={onLinkPress} heroImageSrc={heroImageSrc} logoSrc={logoSrc} />
         <HowItWorksSection />

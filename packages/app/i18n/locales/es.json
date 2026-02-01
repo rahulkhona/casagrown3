@@ -1,0 +1,117 @@
+{
+  "home": {
+    "tagline": "Fresco • Local • Confiable",
+    "headline": "Fresco del patio de sus vecinos 🌱",
+    "subheadline": "Compre y venda productos frescos y cultivados localmente en los patios de sus vecinos. Únase a una comunidad hiperlocal que trabaja junta para reducir el desperdicio y ampliar el acceso a alimentos frescos.",
+    "joinMovement": "¡Únete al Movimiento!",
+    "howItWorks": {
+      "title": "Cómo Funciona 🎯",
+      "subtitle": "Únase a su comunidad hiperlocal y comience a comprar, vender y conectarse con vecinos",
+      "steps": {
+        "1": {
+          "title": "Únase a Su Comunidad",
+          "description": "Regístrese y únase a comunidades basadas en su vecindario, lugar de trabajo o lugares frecuentados"
+        },
+        "2": {
+          "title": "Compre o Venda Productos",
+          "description": "Liste sus productos excedentes o encuentre artículos frescos de vecinos usando nuestro sistema de puntos"
+        },
+        "3": {
+          "title": "Delegue Tareas (Opcional)",
+          "description": "Opcionalmente, capacite a su adolescente o jardinero para administrar ventas y entregas en su nombre"
+        },
+        "4": {
+          "title": "Entrega",
+          "description": "Entregue productos, tome una foto de la entrega y reciba el pago en puntos. Sin reuniones incómodas..."
+        },
+        "5": {
+          "title": "Canjee o Done Puntos",
+          "description": "Canjee sus puntos por tarjetas de regalo o dónelos a organizaciones benéficas locales y bancos de alimentos"
+        }
+      }
+    },
+    "pointsSection": {
+      "title": "¿Por qué usar un sistema de puntos?",
+      "description": "Nuestro sistema de puntos de ciclo cerrado minimiza las tarifas de procesamiento de pagos y mantiene más dinero en su comunidad. Los puntos están disponibles al instante (a diferencia de las tarjetas de crédito que tardan de 2 a 5 días), lo que hace que el depósito en garantía y las devoluciones sean fluidos. Compre puntos una vez, intercambie con vecinos y canjee por tarjetas de regalo o done a caridad.",
+      "cta": "Únase a CasaGrown Hoy"
+    },
+    "safetySection": {
+      "title": "Construido para Seguridad y Conveniencia",
+      "description": "CasaGrown está diseñado con características que hacen que comprar y vender productos caseros sea simple, seguro y gratificante",
+      "features": {
+        "transaction": {
+          "title": "Seguridad y Protección de Transacciones",
+          "description": "",
+          "bullets": [
+             "El sistema de depósito en garantía incorporado protege a compradores y vendedores",
+             "Opción de entrega para seguridad y conveniencia",
+             "Seguro para vendedores adolescentes",
+             "La membresía solo local mantiene la confianza en la comunidad",
+             "Manejo de disputas para completa tranquilidad"
+          ]
+        },
+        "instant": {
+          "title": "Disponibilidad Instantánea de Puntos",
+          "description": "A diferencia de las tarjetas de crédito o Venmo que tardan de 2 a 5 días hábiles en hacer que los fondos estén disponibles, los puntos de CasaGrown están disponibles inmediatamente después de completar el pedido.",
+          "bullets": [
+            "Sin períodos de espera ni retrasos bancarios",
+            "Comience a gastar puntos al instante",
+            "Canjee por tarjetas de regalo en cualquier momento"
+          ]
+        },
+        "community": {
+          "title": "Devuelva a Su Comunidad",
+          "description": "Convierta su excedente de patio trasero en apoyo comunitario donando puntos a organizaciones benéficas locales y bancos de alimentos.",
+          "bullets": [
+            "Done puntos a organizaciones benéficas locales",
+            "Apoye a los bancos de alimentos comunitarios",
+            "Cada transacción reduce el desperdicio de alimentos",
+            "Haga una diferencia con cada venta"
+          ]
+        }
+      }
+    },
+    "missionSection": {
+      "title": "¿Por qué intercambiar productos caseros?",
+      "description": "Estamos en una misión para eliminar el desperdicio de alimentos cultivados en los patios traseros estadounidenses y ampliar el acceso a productos recién cosechados a muchas más personas.",
+      "cards": {
+        "freshness": {
+          "title": "Frescura Increíble",
+          "description": "Las frutas en las tiendas de comestibles a menudo tardan semanas o meses en llegar a los estantes. CasaGrown lo conecta con vecinos para productos recién cosechados del árbol."
+        },
+        "waste": {
+          "title": "Detener el Desperdicio de Alimentos",
+          "description": "Más de 11.5 mil millones de libras de productos de patio trasero se desperdician cada año. Únase a nosotros para guardarlo y alimentar a 28 millones de personas."
+        },
+        "inflation": {
+           "title": "Vencer la Inflación",
+           "description": "Gane dinero extra de su jardín vendiendo abundancia casera a vecinos, o ahorre dinero encontrando productos de alta calidad justo al lado."
+        },
+        "teen": {
+          "title": "Oportunidad para Adolescentes",
+          "description": "Capacite a los adolescentes para que aprendan habilidades comerciales y ganen dinero de bolsillo vendiendo y entregando productos caseros."
+        }
+      }
+    },
+    "ctaSection": {
+      "title": "¿Listo para hacer una diferencia?",
+      "description": "Únase a miles de vecinos que ya intercambian productos caseros. Comience a ahorrar dinero, reducir el desperdicio y construir comunidad hoy.",
+      "button": "Empiece Gratis"
+    },
+    "footer": {
+      "tagline": "Conectando comunidades a través del intercambio sostenible de alimentos.",
+      "product": "Producto",
+      "features": "Características",
+      "howItWorks": "Cómo Funciona",
+      "pricing": "Precios",
+      "company": "Compañía",
+      "about": "Acerca de",
+      "blog": "Blog",
+      "contact": "Contacto",
+      "legal": "Legal",
+      "privacy": "Privacidad",
+      "terms": "Términos",
+      "copyright": "© 2026 CasaGrown. Todos los derechos reservados."
+    }
+  }
+}

@@ -8,7 +8,6 @@ if (typeof process !== 'undefined' && process.env && !process.env.EXPO_OS) {
 
 import { registerRootComponent } from 'expo'
 import { ExpoRoot } from 'expo-router'
-import React from 'react'
 
 // Must be exported or Fast Refresh won't update the context
 export function App() {

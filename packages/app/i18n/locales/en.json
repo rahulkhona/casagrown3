@@ -1,0 +1,117 @@
+{
+  "home": {
+    "tagline": "Fresh • Local • Trusted",
+    "headline": "Fresh from Neighbors' backyard 🌱",
+    "subheadline": "Buy and sell fresh, locally-grown produce from your neighbors' backyards. Join a hyper-local community working together to reduce waste and expand access to fresh food.",
+    "joinMovement": "Join the Movement!",
+    "howItWorks": {
+      "title": "How It Works 🎯",
+      "subtitle": "Join your hyper-local community and start buying, selling, and connecting with neighbors",
+      "steps": {
+        "1": {
+          "title": "Join Your Community",
+          "description": "Sign up and join communities based on your neighborhood, workplace, or frequented spots"
+        },
+        "2": {
+          "title": "Buy or Sell Produce",
+          "description": "List your excess produce or find fresh items from neighbors using our point system"
+        },
+        "3": {
+          "title": "Delegate Tasks (Optional)",
+          "description": "Optionally empower your teen or gardener to manage sales and deliveries on your behalf"
+        },
+        "4": {
+          "title": "Drop-off",
+          "description": "Drop-off produce, take photo of delivery and get paid in points. No awkward meetups..."
+        },
+        "5": {
+          "title": "Redeem or Donate Points",
+          "description": "Redeem your points for gift cards or donate to local charities and food banks"
+        }
+      }
+    },
+    "pointsSection": {
+      "title": "Why Use a Points System?",
+      "description": "Our closed-loop point system minimizes payment processing fees and keeps more money in your community. Points are available instantly (unlike credit cards that take 2-5 days), making escrow and returns seamless. Buy points once, trade with neighbors, and redeem for gift cards or donate to charity.",
+      "cta": "Join CasaGrown Today"
+    },
+    "safetySection": {
+      "title": "Built for Safety & Convenience",
+      "description": "CasaGrown is designed with features that make buying and selling homegrown produce, simple, safe and rewarding",
+      "features": {
+        "transaction": {
+          "title": "Transaction Safety & Security",
+          "description": "",
+          "bullets": [
+             "Built-in escrow system protects buyers and sellers",
+             "Drop-off option for safety and convenience",
+             "Safe for teen sellers",
+             "Local-only membership keeps community trusted",
+             "Dispute handling for complete peace of mind"
+          ]
+        },
+        "instant": {
+          "title": "Instant Point Availability",
+          "description": "Unlike credit cards or Venmo which take 2-5 business days to make funds available, CasaGrown points are available immediately upon order completion.",
+          "bullets": [
+            "No waiting periods or banking delays",
+            "Start spending points instantly",
+            "Redeem for gift cards anytime"
+          ]
+        },
+        "community": {
+          "title": "Give Back to Your Community",
+          "description": "Turn your backyard surplus into community support by donating points to local charities and food banks.",
+          "bullets": [
+            "Donate points to local charities",
+            "Support community food banks",
+            "Every transaction reduces food waste",
+            "Make a difference with every sale"
+          ]
+        }
+      }
+    },
+    "missionSection": {
+      "title": "Why Trade Homegrown?",
+      "description": "We're on a mission to eliminate wastage of food grown in American backyards and expand access to freshly picked produce to many more people.",
+      "cards": {
+        "freshness": {
+          "title": "Incredible Freshness",
+          "description": "Fruits in grocery stores often take weeks to months to reach the shelves. CasaGrown connects you with neighbors for produce picked fresh from the tree."
+        },
+        "waste": {
+          "title": "Stop Food Waste",
+          "description": "Over 11.5 billion pounds of backyard produce goes to waste every year. Join us in saving it to feed 28 million people."
+        },
+        "inflation": {
+           "title": "Beat Inflation",
+           "description": "Earn extra cash from your garden selling homegrown abundance to neighbors, or save money by finding high-quality produce right next door."
+        },
+        "teen": {
+          "title": "Teen Opportunity",
+          "description": "Empower teens to learn business skills and earn pocket money by selling and delivering homegrown produce."
+        }
+      }
+    },
+    "ctaSection": {
+      "title": "Ready to Make a Difference?",
+      "description": "Join thousands of neighbors already trading homegrown produce. Start saving money, reducing waste, and building community today.",
+      "button": "Get Started for Free"
+    },
+    "footer": {
+      "tagline": "Connecting communities through sustainable food sharing.",
+      "product": "Product",
+      "features": "Features",
+      "howItWorks": "How It Works",
+      "pricing": "Pricing",
+      "company": "Company",
+      "about": "About",
+      "blog": "Blog",
+      "contact": "Contact",
+      "legal": "Legal",
+      "privacy": "Privacy",
+      "terms": "Terms",
+      "copyright": "© 2026 CasaGrown. All rights reserved."
+    }
+  }
+}

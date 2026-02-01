@@ -2,6 +2,8 @@ import { useColorScheme } from 'react-native'
 import { TamaguiProvider, type TamaguiProviderProps } from 'tamagui'
 import { config } from '@casagrown/config'
 import { SupabaseProvider } from './supabase'
+import { I18nextProvider } from 'react-i18next'
+import i18n from '../i18n'
 
 export function Provider({
   children,
@@ -17,9 +19,11 @@ export function Provider({
       defaultTheme={theme}
       {...rest}
     >
-      <SupabaseProvider>
-        {children}
-      </SupabaseProvider>
+      <I18nextProvider i18n={i18n}>
+        <SupabaseProvider>
+          {children}
+        </SupabaseProvider>
+      </I18nextProvider>
     </TamaguiProvider>
   )
 }
