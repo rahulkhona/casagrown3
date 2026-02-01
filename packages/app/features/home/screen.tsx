@@ -724,7 +724,7 @@ export function HomeScreen({ onLinkPress, heroImageSrc, logoSrc }: HomeScreenPro
       backgroundColor="#ffffff"
       showsVerticalScrollIndicator={Platform.OS === 'web'}
     >
-      <LanguageSwitcher />
+      {/* Language is detected from device settings - user can override in profile later */}
       <YStack flex={1} minHeight="100%">
         <HeroSection onLinkPress={onLinkPress} heroImageSrc={heroImageSrc} logoSrc={logoSrc} />
         <HowItWorksSection />
