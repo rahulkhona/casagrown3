@@ -1,9 +1,12 @@
 
-# Check if maestro is installed
+# Ensure Maestro is available
+export PATH="$HOME/.maestro/bin:$PATH"
+
 if ! command -v maestro &> /dev/null
 then
-    echo "⚠️  Maestro not found. Skipping E2E tests."
-    exit 0
+    echo "❌ Maestro not found! E2E tests are required."
+    echo "👉 Install it: curl -Ls \"https://get.maestro.mobile.dev\" | bash"
+    exit 1
 fi
 
 echo "🏃 Running Maestro E2E Tests..."
