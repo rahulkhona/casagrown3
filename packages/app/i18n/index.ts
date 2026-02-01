@@ -8,16 +8,27 @@ import en from './locales/en.json'
 import es from './locales/es.json'
 import vi from './locales/vi.json'
 
+const SUPPORTED_LANGUAGES = ['en', 'es', 'vi']
+
 const getLanguage = (): string => {
-  if (Platform.OS !== 'web') {
-    try {
-      const locales = Localization.getLocales()
-      if (locales && locales.length > 0) {
-        return locales[0].languageCode?.split('-')[0] || 'en'
-      }
-    } catch (e) {
-      console.warn('Localization native module not found, falling back to English.')
+  // Web: Detect from browser settings
+  if (Platform.OS === 'web') {
+    if (typeof navigator !== 'undefined' && navigator.language) {
+      const browserLang = navigator.language.split('-')[0]
+      return SUPPORTED_LANGUAGES.includes(browserLang) ? browserLang : 'en'
     }
+    return 'en'
+  }
+  
+  // Native (iOS/Android): Detect from device settings
+  try {
+    const locales = Localization.getLocales()
+    if (locales && locales.length > 0) {
+      const deviceLang = locales[0].languageCode?.split('-')[0] || 'en'
+      return SUPPORTED_LANGUAGES.includes(deviceLang) ? deviceLang : 'en'
+    }
+  } catch (e) {
+    console.warn('Localization native module not found, falling back to English.')
   }
   return 'en'
 }
@@ -40,7 +51,7 @@ i18n
     react: {
       useSuspense: false,
     },
-    compatibilityJSON: 'v3',
+    compatibilityJSON: 'v4',
   })
 
 export default i18n
