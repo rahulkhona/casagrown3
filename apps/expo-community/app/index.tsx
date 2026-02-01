@@ -1,4 +1,4 @@
-import { HomeScreen } from 'app/features/home/screen'
+import { HomeScreen } from '@casagrown/app/features/home/screen'
 import { Stack, useRouter } from 'expo-router'
 
 export default function Screen() {
@@ -11,7 +11,11 @@ export default function Screen() {
           title: 'Home',
         }}
       />
-      <HomeScreen onLinkPress={() => router.push('/user/nate')} />
+      <HomeScreen 
+        onLinkPress={() => router.push('/user/nate')} 
+        heroImageSrc={require('../assets/hero.jpg')}
+        logoSrc={require('../assets/logo.png')}
+      />
     </>
   )
 }

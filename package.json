@@ -21,7 +21,7 @@
     "web:prod": "yarn workspace next-community build",
     "web:prod:admin": "yarn workspace next-admin build",
     "web:prod:serve": "yarn workspace next-community serve",
-    "postinstall": "yarn check-tamagui",
+    "postinstall": "patch-package && yarn check-tamagui",
     "build": "yarn workspaces foreach --all --exclude next-community --exclude next-admin run build",
     "upgrade:tamagui": "yarn up '*tamagui*'@latest '@tamagui/*'@latest",
     "upgrade:tamagui:canary": "yarn up '*tamagui*'@canary '@tamagui/*'@canary",
@@ -61,6 +61,8 @@
     "npm": "10.8"
   },
   "devDependencies": {
-    "@biomejs/biome": "^1.9.3"
+    "@biomejs/biome": "^1.9.3",
+    "patch-package": "^8.0.1",
+    "postinstall-postinstall": "^2.1.0"
   }
 }

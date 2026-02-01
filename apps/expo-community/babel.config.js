@@ -11,6 +11,7 @@ module.exports = (api) => {
             // define aliases to shorten the import paths
             '@casagrown/app': '../../packages/app',
             '@casagrown/ui': '../../packages/ui',
+            'app': '../../packages/app',
           },
           extensions: ['.js', '.jsx', '.tsx', '.ios.js', '.android.js'],
         },
@@ -31,7 +32,7 @@ module.exports = (api) => {
             ],
           ]),
       ['transform-inline-environment-variables', {
-        include: ['TAMAGUI_USE_NATIVE_PORTAL'],
+        include: ['TAMAGUI_USE_NATIVE_PORTAL', 'NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY'],
       }],
     ],
   }

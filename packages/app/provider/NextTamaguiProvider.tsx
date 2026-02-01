@@ -8,8 +8,8 @@ import '@tamagui/polyfill-dev'
 import type { ReactNode } from 'react'
 import { useServerInsertedHTML } from 'next/navigation'
 import { NextThemeProvider, useRootTheme } from '@tamagui/next-theme'
-import { config } from '@my/ui'
-import { Provider } from 'app/provider'
+import { config } from '@casagrown/ui'
+import { Provider } from './index'
 import { StyleSheet } from 'react-native'
 
 export const NextTamaguiProvider = ({ children }: { children: ReactNode }) => {

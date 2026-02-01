@@ -1,4 +1,4 @@
-import { UserDetailScreen } from 'app/features/user/detail-screen'
+import { UserDetailScreen } from '@casagrown/app/features/user/detail-screen'
 import { Stack, useLocalSearchParams } from 'expo-router'
 
 export default function Screen() {

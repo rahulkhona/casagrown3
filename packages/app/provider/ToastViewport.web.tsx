@@ -1,4 +1,4 @@
-import { ToastViewport as ToastViewportOg } from '@my/ui'
+import { ToastViewport as ToastViewportOg } from '@casagrown/ui'
 
 export const ToastViewport = () => {
   return (

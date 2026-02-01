@@ -1,3 +1,10 @@
+// Polyfill for Node < 20
+if (!Array.prototype.toReversed) {
+  Array.prototype.toReversed = function () {
+    return this.slice().reverse();
+  };
+}
+
 // Learn more https://docs.expo.io/guides/customizing-metro
 /**
  * @type {import('expo/metro-config')}
