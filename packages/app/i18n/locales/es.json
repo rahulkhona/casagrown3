@@ -113,5 +113,40 @@
       "terms": "Términos",
       "copyright": "© 2026 CasaGrown. Todos los derechos reservados."
     }
+  },
+  "auth": {
+    "login": {
+      "welcome": "Bienvenido a CasaGrown",
+      "subtitle": "Inicia sesión para comprar y vender productos frescos",
+      "continueGoogle": "Continuar con Google",
+      "continueFacebook": "Continuar con Facebook",
+      "continueApple": "Continuar con Apple",
+      "orEmail": "O continuar con correo",
+      "continueEmail": "Continuar con Correo",
+      "emailLabel": "Correo Electrónico",
+      "emailPlaceholder": "tu@ejemplo.com",
+      "sendCode": "Enviar Código de Verificación",
+      "backSimple": "Atrás",
+      "backLogin": "← Volver a opciones de inicio",
+      "back": "← Atrás",
+      "verifyTitle": "Enviamos un código de verificación a",
+      "codeLabel": "Código de Verificación",
+      "codePlaceholder": "000000",
+      "verifyContinue": "Verificar y Continuar",
+      "resend": "Reenviar código",
+      "codeResent": "¡Código de verificación reenviado!",
+      "agreement": "Al continuar, aceptas los ",
+      "terms": "Términos de Servicio",
+      "privacy": "Política de Privacidad"
+    },
+    "success": {
+      "title": "¡Inicio de Sesión Exitoso!",
+      "message": "Ahora estás autenticado.",
+      "sessionDetails": "Detalles de la Sesión:",
+      "email": "Correo:",
+      "id": "ID:",
+      "lastSignIn": "Último Inicio:",
+      "logout": "Cerrar Sesión y Volver"
+    }
   }
 }

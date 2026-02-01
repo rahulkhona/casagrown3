@@ -66,9 +66,10 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
         const { otpToken } = await signInWithOtp(email)
         console.log('✅ OTP Sent successfully')
         
-        // DEV MODE: Show OTP token for testing
+        // DEV MODE: Auto-fill and show OTP token for testing
         if (otpToken) {
-          alert(`🔑 DEV MODE\n\nYour OTP Code:\n${otpToken}\n\n(Copy this to verify login)`)
+          setOtp(otpToken) // Auto-fill OTP input for E2E testing
+          alert(`🔑 DEV MODE\n\nYour OTP Code:\n${otpToken}\n\n(Auto-filled in input field)`)
         }
         
         setLoginMethod('otp')
@@ -116,6 +117,7 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
     <ScrollView 
       contentContainerStyle={{ flexGrow: 1 }} 
       backgroundColor={colors.green[50]}
+      keyboardShouldPersistTaps="handled"
     >
       <YStack 
         flex={1} 

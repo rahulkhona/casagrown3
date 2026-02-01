@@ -4,6 +4,7 @@ exports[`HomeScreen matches snapshot 1`] = `
 <View
   backgroundColor="#ffffff"
   flex={1}
+  keyboardShouldPersistTaps="handled"
   showsVerticalScrollIndicator={false}
 >
   <View

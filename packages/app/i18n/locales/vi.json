@@ -113,5 +113,40 @@
       "terms": "Điều khoản",
       "copyright": "© 2026 CasaGrown. Bảo lưu mọi quyền."
     }
+  },
+  "auth": {
+    "login": {
+      "welcome": "Chào mừng đến CasaGrown",
+      "subtitle": "Đăng nhập để bắt đầu mua và bán nông sản tươi",
+      "continueGoogle": "Tiếp tục với Google",
+      "continueFacebook": "Tiếp tục với Facebook",
+      "continueApple": "Tiếp tục với Apple",
+      "orEmail": "Hoặc tiếp tục với email",
+      "continueEmail": "Tiếp tục với Email",
+      "emailLabel": "Địa chỉ Email",
+      "emailPlaceholder": "ban@vidu.com",
+      "sendCode": "Gửi Mã Xác Minh",
+      "backSimple": "Quay lại",
+      "backLogin": "← Quay lại tùy chọn đăng nhập",
+      "back": "← Quay lại",
+      "verifyTitle": "Chúng tôi đã gửi mã xác minh đến",
+      "codeLabel": "Mã Xác Minh",
+      "codePlaceholder": "000000",
+      "verifyContinue": "Xác Minh & Tiếp Tục",
+      "resend": "Gửi lại mã",
+      "codeResent": "Đã gửi lại mã xác minh!",
+      "agreement": "Bằng cách tiếp tục, bạn đồng ý với ",
+      "terms": "Điều khoản Dịch vụ",
+      "privacy": "Chính sách Bảo mật"
+    },
+    "success": {
+      "title": "Đăng Nhập Thành Công!",
+      "message": "Bạn đã được xác thực.",
+      "sessionDetails": "Chi Tiết Phiên:",
+      "email": "Email:",
+      "id": "ID:",
+      "lastSignIn": "Đăng Nhập Lần Cuối:",
+      "logout": "Đăng Xuất & Quay Về"
+    }
   }
 }

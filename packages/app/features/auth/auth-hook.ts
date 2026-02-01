@@ -86,25 +86,46 @@ export function useAuth() {
         await new Promise(resolve => setTimeout(resolve, 500))
         
         // Get mailbox for this email
-        const inbucketUrl = 'http://localhost:54324'
+        // Android emulator needs 10.0.2.2 to reach host machine
+        const inbucketUrl = Platform.OS === 'android' 
+          ? 'http://10.0.2.2:54324'
+          : 'http://localhost:54324'
         const mailbox = email.split('@')[0] // Inbucket uses local part as mailbox
         
-        const listResponse = await fetch(`${inbucketUrl}/api/v1/mailbox/${mailbox}`)
-        if (listResponse.ok) {
-          const messages = await listResponse.json()
-          if (messages && messages.length > 0) {
-            // Get most recent message
-            const latestMsgId = messages[messages.length - 1].id
-            const msgResponse = await fetch(`${inbucketUrl}/api/v1/mailbox/${mailbox}/${latestMsgId}`)
-            if (msgResponse.ok) {
-              const msgData = await msgResponse.json()
-              // Extract 6-digit OTP from email body
-              const otpMatch = msgData.body?.text?.match(/\b(\d{6})\b/)
-              if (otpMatch) {
-                console.log('🔑 [DEV] OTP from Inbucket:', otpMatch[1])
-                return { otpToken: otpMatch[1] }
+        // Add 2-second timeout to prevent blocking UI
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 2000)
+        
+        try {
+          const listResponse = await fetch(`${inbucketUrl}/api/v1/mailbox/${mailbox}`, {
+            signal: controller.signal
+          })
+          clearTimeout(timeoutId)
+          
+          if (listResponse.ok) {
+            const messages = await listResponse.json()
+            if (messages && messages.length > 0) {
+              // Get most recent message
+              const latestMsgId = messages[messages.length - 1].id
+              const msgResponse = await fetch(`${inbucketUrl}/api/v1/mailbox/${mailbox}/${latestMsgId}`, {
+                signal: controller.signal
+              })
+              if (msgResponse.ok) {
+                const msgData = await msgResponse.json()
+                // Extract 6-digit OTP from email body
+                const otpMatch = msgData.body?.text?.match(/\b(\d{6})\b/)
+                if (otpMatch) {
+                  console.log('🔑 [DEV] OTP from Inbucket:', otpMatch[1])
+                  return { otpToken: otpMatch[1] }
+                }
               }
             }
+          }
+        } catch (fetchError: any) {
+          if (fetchError.name === 'AbortError') {
+            console.warn('⏱️ Inbucket fetch timed out - proceeding without dev OTP')
+          } else {
+            throw fetchError
           }
         }
       } catch (e) {

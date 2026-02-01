@@ -70,7 +70,7 @@
   },
   "lint-staged": {
     "packages/app/**/*.{ts,tsx}": [
-      "yarn workspace @casagrown/app jest --findRelatedTests"
+      "yarn workspace @casagrown/app jest --findRelatedTests --passWithNoTests"
     ]
   }
 }

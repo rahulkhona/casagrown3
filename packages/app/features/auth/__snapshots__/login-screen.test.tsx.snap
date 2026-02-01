@@ -8,6 +8,7 @@ exports[`LoginScreen renders correctly (initial state) 1`] = `
       "flexGrow": 1,
     }
   }
+  keyboardShouldPersistTaps="handled"
 >
   <View
     alignItems="center"

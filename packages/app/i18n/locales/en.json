@@ -134,9 +134,19 @@
       "codePlaceholder": "000000",
       "verifyContinue": "Verify & Continue",
       "resend": "Resend code",
+      "codeResent": "Verification code resent!",
       "agreement": "By continuing, you agree to CasaGrown's ",
       "terms": "Terms of Service",
       "privacy": "Privacy Policy"
+    },
+    "success": {
+      "title": "Login Successful!",
+      "message": "You are now authenticated.",
+      "sessionDetails": "Session Details:",
+      "email": "Email:",
+      "id": "ID:",
+      "lastSignIn": "Last Sign In:",
+      "logout": "Logout & Return Home"
     }
   }
 }
