@@ -17,9 +17,18 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    // Parse request body for config
+    let limit = 10
+    try {
+      const body = await req.json()
+      if (body.limit) limit = body.limit
+    } catch {
+      // no body or invalid json, use default
+    }
+
     // 1. Fetch a batch of zip codes that don't have community entries yet
     // Using a subquery approach (assuming the DB supports it) or a LEFT JOIN logic
-    const { data: zipRows, error: fetchError } = await supabase.rpc('get_zips_without_communities', { batch_size: 50 })
+    const { data: zipRows, error: fetchError } = await supabase.rpc('get_zips_without_communities', { batch_size: limit })
     
     // NOTE: If RPC is not available, we fall back to a simple select
     let zipsToProcess = zipRows
