@@ -58,6 +58,15 @@ To enforce quality standards automatically before code is shared:
         - (Future) `**/*.{ts,tsx}` -> Runs `tsc` (Type Check) and `eslint`.
 - **Bypass**: In emergencies, use `git commit --no-verify`, but this is discouraged.
 
+### Local Manual/Semi-Automated E2E (Pre-Push)
+To ensure critical user flows work before pushing to the repository:
+- **Tooling**: **Maestro** via Husky `pre-push` hook.
+- **Workflow**:
+    - On `git push`, the hook triggers.
+    - **Action**: Runs `maestro test .maestro/home_screen_flow.yaml`.
+- **Requirement**: The app must be running (Simulator/Emulator) for this to pass.
+- **Bypass**: Use `git push --no-verify` if you are skipping E2E (e.g., purely documentation changes).
+
 ### Local-First "Mock CD"
 - **Fast Refresh**: Leverage HMR in both Next.js and Expo for instant UI feedback.
 - **Shadow Builds**: Periodically run `npm run build` to verify production bundling behavior.

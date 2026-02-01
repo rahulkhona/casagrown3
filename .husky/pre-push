@@ -1,0 +1,5 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo "🏃 Running Maestro E2E Tests..."
+maestro test .maestro/home_screen_flow.yaml
