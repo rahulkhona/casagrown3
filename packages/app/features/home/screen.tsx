@@ -95,14 +95,41 @@ function HeroSection({ onLinkPress, heroImageSrc, logoSrc }: { onLinkPress?: () 
                 <Text fontSize={36}>🏠</Text>
               )
             )}
-            <Text 
-              fontWeight="700" 
-              fontSize={36} 
-              color={colors.gray[800]}
-              $md={{ fontSize: 48 }}
-            >
-              CasaGrown
-            </Text>
+            <YStack>
+              <Text 
+                fontWeight="700" 
+                fontSize={32} 
+                color={colors.gray[800]}
+                lineHeight={32}
+                $md={{ fontSize: 44, lineHeight: 44 }}
+              >
+                CasaGrown
+              </Text>
+              <XStack
+                backgroundColor="$white"
+                paddingHorizontal="$2.5"
+                paddingVertical="$1"
+                borderRadius="$4"
+                marginTop="$1"
+                shadowColor="rgba(0,0,0,0.05)"
+                shadowOffset={{ width: 0, height: 2 }}
+                shadowRadius={4}
+                elevation={2}
+                alignSelf="center"
+                justifyContent="center"
+                $md={{ alignSelf: 'flex-start' }}
+              >
+                <Text
+                  fontSize={10}
+                  color={colors.primary}
+                  fontWeight="800"
+                  letterSpacing={1.2}
+                  textTransform="uppercase"
+                >
+                  Fresh • Local • Trusted
+                </Text>
+              </XStack>
+            </YStack>
           </XStack>
           
           <Text 
