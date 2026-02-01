@@ -5,5 +5,5 @@ import { useRouter } from 'next/navigation'
 
 export default function Page() {
   const router = useRouter()
-  return <HomeScreen onLinkPress={() => router.push('/user/nate')} heroImageSrc="/hero.jpg" logoSrc="/logo.png" />
+  return <HomeScreen onLinkPress={() => router.push('/login')} heroImageSrc="/hero.jpg" logoSrc="/logo.png" />
 }

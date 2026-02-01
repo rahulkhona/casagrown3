@@ -113,5 +113,30 @@
       "terms": "Terms",
       "copyright": "© 2026 CasaGrown. All rights reserved."
     }
+  },
+  "auth": {
+    "login": {
+      "welcome": "Welcome to CasaGrown",
+      "subtitle": "Sign in to start buying and selling fresh produce",
+      "continueGoogle": "Continue with Google",
+      "continueFacebook": "Continue with Facebook",
+      "continueApple": "Continue with Apple",
+      "orEmail": "Or continue with email",
+      "continueEmail": "Continue with Email",
+      "emailLabel": "Email Address",
+      "emailPlaceholder": "you@example.com",
+      "sendCode": "Send Verification Code",
+      "backSimple": "Back",
+      "backLogin": "← Back to login options",
+      "back": "← Back",
+      "verifyTitle": "We sent a verification code to",
+      "codeLabel": "Verification Code",
+      "codePlaceholder": "000000",
+      "verifyContinue": "Verify & Continue",
+      "resend": "Resend code",
+      "agreement": "By continuing, you agree to CasaGrown's ",
+      "terms": "Terms of Service",
+      "privacy": "Privacy Policy"
+    }
   }
 }

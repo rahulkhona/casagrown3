@@ -12,7 +12,7 @@ export default function Screen() {
         }}
       />
       <HomeScreen 
-        onLinkPress={() => router.push('/user/nate')} 
+        onLinkPress={() => router.push('/login')} 
         heroImageSrc={require('../assets/hero.jpg')}
         logoSrc={require('../assets/logo.png')}
       />

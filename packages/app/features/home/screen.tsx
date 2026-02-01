@@ -99,6 +99,7 @@ function HeroSection({ onLinkPress, heroImageSrc, logoSrc }: { onLinkPress?: () 
       alignItems="center"
       backgroundColor={colors.green[50]}
     >
+
       <YStack
         maxWidth={1100}
         width="100%"
