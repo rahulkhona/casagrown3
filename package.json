@@ -62,7 +62,13 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.3",
+    "lint-staged": "^16.2.7",
     "patch-package": "^8.0.1",
     "postinstall-postinstall": "^2.1.0"
+  },
+  "lint-staged": {
+    "packages/app/**/*.{ts,tsx}": [
+      "yarn workspace @casagrown/app jest --findRelatedTests"
+    ]
   }
 }

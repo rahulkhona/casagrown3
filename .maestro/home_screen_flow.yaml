@@ -1,0 +1,16 @@
+appId: dev.casagrown.community
+---
+- launchApp
+
+# Verify Home Screen
+- assertVisible: 'CasaGrown'
+- assertVisible: 'Homegrown food for everyone'
+- assertVisible: 'Join the Movement'
+
+# Test Navigation
+- tapOn: 'Join the Movement'
+
+# Verify Login Screen
+- assertVisible: 'Welcome to CasaGrown'
+- assertVisible: 'Sign in to start buying and selling fresh produce'
+- assertVisible: 'Continue with Google'

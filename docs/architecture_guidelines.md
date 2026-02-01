@@ -47,7 +47,19 @@ To maximize code reuse, the project follows a monorepo structure:
 ### Local-First "Mock CD"
 To maintain quality during local development before full cloud integration:
 - **Fast Refresh**: Leverage HMR in both Next.js and Expo for instant UI feedback.
-- **Pre-Flight Checks**: Run `npm run lint`, `npm run type-check`, and `npm run test` locally before committing.
+### Local Automated CI/CD (Pre-Commit)
+To enforce quality standards automatically before code is shared:
+- **Tooling**: We use **Husky** (git hooks) and **lint-staged**.
+- **Workflow**:
+    - On `git commit`, Husky triggers the pre-commit hook.
+    - `lint-staged` identifies all *staged* (modified) files.
+    - **Actions**:
+        - `packages/app/**/*.{ts,tsx}` -> Runs `jest --findRelatedTests` (Unit & Snapshot Tests).
+        - (Future) `**/*.{ts,tsx}` -> Runs `tsc` (Type Check) and `eslint`.
+- **Bypass**: In emergencies, use `git commit --no-verify`, but this is discouraged.
+
+### Local-First "Mock CD"
+- **Fast Refresh**: Leverage HMR in both Next.js and Expo for instant UI feedback.
 - **Shadow Builds**: Periodically run `npm run build` to verify production bundling behavior.
 
 ### Cloud Orchestration (Future)
