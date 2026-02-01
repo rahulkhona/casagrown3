@@ -63,3 +63,43 @@ create index communities_location_idx on communities using gist (location);
 2.  **Check**: If `h3_index` exists in DB -> Assign.
 3.  **Generate**: If missing -> Edge Function calls Overpass API (OSM) to find landmarks (Neighborhood -> Park -> School) and create the row.
 
+### Edge Function: `resolve-community`
+
+Resolves a user's location (Address or Lat/Lng) to a Primary Community and identifies neighbors.
+
+**Endpoint**: `/functions/v1/resolve-community`
+
+**Input (JSON)**:
+```json
+{
+  "address": "123 Main St, San Jose, CA", 
+  // OR
+  "lat": 37.7749,
+  "lng": -122.4194
+}
+```
+
+**Logic**:
+1.  **Geocode**: If `address` is provided, resolves to Lat/Lng via Nominatim.
+2.  **Indexing**: Calculates H3 Index (Res 7).
+3.  **Primary**: Checks DB for H3 Index. If missing, lazy-loads via Overpass API.
+4.  **Neighbors**: Calculates `k=1` ring (6 neighbors). Returns their status (`active` or `unexplored`).
+
+**Output (JSON)**:
+```json
+{
+  "primary": {
+    "h3_index": "87283472bffffff",
+    "name": "Willow Glen",
+    "city": "San Jose",
+    "location": "POINT(...)",
+    "boundary": "POLYGON(...)"
+  },
+  "neighbors": [
+    { "h3_index": "8728...", "name": "Campbell", "status": "active" },
+    { "h3_index": "8728...", "name": "Unexplored", "status": "unexplored" }
+  ],
+  "resolved_location": { "lat": 37.77, "lng": -122.41 }
+}
+```
+
