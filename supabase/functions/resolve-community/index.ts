@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { latLngToCell, cellToBoundary } from 'npm:h3-js'
+import { latLngToCell, cellToBoundary, gridDisk } from 'npm:h3-js'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -17,170 +17,194 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { lat, lng } = await req.json()
+    const requestBody = await req.json()
+    let { lat, lng, address } = requestBody
 
-    if (!lat || !lng) {
-      throw new Error('Missing lat or lng')
+    // 0. Geocoding (if address provided)
+    if (address && (!lat || !lng)) {
+      console.log(`Geocoding address: "${address}"...`)
+      const nominatimUrl = new URL('https://nominatim.openstreetmap.org/search')
+      nominatimUrl.searchParams.set('q', address)
+      nominatimUrl.searchParams.set('format', 'json')
+      nominatimUrl.searchParams.set('limit', '1')
+
+      const geoResponse = await fetch(nominatimUrl.toString(), {
+        headers: { 
+            // Nominatim requires a valid User-Agent
+            'User-Agent': 'CasaGrownApp/1.0 (internal-dev-testing)' 
+        }
+      })
+
+      if (!geoResponse.ok) throw new Error('Geocoding service failed')
+      
+      const geoData = await geoResponse.json()
+      if (!geoData || geoData.length === 0) {
+        throw new Error('Address not found')
+      }
+
+      lat = parseFloat(geoData[0].lat)
+      lng = parseFloat(geoData[0].lon)
+      console.log(`Resolved "${address}" to (${lat}, ${lng})`)
     }
 
-    // 1. Calculate H3 Index (Resolution 7)
+    if (!lat || !lng) {
+      throw new Error('Missing location data (lat/lng or address)')
+    }
+
+    // 1. Calculate Primary H3 Index (Resolution 7)
     const h3Index = latLngToCell(lat, lng, 7)
     console.log(`Resolved H3 Index: ${h3Index} for location (${lat}, ${lng})`)
 
-    // 2. Check if community exists
-    const { data: existingCommunity, error: dbError } = await supabase
-      .from('communities')
-      .select('*')
-      .eq('h3_index', h3Index)
-      .single()
+    // Calculate Neighbors (k=1)
+    const neighborIndices = gridDisk(h3Index, 1) // Returns origin + 6 neighbors
+    // Filter out the origin itself for the "neighbors" list
+    const adjacentIndices = neighborIndices.filter(idx => idx !== h3Index)
 
-    if (existingCommunity && !dbError) {
-      console.log('Community found in DB')
-      return new Response(JSON.stringify(existingCommunity), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      })
+    // 2. Resolver Function (DB Check -> Overpass Gen)
+    const resolveCommunity = async (index: string, location?: {lat: number, lng: number}) => {
+        // Check DB
+        const { data: existing, error } = await supabase
+            .from('communities')
+            .select('*')
+            .eq('h3_index', index)
+            .single()
+
+        if (existing && !error) return existing
+
+        // If missing, Generate via Overpass
+        console.log(`Generating community for ${index}...`)
+        const boundary = cellToBoundary(index) // [lat, lng][]
+        
+        // Bounding box
+        let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180
+        boundary.forEach(([lat, lng]) => {
+            if (lat < minLat) minLat = lat
+            if (lat > maxLat) maxLat = lat
+            if (lng < minLng) minLng = lng
+            if (lng > maxLng) maxLng = lng
+        })
+
+        const overpassQuery = `
+          [out:json][timeout:25];
+          (
+            node["place"~"neighbourhood|suburb|quarter"](${minLat},${minLng},${maxLat},${maxLng});
+            way["place"~"neighbourhood|suburb|quarter"](${minLat},${minLng},${maxLat},${maxLng});
+            relation["place"~"neighbourhood|suburb|quarter"](${minLat},${minLng},${maxLat},${maxLng});
+
+            node["leisure"="park"](${minLat},${minLng},${maxLat},${maxLng});
+            way["leisure"="park"](${minLat},${minLng},${maxLat},${maxLng});
+            relation["leisure"="park"](${minLat},${minLng},${maxLat},${maxLng});
+
+            node["amenity"~"school|university|college"](${minLat},${minLng},${maxLat},${maxLng});
+            way["amenity"~"school|university|college"](${minLat},${minLng},${maxLat},${maxLng});
+            relation["amenity"~"school|university|college"](${minLat},${minLng},${maxLat},${maxLng});
+          );
+          out center 5;
+        `
+
+        const overpassUrl = 'https://overpass-api.de/api/interpreter'
+        const osmResponse = await fetch(overpassUrl, {
+            method: 'POST',
+            headers: {
+                'User-Agent': 'CasaGrownApp/1.0 (internal-dev-testing)',
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: `data=${encodeURIComponent(overpassQuery)}`
+        })
+        
+        if (!osmResponse.ok) throw new Error('Overpass API Failed')
+        const osmData = await osmResponse.json()
+        const elements = osmData.elements || []
+
+        // Naming Heuristic
+        let bestName = `Community ${index.substring(0, 6)}...`
+        let nameSource = 'fallback_index'
+        let city = 'Unknown'
+
+        const neighborhoods = elements.filter((e: any) => e.tags?.place && ['neighbourhood', 'suburb', 'quarter'].includes(e.tags.place))
+        const parks = elements.filter((e: any) => e.tags?.leisure === 'park')
+        const schools = elements.filter((e: any) => e.tags?.amenity && ['school', 'university', 'college'].includes(e.tags.amenity))
+
+        if (neighborhoods.length > 0) {
+            bestName = neighborhoods[0].tags.name || bestName
+            nameSource = 'osm_neighborhood'
+        } else if (parks.length > 0) {
+            bestName = parks[0].tags.name || bestName
+            nameSource = 'osm_park'
+        } else if (schools.length > 0) {
+            bestName = schools[0].tags.name || bestName
+            nameSource = 'osm_school'
+        }
+        
+        const addrElement = elements.find((e: any) => e.tags?.['addr:city'])
+        if (addrElement) city = addrElement.tags['addr:city']
+
+        // Create Geometry WKT
+        const polygonPoints = boundary.map(([lat, lng]) => `${lng} ${lat}`).join(',')
+        const firstPoint = boundary[0]
+        const polygonString = `POLYGON((${polygonPoints}, ${firstPoint[1]} ${firstPoint[0]}))`
+        
+        // Use provided location centroid or cell center
+        const cellCenter = location || { lat: (minLat+maxLat)/2, lng: (minLng+maxLng)/2 }
+        const centroidPoint = `POINT(${cellCenter.lng} ${cellCenter.lat})`
+
+        const newCommunity = {
+            h3_index: index,
+            name: bestName,
+            metadata: { source: nameSource, osm_elements_found: elements.length },
+            city: city,
+            location: centroidPoint,
+            boundary: polygonString,
+        }
+
+        const { data: inserted, error: insertError } = await supabase
+            .from('communities')
+            .insert(newCommunity)
+            .select()
+            .single()
+
+        if (insertError) {
+             if (insertError.code === '23505') { // Retrieve if concurrent insert
+                 const { data: retry } = await supabase.from('communities').select('*').eq('h3_index', index).single()
+                 return retry
+             }
+             throw insertError
+        }
+        return inserted
     }
 
-    // 3. If MISS -> Verify/Generate via Overpass API (Lazy Load)
-    console.log('Community MISS. Generating via Overpass API...')
+    // 3. Resolve Primary Community (Ensured to exist)
+    const primaryCommunity = await resolveCommunity(h3Index, { lat, lng })
 
-    // Get polygon boundary for the H3 cell
-    const boundary = cellToBoundary(h3Index) // Array of [lat, lng]
+    // 4. Resolve Neighbors (Best effort / Indices)
+    // For now, we will return just the indices to keep it fast.
+    // Use can query the DB for details or we can do a bulk fetch.
+    // Let's do a bulk fetch from DB to see which ones exist.
+    const { data: existingNeighbors } = await supabase
+        .from('communities')
+        .select('h3_index, name')
+        .in('h3_index', adjacentIndices)
     
-    // Calculate bounding box for Overpass query
-    let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180
-    boundary.forEach(([lat, lng]) => {
-      if (lat < minLat) minLat = lat
-      if (lat > maxLat) maxLat = lat
-      if (lng < minLng) minLng = lng
-      if (lng > maxLng) maxLng = lng
+    // Map neighbors: If exists in DB, use name. If not, just return Index + placeholder.
+    const neighbors = adjacentIndices.map(idx => {
+        const found = existingNeighbors?.find(n => n.h3_index === idx)
+        return {
+            h3_index: idx,
+            name: found ? found.name : 'Unexplored Community', 
+            status: found ? 'active' : 'unexplored' // UI can trigger exploration if needed
+        }
     })
 
-    // Overpass QL to find relevant landmarks
-    // Prioritizing: Neighborhoods, Parks, Schools, Public Buildings
-    const overpassQuery = `
-      [out:json][timeout:25];
-      (
-        node["place"~"neighbourhood|suburb|quarter"](${minLat},${minLng},${maxLat},${maxLng});
-        way["place"~"neighbourhood|suburb|quarter"](${minLat},${minLng},${maxLat},${maxLng});
-        relation["place"~"neighbourhood|suburb|quarter"](${minLat},${minLng},${maxLat},${maxLng});
-
-        node["leisure"="park"](${minLat},${minLng},${maxLat},${maxLng});
-        way["leisure"="park"](${minLat},${minLng},${maxLat},${maxLng});
-        relation["leisure"="park"](${minLat},${minLng},${maxLat},${maxLng});
-
-        node["amenity"~"school|university|college"](${minLat},${minLng},${maxLat},${maxLng});
-        way["amenity"~"school|university|college"](${minLat},${minLng},${maxLat},${maxLng});
-        relation["amenity"~"school|university|college"](${minLat},${minLng},${maxLat},${maxLng});
-      );
-      out center 5;
-    `
-
-    const overpassUrl = 'https://overpass-api.de/api/interpreter'
-    const overrides = {
-        method: 'POST',
-        headers: {
-            // User-Agent is required by Overpass API policy
-            'User-Agent': 'CasaGrownApp/1.0 (internal-dev-testing)',
-            'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: `data=${encodeURIComponent(overpassQuery)}`
-    }
-
-    const osmResponse = await fetch(overpassUrl, overrides)
-    
-    if (!osmResponse.ok) {
-        console.error('Overpass API Error', await osmResponse.text())
-        throw new Error('Failed to fetch from Overpass API')
-    }
-
-    const osmData = await osmResponse.json()
-    const elements = osmData.elements || []
-
-    // 4. Determine Name using Heuristic
-    let bestName = `Community ${h3Index.substring(0, 6)}...`
-    let nameSource = 'fallback_index'
-    let city = 'Unknown'
-    let state = null
-    let country = null
-
-    // Priority: Neighborhood > Park > School
-    const neighborhoods = elements.filter(e => e.tags?.place && ['neighbourhood', 'suburb', 'quarter'].includes(e.tags.place))
-    const parks = elements.filter(e => e.tags?.leisure === 'park')
-    const schools = elements.filter(e => e.tags?.amenity && ['school', 'university', 'college'].includes(e.tags.amenity))
-
-    if (neighborhoods.length > 0) {
-        bestName = neighborhoods[0].tags.name || bestName
-        nameSource = 'osm_neighborhood'
-    } else if (parks.length > 0) {
-        bestName = parks[0].tags.name || bestName
-        nameSource = 'osm_park'
-    } else if (schools.length > 0) {
-        bestName = schools[0].tags.name || bestName
-        nameSource = 'osm_school'
-    }
-    
-    // Try to extract city/addr info if available
-    const addrElement = elements.find(e => e.tags?.['addr:city'])
-    if (addrElement) {
-        city = addrElement.tags['addr:city']
-    } else {
-        // Fallback: If we have no city, we might need a reverse geocode, but for now defaulting.
-        // In a real prod app, we'd do a reverse geocode call here too.
-    }
-
-    // 5. Insert into DB
-    // Convert boundary to PostGIS Polygon format
-    // Polygon string: "POLYGON((lng lat, lng lat, ...))" - Note: PostGIS uses LNG LAT order
-    // H3 returns [lat, lng]
-    const polygonPoints = boundary.map(([lat, lng]) => `${lng} ${lat}`).join(',')
-    // Close the polygon by repeating the first point
-    const firstPoint = boundary[0]
-    const polygonString = `POLYGON((${polygonPoints}, ${firstPoint[1]} ${firstPoint[0]}))`
-    
-    const centroidPoint = `POINT(${lng} ${lat})`
-
-    const newCommunity = {
-        h3_index: h3Index,
-        name: bestName,
-        metadata: { source: nameSource, osm_elements_found: elements.length },
-        city: city, // simplified
-        location: centroidPoint, // WKT format for PostGIS
-        boundary: polygonString, // WKT format
-    }
-
-    console.log('Inserting new community:', newCommunity)
-
-    const { data: inserted, error: insertError } = await supabase
-        .from('communities')
-        .insert(newCommunity)
-        .select()
-        .single()
-
-    if (insertError) {
-        console.error('Insert Error:', insertError)
-        // Handle race condition (another request created it)
-        if (insertError.code === '23505') { // Unique violation
-             const { data: retryData } = await supabase
-                .from('communities')
-                .select('*')
-                .eq('h3_index', h3Index)
-                .single()
-             return new Response(JSON.stringify(retryData), {
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-                status: 200,
-             })
-        }
-        throw insertError
-    }
-
-    return new Response(JSON.stringify(inserted), {
+    return new Response(JSON.stringify({
+      primary: primaryCommunity,
+      neighbors: neighbors, 
+      resolved_location: { lat, lng }
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     })
 
-  } catch (error) {
+  } catch (error: any) {
     console.error(error)
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
