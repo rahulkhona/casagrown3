@@ -6,6 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { colors } from '../../design-tokens'
 import { useTranslation } from 'react-i18next'
 
+import { EmailSchema, OtpSchema } from './schemas'
+
 interface LoginScreenProps {
   logoSrc?: any
   onLogin?: (email: string, name: string) => void
@@ -18,6 +20,7 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
   const [loginMethod, setLoginMethod] = useState<'select' | 'email' | 'otp'>('select')
   const [email, setEmail] = useState('')
   const [otp, setOtp] = useState('')
+  const [errors, setErrors] = useState<{ email?: string; otp?: string }>({})
   const media = useMedia()
 
   const handleSocialLogin = (provider: string) => {
@@ -27,11 +30,23 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
   }
 
   const handleEmailSubmit = () => {
-    if (email) setLoginMethod('otp')
+    const result = EmailSchema.safeParse(email)
+    if (!result.success) {
+      setErrors({ ...errors, email: result.error.errors[0].message })
+      return
+    }
+    setErrors({ ...errors, email: undefined })
+    setLoginMethod('otp')
   }
 
   const handleOtpSubmit = () => {
-    if (otp.length >= 4 && onLogin) {
+    const result = OtpSchema.safeParse(otp)
+    if (!result.success) {
+        setErrors({ ...errors, otp: result.error.errors[0].message })
+        return
+    }
+    if (onLogin) {
+      setErrors({ ...errors, otp: undefined })
       onLogin(email, email.split('@')[0])
     }
   }
@@ -153,14 +168,20 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
                         <Text color={colors.gray[700]} fontWeight="500">{t('auth.login.emailLabel')}</Text>
                         <Input 
                             value={email}
-                            onChangeText={setEmail}
+                            onChangeText={(text) => {
+                                setEmail(text)
+                                if (errors.email) setErrors({ ...errors, email: undefined })
+                            }}
                             placeholder={t('auth.login.emailPlaceholder')}
                             size="$5"
                             borderRadius="$4"
                             borderWidth={1}
-                            borderColor={colors.gray[300]}
-                            focusStyle={{ borderColor: colors.green[500], borderWidth: 2 }}
+                            borderColor={errors.email ? colors.red[500] : colors.gray[300]}
+                            focusStyle={{ borderColor: errors.email ? colors.red[500] : colors.green[500], borderWidth: 2 }}
                         />
+                        {errors.email && (
+                            <Text color={colors.red[500]} fontSize="$2">{t(errors.email)}</Text>
+                        )}
                     </YStack>
 
                     <Button 
@@ -191,7 +212,10 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
                          <Text color={colors.gray[700]} fontWeight="500">{t('auth.login.codeLabel')}</Text>
                          <Input 
                             value={otp}
-                            onChangeText={setOtp}
+                            onChangeText={(text) => {
+                                setOtp(text)
+                                if (errors.otp) setErrors({ ...errors, otp: undefined })
+                            }}
                             placeholder={t('auth.login.codePlaceholder')}
                             size="$5"
                             borderRadius="$4"
@@ -200,9 +224,12 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
                             letterSpacing={5}
                             maxLength={6}
                             borderWidth={1}
-                            borderColor={colors.gray[300]}
-                            focusStyle={{ borderColor: colors.green[500], borderWidth: 2 }}
+                            borderColor={errors.otp ? colors.red[500] : colors.gray[300]}
+                            focusStyle={{ borderColor: errors.otp ? colors.red[500] : colors.green[500], borderWidth: 2 }}
                         />
+                        {errors.otp && (
+                            <Text color={colors.red[500]} fontSize="$2" textAlign="center">{t(errors.otp)}</Text>
+                        )}
                     </YStack>
 
                      <Button 
@@ -210,7 +237,7 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
                         height="$5"
                         borderRadius="$4"
                         onPress={handleOtpSubmit}
-                        disabled={otp.length < 4}
+                        // disabled={otp.length < 4} // Let Zod handle the error for feedback
                     >
                         <Text color="white" fontWeight="600" fontSize="$4">{t('auth.login.verifyContinue')}</Text>
                     </Button>
