@@ -42,6 +42,11 @@ To maximize code reuse, the project follows a monorepo structure:
 - **Integration (Web)**: Use **Playwright** for end-to-end flows on web.
 - **Integration (Mobile)**: Use **Maestro** for mobile UI testing.
 
+### 4. Form Validation
+- Use **Zod** (`zod`) for all data validation schemas.
+- Define schemas in a separate file (e.g., `schemas.ts`) to keep components clean.
+- Share schemas between Frontend and Backend (Supabase Edge Functions) where possible.
+
 ## CI/CD and Local Workflow
 
 ### Local-First "Mock CD"
