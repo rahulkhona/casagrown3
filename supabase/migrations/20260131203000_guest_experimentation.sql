@@ -11,7 +11,7 @@ ALTER TABLE experiment_assignments
     CHECK (user_id IS NOT NULL OR device_id IS NOT NULL);
 
 -- Add unique constraints for both paths to ensure one assignment per identifier
-DROP INDEX IF EXISTS experiment_assignments_experiment_id_user_id_key;
+ALTER TABLE experiment_assignments DROP CONSTRAINT IF EXISTS experiment_assignments_experiment_id_user_id_key;
 CREATE UNIQUE INDEX experiment_assignments_user_idx 
   ON experiment_assignments (experiment_id, user_id) 
   WHERE user_id IS NOT NULL;
