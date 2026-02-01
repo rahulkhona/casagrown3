@@ -157,15 +157,16 @@ function HeroSection({ onLinkPress, heroImageSrc, logoSrc }: { onLinkPress?: () 
           <Button
             size="$4"
             backgroundColor={colors.primary}
-            textProps={{ color: '$white' }}
             borderRadius={28}
             paddingHorizontal="$6"
             hoverStyle={{ backgroundColor: colors.primaryDark }}
             pressStyle={{ backgroundColor: colors.primaryDark }}
-            iconAfter={ArrowRight}
+            iconAfter={<ArrowRight color="$white" />}
             onPress={onLinkPress}
           >
-            Join the Movement!
+            <Text color="$white" fontWeight="600" fontSize={16}>
+              Join the Movement!
+            </Text>
           </Button>
         </YStack>
 
