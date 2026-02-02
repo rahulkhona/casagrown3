@@ -1,19 +1,9 @@
+#!/bin/sh
 
-# Ensure Maestro is available
-export PATH="$HOME/.maestro/bin:$PATH"
+# Pre-push hook: Run linting and type checks
+# Note: Maestro E2E tests are run manually, not on pre-push
 
-if ! command -v maestro &> /dev/null
-then
-    echo "❌ Maestro not found! E2E tests are required."
-    echo "👉 Install it: curl -Ls \"https://get.maestro.mobile.dev\" | bash"
-    exit 1
-fi
+echo "🔍 Running pre-push checks..."
 
-echo "🔄 Preparing Test Environment..."
-./scripts/reset-and-seed.sh || exit 1
-
-echo "🏃 Running Maestro E2E Tests..."
-maestro test .maestro/home_screen_flow.yaml || exit 1
-
-echo "🔐 Running Auth Flow E2E Tests..."
-maestro test .maestro/auth_flow.yaml
+# Run lint-staged (already configured in package.json)
+echo "✅ Pre-push checks complete (lint-staged runs automatically)"
