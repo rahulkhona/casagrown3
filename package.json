@@ -47,6 +47,7 @@
     "@tamagui/cli": "^2.0.0-rc.0",
     "@tamagui/react-native-svg": "^2.0.0-rc.0",
     "@tamagui/react-native-web-lite": "^2.0.0-rc.0",
+    "base64-arraybuffer": "^1.0.2",
     "check-dependency-version-consistency": "^4.1.0",
     "expo": "^54",
     "husky": "^9.1.6",
@@ -57,7 +58,7 @@
   },
   "packageManager": "yarn@4.5.0",
   "engines": {
-    "node": "22",
+    "node": ">=20.9.0",
     "npm": "10.8"
   },
   "devDependencies": {

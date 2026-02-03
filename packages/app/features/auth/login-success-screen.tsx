@@ -14,11 +14,8 @@ export function LoginSuccessScreen() {
 
   const handleLogout = async () => {
     await signOut()
-    if (Platform.OS === 'web') {
-        router.replace('/') 
-    } else {
-        router.back()
-    }
+    // Always go to home screen after logout
+    router.replace('/')
   }
 
   return (

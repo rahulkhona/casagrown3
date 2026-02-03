@@ -3,6 +3,9 @@
   "name": "@casagrown/app",
   "main": "index.ts",
   "private": true,
+  "scripts": {
+    "test": "jest"
+  },
   "sideEffects": [
     "*.css"
   ],
@@ -19,8 +22,10 @@
     "@tamagui/themes": "^2.0.0-rc.0",
     "burnt": "^0.12.2",
     "expo-constants": "~17.1.6",
+    "expo-image-picker": "^17.0.10",
     "expo-linking": "~7.1.4",
     "expo-localization": "^17.0.8",
+    "expo-location": "^19.0.8",
     "expo-secure-store": "^15.0.8",
     "i18next": "^25.8.0",
     "intl-pluralrules": "^2.0.1",

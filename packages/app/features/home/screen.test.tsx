@@ -2,6 +2,18 @@ import React from 'react'
 import { render, fireEvent } from '@testing-library/react-native'
 import { HomeScreen } from './screen'
 
+// Mock auth-hook to avoid supabase/expo-secure-store initialization
+jest.mock('../auth/auth-hook', () => ({
+  useAuth: () => ({
+    user: null,
+    loading: false,
+    signOut: jest.fn(),
+  }),
+  supabase: {
+    from: jest.fn(),
+  },
+}))
+
 // Mock react-i18next
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({

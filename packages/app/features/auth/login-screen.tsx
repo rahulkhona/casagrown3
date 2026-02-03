@@ -35,8 +35,8 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
         // Fire callback if provided (non-blocking)
         if (onLogin) onLogin(user.email || '', user.user_metadata.full_name || '')
         
-        // Navigate to temporary success page for manual testing
-        router.replace('/login-success')
+        // Navigate to Profile Wizard for onboarding
+        router.replace('/profile-wizard')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, router])
@@ -54,8 +54,8 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
 
   const handleEmailSubmit = async () => {
     const result = EmailSchema.safeParse(email)
-    if (result.success === false) {
-      setErrors({ ...errors, email: result.error.errors[0].message })
+    if (!result.success) {
+      setErrors({ ...errors, email: (result.error as any).errors[0]?.message })
       return
     }
     setErrors({ ...errors, email: undefined })
@@ -83,8 +83,8 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
 
   const handleOtpSubmit = async () => {
     const result = OtpSchema.safeParse(otp)
-    if (result.success === false) {
-        setErrors({ ...errors, otp: result.error.errors[0].message })
+    if (!result.success) {
+        setErrors({ ...errors, otp: (result.error as any).errors[0]?.message })
         return
     }
     setErrors({ ...errors, otp: undefined })

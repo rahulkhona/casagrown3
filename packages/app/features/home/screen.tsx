@@ -12,6 +12,7 @@ import {
   XStack,
   YStack,
 } from '@casagrown/ui'
+import { useAuth } from '../auth/auth-hook'
 import { ArrowRight, Shield, Zap, HandHeart, Sparkles, Ban, TrendingUp, GraduationCap } from '@tamagui/lucide-icons'
 import { Platform, useWindowDimensions, Image } from 'react-native'
 import { colors } from '../../design-tokens'
@@ -80,9 +81,31 @@ function LanguageSwitcher() {
           </Text>
         </Button>
       ))}
+      <DevSignOut />
     </XStack>
   )
 }
+
+function DevSignOut() {
+    const { signOut, user } = useAuth()
+    const { t } = useTranslation()
+    
+    if (!user) return null
+
+    return (
+        <Button 
+            size="$2" 
+            backgroundColor="#fee2e2" 
+            onPress={signOut}
+            pressStyle={{ opacity: 0.8 }}
+        >
+            <Text color="#b91c1c" fontSize={12} fontWeight="700">
+             Sign Out
+            </Text>
+        </Button>
+    )
+}
+
 
 // ============================================================================
 // Hero Section
@@ -426,7 +449,7 @@ function FeatureCard({ icon: Icon, iconBg, title, bullets, introText }: {
         {title}
       </H3>
       
-      {introText && (
+      {!!introText && (
         <Paragraph color={colors.gray[700]} fontSize={15} fontWeight="400" lineHeight={22}>
           {introText}
         </Paragraph>
@@ -435,7 +458,7 @@ function FeatureCard({ icon: Icon, iconBg, title, bullets, introText }: {
       <YStack gap="$2">
         {Array.isArray(bullets) && bullets.map((bullet, i) => (
           <XStack key={i} gap="$2" alignItems="flex-start">
-            <Text color={colors.primary} fontWeight="700" fontSize={15}>•</Text>
+            <Text color={colors.primary} fontWeight="700" fontSize={15}>{'•'}</Text>
             <Text color={colors.gray[700]} fontSize={15} fontWeight="400" flex={1} lineHeight={20}>
               {bullet}
             </Text>
