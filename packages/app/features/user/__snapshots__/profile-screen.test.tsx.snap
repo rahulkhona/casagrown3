@@ -1,0 +1,568 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`ProfileScreen matches snapshot 1`] = `
+<RCTScrollView
+  backgroundColor="#fafafa"
+  contentContainerStyle={
+    {
+      "paddingBottom": 40,
+    }
+  }
+  flex={1}
+>
+  <View>
+    <View
+      alignSelf="center"
+      gap="$4"
+      maxWidth={600}
+      padding="$4"
+      paddingTop={63}
+      width="100%"
+    >
+      <View
+        alignItems="center"
+        justifyContent="space-between"
+        style={
+          {
+            "flexDirection": "row",
+          }
+        }
+      >
+        <Text
+          color="#171717"
+          fontSize="$8"
+          fontWeight="700"
+        >
+          profile.title
+        </Text>
+        <View
+          accessibilityState={
+            {
+              "busy": undefined,
+              "checked": undefined,
+              "disabled": undefined,
+              "expanded": undefined,
+              "selected": undefined,
+            }
+          }
+          accessibilityValue={
+            {
+              "max": undefined,
+              "min": undefined,
+              "now": undefined,
+              "text": undefined,
+            }
+          }
+          accessible={true}
+          collapsable={false}
+          focusable={true}
+          onClick={[Function]}
+          onResponderGrant={[Function]}
+          onResponderMove={[Function]}
+          onResponderRelease={[Function]}
+          onResponderTerminate={[Function]}
+          onResponderTerminationRequest={[Function]}
+          onStartShouldSetResponder={[Function]}
+          style={
+            {
+              "opacity": 1,
+            }
+          }
+        >
+          <Text>
+            <Text
+              color="white"
+            >
+              profile.editProfile
+            </Text>
+          </Text>
+        </View>
+      </View>
+      <View
+        backgroundColor="white"
+        borderRadius={16}
+        padding="$5"
+        shadowColor="#000"
+        shadowOffset={
+          {
+            "height": 1,
+            "width": 0,
+          }
+        }
+        shadowOpacity={0.1}
+      >
+        <View
+          alignItems="flex-start"
+          gap="$4"
+          marginBottom="$4"
+          style={
+            {
+              "flexDirection": "row",
+            }
+          }
+        >
+          <View
+            alignItems="center"
+            gap="$2"
+          >
+            <View
+              circular={true}
+              size="$10"
+            >
+              <View
+                backgroundColor="#0284c7"
+              >
+                <Text
+                  color="white"
+                  fontSize="$8"
+                  fontWeight="700"
+                >
+                  J
+                </Text>
+              </View>
+            </View>
+          </View>
+          <View
+            flex={1}
+            gap="$2"
+          >
+            <Text
+              color="#171717"
+              fontSize="$6"
+              fontWeight="700"
+            >
+              John Doe
+            </Text>
+            <View
+              alignItems="center"
+              gap="$2"
+              style={
+                {
+                  "flexDirection": "row",
+                }
+              }
+            >
+              <Text
+                color="#525252"
+              >
+                test@casagrown.com
+              </Text>
+              <Text
+                backgroundColor="#e0f2fe"
+                borderRadius={4}
+                color="#0369a1"
+                fontSize="$1"
+                paddingHorizontal="$2"
+                paddingVertical="$1"
+              >
+                profile.verified
+              </Text>
+            </View>
+          </View>
+        </View>
+        <View />
+        <View
+          gap="$3"
+        >
+          <Text
+            color="#171717"
+            fontWeight="600"
+          >
+            profile.myCommunity
+          </Text>
+          <View
+            backgroundColor="#fafafa"
+            borderRadius={12}
+            gap="$2"
+            padding="$3"
+          >
+            <View
+              alignItems="center"
+              justifyContent="space-between"
+              style={
+                {
+                  "flexDirection": "row",
+                }
+              }
+            >
+              <View
+                alignItems="center"
+                gap="$2"
+                style={
+                  {
+                    "flexDirection": "row",
+                  }
+                }
+              >
+                <Text
+                  color="#171717"
+                  fontWeight="500"
+                >
+                  Willow Glen
+                </Text>
+              </View>
+            </View>
+            <Text
+              color="#737373"
+              fontSize="$2"
+              marginLeft="$7"
+            >
+              San Jose, CA
+            </Text>
+          </View>
+        </View>
+        <View
+          gap="$3"
+        >
+          <Text
+            color="#171717"
+            fontWeight="600"
+          >
+            profile.notifications
+          </Text>
+          <View
+            backgroundColor="#fafafa"
+            borderRadius={12}
+            borderWidth={1}
+            gap="$3"
+            padding="$4"
+          >
+            <View
+              alignItems="center"
+              gap="$3"
+              style={
+                {
+                  "flexDirection": "row",
+                }
+              }
+            >
+              <View
+                accessibilityState={
+                  {
+                    "busy": undefined,
+                    "checked": false,
+                    "disabled": true,
+                    "expanded": undefined,
+                    "selected": undefined,
+                  }
+                }
+                accessibilityValue={
+                  {
+                    "max": undefined,
+                    "min": undefined,
+                    "now": undefined,
+                    "text": undefined,
+                  }
+                }
+                accessible={true}
+                collapsable={false}
+                focusable={false}
+                onClick={[Function]}
+                onResponderGrant={[Function]}
+                onResponderMove={[Function]}
+                onResponderRelease={[Function]}
+                onResponderTerminate={[Function]}
+                onResponderTerminationRequest={[Function]}
+                onStartShouldSetResponder={[Function]}
+                style={
+                  {
+                    "opacity": 1,
+                  }
+                }
+              >
+                <Text>
+                  ☐
+                </Text>
+                <View />
+              </View>
+              <Text
+                fontSize="$3"
+              >
+                profile.notifyWanted
+              </Text>
+            </View>
+            <View
+              alignItems="center"
+              gap="$3"
+              style={
+                {
+                  "flexDirection": "row",
+                }
+              }
+            >
+              <View
+                accessibilityState={
+                  {
+                    "busy": undefined,
+                    "checked": false,
+                    "disabled": true,
+                    "expanded": undefined,
+                    "selected": undefined,
+                  }
+                }
+                accessibilityValue={
+                  {
+                    "max": undefined,
+                    "min": undefined,
+                    "now": undefined,
+                    "text": undefined,
+                  }
+                }
+                accessible={true}
+                collapsable={false}
+                focusable={false}
+                onClick={[Function]}
+                onResponderGrant={[Function]}
+                onResponderMove={[Function]}
+                onResponderRelease={[Function]}
+                onResponderTerminate={[Function]}
+                onResponderTerminationRequest={[Function]}
+                onStartShouldSetResponder={[Function]}
+                style={
+                  {
+                    "opacity": 1,
+                  }
+                }
+              >
+                <Text>
+                  ☐
+                </Text>
+                <View />
+              </View>
+              <Text
+                fontSize="$3"
+              >
+                profile.notifyAvailable
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+      <View
+        backgroundColor="white"
+        borderRadius={16}
+        padding="$5"
+        shadowColor="#000"
+        shadowOffset={
+          {
+            "height": 1,
+            "width": 0,
+          }
+        }
+        shadowOpacity={0.1}
+      >
+        <Text
+          color="#171717"
+          fontWeight="600"
+          marginBottom="$3"
+        >
+          profile.activityStats
+        </Text>
+        <View
+          justifyContent="space-around"
+          style={
+            {
+              "flexDirection": "row",
+            }
+          }
+        >
+          <View
+            alignItems="center"
+            backgroundColor="#fafafa"
+            borderRadius={12}
+            minWidth={70}
+            padding="$3"
+          >
+            <Text
+              color="#171717"
+              fontSize="$6"
+              fontWeight="700"
+            >
+              0
+            </Text>
+            <Text
+              color="#525252"
+              fontSize="$2"
+            >
+              profile.transactions
+            </Text>
+          </View>
+          <View
+            alignItems="center"
+            backgroundColor="#fafafa"
+            borderRadius={12}
+            minWidth={70}
+            padding="$3"
+          >
+            <Text
+              color="#171717"
+              fontSize="$6"
+              fontWeight="700"
+            >
+              -
+            </Text>
+            <Text
+              color="#525252"
+              fontSize="$2"
+            >
+              profile.rating
+            </Text>
+          </View>
+          <View
+            alignItems="center"
+            backgroundColor="#fafafa"
+            borderRadius={12}
+            minWidth={70}
+            padding="$3"
+          >
+            <Text
+              color="#171717"
+              fontSize="$6"
+              fontWeight="700"
+            >
+              0
+            </Text>
+            <Text
+              color="#525252"
+              fontSize="$2"
+            >
+              profile.posts
+            </Text>
+          </View>
+          <View
+            alignItems="center"
+            backgroundColor="#f0f9ff"
+            borderRadius={12}
+            minWidth={70}
+            onPress={[Function]}
+            padding="$3"
+            pressStyle={
+              {
+                "opacity": 0.8,
+              }
+            }
+          >
+            <Text
+              color="#0369a1"
+              fontSize="$6"
+              fontWeight="700"
+            >
+              0
+            </Text>
+            <Text
+              color="#0369a1"
+              fontSize="$2"
+              fontWeight="500"
+            >
+              profile.following
+            </Text>
+          </View>
+        </View>
+      </View>
+      <View
+        backgroundColor="white"
+        borderColor="#fecaca"
+        borderRadius={16}
+        borderWidth={2}
+        padding="$5"
+      >
+        <Text
+          color="#dc2626"
+          fontWeight="600"
+          marginBottom="$3"
+        >
+          profile.accountActions
+        </Text>
+        <View
+          gap="$3"
+        >
+          <View
+            accessibilityState={
+              {
+                "busy": undefined,
+                "checked": undefined,
+                "disabled": undefined,
+                "expanded": undefined,
+                "selected": undefined,
+              }
+            }
+            accessibilityValue={
+              {
+                "max": undefined,
+                "min": undefined,
+                "now": undefined,
+                "text": undefined,
+              }
+            }
+            accessible={true}
+            collapsable={false}
+            focusable={true}
+            onClick={[Function]}
+            onResponderGrant={[Function]}
+            onResponderMove={[Function]}
+            onResponderRelease={[Function]}
+            onResponderTerminate={[Function]}
+            onResponderTerminationRequest={[Function]}
+            onStartShouldSetResponder={[Function]}
+            style={
+              {
+                "opacity": 1,
+              }
+            }
+          >
+            <Text>
+              <Text
+                color="white"
+              >
+                profile.logout
+              </Text>
+            </Text>
+          </View>
+          <View
+            accessibilityState={
+              {
+                "busy": undefined,
+                "checked": undefined,
+                "disabled": undefined,
+                "expanded": undefined,
+                "selected": undefined,
+              }
+            }
+            accessibilityValue={
+              {
+                "max": undefined,
+                "min": undefined,
+                "now": undefined,
+                "text": undefined,
+              }
+            }
+            accessible={true}
+            collapsable={false}
+            focusable={true}
+            onClick={[Function]}
+            onResponderGrant={[Function]}
+            onResponderMove={[Function]}
+            onResponderRelease={[Function]}
+            onResponderTerminate={[Function]}
+            onResponderTerminationRequest={[Function]}
+            onStartShouldSetResponder={[Function]}
+            style={
+              {
+                "opacity": 1,
+              }
+            }
+          >
+            <Text>
+              <Text
+                color="#dc2626"
+              >
+                profile.deactivateAccount
+              </Text>
+            </Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  </View>
+</RCTScrollView>
+`;

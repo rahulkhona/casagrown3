@@ -1,0 +1,90 @@
+appId: dev.casagrown.community
+---
+# Profile Management E2E Flow
+# Tests profile editing, community switching, notification settings, and logout
+
+# Login first
+- runFlow: "../utils/login.yaml"
+
+# ============================================
+# Navigate to Profile
+# ============================================
+- tapOn: "Profile"
+- assertVisible: "Profile Settings"
+
+# ============================================
+# Test Edit Name
+# ============================================
+- tapOn: "Edit Profile"
+- assertVisible: "Save"
+- assertVisible: "Cancel"
+
+# Edit the name - tap on field, erase, then type new value
+- tapOn:
+    id: "name_input"
+- eraseText: 50
+- inputText:
+    id: "name_input"
+    text: "Updated Test Name"
+
+# Save changes
+- tapOn: "Save"
+
+# Verify name was updated
+- assertVisible: "Updated Test Name"
+
+# ============================================
+# Test Notification Toggles
+# ============================================
+- tapOn: "Edit Profile"
+
+# Toggle SMS notifications (checkbox)
+- tapOn: "SMS Notifications"
+
+# Phone input should appear
+- assertVisible: "Phone Number"
+
+# Enter phone number
+- inputText:
+    id: "phone_input"
+    text: "5559876543"
+
+# Toggle Notify on Wanted
+- tapOn: "Notify on Wanted Posts"
+
+# Cancel without saving
+- tapOn: "Cancel"
+
+# ============================================
+# Test Community Switch
+# ============================================
+- tapOn: "Edit Profile"
+- tapOn: "Switch to Different Community"
+
+# Enter new address
+- inputText:
+    id: "address_input"
+    text: "456 Oak Ave, Campbell, CA 95008"
+
+# Find community
+- tapOn: "Find Community"
+
+# Verify new community found
+- assertVisible: "Campbell"
+
+# Join new community
+- tapOn: "Join a Community"
+
+# Verify community was switched
+- assertVisible: "Campbell"
+
+# Save changes
+- tapOn: "Save"
+
+# ============================================
+# Test Logout (Direct - No Confirmation)
+# ============================================
+- tapOn: "Logout"
+
+# Verify we're back at login
+- assertVisible: "Login"

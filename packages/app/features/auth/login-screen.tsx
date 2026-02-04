@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { colors } from '../../design-tokens'
 import { useTranslation } from 'react-i18next'
 import { useRouter } from 'solito/navigation'
-import { useAuth } from './auth-hook'
+import { useAuth, supabase } from './auth-hook'
 
 import { EmailSchema, OtpSchema } from './schemas'
 
@@ -29,15 +29,38 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const media = useMedia()
 
-  // Redirect if logged in
+  // Redirect based on onboarding status
   useEffect(() => {
-    if (user) {
-        // Fire callback if provided (non-blocking)
-        if (onLogin) onLogin(user.email || '', user.user_metadata.full_name || '')
+    const checkProfileAndRedirect = async () => {
+      if (!user) return
+      
+      // Fire callback if provided (non-blocking)
+      if (onLogin) onLogin(user.email || '', user.user_metadata.full_name || '')
+      
+      // Check if user has completed onboarding by checking profile.full_name
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name, home_community_h3_index')
+          .eq('id', user.id)
+          .single()
         
-        // Navigate to Profile Wizard for onboarding
+        // User needs both profile name AND community to go to profile management
+        // Otherwise → Profile Wizard to complete onboarding
+        if (profile?.full_name && profile?.home_community_h3_index) {
+          router.replace('/profile')
+        } else {
+          // New user or incomplete onboarding → Profile Wizard
+          router.replace('/profile-wizard')
+        }
+      } catch (err) {
+        // On error, default to wizard for new users
+        console.error('Error checking profile:', err)
         router.replace('/profile-wizard')
+      }
     }
+    
+    checkProfileAndRedirect()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, router])
 

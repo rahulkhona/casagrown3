@@ -1,0 +1,79 @@
+appId: dev.casagrown.community
+---
+# Profile Wizard E2E Flow
+# Tests the complete profile setup wizard for new users
+
+# Assumes user just signed up (new user)
+- launchApp
+
+# ============================================
+# Step 1: Profile Setup
+# ============================================
+- assertVisible: "Let's Get You Set Up"
+
+# Enter name
+- inputText:
+    id: "name_input"
+    text: "John Doe Test"
+
+# Upload photo (mock tap - actual picker is OS-level)
+- tapOn: "Upload Photo"
+
+# Enable push notifications
+- tapOn: "Push Notifications"
+
+# Enable SMS notifications  
+- tapOn: "SMS Notifications"
+
+# Phone input should appear when SMS is enabled
+- assertVisible: "Mobile Number"
+- inputText:
+    id: "phone_input"
+    text: "5551234567"
+
+# Continue to next step
+- tapOn: "Continue"
+
+# ============================================
+# Step 2: Join Community
+# ============================================
+- assertVisible: "Join Your Community"
+
+# Enter address
+- inputText:
+    id: "address_input"
+    text: "123 Main St, San Jose, CA 95125"
+
+# Find community
+- tapOn: "Find Community"
+
+# Wait for resolution and verify community found
+- assertVisible: "Willow Glen"
+
+# Join the community
+- tapOn: "Continue"
+
+# ============================================
+# Step 3: Intro Post
+# ============================================
+- assertVisible: "Introduce Yourself"
+
+# Enter introduction text
+- inputText:
+    id: "intro_text"
+    text: "Hi neighbors! Excited to share fresh tomatoes from my garden."
+
+# Select some produce items (optional)
+- tapOn: "Tomatoes"
+- tapOn: "Lemons"
+
+# Enable first post option
+- tapOn: "Make this my first post"
+
+# Complete the wizard
+- tapOn: "Post & Continue"
+
+# ============================================
+# Verify Completion
+# ============================================
+- assertVisible: "Home"

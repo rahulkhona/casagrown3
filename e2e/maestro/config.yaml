@@ -1,0 +1,15 @@
+# Maestro E2E Configuration
+# https://maestro.mobile.dev/
+
+# Default app ID for all flows
+appId: dev.casagrown.community
+
+# Environment variables
+env:
+  TEST_EMAIL: test@casagrown.com
+  TEST_PASSWORD: TestPassword123!
+
+# Flow execution settings
+flows:
+  - flows/profile-wizard.yaml
+  - flows/profile-management.yaml

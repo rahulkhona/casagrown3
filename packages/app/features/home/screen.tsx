@@ -72,7 +72,7 @@ function LanguageSwitcher() {
         <Button
           key={lang.code}
           size="$2"
-          backgroundColor={i18n.language?.startsWith(lang.code) ? colors.primary : colors.gray[200]}
+          backgroundColor={i18n.language?.startsWith(lang.code) ? colors.primaryColor : colors.gray[200]}
           onPress={() => i18n.changeLanguage(lang.code)}
           pressStyle={{ opacity: 0.8 }}
         >
@@ -188,7 +188,7 @@ function HeroSection({ onLinkPress, heroImageSrc, logoSrc }: { onLinkPress?: () 
               >
                 <Text
                   fontSize={10}
-                  color={colors.primary}
+                  color={colors.primaryColor}
                   fontWeight="800"
                   letterSpacing={1.2}
                   textTransform="uppercase"
@@ -222,7 +222,7 @@ function HeroSection({ onLinkPress, heroImageSrc, logoSrc }: { onLinkPress?: () 
           
           <Button
             size="$4"
-            backgroundColor={colors.primary}
+            backgroundColor={colors.primaryColor}
             borderRadius={28}
             paddingHorizontal="$6"
             hoverStyle={{ backgroundColor: colors.primaryDark }}
@@ -302,7 +302,7 @@ function StepCard({ number, title, description }: {
       <YStack
         width={64}
         height={64}
-        backgroundColor={colors.primary}
+        backgroundColor={colors.primaryColor}
         borderRadius={32}
         alignItems="center"
         justifyContent="center"
@@ -379,7 +379,7 @@ function PointsSystemSection({ onLinkPress }: { onLinkPress?: () => void }) {
   const { t } = useTranslation()
   
   return (
-    <YStack width="100%" paddingHorizontal="$4" paddingVertical="$12" backgroundColor={colors.primary} alignItems="center">
+    <YStack width="100%" paddingHorizontal="$4" paddingVertical="$12" backgroundColor={colors.primaryColor} alignItems="center">
       <YStack maxWidth={700} width="100%" gap="$5" alignItems="center">
         <H2 color={colors.white} fontSize={isMobile ? 30 : 36} fontWeight="700" textAlign="center">
           {t('home.pointsSection.title')}
@@ -397,7 +397,7 @@ function PointsSystemSection({ onLinkPress }: { onLinkPress?: () => void }) {
           iconAfter={ArrowRight}
           onPress={onLinkPress}
         >
-          <Text color={colors.primary} fontWeight="600">{t('home.pointsSection.cta')}</Text>
+          <Text color={colors.primaryColor} fontWeight="600">{t('home.pointsSection.cta')}</Text>
         </Button>
       </YStack>
     </YStack>
@@ -458,7 +458,7 @@ function FeatureCard({ icon: Icon, iconBg, title, bullets, introText }: {
       <YStack gap="$2">
         {Array.isArray(bullets) && bullets.map((bullet, i) => (
           <XStack key={i} gap="$2" alignItems="flex-start">
-            <Text color={colors.primary} fontWeight="700" fontSize={15}>{'•'}</Text>
+            <Text color={colors.primaryColor} fontWeight="700" fontSize={15}>{'•'}</Text>
             <Text color={colors.gray[700]} fontSize={15} fontWeight="400" flex={1} lineHeight={20}>
               {bullet}
             </Text>
@@ -650,7 +650,7 @@ function ReadyToMakeDifferenceSection({ onLinkPress }: { onLinkPress?: () => voi
   const { t } = useTranslation()
 
   return (
-    <YStack width="100%" paddingHorizontal="$4" paddingVertical="$12" backgroundColor={colors.primary} alignItems="center">
+    <YStack width="100%" paddingHorizontal="$4" paddingVertical="$12" backgroundColor={colors.primaryColor} alignItems="center">
       <YStack maxWidth={700} width="100%" gap="$5" alignItems="center">
         <H2 color={colors.white} fontSize={isMobile ? 30 : 36} fontWeight="700" textAlign="center">
           {t('home.ctaSection.title')}
@@ -668,7 +668,7 @@ function ReadyToMakeDifferenceSection({ onLinkPress }: { onLinkPress?: () => voi
           iconAfter={ArrowRight}
           onPress={onLinkPress}
         >
-          <Text color={colors.primary} fontWeight="600">{t('home.ctaSection.button')}</Text>
+          <Text color={colors.primaryColor} fontWeight="600">{t('home.ctaSection.button')}</Text>
         </Button>
       </YStack>
     </YStack>

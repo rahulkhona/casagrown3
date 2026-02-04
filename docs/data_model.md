@@ -82,6 +82,10 @@ The `point_ledger` table tracks all point transactions for each user, providing 
 
 **Idempotency**: Reward grants check for existing entries with matching `action_type` in metadata before inserting new rewards.
 
+**RLS Policies**:
+- `Users can view own point ledger entries` - SELECT where `auth.uid() = user_id`
+- `Users can insert own point ledger entries` - INSERT with check `auth.uid() = user_id`
+
 ---
 
 ## Schema Implementation Details

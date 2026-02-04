@@ -1,0 +1,34 @@
+appId: dev.casagrown.community
+---
+# Login utility flow - reusable for other tests
+# Uses OTP email authentication flow
+
+- launchApp
+
+# App shows landing page first - tap to proceed to login
+- tapOn: "Join the Movement!"
+
+# Step 1: Select email login
+- tapOn: "Continue with Email"
+
+# Step 2: Enter email
+- inputText:
+    id: "email_input"
+    text: "test@casagrown.com"
+
+- tapOn: "Send Verification Code"
+
+# Step 3: Enter OTP (for testing, use mock OTP or skip in dev mode)
+# NOTE: For local testing, this requires the app to be in dev mode
+# where verify is auto-approved, or use a test OTP interceptor
+- inputText:
+    id: "otp_input"
+    text: "123456"
+
+- tapOn: "Verify & Continue"
+
+# Wait for navigation to complete
+- extendedWaitUntil:
+    visible:
+      text: ".*"
+    timeout: 5000

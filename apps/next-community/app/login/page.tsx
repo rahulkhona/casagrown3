@@ -9,11 +9,7 @@ export default function LoginPage() {
   return (
     <LoginScreen 
       logoSrc="/logo.png"
-      onBack={() => router.back()} // Or router.push('/')
-      onLogin={(email, name) => {
-        console.log('Login attempt:', email, name)
-        alert(`Login logic not implemented yet.\nUser: ${name}\nEmail: ${email}`)
-      }}
+      onBack={() => router.back()}
     />
   )
 }
