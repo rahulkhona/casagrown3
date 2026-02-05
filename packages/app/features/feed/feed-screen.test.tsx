@@ -59,77 +59,77 @@ describe('FeedScreen', () => {
 
   it('renders navigation items on desktop', () => {
     render(<FeedScreen />)
-    expect(screen.getByText('Feed')).toBeTruthy()
-    expect(screen.getByText('Chats')).toBeTruthy()
-    expect(screen.getByText('Orders')).toBeTruthy()
+    expect(screen.getByText('feed.nav.feed')).toBeTruthy()
+    expect(screen.getByText('feed.nav.chats')).toBeTruthy()
+    expect(screen.getByText('feed.nav.orders')).toBeTruthy()
   })
 
   it('renders empty state title', () => {
     render(<FeedScreen />)
-    expect(screen.getByText('No posts found')).toBeTruthy()
+    expect(screen.getByText('feed.emptyTitle')).toBeTruthy()
   })
 
   it('renders empty state description', () => {
     render(<FeedScreen />)
-    expect(screen.getByText('Try adjusting your search or filters')).toBeTruthy()
+    expect(screen.getByText('feed.emptyDescription')).toBeTruthy()
   })
 
   it('renders search bar placeholder', () => {
     render(<FeedScreen />)
-    expect(screen.getByPlaceholderText('Search posts, categories, or keywords...')).toBeTruthy()
+    expect(screen.getByPlaceholderText('feed.searchPlaceholder')).toBeTruthy()
   })
 
   it('renders Create Post button', () => {
     const mockOnCreatePost = jest.fn()
     render(<FeedScreen onCreatePost={mockOnCreatePost} />)
-    expect(screen.getAllByText('Create Post').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('feed.createPost').length).toBeGreaterThan(0)
   })
 
   it('renders Create First Post button in empty state', () => {
     const mockOnCreatePost = jest.fn()
     render(<FeedScreen onCreatePost={mockOnCreatePost} />)
-    expect(screen.getByText('Create First Post')).toBeTruthy()
+    expect(screen.getByText('feed.createFirstPost')).toBeTruthy()
   })
 
   it('calls onCreatePost when Create First Post is pressed', () => {
     const mockOnCreatePost = jest.fn()
     render(<FeedScreen onCreatePost={mockOnCreatePost} />)
     
-    fireEvent.press(screen.getByText('Create First Post'))
+    fireEvent.press(screen.getByText('feed.createFirstPost'))
     expect(mockOnCreatePost).toHaveBeenCalled()
   })
 
   it('renders footer with branding', () => {
     render(<FeedScreen />)
-    expect(screen.getByText('Connecting neighborhoods to eliminate food waste and expand access to fresh produce.')).toBeTruthy()
+    expect(screen.getByText('feed.footer.description')).toBeTruthy()
   })
 
   it('renders footer Learn More section', () => {
     render(<FeedScreen />)
-    expect(screen.getByText('Learn More')).toBeTruthy()
-    expect(screen.getByText('Why Points System?')).toBeTruthy()
+    expect(screen.getByText('feed.footer.learnMore')).toBeTruthy()
+    expect(screen.getByText('feed.footer.whyPoints')).toBeTruthy()
   })
 
   it('renders footer Legal section', () => {
     render(<FeedScreen />)
-    expect(screen.getByText('Legal')).toBeTruthy()
-    expect(screen.getByText('Privacy Policy')).toBeTruthy()
+    expect(screen.getByText('feed.footer.legal')).toBeTruthy()
+    expect(screen.getByText('feed.footer.privacyPolicy')).toBeTruthy()
   })
 
   it('renders copyright notice', () => {
     render(<FeedScreen />)
-    expect(screen.getByText('© 2026 CasaGrown. All rights reserved.')).toBeTruthy()
+    expect(screen.getByText('feed.footer.copyright')).toBeTruthy()
   })
 
   it('renders Invite button', () => {
     render(<FeedScreen />)
-    expect(screen.getByText('Invite')).toBeTruthy()
+    expect(screen.getByText('feed.header.invite')).toBeTruthy()
   })
 
   it('renders points display', () => {
     render(<FeedScreen />)
     expect(screen.getByText('0')).toBeTruthy()
-    expect(screen.getByText('points')).toBeTruthy()
+    expect(screen.getByText('feed.header.points')).toBeTruthy()
   })
 
   it('calls onNavigateToProfile when profile avatar is pressed', () => {

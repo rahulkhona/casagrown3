@@ -289,8 +289,25 @@
     "cancel": "Cancel"
   },
   "feed": {
-    "emptyTitle": "Your Feed is Growing!",
-    "emptyDescription": "This is where you'll see posts from your community. Fresh produce, gardening tips, and local exchanges will appear here soon!",
+    "nav": {
+      "feed": "Feed",
+      "chats": "Chats",
+      "orders": "Orders",
+      "myPosts": "My Posts",
+      "redeem": "Redeem",
+      "transferPoints": "Transfer Points",
+      "delegateSales": "Delegate Sales"
+    },
+    "header": {
+      "invite": "Invite",
+      "points": "points"
+    },
+    "searchPlaceholder": "Search posts, categories, or keywords...",
+    "filter": "Filter",
+    "createPost": "Create Post",
+    "emptyTitle": "No posts found",
+    "emptyDescription": "Try adjusting your search or filters",
+    "createFirstPost": "Create First Post",
     "comingSoon": "✨ Feed coming soon!",
     "whatsNextTitle": "What's Coming",
     "feature1Title": "Fresh Produce Posts",
@@ -299,6 +316,17 @@
     "feature2Desc": "Connect with local growers",
     "feature3Title": "Points & Rewards",
     "feature3Desc": "Earn and redeem for transactions",
-    "createFirstPost": "Create First Post"
+    "footer": {
+      "description": "Connecting neighborhoods to eliminate food waste and expand access to fresh produce.",
+      "learnMore": "Learn More",
+      "whyPoints": "Why Points System?",
+      "howItWorks": "How It Works",
+      "support": "Support",
+      "legal": "Legal",
+      "privacyPolicy": "Privacy Policy",
+      "userAgreement": "User Agreement",
+      "termsOfService": "Terms of Service",
+      "copyright": "© 2026 CasaGrown. All rights reserved."
+    }
   }
 }

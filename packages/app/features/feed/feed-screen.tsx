@@ -21,16 +21,16 @@ interface FeedScreenProps {
   logoSrc?: any // Logo image source for mobile (use require('../assets/logo.png'))
 }
 
-// Navigation items based on figma_extracted/src/App.tsx lines 291-367
+// Navigation item keys - labels are localized via t()
 // Badges show count of pending action items - currently 0 (will be populated from backend)
-const NAV_ITEMS = [
-  { key: 'feed', label: 'Feed', active: true, badge: 0 },
-  { key: 'chats', label: 'Chats', badge: 0 },
-  { key: 'orders', label: 'Orders', badge: 0 },
-  { key: 'myPosts', label: 'My Posts', badge: 0 },
-  { key: 'redeem', label: 'Redeem', badge: 0 },
-  { key: 'transferPoints', label: 'Transfer Points', badge: 0 },
-  { key: 'delegateSales', label: 'Delegate Sales', badge: 0 },
+const NAV_KEYS = [
+  { key: 'feed', active: true, badge: 0 },
+  { key: 'chats', badge: 0 },
+  { key: 'orders', badge: 0 },
+  { key: 'myPosts', badge: 0 },
+  { key: 'redeem', badge: 0 },
+  { key: 'transferPoints', badge: 0 },
+  { key: 'delegateSales', badge: 0 },
 ]
 
 export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc }: FeedScreenProps) {
@@ -112,7 +112,7 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc }: FeedS
             {/* Desktop Navigation - Based on App.tsx lines 291-367 */}
             {isDesktop && (
               <XStack gap="$5" marginLeft="$5">
-                {NAV_ITEMS.map((item) => (
+                {NAV_KEYS.map((item) => (
                   <XStack key={item.key} alignItems="center" position="relative">
                     <Text 
                       fontSize="$3" 
@@ -121,7 +121,7 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc }: FeedS
                       cursor="pointer"
                       hoverStyle={{ color: colors.green[600] }}
                     >
-                      {item.label}
+                      {t(`feed.nav.${item.key}`)}
                     </Text>
                     {item.badge > 0 && (
                       <YStack 
@@ -171,7 +171,7 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc }: FeedS
                 hoverStyle={{ backgroundColor: colors.green[700] }}
                 icon={<UserPlus size={16} color="white" />}
               >
-                <Text color="white" fontSize="$3" fontWeight="500">Invite</Text>
+                <Text color="white" fontSize="$3" fontWeight="500">{t('feed.header.invite')}</Text>
               </Button>
             ) : (
               <Button 
@@ -199,7 +199,7 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc }: FeedS
             >
               <Text fontWeight="600" color={colors.green[700]}>{userPoints}</Text>
               {isDesktop && (
-                <Text fontSize="$3" color={colors.green[700]}>points</Text>
+                <Text fontSize="$3" color={colors.green[700]}>{t('feed.header.points')}</Text>
               )}
             </Button>
 
@@ -279,7 +279,7 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc }: FeedS
             paddingHorizontal="$4"
             paddingVertical="$2"
           >
-            {NAV_ITEMS.map((item) => (
+            {NAV_KEYS.map((item) => (
               <Button
                 key={item.key}
                 unstyled
@@ -297,7 +297,7 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc }: FeedS
                   color={item.active ? colors.green[600] : colors.gray[700]}
                   fontWeight={item.active ? '600' : '400'}
                 >
-                  {item.label}
+                  {t(`feed.nav.${item.key}`)}
                 </Text>
                 {item.badge > 0 && (
                   <YStack 
@@ -358,7 +358,7 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc }: FeedS
                 <Search size={18} color={colors.gray[400]} />
                 <Input
                   flex={1}
-                  placeholder={t('feed.searchPlaceholder', 'Search posts, categories, or keywords...')}
+                  placeholder={t('feed.searchPlaceholder')}
                   placeholderTextColor={colors.gray[400]}
                   backgroundColor="transparent"
                   borderWidth={0}
@@ -379,7 +379,7 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc }: FeedS
                 hoverStyle={{ backgroundColor: colors.gray[50] }}
                 icon={<Filter size={18} color={colors.gray[600]} />}
               >
-                {isDesktop && <Text color={colors.gray[700]} fontSize="$3">Filter</Text>}
+                {isDesktop && <Text color={colors.gray[700]} fontSize="$3">{t('feed.filter')}</Text>}
               </Button>
 
               {/* Create Post Button */}
@@ -393,7 +393,7 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc }: FeedS
                 onPress={onCreatePost}
                 icon={<Plus size={18} color="white" />}
               >
-                <Text color="white" fontSize="$3" fontWeight="500">Create Post</Text>
+                <Text color="white" fontSize="$3" fontWeight="500">{t('feed.createPost')}</Text>
               </Button>
             </XStack>
           </YStack>
@@ -422,11 +422,11 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc }: FeedS
             </YStack>
             
             <Text fontSize="$5" fontWeight="600" color={colors.gray[900]} textAlign="center">
-              {t('feed.emptyTitle', 'No posts found')}
+              {t('feed.emptyTitle')}
             </Text>
             
             <Text fontSize="$4" color={colors.gray[600]} textAlign="center">
-              {t('feed.emptyDescription', 'Try adjusting your search or filters')}
+              {t('feed.emptyDescription')}
             </Text>
 
             {onCreatePost && (
@@ -441,7 +441,7 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc }: FeedS
                 onPress={onCreatePost}
                 icon={<Plus size={18} color="white" />}
               >
-                <Text color="white" fontSize="$4" fontWeight="500">Create First Post</Text>
+                <Text color="white" fontSize="$4" fontWeight="500">{t('feed.createFirstPost')}</Text>
               </Button>
             )}
           </YStack>
@@ -502,7 +502,7 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc }: FeedS
                 </XStack>
                 {/* Description - text-sm in Figma */}
                 <Text fontSize="$3" color={colors.gray[600]} lineHeight={20}>
-                  Connecting neighborhoods to eliminate food waste and expand access to fresh produce.
+                  {t('feed.footer.description')}
                 </Text>
               </YStack>
 
@@ -510,18 +510,18 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc }: FeedS
               <YStack minWidth={120}>
                 {/* Heading - mb-4 in Figma */}
                 <Text fontSize="$3" fontWeight="600" color={colors.gray[900]} marginBottom="$4">
-                  Learn More
+                  {t('feed.footer.learnMore')}
                 </Text>
                 {/* Links - space-y-2 in Figma */}
                 <YStack gap="$2">
                   <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
-                    Why Points System?
+                    {t('feed.footer.whyPoints')}
                   </Text>
                   <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
-                    How It Works
+                    {t('feed.footer.howItWorks')}
                   </Text>
                   <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
-                    Support
+                    {t('feed.footer.support')}
                   </Text>
                 </YStack>
               </YStack>
@@ -530,18 +530,18 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc }: FeedS
               <YStack minWidth={120}>
                 {/* Heading - mb-4 in Figma */}
                 <Text fontSize="$3" fontWeight="600" color={colors.gray[900]} marginBottom="$4">
-                  Legal
+                  {t('feed.footer.legal')}
                 </Text>
                 {/* Links - space-y-2 in Figma */}
                 <YStack gap="$2">
                   <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
-                    Privacy Policy
+                    {t('feed.footer.privacyPolicy')}
                   </Text>
                   <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
-                    User Agreement
+                    {t('feed.footer.userAgreement')}
                   </Text>
                   <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
-                    Terms of Service
+                    {t('feed.footer.termsOfService')}
                   </Text>
                 </YStack>
               </YStack>
@@ -555,7 +555,7 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc }: FeedS
               borderTopColor={colors.gray[200]}
             >
               <Text fontSize="$2" color={colors.gray[500]} textAlign="center">
-                © 2026 CasaGrown. All rights reserved.
+                {t('feed.footer.copyright')}
               </Text>
             </YStack>
           </YStack>
