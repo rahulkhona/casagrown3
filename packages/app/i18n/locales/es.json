@@ -271,5 +271,18 @@
   "common": {
     "error": "Error",
     "cancel": "Cancelar"
+  },
+  "feed": {
+    "emptyTitle": "¡Tu Feed Está Creciendo!",
+    "emptyDescription": "Aquí verás publicaciones de tu comunidad. ¡Productos frescos, consejos de jardinería e intercambios locales aparecerán pronto!",
+    "comingSoon": "✨ ¡Feed próximamente!",
+    "whatsNextTitle": "Lo Que Viene",
+    "feature1Title": "Publicaciones de Productos",
+    "feature1Desc": "Compra y vende con vecinos",
+    "feature2Title": "Chat de Comunidad",
+    "feature2Desc": "Conéctate con cultivadores locales",
+    "feature3Title": "Puntos y Recompensas",
+    "feature3Desc": "Gana y canjea por transacciones",
+    "createFirstPost": "Crear Primera Publicación"
   }
 }

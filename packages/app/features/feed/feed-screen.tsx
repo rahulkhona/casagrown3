@@ -1,0 +1,591 @@
+/**
+ * FeedScreen - Main feed page with Figma-aligned header and footer
+ * 
+ * Based on figma_extracted/src/App.tsx Header (lines 274-570) and Footer (lines 572-640)
+ * Adapted from figma_extracted/src/components/MainFeed.tsx
+ * 
+ * Currently shows empty state - only Profile link is functional
+ */
+
+import { useState } from 'react'
+import { YStack, XStack, Text, Button, ScrollView, useMedia, Input } from 'tamagui'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { colors, shadows, borderRadius } from '../../design-tokens'
+import { useTranslation } from 'react-i18next'
+import { Search, Bell, UserPlus, Home, Plus, Filter, Leaf, Menu, X } from '@tamagui/lucide-icons'
+import { Platform, Image } from 'react-native'
+
+interface FeedScreenProps {
+  onCreatePost?: () => void
+  onNavigateToProfile?: () => void
+  logoSrc?: any // Logo image source for mobile (use require('../assets/logo.png'))
+}
+
+// Navigation items based on figma_extracted/src/App.tsx lines 291-367
+// Badges show count of pending action items - currently 0 (will be populated from backend)
+const NAV_ITEMS = [
+  { key: 'feed', label: 'Feed', active: true, badge: 0 },
+  { key: 'chats', label: 'Chats', badge: 0 },
+  { key: 'orders', label: 'Orders', badge: 0 },
+  { key: 'myPosts', label: 'My Posts', badge: 0 },
+  { key: 'redeem', label: 'Redeem', badge: 0 },
+  { key: 'transferPoints', label: 'Transfer Points', badge: 0 },
+  { key: 'delegateSales', label: 'Delegate Sales', badge: 0 },
+]
+
+export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc }: FeedScreenProps) {
+  const { t } = useTranslation()
+  const insets = useSafeAreaInsets()
+  const media = useMedia()
+  const isWeb = Platform.OS === 'web'
+  const isDesktop = media.md || media.lg
+  
+  // Mobile menu state
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  // User data - badges only appear when there are actual pending items
+  const userPoints = 0
+  const unreadNotificationsCount = 0 // No pending notifications in empty state
+  const userName = 'A' // First letter for avatar
+
+  return (
+    <YStack flex={1} backgroundColor={colors.gray[50]}>
+      {/* ============ HEADER ============ */}
+      {/* Based on figma_extracted/src/App.tsx lines 279-569 */}
+      <YStack 
+        backgroundColor="white" 
+        borderBottomWidth={1} 
+        borderBottomColor={colors.gray[200]}
+        paddingTop={insets.top || (isWeb ? 0 : 16)}
+        position={isWeb ? 'sticky' as any : 'relative'}
+        top={0}
+        zIndex={50}
+      >
+        <XStack 
+          paddingHorizontal={isDesktop ? '$6' : '$4'} 
+          height={64}
+          alignItems="center"
+          justifyContent="space-between"
+          maxWidth={1280}
+          width="100%"
+          alignSelf="center"
+        >
+          {/* Left: Logo + Nav */}
+          <XStack alignItems="center" gap="$2" flex={1}>
+            {/* Logo - Using actual CasaGrown logo */}
+            <XStack 
+              alignItems="center" 
+              gap="$2" 
+              cursor="pointer"
+            >
+              {isWeb ? (
+                <img 
+                  src="/logo.png" 
+                  alt="CasaGrown" 
+                  style={{ width: 32, height: 32, objectFit: 'contain' }} 
+                />
+              ) : logoSrc ? (
+                <Image
+                  source={logoSrc}
+                  style={{ width: 32, height: 32 }}
+                  resizeMode="contain"
+                />
+              ) : (
+                <YStack 
+                  width={32} 
+                  height={32} 
+                  borderRadius="$full" 
+                  backgroundColor={colors.green[600]} 
+                  alignItems="center" 
+                  justifyContent="center"
+                >
+                  <Leaf size={18} color="white" />
+                </YStack>
+              )}
+              {isDesktop && (
+                <Text fontSize="$5" fontWeight="700" color={colors.gray[900]}>
+                  CasaGrown
+                </Text>
+              )}
+            </XStack>
+
+            {/* Desktop Navigation - Based on App.tsx lines 291-367 */}
+            {isDesktop && (
+              <XStack gap="$5" marginLeft="$5">
+                {NAV_ITEMS.map((item) => (
+                  <XStack key={item.key} alignItems="center" position="relative">
+                    <Text 
+                      fontSize="$3" 
+                      color={item.active ? colors.green[600] : colors.gray[700]}
+                      fontWeight={item.active ? '600' : '500'}
+                      cursor="pointer"
+                      hoverStyle={{ color: colors.green[600] }}
+                    >
+                      {item.label}
+                    </Text>
+                    {item.badge > 0 && (
+                      <YStack 
+                        position="absolute"
+                        top={-8}
+                        right={-14}
+                        backgroundColor={colors.red[500]} 
+                        borderRadius="$full" 
+                        minWidth={18}
+                        height={18}
+                        alignItems="center" 
+                        justifyContent="center"
+                        paddingHorizontal="$1"
+                      >
+                        <Text fontSize={10} color="white" fontWeight="700">
+                          {item.badge}
+                        </Text>
+                      </YStack>
+                    )}
+                  </XStack>
+                ))}
+              </XStack>
+            )}
+          </XStack>
+
+          {/* Right Actions - Based on App.tsx lines 371-466 */}
+          <XStack alignItems="center" gap={isDesktop ? '$3' : '$2'}>
+            {/* Search Icon */}
+            <Button 
+              unstyled 
+              padding="$2"
+              cursor="pointer"
+              borderRadius="$full"
+              hoverStyle={{ backgroundColor: colors.gray[50] }}
+            >
+              <Search size={20} color={colors.gray[600]} />
+            </Button>
+
+            {/* Invite Button - Based on App.tsx lines 381-398 */}
+            {isDesktop ? (
+              <Button
+                backgroundColor={colors.green[600]}
+                paddingHorizontal="$3"
+                paddingVertical="$1.5"
+                borderRadius="$full"
+                gap="$2"
+                hoverStyle={{ backgroundColor: colors.green[700] }}
+                icon={<UserPlus size={16} color="white" />}
+              >
+                <Text color="white" fontSize="$3" fontWeight="500">Invite</Text>
+              </Button>
+            ) : (
+              <Button 
+                unstyled 
+                padding="$2"
+                cursor="pointer"
+                borderRadius="$full"
+                hoverStyle={{ backgroundColor: colors.green[50] }}
+              >
+                <UserPlus size={20} color={colors.green[600]} />
+              </Button>
+            )}
+
+            {/* Points Display - Based on App.tsx lines 400-431 */}
+            <Button
+              unstyled
+              paddingHorizontal="$3"
+              paddingVertical="$1.5"
+              backgroundColor={colors.green[50]}
+              borderRadius="$full"
+              flexDirection="row"
+              gap="$1"
+              alignItems="center"
+              hoverStyle={{ backgroundColor: colors.green[100] }}
+            >
+              <Text fontWeight="600" color={colors.green[700]}>{userPoints}</Text>
+              {isDesktop && (
+                <Text fontSize="$3" color={colors.green[700]}>points</Text>
+              )}
+            </Button>
+
+            {/* Notifications - Based on App.tsx lines 433-444 */}
+            <XStack position="relative">
+              <Button 
+                unstyled 
+                padding="$2"
+                cursor="pointer"
+                borderRadius="$full"
+                hoverStyle={{ backgroundColor: colors.gray[50] }}
+              >
+                <Bell size={20} color={colors.gray[600]} />
+              </Button>
+              {unreadNotificationsCount > 0 && (
+                <YStack 
+                  position="absolute" 
+                  top={0} 
+                  right={0} 
+                  backgroundColor={colors.red[500]} 
+                  borderRadius="$full" 
+                  minWidth={18}
+                  height={18}
+                  alignItems="center" 
+                  justifyContent="center"
+                  paddingHorizontal="$1"
+                >
+                  <Text fontSize={10} color="white" fontWeight="700">
+                    {unreadNotificationsCount}
+                  </Text>
+                </YStack>
+              )}
+            </XStack>
+
+            {/* Profile Avatar - Based on App.tsx lines 446-458 */}
+            <Button
+              unstyled
+              width={32}
+              height={32}
+              borderRadius="$full"
+              backgroundColor={colors.green[600]}
+              alignItems="center"
+              justifyContent="center"
+              cursor="pointer"
+              hoverStyle={{ opacity: 0.8 }}
+              onPress={onNavigateToProfile}
+            >
+              <Text color="white" fontWeight="600" fontSize="$3">{userName}</Text>
+            </Button>
+
+            {/* Mobile Hamburger Menu */}
+            {!isDesktop && (
+              <Button 
+                unstyled 
+                padding="$2"
+                cursor="pointer"
+                borderRadius="$full"
+                hoverStyle={{ backgroundColor: colors.gray[50] }}
+                onPress={() => setMobileMenuOpen(!mobileMenuOpen)}
+              >
+                {mobileMenuOpen ? (
+                  <X size={24} color={colors.gray[700]} />
+                ) : (
+                  <Menu size={24} color={colors.gray[700]} />
+                )}
+              </Button>
+            )}
+          </XStack>
+        </XStack>
+
+        {/* Mobile Navigation Drawer */}
+        {!isDesktop && mobileMenuOpen && (
+          <YStack 
+            backgroundColor="white"
+            borderTopWidth={1}
+            borderTopColor={colors.gray[200]}
+            paddingHorizontal="$4"
+            paddingVertical="$2"
+          >
+            {NAV_ITEMS.map((item) => (
+              <Button
+                key={item.key}
+                unstyled
+                paddingVertical="$3"
+                paddingHorizontal="$2"
+                borderBottomWidth={1}
+                borderBottomColor={colors.gray[100]}
+                flexDirection="row"
+                justifyContent="space-between"
+                alignItems="center"
+                onPress={() => setMobileMenuOpen(false)}
+              >
+                <Text 
+                  fontSize="$4" 
+                  color={item.active ? colors.green[600] : colors.gray[700]}
+                  fontWeight={item.active ? '600' : '400'}
+                >
+                  {item.label}
+                </Text>
+                {item.badge > 0 && (
+                  <YStack 
+                    backgroundColor={colors.red[500]} 
+                    borderRadius="$full" 
+                    minWidth={20}
+                    height={20}
+                    alignItems="center" 
+                    justifyContent="center"
+                    paddingHorizontal="$1"
+                  >
+                    <Text fontSize={11} color="white" fontWeight="700">
+                      {item.badge}
+                    </Text>
+                  </YStack>
+                )}
+              </Button>
+            ))}
+          </YStack>
+        )}
+      </YStack>
+
+      {/* ============ MAIN CONTENT ============ */}
+      <ScrollView 
+        flex={1}
+        contentContainerStyle={{ flexGrow: 1 }}
+      >
+        {/* Search Bar Section - Based on MainFeed.tsx lines 333-376 */}
+        <YStack 
+          maxWidth={896}
+          width="100%"
+          alignSelf="center"
+          padding={isDesktop ? '$6' : '$4'}
+        >
+          <YStack 
+            backgroundColor="white" 
+            borderRadius={borderRadius.lg}
+            padding="$4"
+            shadowColor={shadows.sm.color}
+            shadowOffset={shadows.sm.offset}
+            shadowOpacity={0.05}
+            shadowRadius={shadows.sm.radius}
+            marginBottom="$4"
+          >
+            <XStack gap="$3" flexWrap={isDesktop ? 'nowrap' : 'wrap'}>
+              {/* Search Input */}
+              <XStack 
+                flex={1}
+                minWidth={200}
+                backgroundColor="white"
+                borderRadius="$3"
+                paddingHorizontal="$3"
+                alignItems="center"
+                gap="$2"
+                borderWidth={1}
+                borderColor={colors.gray[300]}
+              >
+                <Search size={18} color={colors.gray[400]} />
+                <Input
+                  flex={1}
+                  placeholder={t('feed.searchPlaceholder', 'Search posts, categories, or keywords...')}
+                  placeholderTextColor={colors.gray[400]}
+                  backgroundColor="transparent"
+                  borderWidth={0}
+                  fontSize="$3"
+                  paddingVertical="$2"
+                />
+              </XStack>
+
+              {/* Filter Button */}
+              <Button
+                backgroundColor="white"
+                borderWidth={1}
+                borderColor={colors.gray[300]}
+                paddingHorizontal="$3"
+                paddingVertical="$2"
+                borderRadius="$3"
+                gap="$2"
+                hoverStyle={{ backgroundColor: colors.gray[50] }}
+                icon={<Filter size={18} color={colors.gray[600]} />}
+              >
+                {isDesktop && <Text color={colors.gray[700]} fontSize="$3">Filter</Text>}
+              </Button>
+
+              {/* Create Post Button */}
+              <Button
+                backgroundColor={colors.green[600]}
+                paddingHorizontal="$4"
+                paddingVertical="$2"
+                borderRadius="$3"
+                gap="$2"
+                hoverStyle={{ backgroundColor: colors.green[700] }}
+                onPress={onCreatePost}
+                icon={<Plus size={18} color="white" />}
+              >
+                <Text color="white" fontSize="$3" fontWeight="500">Create Post</Text>
+              </Button>
+            </XStack>
+          </YStack>
+
+          {/* Empty State - Based on MainFeed.tsx lines 449-463 */}
+          <YStack 
+            backgroundColor="white" 
+            borderRadius={borderRadius.lg}
+            padding="$8"
+            alignItems="center"
+            gap="$4"
+            shadowColor={shadows.sm.color}
+            shadowOffset={shadows.sm.offset}
+            shadowOpacity={0.05}
+            shadowRadius={shadows.sm.radius}
+          >
+            <YStack 
+              width={64} 
+              height={64} 
+              borderRadius={32} 
+              backgroundColor={colors.gray[100]} 
+              alignItems="center" 
+              justifyContent="center"
+            >
+              <Search size={32} color={colors.gray[400]} />
+            </YStack>
+            
+            <Text fontSize="$5" fontWeight="600" color={colors.gray[900]} textAlign="center">
+              {t('feed.emptyTitle', 'No posts found')}
+            </Text>
+            
+            <Text fontSize="$4" color={colors.gray[600]} textAlign="center">
+              {t('feed.emptyDescription', 'Try adjusting your search or filters')}
+            </Text>
+
+            {onCreatePost && (
+              <Button
+                backgroundColor={colors.green[600]}
+                paddingHorizontal="$5"
+                paddingVertical="$3"
+                borderRadius="$3"
+                gap="$2"
+                marginTop="$2"
+                hoverStyle={{ backgroundColor: colors.green[700] }}
+                onPress={onCreatePost}
+                icon={<Plus size={18} color="white" />}
+              >
+                <Text color="white" fontSize="$4" fontWeight="500">Create First Post</Text>
+              </Button>
+            )}
+          </YStack>
+        </YStack>
+
+        {/* ============ FOOTER ============ */}
+        {/* Based on figma_extracted/src/App.tsx lines 572-640 */}
+        <YStack 
+          backgroundColor={colors.gray[50]} 
+          borderTopWidth={1}
+          borderTopColor={colors.gray[200]}
+          marginTop="auto"
+        >
+          <YStack 
+            maxWidth={896}
+            width="100%"
+            alignSelf="center"
+            paddingHorizontal={isDesktop ? '$6' : '$4'}
+            paddingVertical="$8"
+          >
+            {/* 3-column grid layout - matches Figma grid grid-cols-1 md:grid-cols-3 gap-8 */}
+            <XStack 
+              flexWrap="wrap"
+              gap="$8"
+              justifyContent={isDesktop ? 'space-between' : 'flex-start'}
+            >
+              {/* Branding Column - First column takes more space */}
+              <YStack flex={1} minWidth={250} maxWidth={350}>
+                {/* Logo + Brand - mb-4 in Figma */}
+                <XStack alignItems="center" gap="$2" marginBottom="$4">
+                  {isWeb ? (
+                    <img 
+                      src="/logo.png" 
+                      alt="CasaGrown" 
+                      style={{ width: 32, height: 32, objectFit: 'contain' }} 
+                    />
+                  ) : logoSrc ? (
+                    <Image
+                      source={logoSrc}
+                      style={{ width: 32, height: 32 }}
+                      resizeMode="contain"
+                    />
+                  ) : (
+                    <YStack 
+                      width={32} 
+                      height={32} 
+                      borderRadius="$full" 
+                      backgroundColor={colors.green[600]} 
+                      alignItems="center" 
+                      justifyContent="center"
+                    >
+                      <Leaf size={20} color="white" />
+                    </YStack>
+                  )}
+                  <Text fontSize="$5" fontWeight="700" color={colors.gray[900]}>
+                    CasaGrown
+                  </Text>
+                </XStack>
+                {/* Description - text-sm in Figma */}
+                <Text fontSize="$3" color={colors.gray[600]} lineHeight={20}>
+                  Connecting neighborhoods to eliminate food waste and expand access to fresh produce.
+                </Text>
+              </YStack>
+
+              {/* Learn More Column */}
+              <YStack minWidth={120}>
+                {/* Heading - mb-4 in Figma */}
+                <Text fontSize="$3" fontWeight="600" color={colors.gray[900]} marginBottom="$4">
+                  Learn More
+                </Text>
+                {/* Links - space-y-2 in Figma */}
+                <YStack gap="$2">
+                  <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
+                    Why Points System?
+                  </Text>
+                  <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
+                    How It Works
+                  </Text>
+                  <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
+                    Support
+                  </Text>
+                </YStack>
+              </YStack>
+
+              {/* Legal Column */}
+              <YStack minWidth={120}>
+                {/* Heading - mb-4 in Figma */}
+                <Text fontSize="$3" fontWeight="600" color={colors.gray[900]} marginBottom="$4">
+                  Legal
+                </Text>
+                {/* Links - space-y-2 in Figma */}
+                <YStack gap="$2">
+                  <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
+                    Privacy Policy
+                  </Text>
+                  <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
+                    User Agreement
+                  </Text>
+                  <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
+                    Terms of Service
+                  </Text>
+                </YStack>
+              </YStack>
+            </XStack>
+
+            {/* Copyright */}
+            <YStack 
+              marginTop="$8" 
+              paddingTop="$8" 
+              borderTopWidth={1} 
+              borderTopColor={colors.gray[200]}
+            >
+              <Text fontSize="$2" color={colors.gray[500]} textAlign="center">
+                © 2026 CasaGrown. All rights reserved.
+              </Text>
+            </YStack>
+          </YStack>
+        </YStack>
+      </ScrollView>
+
+      {/* Floating Action Button (FAB) for mobile - Based on Figma mobile design */}
+      {!isDesktop && (
+        <Button
+          position="absolute"
+          bottom={insets.bottom + 24}
+          right={24}
+          width={56}
+          height={56}
+          borderRadius="$full"
+          backgroundColor={colors.green[600]}
+          alignItems="center"
+          justifyContent="center"
+          elevation={4}
+          shadowColor="black"
+          shadowOffset={{ width: 0, height: 2 }}
+          shadowOpacity={0.25}
+          shadowRadius={4}
+          hoverStyle={{ backgroundColor: colors.green[700] }}
+          pressStyle={{ backgroundColor: colors.green[700], scale: 0.95 }}
+          onPress={onCreatePost}
+        >
+          <Plus size={28} color="white" />
+        </Button>
+      )}
+    </YStack>
+  )
+}

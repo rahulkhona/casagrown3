@@ -1,0 +1,751 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`FeedScreen matches snapshot 1`] = `
+<View
+  backgroundColor="#f9fafb"
+  flex={1}
+>
+  <View
+    backgroundColor="white"
+    borderBottomColor="#e5e7eb"
+    borderBottomWidth={1}
+    paddingTop={16}
+    position="relative"
+    top={0}
+    zIndex={50}
+  >
+    <View
+      alignItems="center"
+      alignSelf="center"
+      height={64}
+      justifyContent="space-between"
+      maxWidth={1280}
+      paddingHorizontal="$6"
+      width="100%"
+    >
+      <View
+        alignItems="center"
+        flex={1}
+        gap="$2"
+      >
+        <View
+          alignItems="center"
+          cursor="pointer"
+          gap="$2"
+        >
+          <View
+            alignItems="center"
+            backgroundColor="#16a34a"
+            borderRadius="$full"
+            height={32}
+            justifyContent="center"
+            width={32}
+          />
+          <Text
+            color="#111827"
+            fontSize="$5"
+            fontWeight="700"
+          >
+            CasaGrown
+          </Text>
+        </View>
+        <View
+          gap="$5"
+          marginLeft="$5"
+        >
+          <View
+            alignItems="center"
+            position="relative"
+          >
+            <Text
+              color="#16a34a"
+              cursor="pointer"
+              fontSize="$3"
+              fontWeight="600"
+              hoverStyle={
+                {
+                  "color": "#16a34a",
+                }
+              }
+            >
+              Feed
+            </Text>
+          </View>
+          <View
+            alignItems="center"
+            position="relative"
+          >
+            <Text
+              color="#374151"
+              cursor="pointer"
+              fontSize="$3"
+              fontWeight="500"
+              hoverStyle={
+                {
+                  "color": "#16a34a",
+                }
+              }
+            >
+              Chats
+            </Text>
+          </View>
+          <View
+            alignItems="center"
+            position="relative"
+          >
+            <Text
+              color="#374151"
+              cursor="pointer"
+              fontSize="$3"
+              fontWeight="500"
+              hoverStyle={
+                {
+                  "color": "#16a34a",
+                }
+              }
+            >
+              Orders
+            </Text>
+          </View>
+          <View
+            alignItems="center"
+            position="relative"
+          >
+            <Text
+              color="#374151"
+              cursor="pointer"
+              fontSize="$3"
+              fontWeight="500"
+              hoverStyle={
+                {
+                  "color": "#16a34a",
+                }
+              }
+            >
+              My Posts
+            </Text>
+          </View>
+          <View
+            alignItems="center"
+            position="relative"
+          >
+            <Text
+              color="#374151"
+              cursor="pointer"
+              fontSize="$3"
+              fontWeight="500"
+              hoverStyle={
+                {
+                  "color": "#16a34a",
+                }
+              }
+            >
+              Redeem
+            </Text>
+          </View>
+          <View
+            alignItems="center"
+            position="relative"
+          >
+            <Text
+              color="#374151"
+              cursor="pointer"
+              fontSize="$3"
+              fontWeight="500"
+              hoverStyle={
+                {
+                  "color": "#16a34a",
+                }
+              }
+            >
+              Transfer Points
+            </Text>
+          </View>
+          <View
+            alignItems="center"
+            position="relative"
+          >
+            <Text
+              color="#374151"
+              cursor="pointer"
+              fontSize="$3"
+              fontWeight="500"
+              hoverStyle={
+                {
+                  "color": "#16a34a",
+                }
+              }
+            >
+              Delegate Sales
+            </Text>
+          </View>
+        </View>
+      </View>
+      <View
+        alignItems="center"
+        gap="$3"
+      >
+        <View
+          accessibilityState={
+            {
+              "busy": undefined,
+              "checked": undefined,
+              "disabled": undefined,
+              "expanded": undefined,
+              "selected": undefined,
+            }
+          }
+          accessibilityValue={
+            {
+              "max": undefined,
+              "min": undefined,
+              "now": undefined,
+              "text": undefined,
+            }
+          }
+          accessible={true}
+          collapsable={false}
+          focusable={false}
+          onClick={[Function]}
+          onResponderGrant={[Function]}
+          onResponderMove={[Function]}
+          onResponderRelease={[Function]}
+          onResponderTerminate={[Function]}
+          onResponderTerminationRequest={[Function]}
+          onStartShouldSetResponder={[Function]}
+          style={
+            {
+              "opacity": 1,
+            }
+          }
+        />
+        <View
+          accessibilityState={
+            {
+              "busy": undefined,
+              "checked": undefined,
+              "disabled": undefined,
+              "expanded": undefined,
+              "selected": undefined,
+            }
+          }
+          accessibilityValue={
+            {
+              "max": undefined,
+              "min": undefined,
+              "now": undefined,
+              "text": undefined,
+            }
+          }
+          accessible={true}
+          collapsable={false}
+          focusable={false}
+          onClick={[Function]}
+          onResponderGrant={[Function]}
+          onResponderMove={[Function]}
+          onResponderRelease={[Function]}
+          onResponderTerminate={[Function]}
+          onResponderTerminationRequest={[Function]}
+          onStartShouldSetResponder={[Function]}
+          style={
+            {
+              "opacity": 1,
+            }
+          }
+        >
+          <Text
+            color="white"
+            fontSize="$3"
+            fontWeight="500"
+          >
+            Invite
+          </Text>
+        </View>
+        <View
+          accessibilityState={
+            {
+              "busy": undefined,
+              "checked": undefined,
+              "disabled": undefined,
+              "expanded": undefined,
+              "selected": undefined,
+            }
+          }
+          accessibilityValue={
+            {
+              "max": undefined,
+              "min": undefined,
+              "now": undefined,
+              "text": undefined,
+            }
+          }
+          accessible={true}
+          collapsable={false}
+          focusable={false}
+          onClick={[Function]}
+          onResponderGrant={[Function]}
+          onResponderMove={[Function]}
+          onResponderRelease={[Function]}
+          onResponderTerminate={[Function]}
+          onResponderTerminationRequest={[Function]}
+          onStartShouldSetResponder={[Function]}
+          style={
+            {
+              "opacity": 1,
+            }
+          }
+        >
+          <Text
+            color="#15803d"
+            fontWeight="600"
+          >
+            0
+          </Text>
+          <Text
+            color="#15803d"
+            fontSize="$3"
+          >
+            points
+          </Text>
+        </View>
+        <View
+          position="relative"
+        >
+          <View
+            accessibilityState={
+              {
+                "busy": undefined,
+                "checked": undefined,
+                "disabled": undefined,
+                "expanded": undefined,
+                "selected": undefined,
+              }
+            }
+            accessibilityValue={
+              {
+                "max": undefined,
+                "min": undefined,
+                "now": undefined,
+                "text": undefined,
+              }
+            }
+            accessible={true}
+            collapsable={false}
+            focusable={false}
+            onClick={[Function]}
+            onResponderGrant={[Function]}
+            onResponderMove={[Function]}
+            onResponderRelease={[Function]}
+            onResponderTerminate={[Function]}
+            onResponderTerminationRequest={[Function]}
+            onStartShouldSetResponder={[Function]}
+            style={
+              {
+                "opacity": 1,
+              }
+            }
+          />
+        </View>
+        <View
+          accessibilityState={
+            {
+              "busy": undefined,
+              "checked": undefined,
+              "disabled": undefined,
+              "expanded": undefined,
+              "selected": undefined,
+            }
+          }
+          accessibilityValue={
+            {
+              "max": undefined,
+              "min": undefined,
+              "now": undefined,
+              "text": undefined,
+            }
+          }
+          accessible={true}
+          collapsable={false}
+          focusable={false}
+          onClick={[Function]}
+          onResponderGrant={[Function]}
+          onResponderMove={[Function]}
+          onResponderRelease={[Function]}
+          onResponderTerminate={[Function]}
+          onResponderTerminationRequest={[Function]}
+          onStartShouldSetResponder={[Function]}
+          style={
+            {
+              "opacity": 1,
+            }
+          }
+        >
+          <Text
+            color="white"
+            fontSize="$3"
+            fontWeight="600"
+          >
+            A
+          </Text>
+        </View>
+      </View>
+    </View>
+  </View>
+  <RCTScrollView
+    contentContainerStyle={
+      {
+        "flexGrow": 1,
+      }
+    }
+    flex={1}
+  >
+    <View>
+      <View
+        alignSelf="center"
+        maxWidth={896}
+        padding="$6"
+        width="100%"
+      >
+        <View
+          backgroundColor="white"
+          borderRadius={8}
+          marginBottom="$4"
+          padding="$4"
+          shadowColor="rgba(0, 0, 0, 0.05)"
+          shadowOffset={
+            {
+              "height": 1,
+              "width": 0,
+            }
+          }
+          shadowOpacity={0.05}
+          shadowRadius={2}
+        >
+          <View
+            flexWrap="nowrap"
+            gap="$3"
+          >
+            <View
+              alignItems="center"
+              backgroundColor="white"
+              borderColor="#d1d5db"
+              borderRadius="$3"
+              borderWidth={1}
+              flex={1}
+              gap="$2"
+              minWidth={200}
+              paddingHorizontal="$3"
+            >
+              <TextInput
+                backgroundColor="transparent"
+                borderWidth={0}
+                flex={1}
+                fontSize="$3"
+                paddingVertical="$2"
+                placeholder="Search posts, categories, or keywords..."
+                placeholderTextColor="#9ca3af"
+              />
+            </View>
+            <View
+              accessibilityState={
+                {
+                  "busy": undefined,
+                  "checked": undefined,
+                  "disabled": undefined,
+                  "expanded": undefined,
+                  "selected": undefined,
+                }
+              }
+              accessibilityValue={
+                {
+                  "max": undefined,
+                  "min": undefined,
+                  "now": undefined,
+                  "text": undefined,
+                }
+              }
+              accessible={true}
+              collapsable={false}
+              focusable={false}
+              onClick={[Function]}
+              onResponderGrant={[Function]}
+              onResponderMove={[Function]}
+              onResponderRelease={[Function]}
+              onResponderTerminate={[Function]}
+              onResponderTerminationRequest={[Function]}
+              onStartShouldSetResponder={[Function]}
+              style={
+                {
+                  "opacity": 1,
+                }
+              }
+            >
+              <Text
+                color="#374151"
+                fontSize="$3"
+              >
+                Filter
+              </Text>
+            </View>
+            <View
+              accessibilityState={
+                {
+                  "busy": undefined,
+                  "checked": undefined,
+                  "disabled": undefined,
+                  "expanded": undefined,
+                  "selected": undefined,
+                }
+              }
+              accessibilityValue={
+                {
+                  "max": undefined,
+                  "min": undefined,
+                  "now": undefined,
+                  "text": undefined,
+                }
+              }
+              accessible={true}
+              collapsable={false}
+              focusable={false}
+              onClick={[Function]}
+              onResponderGrant={[Function]}
+              onResponderMove={[Function]}
+              onResponderRelease={[Function]}
+              onResponderTerminate={[Function]}
+              onResponderTerminationRequest={[Function]}
+              onStartShouldSetResponder={[Function]}
+              style={
+                {
+                  "opacity": 1,
+                }
+              }
+            >
+              <Text
+                color="white"
+                fontSize="$3"
+                fontWeight="500"
+              >
+                Create Post
+              </Text>
+            </View>
+          </View>
+        </View>
+        <View
+          alignItems="center"
+          backgroundColor="white"
+          borderRadius={8}
+          gap="$4"
+          padding="$8"
+          shadowColor="rgba(0, 0, 0, 0.05)"
+          shadowOffset={
+            {
+              "height": 1,
+              "width": 0,
+            }
+          }
+          shadowOpacity={0.05}
+          shadowRadius={2}
+        >
+          <View
+            alignItems="center"
+            backgroundColor="#f3f4f6"
+            borderRadius={32}
+            height={64}
+            justifyContent="center"
+            width={64}
+          />
+          <Text
+            color="#111827"
+            fontSize="$5"
+            fontWeight="600"
+            textAlign="center"
+          >
+            No posts found
+          </Text>
+          <Text
+            color="#4b5563"
+            fontSize="$4"
+            textAlign="center"
+          >
+            Try adjusting your search or filters
+          </Text>
+        </View>
+      </View>
+      <View
+        backgroundColor="#f9fafb"
+        borderTopColor="#e5e7eb"
+        borderTopWidth={1}
+        marginTop="auto"
+      >
+        <View
+          alignSelf="center"
+          maxWidth={896}
+          paddingHorizontal="$6"
+          paddingVertical="$8"
+          width="100%"
+        >
+          <View
+            flexWrap="wrap"
+            gap="$8"
+            justifyContent="space-between"
+          >
+            <View
+              flex={1}
+              maxWidth={350}
+              minWidth={250}
+            >
+              <View
+                alignItems="center"
+                gap="$2"
+                marginBottom="$4"
+              >
+                <View
+                  alignItems="center"
+                  backgroundColor="#16a34a"
+                  borderRadius="$full"
+                  height={32}
+                  justifyContent="center"
+                  width={32}
+                />
+                <Text
+                  color="#111827"
+                  fontSize="$5"
+                  fontWeight="700"
+                >
+                  CasaGrown
+                </Text>
+              </View>
+              <Text
+                color="#4b5563"
+                fontSize="$3"
+                lineHeight={20}
+              >
+                Connecting neighborhoods to eliminate food waste and expand access to fresh produce.
+              </Text>
+            </View>
+            <View
+              minWidth={120}
+            >
+              <Text
+                color="#111827"
+                fontSize="$3"
+                fontWeight="600"
+                marginBottom="$4"
+              >
+                Learn More
+              </Text>
+              <View
+                gap="$2"
+              >
+                <Text
+                  color="#4b5563"
+                  cursor="pointer"
+                  fontSize="$3"
+                  hoverStyle={
+                    {
+                      "color": "#16a34a",
+                    }
+                  }
+                >
+                  Why Points System?
+                </Text>
+                <Text
+                  color="#4b5563"
+                  cursor="pointer"
+                  fontSize="$3"
+                  hoverStyle={
+                    {
+                      "color": "#16a34a",
+                    }
+                  }
+                >
+                  How It Works
+                </Text>
+                <Text
+                  color="#4b5563"
+                  cursor="pointer"
+                  fontSize="$3"
+                  hoverStyle={
+                    {
+                      "color": "#16a34a",
+                    }
+                  }
+                >
+                  Support
+                </Text>
+              </View>
+            </View>
+            <View
+              minWidth={120}
+            >
+              <Text
+                color="#111827"
+                fontSize="$3"
+                fontWeight="600"
+                marginBottom="$4"
+              >
+                Legal
+              </Text>
+              <View
+                gap="$2"
+              >
+                <Text
+                  color="#4b5563"
+                  cursor="pointer"
+                  fontSize="$3"
+                  hoverStyle={
+                    {
+                      "color": "#16a34a",
+                    }
+                  }
+                >
+                  Privacy Policy
+                </Text>
+                <Text
+                  color="#4b5563"
+                  cursor="pointer"
+                  fontSize="$3"
+                  hoverStyle={
+                    {
+                      "color": "#16a34a",
+                    }
+                  }
+                >
+                  User Agreement
+                </Text>
+                <Text
+                  color="#4b5563"
+                  cursor="pointer"
+                  fontSize="$3"
+                  hoverStyle={
+                    {
+                      "color": "#16a34a",
+                    }
+                  }
+                >
+                  Terms of Service
+                </Text>
+              </View>
+            </View>
+          </View>
+          <View
+            borderTopColor="#e5e7eb"
+            borderTopWidth={1}
+            marginTop="$8"
+            paddingTop="$8"
+          >
+            <Text
+              color="#6b7280"
+              fontSize="$2"
+              textAlign="center"
+            >
+              © 2026 CasaGrown. All rights reserved.
+            </Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  </RCTScrollView>
+</View>
+`;

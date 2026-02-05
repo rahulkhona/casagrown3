@@ -169,6 +169,7 @@ jest.mock('@tamagui/lucide-icons', () => ({
   ShoppingBag: () => null,
   Tag: () => null,
   ChevronDown: () => null,
+  ChevronLeft: () => null,
 }))
 
 describe('ProfileScreen', () => {

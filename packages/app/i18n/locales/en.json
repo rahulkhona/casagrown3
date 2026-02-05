@@ -287,5 +287,18 @@
   "common": {
     "error": "Error",
     "cancel": "Cancel"
+  },
+  "feed": {
+    "emptyTitle": "Your Feed is Growing!",
+    "emptyDescription": "This is where you'll see posts from your community. Fresh produce, gardening tips, and local exchanges will appear here soon!",
+    "comingSoon": "✨ Feed coming soon!",
+    "whatsNextTitle": "What's Coming",
+    "feature1Title": "Fresh Produce Posts",
+    "feature1Desc": "Buy and sell from neighbors",
+    "feature2Title": "Community Chat",
+    "feature2Desc": "Connect with local growers",
+    "feature3Title": "Points & Rewards",
+    "feature3Desc": "Earn and redeem for transactions",
+    "createFirstPost": "Create First Post"
   }
 }

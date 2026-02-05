@@ -27,6 +27,7 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
   const [otp, setOtp] = useState('')
   const [errors, setErrors] = useState<{ email?: string; otp?: string; general?: string }>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [codeResent, setCodeResent] = useState(false)
   const media = useMedia()
 
   // Redirect based on onboarding status
@@ -45,10 +46,10 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
           .eq('id', user.id)
           .single()
         
-        // User needs both profile name AND community to go to profile management
+        // User needs both profile name AND community to go to main feed
         // Otherwise → Profile Wizard to complete onboarding
         if (profile?.full_name && profile?.home_community_h3_index) {
-          router.replace('/profile')
+          router.replace('/feed')
         } else {
           // New user or incomplete onboarding → Profile Wizard
           router.replace('/profile-wizard')
@@ -89,10 +90,10 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
         const { otpToken } = await signInWithOtp(email)
         console.log('✅ OTP Sent successfully')
         
-        // DEV MODE: Auto-fill and show OTP token for testing
+        // DEV MODE: Auto-fill OTP for testing (no alert)
         if (otpToken) {
           setOtp(otpToken) // Auto-fill OTP input for E2E testing
-          alert(`🔑 DEV MODE\n\nYour OTP Code:\n${otpToken}\n\n(Auto-filled in input field)`)
+          console.log('🔑 DEV MODE - OTP auto-filled:', otpToken)
         }
         
         setLoginMethod('otp')
@@ -129,8 +130,11 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
 
   const handleResendOtp = async () => {
     try {
+        setCodeResent(false)
         await signInWithOtp(email)
-        alert(t('auth.login.codeResent')) // Simple feedback, replace with Toast in real app
+        setCodeResent(true)
+        // Auto-hide success message after 3 seconds
+        setTimeout(() => setCodeResent(false), 3000)
     } catch (e: any) {
         setErrors({ ...errors, general: e.message })
     }
@@ -352,6 +356,11 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
                         <Button unstyled alignItems="center" onPress={handleResendOtp}>
                             <Text color={colors.green[600]} fontSize="$3">{t('auth.login.resend')}</Text>
                         </Button>
+                        {codeResent && (
+                            <Text color={colors.green[600]} fontSize="$3" textAlign="center">
+                              ✓ {t('auth.login.codeResent')}
+                            </Text>
+                        )}
                     </YStack>
                 </YStack>
             )}

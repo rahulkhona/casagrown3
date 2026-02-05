@@ -48,9 +48,23 @@ export const colors = {
 
   // Pink - For "Teen Opportunity" card
   pink: {
+    50: "#fdf2f8",
+    100: "#fce7f3",
     200: "#fbcfe8", // Card background
     300: "#f9a8d4", // Icon circle background
+    600: "#db2777",
     700: "#be185d", // Icon color
+  },
+
+  // Red - For error states and notification badges
+  red: {
+    50: "#fef2f2",
+    100: "#fee2e2",
+    200: "#fecaca",
+    400: "#f87171",
+    500: "#ef4444", // Notification badges
+    600: "#dc2626",
+    700: "#b91c1c",
   },
 
   // Gray - Text and backgrounds

@@ -1,3 +1,8 @@
+// Polyfill __DEV__ for React Native packages in web environment
+if (typeof globalThis !== 'undefined' && typeof (globalThis as any).__DEV__ === 'undefined') {
+  (globalThis as any).__DEV__ = process.env.NODE_ENV !== 'production'
+}
+
 import { useColorScheme } from 'react-native'
 import { TamaguiProvider, type TamaguiProviderProps } from 'tamagui'
 import { config } from '@casagrown/config'

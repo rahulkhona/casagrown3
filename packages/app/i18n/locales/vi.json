@@ -271,5 +271,18 @@
   "common": {
     "error": "Lỗi",
     "cancel": "Hủy"
+  },
+  "feed": {
+    "emptyTitle": "Bảng Tin Của Bạn Đang Phát Triển!",
+    "emptyDescription": "Đây là nơi bạn sẽ thấy các bài đăng từ cộng đồng. Nông sản tươi, mẹo làm vườn và trao đổi địa phương sẽ sớm xuất hiện!",
+    "comingSoon": "✨ Bảng tin sắp ra mắt!",
+    "whatsNextTitle": "Sắp Tới",
+    "feature1Title": "Bài Đăng Nông Sản",
+    "feature1Desc": "Mua và bán với hàng xóm",
+    "feature2Title": "Trò Chuyện Cộng Đồng",
+    "feature2Desc": "Kết nối với người trồng địa phương",
+    "feature3Title": "Điểm & Phần Thưởng",
+    "feature3Desc": "Kiếm và đổi cho giao dịch",
+    "createFirstPost": "Tạo Bài Đăng Đầu Tiên"
   }
 }

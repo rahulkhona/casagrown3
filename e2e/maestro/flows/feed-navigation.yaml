@@ -1,0 +1,63 @@
+# Feed Navigation E2E Test
+# Tests the feed page and bottom tab navigation
+# 
+# Note: This test requires user to be logged in and have completed profile wizard
+# Maestro's launchApp resets auth state, so run this after manual login
+
+appId: dev.casagrown.community
+
+---
+
+# Launch the app (preserves session if clearState is false)
+- launchApp:
+    clearState: false
+
+# ============================================
+# Test Feed Screen Content
+# ============================================
+
+# Wait for feed page to load
+- extendedWaitUntil:
+    visible:
+      text: "CasaGrown"
+    timeout: 30000
+
+# Verify feed empty state is displayed
+- assertVisible: "No posts found"
+- assertVisible: "Try adjusting your search or filters"
+- assertVisible: "Create First Post"
+
+# Verify search bar is visible
+- assertVisible: "Search posts, categories, or keywords..."
+
+# ============================================
+# Test Navigation to Profile Tab
+# ============================================
+
+# Tap on Profile tab in bottom navigation
+- tapOn: "Profile"
+
+# Wait for profile screen
+- extendedWaitUntil:
+    visible:
+      text: "Profile"
+    timeout: 10000
+
+# Verify profile screen content
+- assertVisible: "Edit"
+
+# ============================================
+# Test Navigation Back to Feed Tab
+# ============================================
+
+# Tap on Feed tab
+- tapOn: "Feed"
+
+# Verify we're back on feed
+- extendedWaitUntil:
+    visible:
+      text: "CasaGrown"
+    timeout: 10000
+
+# Final verification
+- assertVisible: "Search posts, categories, or keywords..."

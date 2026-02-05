@@ -7,7 +7,7 @@ import { Provider } from '@casagrown/app/provider'
 
 export const unstable_settings = {
   // Ensure that reloading on `/user` keeps a back button present.
-  initialRouteName: 'Home',
+  initialRouteName: '(tabs)',
 }
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -50,7 +50,35 @@ function RootLayoutNav() {
   return (
     <Provider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+          }}
+        >
+          {/* Tab screens - no back gesture to prevent going back to login */}
+          <Stack.Screen 
+            name="(tabs)" 
+            options={{ 
+              headerShown: false,
+              gestureEnabled: false,
+            }} 
+          />
+          {/* Login screen */}
+          <Stack.Screen 
+            name="login" 
+            options={{ 
+              headerShown: false,
+              gestureEnabled: false,
+            }} 
+          />
+          {/* Profile wizard - can go back */}
+          <Stack.Screen 
+            name="profile-wizard" 
+            options={{ 
+              headerShown: false,
+            }} 
+          />
+        </Stack>
       </ThemeProvider>
     </Provider>
   )

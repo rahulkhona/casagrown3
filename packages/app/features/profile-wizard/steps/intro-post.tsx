@@ -54,8 +54,8 @@ export const IntroPostStep = () => {
     const success = await saveProfile()
     
     if (success) {
-         // Redirect to Success Page
-         router.replace('/login-success')
+         // Redirect to Feed Page after successful onboarding
+         router.replace('/feed')
     } else {
         console.error('Failed to save profile')
     }

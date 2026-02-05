@@ -30,7 +30,8 @@ import {
   Check,
   ShoppingBag,
   Tag,
-  ChevronDown
+  ChevronDown,
+  ChevronLeft
 } from '@tamagui/lucide-icons'
 import { Image, Platform } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -309,10 +310,22 @@ export function ProfileScreen() {
       <YStack padding="$4" gap="$4" maxWidth={600} alignSelf="center" width="100%" paddingTop={Platform.OS === 'ios' ? insets.top + 16 : '$4'}>
         {/* Header */}
         <XStack justifyContent="space-between" alignItems="center">
+          {/* Back Button */}
+          <Button
+            unstyled
+            padding="$2"
+            borderRadius="$full"
+            onPress={() => router.back()}
+            hoverStyle={{ backgroundColor: colors.neutral[100] }}
+          >
+            <ChevronLeft size={24} color={colors.neutral[700]} />
+          </Button>
+          
           <Text fontSize="$8" fontWeight="700" color={colors.neutral[900]}>
             {t('profile.title')}
           </Text>
-          {!isEditing && (
+          
+          {!isEditing ? (
             <Button
               size="$3"
               backgroundColor={colors.primary[600]}
@@ -321,6 +334,9 @@ export function ProfileScreen() {
             >
               <Text color="white">{t('profile.editProfile')}</Text>
             </Button>
+          ) : (
+            // Placeholder to maintain layout when editing
+            <XStack width={100} />
           )}
         </XStack>
 

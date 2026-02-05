@@ -1,0 +1,52 @@
+appId: dev.casagrown.community
+---
+# Feed Screen Navigation Flow E2E Test
+# Prerequisites: User must already be logged in and on the Feed screen
+# Run this test AFTER completing login manually (without app restart)
+# 
+# This test verifies:
+# 1. Feed screen displays correctly with header elements
+# 2. Navigation to Profile screen works via tab bar
+# 3. Profile back button navigates back to Feed
+
+# NOTE: We do NOT launch the app here to preserve the login session
+# The user must be on the Feed screen before running this test
+
+# ============ FEED SCREEN VERIFICATION ============
+
+# Verify CasaGrown branding in header
+- assertVisible: 'CasaGrown'
+
+# Verify search functionality is present
+- assertVisible: 'Search posts, categories, or keywords...'
+
+# Verify empty state content
+- assertVisible: 'No posts found'
+- assertVisible: 'Try adjusting your search or filters'
+- assertVisible: 'Create First Post'
+
+# ============ PROFILE NAVIGATION TEST ============
+
+# Navigate to Profile via tab bar
+- tapOn: 'Profile'
+
+# Wait for Profile screen to load
+- extendedWaitUntil:
+    visible: 'Profile'
+    timeout: 10000
+
+# Verify Profile screen elements
+- assertVisible: 'Edit'
+
+# ============ BACK NAVIGATION TEST ============
+
+# Navigate back using Feed tab
+- tapOn: 'Feed'
+
+# Wait and verify we're back on Feed screen
+- extendedWaitUntil:
+    visible: 'CasaGrown'
+    timeout: 10000
+
+# Final verification - Feed screen elements are displayed
+- assertVisible: 'Search posts, categories, or keywords...'

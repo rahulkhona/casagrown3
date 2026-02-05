@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+const webpack = require('webpack')
+
 module.exports = {
   typescript: {
     ignoreBuildErrors: true,
@@ -39,5 +41,14 @@ module.exports = {
       '.jsx',
       '.json',
     ],
+  },
+  webpack: (config, { isServer, dev }) => {
+    // Define __DEV__ for React Native packages
+    config.plugins.push(
+      new webpack.DefinePlugin({
+        __DEV__: JSON.stringify(dev),
+      })
+    )
+    return config
   },
 }
