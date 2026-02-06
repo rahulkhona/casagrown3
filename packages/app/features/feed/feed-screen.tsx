@@ -14,11 +14,22 @@ import { colors, shadows, borderRadius } from '../../design-tokens'
 import { useTranslation } from 'react-i18next'
 import { Search, Bell, UserPlus, Home, Plus, Filter, Leaf, Menu, X } from '@tamagui/lucide-icons'
 import { Platform, Image } from 'react-native'
+import { InviteModal } from './InviteModal'
+
+// Types for invite rewards
+interface InviteRewards {
+  signupPoints: number
+  transactionPoints: number
+}
 
 interface FeedScreenProps {
   onCreatePost?: () => void
   onNavigateToProfile?: () => void
   logoSrc?: any // Logo image source for mobile (use require('../assets/logo.png'))
+  /** User's referral code for invite link - from profile.referral_code */
+  referralCode?: string
+  /** Reward points for invites - from incentive_rules */
+  inviteRewards?: InviteRewards
 }
 
 // Navigation item keys - labels are localized via t()
@@ -33,7 +44,7 @@ const NAV_KEYS = [
   { key: 'delegateSales', badge: 0 },
 ]
 
-export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc }: FeedScreenProps) {
+export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc, referralCode, inviteRewards }: FeedScreenProps) {
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
   const media = useMedia()
@@ -42,6 +53,9 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc }: FeedS
   
   // Mobile menu state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  
+  // Invite modal state
+  const [inviteModalOpen, setInviteModalOpen] = useState(false)
 
   // User data - badges only appear when there are actual pending items
   const userPoints = 0
@@ -170,6 +184,7 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc }: FeedS
                 gap="$2"
                 hoverStyle={{ backgroundColor: colors.green[700] }}
                 icon={<UserPlus size={16} color="white" />}
+                onPress={() => setInviteModalOpen(true)}
               >
                 <Text color="white" fontSize="$3" fontWeight="500">{t('feed.header.invite')}</Text>
               </Button>
@@ -180,6 +195,7 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc }: FeedS
                 cursor="pointer"
                 borderRadius="$full"
                 hoverStyle={{ backgroundColor: colors.green[50] }}
+                onPress={() => setInviteModalOpen(true)}
               >
                 <UserPlus size={20} color={colors.green[600]} />
               </Button>
@@ -449,6 +465,8 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc }: FeedS
 
         {/* ============ FOOTER ============ */}
         {/* Based on figma_extracted/src/App.tsx lines 572-640 */}
+        {/* Only show on web - mobile has navigation in header */}
+        {isWeb && (
         <YStack 
           backgroundColor={colors.gray[50]} 
           borderTopWidth={1}
@@ -560,9 +578,11 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc }: FeedS
             </YStack>
           </YStack>
         </YStack>
+        )}
       </ScrollView>
 
       {/* Floating Action Button (FAB) for mobile - Based on Figma mobile design */}
+      {/* TODO: Uncomment when Create Post feature is implemented
       {!isDesktop && (
         <Button
           position="absolute"
@@ -586,6 +606,15 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc }: FeedS
           <Plus size={28} color="white" />
         </Button>
       )}
+      */}
+
+      {/* Invite Modal */}
+      <InviteModal
+        visible={inviteModalOpen}
+        onClose={() => setInviteModalOpen(false)}
+        referralCode={referralCode}
+        inviteRewards={inviteRewards}
+      />
     </YStack>
   )
 }

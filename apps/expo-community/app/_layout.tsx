@@ -6,8 +6,8 @@ import { SplashScreen, Stack } from 'expo-router'
 import { Provider } from '@casagrown/app/provider'
 
 export const unstable_settings = {
-  // Ensure that reloading on `/user` keeps a back button present.
-  initialRouteName: '(tabs)',
+  // Start at index.tsx which acts as auth guard and redirects appropriately
+  initialRouteName: 'index',
 }
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -55,6 +55,14 @@ function RootLayoutNav() {
             headerShown: false,
           }}
         >
+          {/* Index - Auth guard entry point */}
+          <Stack.Screen 
+            name="index" 
+            options={{ 
+              headerShown: false,
+              gestureEnabled: false,
+            }} 
+          />
           {/* Tab screens - no back gesture to prevent going back to login */}
           <Stack.Screen 
             name="(tabs)" 

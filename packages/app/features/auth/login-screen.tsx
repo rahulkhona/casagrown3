@@ -20,7 +20,7 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
   const router = useRouter()
-  const { signInWithOtp, verifyOtp, signInWithOAuth, user } = useAuth()
+  const { signInWithOtp, verifyOtp, signInWithOAuth, user, loading: authLoading } = useAuth()
   
   const [loginMethod, setLoginMethod] = useState<'select' | 'email' | 'otp'>('select')
   const [email, setEmail] = useState('')
@@ -28,12 +28,16 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
   const [errors, setErrors] = useState<{ email?: string; otp?: string; general?: string }>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [codeResent, setCodeResent] = useState(false)
+  const [isRedirecting, setIsRedirecting] = useState(false)
   const media = useMedia()
 
   // Redirect based on onboarding status
   useEffect(() => {
     const checkProfileAndRedirect = async () => {
       if (!user) return
+      
+      // Set redirecting to prevent showing login form
+      setIsRedirecting(true)
       
       // Fire callback if provided (non-blocking)
       if (onLogin) onLogin(user.email || '', user.user_metadata.full_name || '')
@@ -64,6 +68,18 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
     checkProfileAndRedirect()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, router])
+
+  // Show loading spinner while checking auth or redirecting
+  if (authLoading || isRedirecting) {
+    return (
+      <YStack flex={1} alignItems="center" justifyContent="center" backgroundColor={colors.green[50]}>
+        <Spinner size="large" color={colors.green[600]} />
+        <Text marginTop="$4" color={colors.gray[600]}>
+          {isRedirecting ? t('auth.login.redirecting') : t('auth.login.checking')}
+        </Text>
+      </YStack>
+    )
+  }
 
   const handleSocialLogin = async (provider: 'google' | 'apple' | 'facebook') => {
     setIsSubmitting(true)

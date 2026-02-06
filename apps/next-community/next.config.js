@@ -1,6 +1,11 @@
 /** @type {import('next').NextConfig} */
 const webpack = require('webpack')
 
+// Define __DEV__ globally for Turbopack (which doesn't use webpack plugins)
+if (typeof globalThis.__DEV__ === 'undefined') {
+  globalThis.__DEV__ = process.env.NODE_ENV !== 'production'
+}
+
 module.exports = {
   typescript: {
     ignoreBuildErrors: true,

@@ -1,5 +1,14 @@
 'use client'
 
+// Define __DEV__ before any imports to ensure React Native packages can use it
+// This must be before @tamagui/polyfill-dev or any other RN-related imports
+if (typeof window !== 'undefined' && typeof (window as any).__DEV__ === 'undefined') {
+  (window as any).__DEV__ = process.env.NODE_ENV !== 'production'
+}
+if (typeof globalThis !== 'undefined' && typeof (globalThis as any).__DEV__ === 'undefined') {
+  (globalThis as any).__DEV__ = process.env.NODE_ENV !== 'production'
+}
+
 import '@tamagui/core/reset.css'
 import '@tamagui/font-inter/css/400.css'
 import '@tamagui/font-inter/css/700.css'

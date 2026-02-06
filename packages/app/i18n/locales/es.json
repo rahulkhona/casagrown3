@@ -137,7 +137,9 @@
       "codeResent": "¡Código de verificación reenviado!",
       "agreement": "Al continuar, aceptas los ",
       "terms": "Términos de Servicio",
-      "privacy": "Política de Privacidad"
+      "privacy": "Política de Privacidad",
+      "checking": "Verificando sesión...",
+      "redirecting": "Redirigiendo..."
     },
     "success": {
       "title": "¡Inicio de Sesión Exitoso!",
@@ -311,6 +313,56 @@
       "userAgreement": "Acuerdo de Usuario",
       "termsOfService": "Términos de Servicio",
       "copyright": "© 2026 CasaGrown. Todos los derechos reservados."
+    },
+    "invite": {
+      "title": "Invitar Amigos y Vecinos",
+      "subtitle": "Ayuda a hacer crecer tu comunidad local",
+      "whyInvite": "¿Por qué Invitar a Otros?",
+      "benefits": {
+        "community": {
+          "title": "Construir Comunidad",
+          "description": "Más vecinos significa más variedad de productos y servicios disponibles localmente"
+        },
+        "options": {
+          "title": "Más Opciones",
+          "description": "Encuentra más productos frescos y servicios de jardinería de personas de confianza"
+        },
+        "grow": {
+          "title": "Hacer Crecer la Comunidad",
+          "description": "Ayuda a construir un próspero mercado local de productos frescos"
+        },
+        "waste": {
+          "title": "Reducir Desperdicio",
+          "description": "Ayuda a eliminar el desperdicio de alimentos en tu vecindario juntos"
+        }
+      },
+      "family": {
+        "title": "¡Perfecto para Familias!",
+        "description": "Propietarios: Creen cuentas para sus adolescentes para vender productos de su patio trasero. Es una excelente manera para ellos de:",
+        "benefits": {
+          "earn": "Ganar dinero de bolsillo desde casa",
+          "learn": "Aprender emprendimiento y gestión del dinero",
+          "contribute": "Contribuir a la comunidad local",
+          "skills": "Desarrollar habilidades valiosas para la vida"
+        }
+      },
+      "share": {
+        "title": "Comparte Tu Enlace de Invitación",
+        "hint": "Comparte este enlace con amigos, familia y vecinos de tu comunidad",
+        "copy": "Copiar",
+        "copied": "¡Copiado!",
+        "shareButton": "Compartir Invitación",
+        "rewardsBannerBoth": "¡Gana {{signupPoints}} puntos cuando se registren + {{transactionPoints}} puntos en su primera transacción!",
+        "rewardsBannerSignupOnly": "¡Gana {{signupPoints}} puntos cuando se registren!",
+        "rewardsBannerTransactionOnly": "¡Gana {{transactionPoints}} puntos en su primera transacción!"
+      },
+      "tips": {
+        "title": "💡 Consejos de Invitación",
+        "tip1": "Invita a vecinos a poca distancia para una entrega fácil",
+        "tip2": "Comparte con grupos de jardinería locales y tablones comunitarios",
+        "tip3": "Cuéntales sobre productos específicos que vendes o buscas",
+        "tip4": "¡Recuérdales que es gratis unirse!"
+      }
     }
   }
 }

@@ -1,10 +1,69 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { FeedScreen } from '@casagrown/app/features/feed/feed-screen'
 import { useRouter } from 'next/navigation'
+import { useAuth, supabase } from '@casagrown/app/features/auth/auth-hook'
+
+// Types for incentive rules
+interface InviteRewards {
+  signupPoints: number
+  transactionPoints: number
+}
 
 export default function FeedPage() {
   const router = useRouter()
+  const { user, loading: authLoading } = useAuth()
+  const [referralCode, setReferralCode] = useState<string | undefined>(undefined)
+  const [inviteRewards, setInviteRewards] = useState<InviteRewards | undefined>(undefined)
+
+  // Fetch user's referral code from profile
+  useEffect(() => {
+    if (user?.id) {
+      const fetchReferralCode = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('referral_code')
+            .eq('id', user.id)
+            .single()
+          
+          if (!error && data?.referral_code) {
+            setReferralCode(data.referral_code)
+          }
+        } catch (err) {
+          console.error('Error fetching referral code:', err)
+        }
+      }
+      fetchReferralCode()
+    }
+  }, [user?.id])
+
+  // Fetch invite reward points from incentive rules
+  useEffect(() => {
+    const fetchInviteRewards = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('incentive_rules')
+          .select('action_type, points')
+          .in('action_type', ['invitee_signing_up', 'invitee_making_first_transaction'])
+          .eq('scope', 'global')
+        
+        if (!error && data) {
+          const signupRule = data.find(r => r.action_type === 'invitee_signing_up')
+          const transactionRule = data.find(r => r.action_type === 'invitee_making_first_transaction')
+          
+          setInviteRewards({
+            signupPoints: signupRule?.points || 0,
+            transactionPoints: transactionRule?.points || 0
+          })
+        }
+      } catch (err) {
+        console.error('Error fetching invite rewards:', err)
+      }
+    }
+    fetchInviteRewards()
+  }, [])
 
   const handleCreatePost = () => {
     // TODO: Navigate to create post page when implemented
@@ -19,6 +78,8 @@ export default function FeedPage() {
     <FeedScreen
       onCreatePost={handleCreatePost}
       onNavigateToProfile={handleNavigateToProfile}
+      referralCode={referralCode}
+      inviteRewards={inviteRewards}
     />
   )
 }

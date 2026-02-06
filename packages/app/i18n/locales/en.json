@@ -137,7 +137,9 @@
       "codeResent": "Verification code resent!",
       "agreement": "By continuing, you agree to CasaGrown's ",
       "terms": "Terms of Service",
-      "privacy": "Privacy Policy"
+      "privacy": "Privacy Policy",
+      "checking": "Checking session...",
+      "redirecting": "Redirecting..."
     },
     "success": {
       "title": "Login Successful!",
@@ -327,6 +329,56 @@
       "userAgreement": "User Agreement",
       "termsOfService": "Terms of Service",
       "copyright": "© 2026 CasaGrown. All rights reserved."
+    },
+    "invite": {
+      "title": "Invite Friends & Neighbors",
+      "subtitle": "Help grow your local community",
+      "whyInvite": "Why Invite Others?",
+      "benefits": {
+        "community": {
+          "title": "Build Community",
+          "description": "More neighbors means more variety of produce and services available locally"
+        },
+        "options": {
+          "title": "More Options",
+          "description": "Find more fresh produce and garden services from people you trust"
+        },
+        "grow": {
+          "title": "Grow the Community",
+          "description": "Help build a thriving local marketplace for fresh produce"
+        },
+        "waste": {
+          "title": "Reduce Waste",
+          "description": "Help eliminate food waste in your neighborhood together"
+        }
+      },
+      "family": {
+        "title": "Perfect for Families!",
+        "description": "Homeowners: Create accounts for your teenagers to sell your backyard produce. It's an excellent way for them to:",
+        "benefits": {
+          "earn": "Earn pocket money from home",
+          "learn": "Learn entrepreneurship and money management",
+          "contribute": "Contribute to the local community",
+          "skills": "Build valuable life skills"
+        }
+      },
+      "share": {
+        "title": "Share Your Invite Link",
+        "hint": "Share this link with friends, family, and neighbors in your community",
+        "copy": "Copy",
+        "copied": "Copied!",
+        "shareButton": "Share Invite",
+        "rewardsBannerBoth": "Earn {{signupPoints}} points when they sign up + {{transactionPoints}} points on their first transaction!",
+        "rewardsBannerSignupOnly": "Earn {{signupPoints}} points when they sign up!",
+        "rewardsBannerTransactionOnly": "Earn {{transactionPoints}} points on their first transaction!"
+      },
+      "tips": {
+        "title": "💡 Invitation Tips",
+        "tip1": "Invite neighbors within walking distance for easy drop-off",
+        "tip2": "Share with local gardening groups and community boards",
+        "tip3": "Tell them about specific produce you're selling or looking for",
+        "tip4": "Remind them it's free to join!"
+      }
     }
   }
 }

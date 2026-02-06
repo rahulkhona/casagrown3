@@ -39,7 +39,9 @@ on conflict (h3_index) do nothing;
 insert into public.incentive_rules (action_type, scope, points, start_date)
 values 
   ('join_a_community', 'global', 100, now()),
-  ('make_first_post', 'global', 25, now());
+  ('make_first_post', 'global', 25, now()),
+  ('invitee_signing_up', 'global', 50, now()),
+  ('invitee_making_first_transaction', 'global', 100, now());
 
 -- 7. Sales Category Restrictions (Allow common items globally for development)
 insert into public.sales_category_restrictions (category, scope, is_allowed, country_iso_3)

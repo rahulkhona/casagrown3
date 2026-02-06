@@ -28,6 +28,7 @@ The `profiles` table stores user profile information. It is linked to the Supaba
 | Column | Type | Description |
 | :--- | :--- | :--- |
 | `id` | `uuid` | Primary Key (FK to `auth.users.id`). |
+| `email` | `text` | User's email address (copied from auth.users on signup). |
 | `full_name` | `text` | User's display name. |
 | `avatar_url` | `text` | URL to user's avatar image. |
 | `phone_number` | `text` | User's phone number (for SMS notifications). |
@@ -40,8 +41,12 @@ The `profiles` table stores user profile information. It is linked to the Supaba
 | `notify_on_available` | `boolean` | Receive notifications for "available" posts. Default: `false`. |
 | `push_enabled` | `boolean` | Push notifications enabled. Default: `true`. |
 | `sms_enabled` | `boolean` | SMS notifications enabled. Default: `false`. |
+| `referral_code` | `text` | **Unique 8-character alphanumeric code** for invite tracking. Auto-generated on insert. |
+| `invited_by_id` | `uuid` | FK to `profiles(id)`. The user who referred this user. |
 | `created_at` | `timestamptz` | Default `now()`. |
 | `updated_at` | `timestamptz` | Default `now()`. |
+
+**Referral Code Generation**: A database trigger (`trigger_set_referral_code`) automatically generates a unique 8-character alphanumeric code on profile insert if not already set. This code is used in invite URLs (`https://casagrown.com/invite/{referral_code}`) to track referrals.
 
 ### `incentive_rules`
 
@@ -61,7 +66,11 @@ The `incentive_rules` table defines reward point values for various user actions
 | `end_date` | `timestamptz` | Optional expiration date. |
 | `created_at` | `timestamptz` | Default `now()`. |
 
-**Incentive Action Types**: `join_a_community`, `make_first_post`, `complete_transaction`, `complete_first_transaction`
+**Incentive Action Types**: `signup`, `join_a_community`, `make_first_post`, `complete_transaction`, `complete_first_transaction`, `invitee_signing_up`, `invitee_making_first_transaction`
+
+**RLS Policies**:
+- `Anyone can view incentive rules` - SELECT for authenticated users with `true`
+- `Anonymous can view incentive rules` - SELECT for `anon` role with `true`
 
 ### `point_ledger`
 
@@ -85,6 +94,17 @@ The `point_ledger` table tracks all point transactions for each user, providing 
 **RLS Policies**:
 - `Users can view own point ledger entries` - SELECT where `auth.uid() = user_id`
 - `Users can insert own point ledger entries` - INSERT with check `auth.uid() = user_id`
+
+### RLS Policies Summary
+
+| Table | Policy Name | Operation | Condition |
+| :--- | :--- | :--- | :--- |
+| `profiles` | `Users can view own profile` | SELECT | `auth.uid() = id` |
+| `profiles` | `Users can update own profile` | UPDATE | `auth.uid() = id` |
+| `incentive_rules` | `Anyone can view incentive rules` | SELECT | `true` (authenticated) |
+| `incentive_rules` | `Anonymous can view incentive rules` | SELECT | `true` (anon) |
+| `point_ledger` | `Users can view own point ledger entries` | SELECT | `auth.uid() = user_id` |
+| `point_ledger` | `Users can insert own point ledger entries` | INSERT | `auth.uid() = user_id` |
 
 ---
 
