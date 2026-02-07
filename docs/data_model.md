@@ -5,7 +5,7 @@ Each section includes the SQL DDL, markdown description, and any associated trig
 
 > [!NOTE]
 > **Migrations applied (in order)**:
-> `20260131173152_initial_schema` → `20260131183000_refactor_redemptions` → `20260131191000_zip_scraped_tracking` → `20260131191500_update_zip_tracking` → `20260131192000_scraping_logs` → `20260131203000_guest_experimentation` → `20260201100000_auth_triggers` → `20260201200000_h3_community_refactor` → `20260202161700_update_profiles_schema` → `20260203051900_add_country_code` → `20260204055900_point_ledger_rls` → `20260206031500_add_referral_code_trigger` → `20260206040000_incentive_rules_rls` → `20260206041000_profiles_rls` → `20260206060000_followers_table` → `20260207000000_profiles_public_read_rls` → `20260207060000_posts_content_rls`
+> `20260131173152_initial_schema` → `20260131183000_refactor_redemptions` → `20260131191000_zip_scraped_tracking` → `20260131191500_update_zip_tracking` → `20260131192000_scraping_logs` → `20260131203000_guest_experimentation` → `20260201100000_auth_triggers` → `20260201200000_h3_community_refactor` → `20260202161700_update_profiles_schema` → `20260203051900_add_country_code` → `20260204055900_point_ledger_rls` → `20260206031500_add_referral_code_trigger` → `20260206040000_incentive_rules_rls` → `20260206041000_profiles_rls` → `20260206060000_followers_table` → `20260207000000_profiles_public_read_rls` → `20260207060000_posts_content_rls` → `20260207070000_shared_tables_rls`
 
 ## Extensions
 
@@ -310,6 +310,18 @@ create index idx_followers_follower on followers (follower_id);
 create index idx_followers_followed on followers (followed_id);
 ```
 
+**RLS Policies** (`20260207070000_shared_tables_rls`): Public reads, follower-controlled writes.
+
+| Policy | Operation | Rule |
+| :--- | :--- | :--- |
+| Follow relationships are publicly readable | `SELECT` | `using (true)` |
+| Users can follow others | `INSERT` | `with check (follower_id = auth.uid())` |
+| Users can unfollow | `DELETE` | `using (follower_id = auth.uid())` |
+
+```text
+(indexes shown above)
+```
+
 ---
 
 ## Incentive & Points System
@@ -585,6 +597,14 @@ create table media_assets (
 );
 ```
 
+**RLS Policies** (`20260207070000_shared_tables_rls`):
+
+| Policy | Operation | Rule |
+| :--- | :--- | :--- |
+| Media assets are publicly readable | `SELECT` | `using (true)` |
+| Owners can upload media | `INSERT` | `with check (owner_id = auth.uid())` |
+| Owners can delete their media | `DELETE` | `using (owner_id = auth.uid())` |
+
 ---
 
 ## Transactional (Conversations, Offers, Orders)
@@ -602,6 +622,14 @@ create table conversations (
 );
 ```
 
+**RLS Policies** (`20260207070000_shared_tables_rls`): Two-party access — only `buyer_id` or `seller_id` can read.
+
+| Policy | Operation | Rule |
+| :--- | :--- | :--- |
+| Conversation parties can read | `SELECT` | `using (buyer_id = auth.uid() OR seller_id = auth.uid())` |
+| Buyers can initiate conversations | `INSERT` | `with check (buyer_id = auth.uid())` |
+| No update/delete | — | Conversations are immutable once created |
+
 ### `chat_messages`
 
 ```sql
@@ -618,6 +646,14 @@ create table chat_messages (
 );
 ```
 
+**RLS Policies** (`20260207070000_shared_tables_rls`): Access inherited from conversation membership.
+
+| Policy | Operation | Rule |
+| :--- | :--- | :--- |
+| Conversation parties can read messages | `SELECT` | `conversation_id` in user's conversations |
+| Conversation parties can send messages | `INSERT` | `sender_id = auth.uid()` AND conversation member |
+| No update/delete | — | Messages are immutable (audit trail) |
+
 ### `offers`
 
 ```sql
@@ -631,6 +667,14 @@ create table offers (
   created_at timestamptz default now()
 );
 ```
+
+**RLS Policies** (`20260207070000_shared_tables_rls`): Access inherited from conversation membership.
+
+| Policy | Operation | Rule |
+| :--- | :--- | :--- |
+| Conversation parties can read offers | `SELECT` | `conversation_id` in user's conversations |
+| Conversation parties can create offers | `INSERT` | `created_by = auth.uid()` AND conversation member |
+| Conversation parties can update offer status | `UPDATE` | Conversation member |
 
 ### `orders`
 
@@ -659,6 +703,14 @@ create table orders (
 );
 ```
 
+**RLS Policies** (`20260207070000_shared_tables_rls`): Two-party access — only `buyer_id` or `seller_id`.
+
+| Policy | Operation | Rule |
+| :--- | :--- | :--- |
+| Order parties can read their orders | `SELECT` | `using (buyer_id = auth.uid() OR seller_id = auth.uid())` |
+| Order parties can create orders | `INSERT` | `with check (buyer_id = auth.uid() OR seller_id = auth.uid())` |
+| Order parties can update their orders | `UPDATE` | `using (buyer_id = auth.uid() OR seller_id = auth.uid())` |
+
 ### `escalations`
 
 ```sql
@@ -677,6 +729,14 @@ create table escalations (
 );
 ```
 
+**RLS Policies** (`20260207070000_shared_tables_rls`): Access inherited from order parties.
+
+| Policy | Operation | Rule |
+| :--- | :--- | :--- |
+| Order parties can read escalations | `SELECT` | `order_id` in user's orders |
+| Order parties can create escalations | `INSERT` | `initiator_id = auth.uid()` AND order party |
+| Order parties can update escalations | `UPDATE` | Order party |
+
 ### `refund_offers`
 
 ```sql
@@ -694,6 +754,14 @@ alter table escalations
   add constraint fk_accepted_refund
   foreign key (accepted_refund_offer_id) references refund_offers(id);
 ```
+
+**RLS Policies** (`20260207070000_shared_tables_rls`): Access inherited from escalation → order parties.
+
+| Policy | Operation | Rule |
+| :--- | :--- | :--- |
+| Order parties can read refund offers | `SELECT` | `escalation_id` → order parties |
+| Order parties can create refund offers | `INSERT` | `escalation_id` → order parties |
+| Order parties can update refund offer status | `UPDATE` | `escalation_id` → order parties |
 
 ---
 
@@ -779,6 +847,14 @@ create table notifications (
 );
 ```
 
+**RLS Policies** (`20260207070000_shared_tables_rls`): Private to recipient.
+
+| Policy | Operation | Rule |
+| :--- | :--- | :--- |
+| Users can read their own notifications | `SELECT` | `using (user_id = auth.uid())` |
+| Users can mark their notifications as read | `UPDATE` | `using (user_id = auth.uid())` |
+| No insert/delete by users | — | Created by system (service role) |
+
 ---
 
 ## Delegations
@@ -798,6 +874,15 @@ create table delegations (
   check (delegator_id <> delegatee_id)
 );
 ```
+
+**RLS Policies** (`20260207070000_shared_tables_rls`): Two-party access.
+
+| Policy | Operation | Rule |
+| :--- | :--- | :--- |
+| Delegation parties can read | `SELECT` | `using (delegator_id = auth.uid() OR delegatee_id = auth.uid())` |
+| Delegators can create delegations | `INSERT` | `with check (delegator_id = auth.uid())` |
+| Delegation parties can update status | `UPDATE` | `using (delegator_id = auth.uid() OR delegatee_id = auth.uid())` |
+| Delegators can delete delegations | `DELETE` | `using (delegator_id = auth.uid())` |
 
 ---
 
