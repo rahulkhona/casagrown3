@@ -8,6 +8,7 @@ import { useIncentiveRules } from '../utils/use-incentive-rules'
 import { useTranslation } from 'react-i18next'
 import * as Location from 'expo-location'
 
+
 export const JoinCommunityStep = () => {
   const { t } = useTranslation()
   const { data, updateData, nextStep, prevStep } = useWizard()
@@ -61,34 +62,98 @@ export const JoinCommunityStep = () => {
   const handleAddressChange = (text: string) => {
       setAddress(text)
       setErrorMessage('')
-      if (isMatched) setIsMatched(false)
+      if (isMatched) {
+        setIsMatched(false)
+        setMatchData(null)
+      }
   }
   
   const handleZipChange = (text: string) => {
       setZip(text)
       setErrorMessage('')
-      if (isMatched) setIsMatched(false)
+      if (isMatched) {
+        setIsMatched(false)
+        setMatchData(null)
+      }
   }
   
   const handleUseCurrentLocation = async () => {
     setGettingLocation(true)
     setErrorMessage('')
     try {
-      // Request permissions using expo-location (works on iOS, Android, and Web)
-      const { status } = await Location.requestForegroundPermissionsAsync()
-      if (status !== 'granted') {
+      let latitude = 0
+      let longitude = 0
+      let gotLocation = false
+
+      // expo-location's web wrapper is unreliable, so use native browser API on web
+      const isWeb = typeof window !== 'undefined' && typeof navigator !== 'undefined'
+
+      if (isWeb) {
+        // Web: use native browser Geolocation API (confirmed working via testing)
+        if ('geolocation' in navigator) {
+          try {
+            console.log('📍 Using browser Geolocation API...')
+            const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(resolve, reject, {
+                enableHighAccuracy: true,
+                timeout: 15000,
+                maximumAge: 60000,
+              })
+            })
+            latitude = position.coords.latitude
+            longitude = position.coords.longitude
+            gotLocation = true
+            console.log('📍 Browser geolocation succeeded:', latitude, longitude)
+          } catch (geoErr: any) {
+            console.warn('📍 Browser geolocation failed (code:', geoErr?.code, '):', geoErr?.message)
+          }
+        }
+
+        // Fallback: IP-based geolocation (works without browser permissions)
+        if (!gotLocation) {
+          console.log('📍 Falling back to IP-based geolocation...')
+          try {
+            const ipResponse = await fetch('https://ipapi.co/json/')
+            if (!ipResponse.ok) throw new Error('IP geolocation service unavailable')
+            const ipData = await ipResponse.json()
+            if (ipData.latitude && ipData.longitude) {
+              latitude = ipData.latitude
+              longitude = ipData.longitude
+              gotLocation = true
+              console.log('📍 IP geolocation succeeded:', latitude, longitude, '(city:', ipData.city, ')')
+            } else {
+              throw new Error('No location data from IP geolocation')
+            }
+          } catch (ipErr) {
+            console.error('📍 IP geolocation also failed:', ipErr)
+          }
+        }
+      } else {
+        // Native (iOS/Android): use expo-location
+        try {
+          const { status } = await Location.requestForegroundPermissionsAsync()
+          if (status === 'granted') {
+            console.log('📍 Requesting location via expo-location...')
+            const location = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.Balanced,
+            })
+            latitude = location.coords.latitude
+            longitude = location.coords.longitude
+            gotLocation = true
+            console.log('📍 expo-location succeeded:', latitude, longitude)
+          } else {
+            console.warn('📍 Location permission denied')
+          }
+        } catch (expoErr) {
+          console.warn('📍 expo-location failed:', expoErr)
+        }
+      }
+
+      if (!gotLocation) {
         setErrorMessage(t('profileWizard.community.locationPermissionDenied') || 'Location permission was denied. Please enable location access in your settings.')
         setGettingLocation(false)
         return
       }
-      
-      // Get current position
-      console.log('📍 Requesting location...')
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      })
-      
-      const { latitude, longitude } = location.coords
       console.log('📍 Got location:', latitude, longitude)
       
       // Reverse geocode to get street address
@@ -166,7 +231,7 @@ export const JoinCommunityStep = () => {
       }
     } catch (err: any) {
       console.error('Geolocation error:', err)
-      setErrorMessage(err.message || 'Could not get your location.')
+      setErrorMessage(err.message || 'Could not get your location. Please enter your address manually.')
     } finally {
       setGettingLocation(false)
     }
@@ -335,6 +400,11 @@ export const JoinCommunityStep = () => {
                                 onPress={() => {
                                     setIsMatched(false);
                                     setMatchData(null);
+                                    // Clear community from wizard data so user can re-search
+                                    updateData({
+                                      community: undefined,
+                                      nearbyCommunities: undefined
+                                    });
                                 }}
                                 hoverStyle={{ backgroundColor: colors.gray[100] }}
                             >

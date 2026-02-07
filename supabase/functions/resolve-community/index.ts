@@ -18,6 +18,8 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const t0 = Date.now();
+
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
@@ -36,6 +38,7 @@ Deno.serve(async (req) => {
 
     // 0. Geocoding (if address provided)
     if (address && (!lat || !lng)) {
+      const tGeo = Date.now();
       console.log(`Geocoding address: "${address}"...`);
       const nominatimUrl = new URL(
         "https://nominatim.openstreetmap.org/search",
@@ -69,9 +72,9 @@ Deno.serve(async (req) => {
       geocodedCity = addr.city || addr.town || addr.municipality || "";
 
       console.log(
-        `Resolved "${address}" to (${lat}, ${lng}), neighborhood: ${
-          geocodedNeighborhood || "N/A"
-        }`,
+        `⏱️ Nominatim geocoding: ${
+          Date.now() - tGeo
+        }ms → (${lat}, ${lng}), neighborhood: ${geocodedNeighborhood || "N/A"}`,
       );
     }
 
@@ -80,8 +83,6 @@ Deno.serve(async (req) => {
     }
 
     // 1. Calculate H3 Index
-    // Resolution 7 is approx 5.16 km^2 (town/suburb size)
-    // Resolution 8 is approx 0.73 km^2 (neighborhood size)
     const h3Index = latLngToCell(lat, lng, 7);
     console.log(
       `Resolved H3 Index (Res 7): ${h3Index} for location (${lat}, ${lng})`,
@@ -89,217 +90,14 @@ Deno.serve(async (req) => {
 
     // Calculate Neighbors (k=1)
     const neighborIndices = gridDisk(h3Index, 1); // Returns origin + 6 neighbors
-    // Filter out the origin itself for the "neighbors" list
     const adjacentIndices = neighborIndices.filter((idx: string) =>
       idx !== h3Index
     );
 
-    // 2. Resolver Function (DB Check -> Overpass Gen)
-    const resolveCommunity = async (
-      index: string,
-    ) => {
-      // ... (rest of logic same) ...
-      // Check DB
-      const { data: existing, error } = await supabase
-        .from("communities")
-        .select("*")
-        .eq("h3_index", index)
-        .single();
-
-      if (existing && !error) return existing;
-
-      // If missing, Generate via Overpass
-      console.log(`Generating community for ${index}...`);
-
-      const boundary = cellToBoundary(index);
-      const [lat, lng] = cellToLatLng(index);
-      const centroidPoint = `POINT(${lng} ${lat})`;
-
-      // Radius Search (1.5km) to catch nearby landmarks
-      const radius = 1500;
-
-      const overpassQuery = `
-          [out:json][timeout:25];
-          (
-            node["place"~"neighbourhood|suburb|quarter"](around:${radius},${lat},${lng});
-            way["place"~"neighbourhood|suburb|quarter"](around:${radius},${lat},${lng});
-            relation["place"~"neighbourhood|suburb|quarter"](around:${radius},${lat},${lng});
-
-            node["leisure"="park"]["name"](around:${radius},${lat},${lng});
-            way["leisure"="park"]["name"](around:${radius},${lat},${lng});
-            relation["leisure"="park"]["name"](around:${radius},${lat},${lng});
-
-            node["amenity"~"school|university|college"]["name"](around:${radius},${lat},${lng});
-            way["amenity"~"school|university|college"]["name"](around:${radius},${lat},${lng});
-            relation["amenity"~"school|university|college"]["name"](around:${radius},${lat},${lng});
-            
-            node["shop"="mall"]["name"](around:${radius},${lat},${lng});
-            way["shop"="mall"]["name"](around:${radius},${lat},${lng});
-            relation["shop"="mall"]["name"](around:${radius},${lat},${lng});
-            
-            way["highway"~"primary|secondary|tertiary"]["name"](around:${radius},${lat},${lng});
-          );
-          out center 50;
-        `;
-
-      const overpassUrl = "https://overpass-api.de/api/interpreter";
-      const osmResponse = await fetch(overpassUrl, {
-        method: "POST",
-        headers: {
-          "User-Agent": "CasaGrownApp/1.0 (internal-dev-testing)",
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: `data=${encodeURIComponent(overpassQuery)}`,
-      });
-
-      if (!osmResponse.ok) {
-        console.error(
-          `Overpass Error: ${osmResponse.status} ${osmResponse.statusText}`,
-        );
-        throw new Error(`Overpass API Failed: ${osmResponse.status}`);
-      }
-      const osmData = await osmResponse.json();
-      const elements = osmData.elements || [];
-
-      // Naming Heuristic
-      let bestName = `Community ${index.substring(0, 6)}...`;
-      let nameSource = "fallback_index";
-      let city = "Unknown";
-
-      console.log(`[DEBUG H3 ${index}] Found ${elements.length} elements`);
-      // VERBOSE DEBUG: Show all element types
-      elements.forEach((e: any, i: number) => {
-        console.log(
-          `  [${i}] type=${e.type}, tags=${JSON.stringify(e.tags || {})}`,
-        );
-      });
-      const neighborhoods = elements.filter((e: any) =>
-        e.tags?.place &&
-        ["neighbourhood", "suburb", "quarter"].includes(e.tags.place)
-      );
-      const parks = elements.filter((e: any) => e.tags?.leisure === "park");
-      const schools = elements.filter((e: any) =>
-        e.tags?.amenity &&
-        ["school", "university", "college"].includes(e.tags.amenity)
-      );
-      const malls = elements.filter((e: any) => e.tags?.shop === "mall");
-      const majorRoads = elements.filter((e: any) =>
-        e.tags?.highway &&
-        ["primary", "secondary", "tertiary"].includes(e.tags.highway) &&
-        e.tags?.name
-      );
-
-      // Log what we found for debugging
-      if (schools.length) {
-        console.log(
-          `  Schools: ${schools.map((e: any) => e.tags.name).join(", ")}`,
-        );
-      }
-      if (parks.length) {
-        console.log(
-          `  Parks: ${parks.map((e: any) => e.tags.name).join(", ")}`,
-        );
-      }
-      if (malls.length) {
-        console.log(
-          `  Malls: ${malls.map((e: any) => e.tags.name).join(", ")}`,
-        );
-      }
-      if (majorRoads.length) {
-        console.log(
-          `  Major Roads: ${
-            majorRoads.map((e: any) => e.tags.name).join(", ")
-          }`,
-        );
-      }
-
-      // Priority: Schools > Parks > Malls > Major Roads > Neighborhoods
-      // Format: "[Landmark], [Neighborhood] Community"
-      let landmarkName = "";
-      const neighborhoodName = neighborhoods.length > 0
-        ? neighborhoods[0].tags.name
-        : "";
-
-      if (schools.length > 0) {
-        landmarkName = schools[0].tags.name || "";
-        nameSource = "osm_school";
-      } else if (parks.length > 0) {
-        landmarkName = parks[0].tags.name || "";
-        nameSource = "osm_park";
-      } else if (malls.length > 0) {
-        landmarkName = malls[0].tags.name || "";
-        nameSource = "osm_mall";
-      } else if (majorRoads.length >= 2) {
-        // Create intersection name from first two major roads
-        landmarkName = `${majorRoads[0].tags.name} & ${
-          majorRoads[1].tags.name
-        }`;
-        nameSource = "osm_intersection";
-      } else if (majorRoads.length === 1) {
-        landmarkName = majorRoads[0].tags.name || "";
-        nameSource = "osm_road";
-      }
-
-      // Build the community name
-      if (landmarkName && neighborhoodName) {
-        bestName = `${landmarkName}, ${neighborhoodName} Community`;
-      } else if (landmarkName) {
-        bestName = `${landmarkName} Community`;
-      } else if (neighborhoodName) {
-        bestName = `${neighborhoodName} Community`;
-        nameSource = "osm_neighborhood";
-      }
-      // If neither, bestName remains as fallback
-
-      const addrElement = elements.find((e: any) => e.tags?.["addr:city"]);
-      if (addrElement) city = addrElement.tags["addr:city"];
-
-      // Create Geometry WKT
-      const polygonPoints = boundary.map(([lat, lng]: number[]) =>
-        `${lng} ${lat}`
-      ).join(
-        ",",
-      );
-      const firstPoint = boundary[0];
-      const polygonString = `POLYGON((${polygonPoints}, ${firstPoint[1]} ${
-        firstPoint[0]
-      }))`;
-
-      // centroidPoint already defined at line 101 using cellToLatLng
-
-      const newCommunity = {
-        h3_index: index,
-        name: bestName,
-        metadata: { source: nameSource, osm_elements_found: elements.length },
-        city: city,
-        location: centroidPoint,
-        boundary: polygonString,
-      };
-
-      const { data: inserted, error: insertError } = await supabase
-        .from("communities")
-        .insert(newCommunity)
-        .select()
-        .single();
-
-      if (insertError) {
-        if (insertError.code === "23505") { // Retrieve if concurrent insert
-          const { data: retry } = await supabase.from("communities").select("*")
-            .eq("h3_index", index).single();
-          return retry;
-        }
-        throw insertError;
-      }
-      return inserted;
-    };
-
-    // 3. Resolve ALL Communities (Primary + Neighbors) in Parallel
-    // We want to ensure NO "unexplored" communities.
-
-    // Combine into unique set of indices to resolve
+    // 2. Batch fetch ALL communities from DB (single query)
     const allIndices = Array.from(new Set([h3Index, ...adjacentIndices]));
 
-    // Fetch existing from DB
+    const tDb = Date.now();
     const { data: existingCommunities, error: fetchError } = await supabase
       .from("communities")
       .select("*")
@@ -310,33 +108,43 @@ Deno.serve(async (req) => {
     const existingMap = new Map(
       existingCommunities?.map((c) => [c.h3_index, c]),
     );
-
-    // Identify missing
-    const missingIndices = allIndices.filter((idx) => !existingMap.has(idx));
-
     console.log(
-      `Found ${existingMap.size} existing, need to generate ${missingIndices.length} communities`,
+      `⏱️ DB batch lookup: ${
+        Date.now() - tDb
+      }ms → found ${existingMap.size}/${allIndices.length} communities`,
     );
 
-    // Generate missing in parallel
-    // Generate missing SEQUENTIALLY to avoid Overpass Rate Limits via 'Promise.all'
-    const generatedCommunities = [];
-    for (const idx of missingIndices) {
-      try {
-        const comm = await resolveCommunity(idx);
-        if (comm) generatedCommunities.push(comm);
-        // Delay to prevent Rate Limiting (2s for recovery)
-        await new Promise((r) => setTimeout(r, 2000));
-      } catch (e) {
-        console.error(`Failed to generate community ${idx}:`, e);
-        // Continue to next, don't break entire batch
-      }
-    }
+    // 3. Identify missing indices that need Overpass generation
+    const missingIndices = allIndices.filter((idx) => !existingMap.has(idx));
 
-    // Update Map with generated ones
-    generatedCommunities.forEach((c) => {
-      if (c) existingMap.set(c.h3_index, c);
-    });
+    if (missingIndices.length > 0) {
+      console.log(
+        `Generating ${missingIndices.length} missing communities via Overpass...`,
+      );
+
+      // Generate missing SEQUENTIALLY to avoid Overpass rate limits
+      for (const idx of missingIndices) {
+        try {
+          const tOverpass = Date.now();
+          const comm = await generateCommunityFromOverpass(supabase, idx);
+          console.log(
+            `⏱️ Overpass generation for ${idx}: ${Date.now() - tOverpass}ms`,
+          );
+          if (comm) existingMap.set(comm.h3_index, comm);
+          // Delay to prevent rate limiting (2s for recovery)
+          if (missingIndices.indexOf(idx) < missingIndices.length - 1) {
+            await new Promise((r) => setTimeout(r, 2000));
+          }
+        } catch (e) {
+          console.error(`Failed to generate community ${idx}:`, e);
+          // Continue to next, don't break entire batch
+        }
+      }
+    } else {
+      console.log(
+        "✅ All communities found in DB cache — no Overpass calls needed",
+      );
+    }
 
     // 4. Construct Response
     const primaryCommunity = existingMap.get(h3Index);
@@ -350,7 +158,6 @@ Deno.serve(async (req) => {
       geocodedNeighborhood &&
       !enhancedPrimaryName.includes(geocodedNeighborhood)
     ) {
-      // If name ends with "Community", insert neighborhood before it
       if (enhancedPrimaryName.endsWith(" Community")) {
         const baseName = enhancedPrimaryName.replace(" Community", "");
         enhancedPrimaryName = `${baseName}, ${geocodedNeighborhood} Community`;
@@ -363,16 +170,18 @@ Deno.serve(async (req) => {
       const comm = existingMap.get(idx);
       return {
         h3_index: idx,
-        name: comm ? comm.name : "Unknown Community", // Should theoretically always be found now
-        status: "active", // Always active since we eager loaded
+        name: comm ? comm.name : "Unknown Community",
+        status: "active",
       };
     });
+
+    console.log(`⏱️ Total request time: ${Date.now() - t0}ms`);
 
     return new Response(
       JSON.stringify({
         primary: {
           ...primaryCommunity,
-          name: enhancedPrimaryName, // Use enhanced name with neighborhood
+          name: enhancedPrimaryName,
         },
         neighbors: neighbors,
         resolved_location: { lat, lng },
@@ -391,3 +200,158 @@ Deno.serve(async (req) => {
     });
   }
 });
+
+// ============================================================================
+// Overpass Community Generator
+// Only called for H3 indices NOT already in the communities table.
+// ============================================================================
+async function generateCommunityFromOverpass(
+  supabase: any,
+  index: string,
+) {
+  console.log(`Generating community for ${index}...`);
+
+  const boundary = cellToBoundary(index);
+  const [lat, lng] = cellToLatLng(index);
+  const centroidPoint = `POINT(${lng} ${lat})`;
+
+  // Radius Search (1.5km) to catch nearby landmarks
+  const radius = 1500;
+
+  const overpassQuery = `
+      [out:json][timeout:25];
+      (
+        node["place"~"neighbourhood|suburb|quarter"](around:${radius},${lat},${lng});
+        way["place"~"neighbourhood|suburb|quarter"](around:${radius},${lat},${lng});
+        relation["place"~"neighbourhood|suburb|quarter"](around:${radius},${lat},${lng});
+
+        node["leisure"="park"]["name"](around:${radius},${lat},${lng});
+        way["leisure"="park"]["name"](around:${radius},${lat},${lng});
+        relation["leisure"="park"]["name"](around:${radius},${lat},${lng});
+
+        node["amenity"~"school|university|college"]["name"](around:${radius},${lat},${lng});
+        way["amenity"~"school|university|college"]["name"](around:${radius},${lat},${lng});
+        relation["amenity"~"school|university|college"]["name"](around:${radius},${lat},${lng});
+        
+        node["shop"="mall"]["name"](around:${radius},${lat},${lng});
+        way["shop"="mall"]["name"](around:${radius},${lat},${lng});
+        relation["shop"="mall"]["name"](around:${radius},${lat},${lng});
+        
+        way["highway"~"primary|secondary|tertiary"]["name"](around:${radius},${lat},${lng});
+      );
+      out center 50;
+    `;
+
+  const overpassUrl = "https://overpass-api.de/api/interpreter";
+  const osmResponse = await fetch(overpassUrl, {
+    method: "POST",
+    headers: {
+      "User-Agent": "CasaGrownApp/1.0 (internal-dev-testing)",
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: `data=${encodeURIComponent(overpassQuery)}`,
+  });
+
+  if (!osmResponse.ok) {
+    console.error(
+      `Overpass Error: ${osmResponse.status} ${osmResponse.statusText}`,
+    );
+    throw new Error(`Overpass API Failed: ${osmResponse.status}`);
+  }
+  const osmData = await osmResponse.json();
+  const elements = osmData.elements || [];
+
+  // Naming Heuristic
+  let bestName = `Community ${index.substring(0, 6)}...`;
+  let nameSource = "fallback_index";
+  let city = "Unknown";
+
+  console.log(`[DEBUG H3 ${index}] Found ${elements.length} elements`);
+
+  const neighborhoods = elements.filter((e: any) =>
+    e.tags?.place &&
+    ["neighbourhood", "suburb", "quarter"].includes(e.tags.place)
+  );
+  const parks = elements.filter((e: any) => e.tags?.leisure === "park");
+  const schools = elements.filter((e: any) =>
+    e.tags?.amenity &&
+    ["school", "university", "college"].includes(e.tags.amenity)
+  );
+  const malls = elements.filter((e: any) => e.tags?.shop === "mall");
+  const majorRoads = elements.filter((e: any) =>
+    e.tags?.highway &&
+    ["primary", "secondary", "tertiary"].includes(e.tags.highway) &&
+    e.tags?.name
+  );
+
+  // Priority: Schools > Parks > Malls > Major Roads > Neighborhoods
+  let landmarkName = "";
+  const neighborhoodName = neighborhoods.length > 0
+    ? neighborhoods[0].tags.name
+    : "";
+
+  if (schools.length > 0) {
+    landmarkName = schools[0].tags.name || "";
+    nameSource = "osm_school";
+  } else if (parks.length > 0) {
+    landmarkName = parks[0].tags.name || "";
+    nameSource = "osm_park";
+  } else if (malls.length > 0) {
+    landmarkName = malls[0].tags.name || "";
+    nameSource = "osm_mall";
+  } else if (majorRoads.length >= 2) {
+    landmarkName = `${majorRoads[0].tags.name} & ${majorRoads[1].tags.name}`;
+    nameSource = "osm_intersection";
+  } else if (majorRoads.length === 1) {
+    landmarkName = majorRoads[0].tags.name || "";
+    nameSource = "osm_road";
+  }
+
+  // Build the community name
+  if (landmarkName && neighborhoodName) {
+    bestName = `${landmarkName}, ${neighborhoodName} Community`;
+  } else if (landmarkName) {
+    bestName = `${landmarkName} Community`;
+  } else if (neighborhoodName) {
+    bestName = `${neighborhoodName} Community`;
+    nameSource = "osm_neighborhood";
+  }
+
+  const addrElement = elements.find((e: any) => e.tags?.["addr:city"]);
+  if (addrElement) city = addrElement.tags["addr:city"];
+
+  // Create Geometry WKT
+  const polygonPoints = boundary.map(([lat, lng]: number[]) => `${lng} ${lat}`)
+    .join(
+      ",",
+    );
+  const firstPoint = boundary[0];
+  const polygonString = `POLYGON((${polygonPoints}, ${firstPoint[1]} ${
+    firstPoint[0]
+  }))`;
+
+  const newCommunity = {
+    h3_index: index,
+    name: bestName,
+    metadata: { source: nameSource, osm_elements_found: elements.length },
+    city: city,
+    location: centroidPoint,
+    boundary: polygonString,
+  };
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("communities")
+    .insert(newCommunity)
+    .select()
+    .single();
+
+  if (insertError) {
+    if (insertError.code === "23505") { // Retrieve if concurrent insert
+      const { data: retry } = await supabase.from("communities").select("*")
+        .eq("h3_index", index).single();
+      return retry;
+    }
+    throw insertError;
+  }
+  return inserted;
+}

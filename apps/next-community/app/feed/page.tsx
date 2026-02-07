@@ -16,26 +16,36 @@ export default function FeedPage() {
   const { user, loading: authLoading } = useAuth()
   const [referralCode, setReferralCode] = useState<string | undefined>(undefined)
   const [inviteRewards, setInviteRewards] = useState<InviteRewards | undefined>(undefined)
+  const [userAvatarUrl, setUserAvatarUrl] = useState<string | undefined>(undefined)
+  const [userDisplayName, setUserDisplayName] = useState<string | undefined>(undefined)
 
-  // Fetch user's referral code from profile
+  // Fetch user's profile data (referral code, avatar, name)
   useEffect(() => {
     if (user?.id) {
-      const fetchReferralCode = async () => {
+      const fetchUserProfile = async () => {
         try {
           const { data, error } = await supabase
             .from('profiles')
-            .select('referral_code')
+            .select('referral_code, avatar_url, full_name')
             .eq('id', user.id)
             .single()
           
-          if (!error && data?.referral_code) {
-            setReferralCode(data.referral_code)
+          if (!error && data) {
+            if (data.referral_code) {
+              setReferralCode(data.referral_code)
+            }
+            if (data.avatar_url) {
+              setUserAvatarUrl(data.avatar_url)
+            }
+            if (data.full_name) {
+              setUserDisplayName(data.full_name)
+            }
           }
         } catch (err) {
-          console.error('Error fetching referral code:', err)
+          console.error('Error fetching user profile:', err)
         }
       }
-      fetchReferralCode()
+      fetchUserProfile()
     }
   }, [user?.id])
 
@@ -80,6 +90,8 @@ export default function FeedPage() {
       onNavigateToProfile={handleNavigateToProfile}
       referralCode={referralCode}
       inviteRewards={inviteRewards}
+      userAvatarUrl={userAvatarUrl}
+      userDisplayName={userDisplayName}
     />
   )
 }

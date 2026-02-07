@@ -14,9 +14,11 @@ interface LoginScreenProps {
   logoSrc?: any
   onLogin?: (email: string, name: string) => void
   onBack?: () => void
+  /** Referral code from invite link - will be stored for profile creation */
+  referralCode?: string
 }
 
-export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
+export function LoginScreen({ logoSrc, onLogin, onBack, referralCode }: LoginScreenProps) {
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
   const router = useRouter()
@@ -30,6 +32,72 @@ export function LoginScreen({ logoSrc, onLogin, onBack }: LoginScreenProps) {
   const [codeResent, setCodeResent] = useState(false)
   const [isRedirecting, setIsRedirecting] = useState(false)
   const media = useMedia()
+
+  // Store referral code if present - will be used in profile creation
+  // Also check clipboard on native platforms for referral code from invite page
+  useEffect(() => {
+    const storeReferralCode = async (code: string) => {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.localStorage.setItem('casagrown_referral_code', code)
+      } else {
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default
+        await AsyncStorage.setItem('casagrown_referral_code', code)
+      }
+      console.log('📋 Stored referral code:', code)
+    }
+
+    // If referral code passed as prop (from URL), use it
+    if (referralCode) {
+      storeReferralCode(referralCode)
+      return
+    }
+
+    // On native platforms, check for referral code using priority chain:
+    // 1. Google Play Install Referrer (Android only — deterministic, 100% reliable)
+    // 2. Clipboard bridge (iOS/Android — best-effort fallback)
+    const checkNativeReferralSources = async () => {
+      if (Platform.OS === 'web') return
+
+      // Priority 1: Install Referrer (Android only)
+      if (Platform.OS === 'android') {
+        try {
+          const Application = require('expo-application')
+          const referrer: string | null = await Application.getInstallReferrerAsync()
+          if (referrer) {
+            const match = referrer.match(/ref=([a-z0-9]{8})/)
+            if (match) {
+              console.log('📲 Found referral code from Install Referrer:', match[1])
+              await storeReferralCode(match[1])
+              return // Done — no need to check clipboard
+            }
+          }
+        } catch (err) {
+          console.warn('Install Referrer unavailable:', err)
+        }
+      }
+
+      // Priority 2: Clipboard bridge (iOS + Android fallback)
+      try {
+        const Clipboard = require('expo-clipboard')
+        const clipboardContent = await Clipboard.getStringAsync()
+        
+        // Referral codes are 8 alphanumeric characters (lowercase)
+        const referralCodePattern = /^[a-z0-9]{8}$/
+        
+        if (clipboardContent && referralCodePattern.test(clipboardContent)) {
+          console.log('📋 Found referral code in clipboard:', clipboardContent)
+          await storeReferralCode(clipboardContent)
+          
+          // Clear clipboard after use (privacy)
+          await Clipboard.setStringAsync('')
+        }
+      } catch (err) {
+        console.warn('Could not check clipboard for referral code:', err)
+      }
+    }
+
+    checkNativeReferralSources()
+  }, [referralCode])
 
   // Redirect based on onboarding status
   useEffect(() => {

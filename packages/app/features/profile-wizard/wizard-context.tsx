@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { Platform } from 'react-native'
 import { useRouter } from 'solito/navigation'
 import { useAuth, supabase } from '../auth/auth-hook'
 import { uploadProfileAvatar } from './utils/media-upload'
@@ -86,12 +87,64 @@ export const WizardProvider = ({ children }: { children: ReactNode }) => {
     setData((prev) => ({ ...prev, ...updates }))
   }
 
-  const saveProfile = async () => {
+   const saveProfile = async () => {
      if (!user) return false
      setLoading(true)
      console.log('💾 [Wizard] Saving Profile to Supabase...', data)
      
      try {
+        // 0. Check for referral code and lookup inviter
+        let invitedById: string | null = null
+        try {
+          let storedReferralCode: string | null = null
+          if (Platform.OS === 'web' && typeof window !== 'undefined') {
+            storedReferralCode = window.localStorage.getItem('casagrown_referral_code')
+          } else {
+            const AsyncStorage = require('@react-native-async-storage/async-storage').default
+            storedReferralCode = await AsyncStorage.getItem('casagrown_referral_code')
+          }
+          
+          if (storedReferralCode) {
+            console.log('🔗 Found referral code:', storedReferralCode)
+            const { data: inviterProfile } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('referral_code', storedReferralCode)
+              .single()
+            
+            if (inviterProfile) {
+              invitedById = inviterProfile.id
+              console.log('✅ Found inviter:', invitedById)
+            } else {
+              // Track invalid referral code for analytics
+              // This helps measure clipboard method effectiveness
+              console.warn('⚠️ Invalid referral code (no matching inviter):', storedReferralCode)
+              try {
+                await supabase
+                  .from('referral_analytics')
+                  .insert({
+                    referral_code: storedReferralCode,
+                    status: 'invalid_code',
+                    source: Platform.OS === 'web' ? 'web' : 'native_clipboard'
+                  })
+              } catch (analyticsErr) {
+                // Table might not exist yet - just log
+                console.log('📊 Would track invalid referral:', storedReferralCode)
+              }
+            }
+            
+            // Clear the referral code after use
+            if (Platform.OS === 'web' && typeof window !== 'undefined') {
+              window.localStorage.removeItem('casagrown_referral_code')
+            } else {
+              const AsyncStorage = require('@react-native-async-storage/async-storage').default
+              await AsyncStorage.removeItem('casagrown_referral_code')
+            }
+          }
+        } catch (refErr) {
+          console.warn('Could not process referral code:', refErr)
+        }
+
         // 1. Upload Avatar if changed (local URI)
         // - Native: file:///data/... or file:///var/...
         // - Web: blob:http://... or data:...
@@ -101,7 +154,7 @@ export const WizardProvider = ({ children }: { children: ReactNode }) => {
             data.avatar.startsWith('blob') || 
             data.avatar.startsWith('data:')
         )
-        if (isLocalUri) {
+        if (isLocalUri && data.avatar) {
              console.log('📤 Uploading avatar:', data.avatar.substring(0, 50) + '...')
              const uploadedUrl = await uploadProfileAvatar(user.id, data.avatar)
              if (uploadedUrl) {
@@ -112,22 +165,29 @@ export const WizardProvider = ({ children }: { children: ReactNode }) => {
              }
         }
 
-        // 2. Update Profile
+        // 2. Update Profile (including invited_by_id if present)
+        const profileUpdate: Record<string, unknown> = {
+            full_name: data.name,
+            phone_number: data.phone,
+            notify_on_wanted: data.notifyBuy,
+            notify_on_available: data.notifySell,
+            push_enabled: data.notifyPush,
+            sms_enabled: data.notifySms,
+            zip_code: data.zipCode,
+            country_code: data.country, // ISO 3166-1 alpha-3 (e.g., 'USA')
+            home_community_h3_index: data.community?.h3Index,
+            nearby_community_h3_indices: data.nearbyCommunities,
+            avatar_url: avatarUrl
+        }
+        
+        // Only set invited_by_id if we found an inviter and it's not already set
+        if (invitedById) {
+          profileUpdate.invited_by_id = invitedById
+        }
+        
         const { error: profileError } = await supabase
             .from('profiles')
-            .update({
-                full_name: data.name,
-                phone_number: data.phone,
-                notify_on_wanted: data.notifyBuy,
-                notify_on_available: data.notifySell,
-                push_enabled: data.notifyPush,
-                sms_enabled: data.notifySms,
-                zip_code: data.zipCode,
-                country_code: data.country, // ISO 3166-1 alpha-3 (e.g., 'USA')
-                home_community_h3_index: data.community?.h3Index,
-                nearby_community_h3_indices: data.nearbyCommunities,
-                avatar_url: avatarUrl
-            })
+            .update(profileUpdate)
             .eq('id', user.id)
 
         console.log('🔄 Profile update response:', { profileError })
@@ -137,6 +197,22 @@ export const WizardProvider = ({ children }: { children: ReactNode }) => {
             throw profileError
         } else {
             console.log('✅ Profile saved to database for user:', user.id)
+        }
+
+        // 2.5 Auto-follow inviter (non-blocking — won't fail signup)
+        if (invitedById) {
+          try {
+            const { error: followError } = await supabase
+              .from('followers')
+              .insert({ follower_id: user.id, followed_id: invitedById })
+            if (followError) {
+              console.warn('⚠️ Could not auto-follow inviter:', followError)
+            } else {
+              console.log('👥 Auto-followed inviter:', invitedById)
+            }
+          } catch (followErr) {
+            console.warn('⚠️ Auto-follow failed:', followErr)
+          }
         }
 
         // 3. Create Intro Post
@@ -208,6 +284,63 @@ export const WizardProvider = ({ children }: { children: ReactNode }) => {
                 }
             } else {
                 console.log('⏭️ join_a_community reward already granted, skipping')
+            }
+        }
+
+        // 4b. Grant inviter reward for signup (if we have an inviter)
+        if (invitedById) {
+            // Check if inviter already got a reward for this user signing up
+            const { data: existingInviteReward } = await supabase
+                .from('point_ledger')
+                .select('id')
+                .eq('user_id', invitedById)
+                .eq('type', 'reward')
+                .contains('metadata', { action_type: 'invitee_signing_up', invitee_id: user.id })
+                .maybeSingle()
+
+            if (!existingInviteReward) {
+                // Look up the reward amount from incentive_rules
+                const { data: inviteRule } = await supabase
+                    .from('incentive_rules')
+                    .select('points')
+                    .eq('action_type', 'invitee_signing_up')
+                    .eq('scope', 'global')
+                    .maybeSingle()
+                
+                const invitePoints = inviteRule?.points || 50
+                
+                // Get inviter's current balance
+                const { data: inviterLedger } = await supabase
+                    .from('point_ledger')
+                    .select('balance_after')
+                    .eq('user_id', invitedById)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle()
+                
+                const inviterBalance = inviterLedger?.balance_after ?? 0
+                const inviterNewBalance = inviterBalance + invitePoints
+                
+                const { error: inviterRewardError } = await supabase
+                    .from('point_ledger')
+                    .insert({
+                        user_id: invitedById,
+                        type: 'reward',
+                        amount: invitePoints,
+                        balance_after: inviterNewBalance,
+                        metadata: { 
+                            action_type: 'invitee_signing_up', 
+                            invitee_id: user.id 
+                        }
+                    })
+                
+                if (!inviterRewardError) {
+                    console.log(`🎉 Granted ${invitePoints} points to inviter ${invitedById} for referral!`)
+                } else {
+                    console.error('Failed to grant inviter reward:', inviterRewardError)
+                }
+            } else {
+                console.log('⏭️ invitee_signing_up reward already granted to inviter, skipping')
             }
         }
 

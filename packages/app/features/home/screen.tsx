@@ -13,8 +13,9 @@ import {
   YStack,
 } from '@casagrown/ui'
 import { useAuth } from '../auth/auth-hook'
-import { ArrowRight, Shield, Zap, HandHeart, Sparkles, Ban, TrendingUp, GraduationCap } from '@tamagui/lucide-icons'
-import { Platform, useWindowDimensions, Image } from 'react-native'
+import { ArrowRight, Shield, Zap, HandHeart, Sparkles, Ban, TrendingUp, GraduationCap, Download } from '@tamagui/lucide-icons'
+import { Platform, useWindowDimensions, Image, Linking, Alert } from 'react-native'
+// Note: expo-clipboard is imported dynamically only on native platforms
 import { colors } from '../../design-tokens'
 import { useTranslation } from 'react-i18next'
 
@@ -40,6 +41,16 @@ interface HomeScreenProps {
   onLinkPress?: () => void
   heroImageSrc?: any
   logoSrc?: any
+  /** Show app store download buttons alongside the Join CTA */
+  showAppStoreButtons?: boolean
+  /** App Store URL for iOS downloads */
+  appStoreUrl?: string
+  /** Play Store URL for Android downloads */
+  playStoreUrl?: string
+  /** Detect device type: 'ios' | 'android' | 'web' */
+  deviceType?: 'ios' | 'android' | 'web'
+  /** Referral code to copy to clipboard when downloading app */
+  referralCode?: string
 }
 
 // ============================================================================
@@ -110,8 +121,71 @@ function DevSignOut() {
 // ============================================================================
 // Hero Section
 // ============================================================================
-function HeroSection({ onLinkPress, heroImageSrc, logoSrc }: { onLinkPress?: () => void, heroImageSrc?: any, logoSrc?: any }) {
+function HeroSection({ 
+  onLinkPress, 
+  heroImageSrc, 
+  logoSrc, 
+  showAppStoreButtons,
+  appStoreUrl,
+  playStoreUrl,
+  deviceType,
+  referralCode
+}: { 
+  onLinkPress?: () => void
+  heroImageSrc?: any
+  logoSrc?: any
+  showAppStoreButtons?: boolean
+  appStoreUrl?: string
+  playStoreUrl?: string
+  deviceType?: 'ios' | 'android' | 'web'
+  referralCode?: string
+}) {
   const { t } = useTranslation()
+
+  const copyReferralCodeToClipboard = async () => {
+    if (!referralCode) return
+    
+    try {
+      if (Platform.OS === 'web') {
+        await navigator.clipboard.writeText(referralCode)
+      } else {
+        // Dynamic import for native only - expo-clipboard doesn't work on web
+        const Clipboard = require('expo-clipboard')
+        await Clipboard.setStringAsync(referralCode)
+      }
+      console.log('📋 Referral code copied to clipboard:', referralCode)
+    } catch (err) {
+      console.warn('Failed to copy referral code to clipboard:', err)
+    }
+  }
+
+  const handleAppStorePress = async () => {
+    // Copy referral code to clipboard before redirecting
+    await copyReferralCodeToClipboard()
+    
+    const url = appStoreUrl || 'https://apps.apple.com/app/casagrown/id000000000'
+    if (Platform.OS === 'web') {
+      window.open(url, '_blank')
+    } else {
+      Linking.openURL(url)
+    }
+  }
+
+  const handlePlayStorePress = async () => {
+    // Copy referral code to clipboard before redirecting (fallback for clipboard bridge)
+    await copyReferralCodeToClipboard()
+    
+    // Build Play Store URL with Install Referrer param for deterministic attribution
+    const baseUrl = playStoreUrl || 'https://play.google.com/store/apps/details?id=com.casagrown.app'
+    const url = referralCode
+      ? `${baseUrl}&referrer=${encodeURIComponent(`ref=${referralCode}`)}`
+      : baseUrl
+    if (Platform.OS === 'web') {
+      window.open(url, '_blank')
+    } else {
+      Linking.openURL(url)
+    }
+  }
   
   return (
     <YStack
@@ -234,6 +308,66 @@ function HeroSection({ onLinkPress, heroImageSrc, logoSrc }: { onLinkPress?: () 
               {t('home.joinMovement')}
             </Text>
           </Button>
+
+          {/* App Store Buttons - only shown on mobile web (iOS or Android) */}
+          {showAppStoreButtons && deviceType && deviceType !== 'web' && (
+            <YStack gap="$3" alignItems="center" $md={{ alignItems: 'flex-start' }}>
+              <Text color={colors.gray[500]} fontSize={13}>
+                Or download the app:
+              </Text>
+              <XStack gap="$3" flexWrap="wrap" justifyContent="center" $md={{ justifyContent: 'flex-start' }}>
+                {/* Show iOS button only for iOS users */}
+                {deviceType === 'ios' && (
+                  <Button
+                    size="$3"
+                    backgroundColor={colors.gray[900]}
+                    borderRadius={8}
+                    paddingHorizontal="$4"
+                    hoverStyle={{ backgroundColor: colors.gray[800] }}
+                    pressStyle={{ backgroundColor: colors.gray[800] }}
+                    onPress={handleAppStorePress}
+                    gap="$2"
+                  >
+                    {Platform.OS === 'web' ? (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                        <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+                      </svg>
+                    ) : (
+                      <Download size={16} color="white" />
+                    )}
+                    <Text color="white" fontWeight="600" fontSize={13}>
+                      App Store
+                    </Text>
+                  </Button>
+                )}
+                
+                {/* Show Android button only for Android users */}
+                {deviceType === 'android' && (
+                  <Button
+                    size="$3"
+                    backgroundColor={colors.gray[900]}
+                    borderRadius={8}
+                    paddingHorizontal="$4"
+                    hoverStyle={{ backgroundColor: colors.gray[800] }}
+                    pressStyle={{ backgroundColor: colors.gray[800] }}
+                    onPress={handlePlayStorePress}
+                    gap="$2"
+                  >
+                    {Platform.OS === 'web' ? (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                        <path d="M3.609 1.814L13.792 12 3.61 22.186a.996.996 0 0 1-.61-.92V2.734a1 1 0 0 1 .609-.92zm10.89 10.893l2.302 2.302-10.937 6.333 8.635-8.635zm3.199-3.198l2.807 1.626a1 1 0 0 1 0 1.73l-2.808 1.626L15.206 12l2.492-2.491zM5.864 2.658L16.8 8.99l-2.302 2.302-8.634-8.634z"/>
+                      </svg>
+                    ) : (
+                      <Download size={16} color="white" />
+                    )}
+                    <Text color="white" fontWeight="600" fontSize={13}>
+                      Play Store
+                    </Text>
+                  </Button>
+                )}
+              </XStack>
+            </YStack>
+          )}
         </YStack>
 
         {/* Hero Image */}
@@ -741,7 +875,16 @@ function Footer() {
 // ============================================================================
 // Main Component
 // ============================================================================
-export function HomeScreen({ onLinkPress, heroImageSrc, logoSrc }: HomeScreenProps) {
+export function HomeScreen({ 
+  onLinkPress, 
+  heroImageSrc, 
+  logoSrc,
+  showAppStoreButtons,
+  appStoreUrl,
+  playStoreUrl,
+  deviceType,
+  referralCode
+}: HomeScreenProps) {
   return (
     <ScrollView
       flex={1}
@@ -751,7 +894,16 @@ export function HomeScreen({ onLinkPress, heroImageSrc, logoSrc }: HomeScreenPro
     >
       {/* Language is detected from device settings - user can override in profile later */}
       <YStack flex={1} minHeight="100%">
-        <HeroSection onLinkPress={onLinkPress} heroImageSrc={heroImageSrc} logoSrc={logoSrc} />
+        <HeroSection 
+          onLinkPress={onLinkPress} 
+          heroImageSrc={heroImageSrc} 
+          logoSrc={logoSrc}
+          showAppStoreButtons={showAppStoreButtons}
+          appStoreUrl={appStoreUrl}
+          playStoreUrl={playStoreUrl}
+          deviceType={deviceType}
+          referralCode={referralCode}
+        />
         <HowItWorksSection />
         <PointsSystemSection onLinkPress={onLinkPress} />
         <SafetyConvenienceSection />

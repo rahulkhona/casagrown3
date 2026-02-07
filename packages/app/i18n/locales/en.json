@@ -368,6 +368,8 @@
         "copy": "Copy",
         "copied": "Copied!",
         "shareButton": "Share Invite",
+        "qrTitle": "Scan to Join",
+        "qrHint": "Show this QR code for others to scan and join",
         "rewardsBannerBoth": "Earn {{signupPoints}} points when they sign up + {{transactionPoints}} points on their first transaction!",
         "rewardsBannerSignupOnly": "Earn {{signupPoints}} points when they sign up!",
         "rewardsBannerTransactionOnly": "Earn {{transactionPoints}} points on their first transaction!"

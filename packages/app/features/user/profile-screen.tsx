@@ -866,6 +866,120 @@ export function ProfileScreen() {
           </YStack>
         )}
 
+        {/* About CasaGrown Section */}
+        <YStack
+          backgroundColor="white"
+          borderRadius={borderRadius.xl}
+          padding="$5"
+          shadowColor={shadows.sm.color}
+          shadowOffset={shadows.sm.offset}
+          shadowOpacity={0.1}
+        >
+          <Text fontWeight="600" color={colors.neutral[900]} marginBottom="$3">
+            {t('profile.about.title', 'About CasaGrown')}
+          </Text>
+          <YStack gap="$2">
+            <Button
+              unstyled
+              flexDirection="row"
+              alignItems="center"
+              justifyContent="space-between"
+              paddingVertical="$2"
+              onPress={() => {/* TODO: Navigate to mission page */}}
+            >
+              <Text color={colors.neutral[700]}>{t('profile.about.ourMission', 'Our Mission')}</Text>
+              <ChevronLeft size={20} color={colors.neutral[400]} style={{ transform: [{ rotate: '180deg' }] }} />
+            </Button>
+            <Separator />
+            <Button
+              unstyled
+              flexDirection="row"
+              alignItems="center"
+              justifyContent="space-between"
+              paddingVertical="$2"
+              onPress={() => {/* TODO: Navigate to how it works page */}}
+            >
+              <Text color={colors.neutral[700]}>{t('profile.about.howItWorks', 'How It Works')}</Text>
+              <ChevronLeft size={20} color={colors.neutral[400]} style={{ transform: [{ rotate: '180deg' }] }} />
+            </Button>
+            <Separator />
+            <Button
+              unstyled
+              flexDirection="row"
+              alignItems="center"
+              justifyContent="space-between"
+              paddingVertical="$2"
+              onPress={() => {/* TODO: Navigate to points info page */}}
+            >
+              <Text color={colors.neutral[700]}>{t('profile.about.pointSystem', 'Point System')}</Text>
+              <ChevronLeft size={20} color={colors.neutral[400]} style={{ transform: [{ rotate: '180deg' }] }} />
+            </Button>
+          </YStack>
+        </YStack>
+
+        {/* Legal & Support Section */}
+        <YStack
+          backgroundColor="white"
+          borderRadius={borderRadius.xl}
+          padding="$5"
+          shadowColor={shadows.sm.color}
+          shadowOffset={shadows.sm.offset}
+          shadowOpacity={0.1}
+        >
+          <Text fontWeight="600" color={colors.neutral[900]} marginBottom="$3">
+            {t('profile.legal.title', 'Legal & Support')}
+          </Text>
+          <YStack gap="$2">
+            <Button
+              unstyled
+              flexDirection="row"
+              alignItems="center"
+              justifyContent="space-between"
+              paddingVertical="$2"
+              onPress={() => {/* TODO: Navigate to privacy policy */}}
+            >
+              <Text color={colors.neutral[700]}>{t('profile.legal.privacyPolicy', 'Privacy Policy')}</Text>
+              <ChevronLeft size={20} color={colors.neutral[400]} style={{ transform: [{ rotate: '180deg' }] }} />
+            </Button>
+            <Separator />
+            <Button
+              unstyled
+              flexDirection="row"
+              alignItems="center"
+              justifyContent="space-between"
+              paddingVertical="$2"
+              onPress={() => {/* TODO: Navigate to terms */}}
+            >
+              <Text color={colors.neutral[700]}>{t('profile.legal.termsOfService', 'Terms of Service')}</Text>
+              <ChevronLeft size={20} color={colors.neutral[400]} style={{ transform: [{ rotate: '180deg' }] }} />
+            </Button>
+            <Separator />
+            <Button
+              unstyled
+              flexDirection="row"
+              alignItems="center"
+              justifyContent="space-between"
+              paddingVertical="$2"
+              onPress={() => {/* TODO: Navigate to user agreement */}}
+            >
+              <Text color={colors.neutral[700]}>{t('profile.legal.userAgreement', 'User Agreement')}</Text>
+              <ChevronLeft size={20} color={colors.neutral[400]} style={{ transform: [{ rotate: '180deg' }] }} />
+            </Button>
+            <Separator />
+            <Button
+              unstyled
+              flexDirection="row"
+              alignItems="center"
+              justifyContent="space-between"
+              paddingVertical="$2"
+              onPress={() => {/* TODO: Open support email */}}
+            >
+              <Text color={colors.primary[600]} fontWeight="500">{t('profile.legal.contactSupport', 'Contact Support')}</Text>
+              <ChevronLeft size={20} color={colors.primary[400]} style={{ transform: [{ rotate: '180deg' }] }} />
+            </Button>
+          </YStack>
+        </YStack>
+
         {/* Account Actions */}
         <YStack
           backgroundColor="white"

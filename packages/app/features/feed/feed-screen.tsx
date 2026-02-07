@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { colors, shadows, borderRadius } from '../../design-tokens'
 import { useTranslation } from 'react-i18next'
 import { Search, Bell, UserPlus, Home, Plus, Filter, Leaf, Menu, X } from '@tamagui/lucide-icons'
-import { Platform, Image } from 'react-native'
+import { Platform, Image, TouchableOpacity } from 'react-native'
 import { InviteModal } from './InviteModal'
 
 // Types for invite rewards
@@ -30,6 +30,10 @@ interface FeedScreenProps {
   referralCode?: string
   /** Reward points for invites - from incentive_rules */
   inviteRewards?: InviteRewards
+  /** User's avatar URL from profile */
+  userAvatarUrl?: string
+  /** User's display name - first letter used as fallback */
+  userDisplayName?: string
 }
 
 // Navigation item keys - labels are localized via t()
@@ -44,7 +48,7 @@ const NAV_KEYS = [
   { key: 'delegateSales', badge: 0 },
 ]
 
-export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc, referralCode, inviteRewards }: FeedScreenProps) {
+export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc, referralCode, inviteRewards, userAvatarUrl, userDisplayName }: FeedScreenProps) {
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
   const media = useMedia()
@@ -60,7 +64,7 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc, referra
   // User data - badges only appear when there are actual pending items
   const userPoints = 0
   const unreadNotificationsCount = 0 // No pending notifications in empty state
-  const userName = 'A' // First letter for avatar
+  const userInitial = userDisplayName ? userDisplayName.charAt(0).toUpperCase() : 'A' // First letter for avatar fallback
 
   return (
     <YStack flex={1} backgroundColor={colors.gray[50]}>
@@ -164,15 +168,12 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc, referra
           {/* Right Actions - Based on App.tsx lines 371-466 */}
           <XStack alignItems="center" gap={isDesktop ? '$3' : '$2'}>
             {/* Search Icon */}
-            <Button 
-              unstyled 
-              padding="$2"
-              cursor="pointer"
-              borderRadius="$full"
-              hoverStyle={{ backgroundColor: colors.gray[50] }}
+            <TouchableOpacity
+              style={{ padding: 8, borderRadius: 999, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
+              activeOpacity={0.6}
             >
               <Search size={20} color={colors.gray[600]} />
-            </Button>
+            </TouchableOpacity>
 
             {/* Invite Button - Based on App.tsx lines 381-398 */}
             {isDesktop ? (
@@ -189,47 +190,46 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc, referra
                 <Text color="white" fontSize="$3" fontWeight="500">{t('feed.header.invite')}</Text>
               </Button>
             ) : (
-              <Button 
-                unstyled 
-                padding="$2"
-                cursor="pointer"
-                borderRadius="$full"
-                hoverStyle={{ backgroundColor: colors.green[50] }}
-                onPress={() => setInviteModalOpen(true)}
+              <TouchableOpacity
+                style={{ padding: 8, borderRadius: 999, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
+                activeOpacity={0.6}
+                onPress={() => {
+                  setInviteModalOpen(true)
+                }}
               >
                 <UserPlus size={20} color={colors.green[600]} />
-              </Button>
+              </TouchableOpacity>
             )}
 
             {/* Points Display - Based on App.tsx lines 400-431 */}
-            <Button
-              unstyled
-              paddingHorizontal="$3"
-              paddingVertical="$1.5"
-              backgroundColor={colors.green[50]}
-              borderRadius="$full"
-              flexDirection="row"
-              gap="$1"
-              alignItems="center"
-              hoverStyle={{ backgroundColor: colors.green[100] }}
+            <TouchableOpacity
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                backgroundColor: colors.green[50],
+                borderRadius: 999,
+                flexDirection: 'row',
+                gap: 4,
+                alignItems: 'center',
+                minHeight: 44,
+                justifyContent: 'center',
+              }}
+              activeOpacity={0.6}
             >
               <Text fontWeight="600" color={colors.green[700]}>{userPoints}</Text>
               {isDesktop && (
                 <Text fontSize="$3" color={colors.green[700]}>{t('feed.header.points')}</Text>
               )}
-            </Button>
+            </TouchableOpacity>
 
             {/* Notifications - Based on App.tsx lines 433-444 */}
             <XStack position="relative">
-              <Button 
-                unstyled 
-                padding="$2"
-                cursor="pointer"
-                borderRadius="$full"
-                hoverStyle={{ backgroundColor: colors.gray[50] }}
+              <TouchableOpacity
+                style={{ padding: 8, borderRadius: 999, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
+                activeOpacity={0.6}
               >
                 <Bell size={20} color={colors.gray[600]} />
-              </Button>
+              </TouchableOpacity>
               {unreadNotificationsCount > 0 && (
                 <YStack 
                   position="absolute" 
@@ -251,29 +251,34 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc, referra
             </XStack>
 
             {/* Profile Avatar - Based on App.tsx lines 446-458 */}
-            <Button
-              unstyled
-              width={32}
-              height={32}
-              borderRadius="$full"
-              backgroundColor={colors.green[600]}
-              alignItems="center"
-              justifyContent="center"
-              cursor="pointer"
-              hoverStyle={{ opacity: 0.8 }}
+            <TouchableOpacity
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                backgroundColor: userAvatarUrl ? undefined : colors.green[600],
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
+              }}
+              activeOpacity={0.7}
               onPress={onNavigateToProfile}
             >
-              <Text color="white" fontWeight="600" fontSize="$3">{userName}</Text>
-            </Button>
+              {userAvatarUrl ? (
+                <Image 
+                  source={{ uri: userAvatarUrl }}
+                  style={{ width: 44, height: 44, borderRadius: 22 }}
+                />
+              ) : (
+                <Text color="white" fontWeight="600" fontSize="$3">{userInitial}</Text>
+              )}
+            </TouchableOpacity>
 
             {/* Mobile Hamburger Menu */}
             {!isDesktop && (
-              <Button 
-                unstyled 
-                padding="$2"
-                cursor="pointer"
-                borderRadius="$full"
-                hoverStyle={{ backgroundColor: colors.gray[50] }}
+              <TouchableOpacity
+                style={{ padding: 8, borderRadius: 999, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
+                activeOpacity={0.6}
                 onPress={() => setMobileMenuOpen(!mobileMenuOpen)}
               >
                 {mobileMenuOpen ? (
@@ -281,7 +286,7 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc, referra
                 ) : (
                   <Menu size={24} color={colors.gray[700]} />
                 )}
-              </Button>
+              </TouchableOpacity>
             )}
           </XStack>
         </XStack>
@@ -340,6 +345,7 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc, referra
       <ScrollView 
         flex={1}
         contentContainerStyle={{ flexGrow: 1 }}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Search Bar Section - Based on MainFeed.tsx lines 333-376 */}
         <YStack 

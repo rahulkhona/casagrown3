@@ -215,7 +215,13 @@ exports[`FeedScreen matches snapshot 1`] = `
           onStartShouldSetResponder={[Function]}
           style={
             {
+              "alignItems": "center",
+              "borderRadius": 999,
+              "justifyContent": "center",
+              "minHeight": 44,
+              "minWidth": 44,
               "opacity": 1,
+              "padding": 8,
             }
           }
         />
@@ -291,7 +297,16 @@ exports[`FeedScreen matches snapshot 1`] = `
           onStartShouldSetResponder={[Function]}
           style={
             {
+              "alignItems": "center",
+              "backgroundColor": "#f0fdf4",
+              "borderRadius": 999,
+              "flexDirection": "row",
+              "gap": 4,
+              "justifyContent": "center",
+              "minHeight": 44,
               "opacity": 1,
+              "paddingHorizontal": 12,
+              "paddingVertical": 6,
             }
           }
         >
@@ -341,7 +356,13 @@ exports[`FeedScreen matches snapshot 1`] = `
             onStartShouldSetResponder={[Function]}
             style={
               {
+                "alignItems": "center",
+                "borderRadius": 999,
+                "justifyContent": "center",
+                "minHeight": 44,
+                "minWidth": 44,
                 "opacity": 1,
+                "padding": 8,
               }
             }
           />
@@ -376,7 +397,14 @@ exports[`FeedScreen matches snapshot 1`] = `
           onStartShouldSetResponder={[Function]}
           style={
             {
+              "alignItems": "center",
+              "backgroundColor": "#16a34a",
+              "borderRadius": 22,
+              "height": 44,
+              "justifyContent": "center",
               "opacity": 1,
+              "overflow": "hidden",
+              "width": 44,
             }
           }
         >
@@ -398,6 +426,7 @@ exports[`FeedScreen matches snapshot 1`] = `
       }
     }
     flex={1}
+    keyboardShouldPersistTaps="handled"
   >
     <View>
       <View

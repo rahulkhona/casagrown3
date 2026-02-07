@@ -51,6 +51,8 @@
     "check-dependency-version-consistency": "^4.1.0",
     "expo": "^54",
     "husky": "^9.1.6",
+    "react-native-qrcode-svg": "^6.3.21",
+    "react-qr-code": "^2.0.18",
     "turbo": "^1.13.4",
     "typescript": "~5.8.3",
     "ultra-runner": "^3.10.5",

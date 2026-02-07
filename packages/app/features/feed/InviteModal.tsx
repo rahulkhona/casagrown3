@@ -6,10 +6,12 @@
  */
 
 import { useState, useEffect } from 'react'
-import { YStack, XStack, Text, Button, ScrollView } from 'tamagui'
+import { YStack, XStack, Text, Button, ScrollView, Image } from 'tamagui'
 import { useTranslation } from 'react-i18next'
-import { UserPlus, Users, ShoppingCart, Gift, Leaf, X, Copy, Check, Send } from '@tamagui/lucide-icons'
+import { UserPlus, Users, ShoppingCart, Gift, Leaf, X, Copy, Check, Send, Smartphone } from '@tamagui/lucide-icons'
 import { Platform, Share, Clipboard, Dimensions } from 'react-native'
+// Platform-specific QR code: see QRCodeDisplay.web.tsx and QRCodeDisplay.tsx
+import { QRCodeDisplay } from './QRCodeDisplay'
 import { colors, borderRadius } from '../../design-tokens'
 
 // Types for invite rewards
@@ -273,6 +275,41 @@ export function InviteModal({ visible, onClose, referralCode, inviteRewards }: I
                 <Send size={20} color="white" />
                 <Text color="white" fontSize="$4" fontWeight="500">{t('feed.invite.share.shareButton')}</Text>
               </Button>
+
+              {/* QR Code Section - for in-person sharing */}
+              {(
+                <YStack
+                  backgroundColor={colors.gray[50]}
+                  borderWidth={1}
+                  borderColor={colors.gray[200]}
+                  borderRadius={borderRadius.lg}
+                  padding="$4"
+                  alignItems="center"
+                  gap="$3"
+                >
+                  <XStack gap="$2" alignItems="center">
+                    <Smartphone size={18} color={colors.gray[600]} />
+                    <Text fontSize="$3" fontWeight="600" color={colors.gray[700]}>
+                      {t('feed.invite.share.qrTitle', 'Scan to Join')}
+                    </Text>
+                  </XStack>
+                  <YStack
+                    backgroundColor="white"
+                    padding="$3"
+                    borderRadius={borderRadius.default}
+                    borderWidth={1}
+                    borderColor={colors.gray[200]}
+                  >
+                    <QRCodeDisplay
+                      value={inviteLink}
+                      size={150}
+                    />
+                  </YStack>
+                  <Text fontSize="$1" color={colors.gray[500]} textAlign="center">
+                    {t('feed.invite.share.qrHint', 'Show this QR code for others to scan and join')}
+                  </Text>
+                </YStack>
+              )}
             </YStack>
 
             {/* Benefits Section */}

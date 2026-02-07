@@ -54,3 +54,6 @@ logs
 # Supabase
 supabase/.temp/
 supabase/functions/.debug/
+
+# TypeScript build info
+*.tsbuildinfo
