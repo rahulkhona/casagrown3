@@ -80,3 +80,95 @@ To ensure critical user flows work before pushing to the repository:
 - **GitHub Actions**: Automated CI runners.
 - **Vercel**: Automated Web deployments.
 - **EAS (Expo Application Services)**: Remote Native builds and OTA updates.
+
+---
+
+## OTA Update Infrastructure
+
+To ensure all mobile users receive the latest JavaScript bundle without requiring App Store updates, we use **expo-updates** with a custom `useOTAUpdates` hook.
+
+### Implementation
+
+**Hook**: [`packages/app/hooks/useOTAUpdates.ts`](file:///Volumes/Seagate%20Portabl/development/casagrown3/packages/app/hooks/useOTAUpdates.ts)
+
+**Wired into**: Root layout (`apps/expo-community/app/_layout.tsx`)
+
+### Update Triggers
+
+| Trigger | Interval | Coverage |
+|---------|----------|----------|
+| Cold app launch | Every launch | ~80% of users |
+| Foreground resume (AppState `active`) | On every background → active transition | ~15% more |
+| Periodic timer | Every 4 hours | Long-lived sessions |
+
+### Safeguards
+
+- **10-minute debounce** between update checks to avoid server load
+- **Dev-mode no-op** (`__DEV__` guard) — disabled during development
+- **Web platform guard** — skipped on web (not applicable)
+- **Silent error handling** — network failures never disrupt user experience
+- **Automatic reload** — downloads update, then reloads the app seamlessly
+
+### Update Delivery Strategy
+
+For backend migrations or critical fixes:
+
+1. **OTA-eligible changes** (JS-only): Pushed via `expo-updates`. Users receive within 24-48 hours through foreground resume checks.
+2. **Native changes** (new SDK, native modules): Require App Store submission + version gate enforcement.
+3. **Version gate** (future): Add `min_app_version` check to API responses to force-reload outdated bundles.
+
+---
+
+## Scalability Roadmap
+
+### Current Architecture (Phase 0)
+
+Apps talk **directly to Supabase** via the JS client (`supabase.from('table').select(...)`). Authorization is enforced via RLS policies at the database level. This is appropriate for rapid iteration during early development.
+
+### Phase 1: Service Layer Abstraction (Next Priority)
+
+Extract all Supabase queries into a centralized data access layer:
+
+```text
+packages/app/
+  services/
+    profile-service.ts      ← all profile CRUD
+    community-service.ts    ← community resolution, membership
+    feed-service.ts         ← posts, invites
+    points-service.ts       ← ledger, rewards
+```
+
+**Why**: Screens call `profileService.getReferralCode(userId)` instead of raw Supabase queries. When backend changes, only service implementations change — zero UI modifications.
+
+**Effort**: Low. Refactor existing inline queries into service files.
+
+### Phase 2: API Server (When Triggered)
+
+Introduce a dedicated API layer when any of these trigger points are reached:
+
+- **Multi-database needs** (Redis for caching, Elasticsearch for search)
+- **Complex cross-service mutations** (coordinating DB + email + notifications + points)
+- **Third-party integrations** (payments, shipping, external APIs)
+- **Rate limiting / abuse prevention** requiring a server-side chokepoint
+- **Multiple client types** (partner API, admin dashboard, webhooks)
+
+**Recommended stack**: Next.js API routes or standalone Hono/Express server within the monorepo (`apps/api/`). Client services switch from direct Supabase calls to HTTP calls behind the same interface.
+
+### Phase 3: Multi-Database (When Needed)
+
+With the API layer in place, additional data stores (Redis, Elasticsearch, analytics DB) are added **behind** the API server. Client apps never interact with these directly.
+
+### Migration Strategy
+
+Because the OTA update infrastructure is in place, backend migrations follow this safe sequence:
+
+1. Deploy new API server **alongside** existing Supabase access (both work)
+2. Push OTA update swapping service implementations (Supabase → API)
+3. Monitor for stragglers (2-4 weeks, keep Supabase running)
+4. Deprecate direct Supabase client access
+
+> **Key insight**: If the service layer (Phase 1) is pure JavaScript, the entire migration is OTA-eligible — no App Store review required.
+
+### Why Not Supabase Edge Functions as the Full API Layer
+
+Edge functions remain ideal for **specific operations** (e.g., `resolve-community`, `assign-experiment`), but are unsuitable as a complete API layer due to cold starts (~200-500ms), per-function connection pooling, limited shared middleware, and vendor lock-in to Deno runtime.
