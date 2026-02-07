@@ -4,6 +4,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { useFonts } from 'expo-font'
 import { SplashScreen, Stack } from 'expo-router'
 import { Provider } from '@casagrown/app/provider'
+import { useOTAUpdates } from '@casagrown/app/hooks/useOTAUpdates'
 
 export const unstable_settings = {
   // Start at index.tsx which acts as auth guard and redirects appropriately
@@ -14,6 +15,8 @@ export const unstable_settings = {
 // SplashScreen.preventAutoHideAsync()
 
 export default function App() {
+  // Check for OTA updates on foreground resume and periodically
+  useOTAUpdates()
   const [interLoaded, interError] = useFonts({
     Inter: require('@tamagui/font-inter/otf/Inter-Medium.otf'),
     InterBold: require('@tamagui/font-inter/otf/Inter-Bold.otf'),
