@@ -5,7 +5,7 @@ Each section includes the SQL DDL, markdown description, and any associated trig
 
 > [!NOTE]
 > **Migrations applied (in order)**:
-> `20260131173152_initial_schema` → `20260131183000_refactor_redemptions` → `20260131191000_zip_scraped_tracking` → `20260131191500_update_zip_tracking` → `20260131192000_scraping_logs` → `20260131203000_guest_experimentation` → `20260201100000_auth_triggers` → `20260201200000_h3_community_refactor` → `20260202161700_update_profiles_schema` → `20260203051900_add_country_code` → `20260204055900_point_ledger_rls` → `20260206031500_add_referral_code_trigger` → `20260206040000_incentive_rules_rls` → `20260206041000_profiles_rls` → `20260206060000_followers_table` → `20260207000000_profiles_public_read_rls`
+> `20260131173152_initial_schema` → `20260131183000_refactor_redemptions` → `20260131191000_zip_scraped_tracking` → `20260131191500_update_zip_tracking` → `20260131192000_scraping_logs` → `20260131203000_guest_experimentation` → `20260201100000_auth_triggers` → `20260201200000_h3_community_refactor` → `20260202161700_update_profiles_schema` → `20260203051900_add_country_code` → `20260204055900_point_ledger_rls` → `20260206031500_add_referral_code_trigger` → `20260206040000_incentive_rules_rls` → `20260206041000_profiles_rls` → `20260206060000_followers_table` → `20260207000000_profiles_public_read_rls` → `20260207060000_posts_content_rls`
 
 ## Extensions
 
@@ -416,6 +416,15 @@ create table posts (
 create index posts_community_h3_idx on posts(community_h3_index);
 ```
 
+**RLS Policies** (`20260207060000_posts_content_rls`):
+
+| Policy | Operation | Rule |
+| :--- | :--- | :--- |
+| Posts are readable by all authenticated users | `SELECT` | `using (true)` — public reads, feed curation handled by application queries |
+| Authors can create their own posts | `INSERT` | `with check (author_id = auth.uid())` |
+| Authors can update their own posts | `UPDATE` | `using (author_id = auth.uid())` |
+| Authors can delete their own posts | `DELETE` | `using (author_id = auth.uid())` |
+
 ### `post_likes`
 
 ```sql
@@ -426,6 +435,14 @@ create table post_likes (
   primary key (post_id, user_id)
 );
 ```
+
+**RLS Policies** (`20260207060000_posts_content_rls`):
+
+| Policy | Operation | Rule |
+| :--- | :--- | :--- |
+| Post likes are readable | `SELECT` | `using (true)` |
+| Users can like posts | `INSERT` | `with check (user_id = auth.uid())` |
+| Users can remove their own likes | `DELETE` | `using (user_id = auth.uid())` |
 
 ### `post_comments`
 
@@ -439,6 +456,15 @@ create table post_comments (
 );
 ```
 
+**RLS Policies** (`20260207060000_posts_content_rls`):
+
+| Policy | Operation | Rule |
+| :--- | :--- | :--- |
+| Post comments are readable | `SELECT` | `using (true)` |
+| Users can create their own comments | `INSERT` | `with check (user_id = auth.uid())` |
+| Users can update their own comments | `UPDATE` | `using (user_id = auth.uid())` |
+| Users can delete their own comments | `DELETE` | `using (user_id = auth.uid())` |
+
 ### `post_flags`
 
 ```sql
@@ -451,6 +477,14 @@ create table post_flags (
 );
 ```
 
+**RLS Policies** (`20260207060000_posts_content_rls`):
+
+| Policy | Operation | Rule |
+| :--- | :--- | :--- |
+| Post flags are readable | `SELECT` | `using (true)` |
+| Users can flag posts | `INSERT` | `with check (user_id = auth.uid())` |
+| Users can remove their own flags | `DELETE` | `using (user_id = auth.uid())` |
+
 ### `post_media`
 
 ```sql
@@ -461,6 +495,14 @@ create table post_media (
   primary key (post_id, media_id)
 );
 ```
+
+**RLS Policies** (`20260207060000_posts_content_rls`):
+
+| Policy | Operation | Rule |
+| :--- | :--- | :--- |
+| Post media is readable | `SELECT` | `using (true)` |
+| Post authors can attach media | `INSERT` | `with check (post_id in (select id from posts where author_id = auth.uid()))` |
+| Post authors can detach media | `DELETE` | `using (post_id in (select id from posts where author_id = auth.uid()))` |
 
 ### `want_to_sell_details`
 
