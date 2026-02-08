@@ -84,10 +84,15 @@ export default function FeedPage() {
     router.push('/profile')
   }
 
+  const handleNavigateToDelegate = () => {
+    router.push('/delegate')
+  }
+
   return (
     <FeedScreen
       onCreatePost={handleCreatePost}
       onNavigateToProfile={handleNavigateToProfile}
+      onNavigateToDelegate={handleNavigateToDelegate}
       referralCode={referralCode}
       inviteRewards={inviteRewards}
       userAvatarUrl={userAvatarUrl}

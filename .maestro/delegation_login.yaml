@@ -1,0 +1,18 @@
+appId: dev.casagrown.community
+---
+# Login via email OTP — starts from the current login screen (no app relaunch)
+
+# Tap "Continue with Email"
+- tapOn: "Continue with Email"
+
+# Wait for email input
+- assertVisible:
+    text: "Email Address"
+    timeout: 5000
+
+# Tap the email field and type
+- tapOn: "you@example.com"
+- inputText: "tnew4@test.com"
+
+# Tap Send
+- tapOn: "Send Verification Code"

@@ -1,0 +1,46 @@
+appId: dev.casagrown.community
+---
+# Test delegation flow: email login → navigate to Delegate Sales → Delegating For tab
+
+# Start with the app
+- launchApp:
+    clearState: false
+
+# Wait for the app to fully load (may show loading screen first)
+- extendedWaitUntil:
+    visible: "Join the Movement!|Welcome to CasaGrown|Feed"
+    timeout: 15000
+
+# If we see the landing page, tap "Join the Movement!"
+- runFlow:
+    when:
+      visible: "Join the Movement!"
+    commands:
+      - tapOn: "Join the Movement!"
+      - extendedWaitUntil:
+          visible: "Welcome to CasaGrown"
+          timeout: 10000
+
+# Wait for login screen
+- assertVisible: "Welcome to CasaGrown"
+
+# Tap "Continue with Email"
+- tapOn: "Continue with Email"
+
+# Wait for email input
+- extendedWaitUntil:
+    visible: "Email Address"
+    timeout: 5000
+
+# Tap the email input field and type
+- tapOn:
+    text: "you@example.com"
+- inputText: "tnew4@test.com"
+
+# Tap Send Verification Code
+- tapOn: "Send Verification Code"
+
+# Wait for OTP screen
+- extendedWaitUntil:
+    visible: "Enter.*code|Verification|6-digit"
+    timeout: 15000

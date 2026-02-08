@@ -25,6 +25,7 @@ interface InviteRewards {
 interface FeedScreenProps {
   onCreatePost?: () => void
   onNavigateToProfile?: () => void
+  onNavigateToDelegate?: () => void
   logoSrc?: any // Logo image source for mobile (use require('../assets/logo.png'))
   /** User's referral code for invite link - from profile.referral_code */
   referralCode?: string
@@ -48,7 +49,7 @@ const NAV_KEYS = [
   { key: 'delegateSales', badge: 0 },
 ]
 
-export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc, referralCode, inviteRewards, userAvatarUrl, userDisplayName }: FeedScreenProps) {
+export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDelegate, logoSrc, referralCode, inviteRewards, userAvatarUrl, userDisplayName }: FeedScreenProps) {
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
   const media = useMedia()
@@ -131,7 +132,17 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc, referra
             {isDesktop && (
               <XStack gap="$5" marginLeft="$5">
                 {NAV_KEYS.map((item) => (
-                  <XStack key={item.key} alignItems="center" position="relative">
+                  <XStack 
+                    key={item.key} 
+                    alignItems="center" 
+                    position="relative"
+                    cursor="pointer"
+                    onPress={() => {
+                      if (item.key === 'delegateSales' && onNavigateToDelegate) {
+                        onNavigateToDelegate()
+                      }
+                    }}
+                  >
                     <Text 
                       fontSize="$3" 
                       color={item.active ? colors.green[600] : colors.gray[700]}
@@ -311,7 +322,12 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, logoSrc, referra
                 flexDirection="row"
                 justifyContent="space-between"
                 alignItems="center"
-                onPress={() => setMobileMenuOpen(false)}
+                onPress={() => {
+                  setMobileMenuOpen(false)
+                  if (item.key === 'delegateSales' && onNavigateToDelegate) {
+                    onNavigateToDelegate()
+                  }
+                }}
               >
                 <Text 
                   fontSize="$4" 

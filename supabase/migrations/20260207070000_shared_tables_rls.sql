@@ -192,6 +192,11 @@ create policy "Delegators can delete delegations"
 -- ============================================================
 alter table followers enable row level security;
 
+-- Drop if already created by 20260206060000_followers_table.sql
+drop policy if exists "Follow relationships are publicly readable" on followers;
+drop policy if exists "Users can follow others" on followers;
+drop policy if exists "Users can unfollow" on followers;
+
 create policy "Follow relationships are publicly readable"
   on followers for select to authenticated
   using (true);

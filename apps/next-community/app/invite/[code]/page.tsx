@@ -7,6 +7,7 @@ import { UserPlus, X } from '@tamagui/lucide-icons'
 import { colors } from '@casagrown/app/design-tokens'
 import { supabase } from '@casagrown/app/features/auth/auth-hook'
 import { HomeScreen } from '@casagrown/app/features/home/screen'
+import { useTranslation } from 'react-i18next'
 
 interface InviterProfile {
   id: string
@@ -35,6 +36,7 @@ function useDeviceType() {
 }
 
 export default function InviteLandingPage() {
+  const { t } = useTranslation()
   const params = useParams()
   const router = useRouter()
   const referralCode = params.code as string
@@ -48,7 +50,7 @@ export default function InviteLandingPage() {
   useEffect(() => {
     async function lookupInviter() {
       if (!referralCode) {
-        setError('Invalid invite link')
+        setError(t('inviteLanding.invalidLink'))
         setLoading(false)
         return
       }
@@ -84,12 +86,12 @@ export default function InviteLandingPage() {
     return (
       <YStack flex={1} justifyContent="center" alignItems="center" padding="$6" minHeight="100vh">
         <Spinner size="large" color={colors.green[600]} />
-        <Text marginTop="$4" color={colors.gray[600]}>Loading...</Text>
+        <Text marginTop="$4" color={colors.gray[600]}>{t('inviteLanding.loading')}</Text>
       </YStack>
     )
   }
 
-  const inviterName = inviter?.full_name || 'A neighbor'
+  const inviterName = inviter?.full_name || t('inviteLanding.defaultInviter')
 
   return (
     <YStack flex={1} minHeight="100vh">
@@ -133,10 +135,10 @@ export default function InviteLandingPage() {
             {/* Invitation Text */}
             <YStack flex={1}>
               <Text color="white" fontWeight="600" fontSize={14}>
-                {inviterName} invited you!
+                {t('inviteLanding.invitedYou', { name: inviterName })}
               </Text>
               <Text color={colors.green[100]} fontSize={12}>
-                Join CasaGrown and start trading fresh produce with neighbors
+                {t('inviteLanding.joinSubtitle')}
               </Text>
             </YStack>
 

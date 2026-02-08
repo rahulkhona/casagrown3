@@ -16,9 +16,11 @@ interface LoginScreenProps {
   onBack?: () => void
   /** Referral code from invite link - will be stored for profile creation */
   referralCode?: string
+  /** Delegation code from delegate-invite link - stored for post-login auto-accept */
+  delegationCode?: string
 }
 
-export function LoginScreen({ logoSrc, onLogin, onBack, referralCode }: LoginScreenProps) {
+export function LoginScreen({ logoSrc, onLogin, onBack, referralCode, delegationCode }: LoginScreenProps) {
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
   const router = useRouter()
@@ -34,7 +36,7 @@ export function LoginScreen({ logoSrc, onLogin, onBack, referralCode }: LoginScr
   const media = useMedia()
 
   // Store referral code if present - will be used in profile creation
-  // Also check clipboard on native platforms for referral code from invite page
+  // On Android, also check Install Referrer for referral/delegation codes
   useEffect(() => {
     const storeReferralCode = async (code: string) => {
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -52,52 +54,60 @@ export function LoginScreen({ logoSrc, onLogin, onBack, referralCode }: LoginScr
       return
     }
 
-    // On native platforms, check for referral code using priority chain:
-    // 1. Google Play Install Referrer (Android only — deterministic, 100% reliable)
-    // 2. Clipboard bridge (iOS/Android — best-effort fallback)
+    // On native platforms, check for referral/delegation code from Install Referrer (Android only).
+    // Note: iOS attribution will be handled by Branch.io (deferred deep links) pre-launch.
+    // Clipboard bridge was removed to avoid OS privacy notices on iOS 14+ / Android 13+.
     const checkNativeReferralSources = async () => {
       if (Platform.OS === 'web') return
 
-      // Priority 1: Install Referrer (Android only)
+      const storeDelegationCodeNative = async (dCode: string) => {
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default
+        await AsyncStorage.setItem('casagrown_delegation_code', dCode)
+        console.log('📋 Stored delegation code from native source:', dCode)
+      }
+
+      // Install Referrer (Android only — deterministic, no privacy notice)
       if (Platform.OS === 'android') {
         try {
           const Application = require('expo-application')
           const referrer: string | null = await Application.getInstallReferrerAsync()
           if (referrer) {
-            const match = referrer.match(/ref=([a-z0-9]{8})/)
-            if (match) {
-              console.log('📲 Found referral code from Install Referrer:', match[1])
-              await storeReferralCode(match[1])
-              return // Done — no need to check clipboard
+            // Check for referral code (ref=xxxxxxxx)
+            const refMatch = referrer.match(/ref=([a-z0-9]{8})/)
+            if (refMatch) {
+              console.log('📲 Found referral code from Install Referrer:', refMatch[1])
+              await storeReferralCode(refMatch[1])
+            }
+            // Check for delegation code (delegate=d-xxxxx)
+            const delegateMatch = referrer.match(/delegate=(d-[a-z0-9]+)/)
+            if (delegateMatch) {
+              console.log('📲 Found delegation code from Install Referrer:', delegateMatch[1])
+              await storeDelegationCodeNative(delegateMatch[1])
             }
           }
         } catch (err) {
           console.warn('Install Referrer unavailable:', err)
         }
       }
-
-      // Priority 2: Clipboard bridge (iOS + Android fallback)
-      try {
-        const Clipboard = require('expo-clipboard')
-        const clipboardContent = await Clipboard.getStringAsync()
-        
-        // Referral codes are 8 alphanumeric characters (lowercase)
-        const referralCodePattern = /^[a-z0-9]{8}$/
-        
-        if (clipboardContent && referralCodePattern.test(clipboardContent)) {
-          console.log('📋 Found referral code in clipboard:', clipboardContent)
-          await storeReferralCode(clipboardContent)
-          
-          // Clear clipboard after use (privacy)
-          await Clipboard.setStringAsync('')
-        }
-      } catch (err) {
-        console.warn('Could not check clipboard for referral code:', err)
-      }
     }
 
     checkNativeReferralSources()
   }, [referralCode])
+
+  // Store delegation code if present — will be used for auto-accept after login
+  useEffect(() => {
+    if (!delegationCode) return
+    const storeDelegationCode = async (code: string) => {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.localStorage.setItem('casagrown_delegation_code', code)
+      } else {
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default
+        await AsyncStorage.setItem('casagrown_delegation_code', code)
+      }
+      console.log('📋 Stored delegation code:', code)
+    }
+    storeDelegationCode(delegationCode)
+  }, [delegationCode])
 
   // Redirect based on onboarding status
   useEffect(() => {
@@ -118,14 +128,57 @@ export function LoginScreen({ logoSrc, onLogin, onBack, referralCode }: LoginScr
           .eq('id', user.id)
           .single()
         
-        // User needs both profile name AND community to go to main feed
-        // Otherwise → Profile Wizard to complete onboarding
-        if (profile?.full_name && profile?.home_community_h3_index) {
-          router.replace('/feed')
+      // Check if user came from a delegation link — redirect to accept it
+      let storedDelegationCode: string | null = null
+      try {
+        if (Platform.OS === 'web' && typeof window !== 'undefined') {
+          storedDelegationCode = window.localStorage.getItem('casagrown_delegation_code')
         } else {
-          // New user or incomplete onboarding → Profile Wizard
-          router.replace('/profile-wizard')
+          const AsyncStorage = require('@react-native-async-storage/async-storage').default
+          storedDelegationCode = await AsyncStorage.getItem('casagrown_delegation_code')
         }
+      } catch (e) {
+        console.warn('Could not read delegation code:', e)
+      }
+
+      if (storedDelegationCode) {
+        // Clear the stored code
+        try {
+          if (Platform.OS === 'web' && typeof window !== 'undefined') {
+            window.localStorage.removeItem('casagrown_delegation_code')
+          } else {
+            const AsyncStorage = require('@react-native-async-storage/async-storage').default
+            await AsyncStorage.removeItem('casagrown_delegation_code')
+          }
+        } catch (e) { /* best effort */ }
+
+        if (Platform.OS === 'web') {
+          // On web, redirect to the delegate-invite page for auto-accept
+          router.replace(`/delegate-invite/${storedDelegationCode}`)
+        } else {
+          // On native, call pair-delegation directly then navigate to Delegating For
+          try {
+            await supabase.functions.invoke('pair-delegation', {
+              body: { action: 'accept-link', code: storedDelegationCode },
+            })
+            console.log('✅ Delegation auto-accepted:', storedDelegationCode)
+          } catch (err) {
+            console.warn('⚠️ Delegation auto-accept failed, user can enter code manually:', err)
+          }
+          // Navigate to Delegating For tab regardless — user can enter code manually if needed
+          router.replace('/delegate?tab=for')
+        }
+        return
+      }
+
+      // User needs both profile name AND community to go to main feed
+      // Otherwise → Profile Wizard to complete onboarding
+      if (profile?.full_name && profile?.home_community_h3_index) {
+        router.replace('/feed')
+      } else {
+        // New user or incomplete onboarding → Profile Wizard
+        router.replace('/profile-wizard')
+      }
       } catch (err) {
         // On error, default to wizard for new users
         console.error('Error checking profile:', err)

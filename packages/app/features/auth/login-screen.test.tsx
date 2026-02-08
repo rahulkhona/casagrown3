@@ -2,7 +2,7 @@
  * LoginScreen Unit Tests
  * 
  * Tests: Basic rendering, referral code storage from prop (web localStorage),
- * and clipboard-based referral code bridge for native platforms.
+ * and Install Referrer on Android for native attribution.
  */
 
 import React from 'react'
@@ -231,74 +231,58 @@ describe('LoginScreen', () => {
       })
     })
 
-    it('falls back to clipboard when Install Referrer has no referral code', async () => {
+    it('does not store anything when Install Referrer has no referral code', async () => {
       mockGetInstallReferrerAsync.mockResolvedValue('utm_source=google')
-
-      const ExpoClipboard = require('expo-clipboard')
-      ExpoClipboard.getStringAsync.mockResolvedValue('xy9kq2ab')
 
       render(<LoginScreen />)
 
-      // Install Referrer was checked but had no ref= param
       await waitFor(() => {
         expect(mockGetInstallReferrerAsync).toHaveBeenCalled()
       })
 
-      // Should fall back to clipboard
+      // No ref= param in the referrer string, so nothing should be stored
       await waitFor(() => {
-        expect(ExpoClipboard.getStringAsync).toHaveBeenCalled()
+        expect(mockAsyncSetItem).not.toHaveBeenCalledWith(
+          'casagrown_referral_code',
+          expect.anything()
+        )
+      }, { timeout: 500 })
+    })
+
+    it('reads delegation code from Install Referrer', async () => {
+      mockGetInstallReferrerAsync.mockResolvedValue('delegate=d-abc12xyz')
+
+      render(<LoginScreen />)
+
+      await waitFor(() => {
+        expect(mockGetInstallReferrerAsync).toHaveBeenCalled()
+      })
+
+      // Should store the delegation code via AsyncStorage
+      await waitFor(() => {
+        expect(mockAsyncSetItem).toHaveBeenCalledWith(
+          'casagrown_delegation_code',
+          'd-abc12xyz'
+        )
       })
     })
 
-    it('skips Install Referrer on iOS and goes straight to clipboard', async () => {
+    it('skips Install Referrer on iOS', async () => {
       Object.defineProperty(Platform, 'OS', { value: 'ios', writable: true })
-
-      const ExpoClipboard = require('expo-clipboard')
-      ExpoClipboard.getStringAsync.mockResolvedValue('')
 
       render(<LoginScreen />)
 
       // Install Referrer should NOT be called on iOS
       expect(mockGetInstallReferrerAsync).not.toHaveBeenCalled()
-
-      // Clipboard should be checked instead
-      await waitFor(() => {
-        expect(ExpoClipboard.getStringAsync).toHaveBeenCalled()
-      })
-    })
-  })
-
-  // =========================================
-  // Clipboard Bridge Tests (Native)
-  // =========================================
-
-  describe('Clipboard Bridge (Native)', () => {
-    const originalPlatform = Platform.OS
-
-    beforeEach(() => {
-      Object.defineProperty(Platform, 'OS', { value: 'ios', writable: true })
     })
 
-    afterEach(() => {
-      Object.defineProperty(Platform, 'OS', { value: originalPlatform, writable: true })
-    })
-
-    it('does NOT check clipboard on web platform', async () => {
-      // Switch to web
+    it('does not check Install Referrer on web', async () => {
       Object.defineProperty(Platform, 'OS', { value: 'web', writable: true })
-      
-      // Mock expo-clipboard
-      jest.mock('expo-clipboard', () => ({
-        getStringAsync: jest.fn(),
-        setStringAsync: jest.fn(),
-      }), { virtual: true })
 
       render(<LoginScreen />)
 
-      // On web, clipboard should not be accessed at all
-      // The function exits early with `if (Platform.OS === 'web') return`
-      const ExpoClipboard = require('expo-clipboard')
-      expect(ExpoClipboard.getStringAsync).not.toHaveBeenCalled()
+      // Install Referrer is Android-only
+      expect(mockGetInstallReferrerAsync).not.toHaveBeenCalled()
     })
   })
 })

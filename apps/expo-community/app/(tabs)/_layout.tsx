@@ -29,6 +29,12 @@ export default function TabLayout() {
           headerShown: false,
         }} 
       />
+      <Stack.Screen 
+        name="delegate" 
+        options={{ 
+          headerShown: false,
+        }} 
+      />
     </Stack>
   )
 }

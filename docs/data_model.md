@@ -5,7 +5,7 @@ Each section includes the SQL DDL, markdown description, and any associated trig
 
 > [!NOTE]
 > **Migrations applied (in order)**:
-> `20260131173152_initial_schema` → `20260131183000_refactor_redemptions` → `20260131191000_zip_scraped_tracking` → `20260131191500_update_zip_tracking` → `20260131192000_scraping_logs` → `20260131203000_guest_experimentation` → `20260201100000_auth_triggers` → `20260201200000_h3_community_refactor` → `20260202161700_update_profiles_schema` → `20260203051900_add_country_code` → `20260204055900_point_ledger_rls` → `20260206031500_add_referral_code_trigger` → `20260206040000_incentive_rules_rls` → `20260206041000_profiles_rls` → `20260206060000_followers_table` → `20260207000000_profiles_public_read_rls` → `20260207060000_posts_content_rls` → `20260207070000_shared_tables_rls`
+> `20260131173152_initial_schema` → `20260131183000_refactor_redemptions` → `20260131191000_zip_scraped_tracking` → `20260131191500_update_zip_tracking` → `20260131192000_scraping_logs` → `20260131203000_guest_experimentation` → `20260201100000_auth_triggers` → `20260201200000_h3_community_refactor` → `20260202161700_update_profiles_schema` → `20260203051900_add_country_code` → `20260204055900_point_ledger_rls` → `20260206031500_add_referral_code_trigger` → `20260206040000_incentive_rules_rls` → `20260206041000_profiles_rls` → `20260206060000_followers_table` → `20260207000000_profiles_public_read_rls` → `20260207060000_posts_content_rls` → `20260207070000_shared_tables_rls` → `20260207080000_delegation_pairing` → `20260207090000_delegation_links`
 
 ## Extensions
 
@@ -54,7 +54,7 @@ create type chat_message_type as enum ('text', 'media', 'mixed', 'system');
 create type escalation_status as enum ('open', 'resolved');
 create type escalation_resolution as enum ('refund_accepted', 'resolved_without_refund', 'dismissed');
 create type refund_offer_status as enum ('pending', 'accepted', 'rejected');
-create type delegation_status as enum ('pending', 'accepted', 'rejected', 'revoked');
+create type delegation_status as enum ('pending', 'accepted', 'rejected', 'revoked', 'pending_pairing', 'active', 'inactive');
 create type restriction_scope as enum ('global', 'country', 'state', 'city', 'zip', 'community');
 create type experiment_status as enum ('draft', 'running', 'completed', 'rolled_out', 'rejected');
 create type redemption_item_type as enum ('gift_card', 'merchandize', 'donation');
@@ -861,18 +861,32 @@ create table notifications (
 
 ### `delegations`
 
-Allows one user to delegate sales to another.
+Allows one user to delegate sales to another. Supports link-based sharing where the delegatee is unknown until they accept the invitation.
 
 ```sql
 create table delegations (
   id uuid primary key default gen_random_uuid(),
   delegator_id uuid not null references profiles(id),
-  delegatee_id uuid not null references profiles(id),
+  delegatee_id uuid references profiles(id),        -- NULL until link is accepted
   status delegation_status not null default 'pending',
+  pairing_code text,                    -- 6-digit code for manual/in-person linking
+  pairing_expires_at timestamptz,       -- When the pairing code expires
+  delegation_code text unique,          -- 8-char slug for shareable link (e.g. 'd-abc12xyz')
+  message text,                         -- Optional personal message from delegator
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
-  check (delegator_id <> delegatee_id)
+  check (delegatee_id is null or delegator_id <> delegatee_id)
 );
+
+-- Unique index on non-null pairing codes (expiry enforced at query time)
+create unique index idx_delegation_pairing_code
+  on delegations(pairing_code)
+  where pairing_code is not null;
+
+-- Unique index for fast lookup by delegation link code
+create unique index idx_delegations_delegation_code
+  on delegations(delegation_code)
+  where delegation_code is not null;
 ```
 
 **RLS Policies** (`20260207070000_shared_tables_rls`): Two-party access.
@@ -1291,6 +1305,41 @@ Bulk imports US zip codes with state/city auto-population.
 **Logic**: Parses CSV zip code data, extracts unique states/cities, upserts them in dependency order, then upserts zip codes with resolved `city_id` FKs.
 
 **Source**: [update-zip-codes/index.ts](file:///Volumes/Seagate%20Portabl/development/casagrown3/supabase/functions/update-zip-codes/index.ts)
+
+### `pair-delegation`
+
+Handles delegation pairing via 6-digit codes (in-person) and shareable link codes (remote). Delegators generate a code or link; delegatees enter or click it to activate the relationship.
+
+**Endpoint**: `POST /functions/v1/pair-delegation`
+
+**Actions**:
+
+| Action | Auth | Input | Result |
+| :--- | :--- | :--- | :--- |
+| `lookup` | None (public) | `{ "action": "lookup", "code": "d-abc12xyz" }` | Returns delegation info (delegator profile, message, pairing code) for the landing page |
+| `generate` | JWT | `{ "action": "generate" }` | Creates pending delegation with 6-digit pairing code, 5-min expiry |
+| `accept` | JWT | `{ "action": "accept", "code": "123456" }` | Validates 6-digit code, sets `delegatee_id`, activates delegation, clears code |
+| `generate-link` | JWT | `{ "action": "generate-link", "message": "..." }` | Creates delegation with `d-` prefixed link code + 6-digit pairing code, 24h expiry |
+| `accept-link` | JWT | `{ "action": "accept-link", "code": "d-abc12xyz" }` | Validates link code, sets `delegatee_id`, activates delegation |
+
+**Link reuse**: `generate-link` reuses an existing unexpired `pending_pairing` row for the same delegator instead of creating duplicates. This ensures re-sharing a link does not generate orphan rows.
+
+**Security**:
+
+- `lookup` is unauthenticated (used by landing page before user logs in)
+- All other actions require `Authorization` header (user JWT)
+- Uses service role for atomic DB operations that bypass RLS
+- Prevents self-delegation (`delegator_id ≠ auth.uid()`) in both `accept` and `accept-link` actions
+- Code collision retry (regenerates on unique constraint violation)
+
+**Query filters**: The `useDelegations` hook queries only `pending` and `active` statuses. `pending_pairing` rows (outstanding link invitations with no delegatee) are excluded from the My Delegates list, so they don't inflate delegate counts.
+
+**Attribution approach**: Delegation codes are passed to new installs via:
+- **Android**: Google Play Install Referrer (`delegate=d-xxx` in the Play Store URL `referrer` parameter) — deterministic, no privacy notices
+- **iOS**: Users revisit the delegation landing page after installing, or enter the 6-digit pairing code manually via Join by Code. Branch.io (deferred deep links) will be integrated pre-launch.
+- **Clipboard bridge**: Removed. The previous approach of writing to clipboard before app store redirect caused iOS 14+ / Android 13+ privacy notices ("App pasted from clipboard") and was a poor UX pattern.
+
+**Source**: [pair-delegation/index.ts](file:///Volumes/Seagate%20Portabl/development/casagrown3/supabase/functions/pair-delegation/index.ts)
 
 > [!IMPORTANT]
 > Edge functions require `supabase functions serve` to be running locally. Without it, requests return **503 Service Temporarily Unavailable**.

@@ -1,18 +1,30 @@
 'use client'
 
+import { Suspense } from 'react'
 import { LoginScreen } from '@casagrown/app/features/auth/login-screen'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { Spinner } from 'tamagui'
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const referralCode = searchParams.get('ref') || undefined
+  const delegationCode = searchParams.get('delegate') || undefined
 
   return (
     <LoginScreen 
       logoSrc="/logo.png"
       onBack={() => router.back()}
       referralCode={referralCode}
+      delegationCode={delegationCode}
     />
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<Spinner />}>
+      <LoginPageContent />
+    </Suspense>
   )
 }

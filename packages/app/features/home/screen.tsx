@@ -142,27 +142,8 @@ function HeroSection({
 }) {
   const { t } = useTranslation()
 
-  const copyReferralCodeToClipboard = async () => {
-    if (!referralCode) return
-    
-    try {
-      if (Platform.OS === 'web') {
-        await navigator.clipboard.writeText(referralCode)
-      } else {
-        // Dynamic import for native only - expo-clipboard doesn't work on web
-        const Clipboard = require('expo-clipboard')
-        await Clipboard.setStringAsync(referralCode)
-      }
-      console.log('📋 Referral code copied to clipboard:', referralCode)
-    } catch (err) {
-      console.warn('Failed to copy referral code to clipboard:', err)
-    }
-  }
-
   const handleAppStorePress = async () => {
-    // Copy referral code to clipboard before redirecting
-    await copyReferralCodeToClipboard()
-    
+    // iOS attribution will use Branch.io (deferred deep links) pre-launch
     const url = appStoreUrl || 'https://apps.apple.com/app/casagrown/id000000000'
     if (Platform.OS === 'web') {
       window.open(url, '_blank')
@@ -172,9 +153,6 @@ function HeroSection({
   }
 
   const handlePlayStorePress = async () => {
-    // Copy referral code to clipboard before redirecting (fallback for clipboard bridge)
-    await copyReferralCodeToClipboard()
-    
     // Build Play Store URL with Install Referrer param for deterministic attribution
     const baseUrl = playStoreUrl || 'https://play.google.com/store/apps/details?id=com.casagrown.app'
     const url = referralCode

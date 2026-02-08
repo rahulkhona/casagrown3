@@ -420,3 +420,9 @@ entrypoint = "./functions/scrape-communities/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/resolve-community/index.ts"
+
+[functions.pair-delegation]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/pair-delegation/index.ts"
+
