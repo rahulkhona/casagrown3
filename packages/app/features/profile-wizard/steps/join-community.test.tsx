@@ -10,6 +10,20 @@ jest.mock('react-i18next', () => ({
   }),
 }))
 
+// Mock CommunityMap (require'd at module level via platform-conditional import)
+jest.mock('../../community/CommunityMap', () => {
+  const React = require('react')
+  const { View, Text } = require('react-native')
+  return {
+    __esModule: true,
+    default: ({ resolveData, height }: any) => (
+      <View testID="community-map" style={{ height }}>
+        <Text>CommunityMap Mock</Text>
+      </View>
+    ),
+  }
+})
+
 // Mock expo-location
 jest.mock('expo-location', () => ({
   requestForegroundPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),

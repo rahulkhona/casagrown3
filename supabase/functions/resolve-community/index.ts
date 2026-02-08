@@ -175,6 +175,17 @@ Deno.serve(async (req) => {
       };
     });
 
+    // 5. Compute hex boundaries for map rendering on native clients
+    // (native can't run h3-js due to Hermes WASM incompatibility)
+    const hexBoundaries: Record<string, number[][]> = {};
+    for (const idx of allIndices) {
+      try {
+        hexBoundaries[idx] = cellToBoundary(idx); // [[lat, lng], ...]
+      } catch (_e) {
+        // Skip if boundary computation fails for any cell
+      }
+    }
+
     console.log(`⏱️ Total request time: ${Date.now() - t0}ms`);
 
     return new Response(
@@ -185,6 +196,7 @@ Deno.serve(async (req) => {
         },
         neighbors: neighbors,
         resolved_location: { lat, lng },
+        hex_boundaries: hexBoundaries,
         geocoded_neighborhood: geocodedNeighborhood || null,
       }),
       {

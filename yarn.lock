@@ -4405,6 +4405,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@react-leaflet/core@npm:^3.0.0":
+  version: 3.0.0
+  resolution: "@react-leaflet/core@npm:3.0.0"
+  peerDependencies:
+    leaflet: ^1.9.0
+    react: ^19.0.0
+    react-dom: ^19.0.0
+  checksum: 10/193f4928ff609a922493f05e2f301f53a3d9b8387e90fc6ab4bc4f78f97272cad000fbdf0f1d23069f67cb35d3d855734ce5a5feab98619aebfc3334be2967c7
+  languageName: node
+  linkType: hard
+
 "@react-native-async-storage/async-storage@npm:^2.2.0":
   version: 2.2.0
   resolution: "@react-native-async-storage/async-storage@npm:2.2.0"
@@ -7434,6 +7445,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/geojson@npm:*, @types/geojson@npm:^7946.0.13":
+  version: 7946.0.16
+  resolution: "@types/geojson@npm:7946.0.16"
+  checksum: 10/34d07421bdd60e7b99fa265441d17ac6e9aef48e3ce22d04324127d0de1daf7fbaa0bd3be1cece2092eb6995f21da84afa5231e24621a2910ff7340bc98f496f
+  languageName: node
+  linkType: hard
+
 "@types/graceful-fs@npm:^4.1.3":
   version: 4.1.9
   resolution: "@types/graceful-fs@npm:4.1.9"
@@ -7514,6 +7532,15 @@ __metadata:
   version: 7.0.15
   resolution: "@types/json-schema@npm:7.0.15"
   checksum: 10/1a3c3e06236e4c4aab89499c428d585527ce50c24fe8259e8b3926d3df4cfbbbcf306cfc73ddfb66cbafc973116efd15967020b0f738f63e09e64c7d260519e7
+  languageName: node
+  linkType: hard
+
+"@types/leaflet@npm:^1.9.21":
+  version: 1.9.21
+  resolution: "@types/leaflet@npm:1.9.21"
+  dependencies:
+    "@types/geojson": "npm:*"
+  checksum: 10/a02eff00db3cbc374c67fa7c0df6c564918482fa00407146bfea19f92600a4009f39af7bb9e3face39845979c133bb67b5bd972472720beef1f285596f47a6d1
   languageName: node
   linkType: hard
 
@@ -7602,6 +7629,13 @@ __metadata:
   version: 2.0.3
   resolution: "@types/stack-utils@npm:2.0.3"
   checksum: 10/72576cc1522090fe497337c2b99d9838e320659ac57fa5560fcbdcbafcf5d0216c6b3a0a8a4ee4fdb3b1f5e3420aa4f6223ab57b82fef3578bec3206425c6cf5
+  languageName: node
+  linkType: hard
+
+"@types/text-encoding@npm:^0":
+  version: 0.0.40
+  resolution: "@types/text-encoding@npm:0.0.40"
+  checksum: 10/7eef99107cdf5c1827b51b830a3b65cfd3cc34f9aa760bc2be2f5547cec28fef5c4104473f0d1fdd739eebd7ac9f1d743902af7e1c31852a4a3e748900001e51
   languageName: node
   linkType: hard
 
@@ -9359,15 +9393,20 @@ __metadata:
     "@tamagui/cli": "npm:^2.0.0-rc.0"
     "@tamagui/react-native-svg": "npm:^2.0.0-rc.0"
     "@tamagui/react-native-web-lite": "npm:^2.0.0-rc.0"
+    "@types/leaflet": "npm:^1.9.21"
     "@types/pg": "npm:^8.16.0"
     base64-arraybuffer: "npm:^1.0.2"
     check-dependency-version-consistency: "npm:^4.1.0"
     expo: "npm:^54"
+    h3-js: "npm:^4.4.0"
     husky: "npm:^9.1.6"
+    leaflet: "npm:^1.9.4"
     lint-staged: "npm:15"
     patch-package: "npm:^8.0.1"
     pg: "npm:^8.18.0"
     postinstall-postinstall: "npm:^2.1.0"
+    react-leaflet: "npm:^5.0.0"
+    react-native-maps: "npm:^1.27.1"
     react-native-qrcode-svg: "npm:^6.3.21"
     react-qr-code: "npm:^2.0.18"
     turbo: "npm:^1.13.4"
@@ -11440,6 +11479,7 @@ __metadata:
     "@expo/metro-runtime": "npm:~6.1.2"
     "@react-native-async-storage/async-storage": "npm:^2.2.0"
     "@tamagui/babel-plugin": "npm:^2.0.0-rc.0"
+    "@types/text-encoding": "npm:^0"
     babel-plugin-module-resolver: "npm:^5.0.2"
     babel-plugin-transform-inline-environment-variables: "npm:^0.4.4"
     burnt: "npm:^0.12.2"
@@ -11468,11 +11508,14 @@ __metadata:
     react-dom: "npm:19.1.0"
     react-native: "npm:0.81.5"
     react-native-gesture-handler: "npm:~2.28.0"
+    react-native-maps: "npm:1.20.1"
     react-native-safe-area-context: "npm:~5.6.0"
     react-native-screens: "npm:~4.16.0"
     react-native-svg: "npm:15.12.1"
     react-native-url-polyfill: "npm:^3.0.0"
     react-native-web: "npm:^0.20.0"
+    react-native-webview: "npm:13.15.0"
+    text-encoding: "npm:^0.7.0"
     typescript: "npm:~5.9.2"
   languageName: unknown
   linkType: soft
@@ -12625,6 +12668,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"h3-js@npm:^4.4.0":
+  version: 4.4.0
+  resolution: "h3-js@npm:4.4.0"
+  checksum: 10/6db6888f143ed6a1e3ca10506f15c35679afd181e24b71bcdc90259206e3f02637bab38e2a35382d51f17151ea193dfab69c01ff3e31bf0e86abfb1957692576
+  languageName: node
+  linkType: hard
+
 "has-flag@npm:^3.0.0":
   version: 3.0.0
   resolution: "has-flag@npm:3.0.0"
@@ -13067,7 +13117,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"invariant@npm:^2.2.4":
+"invariant@npm:2.2.4, invariant@npm:^2.2.4":
   version: 2.2.4
   resolution: "invariant@npm:2.2.4"
   dependencies:
@@ -14272,6 +14322,13 @@ __metadata:
   bin:
     lan-network: dist/lan-network-cli.js
   checksum: 10/005b6a30c114b7caa69922756cf5d5dd07679dab254127823255525b426c979388db0f1f74d7c364d96fb2c4dabcbe29bed8ed97a96c290431f3c6127a592f46
+  languageName: node
+  linkType: hard
+
+"leaflet@npm:^1.9.4":
+  version: 1.9.4
+  resolution: "leaflet@npm:1.9.4"
+  checksum: 10/7b6a74d503980961a85bdabebf9d1162c26db0e88195800ceea311682b653d621718f2ada3c9aab903a735af9862c9ae278ba550d4429acbd954d43449cd0d77
   languageName: node
   linkType: hard
 
@@ -17254,6 +17311,19 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-leaflet@npm:^5.0.0":
+  version: 5.0.0
+  resolution: "react-leaflet@npm:5.0.0"
+  dependencies:
+    "@react-leaflet/core": "npm:^3.0.0"
+  peerDependencies:
+    leaflet: ^1.9.0
+    react: ^19.0.0
+    react-dom: ^19.0.0
+  checksum: 10/170bf8d83141c8406fddc8cab41608ec6938efaafa5ae08c2060f9c0739370b84ed61d809c092d9f9ea79461399519f18f1cdf06dcb0e26d61d89eda46fb30be
+  languageName: node
+  linkType: hard
+
 "react-native-gesture-handler@npm:~2.28.0":
   version: 2.28.0
   resolution: "react-native-gesture-handler@npm:2.28.0"
@@ -17275,6 +17345,38 @@ __metadata:
     react: "*"
     react-native: "*"
   checksum: 10/8fb6d8ab7b953c7d7cec8c987cef24f1c5348a293a85cb49c7c53b54ef110c0ca746736ae730e297603c8c76020df912e93915fb17518c4f2f91143757177aba
+  languageName: node
+  linkType: hard
+
+"react-native-maps@npm:1.20.1":
+  version: 1.20.1
+  resolution: "react-native-maps@npm:1.20.1"
+  dependencies:
+    "@types/geojson": "npm:^7946.0.13"
+  peerDependencies:
+    react: ">= 17.0.1"
+    react-native: ">= 0.64.3"
+    react-native-web: ">= 0.11"
+  peerDependenciesMeta:
+    react-native-web:
+      optional: true
+  checksum: 10/582fbf4d2f210251626e7f8296cf05451453a974b56b6855dae44839c895462781057b0ebcece920cb413e58d2e4c57ec229bd55678da25d5600278317dc3e51
+  languageName: node
+  linkType: hard
+
+"react-native-maps@npm:^1.27.1":
+  version: 1.27.1
+  resolution: "react-native-maps@npm:1.27.1"
+  dependencies:
+    "@types/geojson": "npm:^7946.0.13"
+  peerDependencies:
+    react: ">= 18.3.1"
+    react-native: ">= 0.76.0"
+    react-native-web: ">= 0.11"
+  peerDependenciesMeta:
+    react-native-web:
+      optional: true
+  checksum: 10/c73105295d953a02650742148227e7a4dd9c44fcc4dce4dfe50dd5782a48a849e98ee1ee79355de6d608d73a4eead9319ae28af1a3745a3b62332c635b15d75d
   languageName: node
   linkType: hard
 
@@ -17358,6 +17460,19 @@ __metadata:
     react: ^18.0.0 || ^19.0.0
     react-dom: ^18.0.0 || ^19.0.0
   checksum: 10/32f785541660c25326d6ef863afb7b07259b884c2faf083b2d9ea44677bf2423a5b805478f83531be7c9b0260d98997def720000c033d178fd55fecfe6336211
+  languageName: node
+  linkType: hard
+
+"react-native-webview@npm:13.15.0":
+  version: 13.15.0
+  resolution: "react-native-webview@npm:13.15.0"
+  dependencies:
+    escape-string-regexp: "npm:^4.0.0"
+    invariant: "npm:2.2.4"
+  peerDependencies:
+    react: "*"
+    react-native: "*"
+  checksum: 10/7d4b23cb0536199ab2339644d8b6ce720e794ac9a8200f23746032a768a61af8727d2401fc000be09b4fb478dce6f795d7d400945a17ab013a3bbc92a5077e4e
   languageName: node
   linkType: hard
 

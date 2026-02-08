@@ -61,3 +61,4 @@ Transpilation is handled by Babel, with specific `transformIgnorePatterns` for T
 - **tamagui / @casagrown/ui**: Mocked to avoid runtime styling overhead and "Cannot redefine property" errors.
 - **react-i18next**: Mocked to return keys for predictable text assertions.
 - **Assets**: Images and Icons are mocked to prevent load failures in the test environment.
+- **Platform-conditional imports**: Components that use `require()` at module level (e.g., `CommunityMap` native import) must be mocked with `jest.mock()` using `__esModule: true` and a `default` export. This applies to any component using the `Platform.OS === 'web' ? lazy(...) : require(...)` pattern.

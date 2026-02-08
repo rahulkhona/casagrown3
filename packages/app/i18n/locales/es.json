@@ -201,6 +201,8 @@
       "pointsSubtitle": "Completa tu perfil para reclamar tu bono.",
       "back": "Atrás",
       "findCommunity": "Buscar Comunidad",
+      "communityMap": "Mapa de Comunidad",
+      "loadingMap": "Cargando mapa...",
       "continue": "Continuar"
     },
     "intro": {

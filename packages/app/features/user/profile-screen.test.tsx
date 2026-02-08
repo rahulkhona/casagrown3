@@ -26,7 +26,7 @@ jest.mock('../auth/auth-hook', () => ({
               notify_on_wanted: false,
               notify_on_available: false,
               home_community_h3_index: 'abc123',
-              communities: { name: 'Willow Glen', city: 'San Jose, CA' },
+              communities: { name: 'Willow Glen', city: 'San Jose, CA', location: { type: 'Point', coordinates: [-121.8863, 37.3382] } },
             },
             error: null,
           })),
@@ -36,14 +36,49 @@ jest.mock('../auth/auth-hook', () => ({
         eq: jest.fn(() => Promise.resolve({ error: null })),
       })),
     })),
+    functions: {
+      invoke: jest.fn(() => Promise.resolve({
+        data: {
+          primary: { h3_index: 'abc123', name: 'Willow Glen', city: 'San Jose, CA', location: 'POINT(-121.8863 37.3382)' },
+          neighbors: [],
+          resolved_location: { lat: 37.3382, lng: -121.8863 },
+        },
+        error: null,
+      })),
+    },
   },
+}))
+
+// Mock CommunityMap (require'd at module level via platform-conditional import)
+jest.mock('../community/CommunityMap', () => {
+  const React = require('react')
+  const { View, Text: RNText } = require('react-native')
+  return {
+    __esModule: true,
+    default: ({ resolveData, height }: any) => (
+      <View testID="community-map" style={{ height }}>
+        <RNText>CommunityMap Mock</RNText>
+      </View>
+    ),
+  }
+})
+
+// Mock h3-utils
+jest.mock('../community/h3-utils', () => ({
+  buildResolveResponseFromIndex: jest.fn((
+    h3Index: string, name: string, city: string, lat?: number, lng?: number
+  ) => ({
+    primary: { h3_index: h3Index, name, city, location: `POINT(${lng || 0} ${lat || 0})` },
+    neighbors: [],
+    resolved_location: { lat: lat || 0, lng: lng || 0 },
+  })),
 }))
 
 // Mock community resolution hook
 jest.mock('../community/use-resolve-community', () => ({
   useResolveCommunity: () => ({
     resolveAddress: jest.fn(() => Promise.resolve({
-      primary: { h3_index: 'new123', name: 'Campbell', city: 'Campbell, CA' },
+      primary: { h3_index: 'abc123', name: 'Willow Glen' },
       neighbors: [],
     })),
     resolveLocation: jest.fn(),
@@ -281,6 +316,14 @@ describe('ProfileScreen', () => {
     
     await waitFor(() => {
       expect(getByText('profile.editProfile')).toBeTruthy()
+    })
+  })
+
+  it('renders community section with community name', async () => {
+    const { getByText } = render(<ProfileScreen />)
+    
+    await waitFor(() => {
+      expect(getByText('Willow Glen')).toBeTruthy()
     })
   })
 })

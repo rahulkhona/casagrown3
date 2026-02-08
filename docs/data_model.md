@@ -203,6 +203,9 @@ create table communities (
 create index communities_location_idx on communities using gist (location);
 ```
 
+> [!IMPORTANT]
+> **PostGIS geometry via REST API**: The Supabase REST API (PostgREST) returns `geometry` columns as **GeoJSON objects**, not WKT strings. For example, the `location` column comes back as `{"type": "Point", "coordinates": [lng, lat]}` rather than `POINT(lng lat)`. Client-side parsing must handle the GeoJSON format. See `profile-screen.tsx` `loadProfile()` for an example that handles both formats.
+
 ---
 
 ## Users & Profiles

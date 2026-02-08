@@ -1,12 +1,23 @@
 import { YStack, XStack, Input, Button, Text, Label, ScrollView, Separator, Spinner } from 'tamagui'
 import { useWizard } from '../wizard-context'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { colors, shadows, borderRadius } from '../../../design-tokens'
 import { Navigation, MapPin, ChevronDown, Check, Calendar } from '@tamagui/lucide-icons'
-import { useResolveCommunity } from '../../community/use-resolve-community'
+import { useResolveCommunity, type ResolveResponse } from '../../community/use-resolve-community'
 import { useIncentiveRules } from '../utils/use-incentive-rules'
 import { useTranslation } from 'react-i18next'
 import * as Location from 'expo-location'
+import { Platform } from 'react-native'
+
+// Platform-conditional import: React.lazy for web (avoids SSR crash from
+// Leaflet accessing `window` during module evaluation), require() for native
+// (Metro doesn't support React.lazy / code splitting).
+const CommunityMapLazy = Platform.OS === 'web'
+  ? lazy(() => import('../../community/CommunityMap'))
+  : null
+const CommunityMapNative = Platform.OS !== 'web'
+  ? require('../../community/CommunityMap').default
+  : null
 
 
 export const JoinCommunityStep = () => {
@@ -20,6 +31,7 @@ export const JoinCommunityStep = () => {
   const [zip, setZip] = useState(data.zipCode)
   const [isMatched, setIsMatched] = useState(false)
   const [matchData, setMatchData] = useState<{name: string, points: number} | null>(null)
+  const [resolveData, setResolveData] = useState<ResolveResponse | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
   const [gettingLocation, setGettingLocation] = useState(false)
 
@@ -40,6 +52,7 @@ export const JoinCommunityStep = () => {
                  name: result.primary.name,
                  points: joinPoints
              })
+             setResolveData(result)
              setIsMatched(true)
              
              updateData({
@@ -215,6 +228,7 @@ export const JoinCommunityStep = () => {
           name: result.primary.name,
           points: joinPoints
         })
+        setResolveData(result)
         setIsMatched(true)
         updateData({
           address: streetAddress,
@@ -370,6 +384,27 @@ export const JoinCommunityStep = () => {
                         paddingTop="$6"
                         width="100%"
                     >
+                        {/* H3 Zone Map */}
+                        {resolveData && (
+                            <YStack gap="$2">
+                                <Text fontSize="$4" fontWeight="700" color={colors.gray[800]}>
+                                    {t('profileWizard.community.communityMap') || 'Community Map'}
+                                </Text>
+                                {Platform.OS === 'web' && CommunityMapLazy ? (
+                                  <Suspense fallback={
+                                    <YStack height={280} backgroundColor={colors.gray[100]} borderRadius={borderRadius.lg} alignItems="center" justifyContent="center">
+                                        <Spinner size="large" color={colors.green[600]} />
+                                        <Text color={colors.gray[500]} marginTop="$2">{t('profileWizard.community.loadingMap') || 'Loading map...'}</Text>
+                                    </YStack>
+                                  }>
+                                    <CommunityMapLazy resolveData={resolveData} height={280} showLabels={true} />
+                                  </Suspense>
+                                ) : CommunityMapNative ? (
+                                  <CommunityMapNative resolveData={resolveData} height={280} showLabels={true} />
+                                ) : null}
+                            </YStack>
+                        )}
+
                         <YStack 
                             backgroundColor={colors.green[50]} 
                             padding="$4" 
@@ -400,6 +435,7 @@ export const JoinCommunityStep = () => {
                                 onPress={() => {
                                     setIsMatched(false);
                                     setMatchData(null);
+                                    setResolveData(null);
                                     // Clear community from wizard data so user can re-search
                                     updateData({
                                       community: undefined,

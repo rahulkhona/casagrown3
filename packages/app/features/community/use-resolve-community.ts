@@ -18,6 +18,7 @@ export type ResolveResponse = {
     primary: ResolvedCommunity;
     neighbors: NeighborCommunity[];
     resolved_location: { lat: number; lng: number };
+    hex_boundaries?: Record<string, number[][]>;
 };
 
 // Client-side cache to avoid redundant edge function calls for the same lookups

@@ -48,6 +48,11 @@ module.exports = {
     ],
   },
   webpack: (config, { isServer, dev }) => {
+    // Add .web.tsx as highest priority extension for platform-specific files
+    config.resolve.extensions = [
+      '.web.tsx', '.web.ts', '.web.js', '.web.jsx',
+      ...config.resolve.extensions,
+    ]
     // Define __DEV__ for React Native packages
     config.plugins.push(
       new webpack.DefinePlugin({

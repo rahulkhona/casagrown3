@@ -208,6 +208,8 @@
       "pointsSubtitle": "Complete your profile to claim your bonus.",
       "back": "Back",
       "findCommunity": "Find Community",
+      "communityMap": "Community Map",
+      "loadingMap": "Loading map...",
       "continue": "Continue"
     },
     "intro": {

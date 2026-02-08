@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react'
 import { 
   YStack, 
   XStack, 
@@ -33,7 +33,7 @@ import {
   ChevronDown,
   ChevronLeft
 } from '@tamagui/lucide-icons'
-import { Image, Platform } from 'react-native'
+import { Image, Platform, TextInput, Keyboard, KeyboardAvoidingView } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
 import { useTranslation } from 'react-i18next'
@@ -41,7 +41,32 @@ import { useRouter } from 'solito/navigation'
 import { colors, shadows, borderRadius } from '../../design-tokens'
 import { useAuth, supabase } from '../auth/auth-hook'
 import { useResolveCommunity, ResolveResponse } from '../community/use-resolve-community'
+import { buildResolveResponseFromIndex } from '../community/h3-utils'
 import { uploadProfileAvatar } from '../profile-wizard/utils/media-upload'
+
+// Platform-conditional import: React.lazy for web (avoids SSR crash from
+// Leaflet accessing `window` during module evaluation), require() for native
+// (Metro doesn't support React.lazy / code splitting).
+const CommunityMapLazy = Platform.OS === 'web'
+  ? lazy(() => import('../community/CommunityMap'))
+  : null
+const CommunityMapNative = Platform.OS !== 'web'
+  ? require('../community/CommunityMap').default
+  : null
+
+function CommunityMapWrapper(props: { resolveData: ResolveResponse; height?: number; showLabels?: boolean }) {
+  if (Platform.OS === 'web' && CommunityMapLazy) {
+    return (
+      <Suspense fallback={<YStack height={props.height || 220} alignItems="center" justifyContent="center" backgroundColor={colors.neutral[50]} borderRadius={12}><Spinner size="large" color={colors.primary[600]} /></YStack>}>
+        <CommunityMapLazy {...props} />
+      </Suspense>
+    )
+  }
+  if (CommunityMapNative) {
+    return <CommunityMapNative {...props} />
+  }
+  return null
+}
 
 interface ProfileData {
   full_name: string
@@ -54,6 +79,8 @@ interface ProfileData {
   home_community_h3_index: string | null
   community_name?: string
   community_city?: string
+  community_lat?: number
+  community_lng?: number
 }
 
 interface ActivityStats {
@@ -95,6 +122,9 @@ export function ProfileScreen() {
   const [addressInput, setAddressInput] = useState('')
   const [zipCodeInput, setZipCodeInput] = useState('')
   const [resolvedCommunity, setResolvedCommunity] = useState<ResolveResponse | null>(null)
+  
+  // Map data for CommunityMap component
+  const [communityMapData, setCommunityMapData] = useState<ResolveResponse | null>(null)
   
   // Activity stats (mock for now)
   const [stats] = useState<ActivityStats>({
@@ -139,7 +169,8 @@ export function ProfileScreen() {
           home_community_h3_index,
           communities:home_community_h3_index (
             name,
-            city
+            city,
+            location
           )
         `)
         .eq('id', user.id)
@@ -160,12 +191,70 @@ export function ProfileScreen() {
         community_city: (data.communities as any)?.city,
       }
       
+      // Fetch map data for CommunityMap
+      if (data.home_community_h3_index) {
+        // Parse lat/lng from community location (Supabase returns PostGIS geometry as GeoJSON)
+        let communityLat: number | undefined
+        let communityLng: number | undefined
+        const locationData = (data.communities as any)?.location
+        if (locationData && typeof locationData === 'object' && locationData.coordinates) {
+          // GeoJSON Point: { type: "Point", coordinates: [lng, lat] }
+          communityLng = locationData.coordinates[0]
+          communityLat = locationData.coordinates[1]
+        } else if (typeof locationData === 'string') {
+          // Fallback: WKT format POINT(lng lat)
+          const match = locationData.match(/POINT\(([\-\d.]+)\s+([\-\d.]+)\)/)
+          if (match) {
+            communityLng = parseFloat(match[1])
+            communityLat = parseFloat(match[2])
+          }
+        }
+        fetchMapData(
+          data.home_community_h3_index,
+          (data.communities as any)?.name || data.home_community_h3_index,
+          (data.communities as any)?.city || '',
+          communityLat,
+          communityLng,
+        )
+      }
+      
       setProfile(profileData)
       setEditData(profileData)
     } catch (err) {
       console.error('Error loading profile:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  /**
+   * Fetch map data for CommunityMap.
+   * Web: use buildResolveResponseFromIndex (h3-js works client-side)
+   * Native: call resolve-community edge function (h3-js WASM fails on Hermes)
+   */
+  const fetchMapData = async (h3Index: string, name: string, city: string, lat?: number, lng?: number) => {
+    if (Platform.OS === 'web') {
+      // h3-js works on web — compute boundaries client-side
+      const data = buildResolveResponseFromIndex(h3Index, name, city)
+      setCommunityMapData(data as ResolveResponse)
+    } else {
+      // Native: call edge function to get hex_boundaries
+      try {
+        const { data, error } = await supabase.functions.invoke('resolve-community', {
+          body: { h3_index: h3Index },
+        })
+        if (!error && data) {
+          setCommunityMapData(data as ResolveResponse)
+        } else {
+          // Fallback with real lat/lng from DB (h3-js stubs return 0,0 on Hermes)
+          const fallback = buildResolveResponseFromIndex(h3Index, name, city, lat, lng)
+          setCommunityMapData(fallback as ResolveResponse)
+        }
+      } catch (err) {
+        console.error('Error fetching map data:', err)
+        const fallback = buildResolveResponseFromIndex(h3Index, name, city, lat, lng)
+        setCommunityMapData(fallback as ResolveResponse)
+      }
     }
   }
 
@@ -280,6 +369,8 @@ export function ProfileScreen() {
       setResolvedCommunity(null)
       setAddressInput('')
       setZipCodeInput('')
+      // Update map with newly joined community
+      setCommunityMapData(resolvedCommunity)
     } catch (err) {
       console.error('Error joining community:', err)
     } finally {
@@ -301,12 +392,15 @@ export function ProfileScreen() {
     )
   }
 
-  return (
+  const scrollContent = (
     <ScrollView 
       flex={1} 
       backgroundColor={colors.neutral[50]}
       contentContainerStyle={{ paddingBottom: 40 }}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
     >
+
       <YStack padding="$4" gap="$4" maxWidth={600} alignSelf="center" width="100%" paddingTop={Platform.OS === 'ios' ? insets.top + 16 : '$4'}>
         {/* Header */}
         <XStack justifyContent="space-between" alignItems="center">
@@ -437,14 +531,22 @@ export function ProfileScreen() {
               {t('profile.myCommunity')}
             </Text>
             
-            {profile.home_community_h3_index ? (
+            {profile.home_community_h3_index && !isChangingCommunity ? (
               <YStack
                 backgroundColor={colors.neutral[50]}
                 padding="$3"
                 borderRadius={borderRadius.lg}
                 gap="$2"
               >
-                <XStack justifyContent="space-between" alignItems="center">
+                {/* Community Map */}
+                {communityMapData && (
+                  <CommunityMapWrapper
+                    resolveData={communityMapData}
+                    height={220}
+                    showLabels={true}
+                  />
+                )}
+                <XStack justifyContent="space-between" alignItems="center" marginTop="$2">
                   <XStack alignItems="center" gap="$2">
                     <MapPin size={20} color={colors.primary[600]} />
                     <Text fontWeight="500" color={colors.neutral[900]}>
@@ -508,23 +610,43 @@ export function ProfileScreen() {
                 {/* Street Address */}
                 <YStack gap="$2">
                   <Label color={colors.neutral[700]} fontWeight="600">{t('profile.streetAddress') || 'Street Address'}</Label>
-                  <Input
-                    value={addressInput}
-                    onChangeText={setAddressInput}
-                    placeholder={t('profile.addressPlaceholder')}
-                    size="$4"
-                    borderWidth={1}
-                    borderColor={colors.neutral[300]}
-                    focusStyle={{ borderColor: colors.primary[500] }}
-                    backgroundColor="white"
-                    fontWeight="400"
-                  />
+                  {Platform.OS === 'web' ? (
+                    <Input
+                      value={addressInput}
+                      onChangeText={setAddressInput}
+                      placeholder={t('profile.addressPlaceholder')}
+                      size="$4"
+                      borderWidth={1}
+                      borderColor={colors.neutral[300]}
+                      focusStyle={{ borderColor: colors.primary[500] }}
+                      backgroundColor="white"
+                      fontWeight="400"
+                    />
+                  ) : (
+                    <TextInput
+                      value={addressInput}
+                      onChangeText={setAddressInput}
+                      placeholder={t('profile.addressPlaceholder')}
+                      placeholderTextColor={colors.neutral[400]}
+                      style={{
+                        height: 44,
+                        borderWidth: 1,
+                        borderColor: colors.neutral[300],
+                        borderRadius: 8,
+                        paddingHorizontal: 12,
+                        backgroundColor: 'white',
+                        fontSize: 16,
+                        color: colors.neutral[900],
+                      }}
+                    />
+                  )}
                 </YStack>
                 
                 {/* Zip Code + Country Row */}
                 <XStack gap="$3">
                   <YStack gap="$2" width={140}>
                     <Label color={colors.neutral[700]} fontWeight="600">{t('profile.zipCode') || 'Zip Code'}</Label>
+                    {Platform.OS === 'web' ? (
                     <Input
                       value={zipCodeInput}
                       onChangeText={setZipCodeInput}
@@ -537,6 +659,25 @@ export function ProfileScreen() {
                       backgroundColor="white"
                       fontWeight="400"
                     />
+                    ) : (
+                    <TextInput
+                      value={zipCodeInput}
+                      onChangeText={setZipCodeInput}
+                      placeholder="Zip Code"
+                      placeholderTextColor={colors.neutral[400]}
+                      keyboardType="numeric"
+                      style={{
+                        height: 44,
+                        borderWidth: 1,
+                        borderColor: colors.neutral[300],
+                        borderRadius: 8,
+                        paddingHorizontal: 12,
+                        backgroundColor: 'white',
+                        fontSize: 16,
+                        color: colors.neutral[900],
+                      }}
+                    />
+                    )}
                   </YStack>
                   <YStack gap="$2" flex={1}>
                     <Label color={colors.neutral[700]} fontWeight="600">{t('profile.country') || 'Country'}</Label>
@@ -636,7 +777,13 @@ export function ProfileScreen() {
                     borderWidth={2}
                     borderColor={colors.primary[200]}
                   >
-                    <XStack alignItems="center" gap="$2">
+                    {/* Map preview of resolved community */}
+                    <CommunityMapWrapper
+                      resolveData={resolvedCommunity}
+                      height={180}
+                      showLabels={true}
+                    />
+                    <XStack alignItems="center" gap="$2" marginTop="$2">
                       <Check size={20} color={colors.primary[600]} />
                       <Text fontWeight="600">{resolvedCommunity.primary.name}</Text>
                     </XStack>
@@ -1016,4 +1163,14 @@ export function ProfileScreen() {
       </YStack>
     </ScrollView>
   )
+
+  if (Platform.OS === 'ios') {
+    return (
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+        {scrollContent}
+      </KeyboardAvoidingView>
+    )
+  }
+
+  return scrollContent
 }
