@@ -2,12 +2,14 @@
 
 exports[`JoinCommunityStep renders correctly (snapshot) 1`] = `
 <View
+  automaticallyAdjustKeyboardInsets={true}
   contentContainerStyle={
     {
       "flexGrow": 1,
       "paddingBottom": 100,
     }
   }
+  keyboardShouldPersistTaps="handled"
   showsVerticalScrollIndicator={false}
 >
   <View

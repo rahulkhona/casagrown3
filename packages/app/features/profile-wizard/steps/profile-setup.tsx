@@ -97,7 +97,7 @@ export const ProfileSetupStep = () => {
   }
 
   return (
-    <ScrollView contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
+    <ScrollView contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false} automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled">
       <YStack flex={1} paddingHorizontal="$4" paddingBottom="$8" alignItems="center">
         <YStack 
             width="100%" 

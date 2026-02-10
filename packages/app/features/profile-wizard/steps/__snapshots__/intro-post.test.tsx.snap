@@ -2,11 +2,13 @@
 
 exports[`IntroPostStep renders correctly (snapshot) 1`] = `
 <View
+  automaticallyAdjustKeyboardInsets={true}
   contentContainerStyle={
     {
       "flexGrow": 1,
     }
   }
+  keyboardShouldPersistTaps="handled"
   showsVerticalScrollIndicator={false}
 >
   <View

@@ -330,7 +330,7 @@ export function BuyForm({ onBack, onSuccess }: BuyFormProps) {
         </Text>
       </XStack>
 
-      <ScrollView flex={1} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+      <ScrollView flex={1} contentContainerStyle={{ padding: 16, paddingBottom: 40 }} automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled">
         <YStack gap="$5" maxWidth={600} alignSelf="center" width="100%">
 
           {/* ════════════════════════════════════════════════════

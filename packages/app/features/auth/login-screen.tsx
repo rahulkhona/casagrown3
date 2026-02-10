@@ -282,6 +282,7 @@ export function LoginScreen({ logoSrc, onLogin, onBack, referralCode, delegation
       contentContainerStyle={{ flexGrow: 1 }} 
       backgroundColor={colors.green[50]}
       keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
     >
       <YStack 
         flex={1} 

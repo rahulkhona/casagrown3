@@ -2,6 +2,7 @@
 
 exports[`LoginScreen renders correctly (initial state) 1`] = `
 <View
+  automaticallyAdjustKeyboardInsets={true}
   backgroundColor="#f0fdf4"
   contentContainerStyle={
     {
