@@ -2,6 +2,31 @@ import React from 'react'
 import { render } from '@testing-library/react-native'
 import { ProfileSetupStep } from './profile-setup'
 
+// Mock expo-modules-core (required by expo-secure-store)
+jest.mock('expo-modules-core', () => ({
+  EventEmitter: jest.fn(),
+  requireNativeModule: jest.fn(() => ({})),
+}))
+
+// Mock expo-secure-store
+jest.mock('expo-secure-store', () => ({
+  getItemAsync: jest.fn().mockResolvedValue(null),
+  setItemAsync: jest.fn().mockResolvedValue(undefined),
+  deleteItemAsync: jest.fn().mockResolvedValue(undefined),
+}))
+
+// Mock auth-hook
+jest.mock('../../auth/auth-hook', () => ({
+  useAuth: () => ({
+    user: null,
+    loading: false,
+    signInWithOtp: jest.fn(),
+    verifyOtp: jest.fn(),
+    signInWithOAuth: jest.fn(),
+    signOut: jest.fn(),
+  }),
+}))
+
 // Mock react-i18next
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
