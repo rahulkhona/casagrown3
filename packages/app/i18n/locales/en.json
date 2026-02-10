@@ -158,6 +158,8 @@
     },
     "setup": {
       "title": "Let's Get You Set Up",
+      "welcomeName": "Welcome, {{name}}!",
+      "signedInAs": "Signed in as {{email}}",
       "subtitle": "Create your neighbor profile to start trading",
       "uploadPhoto": "Upload Photo",
       "takePhoto": "Take Photo",
@@ -545,5 +547,119 @@
     "copyCode": "Copy Code",
     "codeCopied": "Copied!",
     "iosInstruction": "After installing, come back to this page and tap 'Sign Up / Log In to Accept' to auto-accept — or enter the pairing code in the app under Delegate Sales → Join by Code."
+  },
+  "createPost": {
+    "title": "Create Post",
+    "subtitle": "What would you like to share with your community?",
+    "types": {
+      "sell": {
+        "title": "Looking to Sell",
+        "description": "List your fresh produce or garden items for sale",
+        "formTitle": "Sell Produce"
+      },
+      "buy": {
+        "title": "Looking to Buy",
+        "description": "Let neighbors know what you're looking for",
+        "formTitle": "Looking to Buy"
+      },
+      "needService": {
+        "title": "Need a Service",
+        "description": "Request help with gardening or other services",
+        "formTitle": "Need a Service"
+      },
+      "offerService": {
+        "title": "Offer a Service",
+        "description": "Share your gardening or handyman skills",
+        "formTitle": "Offer a Service"
+      },
+      "advice": {
+        "title": "Ask for Advice",
+        "description": "Get tips and advice from experienced growers",
+        "formTitle": "Ask for Advice"
+      },
+      "showTell": {
+        "title": "Show & Tell",
+        "description": "Share photos and stories from your garden",
+        "formTitle": "Show & Tell"
+      }
+    },
+    "fields": {
+      "community": "Community",
+      "communityPlaceholder": "Your community",
+      "category": "Category",
+      "categoryPlaceholder": "Select a category",
+      "productName": "Product / Service Name",
+      "productNamePlaceholder": "e.g. Meyer Lemons, Fresh Basil",
+      "description": "Description",
+      "descriptionPlaceholder": "Describe what you're offering or looking for...",
+      "quantity": "Available Qty",
+      "unit": "Unit",
+      "unitPlaceholder": "Select unit",
+      "price": "Price (in points)",
+      "platformFee": "A {{percent}}% platform fee is charged upon completion of a sale, not upfront. This helps keep CasaGrown running and supports your community.",
+      "media": "Photo / Video (optional)",
+      "photo": "Photo",
+      "video": "Video",
+      "upload": "Upload {{type}}",
+      "dropoffDates": "Possible Drop-off Dates",
+      "dropoffDatesHint": "When can you drop off the produce?",
+      "addDate": "Add a date",
+      "latestDropoff": "Latest drop-off",
+      "lookingFor": "What are you looking for?",
+      "lookingForPlaceholder": "e.g. Tomatoes, Lemons, Herbs",
+      "lookingForHint": "Separate multiple items with commas",
+      "needByDate": "Latest Drop-off Date",
+      "needByDateHint": "When do you need this by?",
+      "acceptDropoffDates": "Accept Drop-off Dates",
+      "acceptDropoffDatesHint": "Which dates work for drop-off?",
+      "title": "Title",
+      "titlePlaceholder": "Give your post a title"
+    },
+    "loading": {
+      "community": "Loading community...",
+      "communityData": "Loading community data...",
+      "categories": "Loading categories..."
+    },
+    "media": {
+      "takePhoto": "Take Photo",
+      "recordVideo": "Record Video",
+      "uploadPhotoVideo": "Upload Photo/Video",
+      "videoBadge": "VIDEO",
+      "nativePickerHint": "Take photo, choose from gallery, or record video"
+    },
+    "global": {
+      "label": "Post globally",
+      "hint": "Visible to all communities, not just yours"
+    },
+    "neighbors": {
+      "alsoOfferService": "Also offer service to adjacent communities:",
+      "alsoPostTo": "Also post to adjacent communities:",
+      "selectedCount": "{{count}} adjacent community selected",
+      "selectedCount_other": "{{count}} adjacent communities selected",
+      "additionalCount": "{{count}} additional community selected",
+      "additionalCount_other": "{{count}} additional communities selected"
+    },
+    "delegator": {
+      "sellingFor": "Selling for",
+      "delegateHint": "You're a delegate — choose who you're selling on behalf of",
+      "myself": "Myself",
+      "meInitial": "Me",
+      "sellOwnProduce": "Sell your own produce",
+      "unnamed": "Unnamed",
+      "delegatorCommunity": "({{name}}'s community)"
+    },
+    "validation": {
+      "requiredFields": "Please fill in all required fields.",
+      "dropoffRequired": "Please add at least one drop-off date."
+    },
+    "submit": "Post to Community",
+    "submitting": "Posting...",
+    "success": {
+      "title": "Post Created! 🎉",
+      "message": "Your post has been shared with your community."
+    },
+    "error": {
+      "generic": "Something went wrong. Please try again."
+    }
   }
 }

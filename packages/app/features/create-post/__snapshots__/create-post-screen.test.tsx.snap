@@ -1,0 +1,551 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`CreatePostScreen matches snapshot 1`] = `
+<View
+  backgroundColor="#f9fafb"
+  flex={1}
+>
+  <View
+    backgroundColor="white"
+    borderBottomColor="#e5e7eb"
+    borderBottomWidth={1}
+    paddingTop={16}
+  >
+    <View
+      alignItems="center"
+      gap="$3"
+      height={56}
+      paddingHorizontal="$4"
+    >
+      <View
+        accessibilityState={
+          {
+            "busy": undefined,
+            "checked": undefined,
+            "disabled": undefined,
+            "expanded": undefined,
+            "selected": undefined,
+          }
+        }
+        accessibilityValue={
+          {
+            "max": undefined,
+            "min": undefined,
+            "now": undefined,
+            "text": undefined,
+          }
+        }
+        accessible={true}
+        collapsable={false}
+        focusable={true}
+        onClick={[Function]}
+        onResponderGrant={[Function]}
+        onResponderMove={[Function]}
+        onResponderRelease={[Function]}
+        onResponderTerminate={[Function]}
+        onResponderTerminationRequest={[Function]}
+        onStartShouldSetResponder={[Function]}
+        style={
+          {
+            "opacity": 1,
+          }
+        }
+      />
+      <Text
+        color="#111827"
+        fontSize="$5"
+        fontWeight="700"
+      >
+        createPost.title
+      </Text>
+    </View>
+  </View>
+  <RCTScrollView
+    contentContainerStyle={
+      {
+        "padding": 16,
+      }
+    }
+    flex={1}
+  >
+    <View>
+      <Text
+        color="#4b5563"
+        fontSize="$4"
+        marginBottom="$4"
+        textAlign="center"
+      >
+        createPost.subtitle
+      </Text>
+      <View
+        flexWrap="wrap"
+        gap="$3"
+        justifyContent="center"
+      >
+        <View
+          accessibilityState={
+            {
+              "busy": undefined,
+              "checked": undefined,
+              "disabled": undefined,
+              "expanded": undefined,
+              "selected": undefined,
+            }
+          }
+          accessibilityValue={
+            {
+              "max": undefined,
+              "min": undefined,
+              "now": undefined,
+              "text": undefined,
+            }
+          }
+          accessible={true}
+          collapsable={false}
+          focusable={true}
+          onBlur={[Function]}
+          onClick={[Function]}
+          onFocus={[Function]}
+          onResponderGrant={[Function]}
+          onResponderMove={[Function]}
+          onResponderRelease={[Function]}
+          onResponderTerminate={[Function]}
+          onResponderTerminationRequest={[Function]}
+          onStartShouldSetResponder={[Function]}
+          style={
+            {
+              "flexBasis": "47%",
+              "minWidth": 150,
+            }
+          }
+        >
+          <View
+            backgroundColor="white"
+            borderColor="#e5e7eb"
+            borderRadius={12}
+            borderWidth={2}
+            gap="$3"
+            padding="$5"
+            shadowColor="rgba(0, 0, 0, 0.05)"
+            shadowOffset={
+              {
+                "height": 1,
+                "width": 0,
+              }
+            }
+            shadowOpacity={0.05}
+            shadowRadius={2}
+          >
+            <View
+              alignItems="center"
+              backgroundColor="#dcfce7"
+              borderRadius={24}
+              height={48}
+              justifyContent="center"
+              width={48}
+            />
+            <Text
+              color="#111827"
+              fontSize="$4"
+              fontWeight="600"
+            >
+              createPost.types.sell.title
+            </Text>
+            <Text
+              color="#6b7280"
+              fontSize="$3"
+            >
+              createPost.types.sell.description
+            </Text>
+          </View>
+        </View>
+        <View
+          accessibilityState={
+            {
+              "busy": undefined,
+              "checked": undefined,
+              "disabled": undefined,
+              "expanded": undefined,
+              "selected": undefined,
+            }
+          }
+          accessibilityValue={
+            {
+              "max": undefined,
+              "min": undefined,
+              "now": undefined,
+              "text": undefined,
+            }
+          }
+          accessible={true}
+          collapsable={false}
+          focusable={true}
+          onBlur={[Function]}
+          onClick={[Function]}
+          onFocus={[Function]}
+          onResponderGrant={[Function]}
+          onResponderMove={[Function]}
+          onResponderRelease={[Function]}
+          onResponderTerminate={[Function]}
+          onResponderTerminationRequest={[Function]}
+          onStartShouldSetResponder={[Function]}
+          style={
+            {
+              "flexBasis": "47%",
+              "minWidth": 150,
+            }
+          }
+        >
+          <View
+            backgroundColor="white"
+            borderColor="#e5e7eb"
+            borderRadius={12}
+            borderWidth={2}
+            gap="$3"
+            padding="$5"
+            shadowColor="rgba(0, 0, 0, 0.05)"
+            shadowOffset={
+              {
+                "height": 1,
+                "width": 0,
+              }
+            }
+            shadowOpacity={0.05}
+            shadowRadius={2}
+          >
+            <View
+              alignItems="center"
+              backgroundColor="#bae6fd"
+              borderRadius={24}
+              height={48}
+              justifyContent="center"
+              width={48}
+            />
+            <Text
+              color="#111827"
+              fontSize="$4"
+              fontWeight="600"
+            >
+              createPost.types.buy.title
+            </Text>
+            <Text
+              color="#6b7280"
+              fontSize="$3"
+            >
+              createPost.types.buy.description
+            </Text>
+          </View>
+        </View>
+        <View
+          accessibilityState={
+            {
+              "busy": undefined,
+              "checked": undefined,
+              "disabled": undefined,
+              "expanded": undefined,
+              "selected": undefined,
+            }
+          }
+          accessibilityValue={
+            {
+              "max": undefined,
+              "min": undefined,
+              "now": undefined,
+              "text": undefined,
+            }
+          }
+          accessible={true}
+          collapsable={false}
+          focusable={true}
+          onBlur={[Function]}
+          onClick={[Function]}
+          onFocus={[Function]}
+          onResponderGrant={[Function]}
+          onResponderMove={[Function]}
+          onResponderRelease={[Function]}
+          onResponderTerminate={[Function]}
+          onResponderTerminationRequest={[Function]}
+          onStartShouldSetResponder={[Function]}
+          style={
+            {
+              "flexBasis": "47%",
+              "minWidth": 150,
+            }
+          }
+        >
+          <View
+            backgroundColor="white"
+            borderColor="#e5e7eb"
+            borderRadius={12}
+            borderWidth={2}
+            gap="$3"
+            padding="$5"
+            shadowColor="rgba(0, 0, 0, 0.05)"
+            shadowOffset={
+              {
+                "height": 1,
+                "width": 0,
+              }
+            }
+            shadowOpacity={0.05}
+            shadowRadius={2}
+          >
+            <View
+              alignItems="center"
+              backgroundColor="#fde68a"
+              borderRadius={24}
+              height={48}
+              justifyContent="center"
+              width={48}
+            />
+            <Text
+              color="#111827"
+              fontSize="$4"
+              fontWeight="600"
+            >
+              createPost.types.needService.title
+            </Text>
+            <Text
+              color="#6b7280"
+              fontSize="$3"
+            >
+              createPost.types.needService.description
+            </Text>
+          </View>
+        </View>
+        <View
+          accessibilityState={
+            {
+              "busy": undefined,
+              "checked": undefined,
+              "disabled": undefined,
+              "expanded": undefined,
+              "selected": undefined,
+            }
+          }
+          accessibilityValue={
+            {
+              "max": undefined,
+              "min": undefined,
+              "now": undefined,
+              "text": undefined,
+            }
+          }
+          accessible={true}
+          collapsable={false}
+          focusable={true}
+          onBlur={[Function]}
+          onClick={[Function]}
+          onFocus={[Function]}
+          onResponderGrant={[Function]}
+          onResponderMove={[Function]}
+          onResponderRelease={[Function]}
+          onResponderTerminate={[Function]}
+          onResponderTerminationRequest={[Function]}
+          onStartShouldSetResponder={[Function]}
+          style={
+            {
+              "flexBasis": "47%",
+              "minWidth": 150,
+            }
+          }
+        >
+          <View
+            backgroundColor="white"
+            borderColor="#e5e7eb"
+            borderRadius={12}
+            borderWidth={2}
+            gap="$3"
+            padding="$5"
+            shadowColor="rgba(0, 0, 0, 0.05)"
+            shadowOffset={
+              {
+                "height": 1,
+                "width": 0,
+              }
+            }
+            shadowOpacity={0.05}
+            shadowRadius={2}
+          >
+            <View
+              alignItems="center"
+              backgroundColor="#fce7f3"
+              borderRadius={24}
+              height={48}
+              justifyContent="center"
+              width={48}
+            />
+            <Text
+              color="#111827"
+              fontSize="$4"
+              fontWeight="600"
+            >
+              createPost.types.offerService.title
+            </Text>
+            <Text
+              color="#6b7280"
+              fontSize="$3"
+            >
+              createPost.types.offerService.description
+            </Text>
+          </View>
+        </View>
+        <View
+          accessibilityState={
+            {
+              "busy": undefined,
+              "checked": undefined,
+              "disabled": undefined,
+              "expanded": undefined,
+              "selected": undefined,
+            }
+          }
+          accessibilityValue={
+            {
+              "max": undefined,
+              "min": undefined,
+              "now": undefined,
+              "text": undefined,
+            }
+          }
+          accessible={true}
+          collapsable={false}
+          focusable={true}
+          onBlur={[Function]}
+          onClick={[Function]}
+          onFocus={[Function]}
+          onResponderGrant={[Function]}
+          onResponderMove={[Function]}
+          onResponderRelease={[Function]}
+          onResponderTerminate={[Function]}
+          onResponderTerminationRequest={[Function]}
+          onStartShouldSetResponder={[Function]}
+          style={
+            {
+              "flexBasis": "47%",
+              "minWidth": 150,
+            }
+          }
+        >
+          <View
+            backgroundColor="white"
+            borderColor="#e5e7eb"
+            borderRadius={12}
+            borderWidth={2}
+            gap="$3"
+            padding="$5"
+            shadowColor="rgba(0, 0, 0, 0.05)"
+            shadowOffset={
+              {
+                "height": 1,
+                "width": 0,
+              }
+            }
+            shadowOpacity={0.05}
+            shadowRadius={2}
+          >
+            <View
+              alignItems="center"
+              backgroundColor="#FEF9C3"
+              borderRadius={24}
+              height={48}
+              justifyContent="center"
+              width={48}
+            />
+            <Text
+              color="#111827"
+              fontSize="$4"
+              fontWeight="600"
+            >
+              createPost.types.advice.title
+            </Text>
+            <Text
+              color="#6b7280"
+              fontSize="$3"
+            >
+              createPost.types.advice.description
+            </Text>
+          </View>
+        </View>
+        <View
+          accessibilityState={
+            {
+              "busy": undefined,
+              "checked": undefined,
+              "disabled": undefined,
+              "expanded": undefined,
+              "selected": undefined,
+            }
+          }
+          accessibilityValue={
+            {
+              "max": undefined,
+              "min": undefined,
+              "now": undefined,
+              "text": undefined,
+            }
+          }
+          accessible={true}
+          collapsable={false}
+          focusable={true}
+          onBlur={[Function]}
+          onClick={[Function]}
+          onFocus={[Function]}
+          onResponderGrant={[Function]}
+          onResponderMove={[Function]}
+          onResponderRelease={[Function]}
+          onResponderTerminate={[Function]}
+          onResponderTerminationRequest={[Function]}
+          onStartShouldSetResponder={[Function]}
+          style={
+            {
+              "flexBasis": "47%",
+              "minWidth": 150,
+            }
+          }
+        >
+          <View
+            backgroundColor="white"
+            borderColor="#e5e7eb"
+            borderRadius={12}
+            borderWidth={2}
+            gap="$3"
+            padding="$5"
+            shadowColor="rgba(0, 0, 0, 0.05)"
+            shadowOffset={
+              {
+                "height": 1,
+                "width": 0,
+              }
+            }
+            shadowOpacity={0.05}
+            shadowRadius={2}
+          >
+            <View
+              alignItems="center"
+              backgroundColor="#a7f3d0"
+              borderRadius={24}
+              height={48}
+              justifyContent="center"
+              width={48}
+            />
+            <Text
+              color="#111827"
+              fontSize="$4"
+              fontWeight="600"
+            >
+              createPost.types.showTell.title
+            </Text>
+            <Text
+              color="#6b7280"
+              fontSize="$3"
+            >
+              createPost.types.showTell.description
+            </Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  </RCTScrollView>
+</View>
+`;

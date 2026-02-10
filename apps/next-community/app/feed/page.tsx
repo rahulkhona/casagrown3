@@ -76,8 +76,7 @@ export default function FeedPage() {
   }, [])
 
   const handleCreatePost = () => {
-    // TODO: Navigate to create post page when implemented
-    console.log('Create post pressed')
+    router.push('/create-post')
   }
 
   const handleNavigateToProfile = () => {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, lazy, Suspense } from 'react'
+import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react'
 import { 
   YStack, 
   XStack, 
@@ -33,7 +33,7 @@ import {
   ChevronDown,
   ChevronLeft
 } from '@tamagui/lucide-icons'
-import { Image, Platform, TextInput, Keyboard, KeyboardAvoidingView } from 'react-native'
+import { Alert, Image, Platform, TextInput, Keyboard, KeyboardAvoidingView } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
 import { useTranslation } from 'react-i18next'
@@ -43,6 +43,7 @@ import { useAuth, supabase } from '../auth/auth-hook'
 import { useResolveCommunity, ResolveResponse } from '../community/use-resolve-community'
 import { buildResolveResponseFromIndex } from '../community/h3-utils'
 import { uploadProfileAvatar } from '../profile-wizard/utils/media-upload'
+import { normalizeStorageUrl } from '../../utils/normalize-storage-url'
 
 // Platform-conditional import: React.lazy for web (avoids SSR crash from
 // Leaflet accessing `window` during module evaluation), require() for native
@@ -52,6 +53,10 @@ const CommunityMapLazy = Platform.OS === 'web'
   : null
 const CommunityMapNative = Platform.OS !== 'web'
   ? require('../community/CommunityMap').default
+  : null
+
+const WebCameraModal = Platform.OS === 'web'
+  ? require('../create-post/WebCameraModal').WebCameraModal
   : null
 
 function CommunityMapWrapper(props: { resolveData: ResolveResponse; height?: number; showLabels?: boolean }) {
@@ -102,6 +107,10 @@ export function ProfileScreen() {
   const [isChangingCommunity, setIsChangingCommunity] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+
+  // Web photo state
+  const avatarFileInputRef = useRef<HTMLInputElement>(null)
+  const [showAvatarCamera, setShowAvatarCamera] = useState(false)
   
   // Profile data
   const [profile, setProfile] = useState<ProfileData>({
@@ -180,7 +189,7 @@ export function ProfileScreen() {
       
       const profileData: ProfileData = {
         full_name: data.full_name || '',
-        avatar_url: data.avatar_url,
+        avatar_url: normalizeStorageUrl(data.avatar_url) ?? null,
         phone_number: data.phone_number,
         push_enabled: data.push_enabled ?? true,
         sms_enabled: data.sms_enabled ?? false,
@@ -264,10 +273,15 @@ export function ProfileScreen() {
     try {
       setSaving(true)
       
-      // Upload avatar if changed and is a local URI
+      // Upload avatar if changed and is a local URI (file://, content://, blob:, data:, etc.)
       let avatarUrl = editData.avatar_url
-      if (avatarUrl && avatarUrl.startsWith('file://')) {
-        avatarUrl = await uploadProfileAvatar(user.id, avatarUrl)
+      if (avatarUrl && !avatarUrl.startsWith('http')) {
+        const uploaded = await uploadProfileAvatar(user.id, avatarUrl)
+        if (uploaded) {
+          avatarUrl = uploaded
+        } else {
+          console.warn('Avatar upload failed, keeping original URL')
+        }
       }
       
       const { error } = await supabase
@@ -300,8 +314,12 @@ export function ProfileScreen() {
   }
 
   const pickImage = async () => {
+    if (Platform.OS === 'web') {
+      avatarFileInputRef.current?.click()
+      return
+    }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -313,18 +331,47 @@ export function ProfileScreen() {
   }
 
   const takePhoto = async () => {
+    if (Platform.OS === 'web') {
+      setShowAvatarCamera(true)
+      return
+    }
     const { status } = await ImagePicker.requestCameraPermissionsAsync()
     if (status !== 'granted') return
 
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    })
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      })
 
-    if (!result.canceled) {
-      setEditData({ ...editData, avatar_url: result.assets[0].uri })
+      if (!result.canceled) {
+        setEditData({ ...editData, avatar_url: result.assets[0].uri })
+      }
+    } catch (e) {
+      Alert.alert(
+        'Camera unavailable',
+        'Camera is not available on this device. Would you like to pick from gallery instead?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Gallery', onPress: () => pickImage() },
+        ]
+      )
     }
+  }
+
+  function handleAvatarWebFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    const file = files[0]!
+    const url = URL.createObjectURL(file)
+    setEditData({ ...editData, avatar_url: url })
+    e.target.value = ''
+  }
+
+  function handleAvatarWebCameraCapture(asset: { uri: string; type: 'image' | 'video'; fileName: string }) {
+    setEditData({ ...editData, avatar_url: asset.uri })
+    setShowAvatarCamera(false)
   }
 
   const handleFindCommunity = async () => {
@@ -447,19 +494,29 @@ export function ProfileScreen() {
           <XStack gap="$4" alignItems="flex-start" marginBottom="$4">
             {/* Avatar */}
             <YStack alignItems="center" gap="$2">
-              <Avatar circular size="$10">
+              <YStack
+                width={80}
+                height={80}
+                borderRadius={40}
+                overflow="hidden"
+                backgroundColor={colors.primary[600]}
+                alignItems="center"
+                justifyContent="center"
+              >
                 {editData.avatar_url ? (
-                  <Avatar.Image src={editData.avatar_url} />
+                  <Image
+                    source={{ uri: editData.avatar_url }}
+                    style={{ width: 80, height: 80, borderRadius: 40 }}
+                  />
                 ) : (
-                  <Avatar.Fallback backgroundColor={colors.primary[600]}>
-                    <Text color="white" fontSize="$8" fontWeight="700">
-                      {editData.full_name?.charAt(0)?.toUpperCase() || '?'}
-                    </Text>
-                  </Avatar.Fallback>
+                  <Text color="white" fontSize="$8" fontWeight="700">
+                    {editData.full_name?.charAt(0)?.toUpperCase() || '?'}
+                  </Text>
                 )}
-              </Avatar>
+              </YStack>
               
               {isEditing && (
+                <>
                 <XStack gap="$3">
                   <Button 
                     size="$3" 
@@ -484,6 +541,25 @@ export function ProfileScreen() {
                     <Text color={colors.neutral[700]} fontSize="$3">{t('profile.takePhoto')}</Text>
                   </Button>
                 </XStack>
+                {Platform.OS === 'web' && (
+                  <>
+                    <input
+                      ref={avatarFileInputRef as any}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarWebFileChange as any}
+                      style={{ display: 'none' }}
+                    />
+                    {showAvatarCamera && WebCameraModal && (
+                      <WebCameraModal
+                        mode="photo"
+                        onCapture={handleAvatarWebCameraCapture}
+                        onClose={() => setShowAvatarCamera(false)}
+                      />
+                    )}
+                  </>
+                )}
+                </>
               )}
             </YStack>
             

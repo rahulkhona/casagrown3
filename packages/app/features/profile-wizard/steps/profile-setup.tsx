@@ -1,21 +1,32 @@
 import { useRef, useState } from 'react'
 import { YStack, XStack, Input, Button, Text, Avatar, Label, Switch, Checkbox, ScrollView, Sheet } from 'tamagui'
 import { useWizard } from '../wizard-context'
+import { useAuth } from '../../auth/auth-hook'
 import { Camera, Upload, Bell, MessageSquare, Check } from '@tamagui/lucide-icons'
 import { colors, shadows, borderRadius } from '../../../design-tokens'
 import { Image } from 'react-native'
 import * as ImagePicker from 'expo-image-picker'
 import { useTranslation } from 'react-i18next'
+import { Alert, Platform } from 'react-native'
+
+const WebCameraModal = Platform.OS === 'web'
+  ? require('../../create-post/WebCameraModal').WebCameraModal
+  : null
 
 export const ProfileSetupStep = () => {
   const { t } = useTranslation()
   const { data, updateData, nextStep } = useWizard()
+  const { user } = useAuth()
   const [name, setName] = useState(data.name)
   const [pushEnabled, setPushEnabled] = useState(data.notifyPush)
   const [smsEnabled, setSmsEnabled] = useState(data.notifySms)
   const [phoneNumber, setPhoneNumber] = useState(data.phone || '')
 
   const isFormValid = name.trim().length > 0;
+
+  // Web photo state
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [showCamera, setShowCamera] = useState(false)
 
   const handleContinue = () => {
     if (isFormValid) {
@@ -30,10 +41,13 @@ export const ProfileSetupStep = () => {
   }
 
   const pickImage = async () => {
-    // No permissions request is necessary for launching the image library
+    if (Platform.OS === 'web') {
+      fileInputRef.current?.click()
+      return
+    }
     let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true, // Allow optional crop
+      mediaTypes: ['images'],
+      allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
     });
@@ -44,25 +58,42 @@ export const ProfileSetupStep = () => {
   }
 
   const takePhoto = async () => {
+      if (Platform.OS === 'web') {
+        setShowCamera(true)
+        return
+      }
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      console.log('📷 Camera permission status:', status);
       if (status !== 'granted') {
-          // Permission denied - silently return
-          console.log('📷 Camera permission denied');
           return;
       }
 
-      let result = await ImagePicker.launchCameraAsync({
-          allowsEditing: true, // Allow optional crop
-          aspect: [1, 1],
-          quality: 0.8,
-      });
+      try {
+        let result = await ImagePicker.launchCameraAsync({
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.8,
+        });
 
-      console.log('📷 Camera result:', result);
-      if (!result.canceled && result.assets?.[0]?.uri) {
-          console.log('📷 Updating avatar with URI:', result.assets[0].uri);
-          updateData({ avatar: result.assets[0].uri })
+        if (!result.canceled && result.assets?.[0]?.uri) {
+            updateData({ avatar: result.assets[0].uri })
+        }
+      } catch (e) {
+        Alert.alert('Camera unavailable', 'Camera is not available on this device. Use the upload button instead.')
       }
+  }
+
+  function handleWebFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    const file = files[0]!
+    const url = URL.createObjectURL(file)
+    updateData({ avatar: url })
+    e.target.value = ''
+  }
+
+  function handleWebCameraCapture(asset: { uri: string; type: 'image' | 'video'; fileName: string }) {
+    updateData({ avatar: asset.uri })
+    setShowCamera(false)
   }
 
   return (
@@ -82,11 +113,18 @@ export const ProfileSetupStep = () => {
         >
             <YStack gap="$2" alignItems="center">
                 <Text fontSize="$7" fontWeight="700" color={colors.gray[900]} textAlign="center">
-                    {t('profileWizard.setup.title')}
+                    {user?.user_metadata?.full_name
+                      ? t('profileWizard.setup.welcomeName', { name: user.user_metadata.full_name.split(' ')[0] })
+                      : t('profileWizard.setup.title')}
                 </Text>
                 <Text fontSize="$4" color={colors.gray[500]} textAlign="center">
                     {t('profileWizard.setup.subtitle')}
                 </Text>
+                {user?.email && (
+                  <Text fontSize="$3" color={colors.gray[400]} textAlign="center">
+                    {t('profileWizard.setup.signedInAs', { email: user.email })}
+                  </Text>
+                )}
             </YStack>
 
             {/* Avatar Section */}
@@ -155,6 +193,24 @@ export const ProfileSetupStep = () => {
                         <Text color={colors.gray[700]} fontSize="$3">{t('profileWizard.setup.takePhoto')}</Text>
                     </Button>
                 </XStack>
+                {Platform.OS === 'web' && (
+                  <>
+                    <input
+                      ref={fileInputRef as any}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleWebFileChange as any}
+                      style={{ display: 'none' }}
+                    />
+                    {showCamera && WebCameraModal && (
+                      <WebCameraModal
+                        mode="photo"
+                        onCapture={handleWebCameraCapture}
+                        onClose={() => setShowCamera(false)}
+                      />
+                    )}
+                  </>
+                )}
             </YStack>
 
             {/* Form Fields */}

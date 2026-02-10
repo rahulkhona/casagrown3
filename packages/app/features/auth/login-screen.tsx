@@ -216,7 +216,7 @@ export function LoginScreen({ logoSrc, onLogin, onBack, referralCode, delegation
   const handleEmailSubmit = async () => {
     const result = EmailSchema.safeParse(email)
     if (!result.success) {
-      setErrors({ ...errors, email: (result.error as any).errors[0]?.message })
+      setErrors({ ...errors, email: result.error.issues[0]?.message })
       return
     }
     setErrors({ ...errors, email: undefined })
@@ -245,7 +245,7 @@ export function LoginScreen({ logoSrc, onLogin, onBack, referralCode, delegation
   const handleOtpSubmit = async () => {
     const result = OtpSchema.safeParse(otp)
     if (!result.success) {
-        setErrors({ ...errors, otp: (result.error as any).errors[0]?.message })
+        setErrors({ ...errors, otp: result.error.issues[0]?.message })
         return
     }
     setErrors({ ...errors, otp: undefined })

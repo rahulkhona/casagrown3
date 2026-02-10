@@ -8,6 +8,7 @@
  */
 
 import { useState } from 'react'
+import { normalizeStorageUrl } from '../../utils/normalize-storage-url'
 import { YStack, XStack, Text, Button, ScrollView, useMedia, Input } from 'tamagui'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { colors, shadows, borderRadius } from '../../design-tokens'
@@ -49,7 +50,8 @@ const NAV_KEYS = [
   { key: 'delegateSales', badge: 0 },
 ]
 
-export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDelegate, logoSrc, referralCode, inviteRewards, userAvatarUrl, userDisplayName }: FeedScreenProps) {
+export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDelegate, logoSrc, referralCode, inviteRewards, userAvatarUrl: rawAvatarUrl, userDisplayName }: FeedScreenProps) {
+  const userAvatarUrl = normalizeStorageUrl(rawAvatarUrl)
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
   const media = useMedia()
@@ -380,11 +382,11 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
             shadowRadius={shadows.sm.radius}
             marginBottom="$4"
           >
-            <XStack gap="$3" flexWrap={isDesktop ? 'nowrap' : 'wrap'}>
+            <XStack gap="$3" alignItems="center">
               {/* Search Input */}
               <XStack 
                 flex={1}
-                minWidth={200}
+                minWidth={isDesktop ? 200 : undefined}
                 backgroundColor="white"
                 borderRadius="$3"
                 paddingHorizontal="$3"
@@ -414,26 +416,48 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
                 paddingVertical="$2"
                 borderRadius="$3"
                 gap="$2"
+                minHeight={44}
                 hoverStyle={{ backgroundColor: colors.gray[50] }}
+                pressStyle={{ backgroundColor: colors.gray[100] }}
                 icon={<Filter size={18} color={colors.gray[600]} />}
               >
                 {isDesktop && <Text color={colors.gray[700]} fontSize="$3">{t('feed.filter')}</Text>}
               </Button>
 
-              {/* Create Post Button */}
+              {/* Create Post Button — inline on desktop */}
+              {isDesktop && (
+                <Button
+                  backgroundColor={colors.green[600]}
+                  paddingHorizontal="$4"
+                  paddingVertical="$2"
+                  borderRadius="$3"
+                  gap="$2"
+                  hoverStyle={{ backgroundColor: colors.green[700] }}
+                  pressStyle={{ backgroundColor: colors.green[700] }}
+                  onPress={onCreatePost}
+                  icon={<Plus size={18} color="white" />}
+                >
+                  <Text color="white" fontSize="$3" fontWeight="500">{t('feed.createPost')}</Text>
+                </Button>
+              )}
+            </XStack>
+
+            {/* Create Post Button — full-width on mobile for better touch target */}
+            {!isDesktop && (
               <Button
                 backgroundColor={colors.green[600]}
-                paddingHorizontal="$4"
-                paddingVertical="$2"
+                paddingVertical="$3"
                 borderRadius="$3"
                 gap="$2"
-                hoverStyle={{ backgroundColor: colors.green[700] }}
+                minHeight={48}
+                marginTop="$3"
+                pressStyle={{ backgroundColor: colors.green[700], scale: 0.98 }}
                 onPress={onCreatePost}
-                icon={<Plus size={18} color="white" />}
+                icon={<Plus size={20} color="white" />}
               >
-                <Text color="white" fontSize="$3" fontWeight="500">{t('feed.createPost')}</Text>
+                <Text color="white" fontSize="$4" fontWeight="600">{t('feed.createPost')}</Text>
               </Button>
-            </XStack>
+            )}
           </YStack>
 
           {/* Empty State - Based on MainFeed.tsx lines 449-463 */}
@@ -604,7 +628,6 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
       </ScrollView>
 
       {/* Floating Action Button (FAB) for mobile - Based on Figma mobile design */}
-      {/* TODO: Uncomment when Create Post feature is implemented
       {!isDesktop && (
         <Button
           position="absolute"
@@ -628,7 +651,6 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
           <Plus size={28} color="white" />
         </Button>
       )}
-      */}
 
       {/* Invite Modal */}
       <InviteModal

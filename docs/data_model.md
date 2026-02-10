@@ -1,17 +1,33 @@
 # Data Model
 
-This document defines the complete schema for the application, derived from all Supabase migrations.
-Each section includes the SQL DDL, markdown description, and any associated triggers/functions/RLS policies.
+This document defines the complete schema for the application, derived from all
+Supabase migrations. Each section includes the SQL DDL, markdown description,
+and any associated triggers/functions/RLS policies.
 
 > [!NOTE]
-> **Migrations applied (in order)**:
-> `20260131173152_initial_schema` → `20260131183000_refactor_redemptions` → `20260131191000_zip_scraped_tracking` → `20260131191500_update_zip_tracking` → `20260131192000_scraping_logs` → `20260131203000_guest_experimentation` → `20260201100000_auth_triggers` → `20260201200000_h3_community_refactor` → `20260202161700_update_profiles_schema` → `20260203051900_add_country_code` → `20260204055900_point_ledger_rls` → `20260206031500_add_referral_code_trigger` → `20260206040000_incentive_rules_rls` → `20260206041000_profiles_rls` → `20260206060000_followers_table` → `20260207000000_profiles_public_read_rls` → `20260207060000_posts_content_rls` → `20260207070000_shared_tables_rls` → `20260207080000_delegation_pairing` → `20260207090000_delegation_links`
+> **Migrations applied (in order)**: `20260131173152_initial_schema` →
+> `20260131183000_refactor_redemptions` → `20260131191000_zip_scraped_tracking`
+> → `20260131191500_update_zip_tracking` → `20260131192000_scraping_logs` →
+> `20260131203000_guest_experimentation` → `20260201100000_auth_triggers` →
+> `20260201200000_h3_community_refactor` →
+> `20260202161700_update_profiles_schema` → `20260203051900_add_country_code` →
+> `20260204055900_point_ledger_rls` → `20260206031500_add_referral_code_trigger`
+> → `20260206040000_incentive_rules_rls` → `20260206041000_profiles_rls` →
+> `20260206060000_followers_table` → `20260207000000_profiles_public_read_rls` →
+> `20260207060000_posts_content_rls` → `20260207070000_shared_tables_rls` →
+> `20260207080000_delegation_pairing` → `20260207090000_delegation_links` →
+> `20260209235700_create_post_detail_rls` →
+> `20260210030000_category_restrictions_rls` → `20260210040000_platform_config`
+> → `20260210050000_communities_rls` → `20260210060000_sell_need_by_date` →
+> `20260210070000_enrich_communities_cron` → `20260210080000_produce_interests`
 
 ## Extensions
 
 ```sql
 create extension if not exists "pgcrypto";  -- required for gen_random_uuid()
 create extension if not exists postgis;     -- required for spatial queries (H3, geometry types)
+create extension if not exists pg_cron with schema pg_catalog;   -- cron-style job scheduling (20260210070000)
+create extension if not exists pg_net with schema extensions;    -- HTTP requests from Postgres (20260210070000)
 ```
 
 ---
@@ -74,14 +90,14 @@ create type scraping_status as enum ('success', 'failure', 'zero_results');
 
 ### `countries`
 
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| `iso_3` | `text` | **Primary Key**. ISO 3166-1 alpha-3 (e.g., 'USA', 'CAN'). |
-| `name` | `text` | Country name. |
-| `currency_symbol` | `text` | e.g., '$', '€'. |
-| `phone_code` | `text` | e.g., '+1'. |
-| `created_at` | `timestamptz` | Default `now()`. |
-| `updated_at` | `timestamptz` | Default `now()`. |
+| Column            | Type          | Description                                               |
+| :---------------- | :------------ | :-------------------------------------------------------- |
+| `iso_3`           | `text`        | **Primary Key**. ISO 3166-1 alpha-3 (e.g., 'USA', 'CAN'). |
+| `name`            | `text`        | Country name.                                             |
+| `currency_symbol` | `text`        | e.g., '$', '€'.                                           |
+| `phone_code`      | `text`        | e.g., '+1'.                                               |
+| `created_at`      | `timestamptz` | Default `now()`.                                          |
+| `updated_at`      | `timestamptz` | Default `now()`.                                          |
 
 ```sql
 create table countries (
@@ -96,14 +112,14 @@ create table countries (
 
 ### `states`
 
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| `id` | `uuid` | Primary Key. |
-| `country_iso_3` | `text` | FK to `countries(iso_3)`. |
-| `code` | `text` | State/province code (e.g., 'CA', 'NY'). |
-| `name` | `text` | Full name (e.g., 'California'). |
-| `created_at` | `timestamptz` | Default `now()`. |
-| `updated_at` | `timestamptz` | Default `now()`. |
+| Column          | Type          | Description                             |
+| :-------------- | :------------ | :-------------------------------------- |
+| `id`            | `uuid`        | Primary Key.                            |
+| `country_iso_3` | `text`        | FK to `countries(iso_3)`.               |
+| `code`          | `text`        | State/province code (e.g., 'CA', 'NY'). |
+| `name`          | `text`        | Full name (e.g., 'California').         |
+| `created_at`    | `timestamptz` | Default `now()`.                        |
+| `updated_at`    | `timestamptz` | Default `now()`.                        |
 
 **Unique**: `(country_iso_3, code)`
 
@@ -121,13 +137,13 @@ create table states (
 
 ### `cities`
 
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| `id` | `uuid` | Primary Key. |
-| `state_id` | `uuid` | FK to `states(id)`. |
-| `name` | `text` | City name. |
-| `created_at` | `timestamptz` | Default `now()`. |
-| `updated_at` | `timestamptz` | Default `now()`. |
+| Column       | Type          | Description         |
+| :----------- | :------------ | :------------------ |
+| `id`         | `uuid`        | Primary Key.        |
+| `state_id`   | `uuid`        | FK to `states(id)`. |
+| `name`       | `text`        | City name.          |
+| `created_at` | `timestamptz` | Default `now()`.    |
+| `updated_at` | `timestamptz` | Default `now()`.    |
 
 **Unique**: `(state_id, name)`
 
@@ -144,14 +160,14 @@ create table cities (
 
 ### `zip_codes`
 
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| `zip_code` | `text` | PK part 1. |
-| `country_iso_3` | `text` | PK part 2. FK to `countries(iso_3)`. |
-| `city_id` | `uuid` | FK to `cities(id)`. |
-| `latitude` | `numeric` | Centroid latitude. |
-| `longitude` | `numeric` | Centroid longitude. |
-| `last_scraped_at` | `timestamptz` | When last scraped for communities. |
+| Column            | Type          | Description                          |
+| :---------------- | :------------ | :----------------------------------- |
+| `zip_code`        | `text`        | PK part 1.                           |
+| `country_iso_3`   | `text`        | PK part 2. FK to `countries(iso_3)`. |
+| `city_id`         | `uuid`        | FK to `cities(id)`.                  |
+| `latitude`        | `numeric`     | Centroid latitude.                   |
+| `longitude`       | `numeric`     | Centroid longitude.                  |
+| `last_scraped_at` | `timestamptz` | When last scraped for communities.   |
 
 **Primary Key**: `(zip_code, country_iso_3)`
 
@@ -169,20 +185,21 @@ create table zip_codes (
 
 ### `communities`
 
-H3-based community definitions. Replaced legacy uuid-based community table via migration `20260201200000`.
+H3-based community definitions. Replaced legacy uuid-based community table via
+migration `20260201200000`.
 
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| `h3_index` | `text` | **Primary Key**. H3 Index (Res 7). |
-| `name` | `text` | Human-readable name (derived from OSM landmarks). |
-| `location` | `geometry(Point, 4326)` | Centroid for spatial queries. |
-| `boundary` | `geometry(Polygon, 4326)` | Hexagonal boundary. |
-| `city` | `text` | Administrative context. |
-| `state` | `text` | State/Region. |
-| `country` | `text` | Country code. |
-| `metadata` | `jsonb` | Source info (e.g., `{"source": "osm", "osm_id": 123}`). |
-| `created_at` | `timestamptz` | Default `now()`. |
-| `updated_at` | `timestamptz` | Default `now()`. |
+| Column       | Type                      | Description                                             |
+| :----------- | :------------------------ | :------------------------------------------------------ |
+| `h3_index`   | `text`                    | **Primary Key**. H3 Index (Res 7).                      |
+| `name`       | `text`                    | Human-readable name (derived from OSM landmarks).       |
+| `location`   | `geometry(Point, 4326)`   | Centroid for spatial queries.                           |
+| `boundary`   | `geometry(Polygon, 4326)` | Hexagonal boundary.                                     |
+| `city`       | `text`                    | Administrative context.                                 |
+| `state`      | `text`                    | State/Region.                                           |
+| `country`    | `text`                    | Country code.                                           |
+| `metadata`   | `jsonb`                   | Source info (e.g., `{"source": "osm", "osm_id": 123}`). |
+| `created_at` | `timestamptz`             | Default `now()`.                                        |
+| `updated_at` | `timestamptz`             | Default `now()`.                                        |
 
 **Indexes**: `communities_location_idx` (GiST on `location`)
 
@@ -203,8 +220,20 @@ create table communities (
 create index communities_location_idx on communities using gist (location);
 ```
 
+**RLS Policies** (`20260210050000_communities_rls`):
+
+| Policy                                   | Operation | Rule                  |
+| :--------------------------------------- | :-------- | :-------------------- |
+| Authenticated users can read communities | `SELECT`  | `using (true)`        |
+| Anonymous users can read communities     | `SELECT`  | `using (true)` (anon) |
+
 > [!IMPORTANT]
-> **PostGIS geometry via REST API**: The Supabase REST API (PostgREST) returns `geometry` columns as **GeoJSON objects**, not WKT strings. For example, the `location` column comes back as `{"type": "Point", "coordinates": [lng, lat]}` rather than `POINT(lng lat)`. Client-side parsing must handle the GeoJSON format. See `profile-screen.tsx` `loadProfile()` for an example that handles both formats.
+> **PostGIS geometry via REST API**: The Supabase REST API (PostgREST) returns
+> `geometry` columns as **GeoJSON objects**, not WKT strings. For example, the
+> `location` column comes back as `{"type": "Point", "coordinates": [lng, lat]}`
+> rather than `POINT(lng lat)`. Client-side parsing must handle the GeoJSON
+> format. See `profile-screen.tsx` `loadProfile()` for an example that handles
+> both formats.
 
 ---
 
@@ -212,32 +241,35 @@ create index communities_location_idx on communities using gist (location);
 
 ### `profiles`
 
-Linked to Supabase Auth `auth.users` table. Auto-created on signup via `handle_new_user()` trigger.
+Linked to Supabase Auth `auth.users` table. Auto-created on signup via
+`handle_new_user()` trigger.
 
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| `id` | `uuid` | **Primary Key** (FK to `auth.users.id`). |
-| `email` | `text` | Unique. Copied from auth.users on signup. |
-| `full_name` | `text` | Display name. |
-| `avatar_url` | `text` | URL to avatar image. |
-| `phone_number` | `text` | For SMS notifications. |
-| `country_code` | `varchar(3)` | ISO 3166-1 alpha-3 (e.g., 'USA'). Default: 'USA'. |
-| `zip_code` | `text` | Postal code. |
-| `home_community_h3_index` | `text` | FK to `communities(h3_index)`. |
-| `home_location` | `geometry(Point, 4326)` | Exact user location (optional). |
-| `nearby_community_h3_indices` | `text[]` | Array of adjacent H3 indices. |
-| `notify_on_wanted` | `boolean` | Receive "wanted" notifications. Default: `true`. |
-| `notify_on_available` | `boolean` | Receive "available" notifications. Default: `true`. |
-| `push_enabled` | `boolean` | Push enabled. Default: `true`. |
-| `sms_enabled` | `boolean` | SMS enabled. Default: `false`. |
-| `referral_code` | `text` | Unique 8-char alphanumeric code. Auto-generated via trigger. |
-| `invited_by_id` | `uuid` | FK to `profiles(id)`. Who referred this user. |
-| `created_at` | `timestamptz` | Default `now()`. |
-| `updated_at` | `timestamptz` | Default `now()`. |
+| Column                        | Type                    | Description                                                  |
+| :---------------------------- | :---------------------- | :----------------------------------------------------------- |
+| `id`                          | `uuid`                  | **Primary Key** (FK to `auth.users.id`).                     |
+| `email`                       | `text`                  | Unique. Copied from auth.users on signup.                    |
+| `full_name`                   | `text`                  | Display name.                                                |
+| `avatar_url`                  | `text`                  | URL to avatar image.                                         |
+| `phone_number`                | `text`                  | For SMS notifications.                                       |
+| `country_code`                | `varchar(3)`            | ISO 3166-1 alpha-3 (e.g., 'USA'). Default: 'USA'.            |
+| `zip_code`                    | `text`                  | Postal code.                                                 |
+| `home_community_h3_index`     | `text`                  | FK to `communities(h3_index)`.                               |
+| `home_location`               | `geometry(Point, 4326)` | Exact user location (optional).                              |
+| `nearby_community_h3_indices` | `text[]`                | Array of adjacent H3 indices.                                |
+| `notify_on_wanted`            | `boolean`               | Receive "wanted" notifications. Default: `true`.             |
+| `notify_on_available`         | `boolean`               | Receive "available" notifications. Default: `true`.          |
+| `push_enabled`                | `boolean`               | Push enabled. Default: `true`.                               |
+| `sms_enabled`                 | `boolean`               | SMS enabled. Default: `false`.                               |
+| `referral_code`               | `text`                  | Unique 8-char alphanumeric code. Auto-generated via trigger. |
+| `invited_by_id`               | `uuid`                  | FK to `profiles(id)`. Who referred this user.                |
+| `created_at`                  | `timestamptz`           | Default `now()`.                                             |
+| `updated_at`                  | `timestamptz`           | Default `now()`.                                             |
 
-**Triggers**: `trigger_set_referral_code` (auto-generates referral code), `on_auth_user_created` (creates profile + awards signup points)
+**Triggers**: `trigger_set_referral_code` (auto-generates referral code),
+`on_auth_user_created` (creates profile + awards signup points)
 
-**Indexes**: `profiles_home_location_idx` (GiST), `profiles_nearby_communities_idx` (GIN)
+**Indexes**: `profiles_home_location_idx` (GiST),
+`profiles_nearby_communities_idx` (GIN)
 
 ```sql
 -- Base table (initial_schema) + columns added by subsequent migrations
@@ -270,13 +302,13 @@ create index profiles_nearby_communities_idx on profiles using gin (nearby_commu
 
 Tracks produce items a user grows.
 
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| `id` | `uuid` | Primary Key. |
-| `user_id` | `uuid` | FK to `profiles(id)`. |
-| `produce_name` | `text` | Name of the produce. |
-| `created_at` | `timestamptz` | Default `now()`. |
-| `updated_at` | `timestamptz` | Default `now()`. |
+| Column         | Type          | Description           |
+| :------------- | :------------ | :-------------------- |
+| `id`           | `uuid`        | Primary Key.          |
+| `user_id`      | `uuid`        | FK to `profiles(id)`. |
+| `produce_name` | `text`        | Name of the produce.  |
+| `created_at`   | `timestamptz` | Default `now()`.      |
+| `updated_at`   | `timestamptz` | Default `now()`.      |
 
 ```sql
 create table user_garden (
@@ -290,15 +322,17 @@ create table user_garden (
 
 ### `followers`
 
-User-to-user follow relationships. Auto-inserted when invitee signs up via referral.
+User-to-user follow relationships. Auto-inserted when invitee signs up via
+referral.
 
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| `follower_id` | `uuid` | PK part 1. FK to `profiles(id)` on delete cascade. |
-| `followed_id` | `uuid` | PK part 2. FK to `profiles(id)` on delete cascade. |
-| `created_at` | `timestamptz` | Default `now()`. |
+| Column        | Type          | Description                                        |
+| :------------ | :------------ | :------------------------------------------------- |
+| `follower_id` | `uuid`        | PK part 1. FK to `profiles(id)` on delete cascade. |
+| `followed_id` | `uuid`        | PK part 2. FK to `profiles(id)` on delete cascade. |
+| `created_at`  | `timestamptz` | Default `now()`.                                   |
 
-**Constraints**: Composite PK `(follower_id, followed_id)`, Check `follower_id != followed_id` (prevents self-follow)
+**Constraints**: Composite PK `(follower_id, followed_id)`, Check
+`follower_id != followed_id` (prevents self-follow)
 
 ```sql
 create table followers (
@@ -313,13 +347,14 @@ create index idx_followers_follower on followers (follower_id);
 create index idx_followers_followed on followers (followed_id);
 ```
 
-**RLS Policies** (`20260207070000_shared_tables_rls`): Public reads, follower-controlled writes.
+**RLS Policies** (`20260207070000_shared_tables_rls`): Public reads,
+follower-controlled writes.
 
-| Policy | Operation | Rule |
-| :--- | :--- | :--- |
-| Follow relationships are publicly readable | `SELECT` | `using (true)` |
-| Users can follow others | `INSERT` | `with check (follower_id = auth.uid())` |
-| Users can unfollow | `DELETE` | `using (follower_id = auth.uid())` |
+| Policy                                     | Operation | Rule                                    |
+| :----------------------------------------- | :-------- | :-------------------------------------- |
+| Follow relationships are publicly readable | `SELECT`  | `using (true)`                          |
+| Users can follow others                    | `INSERT`  | `with check (follower_id = auth.uid())` |
+| Users can unfollow                         | `DELETE`  | `using (follower_id = auth.uid())`      |
 
 ```text
 (indexes shown above)
@@ -333,20 +368,20 @@ create index idx_followers_followed on followers (followed_id);
 
 Defines reward point values for user actions, with geographic scoping.
 
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| `id` | `uuid` | Primary Key. |
-| `action_type` | `incentive_action` | Action being rewarded. |
-| `scope` | `incentive_scope` | Geographic scope. |
-| `points` | `integer` | Points awarded. Default: `0`. |
-| `country_iso_3` | `text` | FK to `countries`. Optional. |
-| `state_id` | `uuid` | FK to `states`. Optional. |
-| `city_id` | `uuid` | FK to `cities`. Optional. |
-| `zip_code` | `text` | Optional (composite FK with `country_iso_3`). |
-| `community_h3_index` | `text` | FK to `communities(h3_index)`. Optional. |
-| `start_date` | `timestamptz` | When rule becomes active. |
-| `end_date` | `timestamptz` | Optional expiration. |
-| `created_at` | `timestamptz` | Default `now()`. |
+| Column               | Type               | Description                                   |
+| :------------------- | :----------------- | :-------------------------------------------- |
+| `id`                 | `uuid`             | Primary Key.                                  |
+| `action_type`        | `incentive_action` | Action being rewarded.                        |
+| `scope`              | `incentive_scope`  | Geographic scope.                             |
+| `points`             | `integer`          | Points awarded. Default: `0`.                 |
+| `country_iso_3`      | `text`             | FK to `countries`. Optional.                  |
+| `state_id`           | `uuid`             | FK to `states`. Optional.                     |
+| `city_id`            | `uuid`             | FK to `cities`. Optional.                     |
+| `zip_code`           | `text`             | Optional (composite FK with `country_iso_3`). |
+| `community_h3_index` | `text`             | FK to `communities(h3_index)`. Optional.      |
+| `start_date`         | `timestamptz`      | When rule becomes active.                     |
+| `end_date`           | `timestamptz`      | Optional expiration.                          |
+| `created_at`         | `timestamptz`      | Default `now()`.                              |
 
 ```sql
 create table incentive_rules (
@@ -371,18 +406,19 @@ create table incentive_rules (
 
 Tracks all point transactions — complete audit trail.
 
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| `id` | `uuid` | Primary Key. |
-| `user_id` | `uuid` | FK to `profiles(id)` on delete cascade. |
-| `type` | `point_transaction_type` | Transaction type. |
-| `amount` | `integer` | Points (positive = earned, negative = spent). |
-| `balance_after` | `integer` | Balance after transaction. |
-| `reference_id` | `uuid` | Optional linked entity. |
-| `metadata` | `jsonb` | (e.g., `{"action_type": "join_a_community"}`). |
-| `created_at` | `timestamptz` | Default `now()`. |
+| Column          | Type                     | Description                                    |
+| :-------------- | :----------------------- | :--------------------------------------------- |
+| `id`            | `uuid`                   | Primary Key.                                   |
+| `user_id`       | `uuid`                   | FK to `profiles(id)` on delete cascade.        |
+| `type`          | `point_transaction_type` | Transaction type.                              |
+| `amount`        | `integer`                | Points (positive = earned, negative = spent).  |
+| `balance_after` | `integer`                | Balance after transaction.                     |
+| `reference_id`  | `uuid`                   | Optional linked entity.                        |
+| `metadata`      | `jsonb`                  | (e.g., `{"action_type": "join_a_community"}`). |
+| `created_at`    | `timestamptz`            | Default `now()`.                               |
 
-**Idempotency**: Reward grants check for existing entries with matching `action_type` in metadata.
+**Idempotency**: Reward grants check for existing entries with matching
+`action_type` in metadata.
 
 ```sql
 create table point_ledger (
@@ -403,16 +439,16 @@ create table point_ledger (
 
 ### `posts`
 
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| `id` | `uuid` | Primary Key. |
-| `author_id` | `uuid` | FK to `profiles(id)`. |
-| `community_h3_index` | `text` | FK to `communities(h3_index)`. |
-| `type` | `post_type` | Post type. |
-| `reach` | `post_reach` | Visibility scope. Default: `'community'`. |
-| `content` | `text` | Post body. |
-| `created_at` | `timestamptz` | Default `now()`. |
-| `updated_at` | `timestamptz` | Default `now()`. |
+| Column               | Type          | Description                               |
+| :------------------- | :------------ | :---------------------------------------- |
+| `id`                 | `uuid`        | Primary Key.                              |
+| `author_id`          | `uuid`        | FK to `profiles(id)`.                     |
+| `community_h3_index` | `text`        | FK to `communities(h3_index)`.            |
+| `type`               | `post_type`   | Post type.                                |
+| `reach`              | `post_reach`  | Visibility scope. Default: `'community'`. |
+| `content`            | `text`        | Post body.                                |
+| `created_at`         | `timestamptz` | Default `now()`.                          |
+| `updated_at`         | `timestamptz` | Default `now()`.                          |
 
 **Indexes**: `posts_community_h3_idx`
 
@@ -433,12 +469,12 @@ create index posts_community_h3_idx on posts(community_h3_index);
 
 **RLS Policies** (`20260207060000_posts_content_rls`):
 
-| Policy | Operation | Rule |
-| :--- | :--- | :--- |
-| Posts are readable by all authenticated users | `SELECT` | `using (true)` — public reads, feed curation handled by application queries |
-| Authors can create their own posts | `INSERT` | `with check (author_id = auth.uid())` |
-| Authors can update their own posts | `UPDATE` | `using (author_id = auth.uid())` |
-| Authors can delete their own posts | `DELETE` | `using (author_id = auth.uid())` |
+| Policy                                        | Operation | Rule                                                                        |
+| :-------------------------------------------- | :-------- | :-------------------------------------------------------------------------- |
+| Posts are readable by all authenticated users | `SELECT`  | `using (true)` — public reads, feed curation handled by application queries |
+| Authors can create their own posts            | `INSERT`  | `with check (author_id = auth.uid())`                                       |
+| Authors can update their own posts            | `UPDATE`  | `using (author_id = auth.uid())`                                            |
+| Authors can delete their own posts            | `DELETE`  | `using (author_id = auth.uid())`                                            |
 
 ### `post_likes`
 
@@ -453,11 +489,11 @@ create table post_likes (
 
 **RLS Policies** (`20260207060000_posts_content_rls`):
 
-| Policy | Operation | Rule |
-| :--- | :--- | :--- |
-| Post likes are readable | `SELECT` | `using (true)` |
-| Users can like posts | `INSERT` | `with check (user_id = auth.uid())` |
-| Users can remove their own likes | `DELETE` | `using (user_id = auth.uid())` |
+| Policy                           | Operation | Rule                                |
+| :------------------------------- | :-------- | :---------------------------------- |
+| Post likes are readable          | `SELECT`  | `using (true)`                      |
+| Users can like posts             | `INSERT`  | `with check (user_id = auth.uid())` |
+| Users can remove their own likes | `DELETE`  | `using (user_id = auth.uid())`      |
 
 ### `post_comments`
 
@@ -473,12 +509,12 @@ create table post_comments (
 
 **RLS Policies** (`20260207060000_posts_content_rls`):
 
-| Policy | Operation | Rule |
-| :--- | :--- | :--- |
-| Post comments are readable | `SELECT` | `using (true)` |
-| Users can create their own comments | `INSERT` | `with check (user_id = auth.uid())` |
-| Users can update their own comments | `UPDATE` | `using (user_id = auth.uid())` |
-| Users can delete their own comments | `DELETE` | `using (user_id = auth.uid())` |
+| Policy                              | Operation | Rule                                |
+| :---------------------------------- | :-------- | :---------------------------------- |
+| Post comments are readable          | `SELECT`  | `using (true)`                      |
+| Users can create their own comments | `INSERT`  | `with check (user_id = auth.uid())` |
+| Users can update their own comments | `UPDATE`  | `using (user_id = auth.uid())`      |
+| Users can delete their own comments | `DELETE`  | `using (user_id = auth.uid())`      |
 
 ### `post_flags`
 
@@ -494,11 +530,11 @@ create table post_flags (
 
 **RLS Policies** (`20260207060000_posts_content_rls`):
 
-| Policy | Operation | Rule |
-| :--- | :--- | :--- |
-| Post flags are readable | `SELECT` | `using (true)` |
-| Users can flag posts | `INSERT` | `with check (user_id = auth.uid())` |
-| Users can remove their own flags | `DELETE` | `using (user_id = auth.uid())` |
+| Policy                           | Operation | Rule                                |
+| :------------------------------- | :-------- | :---------------------------------- |
+| Post flags are readable          | `SELECT`  | `using (true)`                      |
+| Users can flag posts             | `INSERT`  | `with check (user_id = auth.uid())` |
+| Users can remove their own flags | `DELETE`  | `using (user_id = auth.uid())`      |
 
 ### `post_media`
 
@@ -513,13 +549,27 @@ create table post_media (
 
 **RLS Policies** (`20260207060000_posts_content_rls`):
 
-| Policy | Operation | Rule |
-| :--- | :--- | :--- |
-| Post media is readable | `SELECT` | `using (true)` |
-| Post authors can attach media | `INSERT` | `with check (post_id in (select id from posts where author_id = auth.uid()))` |
-| Post authors can detach media | `DELETE` | `using (post_id in (select id from posts where author_id = auth.uid()))` |
+| Policy                        | Operation | Rule                                                                          |
+| :---------------------------- | :-------- | :---------------------------------------------------------------------------- |
+| Post media is readable        | `SELECT`  | `using (true)`                                                                |
+| Post authors can attach media | `INSERT`  | `with check (post_id in (select id from posts where author_id = auth.uid()))` |
+| Post authors can detach media | `DELETE`  | `using (post_id in (select id from posts where author_id = auth.uid()))`      |
 
 ### `want_to_sell_details`
+
+| Column                     | Type              | Description                                      |
+| :------------------------- | :---------------- | :----------------------------------------------- |
+| `id`                       | `uuid`            | Primary Key.                                     |
+| `post_id`                  | `uuid`            | FK to `posts(id)` on delete cascade.             |
+| `category`                 | `sales_category`  | Sales category.                                  |
+| `produce_name`             | `text`            | Name of the produce.                             |
+| `unit`                     | `unit_of_measure` | Unit of measure.                                 |
+| `total_quantity_available` | `numeric`         | Quantity available.                              |
+| `price_per_unit`           | `numeric(10,2)`   | Price per unit.                                  |
+| `delegator_id`             | `uuid`            | FK to `profiles(id)`. Optional delegator.        |
+| `need_by_date`             | `date`            | Latest drop-off date. Added by `20260210060000`. |
+| `created_at`               | `timestamptz`     | Default `now()`.                                 |
+| `updated_at`               | `timestamptz`     | Default `now()`.                                 |
 
 ```sql
 create table want_to_sell_details (
@@ -531,6 +581,7 @@ create table want_to_sell_details (
   total_quantity_available numeric not null,
   price_per_unit numeric(10,2) not null,
   delegator_id uuid references profiles(id),
+  need_by_date date,                               -- 20260210060000
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -582,6 +633,49 @@ create table sales_category_restrictions (
 );
 ```
 
+**RLS Policies** (`20260210030000_category_restrictions_rls`):
+
+| Policy                                             | Operation | Rule           |
+| :------------------------------------------------- | :-------- | :------------- |
+| Authenticated users can read category restrictions | `SELECT`  | `using (true)` |
+
+---
+
+## Platform Configuration
+
+### `platform_config`
+
+Key-value store for platform settings (e.g., fee percentages). Introduced to
+make operational parameters database-driven instead of hardcoded.
+
+| Column        | Type          | Description                                           |
+| :------------ | :------------ | :---------------------------------------------------- |
+| `key`         | `text`        | **Primary Key**. Config key name.                     |
+| `value`       | `text`        | Config value (stored as text, parsed by application). |
+| `description` | `text`        | Human-readable description of the setting.            |
+| `updated_at`  | `timestamptz` | Default `now()`.                                      |
+
+**Known keys**:
+
+| Key                    | Default | Description                                         |
+| :--------------------- | :------ | :-------------------------------------------------- |
+| `platform_fee_percent` | `10`    | Platform fee percentage charged on completed sales. |
+
+```sql
+create table platform_config (
+  key text primary key,
+  value text not null,
+  description text,
+  updated_at timestamptz default now()
+);
+```
+
+**RLS Policies** (`20260210040000_platform_config`):
+
+| Policy                                       | Operation | Rule           |
+| :------------------------------------------- | :-------- | :------------- |
+| Authenticated users can read platform config | `SELECT`  | `using (true)` |
+
 ---
 
 ## Media
@@ -602,11 +696,11 @@ create table media_assets (
 
 **RLS Policies** (`20260207070000_shared_tables_rls`):
 
-| Policy | Operation | Rule |
-| :--- | :--- | :--- |
-| Media assets are publicly readable | `SELECT` | `using (true)` |
-| Owners can upload media | `INSERT` | `with check (owner_id = auth.uid())` |
-| Owners can delete their media | `DELETE` | `using (owner_id = auth.uid())` |
+| Policy                             | Operation | Rule                                 |
+| :--------------------------------- | :-------- | :----------------------------------- |
+| Media assets are publicly readable | `SELECT`  | `using (true)`                       |
+| Owners can upload media            | `INSERT`  | `with check (owner_id = auth.uid())` |
+| Owners can delete their media      | `DELETE`  | `using (owner_id = auth.uid())`      |
 
 ---
 
@@ -625,13 +719,14 @@ create table conversations (
 );
 ```
 
-**RLS Policies** (`20260207070000_shared_tables_rls`): Two-party access — only `buyer_id` or `seller_id` can read.
+**RLS Policies** (`20260207070000_shared_tables_rls`): Two-party access — only
+`buyer_id` or `seller_id` can read.
 
-| Policy | Operation | Rule |
-| :--- | :--- | :--- |
-| Conversation parties can read | `SELECT` | `using (buyer_id = auth.uid() OR seller_id = auth.uid())` |
-| Buyers can initiate conversations | `INSERT` | `with check (buyer_id = auth.uid())` |
-| No update/delete | — | Conversations are immutable once created |
+| Policy                            | Operation | Rule                                                      |
+| :-------------------------------- | :-------- | :-------------------------------------------------------- |
+| Conversation parties can read     | `SELECT`  | `using (buyer_id = auth.uid() OR seller_id = auth.uid())` |
+| Buyers can initiate conversations | `INSERT`  | `with check (buyer_id = auth.uid())`                      |
+| No update/delete                  | —         | Conversations are immutable once created                  |
 
 ### `chat_messages`
 
@@ -649,13 +744,14 @@ create table chat_messages (
 );
 ```
 
-**RLS Policies** (`20260207070000_shared_tables_rls`): Access inherited from conversation membership.
+**RLS Policies** (`20260207070000_shared_tables_rls`): Access inherited from
+conversation membership.
 
-| Policy | Operation | Rule |
-| :--- | :--- | :--- |
-| Conversation parties can read messages | `SELECT` | `conversation_id` in user's conversations |
-| Conversation parties can send messages | `INSERT` | `sender_id = auth.uid()` AND conversation member |
-| No update/delete | — | Messages are immutable (audit trail) |
+| Policy                                 | Operation | Rule                                             |
+| :------------------------------------- | :-------- | :----------------------------------------------- |
+| Conversation parties can read messages | `SELECT`  | `conversation_id` in user's conversations        |
+| Conversation parties can send messages | `INSERT`  | `sender_id = auth.uid()` AND conversation member |
+| No update/delete                       | —         | Messages are immutable (audit trail)             |
 
 ### `offers`
 
@@ -671,13 +767,14 @@ create table offers (
 );
 ```
 
-**RLS Policies** (`20260207070000_shared_tables_rls`): Access inherited from conversation membership.
+**RLS Policies** (`20260207070000_shared_tables_rls`): Access inherited from
+conversation membership.
 
-| Policy | Operation | Rule |
-| :--- | :--- | :--- |
-| Conversation parties can read offers | `SELECT` | `conversation_id` in user's conversations |
-| Conversation parties can create offers | `INSERT` | `created_by = auth.uid()` AND conversation member |
-| Conversation parties can update offer status | `UPDATE` | Conversation member |
+| Policy                                       | Operation | Rule                                              |
+| :------------------------------------------- | :-------- | :------------------------------------------------ |
+| Conversation parties can read offers         | `SELECT`  | `conversation_id` in user's conversations         |
+| Conversation parties can create offers       | `INSERT`  | `created_by = auth.uid()` AND conversation member |
+| Conversation parties can update offer status | `UPDATE`  | Conversation member                               |
 
 ### `orders`
 
@@ -706,13 +803,14 @@ create table orders (
 );
 ```
 
-**RLS Policies** (`20260207070000_shared_tables_rls`): Two-party access — only `buyer_id` or `seller_id`.
+**RLS Policies** (`20260207070000_shared_tables_rls`): Two-party access — only
+`buyer_id` or `seller_id`.
 
-| Policy | Operation | Rule |
-| :--- | :--- | :--- |
-| Order parties can read their orders | `SELECT` | `using (buyer_id = auth.uid() OR seller_id = auth.uid())` |
-| Order parties can create orders | `INSERT` | `with check (buyer_id = auth.uid() OR seller_id = auth.uid())` |
-| Order parties can update their orders | `UPDATE` | `using (buyer_id = auth.uid() OR seller_id = auth.uid())` |
+| Policy                                | Operation | Rule                                                           |
+| :------------------------------------ | :-------- | :------------------------------------------------------------- |
+| Order parties can read their orders   | `SELECT`  | `using (buyer_id = auth.uid() OR seller_id = auth.uid())`      |
+| Order parties can create orders       | `INSERT`  | `with check (buyer_id = auth.uid() OR seller_id = auth.uid())` |
+| Order parties can update their orders | `UPDATE`  | `using (buyer_id = auth.uid() OR seller_id = auth.uid())`      |
 
 ### `escalations`
 
@@ -732,13 +830,14 @@ create table escalations (
 );
 ```
 
-**RLS Policies** (`20260207070000_shared_tables_rls`): Access inherited from order parties.
+**RLS Policies** (`20260207070000_shared_tables_rls`): Access inherited from
+order parties.
 
-| Policy | Operation | Rule |
-| :--- | :--- | :--- |
-| Order parties can read escalations | `SELECT` | `order_id` in user's orders |
-| Order parties can create escalations | `INSERT` | `initiator_id = auth.uid()` AND order party |
-| Order parties can update escalations | `UPDATE` | Order party |
+| Policy                               | Operation | Rule                                        |
+| :----------------------------------- | :-------- | :------------------------------------------ |
+| Order parties can read escalations   | `SELECT`  | `order_id` in user's orders                 |
+| Order parties can create escalations | `INSERT`  | `initiator_id = auth.uid()` AND order party |
+| Order parties can update escalations | `UPDATE`  | Order party                                 |
 
 ### `refund_offers`
 
@@ -758,13 +857,14 @@ alter table escalations
   foreign key (accepted_refund_offer_id) references refund_offers(id);
 ```
 
-**RLS Policies** (`20260207070000_shared_tables_rls`): Access inherited from escalation → order parties.
+**RLS Policies** (`20260207070000_shared_tables_rls`): Access inherited from
+escalation → order parties.
 
-| Policy | Operation | Rule |
-| :--- | :--- | :--- |
-| Order parties can read refund offers | `SELECT` | `escalation_id` → order parties |
-| Order parties can create refund offers | `INSERT` | `escalation_id` → order parties |
-| Order parties can update refund offer status | `UPDATE` | `escalation_id` → order parties |
+| Policy                                       | Operation | Rule                            |
+| :------------------------------------------- | :-------- | :------------------------------ |
+| Order parties can read refund offers         | `SELECT`  | `escalation_id` → order parties |
+| Order parties can create refund offers       | `INSERT`  | `escalation_id` → order parties |
+| Order parties can update refund offer status | `UPDATE`  | `escalation_id` → order parties |
 
 ---
 
@@ -800,7 +900,8 @@ create table redemption_merchandize_media (
 
 ### `redemption_merchandize_restrictions`
 
-Unified restriction table (replaced 5 separate restriction tables via migration `20260131183000`).
+Unified restriction table (replaced 5 separate restriction tables via migration
+`20260131183000`).
 
 ```sql
 create table redemption_merchandize_restrictions (
@@ -852,11 +953,11 @@ create table notifications (
 
 **RLS Policies** (`20260207070000_shared_tables_rls`): Private to recipient.
 
-| Policy | Operation | Rule |
-| :--- | :--- | :--- |
-| Users can read their own notifications | `SELECT` | `using (user_id = auth.uid())` |
-| Users can mark their notifications as read | `UPDATE` | `using (user_id = auth.uid())` |
-| No insert/delete by users | — | Created by system (service role) |
+| Policy                                     | Operation | Rule                             |
+| :----------------------------------------- | :-------- | :------------------------------- |
+| Users can read their own notifications     | `SELECT`  | `using (user_id = auth.uid())`   |
+| Users can mark their notifications as read | `UPDATE`  | `using (user_id = auth.uid())`   |
+| No insert/delete by users                  | —         | Created by system (service role) |
 
 ---
 
@@ -864,7 +965,8 @@ create table notifications (
 
 ### `delegations`
 
-Allows one user to delegate sales to another. Supports link-based sharing where the delegatee is unknown until they accept the invitation.
+Allows one user to delegate sales to another. Supports link-based sharing where
+the delegatee is unknown until they accept the invitation.
 
 ```sql
 create table delegations (
@@ -894,12 +996,12 @@ create unique index idx_delegations_delegation_code
 
 **RLS Policies** (`20260207070000_shared_tables_rls`): Two-party access.
 
-| Policy | Operation | Rule |
-| :--- | :--- | :--- |
-| Delegation parties can read | `SELECT` | `using (delegator_id = auth.uid() OR delegatee_id = auth.uid())` |
-| Delegators can create delegations | `INSERT` | `with check (delegator_id = auth.uid())` |
-| Delegation parties can update status | `UPDATE` | `using (delegator_id = auth.uid() OR delegatee_id = auth.uid())` |
-| Delegators can delete delegations | `DELETE` | `using (delegator_id = auth.uid())` |
+| Policy                               | Operation | Rule                                                             |
+| :----------------------------------- | :-------- | :--------------------------------------------------------------- |
+| Delegation parties can read          | `SELECT`  | `using (delegator_id = auth.uid() OR delegatee_id = auth.uid())` |
+| Delegators can create delegations    | `INSERT`  | `with check (delegator_id = auth.uid())`                         |
+| Delegation parties can update status | `UPDATE`  | `using (delegator_id = auth.uid() OR delegatee_id = auth.uid())` |
+| Delegators can delete delegations    | `DELETE`  | `using (delegator_id = auth.uid())`                              |
 
 ---
 
@@ -985,7 +1087,10 @@ create table experiment_events (
 ### `scraping_logs`
 
 > [!NOTE]
-> Legacy scraping tables (`zip_code_tracking`, `scraping_logs`) were dropped during the H3 community refactor (`20260201200000`). The `scraping_logs` table below was defined in `20260131192000` but dropped in the H3 migration. The `scraping_status` enum still exists.
+> Legacy scraping tables (`zip_code_tracking`, `scraping_logs`) were dropped
+> during the H3 community refactor (`20260201200000`). The `scraping_logs` table
+> below was defined in `20260131192000` but dropped in the H3 migration. The
+> `scraping_status` enum still exists.
 
 ```sql
 create table scraping_logs (
@@ -1056,23 +1161,80 @@ create table feedback_comments (
 
 ---
 
+## Produce Interests
+
+### `produce_interests`
+
+Stores produce items users are interested in (captured during the wizard intro
+step). Used to notify sellers when someone near them wants their produce.
+
+**Migration**: `20260210080000_produce_interests.sql`
+
+| Column         | Type          | Description                                           |
+| :------------- | :------------ | :---------------------------------------------------- |
+| `id`           | `uuid`        | Primary Key.                                          |
+| `user_id`      | `uuid`        | FK to `profiles(id)` on delete cascade.               |
+| `produce_name` | `text`        | Name of the produce item.                             |
+| `is_custom`    | `boolean`     | `true` if user typed a custom name. Default: `false`. |
+| `created_at`   | `timestamptz` | Default `now()`.                                      |
+
+**Constraints**: Unique `(user_id, produce_name)` — prevents duplicate entries
+per user.
+
+**Indexes**: `idx_produce_interests_produce` (by produce name),
+`idx_produce_interests_user` (by user)
+
+```sql
+create table produce_interests (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  produce_name text not null,
+  is_custom boolean default false,
+  created_at timestamptz default now(),
+  unique(user_id, produce_name)
+);
+
+create index idx_produce_interests_produce on produce_interests(produce_name);
+create index idx_produce_interests_user on produce_interests(user_id);
+```
+
+**RLS Policies** (`20260210080000_produce_interests`):
+
+| Policy                                       | Operation | Rule                                |
+| :------------------------------------------- | :-------- | :---------------------------------- |
+| Users can view all produce interests         | `SELECT`  | `using (true)` (authenticated)      |
+| Users can add their own produce interests    | `INSERT`  | `with check (user_id = auth.uid())` |
+| Users can update their own produce interests | `UPDATE`  | `using (user_id = auth.uid())`      |
+| Users can remove their own produce interests | `DELETE`  | `using (user_id = auth.uid())`      |
+
+---
+
 ## RLS Policies
 
-RLS is enabled on **all** tables. Only tables with explicit access policies are listed below.
+RLS is enabled on **all** tables. Only tables with explicit access policies are
+listed below.
 
-| Table | Policy | Operation | Condition |
-| :--- | :--- | :--- | :--- |
-| `profiles` | Anyone can view profiles for invite lookup | SELECT | `true` (anon role) |
-| `profiles` | Authenticated users can view all profiles | SELECT | `true` (authenticated) |
-| `profiles` | Users can update own profile | UPDATE | `auth.uid() = id` |
-| `incentive_rules` | Anyone can view incentive rules | SELECT | `true` (authenticated) |
-| `incentive_rules` | Anonymous can view incentive rules | SELECT | `true` (anon role) |
-| `point_ledger` | Users can view own point ledger entries | SELECT | `auth.uid() = user_id` |
-| `point_ledger` | Users can insert own point ledger entries | INSERT | `auth.uid() = user_id` |
-| `followers` | Users can view own follows | SELECT | `auth.uid() in (follower_id, followed_id)` |
-| `followers` | Users can follow others | INSERT | `auth.uid() = follower_id` |
-| `followers` | Users can unfollow | DELETE | `auth.uid() = follower_id` |
-| `scraping_logs` | Service role can do everything | ALL | `true` |
+| Table                         | Policy                                             | Operation | Condition                                  |
+| :---------------------------- | :------------------------------------------------- | :-------- | :----------------------------------------- |
+| `profiles`                    | Anyone can view profiles for invite lookup         | SELECT    | `true` (anon role)                         |
+| `profiles`                    | Authenticated users can view all profiles          | SELECT    | `true` (authenticated)                     |
+| `profiles`                    | Users can update own profile                       | UPDATE    | `auth.uid() = id`                          |
+| `incentive_rules`             | Anyone can view incentive rules                    | SELECT    | `true` (authenticated)                     |
+| `incentive_rules`             | Anonymous can view incentive rules                 | SELECT    | `true` (anon role)                         |
+| `point_ledger`                | Users can view own point ledger entries            | SELECT    | `auth.uid() = user_id`                     |
+| `point_ledger`                | Users can insert own point ledger entries          | INSERT    | `auth.uid() = user_id`                     |
+| `followers`                   | Users can view own follows                         | SELECT    | `auth.uid() in (follower_id, followed_id)` |
+| `followers`                   | Users can follow others                            | INSERT    | `auth.uid() = follower_id`                 |
+| `followers`                   | Users can unfollow                                 | DELETE    | `auth.uid() = follower_id`                 |
+| `scraping_logs`               | Service role can do everything                     | ALL       | `true`                                     |
+| `sales_category_restrictions` | Authenticated users can read category restrictions | SELECT    | `true` (authenticated)                     |
+| `platform_config`             | Authenticated users can read platform config       | SELECT    | `true` (authenticated)                     |
+| `communities`                 | Authenticated users can read communities           | SELECT    | `true` (authenticated)                     |
+| `communities`                 | Anonymous users can read communities               | SELECT    | `true` (anon)                              |
+| `produce_interests`           | Users can view all produce interests               | SELECT    | `true` (authenticated)                     |
+| `produce_interests`           | Users can add their own produce interests          | INSERT    | `auth.uid() = user_id`                     |
+| `produce_interests`           | Users can update their own produce interests       | UPDATE    | `auth.uid() = user_id`                     |
+| `produce_interests`           | Users can remove their own produce interests       | DELETE    | `auth.uid() = user_id`                     |
 
 **RLS Policy SQL:**
 
@@ -1094,10 +1256,27 @@ create policy "Users can insert own point ledger entries" on point_ledger for in
 create policy "Users can view own follows" on followers for select using (auth.uid() in (follower_id, followed_id));
 create policy "Users can follow others" on followers for insert with check (auth.uid() = follower_id);
 create policy "Users can unfollow" on followers for delete using (auth.uid() = follower_id);
+
+-- sales_category_restrictions (20260210030000)
+create policy "Authenticated users can read category restrictions" on sales_category_restrictions for select to authenticated using (true);
+
+-- platform_config (20260210040000)
+create policy "Authenticated users can read platform config" on platform_config for select to authenticated using (true);
+
+-- communities (20260210050000)
+create policy "Authenticated users can read communities" on communities for select to authenticated using (true);
+create policy "Anonymous users can read communities" on communities for select to anon using (true);
+
+-- produce_interests (20260210080000)
+create policy "Users can view all produce interests" on produce_interests for select to authenticated using (true);
+create policy "Users can add their own produce interests" on produce_interests for insert to authenticated with check (user_id = auth.uid());
+create policy "Users can update their own produce interests" on produce_interests for update to authenticated using (user_id = auth.uid());
+create policy "Users can remove their own produce interests" on produce_interests for delete to authenticated using (user_id = auth.uid());
 ```
 
 > [!NOTE]
-> Tables without explicit policies listed above have RLS enabled but no access rules yet (pending implementation).
+> Tables without explicit policies listed above have RLS enabled but no access
+> rules yet (pending implementation).
 
 ---
 
@@ -1105,7 +1284,8 @@ create policy "Users can unfollow" on followers for delete using (auth.uid() = f
 
 ### `handle_new_user()`
 
-Auto-creates a profile row when a new user signs up via Supabase Auth, and awards signup reward points if an active global signup rule exists.
+Auto-creates a profile row when a new user signs up via Supabase Auth, and
+awards signup reward points if an active global signup rule exists.
 
 **Migration**: `20260201100000_auth_triggers.sql`
 
@@ -1189,7 +1369,8 @@ $$ language plpgsql;
 
 ### `set_referral_code_on_insert()`
 
-Trigger function to assign a unique referral code on profile insert if not already set.
+Trigger function to assign a unique referral code on profile insert if not
+already set.
 
 ```sql
 create or replace function set_referral_code_on_insert()
@@ -1220,9 +1401,11 @@ create trigger trigger_set_referral_code
 
 ### `get_zips_without_communities()`
 
-Returns zip codes that need community scraping (not scraped or scraped >90 days ago).
+Returns zip codes that need community scraping (not scraped or scraped >90 days
+ago).
 
-**Migration**: `20260131191500_update_zip_tracking.sql` (updated from `20260131191000`)
+**Migration**: `20260131191500_update_zip_tracking.sql` (updated from
+`20260131191000`)
 
 ```sql
 create or replace function get_zips_without_communities(batch_size int)
@@ -1248,7 +1431,8 @@ $$;
 
 ### `resolve-community`
 
-Resolves a user's location to a primary H3 community and identifies 6 neighboring communities.
+Resolves a user's location to a primary H3 community and identifies 6
+neighboring communities.
 
 **Endpoint**: `POST /functions/v1/resolve-community`
 
@@ -1256,28 +1440,41 @@ Resolves a user's location to a primary H3 community and identifies 6 neighborin
 
 **Logic**:
 
-1. Geocode address → Lat/Lng via Nominatim (if address provided) — `⏱️ Nominatim geocoding: Xms`
-2. Calculate H3 Index (Res 7) for primary cell + `gridDisk(h3, 1)` for 6 neighbors (7 total)
-3. **Batch DB lookup**: single `.in()` query for all 7 H3 indices — `⏱️ DB batch lookup: Xms → found N/7`
-4. For **missing** indices only: generate via `generateCommunityFromOverpass()` helper (sequential, 2s delay between calls to respect rate limits) — `⏱️ Overpass generation for [idx]: Xms`
+1. Geocode address → Lat/Lng via Nominatim (if address provided) —
+   `⏱️ Nominatim geocoding: Xms`
+2. Calculate H3 Index (Res 7) for primary cell + `gridDisk(h3, 1)` for 6
+   neighbors (7 total)
+3. **Batch DB lookup**: single `.in()` query for all 7 H3 indices —
+   `⏱️ DB batch lookup: Xms → found N/7`
+4. For **missing** indices only: generate via `generateCommunityFromOverpass()`
+   helper (sequential, 2s delay between calls to respect rate limits) —
+   `⏱️ Overpass generation for [idx]: Xms`
 5. Insert new communities into `communities` table
-6. Return primary community + 6 neighbors with resolved location — `⏱️ Total request time: Xms`
+6. Return primary community + 6 neighbors with resolved location —
+   `⏱️ Total request time: Xms`
 
-**Caching**: Communities are persisted to DB on first resolution. Subsequent lookups for the same H3 zones skip Overpass entirely (step 3 returns all 7 from DB). Logs `✅ All communities found in DB cache` when fully cached.
+**Caching**: Communities are persisted to DB on first resolution. Subsequent
+lookups for the same H3 zones skip Overpass entirely (step 3 returns all 7 from
+DB). Logs `✅ All communities found in DB cache` when fully cached.
 
-**Naming Heuristic** (`generateCommunityFromOverpass`): Schools > Parks > Malls > Major Roads > Neighborhoods
+**Naming Heuristic** (`generateCommunityFromOverpass`): Schools > Parks > Malls
+
+> Major Roads > Neighborhoods
 
 **Dependencies**: `@supabase/supabase-js@2`, `h3-js@4.1.0`
 
-**Source**: [resolve-community/index.ts](file:///Volumes/Seagate%20Portabl/development/casagrown3/supabase/functions/resolve-community/index.ts)
+**Source**:
+[resolve-community/index.ts](file:///Volumes/Seagate%20Portabl/development/casagrown3/supabase/functions/resolve-community/index.ts)
 
 ### `assign-experiment`
 
-Assigns a user/device to an experiment variant using deterministic bucketing (djb2 hash).
+Assigns a user/device to an experiment variant using deterministic bucketing
+(djb2 hash).
 
 **Endpoint**: `POST /functions/v1/assign-experiment`
 
-**Input**: `{ "experiment_id": "...", "device_id": "...", "profile_id": "...", "context": {} }`
+**Input**:
+`{ "experiment_id": "...", "device_id": "...", "profile_id": "...", "context": {} }`
 
 **Logic**:
 
@@ -1287,17 +1484,21 @@ Assigns a user/device to an experiment variant using deterministic bucketing (dj
 4. Hash `experiment_id:identifier` via djb2, bucket into variant weight ranges
 5. Persist assignment to `experiment_assignments`
 
-**Source**: [assign-experiment/index.ts](file:///Volumes/Seagate%20Portabl/development/casagrown3/supabase/functions/assign-experiment/index.ts)
+**Source**:
+[assign-experiment/index.ts](file:///Volumes/Seagate%20Portabl/development/casagrown3/supabase/functions/assign-experiment/index.ts)
 
 ### `sync-locations`
 
-Syncs country reference data from the REST Countries API into the `countries` table.
+Syncs country reference data from the REST Countries API into the `countries`
+table.
 
 **Endpoint**: `POST /functions/v1/sync-locations`
 
-**Logic**: Fetches from `restcountries.com/v3.1/all`, maps to schema, upserts on `iso_3`.
+**Logic**: Fetches from `restcountries.com/v3.1/all`, maps to schema, upserts on
+`iso_3`.
 
-**Source**: [sync-locations/index.ts](file:///Volumes/Seagate%20Portabl/development/casagrown3/supabase/functions/sync-locations/index.ts)
+**Source**:
+[sync-locations/index.ts](file:///Volumes/Seagate%20Portabl/development/casagrown3/supabase/functions/sync-locations/index.ts)
 
 ### `update-zip-codes`
 
@@ -1305,44 +1506,111 @@ Bulk imports US zip codes with state/city auto-population.
 
 **Endpoint**: `POST /functions/v1/update-zip-codes`
 
-**Logic**: Parses CSV zip code data, extracts unique states/cities, upserts them in dependency order, then upserts zip codes with resolved `city_id` FKs.
+**Logic**: Parses CSV zip code data, extracts unique states/cities, upserts them
+in dependency order, then upserts zip codes with resolved `city_id` FKs.
 
-**Source**: [update-zip-codes/index.ts](file:///Volumes/Seagate%20Portabl/development/casagrown3/supabase/functions/update-zip-codes/index.ts)
+**Source**:
+[update-zip-codes/index.ts](file:///Volumes/Seagate%20Portabl/development/casagrown3/supabase/functions/update-zip-codes/index.ts)
 
 ### `pair-delegation`
 
-Handles delegation pairing via 6-digit codes (in-person) and shareable link codes (remote). Delegators generate a code or link; delegatees enter or click it to activate the relationship.
+Handles delegation pairing via 6-digit codes (in-person) and shareable link
+codes (remote). Delegators generate a code or link; delegatees enter or click it
+to activate the relationship.
 
 **Endpoint**: `POST /functions/v1/pair-delegation`
 
 **Actions**:
 
-| Action | Auth | Input | Result |
-| :--- | :--- | :--- | :--- |
-| `lookup` | None (public) | `{ "action": "lookup", "code": "d-abc12xyz" }` | Returns delegation info (delegator profile, message, pairing code) for the landing page |
-| `generate` | JWT | `{ "action": "generate" }` | Creates pending delegation with 6-digit pairing code, 5-min expiry |
-| `accept` | JWT | `{ "action": "accept", "code": "123456" }` | Validates 6-digit code, sets `delegatee_id`, activates delegation, clears code |
-| `generate-link` | JWT | `{ "action": "generate-link", "message": "..." }` | Creates delegation with `d-` prefixed link code + 6-digit pairing code, 24h expiry |
-| `accept-link` | JWT | `{ "action": "accept-link", "code": "d-abc12xyz" }` | Validates link code, sets `delegatee_id`, activates delegation |
+| Action          | Auth          | Input                                               | Result                                                                                  |
+| :-------------- | :------------ | :-------------------------------------------------- | :-------------------------------------------------------------------------------------- |
+| `lookup`        | None (public) | `{ "action": "lookup", "code": "d-abc12xyz" }`      | Returns delegation info (delegator profile, message, pairing code) for the landing page |
+| `generate`      | JWT           | `{ "action": "generate" }`                          | Creates pending delegation with 6-digit pairing code, 5-min expiry                      |
+| `accept`        | JWT           | `{ "action": "accept", "code": "123456" }`          | Validates 6-digit code, sets `delegatee_id`, activates delegation, clears code          |
+| `generate-link` | JWT           | `{ "action": "generate-link", "message": "..." }`   | Creates delegation with `d-` prefixed link code + 6-digit pairing code, 24h expiry      |
+| `accept-link`   | JWT           | `{ "action": "accept-link", "code": "d-abc12xyz" }` | Validates link code, sets `delegatee_id`, activates delegation                          |
 
-**Link reuse**: `generate-link` reuses an existing unexpired `pending_pairing` row for the same delegator instead of creating duplicates. This ensures re-sharing a link does not generate orphan rows.
+**Link reuse**: `generate-link` reuses an existing unexpired `pending_pairing`
+row for the same delegator instead of creating duplicates. This ensures
+re-sharing a link does not generate orphan rows.
 
 **Security**:
 
 - `lookup` is unauthenticated (used by landing page before user logs in)
 - All other actions require `Authorization` header (user JWT)
 - Uses service role for atomic DB operations that bypass RLS
-- Prevents self-delegation (`delegator_id ≠ auth.uid()`) in both `accept` and `accept-link` actions
+- Prevents self-delegation (`delegator_id ≠ auth.uid()`) in both `accept` and
+  `accept-link` actions
 - Code collision retry (regenerates on unique constraint violation)
 
-**Query filters**: The `useDelegations` hook queries only `pending` and `active` statuses. `pending_pairing` rows (outstanding link invitations with no delegatee) are excluded from the My Delegates list, so they don't inflate delegate counts.
+**Query filters**: The `useDelegations` hook queries only `pending` and `active`
+statuses. `pending_pairing` rows (outstanding link invitations with no
+delegatee) are excluded from the My Delegates list, so they don't inflate
+delegate counts.
 
 **Attribution approach**: Delegation codes are passed to new installs via:
-- **Android**: Google Play Install Referrer (`delegate=d-xxx` in the Play Store URL `referrer` parameter) — deterministic, no privacy notices
-- **iOS**: Users revisit the delegation landing page after installing, or enter the 6-digit pairing code manually via Join by Code. Branch.io (deferred deep links) will be integrated pre-launch.
-- **Clipboard bridge**: Removed. The previous approach of writing to clipboard before app store redirect caused iOS 14+ / Android 13+ privacy notices ("App pasted from clipboard") and was a poor UX pattern.
 
-**Source**: [pair-delegation/index.ts](file:///Volumes/Seagate%20Portabl/development/casagrown3/supabase/functions/pair-delegation/index.ts)
+- **Android**: Google Play Install Referrer (`delegate=d-xxx` in the Play Store
+  URL `referrer` parameter) — deterministic, no privacy notices
+- **iOS**: Users revisit the delegation landing page after installing, or enter
+  the 6-digit pairing code manually via Join by Code. Branch.io (deferred deep
+  links) will be integrated pre-launch.
+- **Clipboard bridge**: Removed. The previous approach of writing to clipboard
+  before app store redirect caused iOS 14+ / Android 13+ privacy notices ("App
+  pasted from clipboard") and was a poor UX pattern.
+
+**Source**:
+[pair-delegation/index.ts](file:///Volumes/Seagate%20Portabl/development/casagrown3/supabase/functions/pair-delegation/index.ts)
+
+### `enrich-communities`
+
+Background enrichment function that improves community names generated during
+the `resolve-community` flow. Communities initially named with fallback "Zone
+XX" patterns (from Nominatim) are re-queried against Overpass API for better
+landmark-based names.
+
+**Endpoint**: `POST /functions/v1/enrich-communities`
+
+**Input**: `{ "limit": 3 }` (optional, default 1)
+
+**Logic**:
+
+1. Query communities where `metadata->>'source'` is `'nominatim_fallback'`
+   (fallback names that need enrichment)
+2. For each community, claim it by setting source to `'enriching'` (concurrency
+   guard prevents duplicate processing)
+3. Call `enrichCommunityFromOverpass()` — queries Overpass API with the
+   community's H3 boundary polygon for nearby landmarks
+4. Apply naming heuristic: Schools > Parks > Malls > Roads > Neighborhoods
+5. Update the community name, metadata source to `'overpass'`, and boundary
+   geometry
+6. On failure, reset source back to `'nominatim_fallback'` for retry
+
+**Scheduling** (`20260210070000_enrich_communities_cron`):
+
+```sql
+-- Runs every minute via pg_cron, processing up to 3 communities per invocation
+SELECT cron.schedule(
+  'enrich-communities-job',
+  '* * * * *',
+  $$ SELECT net.http_post(
+    url := 'http://api.localhost:54321/functions/v1/enrich-communities',
+    headers := jsonb_build_object(...),
+    body := '{"limit": 3}'::jsonb
+  ); $$
+);
+```
+
+**Concurrency**: Uses optimistic locking — sets `metadata.source` to
+`'enriching'` before processing and only selects communities with
+`'nominatim_fallback'` source. This prevents concurrent cron ticks from
+processing the same community.
+
+**Dependencies**: `@supabase/supabase-js@2`, `h3-js@4.1.0`, `pg_cron`, `pg_net`
+
+**Source**:
+[enrich-communities/index.ts](file:///Users/rkhona/development/casagrown3/supabase/functions/enrich-communities/index.ts)
 
 > [!IMPORTANT]
-> Edge functions require `supabase functions serve` to be running locally. Without it, requests return **503 Service Temporarily Unavailable**.
+> Edge functions require `supabase functions serve` to be running locally.
+> Without it, requests return **503 Service Temporarily Unavailable**.

@@ -11,6 +11,8 @@ export interface CommunityMapProps {
     height?: number;
     /** Whether to show community name labels on hexes */
     showLabels?: boolean;
+    /** H3 indices of selected neighbor communities (rendered filled like primary) */
+    selectedNeighborH3Indices?: string[];
 }
 
 export { default } from "./CommunityMap";

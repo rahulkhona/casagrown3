@@ -157,20 +157,21 @@ exports[`ProfileScreen matches snapshot 1`] = `
               gap="$2"
             >
               <View
-                circular={true}
-                size="$10"
+                alignItems="center"
+                backgroundColor="#0284c7"
+                borderRadius={40}
+                height={80}
+                justifyContent="center"
+                overflow="hidden"
+                width={80}
               >
-                <View
-                  backgroundColor="#0284c7"
+                <Text
+                  color="white"
+                  fontSize="$8"
+                  fontWeight="700"
                 >
-                  <Text
-                    color="white"
-                    fontSize="$8"
-                    fontWeight="700"
-                  >
-                    J
-                  </Text>
-                </View>
+                  J
+                </Text>
               </View>
             </View>
             <View

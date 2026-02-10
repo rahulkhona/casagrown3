@@ -58,3 +58,6 @@ supabase/functions/.debug/
 # TypeScript build info
 *.tsbuildinfo
 *.zip
+
+# Figma exported code
+figma_code/

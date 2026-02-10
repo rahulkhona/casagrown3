@@ -1,13 +1,18 @@
 import { YStack, XStack, Input, Button, Text, Label, Checkbox, TextArea, ScrollView, Spinner } from 'tamagui'
 import { useRouter } from 'solito/navigation'
 import { useWizard } from '../wizard-context'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 import { colors, shadows, borderRadius } from '../../../design-tokens'
 import { Check, Camera, Upload, Plus, Trash, Video } from '@tamagui/lucide-icons'
 import * as ImagePicker from 'expo-image-picker'
-import { Image } from 'react-native'
+import { Image, Platform } from 'react-native'
 import { useTranslation } from 'react-i18next'
+import { Image as ImageIcon } from '@tamagui/lucide-icons'
+
+const WebCameraModal = Platform.OS === 'web'
+  ? require('../../create-post/WebCameraModal').WebCameraModal
+  : null
 
 const PRODUCE_TAGS = [
   'Tomatoes', 'Lemons', 'Oranges', 'Avocados', 'Herbs', 
@@ -29,6 +34,10 @@ export const IntroPostStep = () => {
   const [tags, setTags] = useState<string[]>(data.produceTags)
   const [customTag, setCustomTag] = useState('')
 
+  // Web media state
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [cameraMode, setCameraMode] = useState<'photo' | 'video' | null>(null)
+
   const toggleTag = (tag: string) => {
     if (tags.includes(tag)) {
       setTags(tags.filter(t => t !== tag))
@@ -45,13 +54,16 @@ export const IntroPostStep = () => {
   }
 
   const handleFinish = async () => {
-    updateData({ 
+    // Pass overrides directly to avoid React setState race condition
+    // (updateData is async, but saveProfile needs the latest values immediately)
+    const overrides = { 
         introText: intro,
         produceTags: tags,
-    })
+    }
+    updateData(overrides)
     
-    // Save to backend
-    const success = await saveProfile()
+    // Save to backend with overrides so data is available immediately
+    const success = await saveProfile(overrides)
     
     if (success) {
          // Redirect to Feed Page after successful onboarding
@@ -62,44 +74,56 @@ export const IntroPostStep = () => {
   }
 
   const pickMedia = async () => {
+    if (Platform.OS === 'web') {
+      fileInputRef.current?.click()
+      return
+    }
     let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All, // Photos and videos
-      allowsEditing: false, // Skip editing for videos
+      mediaTypes: ['images', 'videos'],
+      allowsEditing: false,
       quality: 0.8,
-      videoMaxDuration: 60, // Max 60 second videos
+      videoMaxDuration: 60,
     });
 
     if (!result.canceled) {
-      updateData({ mediaUri: result.assets[0].uri })
+      const asset = result.assets[0]
+      const isVideo = asset.type === 'video' || (asset.uri && asset.uri.includes('video'))
+      updateData({ mediaUri: asset.uri, mediaType: isVideo ? 'video' : 'image' })
     }
   }
 
   const takePhoto = async () => {
+      if (Platform.OS === 'web') {
+        setCameraMode('photo')
+        return
+      }
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
           return;
       }
 
-      // Take photo with crop option
       let result = await ImagePicker.launchCameraAsync({
           mediaTypes: ['images'],
-          allowsEditing: true, // Allow crop for photos
+          allowsEditing: true,
           aspect: [4, 3],
           quality: 0.8,
       });
 
       if (!result.canceled) {
-          updateData({ mediaUri: result.assets[0].uri })
+          updateData({ mediaUri: result.assets[0].uri, mediaType: 'image' })
       }
   }
 
   const recordVideo = async () => {
+      if (Platform.OS === 'web') {
+        setCameraMode('video')
+        return
+      }
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
           return;
       }
 
-      // Record video
       let result = await ImagePicker.launchCameraAsync({
           mediaTypes: ['videos'],
           allowsEditing: false,
@@ -108,12 +132,27 @@ export const IntroPostStep = () => {
       });
 
       if (!result.canceled) {
-          updateData({ mediaUri: result.assets[0].uri })
+          updateData({ mediaUri: result.assets[0].uri, mediaType: 'video' })
       }
   }
 
+  function handleWebFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    const file = files[0]!
+    const url = URL.createObjectURL(file)
+    const isVideo = file.type.startsWith('video')
+    updateData({ mediaUri: url, mediaType: isVideo ? 'video' : 'image' })
+    e.target.value = ''
+  }
+
+  function handleWebCameraCapture(asset: { uri: string; type: 'image' | 'video'; fileName: string }) {
+    updateData({ mediaUri: asset.uri, mediaType: asset.type })
+    setCameraMode(null)
+  }
+
   const removeMedia = () => {
-      updateData({ mediaUri: undefined })
+      updateData({ mediaUri: undefined, mediaType: undefined })
   }
 
   return (
@@ -160,8 +199,12 @@ export const IntroPostStep = () => {
 
             {/* Profile User Card */}
             <XStack backgroundColor={colors.gray[50]} padding="$4" borderRadius={borderRadius.lg} alignItems="center" gap="$3" borderWidth={1} borderColor={colors.gray[200]}>
-                <YStack width={48} height={48} borderRadius={24} backgroundColor={colors.green[600]} alignItems="center" justifyContent="center">
-                    <Text color="white" fontWeight="bold" fontSize="$5">{data.name ? data.name[0].toUpperCase() : 'T'}</Text>
+                <YStack width={48} height={48} borderRadius={24} backgroundColor={colors.green[600]} alignItems="center" justifyContent="center" overflow="hidden">
+                    {data.avatar ? (
+                        <Image source={{ uri: data.avatar }} style={{ width: 48, height: 48, borderRadius: 24 }} />
+                    ) : (
+                        <Text color="white" fontWeight="bold" fontSize="$5">{data.name ? data.name[0].toUpperCase() : 'T'}</Text>
+                    )}
                 </YStack>
                 <YStack>
                     <Text fontWeight="700" fontSize="$4" color={colors.gray[900]}>{data.name}</Text>
@@ -256,7 +299,15 @@ export const IntroPostStep = () => {
                     {data.mediaUri ? (
                         <YStack position="relative" padding="$2" borderWidth={1} borderColor={colors.gray[200]} borderRadius={borderRadius.lg} backgroundColor={colors.gray[50]}>
                              <YStack width="100%" height={200} borderRadius={borderRadius.md} overflow="hidden" backgroundColor="black" alignItems="center" justifyContent="center">
-                                <Image source={{ uri: data.mediaUri }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+                                {Platform.OS === 'web' && data.mediaType === 'video' ? (
+                                  <video
+                                    src={data.mediaUri}
+                                    controls
+                                    style={{ width: '100%', height: '100%', objectFit: 'contain' } as any}
+                                  />
+                                ) : (
+                                  <Image source={{ uri: data.mediaUri }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+                                )}
                              </YStack>
                              <Button 
                                 position="absolute" 
@@ -269,6 +320,71 @@ export const IntroPostStep = () => {
                                 onPress={removeMedia}
                                 icon={<Trash size={16} color={'#ef4444'} />}
                             />
+                        </YStack>
+                    ) : Platform.OS === 'web' ? (
+                        <YStack gap="$3">
+                            <XStack
+                                backgroundColor={colors.gray[50]}
+                                borderWidth={2}
+                                borderStyle="dashed"
+                                borderColor={colors.gray[300]}
+                                borderRadius={borderRadius.md}
+                                padding="$3"
+                                gap="$2"
+                                flexWrap="wrap"
+                                justifyContent="center"
+                            >
+                                <Button
+                                    size="$3"
+                                    backgroundColor={colors.green[50]}
+                                    borderWidth={1}
+                                    borderColor={colors.green[200]}
+                                    borderRadius={borderRadius.md}
+                                    icon={<Camera size={16} color={colors.green[600]} />}
+                                    onPress={() => setCameraMode('photo')}
+                                    hoverStyle={{ backgroundColor: colors.green[100] }}
+                                >
+                                    <Text fontSize="$2" color={colors.green[700]} fontWeight="500">Take Photo</Text>
+                                </Button>
+                                <Button
+                                    size="$3"
+                                    backgroundColor={colors.green[50]}
+                                    borderWidth={1}
+                                    borderColor={colors.green[200]}
+                                    borderRadius={borderRadius.md}
+                                    icon={<Video size={16} color={colors.green[600]} />}
+                                    onPress={() => setCameraMode('video')}
+                                    hoverStyle={{ backgroundColor: colors.green[100] }}
+                                >
+                                    <Text fontSize="$2" color={colors.green[700]} fontWeight="500">Record Video</Text>
+                                </Button>
+                                <Button
+                                    size="$3"
+                                    backgroundColor="white"
+                                    borderWidth={1}
+                                    borderColor={colors.gray[300]}
+                                    borderRadius={borderRadius.md}
+                                    icon={<ImageIcon size={16} color={colors.gray[600]} />}
+                                    onPress={() => fileInputRef.current?.click()}
+                                    hoverStyle={{ backgroundColor: colors.gray[100] }}
+                                >
+                                    <Text fontSize="$2" color={colors.gray[700]} fontWeight="500">Upload Photo/Video</Text>
+                                </Button>
+                            </XStack>
+                            <input
+                                ref={fileInputRef as any}
+                                type="file"
+                                accept="image/*,video/*"
+                                onChange={handleWebFileChange as any}
+                                style={{ display: 'none' }}
+                            />
+                            {cameraMode && WebCameraModal && (
+                                <WebCameraModal
+                                    mode={cameraMode}
+                                    onCapture={handleWebCameraCapture}
+                                    onClose={() => setCameraMode(null)}
+                                />
+                            )}
                         </YStack>
                     ) : (
                         <XStack gap="$3">

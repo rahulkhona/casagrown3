@@ -158,6 +158,8 @@
     },
     "setup": {
       "title": "Vamos a Configurarte",
+      "welcomeName": "¡Bienvenido, {{name}}!",
+      "signedInAs": "Sesión iniciada como {{email}}",
       "subtitle": "Crea tu perfil de vecino para comenzar a intercambiar",
       "uploadPhoto": "Subir Foto",
       "takePhoto": "Tomar Foto",
@@ -527,5 +529,119 @@
     "copyCode": "Copiar Código",
     "codeCopied": "¡Copiado!",
     "iosInstruction": "Después de instalar, regresa a esta página y toca 'Registrarse / Iniciar Sesión para Aceptar' para aceptar automáticamente — o ingresa el código de emparejamiento en la app en Ventas Delegadas → Unirse por Código."
+  },
+  "createPost": {
+    "title": "Crear Publicación",
+    "subtitle": "¿Qué te gustaría compartir con tu comunidad?",
+    "types": {
+      "sell": {
+        "title": "Quiero Vender",
+        "description": "Lista tus productos frescos o artículos de jardín para la venta",
+        "formTitle": "Vender Productos"
+      },
+      "buy": {
+        "title": "Quiero Comprar",
+        "description": "Dile a tus vecinos lo que estás buscando",
+        "formTitle": "Quiero Comprar"
+      },
+      "needService": {
+        "title": "Necesito un Servicio",
+        "description": "Solicita ayuda con jardinería u otros servicios",
+        "formTitle": "Necesito un Servicio"
+      },
+      "offerService": {
+        "title": "Ofrezco un Servicio",
+        "description": "Comparte tus habilidades de jardinería o mantenimiento",
+        "formTitle": "Ofrezco un Servicio"
+      },
+      "advice": {
+        "title": "Pedir Consejo",
+        "description": "Obtén consejos de cultivadores experimentados",
+        "formTitle": "Pedir Consejo"
+      },
+      "showTell": {
+        "title": "Compartir y Contar",
+        "description": "Comparte fotos e historias de tu jardín",
+        "formTitle": "Compartir y Contar"
+      }
+    },
+    "fields": {
+      "community": "Comunidad",
+      "communityPlaceholder": "Tu comunidad",
+      "category": "Categoría",
+      "categoryPlaceholder": "Selecciona una categoría",
+      "productName": "Nombre del Producto / Servicio",
+      "productNamePlaceholder": "ej. Limones Meyer, Albahaca Fresca",
+      "description": "Descripción",
+      "descriptionPlaceholder": "Describe lo que ofreces o buscas...",
+      "quantity": "Cantidad Disponible",
+      "unit": "Unidad",
+      "unitPlaceholder": "Selecciona unidad",
+      "price": "Precio (en puntos)",
+      "platformFee": "Se cobra una tarifa de plataforma del {{percent}}% al completar una venta, no por adelantado. Esto ayuda a mantener CasaGrown funcionando y apoya a tu comunidad.",
+      "media": "Foto / Video (opcional)",
+      "photo": "Foto",
+      "video": "Video",
+      "upload": "Subir {{type}}",
+      "dropoffDates": "Posibles Fechas de Entrega",
+      "dropoffDatesHint": "¿Cuándo puedes entregar los productos?",
+      "addDate": "Agregar una fecha",
+      "latestDropoff": "Última entrega",
+      "lookingFor": "¿Qué estás buscando?",
+      "lookingForPlaceholder": "ej. Tomates, Limones, Hierbas",
+      "lookingForHint": "Separa múltiples artículos con comas",
+      "needByDate": "Fecha Límite de Entrega",
+      "needByDateHint": "¿Para cuándo lo necesitas?",
+      "acceptDropoffDates": "Fechas de Entrega Aceptadas",
+      "acceptDropoffDatesHint": "¿Qué fechas te funcionan para la entrega?",
+      "title": "Título",
+      "titlePlaceholder": "Dale un título a tu publicación"
+    },
+    "loading": {
+      "community": "Cargando comunidad...",
+      "communityData": "Cargando datos de la comunidad...",
+      "categories": "Cargando categorías..."
+    },
+    "media": {
+      "takePhoto": "Tomar Foto",
+      "recordVideo": "Grabar Video",
+      "uploadPhotoVideo": "Subir Foto/Video",
+      "videoBadge": "VIDEO",
+      "nativePickerHint": "Tomar foto, elegir de galería, o grabar video"
+    },
+    "global": {
+      "label": "Publicar globalmente",
+      "hint": "Visible para todas las comunidades, no solo la tuya"
+    },
+    "neighbors": {
+      "alsoOfferService": "También ofrecer servicio a comunidades adyacentes:",
+      "alsoPostTo": "También publicar en comunidades adyacentes:",
+      "selectedCount": "{{count}} comunidad adyacente seleccionada",
+      "selectedCount_other": "{{count}} comunidades adyacentes seleccionadas",
+      "additionalCount": "{{count}} comunidad adicional seleccionada",
+      "additionalCount_other": "{{count}} comunidades adicionales seleccionadas"
+    },
+    "delegator": {
+      "sellingFor": "Vendiendo para",
+      "delegateHint": "Eres un delegado — elige para quién estás vendiendo",
+      "myself": "Yo mismo",
+      "meInitial": "Yo",
+      "sellOwnProduce": "Vender tus propios productos",
+      "unnamed": "Sin nombre",
+      "delegatorCommunity": "(comunidad de {{name}})"
+    },
+    "validation": {
+      "requiredFields": "Por favor completa todos los campos requeridos.",
+      "dropoffRequired": "Por favor agrega al menos una fecha de entrega."
+    },
+    "submit": "Publicar en Comunidad",
+    "submitting": "Publicando...",
+    "success": {
+      "title": "¡Publicación Creada! 🎉",
+      "message": "Tu publicación ha sido compartida con tu comunidad."
+    },
+    "error": {
+      "generic": "Algo salió mal. Por favor intenta de nuevo."
+    }
   }
 }

@@ -3,6 +3,7 @@ import { Platform } from 'react-native'
 import { useRouter } from 'solito/navigation'
 import { useAuth, supabase } from '../auth/auth-hook'
 import { uploadProfileAvatar } from './utils/media-upload'
+import { uploadPostMedia } from '../create-post/media-upload'
 
 export type WizardData = {
   // Step 1: Profile
@@ -32,6 +33,7 @@ export type WizardData = {
   produceTags: string[]
   customProduce: string[]
   mediaUri?: string
+  mediaType?: 'image' | 'video'
   isFirstPost: boolean
 }
 
@@ -58,7 +60,7 @@ type WizardContextType = {
   updateData: (updates: Partial<WizardData>) => void
   nextStep: () => void
   prevStep: () => void
-  saveProfile: () => Promise<boolean>
+  saveProfile: (overrides?: Partial<WizardData>) => Promise<boolean>
   loading: boolean
 }
 
@@ -87,10 +89,13 @@ export const WizardProvider = ({ children }: { children: ReactNode }) => {
     setData((prev) => ({ ...prev, ...updates }))
   }
 
-   const saveProfile = async () => {
+   const saveProfile = async (overrides?: Partial<WizardData>) => {
      if (!user) return false
      setLoading(true)
-     console.log('💾 [Wizard] Saving Profile to Supabase...', data)
+     // Merge overrides into data to avoid React setState race condition
+     // (updateData is async via setState, but saveProfile may be called immediately after)
+     const d = overrides ? { ...data, ...overrides } : data
+     console.log('💾 [Wizard] Saving Profile to Supabase...', d)
      
      try {
         // 0. Check for referral code and lookup inviter
@@ -148,15 +153,15 @@ export const WizardProvider = ({ children }: { children: ReactNode }) => {
         // 1. Upload Avatar if changed (local URI)
         // - Native: file:///data/... or file:///var/...
         // - Web: blob:http://... or data:...
-        let avatarUrl = data.avatar
-        const isLocalUri = data.avatar && (
-            data.avatar.startsWith('file') || 
-            data.avatar.startsWith('blob') || 
-            data.avatar.startsWith('data:')
+        let avatarUrl = d.avatar
+        const isLocalUri = d.avatar && (
+            d.avatar.startsWith('file') || 
+            d.avatar.startsWith('blob') || 
+            d.avatar.startsWith('data:')
         )
-        if (isLocalUri && data.avatar) {
-             console.log('📤 Uploading avatar:', data.avatar.substring(0, 50) + '...')
-             const uploadedUrl = await uploadProfileAvatar(user.id, data.avatar)
+        if (isLocalUri && d.avatar) {
+             console.log('📤 Uploading avatar:', d.avatar.substring(0, 50) + '...')
+             const uploadedUrl = await uploadProfileAvatar(user.id, d.avatar)
              if (uploadedUrl) {
                  console.log('✅ Avatar uploaded:', uploadedUrl)
                  avatarUrl = uploadedUrl
@@ -167,16 +172,16 @@ export const WizardProvider = ({ children }: { children: ReactNode }) => {
 
         // 2. Update Profile (including invited_by_id if present)
         const profileUpdate: Record<string, unknown> = {
-            full_name: data.name,
-            phone_number: data.phone,
-            notify_on_wanted: data.notifyBuy,
-            notify_on_available: data.notifySell,
-            push_enabled: data.notifyPush,
-            sms_enabled: data.notifySms,
-            zip_code: data.zipCode,
-            country_code: data.country, // ISO 3166-1 alpha-3 (e.g., 'USA')
-            home_community_h3_index: data.community?.h3Index,
-            nearby_community_h3_indices: data.nearbyCommunities,
+            full_name: d.name,
+            phone_number: d.phone,
+            notify_on_wanted: d.notifyBuy,
+            notify_on_available: d.notifySell,
+            push_enabled: d.notifyPush,
+            sms_enabled: d.notifySms,
+            zip_code: d.zipCode,
+            country_code: d.country, // ISO 3166-1 alpha-3 (e.g., 'USA')
+            home_community_h3_index: d.community?.h3Index,
+            nearby_community_h3_indices: d.nearbyCommunities,
             avatar_url: avatarUrl
         }
         
@@ -217,24 +222,72 @@ export const WizardProvider = ({ children }: { children: ReactNode }) => {
 
         // 3. Create Intro Post
         let introPostCreated = false
-        if (data.introText) {
-            const { error: postError } = await supabase
+        if (d.introText) {
+            const { data: introPost, error: postError } = await supabase
                 .from('posts')
                 .insert({
-                    user_id: user.id,
-                    community_h3_index: data.community?.h3Index,
-                    title: 'Hello Neighbors! 👋',
-                    content: data.introText,
-                    type: 'general', // or 'intro' if enum supports
-                    tags: [...data.produceTags, ...data.customProduce],
-                    // media_urls: ... upload mediaUri if present (separate bucket/logic needed usually)
+                    author_id: user.id,
+                    community_h3_index: d.community?.h3Index,
+                    content: JSON.stringify({ title: 'Hello Neighbors! 👋', description: d.introText }),
+                    type: 'general_info',
+                    reach: 'community',
                 })
+                .select('id')
+                .single()
             
             if (postError) {
                 console.error('Intro post failed:', postError)
                 // Non-blocking, proceed
             } else {
                 introPostCreated = true
+
+                // Upload intro post media if present
+                if (introPost && d.mediaUri) {
+                    try {
+                        const mediaType: 'image' | 'video' = d.mediaType === 'video' ? 'video' : 'image'
+                        const uploaded = await uploadPostMedia(user.id, d.mediaUri, mediaType)
+                        if (uploaded) {
+                            // Insert media_assets row
+                            const { data: mediaRow } = await supabase
+                                .from('media_assets')
+                                .insert({
+                                    owner_id: user.id,
+                                    storage_path: uploaded.storagePath,
+                                    media_type: uploaded.mediaType,
+                                    mime_type: uploaded.mediaType === 'video' ? 'video/mp4' : 'image/jpeg',
+                                })
+                                .select('id')
+                                .single()
+
+                            if (mediaRow) {
+                                await supabase.from('post_media').insert({
+                                    post_id: introPost.id,
+                                    media_id: mediaRow.id,
+                                    position: 0,
+                                })
+                                console.log('✅ Intro post media uploaded and linked')
+                            }
+                        }
+                    } catch (mediaErr) {
+                        console.warn('⚠️ Intro post media upload failed:', mediaErr)
+                    }
+                }
+            }
+        }
+
+        // 3.5 Save Produce Interests
+        const allProduce = [
+            ...d.produceTags.map(tag => ({ user_id: user.id, produce_name: tag, is_custom: false })),
+            ...d.customProduce.map(tag => ({ user_id: user.id, produce_name: tag, is_custom: true })),
+        ]
+        if (allProduce.length > 0) {
+            const { error: produceError } = await supabase
+                .from('produce_interests')
+                .upsert(allProduce, { onConflict: 'user_id,produce_name' })
+            if (produceError) {
+                console.warn('⚠️ Could not save produce interests:', produceError)
+            } else {
+                console.log(`✅ Saved ${allProduce.length} produce interests`)
             }
         }
 
@@ -251,7 +304,7 @@ export const WizardProvider = ({ children }: { children: ReactNode }) => {
         let currentBalance = latestLedger?.balance_after ?? 0
 
         // 4a. Grant join_a_community reward (if not already granted)
-        if (data.community?.h3Index) {
+        if (d.community?.h3Index) {
             const { data: existingJoinReward } = await supabase
                 .from('point_ledger')
                 .select('id')
@@ -261,7 +314,7 @@ export const WizardProvider = ({ children }: { children: ReactNode }) => {
                 .maybeSingle()
 
             if (!existingJoinReward) {
-                const joinPoints = data.community.points || 50
+                const joinPoints = d.community.points || 50
                 const newBalance = currentBalance + joinPoints
                 const { error: rewardError } = await supabase
                     .from('point_ledger')
@@ -272,7 +325,7 @@ export const WizardProvider = ({ children }: { children: ReactNode }) => {
                         balance_after: newBalance,
                         metadata: { 
                             action_type: 'join_a_community', 
-                            h3_index: data.community.h3Index 
+                            h3_index: d.community.h3Index 
                         }
                     })
                 

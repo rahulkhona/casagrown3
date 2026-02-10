@@ -35,6 +35,13 @@ export default function TabLayout() {
           headerShown: false,
         }} 
       />
+      <Stack.Screen 
+        name="create-post" 
+        options={{ 
+          headerShown: false,
+          presentation: 'modal',
+        }} 
+      />
     </Stack>
   )
 }

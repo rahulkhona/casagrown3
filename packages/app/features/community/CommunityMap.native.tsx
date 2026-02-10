@@ -23,6 +23,7 @@ import type { CommunityMapProps } from './CommunityMapTypes'
 function generateMapHTML(
   resolveData: CommunityMapProps['resolveData'],
   showLabels: boolean,
+  selectedNeighborH3Indices: string[] = [],
 ): string {
   const { primary, neighbors, resolved_location, hex_boundaries } = resolveData
   const lat = resolved_location.lat
@@ -70,6 +71,7 @@ function generateMapHTML(
         var primaryH3 = "${primary.h3_index}";
         var primaryName = ${JSON.stringify(primary.name)};
         var neighbors = ${JSON.stringify(neighbors)};
+        var selectedNeighbors = ${JSON.stringify(selectedNeighborH3Indices)};
         var hexBoundaries = ${hexBoundariesJSON};
 
         // Initialize map
@@ -129,15 +131,17 @@ function generateMapHTML(
           if (!boundary || boundary.length === 0) return;
 
           var isPrimary = idx === primaryH3;
+          var isSelected = selectedNeighbors.indexOf(idx) !== -1;
+          var isFilled = isPrimary || isSelected;
           var latlngs = boundary.map(function(p) { return [p[0], p[1]]; });
           if (isPrimary) primaryBounds = latlngs;
 
           var polygon = L.polygon(latlngs, {
-            fillColor: isPrimary ? '#166534' : '#bbf7d0',
-            fillOpacity: isPrimary ? 0.4 : 0.2,
-            color: isPrimary ? '#15803d' : '#4ade80',
-            weight: isPrimary ? 3 : 2,
-            dashArray: isPrimary ? null : '6 4',
+            fillColor: isFilled ? '#166534' : '#bbf7d0',
+            fillOpacity: isFilled ? 0.4 : 0.2,
+            color: isFilled ? '#15803d' : '#4ade80',
+            weight: isFilled ? 3 : 2,
+            dashArray: isFilled ? null : '6 4',
           }).addTo(map);
 
           // Zone labels
@@ -192,6 +196,7 @@ export default function CommunityMap({
   resolveData,
   height = 280,
   showLabels = true,
+  selectedNeighborH3Indices = [],
 }: CommunityMapProps) {
   const location = resolveData.resolved_location
   const communityName = resolveData.primary.name
@@ -210,11 +215,13 @@ export default function CommunityMap({
   }
 
   // Key forces WebView to re-mount when community data changes
-  const mapKey = `${resolveData.primary.h3_index}-${location.lat}-${location.lng}`
+  // Key includes selected neighbors so WebView re-mounts when selection changes
+  const selectedKey = selectedNeighborH3Indices.join(',')
+  const mapKey = `${resolveData.primary.h3_index}-${location.lat}-${location.lng}-${selectedKey}`
 
   const html = useMemo(
-    () => generateMapHTML(resolveData, showLabels),
-    [resolveData, showLabels]
+    () => generateMapHTML(resolveData, showLabels, selectedNeighborH3Indices),
+    [resolveData, showLabels, selectedNeighborH3Indices]
   )
 
   return (

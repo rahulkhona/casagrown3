@@ -107,6 +107,7 @@ exports[`IntroPostStep renders correctly (snapshot) 1`] = `
           borderRadius={24}
           height={48}
           justifyContent="center"
+          overflow="hidden"
           width={48}
         >
           <Text

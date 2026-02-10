@@ -465,7 +465,7 @@ exports[`FeedScreen matches snapshot 1`] = `
           shadowRadius={2}
         >
           <View
-            flexWrap="nowrap"
+            alignItems="center"
             gap="$3"
           >
             <View
