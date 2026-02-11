@@ -382,7 +382,10 @@
       "active": "Activo",
       "pending": "Pendiente",
       "pendingPairing": "Emparejando",
-      "awaitingAcceptance": "Esperando Aceptación"
+      "awaitingAcceptance": "Esperando Aceptación",
+      "windingDown": "Finalizando",
+      "revoked": "Revocado",
+      "inactive": "Inactivo"
     },
     "unknownUser": "Usuario Desconocido",
     "actions": {
@@ -453,6 +456,14 @@
       "myDelegatesDescription": "Agrega a alguien de confianza para vender productos en tu nombre — como un adolescente o jardinero.",
       "delegatingForTitle": "No Estás Delegando para Nadie",
       "delegatingForDescription": "Cuando alguien te invite a vender en su nombre, aparecerá aquí."
+    },
+    "windingDown": {
+      "sectionTitle": "Finalizando",
+      "sectionDescription": "Estas delegaciones fueron terminadas pero aún tienen publicaciones activas siendo gestionadas.",
+      "delegateeDescription": "Aún tienes publicaciones activas para estos delegadores. No puedes crear nuevas, pero las existentes continúan normalmente.",
+      "delegatorHint": "Delegación terminada — las publicaciones activas siguen siendo gestionadas",
+      "revokedHint": "Esta delegación fue revocada. Aún puedes gestionar las publicaciones existentes, pero no crear nuevas.",
+      "inactiveHint": "Desactivaste esta delegación. Aún puedes gestionar las publicaciones existentes, pero no crear nuevas."
     }
   },
   "inviteLanding": {

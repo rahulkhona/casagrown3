@@ -20,6 +20,8 @@ export interface DelegationRecord {
     // Joined profile data
     delegator_profile?: { full_name: string | null; avatar_url: string | null };
     delegatee_profile?: { full_name: string | null; avatar_url: string | null };
+    /** True when the delegation is revoked/inactive but the delegate still has active posts for this delegator */
+    hasActivePosts?: boolean;
 }
 
 export interface UserSearchResult {
@@ -58,7 +60,8 @@ export function useDelegations() {
 
         try {
             // My delegates: where I'm the delegator (excluding pending_pairing — those are
-            // outstanding invitation links with no delegatee yet, not actual delegations)
+            // outstanding invitation links with no delegatee yet, not actual delegations).
+            // Include revoked/inactive so we can show "winding down" when posts are still live.
             const { data: myDelegatesData, error: err1 } = await supabase
                 .from("delegations")
                 .select(`
@@ -66,7 +69,7 @@ export function useDelegations() {
                     delegatee_profile:profiles!delegations_delegatee_id_fkey(full_name, avatar_url)
                 `)
                 .eq("delegator_id", currentUserId)
-                .in("status", ["pending", "active"])
+                .in("status", ["pending", "active", "revoked", "inactive"])
                 .order("created_at", { ascending: false });
 
             if (err1) throw err1;
@@ -79,13 +82,61 @@ export function useDelegations() {
                     delegator_profile:profiles!delegations_delegator_id_fkey(full_name, avatar_url)
                 `)
                 .eq("delegatee_id", currentUserId)
-                .in("status", ["pending", "active"])
+                .in("status", ["pending", "active", "revoked", "inactive"])
                 .order("created_at", { ascending: false });
 
             if (err2) throw err2;
 
-            setMyDelegates(myDelegatesData || []);
-            setDelegatingFor(delegatingForData || []);
+            // For revoked/inactive delegations, check if there are still active posts
+            // (posts where on_behalf_of = delegator_id, meaning the delegation has
+            // outstanding work). We query once for all delegator IDs to avoid N+1.
+            const endedDelegations = [
+                ...(myDelegatesData || []),
+                ...(delegatingForData || []),
+            ].filter((d) => d.status === "revoked" || d.status === "inactive");
+
+            const delegatorIdsToCheck = [
+                ...new Set(endedDelegations.map((d) => d.delegator_id)),
+            ];
+
+            let activePostDelegatorIds = new Set<string>();
+            if (delegatorIdsToCheck.length > 0) {
+                const { data: postsWithDelegator } = await supabase
+                    .from("posts")
+                    .select("on_behalf_of")
+                    .in("on_behalf_of", delegatorIdsToCheck);
+
+                activePostDelegatorIds = new Set(
+                    (postsWithDelegator || []).map(
+                        (p: { on_behalf_of: string }) => p.on_behalf_of,
+                    ),
+                );
+            }
+
+            // Annotate records and filter out fully-ended delegations (no active posts)
+            const annotate = (d: DelegationRecord): DelegationRecord => {
+                if (d.status === "revoked" || d.status === "inactive") {
+                    return {
+                        ...d,
+                        hasActivePosts: activePostDelegatorIds.has(
+                            d.delegator_id,
+                        ),
+                    };
+                }
+                return d;
+            };
+
+            const filterEnded = (d: DelegationRecord) =>
+                d.status === "active" ||
+                d.status === "pending" ||
+                d.hasActivePosts;
+
+            setMyDelegates(
+                (myDelegatesData || []).map(annotate).filter(filterEnded),
+            );
+            setDelegatingFor(
+                (delegatingForData || []).map(annotate).filter(filterEnded),
+            );
         } catch (err: any) {
             setError(err.message || "Failed to fetch delegations");
         } finally {

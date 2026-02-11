@@ -28,13 +28,22 @@ import AddDelegateSheet from './AddDelegateSheet'
 import JoinByCodeSheet from './JoinByCodeSheet'
 
 // ─── Status Badge ──────────────────────────────────────────────
-function StatusBadge({ status, t }: { status: string; t: (k: string) => string }) {
+function StatusBadge({ status, hasActivePosts, t }: { status: string; hasActivePosts?: boolean; t: (k: string) => string }) {
+  // Compute display status: revoked/inactive with active posts → winding_down
+  const displayStatus =
+    (status === 'revoked' || status === 'inactive') && hasActivePosts
+      ? 'winding_down'
+      : status
+
   const config: Record<string, { bg: string; text: string; label: string }> = {
     active: { bg: colors.green[100], text: colors.green[800], label: t('delegate.status.active') },
     pending: { bg: colors.amber[100], text: colors.amber[800], label: t('delegate.status.pending') },
     pending_pairing: { bg: '#dbeafe', text: '#1e40af', label: t('delegate.status.pendingPairing') },
+    winding_down: { bg: '#fef3c7', text: '#92400e', label: t('delegate.status.windingDown') },
+    revoked: { bg: colors.red[100], text: colors.red[800], label: t('delegate.status.revoked') },
+    inactive: { bg: colors.gray[100], text: colors.gray[600], label: t('delegate.status.inactive') },
   }
-  const c = config[status] || config.active
+  const c = config[displayStatus] || config.active
 
   return (
     <YStack
@@ -92,11 +101,16 @@ function DelegateCard({
           {name}
         </Text>
         <XStack gap="$2" alignItems="center" marginTop="$1">
-          <StatusBadge status={delegation.status} t={t} />
+          <StatusBadge status={delegation.status} hasActivePosts={delegation.hasActivePosts} t={t} />
         </XStack>
+        {(delegation.status === 'revoked' || delegation.status === 'inactive') && delegation.hasActivePosts && (
+          <Text fontSize={11} color={colors.amber[700]} marginTop={2}>
+            {t('delegate.windingDown.delegatorHint')}
+          </Text>
+        )}
       </YStack>
 
-      {/* Action */}
+      {/* Action — only show revoke for active delegations, not winding-down ones */}
       {delegation.status === 'active' && (
         <Button
           size="$2"
@@ -170,7 +184,7 @@ function DelegatingForCard({
               : t('delegate.delegatingFor.sellingFor')}
           </Text>
         </YStack>
-        <StatusBadge status={delegation.status} t={t} />
+        <StatusBadge status={delegation.status} hasActivePosts={delegation.hasActivePosts} t={t} />
       </XStack>
 
       {/* Pending: Accept / Decline */}
@@ -227,6 +241,23 @@ function DelegatingForCard({
           </Text>
         </Button>
       )}
+
+      {/* Winding down hint for the delegatee */}
+      {(delegation.status === 'revoked' || delegation.status === 'inactive') && delegation.hasActivePosts && (
+        <YStack
+          backgroundColor="#fef3c7"
+          borderWidth={1}
+          borderColor="#fcd34d"
+          borderRadius={borderRadius.default}
+          padding="$3"
+        >
+          <Text fontSize={12} color="#92400e">
+            {delegation.status === 'revoked'
+              ? t('delegate.windingDown.revokedHint')
+              : t('delegate.windingDown.inactiveHint')}
+          </Text>
+        </YStack>
+      )}
     </YStack>
   )
 }
@@ -253,6 +284,15 @@ export default function DelegateScreen({ initialTab }: { initialTab?: 'my' | 'fo
 
   const pendingRequests = delegatingFor.filter((d) => d.status === 'pending')
   const activeDelegatingFor = delegatingFor.filter((d) => d.status === 'active')
+  const windingDownDelegatingFor = delegatingFor.filter(
+    (d) => (d.status === 'revoked' || d.status === 'inactive') && d.hasActivePosts,
+  )
+  const windingDownMyDelegates = myDelegates.filter(
+    (d) => (d.status === 'revoked' || d.status === 'inactive') && d.hasActivePosts,
+  )
+  const activeMyDelegates = myDelegates.filter(
+    (d) => d.status === 'active' || d.status === 'pending',
+  )
 
   return (
     <YStack flex={1} backgroundColor={colors.gray[50]}>
@@ -399,10 +439,10 @@ export default function DelegateScreen({ initialTab }: { initialTab?: 'my' | 'fo
                   </Text>
                 </Button>
 
-                {/* Delegate List — hide pending_pairing (invisible until accepted) */}
-                {myDelegates.filter((d) => d.status !== 'pending_pairing').length > 0 ? (
+                {/* Active Delegate List */}
+                {activeMyDelegates.length > 0 ? (
                   <YStack gap="$3">
-                    {myDelegates.filter((d) => d.status !== 'pending_pairing').map((d) => (
+                    {activeMyDelegates.map((d) => (
                       <DelegateCard
                         key={d.id}
                         delegation={d}
@@ -437,6 +477,26 @@ export default function DelegateScreen({ initialTab }: { initialTab?: 'my' | 'fo
                     <Text fontSize={13} color={colors.gray[500]} textAlign="center">
                       {t('delegate.empty.myDelegatesDescription')}
                     </Text>
+                  </YStack>
+                )}
+
+                {/* Winding Down delegates */}
+                {windingDownMyDelegates.length > 0 && (
+                  <YStack gap="$2">
+                    <Text fontWeight="700" color={colors.gray[900]} fontSize={15}>
+                      {t('delegate.windingDown.sectionTitle')}
+                    </Text>
+                    <Text fontSize={12} color={colors.gray[500]}>
+                      {t('delegate.windingDown.sectionDescription')}
+                    </Text>
+                    {windingDownMyDelegates.map((d) => (
+                      <DelegateCard
+                        key={d.id}
+                        delegation={d}
+                        onRevoke={revokeDelegation}
+                        t={t}
+                      />
+                    ))}
                   </YStack>
                 )}
               </>
@@ -502,6 +562,28 @@ export default function DelegateScreen({ initialTab }: { initialTab?: 'my' | 'fo
                       {t('delegate.delegatingFor.activeTitle')}
                     </Text>
                     {activeDelegatingFor.map((d) => (
+                      <DelegatingForCard
+                        key={d.id}
+                        delegation={d}
+                        onAccept={acceptRequest}
+                        onReject={rejectRequest}
+                        onInactivate={inactivateDelegation}
+                        t={t}
+                      />
+                    ))}
+                  </YStack>
+                )}
+
+                {/* Winding Down — delegatee view */}
+                {windingDownDelegatingFor.length > 0 && (
+                  <YStack gap="$2">
+                    <Text fontWeight="700" color={colors.gray[900]} fontSize={15}>
+                      {t('delegate.windingDown.sectionTitle')}
+                    </Text>
+                    <Text fontSize={12} color={colors.gray[500]}>
+                      {t('delegate.windingDown.delegateeDescription')}
+                    </Text>
+                    {windingDownDelegatingFor.map((d) => (
                       <DelegatingForCard
                         key={d.id}
                         delegation={d}

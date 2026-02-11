@@ -1056,6 +1056,21 @@ create unique index idx_delegations_delegation_code
 | Delegation parties can update status | `UPDATE`  | `using (delegator_id = auth.uid() OR delegatee_id = auth.uid())` |
 | Delegators can delete delegations    | `DELETE`  | `using (delegator_id = auth.uid())`                              |
 
+#### Soft Revocation ("Winding Down")
+
+When a delegation is revoked or inactivated, it only prevents **new** posts.
+Existing posts remain fully manageable by the delegate because
+`posts.author_id = delegate`:
+
+- **New posts blocked**: `getActiveDelegators()` filters by `status = 'active'`,
+  so the delegator disappears from the sell-form picker.
+- **Existing posts unaffected**: The delegate owns posts via `author_id` and can
+  still view, edit, manage chats, and fulfill orders through normal RLS.
+- **UI feedback**: The delegation screen shows revoked/inactive delegations with
+  a "Winding Down" badge as long as any posts exist with
+  `on_behalf_of = delegator_id`. Once all such posts are deleted or expired, the
+  delegation disappears from the list.
+
 ---
 
 ## Experimentation System

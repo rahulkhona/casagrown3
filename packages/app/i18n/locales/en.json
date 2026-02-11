@@ -400,7 +400,10 @@
       "active": "Active",
       "pending": "Pending",
       "pendingPairing": "Pairing",
-      "awaitingAcceptance": "Awaiting Acceptance"
+      "awaitingAcceptance": "Awaiting Acceptance",
+      "windingDown": "Winding Down",
+      "revoked": "Revoked",
+      "inactive": "Inactive"
     },
     "unknownUser": "Unknown User",
     "actions": {
@@ -471,6 +474,14 @@
       "myDelegatesDescription": "Add someone you trust to sell produce on your behalf — like a teen or gardener.",
       "delegatingForTitle": "Not Delegating for Anyone",
       "delegatingForDescription": "When someone invites you to sell on their behalf, it will appear here."
+    },
+    "windingDown": {
+      "sectionTitle": "Winding Down",
+      "sectionDescription": "These delegations were ended but still have active posts being managed.",
+      "delegateeDescription": "You still have active posts for these delegators. New posts are blocked, but existing ones continue normally.",
+      "delegatorHint": "Delegation ended — active posts are still being managed",
+      "revokedHint": "This delegation was revoked. You can still manage existing posts, but can't create new ones.",
+      "inactiveHint": "You deactivated this delegation. You can still manage existing posts, but can't create new ones."
     }
   },
   "inviteLanding": {
