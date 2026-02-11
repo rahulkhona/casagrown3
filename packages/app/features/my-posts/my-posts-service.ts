@@ -111,6 +111,7 @@ export async function getUserPosts(userId: string): Promise<UserPost[]> {
         .select(`
       id,
       author_id,
+      on_behalf_of,
       type,
       reach,
       content,
@@ -155,6 +156,7 @@ export async function getUserPosts(userId: string): Promise<UserPost[]> {
     return (data || []).map((row: any) => ({
         id: row.id,
         author_id: row.author_id,
+        on_behalf_of: row.on_behalf_of || null,
         type: row.type,
         reach: row.reach,
         content: row.content,

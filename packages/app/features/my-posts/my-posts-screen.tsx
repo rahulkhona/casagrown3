@@ -38,6 +38,8 @@ import { useAuth } from '../auth/auth-hook'
 
 type TypeFilter = 'all' | 'want_to_sell' | 'want_to_buy' | 'offering_service' | 'need_service' | 'seeking_advice' | 'general_info'
 type StatusFilter = 'all' | 'active' | 'expired' | 'flagged'
+type OwnerFilter = 'all' | 'mine' | 'delegate'
+type SortOrder = 'newest' | 'oldest'
 
 interface MyPostsScreenProps {
   onBack?: () => void
@@ -265,6 +267,17 @@ const STATUS_OPTIONS: { value: StatusFilter; labelKey: string }[] = [
   { value: 'flagged', labelKey: 'myPosts.filterFlagged' },
 ]
 
+const OWNER_OPTIONS: { value: OwnerFilter; labelKey: string }[] = [
+  { value: 'all', labelKey: 'myPosts.filterAny' },
+  { value: 'mine', labelKey: 'myPosts.filterMine' },
+  { value: 'delegate', labelKey: 'myPosts.filterDelegate' },
+]
+
+const SORT_OPTIONS: { value: SortOrder; labelKey: string }[] = [
+  { value: 'newest', labelKey: 'myPosts.sortNewest' },
+  { value: 'oldest', labelKey: 'myPosts.sortOldest' },
+]
+
 function FilterDropdown<T extends string>({
   label,
   options,
@@ -412,6 +425,8 @@ export function MyPostsScreen({
   const [loading, setLoading] = useState(true)
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('newest')
   const [refreshKey, setRefreshKey] = useState(0)
   const [searchQuery, setSearchQuery] = useState('')
   const [policies, setPolicies] = useState<Record<string, number>>({})
@@ -484,8 +499,26 @@ export function MyPostsScreen({
       })
     }
 
+    // Filter by owner (self vs delegate)
+    if (ownerFilter === 'mine') {
+      result = result.filter((p) => !p.on_behalf_of)
+    } else if (ownerFilter === 'delegate') {
+      result = result.filter((p) => !!p.on_behalf_of)
+    }
+
+    // Sort by date
+    if (sortOrder === 'oldest') {
+      result = [...result].sort((a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      )
+    }
+    // 'newest' is already the default order from the query
+
     return result
-  }, [posts, typeFilter, statusFilter, searchQuery, policies])
+  }, [posts, typeFilter, statusFilter, ownerFilter, sortOrder, searchQuery, policies])
+
+  // Only show the owner filter if the user has at least one delegate post
+  const hasDelegatePosts = useMemo(() => posts.some((p) => !!p.on_behalf_of), [posts])
 
   // --- Actions ---
 
@@ -639,7 +672,7 @@ export function MyPostsScreen({
             </XStack>
 
             {/* Filter Dropdowns */}
-            <XStack gap="$3">
+            <XStack gap="$3" flexWrap="wrap">
               <FilterDropdown<TypeFilter>
                 label={t('myPosts.filterTypeLabel') || 'Type'}
                 options={TYPE_OPTIONS}
@@ -652,6 +685,22 @@ export function MyPostsScreen({
                 options={STATUS_OPTIONS}
                 value={statusFilter}
                 onChange={setStatusFilter}
+                t={t}
+              />
+              {hasDelegatePosts && (
+                <FilterDropdown<OwnerFilter>
+                  label={t('myPosts.filterOwnerLabel') || 'Owner'}
+                  options={OWNER_OPTIONS}
+                  value={ownerFilter}
+                  onChange={setOwnerFilter}
+                  t={t}
+                />
+              )}
+              <FilterDropdown<SortOrder>
+                label={t('myPosts.sortLabel') || 'Sort'}
+                options={SORT_OPTIONS}
+                value={sortOrder}
+                onChange={setSortOrder}
                 t={t}
               />
             </XStack>

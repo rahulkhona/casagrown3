@@ -86,6 +86,7 @@ exports[`MyPostsScreen matches snapshot 1`] = `
           />
         </View>
         <View
+          flexWrap="wrap"
           gap="$3"
         >
           <View
@@ -201,6 +202,67 @@ exports[`MyPostsScreen matches snapshot 1`] = `
                 fontWeight="500"
               >
                 myPosts.filterAny
+              </Text>
+              <Text
+                color="#9ca3af"
+                fontSize={10}
+              >
+                ▼
+              </Text>
+            </View>
+          </View>
+          <View
+            flex={1}
+            gap="$1"
+          >
+            <Text
+              color="#6b7280"
+              fontSize={11}
+              fontWeight="600"
+              textTransform="uppercase"
+            >
+              myPosts.sortLabel
+            </Text>
+            <View
+              accessibilityState={
+                {
+                  "busy": undefined,
+                  "checked": undefined,
+                  "disabled": undefined,
+                  "expanded": undefined,
+                  "selected": undefined,
+                }
+              }
+              accessibilityValue={
+                {
+                  "max": undefined,
+                  "min": undefined,
+                  "now": undefined,
+                  "text": undefined,
+                }
+              }
+              accessible={true}
+              collapsable={false}
+              focusable={true}
+              onClick={[Function]}
+              onResponderGrant={[Function]}
+              onResponderMove={[Function]}
+              onResponderRelease={[Function]}
+              onResponderTerminate={[Function]}
+              onResponderTerminationRequest={[Function]}
+              onStartShouldSetResponder={[Function]}
+              style={
+                {
+                  "opacity": 1,
+                }
+              }
+            >
+              <Text
+                color="#1f2937"
+                fontSize={13}
+                fontWeight="500"
+              >
+                myPosts.sortNewest
               </Text>
               <Text
                 color="#9ca3af"
