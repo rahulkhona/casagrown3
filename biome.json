@@ -76,6 +76,16 @@
         "noHeaderScope": "off",
         "useAltText": "off",
         "useButtonType": "off"
+      },
+      "nursery": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "solito/router": "Use 'solito/navigation' instead. 'solito/router' wraps Next.js Pages Router which is incompatible with App Router."
+            }
+          }
+        }
       }
     }
   },
