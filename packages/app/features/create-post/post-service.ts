@@ -17,7 +17,7 @@ import { UploadedMedia, uploadPostMediaBatch } from "./media-upload";
 
 export interface SellPostData {
     authorId: string;
-    /** If selling on behalf of a delegator, this is the delegator's user ID */
+    /** Delegator's user ID — the person whose produce is being sold. Stored in `on_behalf_of`; `author_id` stays as the delegate. */
     onBehalfOfId?: string;
     communityH3Index?: string;
     /** Additional adjacent community H3 indices the seller wants to post to */
@@ -457,14 +457,16 @@ export async function createSellPost(data: SellPostData) {
     }
     const content = JSON.stringify(contentObj);
 
-    // If selling on behalf of someone, use their ID as author
-    const authorId = data.onBehalfOfId || data.authorId;
+    // If selling on behalf of someone, author_id stays as the delegate (manages
+    // the post, chats, fulfillment).  on_behalf_of tracks the delegator.
+    const onBehalfOf = data.onBehalfOfId || null;
 
     // 1. Insert post
     const { data: post, error: postError } = await supabase
         .from("posts")
         .insert({
-            author_id: authorId,
+            author_id: data.authorId,
+            on_behalf_of: onBehalfOf,
             community_h3_index: data.communityH3Index || null,
             type: "want_to_sell",
             reach: "community",

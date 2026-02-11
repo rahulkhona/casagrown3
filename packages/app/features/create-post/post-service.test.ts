@@ -238,21 +238,22 @@ describe("post-service", () => {
             expect(deliveryCalls).toHaveLength(0);
         });
 
-        it("uses onBehalfOfId as author when selling on behalf of delegator", async () => {
+        it("sets on_behalf_of when selling on behalf of delegator", async () => {
             const delegatedData = {
                 ...baseSellData,
                 onBehalfOfId: "delegator-456",
             };
             await createSellPost(delegatedData);
 
-            // The posts insert should use delegator-456 as author_id
+            // The posts insert should keep user-123 as author_id and set on_behalf_of
             const postsCallIndex = mockFrom.mock.calls.findIndex((c: any) =>
                 c[0] === "posts"
             );
             const postsChain = mockFrom.mock.results[postsCallIndex]?.value;
             if (postsChain?.insert) {
                 const insertArg = postsChain.insert.mock.calls[0]?.[0];
-                expect(insertArg?.author_id).toBe("delegator-456");
+                expect(insertArg?.author_id).toBe("user-123");
+                expect(insertArg?.on_behalf_of).toBe("delegator-456");
             }
         });
 
@@ -1151,7 +1152,7 @@ describe("post-service", () => {
     // =========================================================================
 
     describe("createSellPost — delegate", () => {
-        it("uses onBehalfOfId as post author_id", async () => {
+        it("keeps author_id as delegate and sets on_behalf_of to delegator", async () => {
             let capturedInsert: any = null;
 
             mockFrom.mockImplementation((table: string) => {
@@ -1178,10 +1179,13 @@ describe("post-service", () => {
                 onBehalfOfId: "delegator-456",
             });
 
-            expect(capturedInsert.author_id).toBe("delegator-456");
+            // author_id = delegate (logged-in user), NOT the delegator
+            expect(capturedInsert.author_id).toBe("user-123");
+            // on_behalf_of = delegator
+            expect(capturedInsert.on_behalf_of).toBe("delegator-456");
         });
 
-        it("falls back to authorId when onBehalfOfId is not set", async () => {
+        it("sets on_behalf_of to null when onBehalfOfId is not set", async () => {
             let capturedInsert: any = null;
 
             mockFrom.mockImplementation((table: string) => {
@@ -1206,6 +1210,7 @@ describe("post-service", () => {
             await createSellPost(baseSellData);
 
             expect(capturedInsert.author_id).toBe("user-123");
+            expect(capturedInsert.on_behalf_of).toBeNull();
         });
     });
 

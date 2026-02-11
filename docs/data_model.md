@@ -440,23 +440,25 @@ create table point_ledger (
 
 ### `posts`
 
-| Column               | Type          | Description                               |
-| :------------------- | :------------ | :---------------------------------------- |
-| `id`                 | `uuid`        | Primary Key.                              |
-| `author_id`          | `uuid`        | FK to `profiles(id)`.                     |
-| `community_h3_index` | `text`        | FK to `communities(h3_index)`.            |
-| `type`               | `post_type`   | Post type.                                |
-| `reach`              | `post_reach`  | Visibility scope. Default: `'community'`. |
-| `content`            | `text`        | Post body.                                |
-| `created_at`         | `timestamptz` | Default `now()`.                          |
-| `updated_at`         | `timestamptz` | Default `now()`.                          |
+| Column               | Type          | Description                                                            |
+| :------------------- | :------------ | :--------------------------------------------------------------------- |
+| `id`                 | `uuid`        | Primary Key.                                                           |
+| `author_id`          | `uuid`        | FK to `profiles(id)`. The delegate (post manager).                     |
+| `on_behalf_of`       | `uuid`        | FK to `profiles(id)`. Nullable. Delegator whose produce is being sold. |
+| `community_h3_index` | `text`        | FK to `communities(h3_index)`.                                         |
+| `type`               | `post_type`   | Post type.                                                             |
+| `reach`              | `post_reach`  | Visibility scope. Default: `'community'`.                              |
+| `content`            | `text`        | Post body.                                                             |
+| `created_at`         | `timestamptz` | Default `now()`.                                                       |
+| `updated_at`         | `timestamptz` | Default `now()`.                                                       |
 
-**Indexes**: `posts_community_h3_idx`
+**Indexes**: `posts_community_h3_idx`, `posts_on_behalf_of_idx`
 
 ```sql
 create table posts (
   id uuid primary key default gen_random_uuid(),
   author_id uuid not null references profiles(id),
+  on_behalf_of uuid references profiles(id),  -- 20260211100000
   community_h3_index text references communities(h3_index),  -- 20260201200000
   type post_type not null,
   reach post_reach not null default 'community',
@@ -466,6 +468,7 @@ create table posts (
 );
 
 create index posts_community_h3_idx on posts(community_h3_index);
+create index posts_on_behalf_of_idx on posts(on_behalf_of) where on_behalf_of is not null;
 ```
 
 **RLS Policies** (`20260207060000_posts_content_rls`):
