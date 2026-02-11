@@ -40,7 +40,7 @@ jest.mock('react-i18next', () => ({
 }))
 
 const mockRouterBack = jest.fn()
-jest.mock('solito/router', () => ({
+jest.mock('solito/navigation', () => ({
   useRouter: () => ({
     back: mockRouterBack,
     push: jest.fn(),

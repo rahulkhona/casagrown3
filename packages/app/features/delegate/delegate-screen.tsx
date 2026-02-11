@@ -8,7 +8,7 @@
 import { useState } from 'react'
 import { Platform } from 'react-native'
 import { YStack, XStack, Text, Button, ScrollView, Spinner } from 'tamagui'
-import { useRouter } from 'solito/router'
+import { useRouter } from 'solito/navigation'
 import {
   Users,
   UserPlus,
