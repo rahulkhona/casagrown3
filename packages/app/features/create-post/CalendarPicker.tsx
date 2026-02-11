@@ -231,16 +231,19 @@ export function CalendarPicker({
               </Button>
               <Button
                 size="$3"
-                backgroundColor={colors.primary[600]}
+                backgroundColor="transparent"
+                borderWidth={1}
+                borderColor={colors.primary[300]}
                 borderRadius={borderRadius.md}
                 onPress={() => {
-                  // Select today if nothing selected
-                  const d = initialDate || toDateStr(today.getFullYear(), today.getMonth(), today.getDate())
-                  onSelect(d)
+                  // Jump to today's month and select today
+                  setViewYear(today.getFullYear())
+                  setViewMonth(today.getMonth())
+                  onSelect(toDateStr(today.getFullYear(), today.getMonth(), today.getDate()))
                 }}
-                pressStyle={{ backgroundColor: colors.primary[700] }}
+                pressStyle={{ backgroundColor: colors.primary[50] }}
               >
-                <Text fontSize="$3" color="white" fontWeight="600">Today</Text>
+                <Text fontSize="$3" color={colors.primary[600]} fontWeight="600">Today</Text>
               </Button>
             </XStack>
           </YStack>

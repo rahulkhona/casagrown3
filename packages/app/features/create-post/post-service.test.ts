@@ -101,10 +101,14 @@ import {
     GeneralPostData,
     getActiveDelegators,
     getAvailableCategories,
+    getCommunityWithNeighborsByH3,
     getPlatformFeePercent,
     getUserCommunitiesWithNeighbors,
     getUserCommunity,
     SellPostData,
+    updateBuyPost,
+    updateGeneralPost,
+    updateSellPost,
 } from "./post-service";
 
 // ---------------------------------------------------------------------------
@@ -950,6 +954,402 @@ describe("post-service", () => {
 
             const result = await getUserCommunity("user-123");
             expect(result).toBeNull();
+        });
+    });
+
+    // =========================================================================
+    // getCommunityWithNeighborsByH3
+    // =========================================================================
+
+    describe("getCommunityWithNeighborsByH3", () => {
+        it("returns community and neighbors by H3 index", async () => {
+            mockFrom.mockImplementation((table: string) => {
+                if (table === "communities") {
+                    return {
+                        select: jest.fn().mockReturnValue({
+                            eq: jest.fn().mockReturnValue({
+                                single: jest.fn().mockResolvedValue({
+                                    data: {
+                                        h3_index: "872834461ffffff",
+                                        name: "Oak Street",
+                                        city: "San Jose",
+                                        state: "CA",
+                                        country: "USA",
+                                        location: null,
+                                    },
+                                    error: null,
+                                }),
+                            }),
+                            in: jest.fn().mockResolvedValue({
+                                data: [
+                                    {
+                                        h3_index: "872834460ffffff",
+                                        name: "Elm Ave",
+                                        city: "San Jose",
+                                        state: "CA",
+                                        country: "USA",
+                                        location: null,
+                                    },
+                                ],
+                                error: null,
+                            }),
+                        }),
+                    };
+                }
+                if (table === "profiles") {
+                    return {
+                        select: jest.fn().mockReturnValue({
+                            eq: jest.fn().mockReturnValue({
+                                limit: jest.fn().mockResolvedValue({
+                                    data: [{
+                                        nearby_community_h3_indices: [
+                                            "872834460ffffff",
+                                        ],
+                                    }],
+                                    error: null,
+                                }),
+                            }),
+                        }),
+                    };
+                }
+                return buildChain(table);
+            });
+
+            const result = await getCommunityWithNeighborsByH3(
+                "872834461ffffff",
+            );
+
+            expect(result.primary).toEqual(
+                expect.objectContaining({
+                    h3Index: "872834461ffffff",
+                    name: "Oak Street",
+                }),
+            );
+            expect(result.neighbors).toHaveLength(1);
+            expect(result.neighbors[0].name).toBe("Elm Ave");
+        });
+
+        it("returns null primary when community does not exist", async () => {
+            mockFrom.mockImplementation((table: string) => {
+                if (table === "communities") {
+                    return {
+                        select: jest.fn().mockReturnValue({
+                            eq: jest.fn().mockReturnValue({
+                                single: jest.fn().mockResolvedValue({
+                                    data: null,
+                                    error: { message: "Not found" },
+                                }),
+                            }),
+                        }),
+                    };
+                }
+                return buildChain(table);
+            });
+
+            const result = await getCommunityWithNeighborsByH3("nonexistent");
+            expect(result).toEqual({ primary: null, neighbors: [] });
+        });
+
+        it("parses PostGIS GeoJSON coordinates from location", async () => {
+            mockFrom.mockImplementation((table: string) => {
+                if (table === "communities") {
+                    return {
+                        select: jest.fn().mockReturnValue({
+                            eq: jest.fn().mockReturnValue({
+                                single: jest.fn().mockResolvedValue({
+                                    data: {
+                                        h3_index: "872834461ffffff",
+                                        name: "Oak Street",
+                                        city: "San Jose",
+                                        state: "CA",
+                                        country: "USA",
+                                        location: {
+                                            type: "Point",
+                                            coordinates: [-121.89, 37.33],
+                                        },
+                                    },
+                                    error: null,
+                                }),
+                            }),
+                            in: jest.fn().mockResolvedValue({
+                                data: [],
+                                error: null,
+                            }),
+                        }),
+                    };
+                }
+                if (table === "profiles") {
+                    return {
+                        select: jest.fn().mockReturnValue({
+                            eq: jest.fn().mockReturnValue({
+                                limit: jest.fn().mockResolvedValue({
+                                    data: [],
+                                    error: null,
+                                }),
+                            }),
+                        }),
+                    };
+                }
+                return buildChain(table);
+            });
+
+            const result = await getCommunityWithNeighborsByH3(
+                "872834461ffffff",
+            );
+            expect(result.primary?.lng).toBe(-121.89);
+            expect(result.primary?.lat).toBe(37.33);
+        });
+    });
+
+    // =========================================================================
+    // createBuyPost with acceptDates
+    // =========================================================================
+
+    describe("createBuyPost — acceptDates", () => {
+        it("inserts delivery_dates rows when acceptDates is provided", async () => {
+            const insertMocks: Record<string, jest.Mock> = {};
+
+            mockFrom.mockImplementation((table: string) => {
+                if (table === "posts") {
+                    return {
+                        insert: jest.fn().mockReturnValue({
+                            select: jest.fn().mockReturnValue({
+                                single: jest.fn().mockResolvedValue({
+                                    data: { id: "buy-post-1" },
+                                    error: null,
+                                }),
+                            }),
+                        }),
+                    };
+                }
+                if (table === "delivery_dates") {
+                    const insertFn = jest.fn().mockResolvedValue({
+                        error: null,
+                    });
+                    insertMocks[table] = insertFn;
+                    return { insert: insertFn };
+                }
+                return buildChain(table);
+            });
+
+            await createBuyPost({
+                ...baseBuyData,
+                acceptDates: ["2026-02-18", "2026-02-19"],
+            });
+
+            expect(insertMocks["delivery_dates"]).toHaveBeenCalled();
+            const dateRows = insertMocks["delivery_dates"].mock.calls[0][0];
+            expect(dateRows).toEqual([
+                { post_id: "buy-post-1", delivery_date: "2026-02-18" },
+                { post_id: "buy-post-1", delivery_date: "2026-02-19" },
+            ]);
+        });
+    });
+
+    // =========================================================================
+    // createSellPost with delegate (onBehalfOfId)
+    // =========================================================================
+
+    describe("createSellPost — delegate", () => {
+        it("uses onBehalfOfId as post author_id", async () => {
+            let capturedInsert: any = null;
+
+            mockFrom.mockImplementation((table: string) => {
+                if (table === "posts") {
+                    return {
+                        insert: jest.fn().mockImplementation((rows: any) => {
+                            capturedInsert = rows;
+                            return {
+                                select: jest.fn().mockReturnValue({
+                                    single: jest.fn().mockResolvedValue({
+                                        data: { id: "delegate-post-1" },
+                                        error: null,
+                                    }),
+                                }),
+                            };
+                        }),
+                    };
+                }
+                return buildChain(table);
+            });
+
+            await createSellPost({
+                ...baseSellData,
+                onBehalfOfId: "delegator-456",
+            });
+
+            expect(capturedInsert.author_id).toBe("delegator-456");
+        });
+
+        it("falls back to authorId when onBehalfOfId is not set", async () => {
+            let capturedInsert: any = null;
+
+            mockFrom.mockImplementation((table: string) => {
+                if (table === "posts") {
+                    return {
+                        insert: jest.fn().mockImplementation((rows: any) => {
+                            capturedInsert = rows;
+                            return {
+                                select: jest.fn().mockReturnValue({
+                                    single: jest.fn().mockResolvedValue({
+                                        data: { id: "own-post-1" },
+                                        error: null,
+                                    }),
+                                }),
+                            };
+                        }),
+                    };
+                }
+                return buildChain(table);
+            });
+
+            await createSellPost(baseSellData);
+
+            expect(capturedInsert.author_id).toBe("user-123");
+        });
+    });
+
+    // =========================================================================
+    // updateSellPost
+    // =========================================================================
+
+    describe("updateSellPost", () => {
+        it("updates post, sell details, and handles media", async () => {
+            const updateMocks: Record<string, jest.Mock> = {};
+
+            mockFrom.mockImplementation((table: string) => {
+                if (table === "posts") {
+                    const updateFn = jest.fn().mockReturnValue({
+                        eq: jest.fn().mockResolvedValue({ error: null }),
+                    });
+                    updateMocks[table] = updateFn;
+                    return { update: updateFn };
+                }
+                if (table === "want_to_sell_details") {
+                    const updateFn = jest.fn().mockReturnValue({
+                        eq: jest.fn().mockResolvedValue({ error: null }),
+                    });
+                    updateMocks[table] = updateFn;
+                    return { update: updateFn };
+                }
+                if (table === "post_media") {
+                    return {
+                        delete: jest.fn().mockReturnValue({
+                            eq: jest.fn().mockResolvedValue({ error: null }),
+                        }),
+                    };
+                }
+                return buildChain(table);
+            });
+
+            await updateSellPost("post-1", {
+                ...baseSellData,
+                mediaAssets: [], // no existing media, no new media
+            });
+
+            expect(updateMocks["posts"]).toHaveBeenCalled();
+            expect(updateMocks["want_to_sell_details"]).toHaveBeenCalled();
+        });
+    });
+
+    // =========================================================================
+    // updateBuyPost
+    // =========================================================================
+
+    describe("updateBuyPost", () => {
+        it("updates post, buy details, and replaces delivery_dates", async () => {
+            const updateMocks: Record<string, jest.Mock> = {};
+
+            // Pre-build shared delivery_dates mock object so both .from() calls reuse it
+            const ddDeleteFn = jest.fn().mockReturnValue({
+                eq: jest.fn().mockResolvedValue({ error: null }),
+            });
+            const ddInsertFn = jest.fn().mockResolvedValue({ error: null });
+            const ddChain = { delete: ddDeleteFn, insert: ddInsertFn };
+
+            mockFrom.mockImplementation((table: string) => {
+                if (table === "posts") {
+                    const updateFn = jest.fn().mockReturnValue({
+                        eq: jest.fn().mockResolvedValue({ error: null }),
+                    });
+                    updateMocks[table] = updateFn;
+                    return { update: updateFn };
+                }
+                if (table === "want_to_buy_details") {
+                    const updateFn = jest.fn().mockReturnValue({
+                        eq: jest.fn().mockResolvedValue({ error: null }),
+                    });
+                    updateMocks[table] = updateFn;
+                    return { update: updateFn };
+                }
+                if (table === "delivery_dates") {
+                    return ddChain;
+                }
+                if (table === "post_media") {
+                    return {
+                        delete: jest.fn().mockReturnValue({
+                            eq: jest.fn().mockResolvedValue({ error: null }),
+                        }),
+                    };
+                }
+                return buildChain(table);
+            });
+
+            await updateBuyPost("post-2", {
+                ...baseBuyData,
+                acceptDates: ["2026-03-01", "2026-03-02"],
+                mediaAssets: [],
+            });
+
+            // Should update posts and buy details
+            expect(updateMocks["posts"]).toHaveBeenCalled();
+            expect(updateMocks["want_to_buy_details"]).toHaveBeenCalled();
+
+            // Should delete old delivery_dates then insert new ones
+            expect(ddDeleteFn).toHaveBeenCalled();
+            expect(ddInsertFn).toHaveBeenCalled();
+            const dateRows = ddInsertFn.mock.calls[0][0];
+            expect(dateRows).toEqual([
+                { post_id: "post-2", delivery_date: "2026-03-01" },
+                { post_id: "post-2", delivery_date: "2026-03-02" },
+            ]);
+        });
+    });
+
+    // =========================================================================
+    // updateGeneralPost
+    // =========================================================================
+
+    describe("updateGeneralPost", () => {
+        it("updates post content and handles media", async () => {
+            const updateMock = jest.fn().mockReturnValue({
+                eq: jest.fn().mockResolvedValue({ error: null }),
+            });
+
+            mockFrom.mockImplementation((table: string) => {
+                if (table === "posts") {
+                    return { update: updateMock };
+                }
+                if (table === "post_media") {
+                    return {
+                        delete: jest.fn().mockReturnValue({
+                            eq: jest.fn().mockResolvedValue({ error: null }),
+                        }),
+                    };
+                }
+                return buildChain(table);
+            });
+
+            await updateGeneralPost("post-3", {
+                ...baseGeneralData,
+                mediaAssets: [],
+            });
+
+            expect(updateMock).toHaveBeenCalled();
+            const updateArg = updateMock.mock.calls[0][0];
+            const content = JSON.parse(updateArg.content);
+            expect(content.title).toBe("Hello Neighbors!");
+            expect(content.description).toBe("Just joined the community");
         });
     });
 });

@@ -31,19 +31,11 @@ import {
   Image as ImageIcon,
   X,
 } from '@tamagui/lucide-icons'
-import { Alert, Platform, Image, Pressable } from 'react-native'
+import { Platform, Image, Pressable } from 'react-native'
 import * as ImagePicker from 'expo-image-picker'
 import { useRef } from 'react'
 import { CalendarPicker } from './CalendarPicker'
-
-// Cross-platform alert that works on web
-function crossAlert(title: string, message?: string) {
-  if (Platform.OS === 'web') {
-    window.alert(message ? `${title}\n${message}` : title)
-  } else {
-    Alert.alert(title, message)
-  }
-}
+import { loadMediaFromStorage } from './load-media-helper'
 
 // Minimal asset shape for web-picked files
 interface WebMediaAsset {
@@ -52,6 +44,7 @@ interface WebMediaAsset {
   width?: number
   height?: number
   fileName?: string
+  isExisting?: boolean
 }
 
 // Lazy load WebCameraModal only on web
@@ -64,8 +57,10 @@ import { colors, borderRadius } from '../../design-tokens'
 import { useAuth } from '../auth/auth-hook'
 import {
   createSellPost,
+  updateSellPost,
   getActiveDelegators,
   getUserCommunitiesWithNeighbors,
+  getCommunityWithNeighborsByH3,
   getAvailableCategories,
   getUserCommunity,
   getPlatformFeePercent,
@@ -101,9 +96,11 @@ function CommunityMapWrapper(props: { resolveData: ResolveResponse; height?: num
 interface SellFormProps {
   onBack: () => void
   onSuccess: () => void
+  editId?: string
+  cloneData?: string
 }
 
-export function SellForm({ onBack, onSuccess }: SellFormProps) {
+export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps) {
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
   const { user, signOut } = useAuth()
@@ -118,6 +115,8 @@ export function SellForm({ onBack, onSuccess }: SellFormProps) {
   const [dropoffDates, setDropoffDates] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [mediaAssets, setMediaAssets] = useState<(ImagePicker.ImagePickerAsset | WebMediaAsset)[]>([])
+  const [formError, setFormError] = useState('')
+  const [showMediaMenu, setShowMediaMenu] = useState(false)
 
   // Web file input ref
   const photoInputRef = useRef<HTMLInputElement>(null)
@@ -141,6 +140,9 @@ export function SellForm({ onBack, onSuccess }: SellFormProps) {
   const [communityMapData, setCommunityMapData] = useState<ResolveResponse | null>(null)
   const [selectedNeighborH3Indices, setSelectedNeighborH3Indices] = useState<string[]>([])
   const [loadingCommunity, setLoadingCommunity] = useState(true)
+  const [selectedCommunityH3, setSelectedCommunityH3] = useState<string | null>(null) // for delegate community picker
+  const [selfCommunityH3, setSelfCommunityH3] = useState<string | null>(null)
+  const [selfCommunityName, setSelfCommunityName] = useState('')
 
   // ── Categories State ────────────────────────────────────────
   const [availableCategories, setAvailableCategories] = useState<string[]>([])
@@ -161,9 +163,83 @@ export function SellForm({ onBack, onSuccess }: SellFormProps) {
   // ── Load community and categories when seller changes ──────
   useEffect(() => {
     if (!user?.id) return
-    const targetUserId = selectedSellerId || user.id
-    loadCommunityAndCategories(targetUserId)
-  }, [user?.id, selectedSellerId])
+    // If we have a delegate community picker selection, use that
+    if (selectedCommunityH3) {
+      loadCommunityByH3(selectedCommunityH3)
+    } else {
+      const targetUserId = selectedSellerId || user.id
+      loadCommunityAndCategories(targetUserId)
+    }
+  }, [user?.id, selectedSellerId, selectedCommunityH3])
+
+  // ── Load edit data ─────────────────────────────────────────
+  useEffect(() => {
+    if (!editId && !cloneData) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        // Clone mode: parse inline JSON data
+        if (cloneData && !editId) {
+          try {
+            const parsed = JSON.parse(cloneData)
+            const content = parsed.content ? JSON.parse(parsed.content) : {}
+            if (content.description) setDescription(content.description)
+            if (content.produceName) setProductName(content.produceName)
+            if (parsed.sell_details) {
+              setCategory(parsed.sell_details.category || '')
+              setProductName(parsed.sell_details.produce_name || '')
+              setUnit(parsed.sell_details.unit || 'piece')
+              setQuantity(String(parsed.sell_details.total_quantity_available || ''))
+              setPrice(String(parsed.sell_details.price_per_unit || ''))
+            }
+            // Copy delivery dates
+            if (Array.isArray(parsed.delivery_dates) && parsed.delivery_dates.length > 0) {
+              setDropoffDates(parsed.delivery_dates)
+            }
+            // Load media from storage paths
+            if (parsed.media && parsed.media.length > 0) {
+              const loadedAssets = await loadMediaFromStorage(parsed.media)
+              if (!cancelled && loadedAssets.length > 0) {
+                setMediaAssets(loadedAssets)
+              }
+            }
+          } catch {}
+          return
+        }
+        const { getPostById } = await import('../my-posts/my-posts-service')
+        const { supabase } = await import('../auth/auth-hook')
+        const post = await getPostById(editId!)
+        if (cancelled || !post) return
+        // Pre-fill from content JSON
+        try {
+          const parsed = JSON.parse(post.content)
+          if (parsed.description) setDescription(parsed.description)
+          if (parsed.produceName) setProductName(parsed.produceName)
+        } catch {}
+        // Pre-fill from sell_details
+        if (post.sell_details) {
+          setCategory(post.sell_details.category || '')
+          setProductName(post.sell_details.produce_name || '')
+          setUnit(post.sell_details.unit || 'piece')
+          setQuantity(String(post.sell_details.total_quantity_available || ''))
+          setPrice(String(post.sell_details.price_per_unit || ''))
+        }
+        // Pre-fill delivery dates
+        if (Array.isArray(post.delivery_dates) && post.delivery_dates.length > 0) {
+          setDropoffDates(post.delivery_dates)
+        }
+        if (post.media && post.media.length > 0) {
+          const loadedAssets = await loadMediaFromStorage(post.media, { isExisting: true })
+          if (!cancelled && loadedAssets.length > 0) {
+            setMediaAssets(loadedAssets)
+          }
+        }
+      } catch (err) {
+        console.error('Error loading edit data:', err)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [editId])
 
   async function loadDelegators() {
     if (!user?.id) return
@@ -189,6 +265,11 @@ export function SellForm({ onBack, onSuccess }: SellFormProps) {
       if (communities.primary) {
         setCommunityH3Index(communities.primary.h3Index)
         setCommunityName(communities.primary.name)
+        // Store self community on first load (no delegator selected)
+        if (!selfCommunityH3) {
+          setSelfCommunityH3(communities.primary.h3Index)
+          setSelfCommunityName(communities.primary.name)
+        }
         // Build map data for CommunityMap
         const mapData = buildResolveResponseFromIndex(
           communities.primary.h3Index,
@@ -236,6 +317,49 @@ export function SellForm({ onBack, onSuccess }: SellFormProps) {
     }
   }
 
+  async function loadCommunityByH3(h3Index: string) {
+    setLoadingCommunity(true)
+    setLoadingCategories(true)
+    try {
+      const communities = await getCommunityWithNeighborsByH3(h3Index)
+      setCommunitiesData(communities)
+      if (communities.primary) {
+        setCommunityH3Index(communities.primary.h3Index)
+        setCommunityName(communities.primary.name)
+        const mapData = buildResolveResponseFromIndex(
+          communities.primary.h3Index,
+          communities.primary.name,
+          communities.primary.city || '',
+          communities.primary.lat,
+          communities.primary.lng,
+        )
+        if (communities.neighbors.length > 0) {
+          ;(mapData as any).neighbors = communities.neighbors.map((n) => ({
+            h3_index: n.h3Index,
+            name: n.name,
+            status: 'active' as const,
+          }))
+        }
+        setCommunityMapData(mapData as unknown as ResolveResponse)
+      }
+      setLoadingCommunity(false)
+
+      const cats = await getAvailableCategories(h3Index)
+      setAvailableCategories(cats)
+      if (category && !cats.includes(category)) {
+        setCategory('')
+      }
+
+      const fee = await getPlatformFeePercent()
+      setPlatformFeePercent(fee)
+    } catch (err) {
+      console.error('Error loading community by H3:', err)
+    } finally {
+      setLoadingCommunity(false)
+      setLoadingCategories(false)
+    }
+  }
+
   // ── Media Picker ────────────────────────────────────────────
 
   // Web: handle files from <input type="file">
@@ -261,16 +385,7 @@ export function SellForm({ onBack, onSuccess }: SellFormProps) {
     if (Platform.OS === 'web') {
       photoInputRef.current?.click()
     } else {
-      Alert.alert(
-        t('createPost.fields.media'),
-        '',
-        [
-          { text: '📷 ' + t('createPost.fields.photo'), onPress: () => takePhoto() },
-          { text: '🎥 ' + t('createPost.fields.video'), onPress: () => recordVideo() },
-          { text: '🖼️ Gallery', onPress: () => pickFromGallery() },
-          { text: 'Cancel', style: 'cancel' },
-        ]
-      )
+      setShowMediaMenu(!showMediaMenu)
     }
   }
 
@@ -281,7 +396,7 @@ export function SellForm({ onBack, onSuccess }: SellFormProps) {
     }
     const { status } = await ImagePicker.requestCameraPermissionsAsync()
     if (status !== 'granted') {
-      crossAlert('Permission needed', 'Camera access is required to take photos.')
+      console.warn('Camera permission denied')
       return
     }
     try {
@@ -294,7 +409,7 @@ export function SellForm({ onBack, onSuccess }: SellFormProps) {
         setMediaAssets([result.assets[0]!])
       }
     } catch (e) {
-      crossAlert('Camera unavailable', 'Camera is not available on this device. Use Gallery instead.')
+      console.warn('Camera unavailable:', e)
     }
   }
 
@@ -320,7 +435,7 @@ export function SellForm({ onBack, onSuccess }: SellFormProps) {
     }
     const { status } = await ImagePicker.requestCameraPermissionsAsync()
     if (status !== 'granted') {
-      crossAlert('Permission needed', 'Camera access is required to record video.')
+      console.warn('Camera permission denied')
       return
     }
     try {
@@ -333,7 +448,7 @@ export function SellForm({ onBack, onSuccess }: SellFormProps) {
         setMediaAssets([result.assets[0]!])
       }
     } catch (e) {
-      crossAlert('Camera unavailable', 'Camera is not available on this device. Use Gallery instead.')
+      console.warn('Camera unavailable:', e)
     }
   }
 
@@ -362,17 +477,18 @@ export function SellForm({ onBack, onSuccess }: SellFormProps) {
   async function handleSubmit() {
     if (!user?.id) return
     if (!productName.trim() || !description.trim() || !category || !price) {
-      crossAlert(t('createPost.validation.requiredFields'))
+      setFormError(t('createPost.validation.requiredFields'))
       return
     }
     if (dropoffDates.length === 0) {
-      crossAlert(t('createPost.validation.dropoffRequired'))
+      setFormError(t('createPost.validation.dropoffRequired'))
       return
     }
 
+    setFormError('')
     setSubmitting(true)
     try {
-      await createSellPost({
+      const postData = {
         authorId: user.id,
         onBehalfOfId: selectedSellerId || undefined,
         communityH3Index: communityH3Index || undefined,
@@ -385,12 +501,16 @@ export function SellForm({ onBack, onSuccess }: SellFormProps) {
         pricePerUnit: parseFloat(price) || 0,
         dropoffDates,
         mediaAssets: mediaAssets.length > 0 ? mediaAssets.map(a => ({ uri: a.uri, type: a.type ?? undefined })) : undefined,
-      })
-      crossAlert(t('createPost.success.title'), t('createPost.success.message'))
+      }
+      if (editId) {
+        await updateSellPost(editId, postData)
+      } else {
+        await createSellPost(postData)
+      }
       onSuccess()
     } catch (err) {
       console.error('Error creating sell post:', err)
-      crossAlert(t('createPost.error.generic'))
+      setFormError(t('createPost.error.generic'))
     } finally {
       setSubmitting(false)
     }
@@ -401,8 +521,36 @@ export function SellForm({ onBack, onSuccess }: SellFormProps) {
     return cat.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
   }
 
-  // ── Selected seller display info ────────────────────────────
+  // ── Computed data ─────────────────────────────────────────────
   const selectedDelegator = delegators.find((d) => d.delegatorId === selectedSellerId)
+
+  // Build list of all available communities (self + all delegators) for the picker
+  const allCommunities: Array<{ h3Index: string; name: string; ownerLabel: string }> = []
+  if (user?.id && communitiesData?.primary && !selectedSellerId && !delegators.length) {
+    // No delegators, single community — no picker needed
+  } else if (user?.id) {
+    // Add self community
+    if (selfCommunityH3) {
+      allCommunities.push({
+        h3Index: selfCommunityH3,
+        name: selfCommunityName || 'My Community',
+        ownerLabel: t('createPost.delegator.myself'),
+      })
+    }
+    // Add each delegator's community (deduplicate by h3Index)
+    const seen = new Set(allCommunities.map(c => c.h3Index))
+    for (const d of delegators) {
+      if (d.communityH3Index && !seen.has(d.communityH3Index)) {
+        seen.add(d.communityH3Index)
+        allCommunities.push({
+          h3Index: d.communityH3Index,
+          name: d.communityName || d.communityH3Index,
+          ownerLabel: d.fullName || t('createPost.delegator.unnamed'),
+        })
+      }
+    }
+  }
+  const showCommunityPicker = delegators.length > 0 && allCommunities.length > 1
 
   return (
     <YStack flex={1} backgroundColor={colors.neutral[50]}>
@@ -521,6 +669,76 @@ export function SellForm({ onBack, onSuccess }: SellFormProps) {
                       )}
                     </YStack>
                     {selectedSellerId === d.delegatorId && (
+                      <YStack
+                        width={20}
+                        height={20}
+                        borderRadius={10}
+                        backgroundColor={colors.primary[600]}
+                        alignItems="center"
+                        justifyContent="center"
+                      >
+                        <Text color="white" fontSize={12} fontWeight="700">✓</Text>
+                      </YStack>
+                    )}
+                  </XStack>
+                </Button>
+              ))}
+            </YStack>
+          )}
+
+          {/* ════════════════════════════════════════════════════
+              COMMUNITY PICKER (delegate mode)
+              ════════════════════════════════════════════════════ */}
+          {showCommunityPicker && (
+            <YStack
+              backgroundColor="white"
+              borderRadius={borderRadius.lg}
+              padding="$4"
+              gap="$3"
+              borderWidth={1}
+              borderColor={colors.neutral[200]}
+            >
+              <Label fontWeight="600" color={colors.neutral[900]}>
+                {t('createPost.fields.community')}
+              </Label>
+              <Text fontSize="$2" color={colors.neutral[500]}>
+                Choose which community to post this listing in
+              </Text>
+
+              {allCommunities.map((comm) => (
+                <Button
+                  key={comm.h3Index}
+                  backgroundColor={(
+                    selectedCommunityH3 === comm.h3Index ||
+                    (!selectedCommunityH3 && communityH3Index === comm.h3Index)
+                  ) ? colors.primary[50] : 'white'}
+                  borderWidth={2}
+                  borderColor={(
+                    selectedCommunityH3 === comm.h3Index ||
+                    (!selectedCommunityH3 && communityH3Index === comm.h3Index)
+                  ) ? colors.primary[500] : colors.neutral[200]}
+                  borderRadius={borderRadius.md}
+                  paddingVertical="$3"
+                  paddingHorizontal="$3"
+                  onPress={() => {
+                    setSelectedCommunityH3(comm.h3Index)
+                    setSelectedNeighborH3Indices([])
+                  }}
+                  justifyContent="flex-start"
+                >
+                  <XStack alignItems="center" gap="$3" flex={1}>
+                    <MapPin size={18} color={(
+                      selectedCommunityH3 === comm.h3Index ||
+                      (!selectedCommunityH3 && communityH3Index === comm.h3Index)
+                    ) ? colors.primary[600] : colors.neutral[400]} />
+                    <YStack flex={1}>
+                      <Text fontWeight="600" color={colors.neutral[900]}>{comm.name}</Text>
+                      <Text fontSize="$2" color={colors.neutral[500]}>{comm.ownerLabel}</Text>
+                    </YStack>
+                    {(
+                      selectedCommunityH3 === comm.h3Index ||
+                      (!selectedCommunityH3 && communityH3Index === comm.h3Index)
+                    ) && (
                       <YStack
                         width={20}
                         height={20}
@@ -842,13 +1060,20 @@ export function SellForm({ onBack, onSuccess }: SellFormProps) {
                   >
                     {Platform.OS === 'web' && asset.type === 'video' ? (
                       <video
-                        src={asset.uri}
+                        src={`${asset.uri}#t=0.1`}
                         style={{ width: 80, height: 80, borderRadius: 8, objectFit: 'cover' }}
                         muted
                         playsInline
+                        preload="metadata"
                         controls={false}
                         onMouseOver={(e) => (e.target as HTMLVideoElement).play()}
                         onMouseOut={(e) => { const v = e.target as HTMLVideoElement; v.pause(); v.currentTime = 0 }}
+                      />
+                    ) : Platform.OS === 'web' ? (
+                      <img
+                        src={asset.uri}
+                        style={{ width: 80, height: 80, borderRadius: 8, objectFit: 'cover' }}
+                        alt=""
                       />
                     ) : (
                       <Image
@@ -1107,8 +1332,8 @@ export function SellForm({ onBack, onSuccess }: SellFormProps) {
               </Text>
             </Button>
 
-            {/* Calendar Picker modal */}
-            {datePickerVisible && editingDateIndex !== null && (
+            {/* Calendar Picker modal (native only — web uses <input type="date">) */}
+            {Platform.OS !== 'web' && datePickerVisible && editingDateIndex !== null && (
               <CalendarPicker
                 visible={datePickerVisible}
                 initialDate={dropoffDates[editingDateIndex] || undefined}
@@ -1131,6 +1356,22 @@ export function SellForm({ onBack, onSuccess }: SellFormProps) {
           {/* ════════════════════════════════════════════════════
               SUBMIT
               ════════════════════════════════════════════════════ */}
+          {formError ? (
+            <XStack
+              backgroundColor={colors.red[50]}
+              borderWidth={1}
+              borderColor={colors.red[200]}
+              borderRadius={borderRadius.md}
+              padding="$3"
+              alignItems="center"
+              gap="$2"
+            >
+              <Text flex={1} fontSize="$3" color={colors.red[700]}>{formError}</Text>
+              <Pressable onPress={() => setFormError('')}>
+                <Text fontSize="$3" color={colors.red[400]}>✕</Text>
+              </Pressable>
+            </XStack>
+          ) : null}
           <Button
             size="$5"
             backgroundColor={colors.primary[600]}

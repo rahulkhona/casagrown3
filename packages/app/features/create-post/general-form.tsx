@@ -26,7 +26,7 @@ import {
   Globe,
   Check,
 } from '@tamagui/lucide-icons'
-import { Alert, Platform, Image } from 'react-native'
+import { Platform, Image, Pressable } from 'react-native'
 import * as ImagePicker from 'expo-image-picker'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useTranslation } from 'react-i18next'
@@ -34,21 +34,14 @@ import { colors, borderRadius } from '../../design-tokens'
 import { useAuth } from '../auth/auth-hook'
 import {
   createGeneralPost,
+  updateGeneralPost,
   getUserCommunitiesWithNeighbors,
   type CommunityInfo,
   type UserCommunitiesResult,
 } from './post-service'
 import { buildResolveResponseFromIndex } from '../community/h3-utils'
 import type { ResolveResponse } from '../community/use-resolve-community'
-
-// Cross-platform alert
-function crossAlert(title: string, message?: string) {
-  if (Platform.OS === 'web') {
-    window.alert(message ? `${title}\n${message}` : title)
-  } else {
-    Alert.alert(title, message)
-  }
-}
+import { loadMediaFromStorage } from './load-media-helper'
 
 interface WebMediaAsset {
   uri: string
@@ -56,6 +49,7 @@ interface WebMediaAsset {
   width?: number
   height?: number
   fileName?: string
+  isExisting?: boolean
 }
 
 const WebCameraModal = Platform.OS === 'web'
@@ -88,6 +82,8 @@ interface GeneralFormProps {
   postType: string
   onBack: () => void
   onSuccess: () => void
+  editId?: string
+  cloneData?: string
 }
 
 const FORM_TITLE_KEYS: Record<string, string> = {
@@ -101,7 +97,7 @@ const FORM_TITLE_KEYS: Record<string, string> = {
 const TYPES_WITH_ADJACENT = ['offering_service']
 const TYPES_WITH_GLOBAL = ['seeking_advice', 'general_info']
 
-export function GeneralForm({ postType, onBack, onSuccess }: GeneralFormProps) {
+export function GeneralForm({ postType, onBack, onSuccess, editId, cloneData }: GeneralFormProps) {
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
   const { user, signOut } = useAuth()
@@ -114,6 +110,8 @@ export function GeneralForm({ postType, onBack, onSuccess }: GeneralFormProps) {
   const [submitting, setSubmitting] = useState(false)
   const [loadingCommunity, setLoadingCommunity] = useState(true)
   const [mediaAssets, setMediaAssets] = useState<(ImagePicker.ImagePickerAsset | WebMediaAsset)[]>([])
+  const [formError, setFormError] = useState('')
+  const [showMediaMenu, setShowMediaMenu] = useState(false)
 
   // Web file input ref & camera modal state
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -130,6 +128,53 @@ export function GeneralForm({ postType, onBack, onSuccess }: GeneralFormProps) {
     if (!user?.id) return
     loadCommunityData()
   }, [user?.id])
+
+  // ── Load edit data ─────────────────────────────────────────
+  useEffect(() => {
+    if (!editId && !cloneData) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        // Clone mode: parse inline JSON data
+        if (cloneData && !editId) {
+          try {
+            const parsed = JSON.parse(cloneData)
+            const content = parsed.content ? JSON.parse(parsed.content) : {}
+            if (content.title) setTitle(content.title)
+            if (content.description) setDescription(content.description)
+            // Load media from storage paths
+            if (parsed.media && parsed.media.length > 0) {
+              const loadedAssets = await loadMediaFromStorage(parsed.media, { isExisting: true })
+              if (!cancelled && loadedAssets.length > 0) {
+                setMediaAssets(loadedAssets)
+              }
+            }
+          } catch {}
+          return
+        }
+        // Edit mode: fetch from DB
+        const { getPostById } = await import('../my-posts/my-posts-service')
+        const { supabase } = await import('../auth/auth-hook')
+        const post = await getPostById(editId!)
+        if (cancelled || !post) return
+        // Pre-fill from content JSON
+        try {
+          const parsed = JSON.parse(post.content)
+          if (parsed.title) setTitle(parsed.title)
+          if (parsed.description) setDescription(parsed.description)
+        } catch {}
+        if (post.media && post.media.length > 0) {
+          const loadedAssets = await loadMediaFromStorage(post.media, { isExisting: true })
+          if (!cancelled && loadedAssets.length > 0) {
+            setMediaAssets(loadedAssets)
+          }
+        }
+      } catch (err) {
+        console.error('Error loading edit data:', err)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [editId])
 
   async function loadCommunityData() {
     if (!user?.id) return
@@ -198,16 +243,7 @@ export function GeneralForm({ postType, onBack, onSuccess }: GeneralFormProps) {
     if (Platform.OS === 'web') {
       fileInputRef.current?.click()
     } else {
-      Alert.alert(
-        t('createPost.fields.media'),
-        '',
-        [
-          { text: '📷 ' + t('createPost.fields.photo'), onPress: () => takePhoto() },
-          { text: '🎥 ' + t('createPost.fields.video'), onPress: () => recordVideo() },
-          { text: '🖼️ Gallery', onPress: () => pickFromGallery() },
-          { text: 'Cancel', style: 'cancel' },
-        ]
-      )
+      setShowMediaMenu(!showMediaMenu)
     }
   }
 
@@ -223,7 +259,7 @@ export function GeneralForm({ postType, onBack, onSuccess }: GeneralFormProps) {
       })
       if (!result.canceled && result.assets.length > 0) setMediaAssets([result.assets[0]!])
     } catch (e) {
-      crossAlert('Camera unavailable', 'Camera is not available on this device. Use Gallery instead.')
+      console.warn('Camera unavailable:', e)
     }
   }
 
@@ -248,7 +284,7 @@ export function GeneralForm({ postType, onBack, onSuccess }: GeneralFormProps) {
       })
       if (!result.canceled && result.assets.length > 0) setMediaAssets([result.assets[0]!])
     } catch (e) {
-      crossAlert('Camera unavailable', 'Camera is not available on this device. Use Gallery instead.')
+      console.warn('Camera unavailable:', e)
     }
   }
 
@@ -260,27 +296,32 @@ export function GeneralForm({ postType, onBack, onSuccess }: GeneralFormProps) {
   async function handleSubmit() {
     if (!user?.id) return
     if (!title.trim() || !description.trim()) {
-      crossAlert(t('createPost.validation.requiredFields'))
+      setFormError(t('createPost.validation.requiredFields'))
       return
     }
 
+    setFormError('')
     setSubmitting(true)
     try {
-      await createGeneralPost({
+      const postData = {
         authorId: user.id,
         communityH3Index: postGlobally ? undefined : (communityH3Index || undefined),
         additionalCommunityH3Indices: selectedNeighborH3Indices.length > 0 ? selectedNeighborH3Indices : undefined,
         type: postType,
         title,
         description,
-        reach: postGlobally ? 'global' : 'community',
+        reach: (postGlobally ? 'global' : 'community') as 'global' | 'community',
         mediaAssets: mediaAssets.length > 0 ? mediaAssets.map(a => ({ uri: a.uri, type: a.type ?? undefined })) : undefined,
-      })
-      crossAlert(t('createPost.success.title'), t('createPost.success.message'))
+      }
+      if (editId) {
+        await updateGeneralPost(editId, postData)
+      } else {
+        await createGeneralPost(postData)
+      }
       onSuccess()
     } catch (err) {
       console.error('Error creating post:', err)
-      crossAlert(t('createPost.error.generic'))
+      setFormError(t('createPost.error.generic'))
     } finally {
       setSubmitting(false)
     }
@@ -508,7 +549,24 @@ export function GeneralForm({ postType, onBack, onSuccess }: GeneralFormProps) {
               <XStack flexWrap="wrap" gap="$2">
                 {mediaAssets.map((asset, index) => (
                   <YStack key={`${asset.uri}-${index}`} width={80} height={80} borderRadius={borderRadius.md} overflow="hidden" position="relative">
-                    <Image source={{ uri: asset.uri }} style={{ width: 80, height: 80, borderRadius: 8 }} />
+                    {Platform.OS === 'web' && asset.type === 'video' ? (
+                      <video
+                        src={`${asset.uri}#t=0.1`}
+                        style={{ width: 80, height: 80, borderRadius: 8, objectFit: 'cover' as any }}
+                        muted
+                        playsInline
+                        preload="metadata"
+                        controls={false}
+                      />
+                    ) : Platform.OS === 'web' ? (
+                      <img
+                        src={asset.uri}
+                        style={{ width: 80, height: 80, borderRadius: 8, objectFit: 'cover' as any }}
+                        alt=""
+                      />
+                    ) : (
+                      <Image source={{ uri: asset.uri }} style={{ width: 80, height: 80, borderRadius: 8 }} />
+                    )}
                     <Button unstyled position="absolute" top={2} right={2} width={22} height={22} borderRadius={11} backgroundColor="rgba(0,0,0,0.6)" alignItems="center" justifyContent="center" onPress={() => removeMedia(index)}>
                       <X size={14} color="white" />
                     </Button>
@@ -633,6 +691,22 @@ export function GeneralForm({ postType, onBack, onSuccess }: GeneralFormProps) {
           {/* ════════════════════════════════════════════════════
               SUBMIT
               ════════════════════════════════════════════════════ */}
+          {formError ? (
+            <XStack
+              backgroundColor={colors.red[50]}
+              borderWidth={1}
+              borderColor={colors.red[200]}
+              borderRadius={borderRadius.md}
+              padding="$3"
+              alignItems="center"
+              gap="$2"
+            >
+              <Text flex={1} fontSize="$3" color={colors.red[700]}>{formError}</Text>
+              <Pressable onPress={() => setFormError('')}>
+                <Text fontSize="$3" color={colors.red[400]}>✕</Text>
+              </Pressable>
+            </XStack>
+          ) : null}
           <Button
             size="$5"
             backgroundColor={colors.primary[600]}

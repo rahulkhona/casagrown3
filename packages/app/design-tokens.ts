@@ -56,6 +56,20 @@ export const colors = {
     700: "#be185d", // Icon color
   },
 
+  // Blue - For "Buying" post type badges
+  blue: {
+    100: "#dbeafe",
+    600: "#2563eb",
+    700: "#1d4ed8",
+  },
+
+  // Purple - For "Services" post type badges
+  purple: {
+    100: "#f3e8ff",
+    600: "#9333ea",
+    700: "#7c3aed",
+  },
+
   // Red - For error states and notification badges
   red: {
     50: "#fef2f2",

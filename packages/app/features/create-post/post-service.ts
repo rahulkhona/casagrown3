@@ -30,7 +30,7 @@ export interface SellPostData {
     pricePerUnit: number;
     dropoffDates: string[];
     /** Media assets to upload (local URIs from camera/gallery) */
-    mediaAssets?: Array<{ uri: string; type?: string }>;
+    mediaAssets?: Array<{ uri: string; type?: string; isExisting?: boolean }>;
 }
 
 export interface BuyPostData {
@@ -42,8 +42,10 @@ export interface BuyPostData {
     category: string;
     produceNames: string[];
     needByDate?: string;
+    /** Optional accept drop-off dates */
+    acceptDates?: string[];
     /** Media assets to upload (local URIs from camera/gallery) */
-    mediaAssets?: Array<{ uri: string; type?: string }>;
+    mediaAssets?: Array<{ uri: string; type?: string; isExisting?: boolean }>;
 }
 
 export interface GeneralPostData {
@@ -57,7 +59,7 @@ export interface GeneralPostData {
     /** 'community' (default) or 'global' (for seeking_advice, general_info) */
     reach?: "community" | "global";
     /** Media assets to upload (local URIs from camera/gallery) */
-    mediaAssets?: Array<{ uri: string; type?: string }>;
+    mediaAssets?: Array<{ uri: string; type?: string; isExisting?: boolean }>;
 }
 
 export interface DelegatorInfo {
@@ -271,6 +273,68 @@ export async function getUserCommunitiesWithNeighbors(
     const neighbors = (profile.nearby_community_h3_indices || [])
         .map((idx: string) => communityMap.get(idx))
         .filter(Boolean) as CommunityInfo[];
+
+    return { primary, neighbors };
+}
+
+/**
+ * Load community + neighbors by H3 index directly (not by userId).
+ * Used when the user selects a community from the delegate community picker.
+ */
+export async function getCommunityWithNeighborsByH3(
+    h3Index: string,
+): Promise<UserCommunitiesResult> {
+    // 1. Fetch the primary community
+    const { data: community, error: commError } = await supabase
+        .from("communities")
+        .select("h3_index, name, city, state, country, location")
+        .eq("h3_index", h3Index)
+        .single();
+
+    if (commError || !community) {
+        return { primary: null, neighbors: [] };
+    }
+
+    const parseLoc = (c: any): CommunityInfo => {
+        const info: CommunityInfo = {
+            h3Index: c.h3_index,
+            name: c.name,
+            city: c.city,
+            state: c.state,
+            country: c.country,
+        };
+        if (
+            c.location && typeof c.location === "object" &&
+            c.location.coordinates
+        ) {
+            info.lng = c.location.coordinates[0];
+            info.lat = c.location.coordinates[1];
+        }
+        return info;
+    };
+
+    const primary = parseLoc(community);
+
+    // 2. Look up which user(s) have this as home community to get their nearby_community_h3_indices
+    const { data: profiles } = await supabase
+        .from("profiles")
+        .select("nearby_community_h3_indices")
+        .eq("home_community_h3_index", h3Index)
+        .limit(1);
+
+    const nearbyIndices = profiles?.[0]?.nearby_community_h3_indices || [];
+
+    if (nearbyIndices.length === 0) {
+        return { primary, neighbors: [] };
+    }
+
+    // 3. Fetch neighbor communities
+    const { data: neighborComms } = await supabase
+        .from("communities")
+        .select("h3_index, name, city, state, country, location")
+        .in("h3_index", nearbyIndices);
+
+    const neighbors = (neighborComms || []).map(parseLoc);
 
     return { primary, neighbors };
 }
@@ -491,7 +555,21 @@ export async function createBuyPost(data: BuyPostData) {
 
     if (detailError) throw detailError;
 
-    // 3. Upload and link media
+    // 3. Insert accept drop-off dates
+    if (data.acceptDates && data.acceptDates.length > 0) {
+        const dateRows = data.acceptDates.map((date) => ({
+            post_id: post.id,
+            delivery_date: date,
+        }));
+
+        const { error: dateError } = await supabase
+            .from("delivery_dates")
+            .insert(dateRows);
+
+        if (dateError) throw dateError;
+    }
+
+    // 4. Upload and link media
     await uploadAndLinkMedia(post.id, data.authorId, data.mediaAssets);
 
     return post;
@@ -534,4 +612,181 @@ export async function createGeneralPost(data: GeneralPostData) {
     await uploadAndLinkMedia(post.id, data.authorId, data.mediaAssets);
 
     return post;
+}
+
+// =============================================================================
+// Update Existing Posts
+// =============================================================================
+
+export async function updateGeneralPost(
+    postId: string,
+    data: Omit<GeneralPostData, "authorId"> & { authorId: string },
+) {
+    const contentObj: Record<string, unknown> = {
+        title: data.title,
+        description: data.description,
+    };
+    if (
+        data.additionalCommunityH3Indices &&
+        data.additionalCommunityH3Indices.length > 0
+    ) {
+        contentObj.additionalCommunityH3Indices =
+            data.additionalCommunityH3Indices;
+    }
+    const content = JSON.stringify(contentObj);
+
+    const { error: postError } = await supabase
+        .from("posts")
+        .update({
+            community_h3_index: data.communityH3Index || null,
+            reach: data.reach || "community",
+            content,
+            updated_at: new Date().toISOString(),
+        })
+        .eq("id", postId);
+
+    if (postError) throw postError;
+
+    // Handle media: detect removals and new uploads
+    const existingAssets = data.mediaAssets?.filter((a) => a.isExisting) || [];
+    const newAssets = data.mediaAssets?.filter((a) => !a.isExisting) || [];
+
+    // If user removed existing media or is replacing with new media,
+    // delete old post_media links
+    const hadExistingMedia = existingAssets.length > 0;
+    if (!hadExistingMedia) {
+        // User removed all existing media — clear post_media links
+        await supabase.from("post_media").delete().eq("post_id", postId);
+    }
+
+    if (newAssets.length > 0) {
+        await uploadAndLinkMedia(postId, data.authorId, newAssets);
+    }
+
+    return { id: postId };
+}
+
+export async function updateSellPost(
+    postId: string,
+    data: Omit<SellPostData, "authorId"> & { authorId: string },
+) {
+    const contentObj: Record<string, unknown> = {
+        produceName: data.produceName,
+        description: data.description,
+    };
+    if (
+        data.additionalCommunityH3Indices &&
+        data.additionalCommunityH3Indices.length > 0
+    ) {
+        contentObj.additionalCommunityH3Indices =
+            data.additionalCommunityH3Indices;
+    }
+    const content = JSON.stringify(contentObj);
+
+    const { error: postError } = await supabase
+        .from("posts")
+        .update({
+            community_h3_index: data.communityH3Index || null,
+            content,
+            updated_at: new Date().toISOString(),
+        })
+        .eq("id", postId);
+
+    if (postError) throw postError;
+
+    // Update sell details
+    const { error: detailError } = await supabase
+        .from("want_to_sell_details")
+        .update({
+            category: data.category,
+            produce_name: data.produceName,
+            unit: data.unit,
+            total_quantity_available: data.quantity,
+            price_per_unit: data.pricePerUnit,
+        })
+        .eq("post_id", postId);
+
+    if (detailError) throw detailError;
+
+    // Handle media: detect removals and new uploads
+    const existingAssets = data.mediaAssets?.filter((a) => a.isExisting) || [];
+    const newAssets = data.mediaAssets?.filter((a) => !a.isExisting) || [];
+
+    if (existingAssets.length === 0) {
+        await supabase.from("post_media").delete().eq("post_id", postId);
+    }
+
+    if (newAssets.length > 0) {
+        await uploadAndLinkMedia(postId, data.authorId, newAssets);
+    }
+
+    return { id: postId };
+}
+
+export async function updateBuyPost(
+    postId: string,
+    data: Omit<BuyPostData, "authorId"> & { authorId: string },
+) {
+    const contentObj: Record<string, unknown> = {
+        produceNames: data.produceNames,
+        description: data.description,
+    };
+    if (
+        data.additionalCommunityH3Indices &&
+        data.additionalCommunityH3Indices.length > 0
+    ) {
+        contentObj.additionalCommunityH3Indices =
+            data.additionalCommunityH3Indices;
+    }
+    const content = JSON.stringify(contentObj);
+
+    const { error: postError } = await supabase
+        .from("posts")
+        .update({
+            community_h3_index: data.communityH3Index || null,
+            content,
+            updated_at: new Date().toISOString(),
+        })
+        .eq("id", postId);
+
+    if (postError) throw postError;
+
+    // Update buy details
+    const { error: detailError } = await supabase
+        .from("want_to_buy_details")
+        .update({
+            category: data.category,
+            produce_names: data.produceNames,
+            need_by_date: data.needByDate || null,
+        })
+        .eq("post_id", postId);
+
+    if (detailError) throw detailError;
+
+    // Update delivery dates (accept drop-off dates)
+    await supabase.from("delivery_dates").delete().eq("post_id", postId);
+    if (data.acceptDates && data.acceptDates.length > 0) {
+        const dateRows = data.acceptDates.map((date) => ({
+            post_id: postId,
+            delivery_date: date,
+        }));
+        const { error: dateError } = await supabase
+            .from("delivery_dates")
+            .insert(dateRows);
+        if (dateError) throw dateError;
+    }
+
+    // Handle media: detect removals and new uploads
+    const existingAssets = data.mediaAssets?.filter((a) => a.isExisting) || [];
+    const newAssets = data.mediaAssets?.filter((a) => !a.isExisting) || [];
+
+    if (existingAssets.length === 0) {
+        await supabase.from("post_media").delete().eq("post_id", postId);
+    }
+
+    if (newAssets.length > 0) {
+        await uploadAndLinkMedia(postId, data.authorId, newAssets);
+    }
+
+    return { id: postId };
 }

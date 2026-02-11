@@ -25,7 +25,7 @@ import {
   Image as ImageIcon,
   X,
 } from '@tamagui/lucide-icons'
-import { Alert, Platform, Image, Pressable } from 'react-native'
+import { Platform, Image, Pressable } from 'react-native'
 import { CalendarPicker } from './CalendarPicker'
 import * as ImagePicker from 'expo-image-picker'
 import { useRef } from 'react'
@@ -35,6 +35,7 @@ import { colors, borderRadius } from '../../design-tokens'
 import { useAuth } from '../auth/auth-hook'
 import {
   createBuyPost,
+  updateBuyPost,
   getUserCommunitiesWithNeighbors,
   getAvailableCategories,
   type CommunityInfo,
@@ -42,15 +43,7 @@ import {
 } from './post-service'
 import { buildResolveResponseFromIndex } from '../community/h3-utils'
 import type { ResolveResponse } from '../community/use-resolve-community'
-
-// Cross-platform alert
-function crossAlert(title: string, message?: string) {
-  if (Platform.OS === 'web') {
-    window.alert(message ? `${title}\n${message}` : title)
-  } else {
-    Alert.alert(title, message)
-  }
-}
+import { loadMediaFromStorage } from './load-media-helper'
 
 interface WebMediaAsset {
   uri: string
@@ -58,6 +51,7 @@ interface WebMediaAsset {
   width?: number
   height?: number
   fileName?: string
+  isExisting?: boolean
 }
 
 const WebCameraModal = Platform.OS === 'web'
@@ -89,9 +83,11 @@ function CommunityMapWrapper(props: { resolveData: ResolveResponse; height?: num
 interface BuyFormProps {
   onBack: () => void
   onSuccess: () => void
+  editId?: string
+  cloneData?: string
 }
 
-export function BuyForm({ onBack, onSuccess }: BuyFormProps) {
+export function BuyForm({ onBack, onSuccess, editId, cloneData }: BuyFormProps) {
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
   const { user, signOut } = useAuth()
@@ -106,6 +102,8 @@ export function BuyForm({ onBack, onSuccess }: BuyFormProps) {
   const [datePickerVisible, setDatePickerVisible] = useState(false)
   const [editingDateIndex, setEditingDateIndex] = useState<number | null>(null)
   const [mediaAssets, setMediaAssets] = useState<(ImagePicker.ImagePickerAsset | WebMediaAsset)[]>([])
+  const [formError, setFormError] = useState('')
+  const [showMediaMenu, setShowMediaMenu] = useState(false)
 
   // Web file input ref & camera modal state
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -128,6 +126,76 @@ export function BuyForm({ onBack, onSuccess }: BuyFormProps) {
     if (!user?.id) return
     loadData()
   }, [user?.id])
+
+  // ── Load edit data ─────────────────────────────────────────
+  useEffect(() => {
+    if (!editId && !cloneData) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        // Clone mode: parse inline JSON data
+        if (cloneData && !editId) {
+          try {
+            const parsed = JSON.parse(cloneData)
+            const content = parsed.content ? JSON.parse(parsed.content) : {}
+            if (content.description) setDescription(content.description)
+            if (content.produceNames) setLookingFor(content.produceNames.join(', '))
+            if (parsed.buy_details) {
+              setCategory(parsed.buy_details.category || '')
+              if (Array.isArray(parsed.buy_details.produce_names)) {
+                setLookingFor(parsed.buy_details.produce_names.join(', '))
+              }
+              if (parsed.buy_details.need_by_date) setNeedByDate(parsed.buy_details.need_by_date)
+            }
+            // Copy accept drop-off dates
+            if (Array.isArray(parsed.delivery_dates) && parsed.delivery_dates.length > 0) {
+              setAcceptDates(parsed.delivery_dates)
+            }
+            // Load media from storage paths
+            if (parsed.media && parsed.media.length > 0) {
+              const loadedAssets = await loadMediaFromStorage(parsed.media)
+              if (!cancelled && loadedAssets.length > 0) {
+                setMediaAssets(loadedAssets)
+              }
+            }
+          } catch {}
+          return
+        }
+        // Edit mode: fetch from DB
+        const { getPostById } = await import('../my-posts/my-posts-service')
+        const { supabase } = await import('../auth/auth-hook')
+        const post = await getPostById(editId!)
+        if (cancelled || !post) return
+        // Pre-fill from content JSON
+        try {
+          const parsed = JSON.parse(post.content)
+          if (parsed.description) setDescription(parsed.description)
+          if (parsed.produceNames) setLookingFor(parsed.produceNames.join(', '))
+        } catch {}
+        // Pre-fill from buy_details
+        if (post.buy_details) {
+          setCategory(post.buy_details.category || '')
+          if (Array.isArray(post.buy_details.produce_names)) {
+            setLookingFor(post.buy_details.produce_names.join(', '))
+          }
+          if (post.buy_details.need_by_date) setNeedByDate(post.buy_details.need_by_date)
+        }
+        // Pre-fill accept drop-off dates
+        if (Array.isArray(post.delivery_dates) && post.delivery_dates.length > 0) {
+          setAcceptDates(post.delivery_dates)
+        }
+        if (post.media && post.media.length > 0) {
+          const loadedAssets = await loadMediaFromStorage(post.media, { isExisting: true })
+          if (!cancelled && loadedAssets.length > 0) {
+            setMediaAssets(loadedAssets)
+          }
+        }
+      } catch (err) {
+        console.error('Error loading edit data:', err)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [editId])
 
   async function loadData() {
     if (!user?.id) return
@@ -200,16 +268,7 @@ export function BuyForm({ onBack, onSuccess }: BuyFormProps) {
     if (Platform.OS === 'web') {
       fileInputRef.current?.click()
     } else {
-      Alert.alert(
-        t('createPost.fields.media'),
-        '',
-        [
-          { text: '📷 ' + t('createPost.fields.photo'), onPress: () => takePhoto() },
-          { text: '🎥 ' + t('createPost.fields.video'), onPress: () => recordVideo() },
-          { text: '🖼️ Gallery', onPress: () => pickFromGallery() },
-          { text: 'Cancel', style: 'cancel' },
-        ]
-      )
+      setShowMediaMenu(!showMediaMenu)
     }
   }
 
@@ -225,7 +284,7 @@ export function BuyForm({ onBack, onSuccess }: BuyFormProps) {
       })
       if (!result.canceled && result.assets.length > 0) setMediaAssets([result.assets[0]!])
     } catch (e) {
-      crossAlert('Camera unavailable', 'Camera is not available on this device. Use Gallery instead.')
+      console.warn('Camera unavailable:', e)
     }
   }
 
@@ -250,7 +309,7 @@ export function BuyForm({ onBack, onSuccess }: BuyFormProps) {
       })
       if (!result.canceled && result.assets.length > 0) setMediaAssets([result.assets[0]!])
     } catch (e) {
-      crossAlert('Camera unavailable', 'Camera is not available on this device. Use Gallery instead.')
+      console.warn('Camera unavailable:', e)
     }
   }
 
@@ -279,13 +338,14 @@ export function BuyForm({ onBack, onSuccess }: BuyFormProps) {
   async function handleSubmit() {
     if (!user?.id) return
     if (!lookingFor.trim() || !category) {
-      crossAlert(t('createPost.validation.requiredFields'))
+      setFormError(t('createPost.validation.requiredFields'))
       return
     }
 
+    setFormError('')
     setSubmitting(true)
     try {
-      await createBuyPost({
+      const postData = {
         authorId: user.id,
         communityH3Index: communityH3Index || undefined,
         additionalCommunityH3Indices: selectedNeighborH3Indices.length > 0 ? selectedNeighborH3Indices : undefined,
@@ -293,13 +353,18 @@ export function BuyForm({ onBack, onSuccess }: BuyFormProps) {
         category,
         produceNames: lookingFor.split(',').map((s) => s.trim()).filter(Boolean),
         needByDate: needByDate || undefined,
+        acceptDates: acceptDates.length > 0 ? acceptDates : undefined,
         mediaAssets: mediaAssets.length > 0 ? mediaAssets.map(a => ({ uri: a.uri, type: a.type ?? undefined })) : undefined,
-      })
-      crossAlert(t('createPost.success.title'), t('createPost.success.message'))
+      }
+      if (editId) {
+        await updateBuyPost(editId, postData)
+      } else {
+        await createBuyPost(postData)
+      }
       onSuccess()
     } catch (err) {
       console.error('Error creating buy post:', err)
-      crossAlert(t('createPost.error.generic'))
+      setFormError(t('createPost.error.generic'))
     } finally {
       setSubmitting(false)
     }
@@ -599,8 +664,10 @@ export function BuyForm({ onBack, onSuccess }: BuyFormProps) {
                 icon={<Plus size={18} color={colors.primary[600]} />}
                 onPress={() => {
                   addAcceptDate()
-                  setEditingDateIndex(acceptDates.length)
-                  setDatePickerVisible(true)
+                  if (Platform.OS !== 'web') {
+                    setEditingDateIndex(acceptDates.length)
+                    setDatePickerVisible(true)
+                  }
                 }}
               >
                 <Text color={colors.primary[600]} fontWeight="600">
@@ -608,8 +675,8 @@ export function BuyForm({ onBack, onSuccess }: BuyFormProps) {
                 </Text>
               </Button>
 
-              {/* Calendar Picker modal */}
-              {datePickerVisible && editingDateIndex !== null && (
+              {/* Calendar Picker modal (native only — web uses <input type="date">) */}
+              {Platform.OS !== 'web' && datePickerVisible && editingDateIndex !== null && (
                 <CalendarPicker
                   visible={datePickerVisible}
                   initialDate={
@@ -655,7 +722,24 @@ export function BuyForm({ onBack, onSuccess }: BuyFormProps) {
               <XStack flexWrap="wrap" gap="$2">
                 {mediaAssets.map((asset, index) => (
                   <YStack key={`${asset.uri}-${index}`} width={80} height={80} borderRadius={borderRadius.md} overflow="hidden" position="relative">
-                    <Image source={{ uri: asset.uri }} style={{ width: 80, height: 80, borderRadius: 8 }} />
+                    {Platform.OS === 'web' && asset.type === 'video' ? (
+                      <video
+                        src={`${asset.uri}#t=0.1`}
+                        style={{ width: 80, height: 80, borderRadius: 8, objectFit: 'cover' as any }}
+                        muted
+                        playsInline
+                        preload="metadata"
+                        controls={false}
+                      />
+                    ) : Platform.OS === 'web' ? (
+                      <img
+                        src={asset.uri}
+                        style={{ width: 80, height: 80, borderRadius: 8, objectFit: 'cover' as any }}
+                        alt=""
+                      />
+                    ) : (
+                      <Image source={{ uri: asset.uri }} style={{ width: 80, height: 80, borderRadius: 8 }} />
+                    )}
                     <Button unstyled position="absolute" top={2} right={2} width={22} height={22} borderRadius={11} backgroundColor="rgba(0,0,0,0.6)" alignItems="center" justifyContent="center" onPress={() => removeMedia(index)}>
                       <X size={14} color="white" />
                     </Button>
@@ -780,6 +864,22 @@ export function BuyForm({ onBack, onSuccess }: BuyFormProps) {
           {/* ════════════════════════════════════════════════════
               SUBMIT
               ════════════════════════════════════════════════════ */}
+          {formError ? (
+            <XStack
+              backgroundColor={colors.red[50]}
+              borderWidth={1}
+              borderColor={colors.red[200]}
+              borderRadius={borderRadius.md}
+              padding="$3"
+              alignItems="center"
+              gap="$2"
+            >
+              <Text flex={1} fontSize="$3" color={colors.red[700]}>{formError}</Text>
+              <Pressable onPress={() => setFormError('')}>
+                <Text fontSize="$3" color={colors.red[400]}>✕</Text>
+              </Pressable>
+            </XStack>
+          ) : null}
           <Button
             size="$5"
             backgroundColor={colors.primary[600]}

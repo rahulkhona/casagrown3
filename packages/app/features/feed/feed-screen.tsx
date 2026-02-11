@@ -27,6 +27,7 @@ interface FeedScreenProps {
   onCreatePost?: () => void
   onNavigateToProfile?: () => void
   onNavigateToDelegate?: () => void
+  onNavigateToMyPosts?: () => void
   logoSrc?: any // Logo image source for mobile (use require('../assets/logo.png'))
   /** User's referral code for invite link - from profile.referral_code */
   referralCode?: string
@@ -50,7 +51,7 @@ const NAV_KEYS = [
   { key: 'delegateSales', badge: 0 },
 ]
 
-export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDelegate, logoSrc, referralCode, inviteRewards, userAvatarUrl: rawAvatarUrl, userDisplayName }: FeedScreenProps) {
+export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDelegate, onNavigateToMyPosts, logoSrc, referralCode, inviteRewards, userAvatarUrl: rawAvatarUrl, userDisplayName }: FeedScreenProps) {
   const userAvatarUrl = normalizeStorageUrl(rawAvatarUrl)
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
@@ -142,6 +143,8 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
                     onPress={() => {
                       if (item.key === 'delegateSales' && onNavigateToDelegate) {
                         onNavigateToDelegate()
+                      } else if (item.key === 'myPosts' && onNavigateToMyPosts) {
+                        onNavigateToMyPosts()
                       }
                     }}
                   >
@@ -328,6 +331,8 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
                   setMobileMenuOpen(false)
                   if (item.key === 'delegateSales' && onNavigateToDelegate) {
                     onNavigateToDelegate()
+                  } else if (item.key === 'myPosts' && onNavigateToMyPosts) {
+                    onNavigateToMyPosts()
                   }
                 }}
               >

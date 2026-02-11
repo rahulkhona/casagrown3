@@ -96,15 +96,24 @@ const POST_TYPES: PostTypeOption[] = [
 export interface CreatePostScreenProps {
   onBack: () => void
   onSuccess?: () => void
+  /** If provided, skips the type picker and goes directly to the form for this post type */
+  initialType?: PostTypeKey
+  /** If provided, opens the form in edit mode with existing post data */
+  editId?: string
+  /** If provided, pre-fills the form with cloned post data (JSON string) */
+  cloneData?: string
 }
 
-export function CreatePostScreen({ onBack, onSuccess }: CreatePostScreenProps) {
+export function CreatePostScreen({ onBack, onSuccess, initialType, editId, cloneData }: CreatePostScreenProps) {
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
-  const [selectedType, setSelectedType] = useState<PostTypeKey | null>(null)
+  const [selectedType, setSelectedType] = useState<PostTypeKey | null>(initialType ?? null)
 
   const handleBack = () => {
-    if (selectedType) {
+    if (editId || cloneData) {
+      // In edit/clone mode, go directly back (to My Posts)
+      onBack()
+    } else if (selectedType) {
       setSelectedType(null)
     } else {
       onBack()
@@ -118,27 +127,34 @@ export function CreatePostScreen({ onBack, onSuccess }: CreatePostScreenProps) {
 
   // Render form for selected post type
   if (selectedType) {
+    const formBack = (editId || cloneData) ? onBack : () => setSelectedType(null)
     switch (selectedType) {
       case 'want_to_sell':
         return (
           <SellForm
-            onBack={() => setSelectedType(null)}
+            onBack={formBack}
             onSuccess={handlePostSuccess}
+            editId={editId}
+            cloneData={cloneData}
           />
         )
       case 'want_to_buy':
         return (
           <BuyForm
-            onBack={() => setSelectedType(null)}
+            onBack={formBack}
             onSuccess={handlePostSuccess}
+            editId={editId}
+            cloneData={cloneData}
           />
         )
       default:
         return (
           <GeneralForm
             postType={selectedType}
-            onBack={() => setSelectedType(null)}
+            onBack={formBack}
             onSuccess={handlePostSuccess}
+            editId={editId}
+            cloneData={cloneData}
           />
         )
     }

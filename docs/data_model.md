@@ -20,6 +20,7 @@ and any associated triggers/functions/RLS policies.
 > `20260210030000_category_restrictions_rls` → `20260210040000_platform_config`
 > → `20260210050000_communities_rls` → `20260210060000_sell_need_by_date` →
 > `20260210070000_enrich_communities_cron` → `20260210080000_produce_interests`
+> → `20260211000000_post_type_policies`
 
 ## Extensions
 
@@ -676,6 +677,55 @@ create table platform_config (
 | :------------------------------------------- | :-------- | :------------- |
 | Authenticated users can read platform config | `SELECT`  | `using (true)` |
 
+### `post_type_policies`
+
+Configurable expiration days per post type. Used by the "My Posts" screen to
+determine active/expired status for each post based on its type.
+
+**Migration**: `20260211000000_post_type_policies.sql`
+
+| Column            | Type          | Description                                          |
+| :---------------- | :------------ | :--------------------------------------------------- |
+| `post_type`       | `post_type`   | **Primary Key**. The post type enum value.           |
+| `expiration_days` | `integer`     | Days until a post of this type expires. Default: 30. |
+| `created_at`      | `timestamptz` | Default `now()`.                                     |
+| `updated_at`      | `timestamptz` | Default `now()`.                                     |
+
+**Default expiration values**:
+
+| Post Type          | Expiration Days |
+| :----------------- | :-------------- |
+| `want_to_sell`     | 14              |
+| `want_to_buy`      | 7               |
+| `offering_service` | 30              |
+| `need_service`     | 7               |
+| `seeking_advice`   | 30              |
+| `general_info`     | 30              |
+
+```sql
+create table post_type_policies (
+  post_type post_type primary key,
+  expiration_days integer not null default 30,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- Seed default expiration days per type
+insert into post_type_policies (post_type, expiration_days) values
+  ('want_to_sell', 14),
+  ('want_to_buy', 7),
+  ('offering_service', 30),
+  ('need_service', 7),
+  ('seeking_advice', 30),
+  ('general_info', 30);
+```
+
+**RLS Policies** (`20260211000000_post_type_policies`):
+
+| Policy                                                     | Operation | Rule           |
+| :--------------------------------------------------------- | :-------- | :------------- |
+| Post type policies are readable by all authenticated users | `SELECT`  | `using (true)` |
+
 ---
 
 ## Media
@@ -1235,6 +1285,7 @@ listed below.
 | `produce_interests`           | Users can add their own produce interests          | INSERT    | `auth.uid() = user_id`                     |
 | `produce_interests`           | Users can update their own produce interests       | UPDATE    | `auth.uid() = user_id`                     |
 | `produce_interests`           | Users can remove their own produce interests       | DELETE    | `auth.uid() = user_id`                     |
+| `post_type_policies`          | Post type policies are readable by all auth users  | SELECT    | `true` (authenticated)                     |
 
 **RLS Policy SQL:**
 
@@ -1272,6 +1323,9 @@ create policy "Users can view all produce interests" on produce_interests for se
 create policy "Users can add their own produce interests" on produce_interests for insert to authenticated with check (user_id = auth.uid());
 create policy "Users can update their own produce interests" on produce_interests for update to authenticated using (user_id = auth.uid());
 create policy "Users can remove their own produce interests" on produce_interests for delete to authenticated using (user_id = auth.uid());
+
+-- post_type_policies (20260211000000)
+create policy "Post type policies are readable by all authenticated users" on post_type_policies for select to authenticated using (true);
 ```
 
 > [!NOTE]

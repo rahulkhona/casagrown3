@@ -66,9 +66,17 @@ jest.mock('solito/navigation', () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
 }))
 
-// Mock media upload
+// Mock media upload (profile avatar)
 jest.mock('./utils/media-upload', () => ({
   uploadProfileAvatar: jest.fn().mockResolvedValue('https://example.com/avatar.jpg'),
+}))
+
+// Mock post media upload (intro post media — uses expo-file-system/next on native)
+jest.mock('../create-post/media-upload', () => ({
+  uploadPostMedia: jest.fn().mockResolvedValue({
+    storagePath: 'posts/test/media.jpg',
+    mediaType: 'image',
+  }),
 }))
 
 // Mock AsyncStorage (used by wizard-context.tsx on native platforms - Platform.OS != 'web')

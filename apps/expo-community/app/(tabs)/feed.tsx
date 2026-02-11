@@ -47,11 +47,16 @@ export default function FeedTab() {
     router.push('/(tabs)/delegate')
   }
 
+  const handleNavigateToMyPosts = () => {
+    router.push('/(tabs)/my-posts')
+  }
+
   return (
     <FeedScreen
       onCreatePost={handleCreatePost}
       onNavigateToProfile={handleNavigateToProfile}
       onNavigateToDelegate={handleNavigateToDelegate}
+      onNavigateToMyPosts={handleNavigateToMyPosts}
       logoSrc={logoSrc}
       referralCode={referralCode}
       userAvatarUrl={userAvatarUrl}
