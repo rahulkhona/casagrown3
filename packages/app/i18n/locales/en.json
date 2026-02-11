@@ -691,7 +691,7 @@
     "filterStatusLabel": "Status",
     "filterOwnerLabel": "Owner",
     "filterMine": "Me",
-    "filterDelegate": "Delegator",
+    "filterDelegate": "Other",
     "sortLabel": "Sort",
     "sortNewest": "Newest",
     "sortOldest": "Oldest",
