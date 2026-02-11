@@ -234,6 +234,27 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
             setMediaAssets(loadedAssets)
           }
         }
+        // Pre-fill delegate selection from on_behalf_of
+        if (post.on_behalf_of) {
+          setSelectedSellerId(post.on_behalf_of)
+          // Ensure the delegator appears in the picker even if the delegation
+          // is no longer active (e.g. revoked). Without this, the picker would
+          // show a selected ID with no matching name.
+          setDelegators((prev) => {
+            if (prev.some((d) => d.delegatorId === post.on_behalf_of)) return prev
+            return [
+              ...prev,
+              {
+                delegationId: '',
+                delegatorId: post.on_behalf_of!,
+                fullName: post.on_behalf_of_profile?.full_name || null,
+                avatarUrl: post.on_behalf_of_profile?.avatar_url || null,
+                communityH3Index: null,
+                communityName: null,
+              },
+            ]
+          })
+        }
       } catch (err) {
         console.error('Error loading edit data:', err)
       }
@@ -579,7 +600,7 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
           {/* ════════════════════════════════════════════════════
               DELEGATE SELLER PICKER
               ════════════════════════════════════════════════════ */}
-          {!loadingDelegators && delegators.length > 0 && (
+          {!loadingDelegators && (delegators.length > 0 || (editId && selectedSellerId)) && (
             <YStack
               backgroundColor="white"
               borderRadius={borderRadius.lg}
@@ -587,6 +608,7 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
               gap="$3"
               borderWidth={1}
               borderColor={colors.neutral[200]}
+              opacity={editId ? 0.7 : 1}
             >
               <Label fontWeight="600" color={colors.neutral[900]}>
                 {t('createPost.delegator.sellingFor')}
@@ -603,8 +625,9 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
                 borderRadius={borderRadius.md}
                 paddingVertical="$3"
                 paddingHorizontal="$3"
-                onPress={() => setSelectedSellerId(null)}
+                onPress={() => { if (!editId) setSelectedSellerId(null) }}
                 justifyContent="flex-start"
+                disabled={!!editId}
               >
                 <XStack alignItems="center" gap="$3" flex={1}>
                   <Avatar circular size="$3">
@@ -643,8 +666,9 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
                   borderRadius={borderRadius.md}
                   paddingVertical="$3"
                   paddingHorizontal="$3"
-                  onPress={() => setSelectedSellerId(d.delegatorId)}
+                  onPress={() => { if (!editId) setSelectedSellerId(d.delegatorId) }}
                   justifyContent="flex-start"
+                  disabled={!!editId}
                 >
                   <XStack alignItems="center" gap="$3" flex={1}>
                     <Avatar circular size="$3">

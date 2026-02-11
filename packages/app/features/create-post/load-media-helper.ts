@@ -17,5 +17,8 @@ export async function loadMediaFromStorage(
     _media: StorageMedia[],
     _options?: { isExisting?: boolean },
 ): Promise<LoadedAsset[]> {
-    throw new Error("Platform not supported");
+    console.warn(
+        "loadMediaFromStorage: no platform-specific implementation available; media will not load.",
+    );
+    return [];
 }

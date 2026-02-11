@@ -17,6 +17,11 @@ import { supabase } from "../auth/auth-hook";
 export interface UserPost {
     id: string;
     author_id: string;
+    on_behalf_of: string | null;
+    on_behalf_of_profile?: {
+        full_name: string | null;
+        avatar_url: string | null;
+    } | null;
     type: string;
     reach: string;
     content: string;
@@ -283,6 +288,11 @@ export async function getPostById(postId: string): Promise<UserPost | null> {
         .select(`
       id,
       author_id,
+      on_behalf_of,
+      on_behalf_of_profile:profiles!posts_on_behalf_of_fkey (
+        full_name,
+        avatar_url
+      ),
       type,
       reach,
       content,
@@ -328,6 +338,8 @@ export async function getPostById(postId: string): Promise<UserPost | null> {
     return {
         id: row.id,
         author_id: row.author_id,
+        on_behalf_of: row.on_behalf_of || null,
+        on_behalf_of_profile: row.on_behalf_of_profile || null,
         type: row.type,
         reach: row.reach,
         content: row.content,
