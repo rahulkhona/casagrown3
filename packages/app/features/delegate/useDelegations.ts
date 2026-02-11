@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../auth/auth-hook";
 
 export interface DelegationRecord {
@@ -41,6 +41,7 @@ export function useDelegations() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+    const isInitialLoad = useRef(true);
 
     // Get current user
     useEffect(() => {
@@ -52,7 +53,7 @@ export function useDelegations() {
     // Fetch delegations
     const fetchDelegations = useCallback(async () => {
         if (!currentUserId) return;
-        setLoading(true);
+        if (isInitialLoad.current) setLoading(true);
         setError(null);
 
         try {
@@ -88,6 +89,7 @@ export function useDelegations() {
         } catch (err: any) {
             setError(err.message || "Failed to fetch delegations");
         } finally {
+            isInitialLoad.current = false;
             setLoading(false);
         }
     }, [currentUserId]);
@@ -95,6 +97,15 @@ export function useDelegations() {
     useEffect(() => {
         fetchDelegations();
     }, [fetchDelegations]);
+
+    // Poll for changes every 10s so updates from other devices are reflected
+    useEffect(() => {
+        if (!currentUserId) return;
+        const interval = setInterval(() => {
+            fetchDelegations();
+        }, 10_000);
+        return () => clearInterval(interval);
+    }, [currentUserId, fetchDelegations]);
 
     // Generate delegation link (new link-based flow)
     // Note: does NOT refetch delegations — generating a link creates a pending_pairing
