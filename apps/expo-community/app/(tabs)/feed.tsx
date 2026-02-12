@@ -12,6 +12,7 @@ export default function FeedTab() {
   const [referralCode, setReferralCode] = useState<string | undefined>()
   const [userAvatarUrl, setUserAvatarUrl] = useState<string | undefined>()
   const [userDisplayName, setUserDisplayName] = useState<string | undefined>()
+  const [communityH3Index, setCommunityH3Index] = useState<string | undefined>()
 
   // Fetch user profile data (referral code, avatar, name)
   useEffect(() => {
@@ -20,13 +21,14 @@ export default function FeedTab() {
       try {
         const { data } = await supabase
           .from('profiles')
-          .select('referral_code, avatar_url, full_name')
+          .select('referral_code, avatar_url, full_name, home_community_h3_index')
           .eq('id', user.id)
           .single()
         if (data) {
           if (data.referral_code) setReferralCode(data.referral_code)
           if (data.avatar_url) setUserAvatarUrl(data.avatar_url)
           if (data.full_name) setUserDisplayName(data.full_name)
+          if (data.home_community_h3_index) setCommunityH3Index(data.home_community_h3_index)
         }
       } catch (err) {
         console.warn('Could not fetch user profile:', err)
@@ -51,6 +53,7 @@ export default function FeedTab() {
     router.push('/(tabs)/my-posts')
   }
 
+
   return (
     <FeedScreen
       onCreatePost={handleCreatePost}
@@ -61,6 +64,8 @@ export default function FeedTab() {
       referralCode={referralCode}
       userAvatarUrl={userAvatarUrl}
       userDisplayName={userDisplayName}
+      communityH3Index={communityH3Index}
+      userId={user?.id}
     />
   )
 }

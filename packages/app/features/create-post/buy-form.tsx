@@ -281,6 +281,7 @@ export function BuyForm({ onBack, onSuccess, editId, cloneData }: BuyFormProps) 
         mediaTypes: ['images'],
         allowsEditing: true,
         quality: 0.8,
+        exif: false,
       })
       if (!result.canceled && result.assets.length > 0) setMediaAssets([result.assets[0]!])
     } catch (e) {
@@ -293,6 +294,9 @@ export function BuyForm({ onBack, onSuccess, editId, cloneData }: BuyFormProps) 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images', 'videos'],
       quality: 0.8,
+      exif: false,
+      videoMaxDuration: 30,
+      videoExportPreset: ImagePicker.VideoExportPreset.MediumQuality,
     })
     if (!result.canceled && result.assets.length > 0) setMediaAssets([result.assets[0]!])
   }
@@ -304,8 +308,9 @@ export function BuyForm({ onBack, onSuccess, editId, cloneData }: BuyFormProps) 
     try {
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ['videos'],
-        videoMaxDuration: 60,
+        videoMaxDuration: 30,
         quality: 0.8,
+        videoExportPreset: ImagePicker.VideoExportPreset.MediumQuality,
       })
       if (!result.canceled && result.assets.length > 0) setMediaAssets([result.assets[0]!])
     } catch (e) {

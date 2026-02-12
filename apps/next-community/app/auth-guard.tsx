@@ -13,7 +13,7 @@ import { colors } from '@casagrown/app/design-tokens'
 const PUBLIC_ROUTES = ['/', '/login', '/login-success', '/logout']
 
 /** Route prefixes that are public (for dynamic routes like /invite/[code]) */
-const PUBLIC_PREFIXES = ['/invite/', '/delegate-invite/']
+const PUBLIC_PREFIXES = ['/invite/', '/delegate-invite/', '/post/']
 
 function isPublicRoute(pathname: string): boolean {
   if (PUBLIC_ROUTES.includes(pathname)) return true
@@ -37,9 +37,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     }
 
     if (!user) {
-      // Not logged in on a protected route → redirect to login
+      // Not logged in on a protected route → redirect to login with returnTo
       setAuthorized(false)
-      router.replace('/login')
+      const returnTo = encodeURIComponent(pathname)
+      router.replace(`/login?returnTo=${returnTo}`)
       return
     }
 

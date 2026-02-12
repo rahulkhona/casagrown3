@@ -425,6 +425,7 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
         mediaTypes: ['images'],
         allowsEditing: true,
         quality: 0.8,
+        exif: false,
       })
       if (!result.canceled && result.assets.length > 0) {
         setMediaAssets([result.assets[0]!])
@@ -443,6 +444,9 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
       mediaTypes: ['images', 'videos'],
       allowsMultipleSelection: true,
       quality: 0.8,
+      exif: false,
+      videoMaxDuration: 30,
+      videoExportPreset: ImagePicker.VideoExportPreset.MediumQuality,
     })
     if (!result.canceled && result.assets.length > 0) {
       setMediaAssets([result.assets[0]!])
@@ -462,8 +466,9 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
     try {
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ['videos'],
-        videoMaxDuration: 60,
+        videoMaxDuration: 30,
         quality: 0.8,
+        videoExportPreset: ImagePicker.VideoExportPreset.MediumQuality,
       })
       if (!result.canceled && result.assets.length > 0) {
         setMediaAssets([result.assets[0]!])

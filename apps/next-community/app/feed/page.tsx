@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { FeedScreen } from '@casagrown/app/features/feed/feed-screen'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth, supabase } from '@casagrown/app/features/auth/auth-hook'
 
 // Types for incentive rules
@@ -18,6 +18,9 @@ export default function FeedPage() {
   const [inviteRewards, setInviteRewards] = useState<InviteRewards | undefined>(undefined)
   const [userAvatarUrl, setUserAvatarUrl] = useState<string | undefined>(undefined)
   const [userDisplayName, setUserDisplayName] = useState<string | undefined>(undefined)
+  const [communityH3Index, setCommunityH3Index] = useState<string | undefined>(undefined)
+  const searchParams = useSearchParams()
+  const highlightPostId = searchParams.get('postId') || undefined
 
   // Fetch user's profile data (referral code, avatar, name)
   useEffect(() => {
@@ -26,7 +29,7 @@ export default function FeedPage() {
         try {
           const { data, error } = await supabase
             .from('profiles')
-            .select('referral_code, avatar_url, full_name')
+            .select('referral_code, avatar_url, full_name, home_community_h3_index')
             .eq('id', user.id)
             .single()
           
@@ -39,6 +42,9 @@ export default function FeedPage() {
             }
             if (data.full_name) {
               setUserDisplayName(data.full_name)
+            }
+            if (data.home_community_h3_index) {
+              setCommunityH3Index(data.home_community_h3_index)
             }
           }
         } catch (err) {
@@ -91,6 +97,7 @@ export default function FeedPage() {
     router.push('/my-posts')
   }
 
+
   return (
     <FeedScreen
       onCreatePost={handleCreatePost}
@@ -101,6 +108,9 @@ export default function FeedPage() {
       inviteRewards={inviteRewards}
       userAvatarUrl={userAvatarUrl}
       userDisplayName={userDisplayName}
+      communityH3Index={communityH3Index}
+      userId={user?.id}
+      highlightPostId={highlightPostId}
     />
   )
 }

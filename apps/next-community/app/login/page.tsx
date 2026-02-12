@@ -10,6 +10,12 @@ function LoginPageContent() {
   const searchParams = useSearchParams()
   const referralCode = searchParams.get('ref') || undefined
   const delegationCode = searchParams.get('delegate') || undefined
+  const returnTo = searchParams.get('returnTo')
+
+  // Store returnTo so login-success can redirect back
+  if (typeof window !== 'undefined' && returnTo) {
+    sessionStorage.setItem('casagrown_returnTo', returnTo)
+  }
 
   return (
     <LoginScreen 

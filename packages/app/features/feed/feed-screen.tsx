@@ -4,18 +4,22 @@
  * Based on figma_extracted/src/App.tsx Header (lines 274-570) and Footer (lines 572-640)
  * Adapted from figma_extracted/src/components/MainFeed.tsx
  * 
- * Currently shows empty state - only Profile link is functional
+ * Renders community feed posts with filtering, search, like/flag/share actions.
  */
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { normalizeStorageUrl } from '../../utils/normalize-storage-url'
-import { YStack, XStack, Text, Button, ScrollView, useMedia, Input } from 'tamagui'
+import { YStack, XStack, Text, Button, ScrollView, useMedia, Input, Spinner } from 'tamagui'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useFocusEffect } from '@react-navigation/native'
 import { colors, shadows, borderRadius } from '../../design-tokens'
 import { useTranslation } from 'react-i18next'
 import { Search, Bell, UserPlus, Home, Plus, Filter, Leaf, Menu, X } from '@tamagui/lucide-icons'
-import { Platform, Image, TouchableOpacity } from 'react-native'
+import { Platform, Image, TouchableOpacity, Alert, TextInput } from 'react-native'
 import { InviteModal } from './InviteModal'
+import { FeedPostCard } from './FeedPostCard'
+import { getCommunityFeedPosts, togglePostLike, flagPost } from './feed-service'
+import type { FeedPost } from './feed-service'
 
 // Types for invite rewards
 interface InviteRewards {
@@ -23,20 +27,35 @@ interface InviteRewards {
   transactionPoints: number
 }
 
+type PostTypeFilter = 'all' | 'want_to_sell' | 'want_to_buy' | 'services' | 'seeking_advice' | 'general_info'
+
+const FILTER_OPTIONS: { value: PostTypeFilter; labelKey: string }[] = [
+  { value: 'all', labelKey: 'feed.filterAll' },
+  { value: 'want_to_sell', labelKey: 'feed.filterForSale' },
+  { value: 'want_to_buy', labelKey: 'feed.filterWanted' },
+  { value: 'services', labelKey: 'feed.filterServices' },
+  { value: 'seeking_advice', labelKey: 'feed.filterAdvice' },
+  { value: 'general_info', labelKey: 'feed.filterShowAndTell' },
+]
+
 interface FeedScreenProps {
   onCreatePost?: () => void
   onNavigateToProfile?: () => void
   onNavigateToDelegate?: () => void
   onNavigateToMyPosts?: () => void
-  logoSrc?: any // Logo image source for mobile (use require('../assets/logo.png'))
-  /** User's referral code for invite link - from profile.referral_code */
+  logoSrc?: any
   referralCode?: string
-  /** Reward points for invites - from incentive_rules */
   inviteRewards?: InviteRewards
-  /** User's avatar URL from profile */
   userAvatarUrl?: string
-  /** User's display name - first letter used as fallback */
   userDisplayName?: string
+  /** H3 index of the user's community — used to fetch feed posts */
+  communityH3Index?: string
+  /** Currently authenticated user's ID */
+  userId?: string
+  /** Post ID to highlight (from shared link) */
+  highlightPostId?: string
+  /** Navigate to post detail */
+
 }
 
 // Navigation item keys - labels are localized via t()
@@ -51,7 +70,7 @@ const NAV_KEYS = [
   { key: 'delegateSales', badge: 0 },
 ]
 
-export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDelegate, onNavigateToMyPosts, logoSrc, referralCode, inviteRewards, userAvatarUrl: rawAvatarUrl, userDisplayName }: FeedScreenProps) {
+export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDelegate, onNavigateToMyPosts, logoSrc, referralCode, inviteRewards, userAvatarUrl: rawAvatarUrl, userDisplayName, communityH3Index, userId, highlightPostId }: FeedScreenProps) {
   const userAvatarUrl = normalizeStorageUrl(rawAvatarUrl)
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
@@ -65,10 +84,120 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
   // Invite modal state
   const [inviteModalOpen, setInviteModalOpen] = useState(false)
 
-  // User data - badges only appear when there are actual pending items
+  // Feed state
+  const [posts, setPosts] = useState<FeedPost[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [selectedFilter, setSelectedFilter] = useState<PostTypeFilter>('all')
+  const [searchQuery, setSearchQuery] = useState('')
+
+  // Flag modal state
+  const [flagModalVisible, setFlagModalVisible] = useState(false)
+  const [flagPostId, setFlagPostId] = useState<string | null>(null)
+  const [flagReason, setFlagReason] = useState('')
+  const [flagSubmitting, setFlagSubmitting] = useState(false)
+
+  // User data
   const userPoints = 0
-  const unreadNotificationsCount = 0 // No pending notifications in empty state
-  const userInitial = userDisplayName ? userDisplayName.charAt(0).toUpperCase() : 'A' // First letter for avatar fallback
+  const unreadNotificationsCount = 0
+  const userInitial = userDisplayName ? userDisplayName.charAt(0).toUpperCase() : 'A'
+
+  // Fetch posts on mount or when community changes
+  const fetchPosts = useCallback(async () => {
+    if (!communityH3Index || !userId) return
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await getCommunityFeedPosts(communityH3Index, userId)
+      setPosts(data)
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load feed')
+    } finally {
+      setLoading(false)
+    }
+  }, [communityH3Index, userId])
+
+  useEffect(() => {
+    fetchPosts()
+  }, [fetchPosts])
+
+  // Re-fetch when screen regains focus (native tab navigation only —
+  // web has no NavigationContainer so useFocusEffect would crash)
+  const focusCallback = useCallback(() => {
+    fetchPosts()
+  }, [fetchPosts])
+
+  if (Platform.OS !== 'web') {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    useFocusEffect(focusCallback)
+  }
+
+  // Filtered posts
+  const filteredPosts = useMemo(() => {
+    let result = posts
+    if (selectedFilter !== 'all') {
+      if (selectedFilter === 'services') {
+        result = result.filter((p) => p.type === 'offering_service' || p.type === 'need_service')
+      } else {
+        result = result.filter((p) => p.type === selectedFilter)
+      }
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      result = result.filter((p) => {
+        const title = p.sell_details?.produce_name || (p.buy_details?.produce_names || []).join(' ') || ''
+        // Parse JSON content for search
+        let contentText = p.content || ''
+        try {
+          const parsed = JSON.parse(p.content)
+          contentText = [parsed.title, parsed.description].filter(Boolean).join(' ')
+        } catch {
+          // plain text, use as-is
+        }
+        return (
+          title.toLowerCase().includes(q) ||
+          contentText.toLowerCase().includes(q) ||
+          (p.author_name || '').toLowerCase().includes(q) ||
+          (p.sell_details?.category || '').toLowerCase().includes(q) ||
+          (p.buy_details?.category || '').toLowerCase().includes(q)
+        )
+      })
+    }
+    return result
+  }, [posts, selectedFilter, searchQuery])
+
+  // Handlers
+  const handleLikeToggle = useCallback(async (postId: string, newLiked: boolean) => {
+    if (!userId) return
+    try {
+      await togglePostLike(postId, userId, !newLiked)
+    } catch {
+      // Optimistic update already happened in card; silently fail
+    }
+  }, [userId])
+
+  const handleOpenFlag = useCallback((postId: string) => {
+    setFlagPostId(postId)
+    setFlagReason('')
+    setFlagModalVisible(true)
+  }, [])
+
+  const handleSubmitFlag = useCallback(async () => {
+    if (!flagPostId || !userId || !flagReason.trim()) return
+    setFlagSubmitting(true)
+    try {
+      await flagPost(flagPostId, userId, flagReason.trim())
+      setFlagModalVisible(false)
+      setFlagPostId(null)
+      setFlagReason('')
+    } catch {
+      // Error handling — could show toast
+    } finally {
+      setFlagSubmitting(false)
+    }
+  }, [flagPostId, userId, flagReason])
+
+  const hasPosts = filteredPosts.length > 0 || loading
 
   return (
     <YStack flex={1} backgroundColor={colors.gray[50]}>
@@ -370,12 +499,13 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
         contentContainerStyle={{ flexGrow: 1 }}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Search Bar Section - Based on MainFeed.tsx lines 333-376 */}
+        {/* Search Bar Section */}
         <YStack 
           maxWidth={896}
           width="100%"
           alignSelf="center"
           padding={isDesktop ? '$6' : '$4'}
+          gap="$4"
         >
           <YStack 
             backgroundColor="white" 
@@ -385,7 +515,6 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
             shadowOffset={shadows.sm.offset}
             shadowOpacity={0.05}
             shadowRadius={shadows.sm.radius}
-            marginBottom="$4"
           >
             <XStack gap="$3" alignItems="center">
               {/* Search Input */}
@@ -401,33 +530,37 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
                 borderColor={colors.gray[300]}
               >
                 <Search size={18} color={colors.gray[400]} />
-                <Input
-                  flex={1}
-                  placeholder={t('feed.searchPlaceholder')}
-                  placeholderTextColor={colors.gray[400]}
-                  backgroundColor="transparent"
-                  borderWidth={0}
-                  fontSize="$3"
-                  paddingVertical="$2"
-                />
+                {Platform.OS === 'web' ? (
+                  <Input
+                    flex={1}
+                    placeholder={t('feed.searchPlaceholder')}
+                    placeholderTextColor={colors.gray[400]}
+                    backgroundColor="transparent"
+                    borderWidth={0}
+                    fontSize={14}
+                    paddingVertical="$2"
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    fontWeight="400"
+                  />
+                ) : (
+                  <TextInput
+                    style={{
+                      flex: 1,
+                      backgroundColor: 'transparent',
+                      fontSize: 14,
+                      paddingVertical: 8,
+                      fontWeight: 'normal',
+                      fontFamily: Platform.OS === 'ios' ? 'Inter-Regular' : 'Inter',
+                      color: colors.gray[900],
+                    }}
+                    placeholder={t('feed.searchPlaceholder')}
+                    placeholderTextColor={colors.gray[400]}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                  />
+                )}
               </XStack>
-
-              {/* Filter Button */}
-              <Button
-                backgroundColor="white"
-                borderWidth={1}
-                borderColor={colors.gray[300]}
-                paddingHorizontal="$3"
-                paddingVertical="$2"
-                borderRadius="$3"
-                gap="$2"
-                minHeight={44}
-                hoverStyle={{ backgroundColor: colors.gray[50] }}
-                pressStyle={{ backgroundColor: colors.gray[100] }}
-                icon={<Filter size={18} color={colors.gray[600]} />}
-              >
-                {isDesktop && <Text color={colors.gray[700]} fontSize="$3">{t('feed.filter')}</Text>}
-              </Button>
 
               {/* Create Post Button — inline on desktop */}
               {isDesktop && (
@@ -447,7 +580,7 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
               )}
             </XStack>
 
-            {/* Create Post Button — full-width on mobile for better touch target */}
+            {/* Create Post Button — full-width on mobile */}
             {!isDesktop && (
               <Button
                 backgroundColor={colors.green[600]}
@@ -465,53 +598,150 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
             )}
           </YStack>
 
-          {/* Empty State - Based on MainFeed.tsx lines 449-463 */}
-          <YStack 
-            backgroundColor="white" 
-            borderRadius={borderRadius.lg}
-            padding="$8"
-            alignItems="center"
-            gap="$4"
-            shadowColor={shadows.sm.color}
-            shadowOffset={shadows.sm.offset}
-            shadowOpacity={0.05}
-            shadowRadius={shadows.sm.radius}
-          >
-            <YStack 
-              width={64} 
-              height={64} 
-              borderRadius={32} 
-              backgroundColor={colors.gray[100]} 
-              alignItems="center" 
-              justifyContent="center"
-            >
-              <Search size={32} color={colors.gray[400]} />
-            </YStack>
-            
-            <Text fontSize="$5" fontWeight="600" color={colors.gray[900]} textAlign="center">
-              {t('feed.emptyTitle')}
-            </Text>
-            
-            <Text fontSize="$4" color={colors.gray[600]} textAlign="center">
-              {t('feed.emptyDescription')}
-            </Text>
+          {/* ─── Filter Pills ─── */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <XStack gap="$2" paddingVertical="$1">
+              {FILTER_OPTIONS.map((opt) => {
+                const isActive = selectedFilter === opt.value
+                return (
+                  <Button
+                    key={opt.value}
+                    size="$3"
+                    backgroundColor={isActive ? colors.green[600] : colors.gray[100]}
+                    borderRadius={20}
+                    paddingHorizontal="$3"
+                    paddingVertical="$1"
+                    pressStyle={isActive ? { backgroundColor: colors.green[700] } : { backgroundColor: colors.gray[200] }}
+                    onPress={() => setSelectedFilter(opt.value)}
+                  >
+                    <Text
+                      fontSize={13}
+                      fontWeight={isActive ? '600' : '500'}
+                      color={isActive ? 'white' : colors.gray[700]}
+                    >
+                      {t(opt.labelKey)}
+                    </Text>
+                  </Button>
+                )
+              })}
+            </XStack>
+          </ScrollView>
 
-            {onCreatePost && (
+          {/* ─── Feed Content ─── */}
+          {loading ? (
+            <YStack padding="$8" alignItems="center">
+              <Spinner size="large" color={colors.green[600]} />
+              <Text marginTop="$3" color={colors.gray[500]}>{t('feed.loading')}</Text>
+            </YStack>
+          ) : error ? (
+            <YStack
+              backgroundColor="white"
+              borderRadius={borderRadius.lg}
+              padding="$8"
+              alignItems="center"
+              gap="$4"
+              shadowColor={shadows.sm.color}
+              shadowOffset={shadows.sm.offset}
+              shadowOpacity={0.05}
+              shadowRadius={shadows.sm.radius}
+            >
+              <Text fontSize="$4" color={colors.gray[600]} textAlign="center">{error}</Text>
               <Button
                 backgroundColor={colors.green[600]}
                 paddingHorizontal="$5"
-                paddingVertical="$3"
+                paddingVertical="$2"
                 borderRadius="$3"
-                gap="$2"
-                marginTop="$2"
-                hoverStyle={{ backgroundColor: colors.green[700] }}
-                onPress={onCreatePost}
-                icon={<Plus size={18} color="white" />}
+                pressStyle={{ backgroundColor: colors.green[700] }}
+                onPress={fetchPosts}
               >
-                <Text color="white" fontSize="$4" fontWeight="500">{t('feed.createFirstPost')}</Text>
+                <Text color="white" fontWeight="500">{t('feed.retry')}</Text>
               </Button>
-            )}
-          </YStack>
+            </YStack>
+          ) : hasPosts ? (
+            <YStack gap="$4">
+              {(() => {
+                // If a post is highlighted, move it to the top
+                let orderedPosts = filteredPosts
+                if (highlightPostId) {
+                  const idx = filteredPosts.findIndex(p => p.id === highlightPostId)
+                  if (idx > 0) {
+                    orderedPosts = [
+                      filteredPosts[idx]!,
+                      ...filteredPosts.slice(0, idx),
+                      ...filteredPosts.slice(idx + 1),
+                    ]
+                  }
+                }
+                return orderedPosts.map((post) => (
+                <YStack
+                  key={post.id}
+                  borderWidth={post.id === highlightPostId ? 2 : 0}
+                  borderColor={post.id === highlightPostId ? colors.green[500] : 'transparent'}
+                  borderRadius={post.id === highlightPostId ? borderRadius.lg : 0}
+                  overflow="hidden"
+                >
+                <FeedPostCard
+                  key={post.id}
+                  post={post}
+                  currentUserId={userId || ''}
+                  currentUserName={userDisplayName}
+                  onLikeToggle={handleLikeToggle}
+                  onFlag={handleOpenFlag}
+                  t={t}
+                />
+                </YStack>
+              ))
+              })()}
+            </YStack>
+          ) : (
+            /* Empty State */
+            <YStack 
+              backgroundColor="white" 
+              borderRadius={borderRadius.lg}
+              padding="$8"
+              alignItems="center"
+              gap="$4"
+              shadowColor={shadows.sm.color}
+              shadowOffset={shadows.sm.offset}
+              shadowOpacity={0.05}
+              shadowRadius={shadows.sm.radius}
+            >
+              <YStack 
+                width={64} 
+                height={64} 
+                borderRadius={32} 
+                backgroundColor={colors.gray[100]} 
+                alignItems="center" 
+                justifyContent="center"
+              >
+                <Search size={32} color={colors.gray[400]} />
+              </YStack>
+              
+              <Text fontSize="$5" fontWeight="600" color={colors.gray[900]} textAlign="center">
+                {t('feed.emptyTitle')}
+              </Text>
+              
+              <Text fontSize="$4" color={colors.gray[600]} textAlign="center">
+                {t('feed.emptyDescription')}
+              </Text>
+
+              {onCreatePost && (
+                <Button
+                  backgroundColor={colors.green[600]}
+                  paddingHorizontal="$5"
+                  paddingVertical="$3"
+                  borderRadius="$3"
+                  gap="$2"
+                  marginTop="$2"
+                  hoverStyle={{ backgroundColor: colors.green[700] }}
+                  onPress={onCreatePost}
+                  icon={<Plus size={18} color="white" />}
+                >
+                  <Text color="white" fontSize="$4" fontWeight="500">{t('feed.createFirstPost')}</Text>
+                </Button>
+              )}
+            </YStack>
+          )}
         </YStack>
 
         {/* ============ FOOTER ============ */}
@@ -664,6 +894,83 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
         referralCode={referralCode}
         inviteRewards={inviteRewards}
       />
+
+      {/* ─── Flag Modal ─── */}
+      {flagModalVisible && (
+        <YStack
+          position="absolute"
+          top={0}
+          left={0}
+          right={0}
+          bottom={0}
+          backgroundColor="rgba(0,0,0,0.5)"
+          justifyContent="center"
+          alignItems="center"
+          zIndex={100}
+          padding="$4"
+        >
+          <YStack
+            backgroundColor="white"
+            borderRadius={borderRadius.lg}
+            padding="$5"
+            width="100%"
+            maxWidth={400}
+            gap="$4"
+          >
+            <Text fontSize={18} fontWeight="700" color={colors.gray[900]}>
+              {t('feed.flag.title')}
+            </Text>
+            <Text fontSize={14} color={colors.gray[600]}>
+              {t('feed.flag.description')}
+            </Text>
+            <YStack
+              borderWidth={1}
+              borderColor={colors.gray[300]}
+              borderRadius={borderRadius.md}
+              padding="$3"
+              minHeight={100}
+            >
+              <TextInput
+                placeholder={t('feed.flag.placeholder')}
+                value={flagReason}
+                onChangeText={setFlagReason}
+                multiline
+                numberOfLines={4}
+                style={{ fontSize: 14, color: colors.gray[800], minHeight: 80 }}
+              />
+            </YStack>
+            <XStack gap="$3" justifyContent="flex-end">
+              <Button
+                backgroundColor={colors.gray[100]}
+                paddingHorizontal="$4"
+                paddingVertical="$2"
+                borderRadius="$3"
+                pressStyle={{ backgroundColor: colors.gray[200] }}
+                onPress={() => {
+                  setFlagModalVisible(false)
+                  setFlagPostId(null)
+                  setFlagReason('')
+                }}
+              >
+                <Text color={colors.gray[700]} fontWeight="500">{t('feed.flag.cancel')}</Text>
+              </Button>
+              <Button
+                backgroundColor={flagReason.trim() ? '#ef4444' : colors.gray[300]}
+                paddingHorizontal="$4"
+                paddingVertical="$2"
+                borderRadius="$3"
+                disabled={!flagReason.trim() || flagSubmitting}
+                pressStyle={{ backgroundColor: '#dc2626' }}
+                onPress={handleSubmitFlag}
+              >
+                <Text color="white" fontWeight="500">
+                  {flagSubmitting ? t('feed.flag.submitting') : t('feed.flag.submit')}
+                </Text>
+              </Button>
+            </XStack>
+          </YStack>
+        </YStack>
+      )}
     </YStack>
   )
 }

@@ -1,0 +1,347 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`FeedPostCard matches snapshot 1`] = `
+<View
+  backgroundColor="white"
+  borderRadius={8}
+  elevation={2}
+  overflow="hidden"
+  shadowColor="rgba(0, 0, 0, 0.05)"
+  shadowOffset={
+    {
+      "height": 1,
+      "width": 0,
+    }
+  }
+  shadowOpacity={0.08}
+  shadowRadius={2}
+>
+  <View
+    alignItems="flex-start"
+    borderBottomColor="#f3f4f6"
+    borderBottomWidth={1}
+    justifyContent="space-between"
+    padding="$3"
+  >
+    <View
+      alignItems="center"
+      flex={1}
+      gap="$3"
+    >
+      <View
+        alignItems="center"
+        backgroundColor="#16a34a"
+        borderRadius={20}
+        height={40}
+        justifyContent="center"
+        width={40}
+      >
+        <Text
+          color="white"
+          fontSize={16}
+          fontWeight="600"
+        >
+          A
+        </Text>
+      </View>
+      <View
+        flex={1}
+      >
+        <Text
+          color="#111827"
+          fontSize={14}
+          fontWeight="600"
+        >
+          Alice Smith
+        </Text>
+        <Text
+          color="#6b7280"
+          fontSize={12}
+          numberOfLines={1}
+        >
+          Sunset Park
+           · 
+          1h
+        </Text>
+      </View>
+    </View>
+    <View
+      backgroundColor="#dcfce7"
+      borderRadius={12}
+      paddingHorizontal="$2"
+      paddingVertical="$1"
+    >
+      <Text
+        color="#15803d"
+        fontSize={11}
+        fontWeight="600"
+      >
+        feed.postType.forSale
+      </Text>
+    </View>
+  </View>
+  <View>
+    <View
+      gap="$1"
+      padding="$3"
+    >
+      <Text
+        color="#111827"
+        fontSize={15}
+        fontWeight="600"
+        numberOfLines={2}
+      >
+        Tomatoes
+      </Text>
+      <Text
+        color="#4b5563"
+        fontSize={13}
+        numberOfLines={2}
+      >
+        Fresh organic tomatoes from my garden!
+      </Text>
+      <View
+        alignItems="center"
+        gap="$3"
+        marginTop="$1"
+      >
+        <Text
+          color="#6b7280"
+          fontSize={12}
+        >
+          vegetables
+        </Text>
+        <Text
+          color="#d1d5db"
+          fontSize={12}
+        >
+          ·
+        </Text>
+        <Text
+          color="#16a34a"
+          fontSize={13}
+          fontWeight="600"
+        >
+          5
+           
+          feed.points
+          /box
+        </Text>
+      </View>
+    </View>
+  </View>
+  <View
+    alignItems="center"
+    borderTopColor="#f3f4f6"
+    borderTopWidth={1}
+    justifyContent="space-between"
+    paddingHorizontal="$3"
+    paddingVertical="$2"
+  >
+    <View
+      alignItems="center"
+      gap="$3"
+    >
+      <View
+        accessibilityState={
+          {
+            "busy": undefined,
+            "checked": undefined,
+            "disabled": undefined,
+            "expanded": undefined,
+            "selected": undefined,
+          }
+        }
+        accessibilityValue={
+          {
+            "max": undefined,
+            "min": undefined,
+            "now": undefined,
+            "text": undefined,
+          }
+        }
+        accessible={true}
+        collapsable={false}
+        focusable={true}
+        onClick={[Function]}
+        onResponderGrant={[Function]}
+        onResponderMove={[Function]}
+        onResponderRelease={[Function]}
+        onResponderTerminate={[Function]}
+        onResponderTerminationRequest={[Function]}
+        onStartShouldSetResponder={[Function]}
+        style={
+          {
+            "opacity": 1,
+          }
+        }
+      >
+        <Text
+          color="#4b5563"
+          fontSize={13}
+          fontWeight="500"
+        >
+          3
+        </Text>
+      </View>
+      <View
+        accessibilityState={
+          {
+            "busy": undefined,
+            "checked": undefined,
+            "disabled": undefined,
+            "expanded": undefined,
+            "selected": undefined,
+          }
+        }
+        accessibilityValue={
+          {
+            "max": undefined,
+            "min": undefined,
+            "now": undefined,
+            "text": undefined,
+          }
+        }
+        accessible={true}
+        collapsable={false}
+        focusable={true}
+        onClick={[Function]}
+        onResponderGrant={[Function]}
+        onResponderMove={[Function]}
+        onResponderRelease={[Function]}
+        onResponderTerminate={[Function]}
+        onResponderTerminationRequest={[Function]}
+        onStartShouldSetResponder={[Function]}
+        style={
+          {
+            "opacity": 1,
+          }
+        }
+      >
+        <Text
+          color="white"
+          fontSize={13}
+          fontWeight="600"
+        >
+          feed.buy
+        </Text>
+      </View>
+      <View
+        accessibilityState={
+          {
+            "busy": undefined,
+            "checked": undefined,
+            "disabled": undefined,
+            "expanded": undefined,
+            "selected": undefined,
+          }
+        }
+        accessibilityValue={
+          {
+            "max": undefined,
+            "min": undefined,
+            "now": undefined,
+            "text": undefined,
+          }
+        }
+        accessible={true}
+        collapsable={false}
+        focusable={true}
+        onClick={[Function]}
+        onResponderGrant={[Function]}
+        onResponderMove={[Function]}
+        onResponderRelease={[Function]}
+        onResponderTerminate={[Function]}
+        onResponderTerminationRequest={[Function]}
+        onStartShouldSetResponder={[Function]}
+        style={
+          {
+            "opacity": 1,
+          }
+        }
+      >
+        <Text
+          color="#4b5563"
+          fontSize={13}
+          fontWeight="500"
+        >
+          1
+        </Text>
+      </View>
+    </View>
+    <View
+      alignItems="center"
+      gap="$1"
+    >
+      <View
+        accessibilityState={
+          {
+            "busy": undefined,
+            "checked": undefined,
+            "disabled": undefined,
+            "expanded": undefined,
+            "selected": undefined,
+          }
+        }
+        accessibilityValue={
+          {
+            "max": undefined,
+            "min": undefined,
+            "now": undefined,
+            "text": undefined,
+          }
+        }
+        accessible={true}
+        collapsable={false}
+        focusable={true}
+        onClick={[Function]}
+        onResponderGrant={[Function]}
+        onResponderMove={[Function]}
+        onResponderRelease={[Function]}
+        onResponderTerminate={[Function]}
+        onResponderTerminationRequest={[Function]}
+        onStartShouldSetResponder={[Function]}
+        style={
+          {
+            "opacity": 1,
+          }
+        }
+      />
+      <View
+        accessibilityState={
+          {
+            "busy": undefined,
+            "checked": undefined,
+            "disabled": undefined,
+            "expanded": undefined,
+            "selected": undefined,
+          }
+        }
+        accessibilityValue={
+          {
+            "max": undefined,
+            "min": undefined,
+            "now": undefined,
+            "text": undefined,
+          }
+        }
+        accessible={true}
+        collapsable={false}
+        focusable={true}
+        onClick={[Function]}
+        onResponderGrant={[Function]}
+        onResponderMove={[Function]}
+        onResponderRelease={[Function]}
+        onResponderTerminate={[Function]}
+        onResponderTerminationRequest={[Function]}
+        onStartShouldSetResponder={[Function]}
+        style={
+          {
+            "opacity": 1,
+          }
+        }
+      />
+    </View>
+  </View>
+</View>
+`;

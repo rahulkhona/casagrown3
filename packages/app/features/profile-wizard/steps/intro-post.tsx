@@ -66,8 +66,16 @@ export const IntroPostStep = () => {
     const success = await saveProfile(overrides)
     
     if (success) {
-         // Redirect to Feed Page after successful onboarding
-         router.replace('/feed')
+         // Check if there's a returnTo URL from a shared post link
+         let returnTo: string | null = null
+         if (Platform.OS === 'web' && typeof window !== 'undefined') {
+           returnTo = window.sessionStorage.getItem('casagrown_returnTo')
+           if (returnTo) {
+             window.sessionStorage.removeItem('casagrown_returnTo')
+           }
+         }
+         // Redirect to the stored returnTo or default to feed
+         router.replace(returnTo || '/feed')
     } else {
         console.error('Failed to save profile')
     }

@@ -1,10 +1,37 @@
 import React from 'react'
-import { render, screen, fireEvent } from '@testing-library/react-native'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react-native'
 import { FeedScreen } from './feed-screen'
+
+// Mock feed service
+const mockGetCommunityFeedPosts = jest.fn()
+const mockTogglePostLike = jest.fn()
+const mockFlagPost = jest.fn()
+
+jest.mock('./feed-service', () => ({
+  getCommunityFeedPosts: (...args: any[]) => mockGetCommunityFeedPosts(...args),
+  togglePostLike: (...args: any[]) => mockTogglePostLike(...args),
+  flagPost: (...args: any[]) => mockFlagPost(...args),
+}))
+
+// Mock FeedPostCard
+jest.mock('./FeedPostCard', () => ({
+  FeedPostCard: ({ post, t }: any) => {
+    const { Text } = require('react-native')
+    return <Text testID={`post-card-${post.id}`}>{post.content}</Text>
+  },
+}))
 
 // Mock safe-area-context
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}))
+
+// Mock @react-navigation/native
+jest.mock('@react-navigation/native', () => ({
+  useFocusEffect: (cb: any) => {
+    const { useEffect } = require('react')
+    useEffect(() => { cb() }, [])
+  },
 }))
 
 // Mock react-i18next
@@ -25,11 +52,17 @@ jest.mock('@tamagui/lucide-icons', () => ({
   Leaf: () => null,
   Menu: () => null,
   X: () => null,
+  Heart: () => null,
+  ShoppingCart: () => null,
+  ThumbsUp: () => null,
+  MessageCircle: () => null,
+  Share2: () => null,
+  Flag: () => null,
 }))
 
 // Mock tamagui (following profile-screen.test.tsx pattern)
 jest.mock('tamagui', () => {
-  const { View, Text: RNText, TouchableOpacity, ScrollView: RNScrollView, TextInput } = require('react-native')
+  const { View, Text: RNText, TouchableOpacity, ScrollView: RNScrollView, TextInput, ActivityIndicator } = require('react-native')
   
   return {
     Button: ({ children, onPress, icon, ...props }: any) => (
@@ -43,8 +76,14 @@ jest.mock('tamagui', () => {
     XStack: ({ children, ...props }: any) => <View {...props}>{children}</View>,
     ScrollView: ({ children, ...props }: any) => <RNScrollView {...props}>{children}</RNScrollView>,
     Input: ({ placeholder, ...props }: any) => <TextInput placeholder={placeholder} {...props} />,
+    Spinner: (props: any) => <ActivityIndicator {...props} />,
     useMedia: () => ({ sm: false, md: true, lg: false }),
   }
+})
+
+beforeEach(() => {
+  jest.clearAllMocks()
+  mockGetCommunityFeedPosts.mockResolvedValue([])
 })
 
 describe('FeedScreen', () => {
@@ -64,14 +103,11 @@ describe('FeedScreen', () => {
     expect(screen.getByText('feed.nav.orders')).toBeTruthy()
   })
 
-  it('renders empty state title', () => {
-    render(<FeedScreen />)
-    expect(screen.getByText('feed.emptyTitle')).toBeTruthy()
-  })
-
-  it('renders empty state description', () => {
-    render(<FeedScreen />)
-    expect(screen.getByText('feed.emptyDescription')).toBeTruthy()
+  it('renders empty state when no posts', async () => {
+    render(<FeedScreen communityH3Index="h3-abc" userId="user-1" />)
+    await waitFor(() => {
+      expect(screen.getByText('feed.emptyTitle')).toBeTruthy()
+    })
   })
 
   it('renders search bar placeholder', () => {
@@ -85,26 +121,60 @@ describe('FeedScreen', () => {
     expect(screen.getAllByText('feed.createPost').length).toBeGreaterThan(0)
   })
 
-  it('renders Create First Post button in empty state', () => {
-    const mockOnCreatePost = jest.fn()
-    render(<FeedScreen onCreatePost={mockOnCreatePost} />)
-    expect(screen.getByText('feed.createFirstPost')).toBeTruthy()
+  it('renders filter pills', () => {
+    render(<FeedScreen />)
+    expect(screen.getByText('feed.filterAll')).toBeTruthy()
+    expect(screen.getByText('feed.filterForSale')).toBeTruthy()
+    expect(screen.getByText('feed.filterWanted')).toBeTruthy()
+    expect(screen.getByText('feed.filterServices')).toBeTruthy()
   })
 
-  it('calls onCreatePost when Create First Post is pressed', () => {
+  it('renders posts when feed data is available', async () => {
+    const mockPosts = [
+      {
+        id: 'post-1',
+        author_id: 'author-1',
+        author_name: 'Alice',
+        author_avatar_url: null,
+        type: 'want_to_sell',
+        reach: 'community',
+        content: 'Fresh tomatoes!',
+        created_at: new Date().toISOString(),
+        community_h3_index: 'h3-abc',
+        community_name: 'Sunset Park',
+        sell_details: null,
+        buy_details: null,
+        media: [],
+        like_count: 0,
+        comment_count: 0,
+        is_liked: false,
+      },
+    ]
+    mockGetCommunityFeedPosts.mockResolvedValue(mockPosts)
+
+    render(<FeedScreen communityH3Index="h3-abc" userId="user-1" />)
+    await waitFor(() => {
+      expect(screen.getByTestId('post-card-post-1')).toBeTruthy()
+    })
+  })
+
+  it('renders Create First Post button in empty state', async () => {
     const mockOnCreatePost = jest.fn()
-    render(<FeedScreen onCreatePost={mockOnCreatePost} />)
+    render(<FeedScreen onCreatePost={mockOnCreatePost} communityH3Index="h3-abc" userId="user-1" />)
+    await waitFor(() => {
+      expect(screen.getByText('feed.createFirstPost')).toBeTruthy()
+    })
+  })
+
+  it('calls onCreatePost when Create First Post is pressed', async () => {
+    const mockOnCreatePost = jest.fn()
+    render(<FeedScreen onCreatePost={mockOnCreatePost} communityH3Index="h3-abc" userId="user-1" />)
     
-    fireEvent.press(screen.getByText('feed.createFirstPost'))
+    await waitFor(() => {
+      fireEvent.press(screen.getByText('feed.createFirstPost'))
+    })
     expect(mockOnCreatePost).toHaveBeenCalled()
   })
-
-  // Footer tests skipped - footer is now web-only (hidden on mobile)
-  // These tests would need to be run in a web test environment
-  // it('renders footer with branding')
-  // it('renders footer Learn More section')
-  // it('renders footer Legal section')
-  // it('renders copyright notice')
 
   it('renders Invite button', () => {
     render(<FeedScreen />)
@@ -124,6 +194,26 @@ describe('FeedScreen', () => {
     // Profile avatar displays first letter "A"
     fireEvent.press(screen.getByText('A'))
     expect(mockOnNavigateToProfile).toHaveBeenCalled()
+  })
+
+  it('fetches community posts on mount', async () => {
+    render(<FeedScreen communityH3Index="h3-abc" userId="user-1" />)
+    await waitFor(() => {
+      expect(mockGetCommunityFeedPosts).toHaveBeenCalledWith('h3-abc', 'user-1')
+    })
+  })
+
+  it('does not fetch when no communityH3Index', () => {
+    render(<FeedScreen userId="user-1" />)
+    expect(mockGetCommunityFeedPosts).not.toHaveBeenCalled()
+  })
+
+  it('shows error state with retry button on failure', async () => {
+    mockGetCommunityFeedPosts.mockRejectedValue(new Error('Network error'))
+    render(<FeedScreen communityH3Index="h3-abc" userId="user-1" />)
+    await waitFor(() => {
+      expect(screen.getByText('feed.retry')).toBeTruthy()
+    })
   })
 
   it('matches snapshot', () => {

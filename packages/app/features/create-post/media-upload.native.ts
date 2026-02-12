@@ -1,11 +1,37 @@
 import { supabase } from "../auth/auth-hook";
 import { decode } from "base64-arraybuffer";
 import { File } from "expo-file-system/next";
+import * as ImageManipulator from "expo-image-manipulator";
+
+const MAX_IMAGE_DIM = 1200;
+const IMAGE_COMPRESS = 0.8;
 
 export interface UploadedMedia {
     storagePath: string;
     publicUrl: string;
     mediaType: "image" | "video";
+}
+
+/**
+ * Resize an image to fit within MAX_IMAGE_DIM × MAX_IMAGE_DIM.
+ * Returns the URI of the resized image.
+ */
+async function resizeImage(uri: string): Promise<string> {
+    try {
+        const result = await ImageManipulator.manipulateAsync(
+            uri,
+            [{ resize: { width: MAX_IMAGE_DIM } }],
+            {
+                compress: IMAGE_COMPRESS,
+                format: ImageManipulator.SaveFormat.JPEG,
+            },
+        );
+        console.log("🔧 [post-media] Resized image:", result.uri);
+        return result.uri;
+    } catch (err) {
+        console.warn("[post-media] Image resize failed, using original:", err);
+        return uri;
+    }
 }
 
 /**
@@ -26,7 +52,10 @@ export const uploadPostMedia = async (
 
         console.log("📤 [post-media] Uploading:", filename);
 
-        const file = new File(uri);
+        // Resize images before upload to save storage costs
+        const finalUri = mediaType === "image" ? await resizeImage(uri) : uri;
+
+        const file = new File(finalUri);
         const base64 = await file.base64();
         const arrayBuffer = decode(base64);
 

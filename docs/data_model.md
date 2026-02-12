@@ -20,7 +20,8 @@ and any associated triggers/functions/RLS policies.
 > `20260210030000_category_restrictions_rls` → `20260210040000_platform_config`
 > → `20260210050000_communities_rls` → `20260210060000_sell_need_by_date` →
 > `20260210070000_enrich_communities_cron` → `20260210080000_produce_interests`
-> → `20260211000000_post_type_policies`
+> → `20260211000000_post_type_policies` → `20260211100000_posts_on_behalf_of` →
+> `20260212000000_public_post_anon_rls`
 
 ## Extensions
 
@@ -471,14 +472,16 @@ create index posts_community_h3_idx on posts(community_h3_index);
 create index posts_on_behalf_of_idx on posts(on_behalf_of) where on_behalf_of is not null;
 ```
 
-**RLS Policies** (`20260207060000_posts_content_rls`):
+**RLS Policies** (`20260207060000_posts_content_rls`,
+`20260212000000_public_post_anon_rls`):
 
-| Policy                                        | Operation | Rule                                                                        |
-| :-------------------------------------------- | :-------- | :-------------------------------------------------------------------------- |
-| Posts are readable by all authenticated users | `SELECT`  | `using (true)` — public reads, feed curation handled by application queries |
-| Authors can create their own posts            | `INSERT`  | `with check (author_id = auth.uid())`                                       |
-| Authors can update their own posts            | `UPDATE`  | `using (author_id = auth.uid())`                                            |
-| Authors can delete their own posts            | `DELETE`  | `using (author_id = auth.uid())`                                            |
+| Policy                                        | Operation | Role            | Rule                                                                        |
+| :-------------------------------------------- | :-------- | :-------------- | :-------------------------------------------------------------------------- |
+| Posts are readable by all authenticated users | `SELECT`  | `authenticated` | `using (true)` — public reads, feed curation handled by application queries |
+| Posts are readable by anonymous users         | `SELECT`  | `anon`          | `using (true)` — enables public post pages for non-logged-in users          |
+| Authors can create their own posts            | `INSERT`  | `authenticated` | `with check (author_id = auth.uid())`                                       |
+| Authors can update their own posts            | `UPDATE`  | `authenticated` | `using (author_id = auth.uid())`                                            |
+| Authors can delete their own posts            | `DELETE`  | `authenticated` | `using (author_id = auth.uid())`                                            |
 
 ### `post_likes`
 
@@ -491,13 +494,15 @@ create table post_likes (
 );
 ```
 
-**RLS Policies** (`20260207060000_posts_content_rls`):
+**RLS Policies** (`20260207060000_posts_content_rls`,
+`20260212000000_public_post_anon_rls`):
 
-| Policy                           | Operation | Rule                                |
-| :------------------------------- | :-------- | :---------------------------------- |
-| Post likes are readable          | `SELECT`  | `using (true)`                      |
-| Users can like posts             | `INSERT`  | `with check (user_id = auth.uid())` |
-| Users can remove their own likes | `DELETE`  | `using (user_id = auth.uid())`      |
+| Policy                                     | Operation | Role            | Rule                                |
+| :----------------------------------------- | :-------- | :-------------- | :---------------------------------- |
+| Post likes are readable                    | `SELECT`  | `authenticated` | `using (true)`                      |
+| Post likes are readable by anonymous users | `SELECT`  | `anon`          | `using (true)`                      |
+| Users can like posts                       | `INSERT`  | `authenticated` | `with check (user_id = auth.uid())` |
+| Users can remove their own likes           | `DELETE`  | `authenticated` | `using (user_id = auth.uid())`      |
 
 ### `post_comments`
 
@@ -511,14 +516,16 @@ create table post_comments (
 );
 ```
 
-**RLS Policies** (`20260207060000_posts_content_rls`):
+**RLS Policies** (`20260207060000_posts_content_rls`,
+`20260212000000_public_post_anon_rls`):
 
-| Policy                              | Operation | Rule                                |
-| :---------------------------------- | :-------- | :---------------------------------- |
-| Post comments are readable          | `SELECT`  | `using (true)`                      |
-| Users can create their own comments | `INSERT`  | `with check (user_id = auth.uid())` |
-| Users can update their own comments | `UPDATE`  | `using (user_id = auth.uid())`      |
-| Users can delete their own comments | `DELETE`  | `using (user_id = auth.uid())`      |
+| Policy                                        | Operation | Role            | Rule                                |
+| :-------------------------------------------- | :-------- | :-------------- | :---------------------------------- |
+| Post comments are readable                    | `SELECT`  | `authenticated` | `using (true)`                      |
+| Post comments are readable by anonymous users | `SELECT`  | `anon`          | `using (true)`                      |
+| Users can create their own comments           | `INSERT`  | `authenticated` | `with check (user_id = auth.uid())` |
+| Users can update their own comments           | `UPDATE`  | `authenticated` | `using (user_id = auth.uid())`      |
+| Users can delete their own comments           | `DELETE`  | `authenticated` | `using (user_id = auth.uid())`      |
 
 ### `post_flags`
 
@@ -532,13 +539,15 @@ create table post_flags (
 );
 ```
 
-**RLS Policies** (`20260207060000_posts_content_rls`):
+**RLS Policies** (`20260207060000_posts_content_rls`,
+`20260212000000_public_post_anon_rls`):
 
-| Policy                           | Operation | Rule                                |
-| :------------------------------- | :-------- | :---------------------------------- |
-| Post flags are readable          | `SELECT`  | `using (true)`                      |
-| Users can flag posts             | `INSERT`  | `with check (user_id = auth.uid())` |
-| Users can remove their own flags | `DELETE`  | `using (user_id = auth.uid())`      |
+| Policy                                     | Operation | Role            | Rule                                |
+| :----------------------------------------- | :-------- | :-------------- | :---------------------------------- |
+| Post flags are readable                    | `SELECT`  | `authenticated` | `using (true)`                      |
+| Post flags are readable by anonymous users | `SELECT`  | `anon`          | `using (true)`                      |
+| Users can flag posts                       | `INSERT`  | `authenticated` | `with check (user_id = auth.uid())` |
+| Users can remove their own flags           | `DELETE`  | `authenticated` | `using (user_id = auth.uid())`      |
 
 ### `post_media`
 
@@ -551,13 +560,15 @@ create table post_media (
 );
 ```
 
-**RLS Policies** (`20260207060000_posts_content_rls`):
+**RLS Policies** (`20260207060000_posts_content_rls`,
+`20260212000000_public_post_anon_rls`):
 
-| Policy                        | Operation | Rule                                                                          |
-| :---------------------------- | :-------- | :---------------------------------------------------------------------------- |
-| Post media is readable        | `SELECT`  | `using (true)`                                                                |
-| Post authors can attach media | `INSERT`  | `with check (post_id in (select id from posts where author_id = auth.uid()))` |
-| Post authors can detach media | `DELETE`  | `using (post_id in (select id from posts where author_id = auth.uid()))`      |
+| Policy                                    | Operation | Role            | Rule                                                                          |
+| :---------------------------------------- | :-------- | :-------------- | :---------------------------------------------------------------------------- |
+| Post media is readable                    | `SELECT`  | `authenticated` | `using (true)`                                                                |
+| Post media is readable by anonymous users | `SELECT`  | `anon`          | `using (true)`                                                                |
+| Post authors can attach media             | `INSERT`  | `authenticated` | `with check (post_id in (select id from posts where author_id = auth.uid()))` |
+| Post authors can detach media             | `DELETE`  | `authenticated` | `using (post_id in (select id from posts where author_id = auth.uid()))`      |
 
 ### `want_to_sell_details`
 
@@ -591,6 +602,12 @@ create table want_to_sell_details (
 );
 ```
 
+**RLS Policies** (`20260212000000_public_post_anon_rls`):
+
+| Policy                                       | Operation | Role   | Rule           |
+| :------------------------------------------- | :-------- | :----- | :------------- |
+| Sell details are viewable by anonymous users | `SELECT`  | `anon` | `using (true)` |
+
 ### `delivery_dates`
 
 ```sql
@@ -615,6 +632,12 @@ create table want_to_buy_details (
   updated_at timestamptz default now()
 );
 ```
+
+**RLS Policies** (`20260212000000_public_post_anon_rls`):
+
+| Policy                                      | Operation | Role   | Rule           |
+| :------------------------------------------ | :-------- | :----- | :------------- |
+| Buy details are viewable by anonymous users | `SELECT`  | `anon` | `using (true)` |
 
 ### `sales_category_restrictions`
 
@@ -747,13 +770,15 @@ create table media_assets (
 );
 ```
 
-**RLS Policies** (`20260207070000_shared_tables_rls`):
+**RLS Policies** (`20260207070000_shared_tables_rls`,
+`20260212000000_public_post_anon_rls`):
 
-| Policy                             | Operation | Rule                                 |
-| :--------------------------------- | :-------- | :----------------------------------- |
-| Media assets are publicly readable | `SELECT`  | `using (true)`                       |
-| Owners can upload media            | `INSERT`  | `with check (owner_id = auth.uid())` |
-| Owners can delete their media      | `DELETE`  | `using (owner_id = auth.uid())`      |
+| Policy                                       | Operation | Role            | Rule                                 |
+| :------------------------------------------- | :-------- | :-------------- | :----------------------------------- |
+| Media assets are publicly readable           | `SELECT`  | `authenticated` | `using (true)`                       |
+| Media assets are readable by anonymous users | `SELECT`  | `anon`          | `using (true)`                       |
+| Owners can upload media                      | `INSERT`  | `authenticated` | `with check (owner_id = auth.uid())` |
+| Owners can delete their media                | `DELETE`  | `authenticated` | `using (owner_id = auth.uid())`      |
 
 ---
 
@@ -1304,6 +1329,14 @@ listed below.
 | `produce_interests`           | Users can update their own produce interests       | UPDATE    | `auth.uid() = user_id`                     |
 | `produce_interests`           | Users can remove their own produce interests       | DELETE    | `auth.uid() = user_id`                     |
 | `post_type_policies`          | Post type policies are readable by all auth users  | SELECT    | `true` (authenticated)                     |
+| `posts`                       | Posts are readable by anonymous users              | SELECT    | `true` (anon)                              |
+| `post_likes`                  | Post likes are readable by anonymous users         | SELECT    | `true` (anon)                              |
+| `post_comments`               | Post comments are readable by anonymous users      | SELECT    | `true` (anon)                              |
+| `post_flags`                  | Post flags are readable by anonymous users         | SELECT    | `true` (anon)                              |
+| `post_media`                  | Post media is readable by anonymous users          | SELECT    | `true` (anon)                              |
+| `media_assets`                | Media assets are readable by anonymous users       | SELECT    | `true` (anon)                              |
+| `want_to_sell_details`        | Sell details are viewable by anonymous users       | SELECT    | `true` (anon)                              |
+| `want_to_buy_details`         | Buy details are viewable by anonymous users        | SELECT    | `true` (anon)                              |
 
 **RLS Policy SQL:**
 
@@ -1344,6 +1377,16 @@ create policy "Users can remove their own produce interests" on produce_interest
 
 -- post_type_policies (20260211000000)
 create policy "Post type policies are readable by all authenticated users" on post_type_policies for select to authenticated using (true);
+
+-- public post page anonymous access (20260212000000)
+create policy "Posts are readable by anonymous users" on posts for select to anon using (true);
+create policy "Post likes are readable by anonymous users" on post_likes for select to anon using (true);
+create policy "Post comments are readable by anonymous users" on post_comments for select to anon using (true);
+create policy "Post flags are readable by anonymous users" on post_flags for select to anon using (true);
+create policy "Post media is readable by anonymous users" on post_media for select to anon using (true);
+create policy "Media assets are readable by anonymous users" on media_assets for select to anon using (true);
+create policy "Sell details are viewable by anonymous users" on want_to_sell_details for select to anon using (true);
+create policy "Buy details are viewable by anonymous users" on want_to_buy_details for select to anon using (true);
 ```
 
 > [!NOTE]
