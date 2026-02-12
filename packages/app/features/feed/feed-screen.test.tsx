@@ -6,11 +6,20 @@ import { FeedScreen } from './feed-screen'
 const mockGetCommunityFeedPosts = jest.fn()
 const mockTogglePostLike = jest.fn()
 const mockFlagPost = jest.fn()
+const mockGetLatestPostTimestamp = jest.fn()
 
 jest.mock('./feed-service', () => ({
   getCommunityFeedPosts: (...args: any[]) => mockGetCommunityFeedPosts(...args),
+  getLatestPostTimestamp: (...args: any[]) => mockGetLatestPostTimestamp(...args),
   togglePostLike: (...args: any[]) => mockTogglePostLike(...args),
   flagPost: (...args: any[]) => mockFlagPost(...args),
+}))
+
+// Mock feed cache — return null (no cache) by default so tests exercise full fetch path
+jest.mock('./feed-cache', () => ({
+  getCachedFeed: jest.fn().mockResolvedValue(null),
+  setCachedFeed: jest.fn().mockResolvedValue(undefined),
+  clearFeedCache: jest.fn().mockResolvedValue(undefined),
 }))
 
 // Mock FeedPostCard
@@ -84,6 +93,7 @@ jest.mock('tamagui', () => {
 beforeEach(() => {
   jest.clearAllMocks()
   mockGetCommunityFeedPosts.mockResolvedValue([])
+  mockGetLatestPostTimestamp.mockResolvedValue(null)
 })
 
 describe('FeedScreen', () => {

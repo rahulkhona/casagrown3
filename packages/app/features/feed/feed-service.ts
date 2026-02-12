@@ -145,6 +145,37 @@ export async function getCommunityFeedPosts(
 }
 
 // =============================================================================
+// Freshness check — lightweight query for cache validation
+// =============================================================================
+
+/**
+ * Fetch only the latest `created_at` timestamp from posts in a community.
+ * Used to compare against the local cache and decide whether a full refetch
+ * is necessary. This is a very cheap query (single row, single column, indexed).
+ */
+export async function getLatestPostTimestamp(
+    communityH3Index: string,
+): Promise<string | null> {
+    const { data, error } = await supabase
+        .from("posts")
+        .select("created_at")
+        .or(
+            `community_h3_index.eq.${communityH3Index},community_h3_index.is.null`,
+        )
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    if (error) {
+        console.warn("Error checking latest post timestamp:", error);
+        // On error, return null so caller falls through to full refetch
+        return null;
+    }
+
+    return data?.created_at || null;
+}
+
+// =============================================================================
 // Toggle like
 // =============================================================================
 

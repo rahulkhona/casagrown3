@@ -7,7 +7,7 @@
  * Renders community feed posts with filtering, search, like/flag/share actions.
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { normalizeStorageUrl } from '../../utils/normalize-storage-url'
 import { YStack, XStack, Text, Button, ScrollView, useMedia, Input, Spinner } from 'tamagui'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -18,8 +18,9 @@ import { Search, Bell, UserPlus, Home, Plus, Filter, Leaf, Menu, X } from '@tama
 import { Platform, Image, TouchableOpacity, Alert, TextInput } from 'react-native'
 import { InviteModal } from './InviteModal'
 import { FeedPostCard } from './FeedPostCard'
-import { getCommunityFeedPosts, togglePostLike, flagPost } from './feed-service'
+import { getCommunityFeedPosts, getLatestPostTimestamp, togglePostLike, flagPost } from './feed-service'
 import type { FeedPost } from './feed-service'
+import { getCachedFeed, setCachedFeed } from './feed-cache'
 
 // Types for invite rewards
 interface InviteRewards {
@@ -90,6 +91,10 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
   const [error, setError] = useState<string | null>(null)
   const [selectedFilter, setSelectedFilter] = useState<PostTypeFilter>('all')
   const [searchQuery, setSearchQuery] = useState('')
+  /** Tracks the cached latestCreatedAt so focus checks can avoid refetch */
+  const cachedTimestampRef = React.useRef<string | null>(null)
+  /** Whether initial load (with cache restore) has completed */
+  const initialLoadDone = React.useRef(false)
 
   // Flag modal state
   const [flagModalVisible, setFlagModalVisible] = useState(false)
@@ -102,30 +107,87 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
   const unreadNotificationsCount = 0
   const userInitial = userDisplayName ? userDisplayName.charAt(0).toUpperCase() : 'A'
 
-  // Fetch posts on mount or when community changes
-  const fetchPosts = useCallback(async () => {
+  // ── Full fetch: download all posts and update cache ──
+  const fullFetch = useCallback(async (showSpinner: boolean) => {
     if (!communityH3Index || !userId) return
-    setLoading(true)
+    if (showSpinner) setLoading(true)
     setError(null)
     try {
       const data = await getCommunityFeedPosts(communityH3Index, userId)
       setPosts(data)
+      // Update latestCreatedAt ref synchronously so focus checks see fresh value
+      if (data.length > 0) {
+        cachedTimestampRef.current = data.reduce(
+          (latest, p) => (p.created_at > latest ? p.created_at : latest),
+          data[0]!.created_at,
+        )
+      } else {
+        cachedTimestampRef.current = null
+      }
+      // Persist to cache in background (non-blocking)
+      setCachedFeed(communityH3Index, data).catch(() => { /* non-critical */ })
     } catch (err: any) {
-      setError(err?.message || 'Failed to load feed')
+      // Only show error if we have no cached data to display
+      if (posts.length === 0) {
+        setError(err?.message || 'Failed to load feed')
+      }
     } finally {
-      setLoading(false)
+      if (showSpinner) setLoading(false)
     }
   }, [communityH3Index, userId])
 
+  // ── Initial load: restore cache then conditionally fetch ──
   useEffect(() => {
-    fetchPosts()
-  }, [fetchPosts])
+    if (!communityH3Index || !userId) return
+    let cancelled = false
 
-  // Re-fetch when screen regains focus (native tab navigation only —
-  // web has no NavigationContainer so useFocusEffect would crash)
+    const init = async () => {
+      // 1. Restore from cache for instant display
+      const cached = await getCachedFeed(communityH3Index)
+      if (cancelled) return
+
+      if (cached && cached.posts.length > 0) {
+        setPosts(cached.posts)
+        cachedTimestampRef.current = cached.latestCreatedAt
+      }
+
+      // 2. Check server freshness — cheap single-row query
+      const serverLatest = await getLatestPostTimestamp(communityH3Index)
+      if (cancelled) return
+
+      const cacheIsFresh =
+        cached &&
+        cached.posts.length > 0 &&
+        serverLatest === cached.latestCreatedAt
+
+      if (!cacheIsFresh) {
+        // Cache is stale or empty — full refetch
+        // Show spinner only when we have nothing cached to display
+        await fullFetch(!cached || cached.posts.length === 0)
+      }
+
+      if (!cancelled) initialLoadDone.current = true
+    }
+
+    init()
+    return () => { cancelled = true }
+  }, [communityH3Index, userId, fullFetch])
+
+  // ── Re-focus: conditional refresh (native only) ──
   const focusCallback = useCallback(() => {
-    fetchPosts()
-  }, [fetchPosts])
+    if (!communityH3Index || !userId || !initialLoadDone.current) return
+
+    // Check if server has newer posts than our cache
+    getLatestPostTimestamp(communityH3Index).then(serverLatest => {
+      if (serverLatest && serverLatest !== cachedTimestampRef.current) {
+        // Server has new data — silent background refresh (no spinner)
+        fullFetch(false)
+      }
+    }).catch(() => {
+      // On error, do a full refresh as fallback
+      fullFetch(false)
+    })
+  }, [communityH3Index, userId, fullFetch])
 
   if (Platform.OS !== 'web') {
     // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -652,7 +714,7 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
                 paddingVertical="$2"
                 borderRadius="$3"
                 pressStyle={{ backgroundColor: colors.green[700] }}
-                onPress={fetchPosts}
+                onPress={() => fullFetch(true)}
               >
                 <Text color="white" fontWeight="500">{t('feed.retry')}</Text>
               </Button>
