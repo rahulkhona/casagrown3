@@ -6,12 +6,12 @@ This document tracks items that must be completed before production release.
 
 ### Authentication Configuration
 
-| Item | Status | Description |
-|------|--------|-------------|
-| **Social Login Keys** | ⏳ Pending | Configure OAuth keys for Google, Apple, and Facebook |
-| **Remove Mock Mode** | ⏳ Pending | Remove forced mock login in `auth-hook.ts` |
+| Item                        | Status     | Description                                             |
+| --------------------------- | ---------- | ------------------------------------------------------- |
+| **Social Login Keys**       | ⏳ Pending | Configure OAuth keys for Google, Apple, and Facebook    |
+| **Remove Mock Mode**        | ⏳ Pending | Remove forced mock login in `auth-hook.ts`              |
 | **Supabase Production URL** | ⏳ Pending | Update `.env` with production Supabase URL and Anon Key |
-| **Remove Dev OTP Display** | ⏳ Pending | Remove Inbucket OTP fetch code (dev-only) |
+| **Remove Dev OTP Display**  | ⏳ Pending | Remove Inbucket OTP fetch code (dev-only)               |
 
 ### Current Mock Behavior
 
@@ -44,24 +44,25 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-production-anon-key
 
 ## 🟡 Recommended Before Release
 
-| Item | Status | Description |
-|------|--------|-------------|
-| ATS Hardening | ⏳ Pending | Remove `NSAllowsArbitraryLoads: true` from iOS `app.json` |
-| Debug Alerts | ⏳ Pending | Review and remove any remaining `alert()` calls |
-| Console Logs | ⏳ Pending | Remove verbose dev logging (🔧, 🤖, etc.) |
+| Item                   | Status     | Description                                                                                                                                                                                                                                                                              |
+| ---------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ATS Hardening          | ⏳ Pending | Remove `NSAllowsArbitraryLoads: true` from iOS `app.json`                                                                                                                                                                                                                                |
+| Debug Alerts           | ⏳ Pending | Review and remove any remaining `alert()` calls                                                                                                                                                                                                                                          |
+| Console Logs           | ⏳ Pending | Remove verbose dev logging (🔧, 🤖, etc.)                                                                                                                                                                                                                                                |
+| **Media Optimization** | ⏳ Pending | Compress avatars (400px, 80% JPEG) & videos (`react-native-compressor`, auto mode, 720p max) before upload. Code was written & reverted (`fd6cef3` → `45503b5`) — re-apply and test on physical device before release. See `implementation_plan.md` in brain artifacts for full details. |
 
 ---
 
 ## 🟢 Verified Ready
 
-| Item | Status |
-|------|--------|
-| Profile creation trigger | ✅ Works |
-| 50pt signup reward | ✅ Works |
-| Email/OTP flow (UI) | ✅ Works |
+| Item                                | Status   |
+| ----------------------------------- | -------- |
+| Profile creation trigger            | ✅ Works |
+| 50pt signup reward                  | ✅ Works |
+| Email/OTP flow (UI)                 | ✅ Works |
 | Navigation (Login → Success → Home) | ✅ Works |
-| Localization (EN/ES/VI) | ✅ Works |
+| Localization (EN/ES/VI)             | ✅ Works |
 
 ---
 
-*Last Updated: 2026-02-01*
+_Last Updated: 2026-02-01_

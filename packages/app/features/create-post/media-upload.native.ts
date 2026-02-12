@@ -2,30 +2,6 @@ import { supabase } from "../auth/auth-hook";
 import { decode } from "base64-arraybuffer";
 import { File } from "expo-file-system/next";
 import * as ImageManipulator from "expo-image-manipulator";
-import { Video } from "react-native-compressor";
-
-/**
- * Compress a video using react-native-compressor.
- * Uses automatic quality detection (WhatsApp-like) with 720p max resolution.
- * Falls back to the original URI if compression fails.
- */
-async function compressVideo(uri: string): Promise<string> {
-    try {
-        console.log("🎬 [post-media] Compressing video...");
-        const result = await Video.compress(uri, {
-            compressionMethod: "auto",
-            maxSize: 1280,
-        });
-        console.log("🔧 [post-media] Video compressed:", result);
-        return result;
-    } catch (err) {
-        console.warn(
-            "[post-media] Video compression failed, using original:",
-            err,
-        );
-        return uri;
-    }
-}
 
 const MAX_IMAGE_DIM = 1200;
 const IMAGE_COMPRESS = 0.8;
@@ -76,13 +52,8 @@ export const uploadPostMedia = async (
 
         console.log("📤 [post-media] Uploading:", filename);
 
-        // Optimize media before upload to save storage and bandwidth
-        let finalUri = uri;
-        if (mediaType === "image") {
-            finalUri = await resizeImage(uri);
-        } else if (mediaType === "video") {
-            finalUri = await compressVideo(uri);
-        }
+        // Resize images before upload to save storage costs
+        const finalUri = mediaType === "image" ? await resizeImage(uri) : uri;
 
         const file = new File(finalUri);
         const base64 = await file.base64();
