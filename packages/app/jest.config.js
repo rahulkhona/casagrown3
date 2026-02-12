@@ -11,6 +11,7 @@ module.exports = {
     '^expo-video$': '<rootDir>/__mocks__/expo-video.js',
     '^expo$': '<rootDir>/__mocks__/expo.js',
     '^react-native-webview$': '<rootDir>/__mocks__/react-native-webview.js',
+    '^react-native-compressor$': '<rootDir>/__mocks__/react-native-compressor.js',
   },
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
 };
