@@ -10,13 +10,11 @@
  * - markMessagesAsDelivered
  * - markMessagesAsRead
  * - getUnreadChatCount
- *
- * Realtime functions (subscribeToMessages, subscribeToMessageUpdates,
- * createPresenceChannel) are not unit-testable without a live Supabase
- * instance and are covered by integration/E2E tests.
+ * - createPresenceChannel (broadcast-based typing + presence)
  */
 
 import {
+    createPresenceChannel,
     getConversationMessages,
     getConversationWithDetails,
     getOrCreateConversation,
@@ -40,17 +38,71 @@ const mockStorage = {
     }),
 };
 
+// Channel mock for Realtime (presence + broadcast)
+const mockChannelSend = jest.fn();
+const mockChannelTrack = jest.fn().mockResolvedValue("ok");
+const mockChannelUntrack = jest.fn();
+let mockChannelListeners: Map<string, Function> = new Map();
+let mockChannelSubscribeCallback: Function | null = null;
+
+const mockChannel = {
+    on: jest.fn().mockImplementation(function (
+        this: any,
+        type: string,
+        filter: any,
+        callback: Function,
+    ) {
+        const key = `${type}:${filter.event || ""}`;
+        mockChannelListeners.set(key, callback);
+        return mockChannel;
+    }),
+    subscribe: jest.fn().mockImplementation((callback?: Function) => {
+        mockChannelSubscribeCallback = callback || null;
+        // Auto-call with SUBSCRIBED status
+        if (callback) callback("SUBSCRIBED");
+        return mockChannel;
+    }),
+    send: mockChannelSend,
+    track: mockChannelTrack,
+    untrack: mockChannelUntrack,
+    presenceState: jest.fn().mockReturnValue({}),
+};
+
+const mockRemoveChannel = jest.fn();
+
 jest.mock("../auth/auth-hook", () => ({
     supabase: {
         from: (...args: any[]) => mockFrom(...args),
         storage: {
             from: (...args: any[]) => mockStorage.from(...args),
         },
+        channel: (...args: any[]) => mockChannel,
+        removeChannel: (...args: any[]) => mockRemoveChannel(...args),
     },
 }));
 
 beforeEach(() => {
     jest.clearAllMocks();
+    mockChannelListeners = new Map();
+    mockChannelSubscribeCallback = null;
+    // Re-setup mockChannel methods after clearAllMocks
+    mockChannel.on.mockImplementation(function (
+        this: any,
+        type: string,
+        filter: any,
+        callback: Function,
+    ) {
+        const key = `${type}:${filter.event || ""}`;
+        mockChannelListeners.set(key, callback);
+        return mockChannel;
+    });
+    mockChannel.subscribe.mockImplementation((callback?: Function) => {
+        mockChannelSubscribeCallback = callback || null;
+        if (callback) callback("SUBSCRIBED");
+        return mockChannel;
+    });
+    mockChannelTrack.mockResolvedValue("ok");
+    mockChannel.presenceState.mockReturnValue({});
 });
 
 // =============================================================================
@@ -789,5 +841,159 @@ describe("getUnreadChatCount", () => {
 
         const count = await getUnreadChatCount("user-1");
         expect(count).toBe(0);
+    });
+});
+
+// =============================================================================
+// createPresenceChannel
+// =============================================================================
+
+describe("createPresenceChannel", () => {
+    const conversationId = "conv-test";
+    const userId = "user-me";
+    const otherUserId = "user-other";
+
+    it("creates channel and returns expected API shape", () => {
+        const onPresenceChange = jest.fn();
+        const result = createPresenceChannel(
+            conversationId,
+            userId,
+            onPresenceChange,
+        );
+
+        expect(result).toHaveProperty("channel");
+        expect(result).toHaveProperty("setTyping");
+        expect(result).toHaveProperty("destroy");
+        expect(typeof result.setTyping).toBe("function");
+        expect(typeof result.destroy).toBe("function");
+    });
+
+    it("tracks online status on subscribe", () => {
+        const onPresenceChange = jest.fn();
+        createPresenceChannel(conversationId, userId, onPresenceChange);
+
+        // subscribe callback fires automatically with "SUBSCRIBED"
+        expect(mockChannelTrack).toHaveBeenCalledWith({ online: true });
+    });
+
+    it("registers presence and broadcast listeners", () => {
+        const onPresenceChange = jest.fn();
+        createPresenceChannel(conversationId, userId, onPresenceChange);
+
+        // Should register: presence:sync, presence:join, presence:leave, broadcast:typing
+        expect(mockChannel.on).toHaveBeenCalledTimes(4);
+        expect(mockChannelListeners.has("presence:sync")).toBe(true);
+        expect(mockChannelListeners.has("presence:join")).toBe(true);
+        expect(mockChannelListeners.has("presence:leave")).toBe(true);
+        expect(mockChannelListeners.has("broadcast:typing")).toBe(true);
+    });
+
+    it("sends typing broadcast via channel.send()", () => {
+        const onPresenceChange = jest.fn();
+        const { setTyping } = createPresenceChannel(
+            conversationId,
+            userId,
+            onPresenceChange,
+        );
+
+        setTyping(true);
+
+        expect(mockChannelSend).toHaveBeenCalledWith({
+            type: "broadcast",
+            event: "typing",
+            payload: { user_id: userId, is_typing: true },
+        });
+    });
+
+    it("sends stop-typing broadcast", () => {
+        const onPresenceChange = jest.fn();
+        const { setTyping } = createPresenceChannel(
+            conversationId,
+            userId,
+            onPresenceChange,
+        );
+
+        setTyping(false);
+
+        expect(mockChannelSend).toHaveBeenCalledWith({
+            type: "broadcast",
+            event: "typing",
+            payload: { user_id: userId, is_typing: false },
+        });
+    });
+
+    it("calls onPresenceChange when receiving broadcast typing from other user", () => {
+        const onPresenceChange = jest.fn();
+        createPresenceChannel(conversationId, userId, onPresenceChange);
+
+        // Simulate broadcast typing event from other user
+        const broadcastHandler = mockChannelListeners.get("broadcast:typing");
+        broadcastHandler!({
+            payload: { user_id: otherUserId, is_typing: true },
+        });
+
+        expect(onPresenceChange).toHaveBeenCalledWith({
+            online: false, // not tracked via presence yet
+            typing: true,
+        });
+    });
+
+    it("ignores own typing broadcasts", () => {
+        const onPresenceChange = jest.fn();
+        createPresenceChannel(conversationId, userId, onPresenceChange);
+
+        // Clear any calls from subscribe/init
+        onPresenceChange.mockClear();
+
+        // Simulate broadcast typing event from self
+        const broadcastHandler = mockChannelListeners.get("broadcast:typing");
+        broadcastHandler!({
+            payload: { user_id: userId, is_typing: true },
+        });
+
+        // Should NOT have called onPresenceChange
+        expect(onPresenceChange).not.toHaveBeenCalled();
+    });
+
+    it("reports other user as online on presence join", () => {
+        const onPresenceChange = jest.fn();
+        createPresenceChannel(conversationId, userId, onPresenceChange);
+        onPresenceChange.mockClear();
+
+        const joinHandler = mockChannelListeners.get("presence:join");
+        joinHandler!({ key: otherUserId });
+
+        expect(onPresenceChange).toHaveBeenCalledWith({
+            online: true,
+            typing: false,
+        });
+    });
+
+    it("reports other user as offline on presence leave", () => {
+        const onPresenceChange = jest.fn();
+        createPresenceChannel(conversationId, userId, onPresenceChange);
+        onPresenceChange.mockClear();
+
+        const leaveHandler = mockChannelListeners.get("presence:leave");
+        leaveHandler!({ key: otherUserId });
+
+        expect(onPresenceChange).toHaveBeenCalledWith({
+            online: false,
+            typing: false,
+        });
+    });
+
+    it("cleans up channel on destroy", () => {
+        const onPresenceChange = jest.fn();
+        const { destroy } = createPresenceChannel(
+            conversationId,
+            userId,
+            onPresenceChange,
+        );
+
+        destroy();
+
+        expect(mockChannelUntrack).toHaveBeenCalled();
+        expect(mockRemoveChannel).toHaveBeenCalledWith(mockChannel);
     });
 });

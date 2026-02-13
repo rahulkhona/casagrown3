@@ -182,7 +182,7 @@ files:
 | `markMessagesAsRead`         | Mark incoming messages as read (grey checkmarks → blue)            |
 | `subscribeToMessages`        | Realtime subscription for new messages (INSERT events)             |
 | `subscribeToMessageUpdates`  | Realtime subscription for delivery/read status (UPDATE events)     |
-| `createPresenceChannel`      | Online/typing presence via Supabase Presence                       |
+| `createPresenceChannel`      | Online status via Presence + typing via Broadcast (cross-platform) |
 | `getUnreadChatCount`         | Count distinct conversations with unread messages (for nav badge)  |
 
 ### Realtime Configuration
@@ -190,6 +190,18 @@ files:
 Chat messages are published to Supabase Realtime with `REPLICA IDENTITY FULL` so
 that client-side filters (e.g. `conversation_id=eq.X`) work on UPDATE events.
 See the `20260213010000_chat_realtime` migration.
+
+#### Presence & Typing Architecture
+
+The presence system uses a **hybrid approach** for reliability:
+
+- **Supabase Presence** — tracks online/offline status (join/leave events)
+- **Supabase Broadcast** — delivers typing events (more reliable across
+  platforms than Presence `track()`)
+
+> **iOS Simulator Note:** The Supabase URL in the Expo `.env` uses `10.0.2.2`
+> (Android emulator loopback). `supabase.ts` automatically replaces this with
+> `127.0.0.1` on iOS so the Simulator can reach the local Supabase instance.
 
 ### UI Components
 

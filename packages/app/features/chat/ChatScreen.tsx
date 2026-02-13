@@ -376,6 +376,7 @@ export function ChatScreen({
   const msgChannelRef = useRef<{ unsubscribe: () => void } | null>(null)
   const statusChannelRef = useRef<{ unsubscribe: () => void } | null>(null)
   const inputRef = useRef<TextInput>(null)
+  const isAtBottomRef = useRef(true)
 
   // Determine who is who
   const otherUser = useMemo(() => {
@@ -467,6 +468,15 @@ export function ChatScreen({
       presenceRef.current?.destroy()
     }
   }, [postId, otherUserId, currentUserId])
+
+  // ── Scroll to bottom when typing indicator appears (only if already at bottom) ──
+  useEffect(() => {
+    if (otherPresence.typing && isAtBottomRef.current) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true })
+      }, 100)
+    }
+  }, [otherPresence.typing])
 
   // ── Poll for new messages on web (no push notifications available) ──
   useEffect(() => {
@@ -841,35 +851,54 @@ export function ChatScreen({
             <ArrowLeft size={22} color={colors.gray[700]} />
           </TouchableOpacity>
 
-          {/* Other user avatar + name + typing */}
+          {/* Other user avatar + name + presence + typing */}
           <XStack flex={1} alignItems="center" gap="$2.5">
-            {otherUserAvatar ? (
-              <Image
-                source={{ uri: otherUserAvatar }}
-                style={{ width: 36, height: 36, borderRadius: 18 }}
-              />
-            ) : (
+            {/* Avatar with presence dot overlay */}
+            <YStack position="relative" width={36} height={36}>
+              {otherUserAvatar ? (
+                <Image
+                  source={{ uri: otherUserAvatar }}
+                  style={{ width: 36, height: 36, borderRadius: 18 }}
+                />
+              ) : (
+                <YStack
+                  width={36}
+                  height={36}
+                  borderRadius={18}
+                  backgroundColor={colors.green[600]}
+                  alignItems="center"
+                  justifyContent="center"
+                >
+                  <Text fontSize={14} color="white" fontWeight="600">
+                    {otherUserName.charAt(0).toUpperCase()}
+                  </Text>
+                </YStack>
+              )}
+              {/* Presence dot */}
               <YStack
-                width={36}
-                height={36}
-                borderRadius={18}
-                backgroundColor={colors.green[600]}
-                alignItems="center"
-                justifyContent="center"
-              >
-                <Text fontSize={14} color="white" fontWeight="600">
-                  {otherUserName.charAt(0).toUpperCase()}
-                </Text>
-              </YStack>
-            )}
+                position="absolute"
+                bottom={0}
+                right={0}
+                width={12}
+                height={12}
+                borderRadius={6}
+                backgroundColor={otherPresence.online ? '#22c55e' : colors.gray[400]}
+                borderWidth={2}
+                borderColor="white"
+              />
+            </YStack>
 
             <YStack>
               <Text fontSize={15} fontWeight="600" color={colors.gray[900]}>
                 {otherUserName}
               </Text>
-              {otherPresence.typing && (
+              {otherPresence.typing ? (
                 <Text fontSize={11} color={colors.green[600]}>
                   {t('chat.typing')}
+                </Text>
+              ) : (
+                <Text fontSize={11} color={otherPresence.online ? colors.green[600] : colors.gray[400]}>
+                  {otherPresence.online ? t('chat.online', 'Online') : t('chat.offline', 'Offline')}
                 </Text>
               )}
             </YStack>
@@ -909,7 +938,17 @@ export function ChatScreen({
         }}
         contentContainerStyle={{ paddingVertical: 8, flexGrow: 1 }}
         style={{ flex: 1 }}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+        onContentSizeChange={() => {
+          if (isAtBottomRef.current) {
+            flatListRef.current?.scrollToEnd({ animated: false })
+          }
+        }}
+        onScroll={(e) => {
+          const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent
+          const distanceFromBottom = contentSize.height - contentOffset.y - layoutMeasurement.height
+          isAtBottomRef.current = distanceFromBottom < 100
+        }}
+        scrollEventThrottle={100}
         ListEmptyComponent={
           <YStack flex={1} alignItems="center" justifyContent="center" padding="$8">
             <Text fontSize={15} color={colors.gray[400]} textAlign="center">

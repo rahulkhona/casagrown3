@@ -674,7 +674,9 @@ export function subscribeToMessages(
 
 /**
  * Create a presence channel for online/typing status.
- * Returns the channel and helper functions.
+ * Uses Presence for online/offline detection and Broadcast for typing events.
+ * Broadcast is more reliable than Presence for ephemeral state like typing
+ * across different platforms (web, iOS, Android).
  */
 export function createPresenceChannel(
     conversationId: string,
@@ -690,43 +692,69 @@ export function createPresenceChannel(
         config: { presence: { key: userId } },
     });
 
+    // Track the latest known state so we can merge presence + broadcast
+    let otherOnline = false;
+    let otherTyping = false;
+
+    const emitState = () => {
+        onPresenceChange({ online: otherOnline, typing: otherTyping });
+    };
+
     channel
+        // ── Presence: online/offline ──
         .on("presence", { event: "sync" }, () => {
             const state = channel.presenceState();
-            // Find the other user's presence
+            let found = false;
             for (const key of Object.keys(state)) {
                 if (key !== userId) {
                     const presences = state[key] as any[];
                     if (presences && presences.length > 0) {
-                        onPresenceChange({
-                            online: true,
-                            typing: presences[0]?.typing || false,
-                        });
-                        return;
+                        otherOnline = true;
+                        found = true;
+                        break;
                     }
                 }
             }
-            // Other user not found in presence
-            onPresenceChange({ online: false, typing: false });
+            if (!found) {
+                otherOnline = false;
+                otherTyping = false; // If they left, they're not typing
+            }
+            emitState();
         })
         .on("presence", { event: "join" }, ({ key }) => {
             if (key !== userId) {
-                onPresenceChange({ online: true, typing: false });
+                otherOnline = true;
+                emitState();
             }
         })
         .on("presence", { event: "leave" }, ({ key }) => {
             if (key !== userId) {
-                onPresenceChange({ online: false, typing: false });
+                otherOnline = false;
+                otherTyping = false;
+                emitState();
+            }
+        })
+        // ── Broadcast: typing events (reliable across all platforms) ──
+        .on("broadcast", { event: "typing" }, (payload) => {
+            const msg = payload.payload as any;
+            if (msg?.user_id !== userId) {
+                otherTyping = !!msg?.is_typing;
+                emitState();
             }
         })
         .subscribe(async (status) => {
             if (status === "SUBSCRIBED") {
-                await channel.track({ online: true, typing: false });
+                await channel.track({ online: true });
             }
         });
 
     const setTyping = (isTyping: boolean) => {
-        channel.track({ online: true, typing: isTyping });
+        // Use broadcast for typing — more reliable than presence.track()
+        channel.send({
+            type: "broadcast",
+            event: "typing",
+            payload: { user_id: userId, is_typing: isTyping },
+        });
     };
 
     const destroy = () => {
