@@ -15,6 +15,11 @@ jest.mock('./feed-service', () => ({
   flagPost: (...args: any[]) => mockFlagPost(...args),
 }))
 
+// Mock chat-service (imported by feed-screen for unread badge)
+jest.mock('../chat/chat-service', () => ({
+  getUnreadChatCount: jest.fn().mockResolvedValue(0),
+}))
+
 // Mock feed cache — return null (no cache) by default so tests exercise full fetch path
 jest.mock('./feed-cache', () => ({
   getCachedFeed: jest.fn().mockResolvedValue(null),

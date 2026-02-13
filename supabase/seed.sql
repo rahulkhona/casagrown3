@@ -71,6 +71,17 @@ CREATE POLICY "post_media_select" ON storage.objects FOR SELECT USING (bucket_id
 CREATE POLICY "post_media_update" ON storage.objects FOR UPDATE TO authenticated USING (bucket_id = 'post-media' AND (storage.foldername(name))[1] = auth.uid()::text);
 CREATE POLICY "post_media_delete" ON storage.objects FOR DELETE TO authenticated USING (bucket_id = 'post-media' AND (storage.foldername(name))[1] = auth.uid()::text);
 
+-- Chat media bucket
+insert into storage.buckets (id, name, public)
+values ('chat-media', 'chat-media', true)
+on conflict (id) do nothing;
+
+-- Storage policies for chat-media bucket
+CREATE POLICY "chat_media_insert" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'chat-media');
+CREATE POLICY "chat_media_select" ON storage.objects FOR SELECT USING (bucket_id = 'chat-media');
+CREATE POLICY "chat_media_update" ON storage.objects FOR UPDATE TO authenticated USING (bucket_id = 'chat-media' AND (storage.foldername(name))[1] = auth.uid()::text);
+CREATE POLICY "chat_media_delete" ON storage.objects FOR DELETE TO authenticated USING (bucket_id = 'chat-media' AND (storage.foldername(name))[1] = auth.uid()::text);
+
 -- 9. Platform Config
 INSERT INTO public.platform_config (key, value, description)
 VALUES ('platform_fee_percent', '10', 'Platform fee percentage charged on completed sales')

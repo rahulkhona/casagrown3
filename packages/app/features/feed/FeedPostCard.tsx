@@ -5,10 +5,10 @@
  * Uses Tamagui primitives + design tokens for cross-platform rendering.
  */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { YStack, XStack, Text, Button, Input, ScrollView } from 'tamagui'
 import { Image, Platform, Share, Alert, TextInput } from 'react-native'
-import { Heart, ShoppingCart, ThumbsUp, MessageCircle, Share2, Flag, Play, Send } from '@tamagui/lucide-icons'
+import { Heart, ShoppingCart, ThumbsUp, MessageCircle, MessagesSquare, Share2, Flag, Play, Send } from '@tamagui/lucide-icons'
 import { FeedVideoPlayer } from './FeedVideoPlayer'
 import { colors, shadows, borderRadius } from '../../design-tokens'
 import { normalizeStorageUrl } from '../../utils/normalize-storage-url'
@@ -25,8 +25,9 @@ export interface FeedPostCardProps {
   currentUserId: string
   currentUserName?: string
   onLikeToggle?: (postId: string, newLiked: boolean) => void
-  onBuy?: (postId: string) => void
+  onOrder?: (postId: string) => void
   onOffer?: (postId: string) => void
+  onChat?: (postId: string, authorId: string) => void
   onFlag?: (postId: string) => void
   t: (key: string) => string
 }
@@ -86,8 +87,9 @@ export function FeedPostCard({
   currentUserId,
   currentUserName,
   onLikeToggle,
-  onBuy,
+  onOrder,
   onOffer,
+  onChat,
   onFlag,
   t,
 }: FeedPostCardProps) {
@@ -100,6 +102,12 @@ export function FeedPostCard({
   const [commentText, setCommentText] = useState('')
   const [commentCount, setCommentCount] = useState(post.comment_count)
   const [submittingComment, setSubmittingComment] = useState(false)
+
+  // Sync local state when parent re-fetches with updated counts
+  useEffect(() => { setLiked(post.is_liked) }, [post.is_liked])
+  useEffect(() => { setLikeCount(post.like_count) }, [post.like_count])
+  useEffect(() => { setCommentCount(post.comment_count) }, [post.comment_count])
+  useEffect(() => { setFlagged(post.is_flagged) }, [post.is_flagged])
 
   const toggleComments = useCallback(async () => {
     const willExpand = !commentsExpanded
@@ -275,7 +283,7 @@ export function FeedPostCard({
             />
           </YStack>
         )}
-        {/* Video: uses platform-split FeedVideoPlayer (web = HTML5, native = expo-video) */}
+        {/* Video: inline player with controls (play btn bottom-left, seekable progress bar) */}
         {isVideo && thumbnailUrl && (
           <FeedVideoPlayer uri={thumbnailUrl} />
         )}
@@ -290,7 +298,7 @@ export function FeedPostCard({
               {postDescription}
             </Text>
           )}
-          <XStack gap="$3" alignItems="center" marginTop="$1">
+          <XStack gap="$3" alignItems="center" marginTop="$1" flexWrap="wrap">
             {category ? (
               <Text fontSize={12} color={colors.gray[500]}>
                 {category}
@@ -303,6 +311,14 @@ export function FeedPostCard({
                 ) : null}
                 <Text fontSize={13} fontWeight="600" color={colors.green[600]}>
                   {price} {t('feed.points')}{unit ? `/${unit}` : ''}
+                </Text>
+              </>
+            )}
+            {post.sell_details?.total_quantity_available != null && (
+              <>
+                <Text fontSize={12} color={colors.gray[300]}>·</Text>
+                <Text fontSize={12} color={colors.gray[500]}>
+                  {t('feed.qty')}: {post.sell_details.total_quantity_available}{unit ? ` ${unit}${post.sell_details.total_quantity_available !== 1 ? 's' : ''}` : ''}
                 </Text>
               </>
             )}
@@ -319,7 +335,7 @@ export function FeedPostCard({
         alignItems="center"
         justifyContent="space-between"
       >
-        {/* Left actions */}
+        {/* Left actions — Like & Comments always in same position */}
         <XStack gap="$3" alignItems="center">
           {/* Like */}
           <Button
@@ -340,38 +356,7 @@ export function FeedPostCard({
             </Text>
           </Button>
 
-          {/* Primary CTA */}
-          {post.type === 'want_to_sell' && !isOwnPost ? (
-            <Button
-              size="$2"
-              backgroundColor={colors.green[600]}
-              borderRadius={8}
-              paddingHorizontal="$3"
-              paddingVertical="$1"
-              gap="$1"
-              pressStyle={{ backgroundColor: colors.green[700] }}
-              onPress={() => onBuy?.(post.id)}
-              icon={<ShoppingCart size={16} color="white" />}
-            >
-              <Text fontSize={13} fontWeight="600" color="white">{t('feed.buy')}</Text>
-            </Button>
-          ) : post.type === 'want_to_buy' && !isOwnPost ? (
-            <Button
-              size="$2"
-              backgroundColor="#2563eb"
-              borderRadius={8}
-              paddingHorizontal="$3"
-              paddingVertical="$1"
-              gap="$1"
-              pressStyle={{ backgroundColor: '#1d4ed8' }}
-              onPress={() => onOffer?.(post.id)}
-              icon={<ThumbsUp size={16} color="white" />}
-            >
-              <Text fontSize={13} fontWeight="600" color="white">{t('feed.offer')}</Text>
-            </Button>
-          ) : null}
-
-          {/* Comment toggle — all post types */}
+          {/* Comment toggle — always in same position for all post types */}
           <Button
             unstyled
             flexDirection="row"
@@ -385,9 +370,86 @@ export function FeedPostCard({
               {commentCount}
             </Text>
           </Button>
+
+          {/* CTA Buttons — vary by post type, but always after Like & Comment */}
+          {post.type === 'want_to_sell' && !isOwnPost && (
+            <>
+              <Button
+                size="$2"
+                backgroundColor={colors.green[600]}
+                borderRadius={8}
+                paddingHorizontal="$3"
+                paddingVertical="$1"
+                gap="$1"
+                pressStyle={{ backgroundColor: colors.green[700] }}
+                onPress={() => onOrder?.(post.id)}
+                icon={<ShoppingCart size={16} color="white" />}
+              >
+                <Text fontSize={13} fontWeight="600" color="white">{t('feed.order')}</Text>
+              </Button>
+              <Button
+                size="$2"
+                backgroundColor="#6366f1"
+                borderRadius={8}
+                paddingHorizontal="$3"
+                paddingVertical="$1"
+                gap="$1"
+                pressStyle={{ backgroundColor: '#4f46e5' }}
+                onPress={() => onChat?.(post.id, post.author_id)}
+                icon={<MessagesSquare size={16} color="white" />}
+              >
+                <Text fontSize={13} fontWeight="600" color="white">{t('feed.chat')}</Text>
+              </Button>
+            </>
+          )}
+          {post.type === 'want_to_buy' && !isOwnPost && (
+            <>
+              <Button
+                size="$2"
+                backgroundColor="#2563eb"
+                borderRadius={8}
+                paddingHorizontal="$3"
+                paddingVertical="$1"
+                gap="$1"
+                pressStyle={{ backgroundColor: '#1d4ed8' }}
+                onPress={() => onOffer?.(post.id)}
+                icon={<ThumbsUp size={16} color="white" />}
+              >
+                <Text fontSize={13} fontWeight="600" color="white">{t('feed.offer')}</Text>
+              </Button>
+              <Button
+                size="$2"
+                backgroundColor="#6366f1"
+                borderRadius={8}
+                paddingHorizontal="$3"
+                paddingVertical="$1"
+                gap="$1"
+                pressStyle={{ backgroundColor: '#4f46e5' }}
+                onPress={() => onChat?.(post.id, post.author_id)}
+                icon={<MessagesSquare size={16} color="white" />}
+              >
+                <Text fontSize={13} fontWeight="600" color="white">{t('feed.chat')}</Text>
+              </Button>
+            </>
+          )}
+          {(post.type === 'offering_service' || post.type === 'need_service') && !isOwnPost && (
+            <Button
+              size="$2"
+              backgroundColor={post.type === 'offering_service' ? '#c2410c' : '#7e22ce'}
+              borderRadius={8}
+              paddingHorizontal="$3"
+              paddingVertical="$1"
+              gap="$1"
+              pressStyle={{ backgroundColor: post.type === 'offering_service' ? '#9a3412' : '#6b21a8' }}
+              onPress={() => onChat?.(post.id, post.author_id)}
+              icon={<MessagesSquare size={16} color="white" />}
+            >
+              <Text fontSize={13} fontWeight="600" color="white">{t('feed.chat')}</Text>
+            </Button>
+          )}
         </XStack>
 
-        {/* Right actions */}
+        {/* Right actions — Share & Flag always in same position */}
         <XStack gap="$1" alignItems="center">
           {/* Share */}
           <Button

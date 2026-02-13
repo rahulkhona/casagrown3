@@ -97,6 +97,14 @@ export default function FeedPage() {
     router.push('/my-posts')
   }
 
+  const handleNavigateToChat = (postId: string, authorId: string) => {
+    router.push(`/chat?postId=${postId}&otherUserId=${authorId}`)
+  }
+
+  const handleNavigateToChats = () => {
+    router.push('/chats')
+  }
+
 
   return (
     <FeedScreen
@@ -111,6 +119,8 @@ export default function FeedPage() {
       communityH3Index={communityH3Index}
       userId={user?.id}
       highlightPostId={highlightPostId}
+      onNavigateToChat={handleNavigateToChat}
+      onNavigateToChats={handleNavigateToChats}
     />
   )
 }

@@ -1,9 +1,15 @@
 #!/bin/sh
 
-# Pre-push hook: Run linting and type checks
-# Note: Maestro E2E tests are run manually, not on pre-push
+# Pre-push hook: Run full test suite before pushing
+# Ensures nothing is broken before code reaches the remote.
 
 echo "🔍 Running pre-push checks..."
 
-# Run lint-staged (already configured in package.json)
-echo "✅ Pre-push checks complete (lint-staged runs automatically)"
+# 1. Run all app unit tests
+echo "📋 Running app unit tests..."
+yarn workspace @casagrown/app jest --passWithNoTests --bail || {
+    echo "❌ App tests failed — push aborted."
+    exit 1
+}
+
+echo "✅ All pre-push checks passed!"

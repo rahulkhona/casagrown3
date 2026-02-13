@@ -18,9 +18,10 @@ import { Search, Bell, UserPlus, Home, Plus, Filter, Leaf, Menu, X } from '@tama
 import { Platform, Image, TouchableOpacity, Alert, TextInput } from 'react-native'
 import { InviteModal } from './InviteModal'
 import { FeedPostCard } from './FeedPostCard'
-import { getCommunityFeedPosts, getLatestPostTimestamp, togglePostLike, flagPost } from './feed-service'
+import { getCommunityFeedPosts, togglePostLike, flagPost } from './feed-service'
 import type { FeedPost } from './feed-service'
 import { getCachedFeed, setCachedFeed } from './feed-cache'
+import { getUnreadChatCount } from '../chat/chat-service'
 
 // Types for invite rewards
 interface InviteRewards {
@@ -55,13 +56,15 @@ interface FeedScreenProps {
   userId?: string
   /** Post ID to highlight (from shared link) */
   highlightPostId?: string
-  /** Navigate to post detail */
-
+  /** Navigate to chat with a post author */
+  onNavigateToChat?: (postId: string, authorId: string) => void
+  /** Navigate to chat inbox */
+  onNavigateToChats?: () => void
 }
 
 // Navigation item keys - labels are localized via t()
-// Badges show count of pending action items - currently 0 (will be populated from backend)
-const NAV_KEYS = [
+// Badges show count of pending action items
+const NAV_KEYS_BASE = [
   { key: 'feed', active: true, badge: 0 },
   { key: 'chats', badge: 0 },
   { key: 'orders', badge: 0 },
@@ -71,7 +74,7 @@ const NAV_KEYS = [
   { key: 'delegateSales', badge: 0 },
 ]
 
-export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDelegate, onNavigateToMyPosts, logoSrc, referralCode, inviteRewards, userAvatarUrl: rawAvatarUrl, userDisplayName, communityH3Index, userId, highlightPostId }: FeedScreenProps) {
+export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDelegate, onNavigateToMyPosts, logoSrc, referralCode, inviteRewards, userAvatarUrl: rawAvatarUrl, userDisplayName, communityH3Index, userId, highlightPostId, onNavigateToChat, onNavigateToChats }: FeedScreenProps) {
   const userAvatarUrl = normalizeStorageUrl(rawAvatarUrl)
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
@@ -106,6 +109,32 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
   const userPoints = 0
   const unreadNotificationsCount = 0
   const userInitial = userDisplayName ? userDisplayName.charAt(0).toUpperCase() : 'A'
+
+  // Unread chat count
+  const [unreadChats, setUnreadChats] = useState(0)
+
+  // Fetch unread chat count on mount and focus
+  const fetchUnreadChats = useCallback(async () => {
+    if (!userId) return
+    try {
+      const count = await getUnreadChatCount(userId)
+      setUnreadChats(count)
+    } catch {
+      // Non-critical: badge just stays at 0
+    }
+  }, [userId])
+
+  useEffect(() => {
+    fetchUnreadChats()
+  }, [fetchUnreadChats])
+
+  // Build NAV_KEYS with dynamic badge count
+  const NAV_KEYS = useMemo(() =>
+    NAV_KEYS_BASE.map((item) =>
+      item.key === 'chats' ? { ...item, badge: unreadChats } : item
+    ),
+    [unreadChats],
+  )
 
   // ── Full fetch: download all posts and update cache ──
   const fullFetch = useCallback(async (showSpinner: boolean) => {
@@ -151,20 +180,9 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
         cachedTimestampRef.current = cached.latestCreatedAt
       }
 
-      // 2. Check server freshness — cheap single-row query
-      const serverLatest = await getLatestPostTimestamp(communityH3Index)
-      if (cancelled) return
-
-      const cacheIsFresh =
-        cached &&
-        cached.posts.length > 0 &&
-        serverLatest === cached.latestCreatedAt
-
-      if (!cacheIsFresh) {
-        // Cache is stale or empty — full refetch
-        // Show spinner only when we have nothing cached to display
-        await fullFetch(!cached || cached.posts.length === 0)
-      }
+      // 2. Always do a full fetch to get fresh like/comment counts.
+      //    Show spinner only when we have nothing cached to display.
+      await fullFetch(!cached || cached.posts.length === 0)
 
       if (!cancelled) initialLoadDone.current = true
     }
@@ -177,17 +195,11 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
   const focusCallback = useCallback(() => {
     if (!communityH3Index || !userId || !initialLoadDone.current) return
 
-    // Check if server has newer posts than our cache
-    getLatestPostTimestamp(communityH3Index).then(serverLatest => {
-      if (serverLatest && serverLatest !== cachedTimestampRef.current) {
-        // Server has new data — silent background refresh (no spinner)
-        fullFetch(false)
-      }
-    }).catch(() => {
-      // On error, do a full refresh as fallback
-      fullFetch(false)
-    })
-  }, [communityH3Index, userId, fullFetch])
+    // Always refresh to pick up new likes, comments, and posts from other users
+    fullFetch(false)
+    // Also refresh unread chat count
+    fetchUnreadChats()
+  }, [communityH3Index, userId, fullFetch, fetchUnreadChats])
 
   if (Platform.OS !== 'web') {
     // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -336,6 +348,8 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
                         onNavigateToDelegate()
                       } else if (item.key === 'myPosts' && onNavigateToMyPosts) {
                         onNavigateToMyPosts()
+                      } else if (item.key === 'chats' && onNavigateToChats) {
+                        onNavigateToChats()
                       }
                     }}
                   >
@@ -374,13 +388,6 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
 
           {/* Right Actions - Based on App.tsx lines 371-466 */}
           <XStack alignItems="center" gap={isDesktop ? '$3' : '$2'}>
-            {/* Search Icon */}
-            <TouchableOpacity
-              style={{ padding: 8, borderRadius: 999, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
-              activeOpacity={0.6}
-            >
-              <Search size={20} color={colors.gray[600]} />
-            </TouchableOpacity>
 
             {/* Invite Button - Based on App.tsx lines 381-398 */}
             {isDesktop ? (
@@ -524,6 +531,8 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
                     onNavigateToDelegate()
                   } else if (item.key === 'myPosts' && onNavigateToMyPosts) {
                     onNavigateToMyPosts()
+                  } else if (item.key === 'chats' && onNavigateToChats) {
+                    onNavigateToChats()
                   }
                 }}
               >
@@ -577,70 +586,97 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
             shadowOffset={shadows.sm.offset}
             shadowOpacity={0.05}
             shadowRadius={shadows.sm.radius}
+            gap="$3"
           >
-            <XStack gap="$3" alignItems="center">
-              {/* Search Input */}
-              <XStack 
-                flex={1}
-                minWidth={isDesktop ? 200 : undefined}
-                backgroundColor="white"
-                borderRadius="$3"
-                paddingHorizontal="$3"
-                alignItems="center"
-                gap="$2"
-                borderWidth={1}
-                borderColor={colors.gray[300]}
-              >
-                <Search size={18} color={colors.gray[400]} />
-                {Platform.OS === 'web' ? (
-                  <Input
-                    flex={1}
-                    placeholder={t('feed.searchPlaceholder')}
-                    placeholderTextColor={colors.gray[400]}
-                    backgroundColor="transparent"
-                    borderWidth={0}
-                    fontSize={14}
-                    paddingVertical="$2"
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    fontWeight="400"
-                  />
-                ) : (
-                  <TextInput
-                    style={{
-                      flex: 1,
-                      backgroundColor: 'transparent',
-                      fontSize: 14,
-                      paddingVertical: 8,
-                      fontWeight: 'normal',
-                      fontFamily: Platform.OS === 'ios' ? 'Inter-Regular' : 'Inter',
-                      color: colors.gray[900],
-                    }}
-                    placeholder={t('feed.searchPlaceholder')}
-                    placeholderTextColor={colors.gray[400]}
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                  />
-                )}
-              </XStack>
-
-              {/* Create Post Button — inline on desktop */}
-              {isDesktop && (
-                <Button
-                  backgroundColor={colors.green[600]}
-                  paddingHorizontal="$4"
+            {/* Search Input */}
+            <XStack 
+              flex={1}
+              backgroundColor="white"
+              borderRadius="$3"
+              paddingHorizontal="$3"
+              alignItems="center"
+              gap="$2"
+              borderWidth={1}
+              borderColor={colors.gray[300]}
+            >
+              <Search size={18} color={colors.gray[400]} />
+              {Platform.OS === 'web' ? (
+                <Input
+                  flex={1}
+                  placeholder={t('feed.searchPlaceholder')}
+                  placeholderTextColor={colors.gray[400] as any}
+                  backgroundColor="transparent"
+                  borderWidth={0}
+                  fontSize={14}
                   paddingVertical="$2"
-                  borderRadius="$3"
-                  gap="$2"
-                  hoverStyle={{ backgroundColor: colors.green[700] }}
-                  pressStyle={{ backgroundColor: colors.green[700] }}
-                  onPress={onCreatePost}
-                  icon={<Plus size={18} color="white" />}
-                >
-                  <Text color="white" fontSize="$3" fontWeight="500">{t('feed.createPost')}</Text>
-                </Button>
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  fontWeight="400"
+                />
+              ) : (
+                <TextInput
+                  style={{
+                    flex: 1,
+                    backgroundColor: 'transparent',
+                    fontSize: 14,
+                    paddingVertical: 8,
+                    fontWeight: 'normal',
+                    fontFamily: Platform.OS === 'ios' ? 'Inter-Regular' : 'Inter',
+                    color: colors.gray[900],
+                  }}
+                  placeholder={t('feed.searchPlaceholder')}
+                  placeholderTextColor={colors.gray[400]}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                />
               )}
             </XStack>
+
+            {/* Filter Pills — below search, above create post */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <XStack gap="$2" paddingVertical="$1">
+                {FILTER_OPTIONS.map((opt) => {
+                  const isActive = selectedFilter === opt.value
+                  return (
+                    <Button
+                      key={opt.value}
+                      size="$3"
+                      backgroundColor={isActive ? colors.green[600] : colors.gray[100]}
+                      borderRadius={20}
+                      paddingHorizontal="$3"
+                      paddingVertical="$1"
+                      pressStyle={isActive ? { backgroundColor: colors.green[700] } : { backgroundColor: colors.gray[200] }}
+                      onPress={() => setSelectedFilter(opt.value)}
+                    >
+                      <Text
+                        fontSize={13}
+                        fontWeight={isActive ? '600' : '500'}
+                        color={isActive ? 'white' : colors.gray[700]}
+                      >
+                        {t(opt.labelKey)}
+                      </Text>
+                    </Button>
+                  )
+                })}
+              </XStack>
+            </ScrollView>
+
+            {/* Create Post Button — inline on desktop */}
+            {isDesktop && (
+              <Button
+                backgroundColor={colors.green[600]}
+                paddingHorizontal="$4"
+                paddingVertical="$2"
+                borderRadius="$3"
+                gap="$2"
+                hoverStyle={{ backgroundColor: colors.green[700] }}
+                pressStyle={{ backgroundColor: colors.green[700] }}
+                onPress={onCreatePost}
+                icon={<Plus size={18} color="white" />}
+              >
+                <Text color="white" fontSize="$3" fontWeight="500">{t('feed.createPost')}</Text>
+              </Button>
+            )}
 
             {/* Create Post Button — full-width on mobile */}
             {!isDesktop && (
@@ -650,7 +686,6 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
                 borderRadius="$3"
                 gap="$2"
                 minHeight={48}
-                marginTop="$3"
                 pressStyle={{ backgroundColor: colors.green[700], scale: 0.98 }}
                 onPress={onCreatePost}
                 icon={<Plus size={20} color="white" />}
@@ -659,35 +694,6 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
               </Button>
             )}
           </YStack>
-
-          {/* ─── Filter Pills ─── */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <XStack gap="$2" paddingVertical="$1">
-              {FILTER_OPTIONS.map((opt) => {
-                const isActive = selectedFilter === opt.value
-                return (
-                  <Button
-                    key={opt.value}
-                    size="$3"
-                    backgroundColor={isActive ? colors.green[600] : colors.gray[100]}
-                    borderRadius={20}
-                    paddingHorizontal="$3"
-                    paddingVertical="$1"
-                    pressStyle={isActive ? { backgroundColor: colors.green[700] } : { backgroundColor: colors.gray[200] }}
-                    onPress={() => setSelectedFilter(opt.value)}
-                  >
-                    <Text
-                      fontSize={13}
-                      fontWeight={isActive ? '600' : '500'}
-                      color={isActive ? 'white' : colors.gray[700]}
-                    >
-                      {t(opt.labelKey)}
-                    </Text>
-                  </Button>
-                )
-              })}
-            </XStack>
-          </ScrollView>
 
           {/* ─── Feed Content ─── */}
           {loading ? (
@@ -748,6 +754,7 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
                   currentUserId={userId || ''}
                   currentUserName={userDisplayName}
                   onLikeToggle={handleLikeToggle}
+                  onChat={onNavigateToChat}
                   onFlag={handleOpenFlag}
                   t={t}
                 />

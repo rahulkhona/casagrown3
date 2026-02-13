@@ -233,7 +233,7 @@ function ActionButton({
       borderWidth={1}
       borderColor={variant === 'danger' ? colors.red[200] : colors.gray[200]}
       borderRadius="$3"
-      icon={icon}
+      icon={icon as any}
       onPress={onPress}
       paddingHorizontal="$2.5"
       hoverStyle={{ backgroundColor: variant === 'danger' ? colors.red[100] : colors.gray[100] }}

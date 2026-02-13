@@ -230,7 +230,7 @@ export function ProfileScreen() {
       setProfile(profileData)
       setEditData(profileData)
     } catch (err) {
-      console.error('Error loading profile:', err)
+      console.error('Error loading profile:', JSON.stringify(err), (err as any)?.message, (err as any)?.code, (err as any)?.details)
     } finally {
       setLoading(false)
     }

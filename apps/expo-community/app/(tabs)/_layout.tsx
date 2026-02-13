@@ -48,6 +48,18 @@ export default function TabLayout() {
           headerShown: false,
         }} 
       />
+      <Stack.Screen 
+        name="chats" 
+        options={{ 
+          headerShown: false,
+        }} 
+      />
+      <Stack.Screen 
+        name="chat" 
+        options={{ 
+          headerShown: false,
+        }} 
+      />
     </Stack>
   )
 }

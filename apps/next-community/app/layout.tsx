@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { NextTamaguiProvider } from '@casagrown/app/provider/NextTamaguiProvider'
 import { AuthGuard } from './auth-guard'
 
+// @ts-ignore – __DEV__ polyfill
 if (typeof globalThis.__DEV__ === 'undefined') {
   // @ts-ignore
   globalThis.__DEV__ = process.env.NODE_ENV !== 'production'

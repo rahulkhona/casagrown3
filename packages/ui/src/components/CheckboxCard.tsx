@@ -32,7 +32,7 @@ export type CheckboxCardProps = CheckboxProps & {
 
 export const CheckboxCard = ({ title, description, ...props }: CheckboxCardProps) => {
   return (
-    <CheckboxCardContainer checked={props.checked} onPress={() => props.onCheckedChange?.(!props.checked)}>
+    <CheckboxCardContainer checked={!!props.checked} onPress={() => props.onCheckedChange?.(!props.checked)}>
       <Checkbox size="$5" {...props}>
         <Checkbox.Indicator>
           <Check color="$primary" />

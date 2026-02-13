@@ -331,7 +331,10 @@
     },
     "points": "pts",
     "buy": "Buy",
+    "order": "Order",
+    "qty": "Qty",
     "offer": "Offer",
+    "chat": "Chat",
     "reported": "Reported",
     "tapToPlayVideo": "Tap to play video",
     "writeComment": "Write a comment...",
@@ -751,5 +754,26 @@
     "views": "{{count}} views",
     "responses": "{{count}} responses",
     "postedAgo": "Posted {{days}} days ago"
+  },
+  "chat": {
+    "loading": "Loading chat...",
+    "goBack": "Go Back",
+    "typing": "Typing...",
+    "unknownUser": "Unknown User",
+    "inputPlaceholder": "Type a message...",
+    "emptyMessages": "No messages yet. Start the conversation!",
+    "camera": "Camera",
+    "gallery": "Gallery",
+    "record": "Record",
+    "location": "Location",
+    "close": "Close",
+    "inboxTitle": "Chats",
+    "inboxEmpty": "No conversations yet",
+    "inboxEmptyHint": "Start chatting by tapping the Chat button on a service post!",
+    "inboxError": "Could not load conversations",
+    "inboxRetry": "Try Again",
+    "locationDeniedTitle": "Location Permission",
+    "locationDeniedMessage": "Please enable location access in your device settings to share your location.",
+    "uploading": "Sending..."
   }
 }

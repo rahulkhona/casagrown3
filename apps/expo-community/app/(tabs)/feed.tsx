@@ -53,6 +53,14 @@ export default function FeedTab() {
     router.push('/(tabs)/my-posts')
   }
 
+  const handleNavigateToChat = (postId: string, authorId: string) => {
+    router.push(`/(tabs)/chat?postId=${postId}&otherUserId=${authorId}`)
+  }
+
+  const handleNavigateToChats = () => {
+    router.push('/(tabs)/chats')
+  }
+
 
   return (
     <FeedScreen
@@ -65,6 +73,8 @@ export default function FeedTab() {
       userAvatarUrl={userAvatarUrl}
       userDisplayName={userDisplayName}
       communityH3Index={communityH3Index}
+      onNavigateToChat={handleNavigateToChat}
+      onNavigateToChats={handleNavigateToChats}
       userId={user?.id}
     />
   )

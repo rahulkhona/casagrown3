@@ -363,7 +363,7 @@ export default function PostPage() {
                 width={44}
                 height={44}
                 borderRadius={22}
-                backgroundColor={typeColor}
+                backgroundColor={typeColor as any}
                 alignItems="center"
                 justifyContent="center"
               >
@@ -379,8 +379,8 @@ export default function PostPage() {
                   <Text
                     fontSize={11}
                     fontWeight="600"
-                    color={typeColor}
-                    backgroundColor={`${typeColor}15`}
+                    color={typeColor as any}
+                    backgroundColor={`${typeColor}15` as any}
                     paddingHorizontal={6}
                     paddingVertical={2}
                     borderRadius={4}

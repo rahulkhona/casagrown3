@@ -95,9 +95,9 @@ export function useDelegations() {
                 ...(delegatingForData || []),
             ].filter((d) => d.status === "revoked" || d.status === "inactive");
 
-            const delegatorIdsToCheck = [
-                ...new Set(endedDelegations.map((d) => d.delegator_id)),
-            ];
+            const delegatorIdsToCheck = Array.from(
+                new Set(endedDelegations.map((d) => d.delegator_id)),
+            );
 
             let activePostDelegatorIds = new Set<string>();
             if (delegatorIdsToCheck.length > 0) {

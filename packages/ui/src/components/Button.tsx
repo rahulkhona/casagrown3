@@ -3,9 +3,7 @@ import { Button as TButton, styled } from 'tamagui'
 export const Button = styled(TButton, {
   name: 'Button',
   backgroundColor: '$primary',
-  color: '$card',
   borderRadius: '$full',
-  fontWeight: '700',
   paddingHorizontal: '$5',
   paddingVertical: '$3',
   height: 'auto',

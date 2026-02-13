@@ -236,7 +236,7 @@ export const WizardProvider = ({ children }: { children: ReactNode }) => {
                 .single()
             
             if (postError) {
-                console.error('Intro post failed:', postError)
+                console.error('Intro post failed:', JSON.stringify(postError), 'message:', postError.message, 'code:', postError.code, 'details:', postError.details, 'hint:', postError.hint)
                 // Non-blocking, proceed
             } else {
                 introPostCreated = true

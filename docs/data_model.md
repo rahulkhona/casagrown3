@@ -21,7 +21,8 @@ and any associated triggers/functions/RLS policies.
 > → `20260210050000_communities_rls` → `20260210060000_sell_need_by_date` →
 > `20260210070000_enrich_communities_cron` → `20260210080000_produce_interests`
 > → `20260211000000_post_type_policies` → `20260211100000_posts_on_behalf_of` →
-> `20260212000000_public_post_anon_rls`
+> `20260212000000_public_post_anon_rls` → `20260213000000_chat_delivery_status`
+> → `20260213010000_chat_realtime`
 
 ## Extensions
 
@@ -818,18 +819,41 @@ create table chat_messages (
   type chat_message_type not null default 'text',
   metadata jsonb default '{}',
   created_at timestamptz default now(),
+  delivered_at timestamptz,  -- 20260213000000: when recipient's device received the message
+  read_at timestamptz,       -- 20260213000000: when recipient opened/viewed the message
   check (content is not null or media_id is not null)
 );
 ```
 
-**RLS Policies** (`20260207070000_shared_tables_rls`): Access inherited from
-conversation membership.
+**RLS Policies** (`20260207070000_shared_tables_rls`,
+`20260213000000_chat_delivery_status`): Access inherited from conversation
+membership.
 
-| Policy                                 | Operation | Rule                                             |
-| :------------------------------------- | :-------- | :----------------------------------------------- |
-| Conversation parties can read messages | `SELECT`  | `conversation_id` in user's conversations        |
-| Conversation parties can send messages | `INSERT`  | `sender_id = auth.uid()` AND conversation member |
-| No update/delete                       | —         | Messages are immutable (audit trail)             |
+| Policy                                            | Operation | Rule                                              |
+| :------------------------------------------------ | :-------- | :------------------------------------------------ |
+| Conversation parties can read messages            | `SELECT`  | `conversation_id` in user's conversations         |
+| Conversation parties can send messages            | `INSERT`  | `sender_id = auth.uid()` AND conversation member  |
+| Recipients can mark messages as delivered or read | `UPDATE`  | `sender_id != auth.uid()` AND conversation member |
+
+**Realtime Configuration** (`20260213010000_chat_realtime`):
+
+```sql
+-- Add chat_messages to the realtime publication so INSERT/UPDATE events
+-- are broadcast to connected clients.
+ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_messages;
+
+-- REPLICA IDENTITY FULL ensures UPDATE events include ALL columns,
+-- which is required for Supabase Realtime filter matching
+-- (e.g. `conversation_id=eq.X`). Without this, only the PK is broadcast
+-- and client-side filters can't match.
+ALTER TABLE public.chat_messages REPLICA IDENTITY FULL;
+```
+
+| Setting           | Value               | Purpose                                              |
+| :---------------- | :------------------ | :--------------------------------------------------- |
+| Publication       | `supabase_realtime` | Broadcasts INSERT/UPDATE events to connected clients |
+| Replica Identity  | `FULL`              | All columns in UPDATE payloads (not just PK)         |
+| Subscribed Events | `INSERT`, `UPDATE`  | New messages + delivery/read status changes          |
 
 ### `offers`
 

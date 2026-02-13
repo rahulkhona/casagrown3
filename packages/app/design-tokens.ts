@@ -18,6 +18,7 @@ export const colors = {
     100: "#dcfce7",
     200: "#bbf7d0",
     300: "#86efac",
+    400: "#4ade80",
     500: "#22c55e",
     600: "#16a34a", // Primary green
     700: "#15803d",
@@ -27,6 +28,7 @@ export const colors = {
 
   // Emerald - For "Incredible Freshness" card
   emerald: {
+    100: "#d1fae5",
     200: "#a7f3d0", // Card background
     300: "#6ee7b7", // Icon circle background
     700: "#047857", // Icon color
@@ -34,13 +36,18 @@ export const colors = {
 
   // Amber - For "Stop Food Waste" card
   amber: {
+    50: "#fffbeb",
+    100: "#fef3c7",
     200: "#fde68a", // Card background
     300: "#fcd34d", // Icon circle background
+    500: "#f59e0b",
+    600: "#d97706",
     700: "#b45309", // Icon color
   },
 
   // Sky - For "Beat Inflation" card
   sky: {
+    100: "#e0f2fe",
     200: "#bae6fd", // Card background
     300: "#7dd3fc", // Icon circle background
     700: "#0369a1", // Icon color
@@ -75,10 +82,12 @@ export const colors = {
     50: "#fef2f2",
     100: "#fee2e2",
     200: "#fecaca",
+    300: "#fca5a5",
     400: "#f87171",
     500: "#ef4444", // Notification badges
     600: "#dc2626",
     700: "#b91c1c",
+    800: "#991b1b",
   },
 
   // Gray - Text and backgrounds

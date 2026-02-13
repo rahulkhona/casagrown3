@@ -33,6 +33,7 @@ jest.mock('@tamagui/lucide-icons', () => ({
   ShoppingCart: () => null,
   ThumbsUp: () => null,
   MessageCircle: () => null,
+  MessagesSquare: () => null,
   Share2: () => null,
   Flag: () => null,
 }))
@@ -136,9 +137,9 @@ describe('FeedPostCard', () => {
     expect(screen.getByText(/5.*feed\.points.*\/box/)).toBeTruthy()
   })
 
-  it('renders Buy button for sell posts when not own post', () => {
+  it('renders Order button for sell posts when not own post', () => {
     render(<FeedPostCard post={makeSellPost()} currentUserId="other-user" t={t} />)
-    expect(screen.getByText('feed.buy')).toBeTruthy()
+    expect(screen.getByText('feed.order')).toBeTruthy()
   })
 
   it('renders Offer button for buy posts when not own post', () => {
@@ -146,9 +147,9 @@ describe('FeedPostCard', () => {
     expect(screen.getByText('feed.offer')).toBeTruthy()
   })
 
-  it('does not render Buy button for own posts', () => {
+  it('does not render Order button for own posts', () => {
     render(<FeedPostCard post={makeSellPost()} currentUserId="author-1" t={t} />)
-    expect(screen.queryByText('feed.buy')).toBeNull()
+    expect(screen.queryByText('feed.order')).toBeNull()
   })
 
   it('renders like count', () => {
@@ -173,18 +174,18 @@ describe('FeedPostCard', () => {
     expect(onLikeToggle).toHaveBeenCalledWith('post-1', true)
   })
 
-  it('calls onBuy when Buy button is pressed on sell post', () => {
-    const onBuy = jest.fn()
+  it('calls onOrder when Order button is pressed on sell post', () => {
+    const onOrder = jest.fn()
     render(
       <FeedPostCard
         post={makeSellPost()}
         currentUserId="other-user"
-        onBuy={onBuy}
+        onOrder={onOrder}
         t={t}
       />
     )
-    fireEvent.press(screen.getByText('feed.buy'))
-    expect(onBuy).toHaveBeenCalledWith('post-1')
+    fireEvent.press(screen.getByText('feed.order'))
+    expect(onOrder).toHaveBeenCalledWith('post-1')
   })
 
   it('calls onFlag when flag button is pressed on non-own post', () => {
