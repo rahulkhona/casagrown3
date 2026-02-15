@@ -21,3 +21,15 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: Platform.OS === "web",
   },
 });
+
+// Dev-mode early warning for missing env vars
+if (
+  typeof __DEV__ !== "undefined" && __DEV__ &&
+  (!supabaseUrl || !supabaseAnonKey)
+) {
+  console.warn(
+    "⚠️ Missing Supabase env vars — check .env files\n" +
+      `  SUPABASE_URL: ${supabaseUrl ? "✅" : "❌ empty"}\n` +
+      `  SUPABASE_ANON_KEY: ${supabaseAnonKey ? "✅" : "❌ empty"}`,
+  );
+}

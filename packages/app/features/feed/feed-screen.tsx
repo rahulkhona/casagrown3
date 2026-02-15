@@ -27,6 +27,7 @@ import { getCachedFeed, setCachedFeed } from './feed-cache'
 import { getUnreadChatCount } from '../chat/chat-service'
 import { usePointsBalance } from '../../hooks/usePointsBalance'
 import { supabase } from '../auth/auth-hook'
+import { filterPosts, type PostTypeFilter } from './feed-filter'
 
 // Types for invite rewards
 interface InviteRewards {
@@ -34,7 +35,7 @@ interface InviteRewards {
   transactionPoints: number
 }
 
-type PostTypeFilter = 'all' | 'want_to_sell' | 'want_to_buy' | 'services' | 'seeking_advice' | 'general_info'
+
 
 const FILTER_OPTIONS: { value: PostTypeFilter; labelKey: string }[] = [
   { value: 'all', labelKey: 'feed.filterAll' },
@@ -222,38 +223,10 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
   }
 
   // Filtered posts
-  const filteredPosts = useMemo(() => {
-    let result = posts
-    if (selectedFilter !== 'all') {
-      if (selectedFilter === 'services') {
-        result = result.filter((p) => p.type === 'offering_service' || p.type === 'need_service')
-      } else {
-        result = result.filter((p) => p.type === selectedFilter)
-      }
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
-      result = result.filter((p) => {
-        const title = p.sell_details?.produce_name || (p.buy_details?.produce_names || []).join(' ') || ''
-        // Parse JSON content for search
-        let contentText = p.content || ''
-        try {
-          const parsed = JSON.parse(p.content)
-          contentText = [parsed.title, parsed.description].filter(Boolean).join(' ')
-        } catch {
-          // plain text, use as-is
-        }
-        return (
-          title.toLowerCase().includes(q) ||
-          contentText.toLowerCase().includes(q) ||
-          (p.author_name || '').toLowerCase().includes(q) ||
-          (p.sell_details?.category || '').toLowerCase().includes(q) ||
-          (p.buy_details?.category || '').toLowerCase().includes(q)
-        )
-      })
-    }
-    return result
-  }, [posts, selectedFilter, searchQuery])
+  const filteredPosts = useMemo(
+    () => filterPosts(posts, selectedFilter, searchQuery),
+    [posts, selectedFilter, searchQuery],
+  )
 
   // Handlers
   const handleLikeToggle = useCallback(async (postId: string, newLiked: boolean) => {
