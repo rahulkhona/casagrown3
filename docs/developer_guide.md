@@ -151,11 +151,17 @@ casagrown3/
 │   │       ├── auth/       # Authentication (auth-hook, login)
 │   │       ├── chat/       # Chat service, inbox, chat screen
 │   │       ├── feed/       # Feed service, post cards
-│   │       ├── create-post/# Post creation flow
+│   │       ├── create-post/# Post creation (shared shell + media components)
 │   │       └── ...
 │   ├── ui/                 # Shared Tamagui components
 │   └── config/             # Tamagui / theme configuration
 ├── supabase/
+│   ├── functions/
+│   │   ├── _shared/        # Shared edge function utilities
+│   │   │   ├── serve-with-cors.ts  # CORS + Supabase client + error wrapper
+│   │   │   └── test-helpers.ts     # Integration test helpers
+│   │   ├── create-order/   # Each function has index.ts + test.ts
+│   │   └── ...
 │   ├── migrations/         # SQL migrations (auto-applied in order)
 │   ├── seed.sql            # Development seed data
 │   └── config.toml         # Supabase project config
@@ -242,23 +248,33 @@ NEXT_PUBLIC_PAYMENT_MODE=stripe     # or EXPO_PUBLIC_PAYMENT_MODE=stripe
 NEXT_PUBLIC_STRIPE_KEY=pk_live_xxx  # or EXPO_PUBLIC_STRIPE_KEY=pk_live_xxx
 ```
 
-### Edge Functions (Payment)
+### Edge Functions
 
-| Function                   | Purpose                                             |
-| :------------------------- | :-------------------------------------------------- |
-| `create-payment-intent`    | Creates `payment_transactions` row + Stripe PI      |
-| `confirm-payment`          | Idempotent point crediting (single source of truth) |
-| `stripe-webhook`           | Handles Stripe webhook events (signature verified)  |
-| `resolve-pending-payments` | Recovers stuck payments on app open                 |
-| `create-order`             | Atomic order: conversation + offer + order + ledger |
+All edge functions use a shared `serveWithCors` wrapper from
+`supabase/functions/_shared/serve-with-cors.ts` which handles CORS, Supabase
+client initialization, and error wrapping. Functions requiring auth use
+`requireAuth`. Response helpers: `jsonOk`, `jsonError`.
+
+| Function                   | Auth | Purpose                                             |
+| :------------------------- | :--- | :-------------------------------------------------- |
+| `create-payment-intent`    | Yes  | Creates `payment_transactions` row + Stripe PI      |
+| `confirm-payment`          | No   | Idempotent point crediting (single source of truth) |
+| `stripe-webhook`           | No   | Handles Stripe webhook events (signature verified)  |
+| `resolve-pending-payments` | Yes  | Recovers stuck payments on app open                 |
+| `create-order`             | Yes  | Atomic order: conversation + offer + order + ledger |
+| `assign-experiment`        | No   | Deterministic A/B experiment assignment             |
+| `resolve-community`        | No   | Resolves H3 community from lat/lng or address       |
+| `enrich-communities`       | No   | Background enrichment of community metadata         |
+| `sync-locations`           | No   | Syncs country reference data from REST Countries    |
+| `pair-delegation`          | Yes  | Delegated sales pairing (multi-action router)       |
+| `update-zip-codes`         | No   | Batch zip code data processing                      |
 
 ```bash
-# Deploy all payment edge functions
-supabase functions deploy create-payment-intent
-supabase functions deploy confirm-payment
-supabase functions deploy stripe-webhook
-supabase functions deploy resolve-pending-payments
-supabase functions deploy create-order
+# Serve locally
+npx supabase functions serve
+
+# Deploy all
+npx supabase functions deploy
 ```
 
 ### Stripe Secrets (Edge Functions)
@@ -275,7 +291,7 @@ supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_xxx
 ### Running Tests
 
 ```bash
-# All app unit tests (23 suites, 299 tests)
+# All app unit tests (28 suites, 368 tests)
 yarn workspace @casagrown/app jest
 
 # Single file
@@ -283,6 +299,10 @@ yarn workspace @casagrown/app jest packages/app/features/chat/chat-service.test.
 
 # Watch mode
 yarn workspace @casagrown/app jest --watch
+
+# Edge function integration tests (8 suites, 29 tests)
+# Requires: npx supabase functions serve (running in another terminal)
+deno test --allow-net --allow-env supabase/functions/*/test.ts
 
 # Web integration tests (Playwright)
 cd apps/next-community && npx playwright test
@@ -293,16 +313,25 @@ yarn test
 
 ### Test coverage by feature
 
-| Feature        | Test File                                             |  Tests |
-| :------------- | :---------------------------------------------------- | -----: |
-| Chat service   | `chat-service.test.ts`                                |     24 |
-| Chat inbox UI  | `ChatInboxScreen.test.tsx`                            |     11 |
-| Chat helpers   | `ChatScreen.test.tsx`                                 |     13 |
-| Feed service   | `feed-service.test.ts`                                |     13 |
-| Feed screen    | `feed-screen.test.tsx`                                |     17 |
-| Post creation  | `create-post-screen.test.tsx`, `post-service.test.ts` | varies |
-| Profile wizard | `wizard-context.test.tsx`, step tests                 | varies |
-| Delegations    | `useDelegations.test.ts`, `delegate-screen.test.tsx`  | varies |
+| Feature                     | Test File                                               |  Tests |
+| :-------------------------- | :------------------------------------------------------ | -----: |
+| Chat service                | `chat-service.test.ts`                                  |     24 |
+| Chat inbox UI               | `ChatInboxScreen.test.tsx`                              |     11 |
+| Chat helpers                | `ChatScreen.test.tsx`                                   |     13 |
+| Feed service                | `feed-service.test.ts`                                  |     13 |
+| Feed screen                 | `feed-screen.test.tsx`                                  |     17 |
+| Post creation               | `create-post-screen.test.tsx`, `post-service.test.ts`   | varies |
+| Shared post comps           | `MediaPickerSection.test.tsx`, `PostFormShell.test.tsx` |     46 |
+| Profile wizard              | `wizard-context.test.tsx`, step tests                   | varies |
+| Delegations                 | `useDelegations.test.ts`, `delegate-screen.test.tsx`    | varies |
+| Edge: confirm-payment       | `supabase/functions/confirm-payment/test.ts`            |      4 |
+| Edge: create-payment-intent | `supabase/functions/create-payment-intent/test.ts`      |      5 |
+| Edge: create-order          | `supabase/functions/create-order/test.ts`               |      4 |
+| Edge: resolve-pending       | `supabase/functions/resolve-pending-payments/test.ts`   |      4 |
+| Edge: resolve-community     | `supabase/functions/resolve-community/test.ts`          |      4 |
+| Edge: assign-experiment     | `supabase/functions/assign-experiment/test.ts`          |      3 |
+| Edge: enrich-communities    | `supabase/functions/enrich-communities/test.ts`         |      3 |
+| Edge: sync-locations        | `supabase/functions/sync-locations/test.ts`             |      2 |
 
 ### Git Hooks (Husky)
 

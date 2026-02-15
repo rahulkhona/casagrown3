@@ -19,6 +19,7 @@ import { Platform, Image, TouchableOpacity, Alert, TextInput } from 'react-nativ
 import { InviteModal } from './InviteModal'
 import { FeedPostCard } from './FeedPostCard'
 import { OrderSheet } from './OrderSheet'
+import { FeedNavigation } from './FeedNavigation'
 import type { OrderFormData } from './OrderSheet'
 import { getCommunityFeedPosts, togglePostLike, flagPost } from './feed-service'
 import type { FeedPost } from './feed-service'
@@ -142,6 +143,13 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
     ),
     [unreadChats],
   )
+
+  // Consolidated navigation handler — used by FeedNavigation for both variants
+  const handleNavPress = useCallback((key: string) => {
+    if (key === 'delegateSales') onNavigateToDelegate?.()
+    else if (key === 'myPosts') onNavigateToMyPosts?.()
+    else if (key === 'chats') onNavigateToChats?.()
+  }, [onNavigateToDelegate, onNavigateToMyPosts, onNavigateToChats])
 
   // ── Full fetch: download all posts and update cache ──
   const fullFetch = useCallback(async (showSpinner: boolean) => {
@@ -381,55 +389,13 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
               )}
             </XStack>
 
-            {/* Desktop Navigation - Based on App.tsx lines 291-367 */}
+            {/* Desktop Navigation */}
             {isDesktop && (
-              <XStack gap="$5" marginLeft="$5">
-                {NAV_KEYS.map((item) => (
-                  <XStack 
-                    key={item.key} 
-                    alignItems="center" 
-                    position="relative"
-                    cursor="pointer"
-                    onPress={() => {
-                      if (item.key === 'delegateSales' && onNavigateToDelegate) {
-                        onNavigateToDelegate()
-                      } else if (item.key === 'myPosts' && onNavigateToMyPosts) {
-                        onNavigateToMyPosts()
-                      } else if (item.key === 'chats' && onNavigateToChats) {
-                        onNavigateToChats()
-                      }
-                    }}
-                  >
-                    <Text 
-                      fontSize="$3" 
-                      color={item.active ? colors.green[600] : colors.gray[700]}
-                      fontWeight={item.active ? '600' : '500'}
-                      cursor="pointer"
-                      hoverStyle={{ color: colors.green[600] }}
-                    >
-                      {t(`feed.nav.${item.key}`)}
-                    </Text>
-                    {item.badge > 0 && (
-                      <YStack 
-                        position="absolute"
-                        top={-8}
-                        right={-14}
-                        backgroundColor={colors.red[500]} 
-                        borderRadius="$full" 
-                        minWidth={18}
-                        height={18}
-                        alignItems="center" 
-                        justifyContent="center"
-                        paddingHorizontal="$1"
-                      >
-                        <Text fontSize={10} color="white" fontWeight="700">
-                          {item.badge}
-                        </Text>
-                      </YStack>
-                    )}
-                  </XStack>
-                ))}
-              </XStack>
+              <FeedNavigation
+                navKeys={NAV_KEYS}
+                variant="desktop"
+                onNavigate={handleNavPress}
+              />
             )}
           </XStack>
 
@@ -554,60 +520,14 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
 
         {/* Mobile Navigation Drawer */}
         {!isDesktop && mobileMenuOpen && (
-          <YStack 
-            backgroundColor="white"
-            borderTopWidth={1}
-            borderTopColor={colors.gray[200]}
-            paddingHorizontal="$4"
-            paddingVertical="$2"
-          >
-            {NAV_KEYS.map((item) => (
-              <Button
-                key={item.key}
-                unstyled
-                paddingVertical="$3"
-                paddingHorizontal="$2"
-                borderBottomWidth={1}
-                borderBottomColor={colors.gray[100]}
-                flexDirection="row"
-                justifyContent="space-between"
-                alignItems="center"
-                onPress={() => {
-                  setMobileMenuOpen(false)
-                  if (item.key === 'delegateSales' && onNavigateToDelegate) {
-                    onNavigateToDelegate()
-                  } else if (item.key === 'myPosts' && onNavigateToMyPosts) {
-                    onNavigateToMyPosts()
-                  } else if (item.key === 'chats' && onNavigateToChats) {
-                    onNavigateToChats()
-                  }
-                }}
-              >
-                <Text 
-                  fontSize="$4" 
-                  color={item.active ? colors.green[600] : colors.gray[700]}
-                  fontWeight={item.active ? '600' : '400'}
-                >
-                  {t(`feed.nav.${item.key}`)}
-                </Text>
-                {item.badge > 0 && (
-                  <YStack 
-                    backgroundColor={colors.red[500]} 
-                    borderRadius="$full" 
-                    minWidth={20}
-                    height={20}
-                    alignItems="center" 
-                    justifyContent="center"
-                    paddingHorizontal="$1"
-                  >
-                    <Text fontSize={11} color="white" fontWeight="700">
-                      {item.badge}
-                    </Text>
-                  </YStack>
-                )}
-              </Button>
-            ))}
-          </YStack>
+          <FeedNavigation
+            navKeys={NAV_KEYS}
+            variant="mobile"
+            onNavigate={(key) => {
+              setMobileMenuOpen(false)
+              handleNavPress(key)
+            }}
+          />
         )}
       </YStack>
 
