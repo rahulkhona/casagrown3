@@ -1,0 +1,310 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`MediaPickerSection matches snapshot with mixed media 1`] = `
+<View
+  backgroundColor="white"
+  borderColor="#e5e7eb"
+  borderRadius={8}
+  borderWidth={1}
+  gap="$3"
+  padding="$4"
+>
+  <Text
+    color="#111827"
+    fontWeight="600"
+  >
+    createPost.fields.media
+  </Text>
+  <View
+    flexWrap="wrap"
+    gap="$2"
+  >
+    <View
+      borderRadius={6}
+      height={140}
+      overflow="hidden"
+      position="relative"
+      width={140}
+    >
+      <Image
+        resizeMode="cover"
+        source={
+          {
+            "uri": "file:///photo.jpg",
+          }
+        }
+        style={
+          {
+            "height": 140,
+            "width": 140,
+          }
+        }
+      />
+      <View
+        accessibilityState={
+          {
+            "busy": undefined,
+            "checked": undefined,
+            "disabled": undefined,
+            "expanded": undefined,
+            "selected": undefined,
+          }
+        }
+        accessibilityValue={
+          {
+            "max": undefined,
+            "min": undefined,
+            "now": undefined,
+            "text": undefined,
+          }
+        }
+        accessible={true}
+        collapsable={false}
+        focusable={true}
+        onClick={[Function]}
+        onResponderGrant={[Function]}
+        onResponderMove={[Function]}
+        onResponderRelease={[Function]}
+        onResponderTerminate={[Function]}
+        onResponderTerminationRequest={[Function]}
+        onStartShouldSetResponder={[Function]}
+        style={
+          {
+            "opacity": 1,
+          }
+        }
+      >
+        <Text>
+          TrashIcon
+        </Text>
+      </View>
+    </View>
+    <View
+      borderRadius={6}
+      height={140}
+      overflow="hidden"
+      position="relative"
+      width={140}
+    >
+      <VideoView
+        contentFit="cover"
+        nativeControls={true}
+        player={
+          {
+            "addListener": [MockFunction],
+            "loop": false,
+            "muted": false,
+            "pause": [MockFunction],
+            "play": [MockFunction],
+            "playing": false,
+          }
+        }
+        ref={null}
+        style={
+          {
+            "borderRadius": 8,
+            "height": 140,
+            "width": 140,
+          }
+        }
+      />
+      <View
+        accessibilityState={
+          {
+            "busy": undefined,
+            "checked": undefined,
+            "disabled": undefined,
+            "expanded": undefined,
+            "selected": undefined,
+          }
+        }
+        accessibilityValue={
+          {
+            "max": undefined,
+            "min": undefined,
+            "now": undefined,
+            "text": undefined,
+          }
+        }
+        accessible={true}
+        collapsable={false}
+        focusable={true}
+        onClick={[Function]}
+        onResponderGrant={[Function]}
+        onResponderMove={[Function]}
+        onResponderRelease={[Function]}
+        onResponderTerminate={[Function]}
+        onResponderTerminationRequest={[Function]}
+        onStartShouldSetResponder={[Function]}
+        style={
+          {
+            "opacity": 1,
+          }
+        }
+      >
+        <Text>
+          TrashIcon
+        </Text>
+      </View>
+      <View
+        backgroundColor="rgba(239,68,68,0.85)"
+        borderRadius={6}
+        bottom={4}
+        left={4}
+        paddingHorizontal={8}
+        paddingVertical={3}
+        position="absolute"
+      >
+        <Text
+          color="white"
+          fontSize={11}
+          fontWeight="700"
+        >
+          createPost.media.videoBadge
+        </Text>
+      </View>
+    </View>
+  </View>
+  <View
+    flexWrap="wrap"
+    gap="$2"
+    justifyContent="center"
+  >
+    <View
+      accessibilityState={
+        {
+          "busy": undefined,
+          "checked": undefined,
+          "disabled": undefined,
+          "expanded": undefined,
+          "selected": undefined,
+        }
+      }
+      accessibilityValue={
+        {
+          "max": undefined,
+          "min": undefined,
+          "now": undefined,
+          "text": undefined,
+        }
+      }
+      accessible={true}
+      collapsable={false}
+      focusable={true}
+      onClick={[Function]}
+      onResponderGrant={[Function]}
+      onResponderMove={[Function]}
+      onResponderRelease={[Function]}
+      onResponderTerminate={[Function]}
+      onResponderTerminationRequest={[Function]}
+      onStartShouldSetResponder={[Function]}
+      style={
+        {
+          "opacity": 1,
+        }
+      }
+    >
+      <Text>
+        CameraIcon
+      </Text>
+      <Text
+        color="#15803d"
+        fontSize="$2"
+        fontWeight="500"
+      >
+        createPost.media.takePhoto
+      </Text>
+    </View>
+    <View
+      accessibilityState={
+        {
+          "busy": undefined,
+          "checked": undefined,
+          "disabled": undefined,
+          "expanded": undefined,
+          "selected": undefined,
+        }
+      }
+      accessibilityValue={
+        {
+          "max": undefined,
+          "min": undefined,
+          "now": undefined,
+          "text": undefined,
+        }
+      }
+      accessible={true}
+      collapsable={false}
+      focusable={true}
+      onClick={[Function]}
+      onResponderGrant={[Function]}
+      onResponderMove={[Function]}
+      onResponderRelease={[Function]}
+      onResponderTerminate={[Function]}
+      onResponderTerminationRequest={[Function]}
+      onStartShouldSetResponder={[Function]}
+      style={
+        {
+          "opacity": 1,
+        }
+      }
+    >
+      <Text>
+        VideoIcon
+      </Text>
+      <Text
+        color="#15803d"
+        fontSize="$2"
+        fontWeight="500"
+      >
+        createPost.media.recordVideo
+      </Text>
+    </View>
+    <View
+      accessibilityState={
+        {
+          "busy": undefined,
+          "checked": undefined,
+          "disabled": undefined,
+          "expanded": undefined,
+          "selected": undefined,
+        }
+      }
+      accessibilityValue={
+        {
+          "max": undefined,
+          "min": undefined,
+          "now": undefined,
+          "text": undefined,
+        }
+      }
+      accessible={true}
+      collapsable={false}
+      focusable={true}
+      onClick={[Function]}
+      onResponderGrant={[Function]}
+      onResponderMove={[Function]}
+      onResponderRelease={[Function]}
+      onResponderTerminate={[Function]}
+      onResponderTerminationRequest={[Function]}
+      onStartShouldSetResponder={[Function]}
+      style={
+        {
+          "opacity": 1,
+        }
+      }
+    >
+      <Text>
+        ImageIcon
+      </Text>
+      <Text
+        color="#374151"
+        fontSize="$2"
+        fontWeight="500"
+      >
+        createPost.media.uploadPhotoVideo
+      </Text>
+    </View>
+  </View>
+</View>
+`;

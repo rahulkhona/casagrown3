@@ -1,0 +1,10 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`CommunityMapWrapper matches snapshot 1`] = `
+<Text>
+  CommunityMap-
+  200
+  -
+  labels
+</Text>
+`;

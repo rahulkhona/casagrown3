@@ -1,0 +1,310 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`PostFormShell matches snapshot in default state 1`] = `
+<View
+  backgroundColor="#f9fafb"
+  flex={1}
+>
+  <View
+    alignItems="center"
+    backgroundColor="white"
+    borderBottomColor="#e5e7eb"
+    borderBottomWidth={1}
+    gap="$3"
+    paddingBottom="$3"
+    paddingHorizontal="$4"
+    paddingTop={8}
+  >
+    <View
+      accessibilityState={
+        {
+          "busy": undefined,
+          "checked": undefined,
+          "disabled": undefined,
+          "expanded": undefined,
+          "selected": undefined,
+        }
+      }
+      accessibilityValue={
+        {
+          "max": undefined,
+          "min": undefined,
+          "now": undefined,
+          "text": undefined,
+        }
+      }
+      accessible={true}
+      collapsable={false}
+      focusable={true}
+      onClick={[Function]}
+      onResponderGrant={[Function]}
+      onResponderMove={[Function]}
+      onResponderRelease={[Function]}
+      onResponderTerminate={[Function]}
+      onResponderTerminationRequest={[Function]}
+      onStartShouldSetResponder={[Function]}
+      style={
+        {
+          "opacity": 1,
+        }
+      }
+    />
+    <Text
+      color="#111827"
+      fontSize="$6"
+      fontWeight="700"
+    >
+      Sell Produce
+    </Text>
+  </View>
+  <RCTScrollView
+    automaticallyAdjustKeyboardInsets={true}
+    contentContainerStyle={
+      {
+        "padding": 16,
+        "paddingBottom": 40,
+      }
+    }
+    flex={1}
+    keyboardShouldPersistTaps="handled"
+  >
+    <View>
+      <View
+        alignSelf="center"
+        gap="$5"
+        maxWidth={600}
+        width="100%"
+      >
+        <View
+          accessibilityState={
+            {
+              "busy": undefined,
+              "checked": undefined,
+              "disabled": false,
+              "expanded": undefined,
+              "selected": undefined,
+            }
+          }
+          accessibilityValue={
+            {
+              "max": undefined,
+              "min": undefined,
+              "now": undefined,
+              "text": undefined,
+            }
+          }
+          accessible={true}
+          collapsable={false}
+          focusable={true}
+          onClick={[Function]}
+          onResponderGrant={[Function]}
+          onResponderMove={[Function]}
+          onResponderRelease={[Function]}
+          onResponderTerminate={[Function]}
+          onResponderTerminationRequest={[Function]}
+          onStartShouldSetResponder={[Function]}
+          style={
+            {
+              "opacity": 1,
+            }
+          }
+        >
+          <Text
+            color="white"
+            fontSize="$4"
+            fontWeight="700"
+          >
+            createPost.submit
+          </Text>
+        </View>
+      </View>
+    </View>
+  </RCTScrollView>
+</View>
+`;
+
+exports[`PostFormShell matches snapshot in submitting state with error 1`] = `
+<View
+  backgroundColor="#f9fafb"
+  flex={1}
+>
+  <View
+    alignItems="center"
+    backgroundColor="white"
+    borderBottomColor="#e5e7eb"
+    borderBottomWidth={1}
+    gap="$3"
+    paddingBottom="$3"
+    paddingHorizontal="$4"
+    paddingTop={8}
+  >
+    <View
+      accessibilityState={
+        {
+          "busy": undefined,
+          "checked": undefined,
+          "disabled": undefined,
+          "expanded": undefined,
+          "selected": undefined,
+        }
+      }
+      accessibilityValue={
+        {
+          "max": undefined,
+          "min": undefined,
+          "now": undefined,
+          "text": undefined,
+        }
+      }
+      accessible={true}
+      collapsable={false}
+      focusable={true}
+      onClick={[Function]}
+      onResponderGrant={[Function]}
+      onResponderMove={[Function]}
+      onResponderRelease={[Function]}
+      onResponderTerminate={[Function]}
+      onResponderTerminationRequest={[Function]}
+      onStartShouldSetResponder={[Function]}
+      style={
+        {
+          "opacity": 1,
+        }
+      }
+    />
+    <Text
+      color="#111827"
+      fontSize="$6"
+      fontWeight="700"
+    >
+      Sell Produce
+    </Text>
+  </View>
+  <RCTScrollView
+    automaticallyAdjustKeyboardInsets={true}
+    contentContainerStyle={
+      {
+        "padding": 16,
+        "paddingBottom": 40,
+      }
+    }
+    flex={1}
+    keyboardShouldPersistTaps="handled"
+  >
+    <View>
+      <View
+        alignSelf="center"
+        gap="$5"
+        maxWidth={600}
+        width="100%"
+      >
+        <View
+          alignItems="center"
+          backgroundColor="#fef2f2"
+          borderColor="#fecaca"
+          borderRadius={6}
+          borderWidth={1}
+          gap="$2"
+          padding="$3"
+        >
+          <Text
+            color="#b91c1c"
+            flex={1}
+            fontSize="$3"
+          >
+            Something went wrong
+          </Text>
+          <View
+            accessibilityState={
+              {
+                "busy": undefined,
+                "checked": undefined,
+                "disabled": undefined,
+                "expanded": undefined,
+                "selected": undefined,
+              }
+            }
+            accessibilityValue={
+              {
+                "max": undefined,
+                "min": undefined,
+                "now": undefined,
+                "text": undefined,
+              }
+            }
+            accessible={true}
+            collapsable={false}
+            focusable={true}
+            onBlur={[Function]}
+            onClick={[Function]}
+            onFocus={[Function]}
+            onResponderGrant={[Function]}
+            onResponderMove={[Function]}
+            onResponderRelease={[Function]}
+            onResponderTerminate={[Function]}
+            onResponderTerminationRequest={[Function]}
+            onStartShouldSetResponder={[Function]}
+          >
+            <Text
+              color="#f87171"
+              fontSize="$3"
+            >
+              ✕
+            </Text>
+          </View>
+        </View>
+        <View
+          accessibilityState={
+            {
+              "busy": undefined,
+              "checked": undefined,
+              "disabled": true,
+              "expanded": undefined,
+              "selected": undefined,
+            }
+          }
+          accessibilityValue={
+            {
+              "max": undefined,
+              "min": undefined,
+              "now": undefined,
+              "text": undefined,
+            }
+          }
+          accessible={true}
+          collapsable={false}
+          focusable={false}
+          onClick={[Function]}
+          onResponderGrant={[Function]}
+          onResponderMove={[Function]}
+          onResponderRelease={[Function]}
+          onResponderTerminate={[Function]}
+          onResponderTerminationRequest={[Function]}
+          onStartShouldSetResponder={[Function]}
+          style={
+            {
+              "opacity": 1,
+            }
+          }
+        >
+          <View
+            alignItems="center"
+            gap="$2"
+          >
+            <Text>
+              Spinner
+            </Text>
+            <Text
+              color="white"
+              fontSize="$4"
+              fontWeight="700"
+            >
+              createPost.submitting
+            </Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  </RCTScrollView>
+</View>
+`;
