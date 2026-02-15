@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { serveWithCors } from "../_shared/serve-with-cors.ts";
 import {
   cellToBoundary,
   cellToLatLng,
@@ -6,296 +6,287 @@ import {
   latLngToCell,
 } from "https://esm.sh/h3-js@4.1.0?target=deno";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+/**
+ * resolve-community — Supabase Edge Function
+ *
+ * Given a lat/lng (or address), resolves the primary H3 community cell
+ * and its neighbors, creating them lazily from Overpass / Nominatim if needed.
+ */
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+serveWithCors(async (req, { supabase, corsHeaders }) => {
+  const t0 = Date.now();
 
-  try {
-    const t0 = Date.now();
+  const requestBody = await req.json();
+  console.log("Incoming Request Body:", JSON.stringify(requestBody));
+  let { lat, lng, address } = requestBody;
+  let geocodedNeighborhood = "";
+  let geocodedCity = "";
 
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  // ─── 0. Geocoding (if address provided) ─────────────────────
+  if (address && (!lat || !lng)) {
+    const tGeo = Date.now();
+    console.log(`Geocoding address: "${address}"...`);
+    const nominatimUrl = new URL(
+      "https://nominatim.openstreetmap.org/search",
+    );
+    nominatimUrl.searchParams.set("q", address);
+    nominatimUrl.searchParams.set("format", "json");
+    nominatimUrl.searchParams.set("limit", "1");
+    nominatimUrl.searchParams.set("addressdetails", "1");
 
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      console.error("Missing Environment Variables: URL or KEY");
-      throw new Error("Misconfigured Server: Missing Supabase Credentials");
+    const geoResponse = await fetch(nominatimUrl.toString(), {
+      headers: {
+        "User-Agent": "CasaGrownApp/1.0 (internal-dev-testing)",
+      },
+    });
+
+    if (!geoResponse.ok) throw new Error("Geocoding service failed");
+
+    const geoData = await geoResponse.json();
+    if (!geoData || geoData.length === 0) {
+      throw new Error("Address not found");
     }
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    lat = parseFloat(geoData[0].lat);
+    lng = parseFloat(geoData[0].lon);
 
-    const requestBody = await req.json();
-    console.log("Incoming Request Body:", JSON.stringify(requestBody));
-    let { lat, lng, address } = requestBody;
-    let geocodedNeighborhood = "";
-    let geocodedCity = "";
+    const addr = geoData[0].address || {};
+    geocodedNeighborhood = addr.neighbourhood || addr.suburb ||
+      addr.hamlet ||
+      addr.town || "";
+    geocodedCity = addr.city || addr.town || addr.municipality || "";
 
-    // ─── 0. Geocoding (if address provided) ─────────────────────
-    if (address && (!lat || !lng)) {
-      const tGeo = Date.now();
-      console.log(`Geocoding address: "${address}"...`);
-      const nominatimUrl = new URL(
-        "https://nominatim.openstreetmap.org/search",
+    console.log(
+      `⏱️ Nominatim geocoding: ${
+        Date.now() - tGeo
+      }ms → (${lat}, ${lng}), neighborhood: ${
+        geocodedNeighborhood || "N/A"
+      }, city: ${geocodedCity || "N/A"}`,
+    );
+  }
+
+  if (!lat || !lng) {
+    throw new Error("Missing location data (lat/lng or address)");
+  }
+
+  // ─── Reverse geocode for lat/lng requests (for fallback names) ───
+  if (!geocodedNeighborhood && !geocodedCity) {
+    try {
+      const tReverse = Date.now();
+      const reverseUrl = new URL(
+        "https://nominatim.openstreetmap.org/reverse",
       );
-      nominatimUrl.searchParams.set("q", address);
-      nominatimUrl.searchParams.set("format", "json");
-      nominatimUrl.searchParams.set("limit", "1");
-      nominatimUrl.searchParams.set("addressdetails", "1");
+      reverseUrl.searchParams.set("lat", String(lat));
+      reverseUrl.searchParams.set("lon", String(lng));
+      reverseUrl.searchParams.set("format", "json");
+      reverseUrl.searchParams.set("addressdetails", "1");
+      reverseUrl.searchParams.set("zoom", "14");
 
-      const geoResponse = await fetch(nominatimUrl.toString(), {
+      const reverseResponse = await fetch(reverseUrl.toString(), {
         headers: {
           "User-Agent": "CasaGrownApp/1.0 (internal-dev-testing)",
         },
       });
 
-      if (!geoResponse.ok) throw new Error("Geocoding service failed");
-
-      const geoData = await geoResponse.json();
-      if (!geoData || geoData.length === 0) {
-        throw new Error("Address not found");
-      }
-
-      lat = parseFloat(geoData[0].lat);
-      lng = parseFloat(geoData[0].lon);
-
-      const addr = geoData[0].address || {};
-      geocodedNeighborhood = addr.neighbourhood || addr.suburb || addr.hamlet ||
-        addr.town || "";
-      geocodedCity = addr.city || addr.town || addr.municipality || "";
-
-      console.log(
-        `⏱️ Nominatim geocoding: ${
-          Date.now() - tGeo
-        }ms → (${lat}, ${lng}), neighborhood: ${
-          geocodedNeighborhood || "N/A"
-        }, city: ${geocodedCity || "N/A"}`,
-      );
-    }
-
-    if (!lat || !lng) {
-      throw new Error("Missing location data (lat/lng or address)");
-    }
-
-    // ─── Reverse geocode for lat/lng requests (for fallback names) ───
-    if (!geocodedNeighborhood && !geocodedCity) {
-      try {
-        const tReverse = Date.now();
-        const reverseUrl = new URL(
-          "https://nominatim.openstreetmap.org/reverse",
+      if (reverseResponse.ok) {
+        const reverseData = await reverseResponse.json();
+        const addr = reverseData.address || {};
+        geocodedNeighborhood = addr.neighbourhood || addr.suburb ||
+          addr.hamlet || addr.town || "";
+        geocodedCity = addr.city || addr.town || addr.municipality ||
+          "";
+        console.log(
+          `⏱️ Nominatim reverse geocode: ${
+            Date.now() - tReverse
+          }ms → neighborhood: ${geocodedNeighborhood || "N/A"}, city: ${
+            geocodedCity || "N/A"
+          }`,
         );
-        reverseUrl.searchParams.set("lat", String(lat));
-        reverseUrl.searchParams.set("lon", String(lng));
-        reverseUrl.searchParams.set("format", "json");
-        reverseUrl.searchParams.set("addressdetails", "1");
-        reverseUrl.searchParams.set("zoom", "14");
-
-        const reverseResponse = await fetch(reverseUrl.toString(), {
-          headers: {
-            "User-Agent": "CasaGrownApp/1.0 (internal-dev-testing)",
-          },
-        });
-
-        if (reverseResponse.ok) {
-          const reverseData = await reverseResponse.json();
-          const addr = reverseData.address || {};
-          geocodedNeighborhood = addr.neighbourhood || addr.suburb ||
-            addr.hamlet || addr.town || "";
-          geocodedCity = addr.city || addr.town || addr.municipality || "";
-          console.log(
-            `⏱️ Nominatim reverse geocode: ${
-              Date.now() - tReverse
-            }ms → neighborhood: ${geocodedNeighborhood || "N/A"}, city: ${
-              geocodedCity || "N/A"
-            }`,
-          );
-        }
-      } catch (e) {
-        console.warn("Reverse geocode failed, using index-only names:", e);
       }
-    }
-
-    // ─── 1. Calculate H3 Index ──────────────────────────────────
-    const h3Index = latLngToCell(lat, lng, 7);
-    console.log(
-      `Resolved H3 Index (Res 7): ${h3Index} for location (${lat}, ${lng})`,
-    );
-
-    const neighborIndices = gridDisk(h3Index, 1);
-    const adjacentIndices = neighborIndices.filter((idx: string) =>
-      idx !== h3Index
-    );
-
-    // ─── 2. Batch fetch ALL communities from DB ─────────────────
-    const allIndices = Array.from(new Set([h3Index, ...adjacentIndices]));
-
-    const tDb = Date.now();
-    const { data: existingCommunities, error: fetchError } = await supabase
-      .from("communities")
-      .select("*")
-      .in("h3_index", allIndices);
-
-    if (fetchError) throw fetchError;
-
-    const existingMap = new Map(
-      existingCommunities?.map((c: any) => [c.h3_index, c]),
-    );
-    console.log(
-      `⏱️ DB batch lookup: ${
-        Date.now() - tDb
-      }ms → found ${existingMap.size}/${allIndices.length} communities`,
-    );
-
-    // ─── 3. Generate missing communities ────────────────────────
-    const missingIndices = allIndices.filter((idx) => !existingMap.has(idx));
-
-    if (missingIndices.length > 0) {
-      console.log(
-        `Generating ${missingIndices.length} missing communities...`,
+    } catch (e) {
+      console.warn(
+        "Reverse geocode failed, using index-only names:",
+        e,
       );
+    }
+  }
 
-      // Track whether Overpass is rate-limited so we skip remaining calls
-      let overpassRateLimited = false;
+  // ─── 1. Calculate H3 Index ──────────────────────────────────
+  const h3Index = latLngToCell(lat, lng, 7);
+  console.log(
+    `Resolved H3 Index (Res 7): ${h3Index} for location (${lat}, ${lng})`,
+  );
 
-      for (const idx of missingIndices) {
-        const tGen = Date.now();
+  const neighborIndices = gridDisk(h3Index, 1);
+  const adjacentIndices = neighborIndices.filter(
+    (idx: string) => idx !== h3Index,
+  );
 
-        if (!overpassRateLimited) {
-          // Try Overpass first
-          try {
-            const comm = await generateCommunityFromOverpass(supabase, idx);
-            if (comm) {
-              existingMap.set(comm.h3_index, comm);
-              console.log(
-                `⏱️ Overpass generation for ${idx}: ${Date.now() - tGen}ms`,
-              );
-              continue; // Success — move to next
-            }
-          } catch (e: any) {
-            if (e.message?.includes("429")) {
-              console.warn(
-                `⚠️ Overpass rate-limited — switching to fallback names for remaining communities`,
-              );
-              overpassRateLimited = true;
-              // Fall through to create fallback below
-            } else {
-              console.error(`Overpass failed for ${idx}:`, e);
-              // Non-429 error — still fall through to fallback
-            }
-          }
-        }
+  // ─── 2. Batch fetch ALL communities from DB ─────────────────
+  const allIndices = Array.from(new Set([h3Index, ...adjacentIndices]));
 
-        // Fallback: create community with Zone ID + Nominatim name
+  const tDb = Date.now();
+  const { data: existingCommunities, error: fetchError } = await supabase
+    .from("communities")
+    .select("*")
+    .in("h3_index", allIndices);
+
+  if (fetchError) throw fetchError;
+
+  const existingMap = new Map(
+    existingCommunities?.map((c: any) => [c.h3_index, c]),
+  );
+  console.log(
+    `⏱️ DB batch lookup: ${
+      Date.now() - tDb
+    }ms → found ${existingMap.size}/${allIndices.length} communities`,
+  );
+
+  // ─── 3. Generate missing communities ────────────────────────
+  const missingIndices = allIndices.filter((idx) => !existingMap.has(idx));
+
+  if (missingIndices.length > 0) {
+    console.log(
+      `Generating ${missingIndices.length} missing communities...`,
+    );
+
+    let overpassRateLimited = false;
+
+    for (const idx of missingIndices) {
+      const tGen = Date.now();
+
+      if (!overpassRateLimited) {
         try {
-          const comm = await createFallbackCommunity(
+          const comm = await generateCommunityFromOverpass(
             supabase,
             idx,
-            geocodedNeighborhood,
-            geocodedCity,
           );
           if (comm) {
             existingMap.set(comm.h3_index, comm);
             console.log(
-              `✅ Fallback community created for ${idx}: "${comm.name}" (${
-                Date.now() - tGen
-              }ms)`,
+              `⏱️ Overpass generation for ${idx}: ${Date.now() - tGen}ms`,
             );
+            continue;
           }
-        } catch (e) {
-          console.error(`Failed to create fallback community ${idx}:`, e);
+        } catch (e: any) {
+          if (e.message?.includes("429")) {
+            console.warn(
+              `⚠️ Overpass rate-limited — switching to fallback names`,
+            );
+            overpassRateLimited = true;
+          } else {
+            console.error(`Overpass failed for ${idx}:`, e);
+          }
         }
       }
 
-      // Fire-and-forget: trigger background enrichment for any fallback communities
-      // This asynchronously replaces "Zone XX" names with proper neighborhood names
-      supabase.functions.invoke("enrich-communities", {
-        body: { limit: 5 },
-      }).then((res: any) => {
-        if (res.error) {
-          console.warn("⚠️ Enrich-communities trigger failed:", res.error);
-        } else {
+      // Fallback
+      try {
+        const comm = await createFallbackCommunity(
+          supabase,
+          idx,
+          geocodedNeighborhood,
+          geocodedCity,
+        );
+        if (comm) {
+          existingMap.set(comm.h3_index, comm);
           console.log(
-            "🔄 Enrich-communities triggered for fallback communities",
+            `✅ Fallback community created for ${idx}: "${comm.name}" (${
+              Date.now() - tGen
+            }ms)`,
           );
         }
-      }).catch((e: any) => {
-        console.warn("⚠️ Enrich-communities fire-and-forget failed:", e);
-      });
-    } else {
-      console.log(
-        "✅ All communities found in DB cache — no generation needed",
+      } catch (e) {
+        console.error(
+          `Failed to create fallback community ${idx}:`,
+          e,
+        );
+      }
+    }
+
+    // Fire-and-forget: trigger background enrichment
+    supabase.functions.invoke("enrich-communities", {
+      body: { limit: 5 },
+    }).then((res: any) => {
+      if (res.error) {
+        console.warn(
+          "⚠️ Enrich-communities trigger failed:",
+          res.error,
+        );
+      } else {
+        console.log(
+          "🔄 Enrich-communities triggered for fallback communities",
+        );
+      }
+    }).catch((e: any) => {
+      console.warn(
+        "⚠️ Enrich-communities fire-and-forget failed:",
+        e,
       );
-    }
-
-    // ─── 4. Construct Response ──────────────────────────────────
-    const primaryCommunity = existingMap.get(h3Index);
-    if (!primaryCommunity) {
-      throw new Error("Failed to resolve primary community");
-    }
-
-    // Enhance primary name with geocoded neighborhood if not already included
-    let enhancedPrimaryName = primaryCommunity.name;
-    if (
-      geocodedNeighborhood &&
-      !enhancedPrimaryName.includes(geocodedNeighborhood)
-    ) {
-      if (enhancedPrimaryName.endsWith(" Community")) {
-        const baseName = enhancedPrimaryName.replace(" Community", "");
-        enhancedPrimaryName = `${baseName}, ${geocodedNeighborhood} Community`;
-      } else if (!enhancedPrimaryName.includes("·")) {
-        enhancedPrimaryName = `${enhancedPrimaryName}, ${geocodedNeighborhood}`;
-      }
-    }
-
-    const neighbors = adjacentIndices.map((idx: string) => {
-      const comm = existingMap.get(idx);
-      return {
-        h3_index: idx,
-        name: comm ? comm.name : "Unknown Community",
-        status: "active",
-      };
     });
-
-    // ─── 5. Compute hex boundaries for native map rendering ─────
-    const hexBoundaries: Record<string, number[][]> = {};
-    for (const idx of allIndices) {
-      try {
-        hexBoundaries[idx] = cellToBoundary(idx);
-      } catch (_e) {
-        // Skip if boundary computation fails
-      }
-    }
-
-    console.log(`⏱️ Total request time: ${Date.now() - t0}ms`);
-
-    return new Response(
-      JSON.stringify({
-        primary: {
-          ...primaryCommunity,
-          name: enhancedPrimaryName,
-        },
-        neighbors: neighbors,
-        resolved_location: { lat, lng },
-        hex_boundaries: hexBoundaries,
-        geocoded_neighborhood: geocodedNeighborhood || null,
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      },
+  } else {
+    console.log(
+      "✅ All communities found in DB cache — no generation needed",
     );
-  } catch (error: any) {
-    console.error(error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 400,
-    });
   }
+
+  // ─── 4. Construct Response ──────────────────────────────────
+  const primaryCommunity = existingMap.get(h3Index);
+  if (!primaryCommunity) {
+    throw new Error("Failed to resolve primary community");
+  }
+
+  // Enhance primary name with geocoded neighborhood
+  let enhancedPrimaryName = primaryCommunity.name;
+  if (
+    geocodedNeighborhood &&
+    !enhancedPrimaryName.includes(geocodedNeighborhood)
+  ) {
+    if (enhancedPrimaryName.endsWith(" Community")) {
+      const baseName = enhancedPrimaryName.replace(" Community", "");
+      enhancedPrimaryName = `${baseName}, ${geocodedNeighborhood} Community`;
+    } else if (!enhancedPrimaryName.includes("·")) {
+      enhancedPrimaryName = `${enhancedPrimaryName}, ${geocodedNeighborhood}`;
+    }
+  }
+
+  const neighbors = adjacentIndices.map((idx: string) => {
+    const comm = existingMap.get(idx);
+    return {
+      h3_index: idx,
+      name: comm ? comm.name : "Unknown Community",
+      status: "active",
+    };
+  });
+
+  // ─── 5. Compute hex boundaries for native map rendering ─────
+  const hexBoundaries: Record<string, number[][]> = {};
+  for (const idx of allIndices) {
+    try {
+      hexBoundaries[idx] = cellToBoundary(idx);
+    } catch (_e) {
+      // Skip if boundary computation fails
+    }
+  }
+
+  console.log(`⏱️ Total request time: ${Date.now() - t0}ms`);
+
+  return new Response(
+    JSON.stringify({
+      primary: {
+        ...primaryCommunity,
+        name: enhancedPrimaryName,
+      },
+      neighbors: neighbors,
+      resolved_location: { lat, lng },
+      hex_boundaries: hexBoundaries,
+      geocoded_neighborhood: geocodedNeighborhood || null,
+    }),
+    {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200,
+    },
+  );
 });
 
 // ============================================================================
@@ -439,7 +430,9 @@ async function generateCommunityFromOverpass(
 
   if (insertError) {
     if (insertError.code === "23505") {
-      const { data: retry } = await supabase.from("communities").select("*")
+      const { data: retry } = await supabase.from("communities").select(
+        "*",
+      )
         .eq("h3_index", index).single();
       return retry;
     }
@@ -450,14 +443,10 @@ async function generateCommunityFromOverpass(
 
 // ============================================================================
 // Fallback Community Creator (used when Overpass is rate-limited)
-// Creates a community with "Zone [suffix] · [Neighborhood/City]" naming.
-// Tagged with metadata.source = 'nominatim_fallback' for background enrichment.
 // ============================================================================
 function extractZoneSuffix(h3Index: string): string {
-  // Extract a short, readable suffix from the H3 index
-  // e.g., "87283082effffff" → "82e"
-  const core = h3Index.replace(/f+$/, ""); // strip trailing f's
-  return core.substring(core.length - 3); // last 3 meaningful chars
+  const core = h3Index.replace(/f+$/, "");
+  return core.substring(core.length - 3);
 }
 
 async function createFallbackCommunity(

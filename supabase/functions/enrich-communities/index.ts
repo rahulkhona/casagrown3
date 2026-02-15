@@ -1,14 +1,5 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import {
-  cellToBoundary,
-  cellToLatLng,
-} from "https://esm.sh/h3-js@4.1.0?target=deno";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+import { jsonOk, serveWithCors } from "../_shared/serve-with-cors.ts";
+import { cellToLatLng } from "https://esm.sh/h3-js@4.1.0?target=deno";
 
 /**
  * enrich-communities
@@ -26,146 +17,114 @@ const corsHeaders = {
  * Optional body:
  *   { "limit": 1 }  — number of communities to process (default 1)
  */
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+
+serveWithCors(async (req, { supabase, corsHeaders }) => {
+  // Parse optional limit from body
+  let limit = 1;
+  try {
+    const body = await req.json();
+    if (body?.limit && typeof body.limit === "number") {
+      limit = Math.min(body.limit, 5); // Cap at 5 per invocation
+    }
+  } catch (_e) {
+    // No body or invalid JSON — use default
   }
 
-  try {
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  // Find communities needing enrichment
+  const { data: communities, error: fetchError } = await supabase
+    .from("communities")
+    .select("*")
+    .in("metadata->>source", ["nominatim_fallback"])
+    .order("created_at", { ascending: true })
+    .limit(limit);
 
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error("Missing Supabase credentials");
-    }
+  if (fetchError) throw fetchError;
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  if (!communities || communities.length === 0) {
+    return jsonOk(
+      { message: "No communities need enrichment" },
+      corsHeaders,
+    );
+  }
 
-    // Parse optional limit from body
-    let limit = 1;
-    try {
-      const body = await req.json();
-      if (body?.limit && typeof body.limit === "number") {
-        limit = Math.min(body.limit, 5); // Cap at 5 per invocation
-      }
-    } catch (_e) {
-      // No body or invalid JSON — use default
-    }
+  const results: Array<{
+    h3_index: string;
+    status: string;
+    old_name: string;
+    new_name?: string;
+  }> = [];
 
-    // Find communities needing enrichment
-    // Use claim-before-process pattern to prevent concurrent invocations
-    // from processing the same community
-    const { data: communities, error: fetchError } = await supabase
+  for (const community of communities) {
+    // Claim this community by setting source to 'enriching'
+    const { error: claimError } = await supabase
       .from("communities")
-      .select("*")
-      .in("metadata->>source", ["nominatim_fallback"]) // only unclaimed
-      .order("created_at", { ascending: true })
-      .limit(limit);
-
-    if (fetchError) throw fetchError;
-
-    if (!communities || communities.length === 0) {
-      return new Response(
-        JSON.stringify({ message: "No communities need enrichment" }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 200,
+      .update({
+        metadata: {
+          ...community.metadata,
+          source: "enriching",
+          claimed_at: new Date().toISOString(),
         },
+      })
+      .eq("h3_index", community.h3_index)
+      .eq("metadata->>source", "nominatim_fallback"); // CAS
+
+    if (claimError) {
+      console.warn(
+        `Could not claim ${community.h3_index}, skipping`,
       );
+      continue;
     }
 
-    const results: Array<{
-      h3_index: string;
-      status: string;
-      old_name: string;
-      new_name?: string;
-    }> = [];
-
-    for (const community of communities) {
-      // Claim this community by setting source to 'enriching'
-      // This prevents concurrent cron ticks / fire-and-forget from picking it up
-      const { error: claimError } = await supabase
+    try {
+      const enriched = await enrichCommunityFromOverpass(
+        supabase,
+        community,
+      );
+      results.push({
+        h3_index: community.h3_index,
+        status: "enriched",
+        old_name: community.name,
+        new_name: enriched.name,
+      });
+    } catch (e: any) {
+      // On failure, reset back to nominatim_fallback so it gets retried
+      await supabase
         .from("communities")
         .update({
           metadata: {
             ...community.metadata,
-            source: "enriching",
-            claimed_at: new Date().toISOString(),
+            source: "nominatim_fallback",
+            last_enrichment_error: e.message || "unknown",
+            last_enrichment_attempt: new Date().toISOString(),
           },
         })
-        .eq("h3_index", community.h3_index)
-        .eq("metadata->>source", "nominatim_fallback"); // CAS: only claim if still unclaimed
+        .eq("h3_index", community.h3_index);
 
-      if (claimError) {
+      if (e.message?.includes("429")) {
         console.warn(
-          `Could not claim ${community.h3_index}, skipping (likely claimed by another invocation)`,
-        );
-        continue;
-      }
-
-      try {
-        const enriched = await enrichCommunityFromOverpass(
-          supabase,
-          community,
+          `Overpass rate-limited — stopping enrichment batch early`,
         );
         results.push({
           h3_index: community.h3_index,
-          status: "enriched",
-          old_name: community.name,
-          new_name: enriched.name,
-        });
-      } catch (e: any) {
-        // On failure, reset back to nominatim_fallback so it gets retried
-        await supabase
-          .from("communities")
-          .update({
-            metadata: {
-              ...community.metadata,
-              source: "nominatim_fallback",
-              last_enrichment_error: e.message || "unknown",
-              last_enrichment_attempt: new Date().toISOString(),
-            },
-          })
-          .eq("h3_index", community.h3_index);
-
-        if (e.message?.includes("429")) {
-          console.warn(
-            `Overpass rate-limited — stopping enrichment batch early`,
-          );
-          results.push({
-            h3_index: community.h3_index,
-            status: "rate_limited",
-            old_name: community.name,
-          });
-          break; // Stop processing — try again on next cron tick
-        }
-        console.error(
-          `Failed to enrich ${community.h3_index}:`,
-          e,
-        );
-        results.push({
-          h3_index: community.h3_index,
-          status: "error",
+          status: "rate_limited",
           old_name: community.name,
         });
+        break;
       }
+      console.error(
+        `Failed to enrich ${community.h3_index}:`,
+        e,
+      );
+      results.push({
+        h3_index: community.h3_index,
+        status: "error",
+        old_name: community.name,
+      });
     }
-
-    return new Response(
-      JSON.stringify({ processed: results.length, results }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      },
-    );
-  } catch (error: any) {
-    console.error(error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
-    });
   }
-});
+
+  return jsonOk({ processed: results.length, results }, corsHeaders);
+}, { errorStatus: 500 });
 
 // ============================================================================
 // Enrich a single community using Overpass data
@@ -224,7 +183,7 @@ async function enrichCommunityFromOverpass(
   console.log(`[DEBUG H3 ${index}] Found ${elements.length} elements`);
 
   // Same naming heuristic as resolve-community
-  let bestName = community.name; // Keep existing name if nothing better found
+  let bestName = community.name;
   let nameSource = "osm_enriched";
   let city = community.city || "Unknown";
 

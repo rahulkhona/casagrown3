@@ -1,0 +1,267 @@
+{
+  "version": "5",
+  "redirects": {
+    "https://esm.sh/@supabase/supabase-js@2": "https://esm.sh/@supabase/supabase-js@2.95.3",
+    "https://esm.sh/iceberg-js@^0.8.1?target=denonext": "https://esm.sh/iceberg-js@0.8.1?target=denonext"
+  },
+  "remote": {
+    "https://deno.land/std@0.192.0/fmt/colors.ts": "d67e3cd9f472535241a8e410d33423980bec45047e343577554d3356e1f0ef4e",
+    "https://deno.land/std@0.192.0/testing/_diff.ts": "1a3c044aedf77647d6cac86b798c6417603361b66b54c53331b312caeb447aea",
+    "https://deno.land/std@0.192.0/testing/_format.ts": "a69126e8a469009adf4cf2a50af889aca364c349797e63174884a52ff75cf4c7",
+    "https://deno.land/std@0.192.0/testing/asserts.ts": "e16d98b4d73ffc4ed498d717307a12500ae4f2cbe668f1a215632d19fcffc22f",
+    "https://esm.sh/@supabase/auth-js@2.95.3/denonext/auth-js.mjs": "a5ee87d057b726277d545b9df8d17083e098a3f88957a39a734a6173de98df92",
+    "https://esm.sh/@supabase/functions-js@2.95.3/denonext/functions-js.mjs": "65c505a80e2859dd8ccfa11b179bc51ac68f914fdd13b56294a1f7b70786638a",
+    "https://esm.sh/@supabase/postgrest-js@2.95.3/denonext/postgrest-js.mjs": "e4b718b139ab55c7b6d6efe57051d2e9d660f6815316fbeda59a485e94a7c360",
+    "https://esm.sh/@supabase/realtime-js@2.95.3/denonext/realtime-js.mjs": "51bd35a5d48b0048aed9a3ab5b1d07e6c690873d8aa11a9b624bb7cedfd14260",
+    "https://esm.sh/@supabase/storage-js@2.95.3/denonext/storage-js.mjs": "2927fc6f888bb67a7d319f46d5a9fb6921da0cd8fdcca22b41ed6b0aa183308e",
+    "https://esm.sh/@supabase/supabase-js@2.95.3": "1f2684e4be12043f36ea7decd22a2ba0c3367cf6c474b99a051f1e7148e88176",
+    "https://esm.sh/@supabase/supabase-js@2.95.3/denonext/supabase-js.mjs": "7d64abffcc66aaf1b83bc3a7cf60229aa4bc69fbcc703884150707edd4f5332e",
+    "https://esm.sh/h3-js@4.1.0": "950a81aef94a773a817e5b4fb99adc92f211aa75e21702814953b3a68b4d44f0",
+    "https://esm.sh/h3-js@4.1.0/denonext/h3-js.mjs": "4a0b4518584092b9675b363cec1f1220146b196675f54a11c3393bb08783a6dd",
+    "https://esm.sh/iceberg-js@0.8.1/denonext/iceberg-js.mjs": "d839d81a2e3966500ca2cdd0c1cb458e9608bacfc91f7bb67a69b2e878dcdb4f",
+    "https://esm.sh/iceberg-js@0.8.1?target=denonext": "58c849d7fe2bf4eca4a84eb501e83c161a7d8c34ca1bec15a962b3bec3062633",
+    "https://esm.sh/tslib@2.8.1/denonext/tslib.mjs": "c38da5dd6da6281964435002ce204cd586634fe3bdfb24a0ee116f48cf3292e9"
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@babel/runtime@^7.24.6",
+        "npm:@biomejs/biome@^1.9.3",
+        "npm:@tamagui/cli@^2.0.0-rc.0",
+        "npm:@tamagui/react-native-svg@^2.0.0-rc.0",
+        "npm:@tamagui/react-native-web-lite@^2.0.0-rc.0",
+        "npm:@types/leaflet@^1.9.21",
+        "npm:@types/pg@^8.16.0",
+        "npm:base64-arraybuffer@^1.0.2",
+        "npm:check-dependency-version-consistency@^4.1.0",
+        "npm:expo@54",
+        "npm:h3-js@^4.4.0",
+        "npm:husky@^9.1.6",
+        "npm:leaflet@^1.9.4",
+        "npm:lint-staged@15",
+        "npm:patch-package@^8.0.1",
+        "npm:pg@^8.18.0",
+        "npm:postinstall-postinstall@^2.1.0",
+        "npm:react-leaflet@5",
+        "npm:react-native-maps@^1.27.1",
+        "npm:react-native-qrcode-svg@^6.3.21",
+        "npm:react-native@0.81.5",
+        "npm:react-qr-code@^2.0.18",
+        "npm:react@19.1.0",
+        "npm:turbo@^1.13.4",
+        "npm:typescript@~5.8.3",
+        "npm:ultra-runner@^3.10.5",
+        "npm:vitest@^2.1.1"
+      ]
+    },
+    "members": {
+      "apps/expo-admin": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@babel/core@^7.24.6",
+            "npm:@babel/runtime@^7.26.0",
+            "npm:@casagrown/app@*",
+            "npm:@casagrown/ui@*",
+            "npm:@expo/config-plugins@~54.0.4",
+            "npm:@expo/metro-config@~54.0.12",
+            "npm:@expo/metro-runtime@~6.1.2",
+            "npm:@tamagui/babel-plugin@^2.0.0-rc.0",
+            "npm:babel-plugin-module-resolver@^5.0.2",
+            "npm:babel-plugin-transform-inline-environment-variables@~0.4.4",
+            "npm:burnt@~0.12.2",
+            "npm:expo-constants@~18.0.13",
+            "npm:expo-dev-client@~6.0.20",
+            "npm:expo-font@~14.0.10",
+            "npm:expo-linear-gradient@~15.0.8",
+            "npm:expo-linking@~8.0.11",
+            "npm:expo-router@~6.0.21",
+            "npm:expo-splash-screen@~31.0.13",
+            "npm:expo-status-bar@~3.0.9",
+            "npm:expo-updates@~29.0.16",
+            "npm:expo@54",
+            "npm:metro-minify-terser@0.81",
+            "npm:react-dom@19.1.0",
+            "npm:react-native-gesture-handler@2.28",
+            "npm:react-native-safe-area-context@5.6",
+            "npm:react-native-screens@4.16",
+            "npm:react-native-svg@15.12.1",
+            "npm:react-native-web@0.20",
+            "npm:react-native@0.81.5",
+            "npm:react@19.1.0",
+            "npm:typescript@~5.9.2"
+          ]
+        }
+      },
+      "apps/expo-community": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@babel/core@^7.24.6",
+            "npm:@babel/runtime@^7.26.0",
+            "npm:@casagrown/app@*",
+            "npm:@casagrown/ui@*",
+            "npm:@expo/config-plugins@~54.0.4",
+            "npm:@expo/metro-config@~54.0.12",
+            "npm:@expo/metro-runtime@~6.1.2",
+            "npm:@react-native-async-storage/async-storage@^2.2.0",
+            "npm:@tamagui/babel-plugin@^2.0.0-rc.0",
+            "npm:@types/text-encoding@0",
+            "npm:babel-plugin-module-resolver@^5.0.2",
+            "npm:babel-plugin-transform-inline-environment-variables@~0.4.4",
+            "npm:burnt@~0.12.2",
+            "npm:expo-application@~7.0.8",
+            "npm:expo-asset@^12.0.12",
+            "npm:expo-camera@^17.0.10",
+            "npm:expo-clipboard@~8.0.8",
+            "npm:expo-constants@~18.0.13",
+            "npm:expo-dev-client@~6.0.20",
+            "npm:expo-file-system@^19.0.21",
+            "npm:expo-font@~14.0.10",
+            "npm:expo-image-manipulator@^14.0.8",
+            "npm:expo-image-picker@^17.0.10",
+            "npm:expo-linear-gradient@~15.0.8",
+            "npm:expo-linking@~8.0.11",
+            "npm:expo-localization@~17.0.8",
+            "npm:expo-location@^19.0.8",
+            "npm:expo-media-library@^18.2.1",
+            "npm:expo-router@~6.0.21",
+            "npm:expo-secure-store@^15.0.8",
+            "npm:expo-splash-screen@~31.0.13",
+            "npm:expo-status-bar@~3.0.9",
+            "npm:expo-updates@~29.0.16",
+            "npm:expo-video@^3.0.15",
+            "npm:expo@54",
+            "npm:metro-minify-terser@0.81",
+            "npm:react-dom@19.1.0",
+            "npm:react-native-gesture-handler@2.28",
+            "npm:react-native-maps@1.20.1",
+            "npm:react-native-safe-area-context@5.6",
+            "npm:react-native-screens@4.16",
+            "npm:react-native-svg@15.12.1",
+            "npm:react-native-url-polyfill@3",
+            "npm:react-native-web@0.20",
+            "npm:react-native-webview@^13.16.0",
+            "npm:react-native@0.81.5",
+            "npm:react@19.1.0",
+            "npm:text-encoding@0.7",
+            "npm:typescript@~5.9.2"
+          ]
+        }
+      },
+      "apps/next-admin": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@casagrown/app@*",
+            "npm:@playwright/test@^1.57.0",
+            "npm:@tamagui/config@^2.0.0-rc.0",
+            "npm:@tamagui/next-plugin@^2.0.0-rc.0",
+            "npm:@tamagui/next-theme@^2.0.0-rc.0",
+            "npm:@types/node@^20.14.1",
+            "npm:next-compose-plugins@^2.2.1",
+            "npm:next-transpile-modules@^10.0.1",
+            "npm:next@16.1.1",
+            "npm:raf@^3.4.1",
+            "npm:react-dom@19.0.0",
+            "npm:react-native-web@~0.21.2",
+            "npm:react-native@0.79.2",
+            "npm:react@19.0.0",
+            "npm:tamagui@^2.0.0-rc.0",
+            "npm:tree-kill@^1.2.2",
+            "npm:vercel@latest",
+            "npm:vitest@^2.1.1"
+          ]
+        }
+      },
+      "apps/next-community": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@casagrown/app@*",
+            "npm:@playwright/test@^1.57.0",
+            "npm:@tailwindcss/postcss@^4.1.18",
+            "npm:@tamagui/config@^2.0.0-rc.0",
+            "npm:@tamagui/next-plugin@^2.0.0-rc.0",
+            "npm:@tamagui/next-theme@^2.0.0-rc.0",
+            "npm:@types/node@^20.14.1",
+            "npm:autoprefixer@^10.4.24",
+            "npm:lucide-react@0.563",
+            "npm:next-compose-plugins@^2.2.1",
+            "npm:next-transpile-modules@^10.0.1",
+            "npm:next@16.1.1",
+            "npm:postcss@^8.5.6",
+            "npm:raf@^3.4.1",
+            "npm:react-dom@19.0.0",
+            "npm:react-native-web@~0.21.2",
+            "npm:react-native@0.79.2",
+            "npm:react@19.0.0",
+            "npm:tailwindcss@^4.1.18",
+            "npm:tamagui@^2.0.0-rc.0",
+            "npm:tree-kill@^1.2.2",
+            "npm:vercel@latest",
+            "npm:vitest@^2.1.1"
+          ]
+        }
+      },
+      "packages/app": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@casagrown/ui@0.0.1",
+            "npm:@react-native-async-storage/async-storage@^2.2.0",
+            "npm:@react-navigation/native@^6.1.17",
+            "npm:@supabase/supabase-js@^2.93.3",
+            "npm:@tamagui/animations-react-native@^2.0.0-rc.0",
+            "npm:@tamagui/colors@^2.0.0-rc.0",
+            "npm:@tamagui/font-inter@^2.0.0-rc.0",
+            "npm:@tamagui/lucide-icons@^2.0.0-rc.0",
+            "npm:@tamagui/shorthands@^2.0.0-rc.0",
+            "npm:@tamagui/themes@^2.0.0-rc.0",
+            "npm:@testing-library/react-native@^13.3.3",
+            "npm:@types/jest@30",
+            "npm:@types/react-native@0.73",
+            "npm:@types/react-test-renderer@19",
+            "npm:@types/react@~19.0.10",
+            "npm:burnt@~0.12.2",
+            "npm:expo-constants@~17.1.6",
+            "npm:expo-image-manipulator@^14.0.8",
+            "npm:expo-image-picker@^17.0.10",
+            "npm:expo-linking@~7.1.4",
+            "npm:expo-localization@^17.0.8",
+            "npm:expo-location@^19.0.8",
+            "npm:expo-secure-store@^15.0.8",
+            "npm:expo-video@^3.0.15",
+            "npm:i18next@^25.8.0",
+            "npm:intl-pluralrules@^2.0.1",
+            "npm:jest-expo@54.0.16",
+            "npm:jest@^30.2.0",
+            "npm:react-i18next@^16.5.4",
+            "npm:react-native-safe-area-context@5.6",
+            "npm:react-native-url-polyfill@3",
+            "npm:react-native-webview@^13.16.0",
+            "npm:react-test-renderer@19.1.0",
+            "npm:zod@^4.3.6"
+          ]
+        }
+      },
+      "packages/config": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@tamagui/animations-react-native@^2.0.0-rc.0",
+            "npm:@tamagui/build@^2.0.0-rc.0",
+            "npm:@tamagui/font-inter@^2.0.0-rc.0",
+            "npm:@tamagui/shorthands@^2.0.0-rc.0",
+            "npm:@tamagui/themes@^2.0.0-rc.0",
+            "npm:tamagui@^2.0.0-rc.0"
+          ]
+        }
+      },
+      "packages/ui": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@casagrown/config@0.0.1",
+            "npm:@tamagui/build@^2.0.0-rc.0",
+            "npm:@tamagui/toast@^2.0.0-rc.0",
+            "npm:tamagui@^2.0.0-rc.0"
+          ]
+        }
+      }
+    }
+  }
+}
