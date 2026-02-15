@@ -288,7 +288,7 @@ exports[`FeedScreen matches snapshot 1`] = `
             color="#15803d"
             fontWeight="600"
           >
-            0
+            50
           </Text>
           <Text
             color="#15803d"
@@ -431,7 +431,6 @@ exports[`FeedScreen matches snapshot 1`] = `
             borderColor="#d1d5db"
             borderRadius="$3"
             borderWidth={1}
-            flex={1}
             gap="$2"
             paddingHorizontal="$3"
           >
@@ -444,9 +443,10 @@ exports[`FeedScreen matches snapshot 1`] = `
                   "backgroundColor": "transparent",
                   "color": "#111827",
                   "flex": 1,
-                  "fontFamily": "Inter-Regular",
+                  "fontFamily": "System",
                   "fontSize": 14,
                   "fontWeight": "normal",
+                  "letterSpacing": 0,
                   "paddingVertical": 8,
                 }
               }

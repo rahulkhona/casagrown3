@@ -62,7 +62,7 @@ async function fetchPost(postId: string, userId?: string): Promise<FeedPost | nu
         produce_name,
         unit,
         total_quantity_available,
-        price_per_unit
+        points_per_unit
       ),
       want_to_buy_details (
         category,
@@ -416,7 +416,7 @@ export default function PostPage() {
                 <YStack>
                   <Text fontSize={12} color={colors.gray[500]}>Price</Text>
                   <Text fontSize={18} fontWeight="700" color={colors.green[600]}>
-                    ${post.sell_details.price_per_unit}/{post.sell_details.unit}
+                    ${post.sell_details.points_per_unit}/{post.sell_details.unit}
                   </Text>
                 </YStack>
                 <YStack>

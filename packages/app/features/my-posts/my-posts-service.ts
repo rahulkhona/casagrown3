@@ -34,7 +34,7 @@ export interface UserPost {
         produce_name: string;
         unit: string;
         total_quantity_available: number;
-        price_per_unit: number;
+        points_per_unit: number;
     } | null;
     buy_details: {
         category: string;
@@ -126,7 +126,7 @@ export async function getUserPosts(userId: string): Promise<UserPost[]> {
         produce_name,
         unit,
         total_quantity_available,
-        price_per_unit
+        points_per_unit
       ),
       want_to_buy_details (
         category,
@@ -309,7 +309,7 @@ export async function getPostById(postId: string): Promise<UserPost | null> {
         produce_name,
         unit,
         total_quantity_available,
-        price_per_unit
+        points_per_unit
       ),
       want_to_buy_details (
         category,
@@ -376,7 +376,7 @@ export async function clonePostData(postId: string): Promise<CloneData> {
         produce_name,
         unit,
         total_quantity_available,
-        price_per_unit
+        points_per_unit
       ),
       want_to_buy_details (
         category,

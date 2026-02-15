@@ -1,4 +1,4 @@
-import { YStack, XStack, Progress, Text } from 'tamagui'
+import { YStack, XStack, Progress, Text, Spinner } from 'tamagui'
 import { WizardProvider, useWizard } from './wizard-context'
 import { ProfileSetupStep } from './steps/profile-setup'
 import { JoinCommunityStep } from './steps/join-community'
@@ -7,8 +7,18 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors } from '../../design-tokens'
 
 const WizardSteps = () => {
-  const { step } = useWizard()
+  const { step, initializing } = useWizard()
   
+  // Show loading spinner while we determine the correct starting step
+  if (initializing) {
+    return (
+      <YStack flex={1} alignItems="center" justifyContent="center" backgroundColor={colors.green[50]}>
+        <Spinner size="large" color={colors.green[600]} />
+        <Text marginTop="$4" color={colors.gray[600]}>Loading your profile...</Text>
+      </YStack>
+    )
+  }
+
   const steps = [
     <ProfileSetupStep key="profile" />,
     <JoinCommunityStep key="community" />,

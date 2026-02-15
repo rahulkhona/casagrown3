@@ -10,7 +10,7 @@
  */
 
 import React from 'react'
-import { renderHook, act } from '@testing-library/react-native'
+import { renderHook, act, waitFor } from '@testing-library/react-native'
 import { WizardProvider, useWizard } from './wizard-context'
 
 // Configurable mock Supabase for per-test behavior
@@ -34,12 +34,16 @@ const mockOrder = jest.fn().mockReturnValue({
   }),
 })
 
-const mockEq = jest.fn().mockReturnValue({
+const mockEqResult: Record<string, any> = {
   order: mockOrder,
   contains: mockContains,
   single: mockSingle,
   maybeSingle: mockMaybeSingle,
-})
+}
+// Support chained .eq() calls (e.g. .eq('user_id', ...).eq('type', 'reward'))
+mockEqResult.eq = jest.fn().mockReturnValue(mockEqResult)
+
+const mockEq = jest.fn().mockReturnValue(mockEqResult)
 
 const mockSelect = jest.fn().mockReturnValue({
   eq: mockEq,
@@ -50,11 +54,15 @@ const mockFrom = jest.fn().mockReturnValue({
   update: mockUpdate,
   insert: mockInsert,
   select: mockSelect,
+  upsert: jest.fn().mockResolvedValue({ error: null }),
 })
+
+// Stable user reference — prevents useEffect([user]) from re-firing on every render
+const stableUser = { id: 'test-user-id', user_metadata: { full_name: 'Test User' } }
 
 jest.mock('../auth/auth-hook', () => ({
   useAuth: () => ({
-    user: { id: 'test-user-id', user_metadata: { full_name: 'Test User' } },
+    user: stableUser,
   }),
   supabase: {
     from: (...args: any[]) => mockFrom(...args),
@@ -112,9 +120,12 @@ describe('WizardContext', () => {
   // Basic Step & Data Management (existing)
   // =========================================
 
-  it('provides default data with user pre-population', () => {
+  it('provides default data with user pre-population', async () => {
     const { result } = renderHook(() => useWizard(), { wrapper })
-    expect(result.current.data.name).toBe('Test User')
+    // Wait for async useEffect pre-population from auth metadata
+    await waitFor(() => {
+      expect(result.current.data.name).toBe('Test User')
+    })
     expect(result.current.data.country).toBe('USA')
     expect(result.current.step).toBe(0)
   })
@@ -156,14 +167,29 @@ describe('WizardContext', () => {
   // =========================================
 
   describe('saveProfile - Referral Code Attribution', () => {
+    // Helper: fire saveProfile without awaiting (avoids act() async hang),
+    // then waitFor loading to become false indicating completion.
+    async function runSaveProfile(result: { current: ReturnType<typeof useWizard> }) {
+      // Wait for initial mount effects to settle
+      await waitFor(() => {
+        expect(result.current.initializing).toBe(false)
+      })
+      // Fire saveProfile (don't await — act would hang)
+      act(() => {
+        result.current.saveProfile()
+      })
+      // Wait for saveProfile to complete (loading → false)
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false)
+      })
+    }
+
     it('reads referral code from AsyncStorage during saveProfile', async () => {
       mockAsyncGetItem.mockResolvedValue('abc12345')
 
       const { result } = renderHook(() => useWizard(), { wrapper })
 
-      await act(async () => {
-        await result.current.saveProfile()
-      })
+      await runSaveProfile(result)
 
       expect(mockAsyncGetItem).toHaveBeenCalledWith('casagrown_referral_code')
     })
@@ -171,16 +197,16 @@ describe('WizardContext', () => {
     it('resolves inviter ID from referral code via Supabase', async () => {
       mockAsyncGetItem.mockResolvedValue('abc12345')
       
-      // Mock: profiles query returns inviter
+      // First single() call consumed by loadExistingProfile on mount
+      mockSingle.mockResolvedValueOnce({ data: null })
+      // Second single() call is for referral code lookup - returns inviter
       mockSingle.mockResolvedValueOnce({ 
         data: { id: 'inviter-user-id' } 
       })
 
       const { result } = renderHook(() => useWizard(), { wrapper })
 
-      await act(async () => {
-        await result.current.saveProfile()
-      })
+      await runSaveProfile(result)
 
       // Verify that supabase.from('profiles') was called to look up the referral code
       expect(mockFrom).toHaveBeenCalledWith('profiles')
@@ -189,7 +215,9 @@ describe('WizardContext', () => {
     it('includes invited_by_id in profile update when inviter is found', async () => {
       mockAsyncGetItem.mockResolvedValue('abc12345')
       
-      // First single() call is for referral code lookup - returns inviter
+      // First single() call consumed by loadExistingProfile on mount
+      mockSingle.mockResolvedValueOnce({ data: null })
+      // Second single() call is for referral code lookup - returns inviter
       mockSingle.mockResolvedValueOnce({ 
         data: { id: 'inviter-user-id' } 
       })
@@ -199,9 +227,7 @@ describe('WizardContext', () => {
 
       const { result } = renderHook(() => useWizard(), { wrapper })
 
-      await act(async () => {
-        await result.current.saveProfile()
-      })
+      await runSaveProfile(result)
 
       // The profile update should have been called
       expect(mockUpdate).toHaveBeenCalled()
@@ -218,9 +244,7 @@ describe('WizardContext', () => {
 
       const { result } = renderHook(() => useWizard(), { wrapper })
 
-      await act(async () => {
-        await result.current.saveProfile()
-      })
+      await runSaveProfile(result)
 
       // Profile update should NOT have invited_by_id
       expect(mockUpdate).toHaveBeenCalled()
@@ -231,6 +255,8 @@ describe('WizardContext', () => {
     it('does NOT include invited_by_id when referral code is invalid (no matching inviter)', async () => {
       mockAsyncGetItem.mockResolvedValue('invalidcode')
       
+      // First single() call consumed by loadExistingProfile on mount
+      mockSingle.mockResolvedValueOnce({ data: null })
       // Referral code lookup returns no match
       mockSingle.mockResolvedValueOnce({ data: null })
 
@@ -239,9 +265,7 @@ describe('WizardContext', () => {
 
       const { result } = renderHook(() => useWizard(), { wrapper })
 
-      await act(async () => {
-        await result.current.saveProfile()
-      })
+      await runSaveProfile(result)
 
       expect(mockUpdate).toHaveBeenCalled()
       const updatePayload = mockUpdate.mock.calls[0][0]
@@ -251,6 +275,8 @@ describe('WizardContext', () => {
     it('clears referral code from localStorage after saveProfile', async () => {
       mockAsyncGetItem.mockResolvedValue('abc12345')
       
+      // First single() call consumed by loadExistingProfile on mount
+      mockSingle.mockResolvedValueOnce({ data: null })
       // Mock inviter found
       mockSingle.mockResolvedValueOnce({ 
         data: { id: 'inviter-user-id' } 
@@ -261,9 +287,7 @@ describe('WizardContext', () => {
 
       const { result } = renderHook(() => useWizard(), { wrapper })
 
-      await act(async () => {
-        await result.current.saveProfile()
-      })
+      await runSaveProfile(result)
 
       expect(mockAsyncRemoveItem).toHaveBeenCalledWith('casagrown_referral_code')
     })
@@ -271,6 +295,8 @@ describe('WizardContext', () => {
     it('grants inviter reward points for invitee_signing_up', async () => {
       mockAsyncGetItem.mockResolvedValue('abc12345')
       
+      // First single() call consumed by loadExistingProfile on mount
+      mockSingle.mockResolvedValueOnce({ data: null })
       // Referral code → inviter found
       mockSingle.mockResolvedValueOnce({ 
         data: { id: 'inviter-user-id' } 
@@ -281,26 +307,17 @@ describe('WizardContext', () => {
 
       const { result } = renderHook(() => useWizard(), { wrapper })
 
-      await act(async () => {
-        await result.current.saveProfile()
-      })
+      await runSaveProfile(result)
 
       // Verify point_ledger insert was called (for inviter reward)
-      // The insert should include metadata with action_type: 'invitee_signing_up'
-      const insertCalls = mockInsert.mock.calls
-      const inviterRewardCall = insertCalls.find((call: any) => {
-        const payload = call[0]
-        return payload?.metadata?.action_type === 'invitee_signing_up'
-      })
-
-      // Note: The actual inviter reward insert happens via the from('point_ledger').insert chain
-      // which goes through mockFrom → mockInsert
       expect(mockFrom).toHaveBeenCalledWith('point_ledger')
     })
 
     it('auto-follows inviter when referral code is valid', async () => {
       mockAsyncGetItem.mockResolvedValue('abc12345')
       
+      // First single() call consumed by loadExistingProfile on mount
+      mockSingle.mockResolvedValueOnce({ data: null })
       // Referral code → inviter found
       mockSingle.mockResolvedValueOnce({ 
         data: { id: 'inviter-user-id' } 
@@ -311,9 +328,7 @@ describe('WizardContext', () => {
 
       const { result } = renderHook(() => useWizard(), { wrapper })
 
-      await act(async () => {
-        await result.current.saveProfile()
-      })
+      await runSaveProfile(result)
 
       // Verify followers insert was called
       expect(mockFrom).toHaveBeenCalledWith('followers')
@@ -335,9 +350,7 @@ describe('WizardContext', () => {
 
       const { result } = renderHook(() => useWizard(), { wrapper })
 
-      await act(async () => {
-        await result.current.saveProfile()
-      })
+      await runSaveProfile(result)
 
       // followers table should NOT be accessed
       const fromCalls = mockFrom.mock.calls.map((c: any) => c[0])
@@ -352,11 +365,7 @@ describe('WizardContext', () => {
 
       const { result } = renderHook(() => useWizard(), { wrapper })
 
-      // Should not throw - referral code errors are caught
-      let success: boolean = false
-      await act(async () => {
-        success = await result.current.saveProfile()
-      })
+      await runSaveProfile(result)
 
       // saveProfile should still attempt to save the profile
       // (referral code failure is non-blocking)

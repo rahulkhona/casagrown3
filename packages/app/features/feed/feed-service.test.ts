@@ -51,7 +51,7 @@ describe("getCommunityFeedPosts", () => {
                         produce_name: "Tomatoes",
                         unit: "box",
                         total_quantity_available: 10,
-                        price_per_unit: 5,
+                        points_per_unit: 5,
                     },
                 ],
                 want_to_buy_details: [],

@@ -14,8 +14,8 @@ export function LoginSuccessScreen() {
 
   const handleLogout = async () => {
     await signOut()
-    // Always go to home screen after logout
-    router.replace('/')
+    // Small delay to ensure auth state propagates before navigation
+    setTimeout(() => router.replace('/'), 100)
   }
 
   return (

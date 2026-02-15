@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+
 import { YStack, XStack, Input, Button, Text, Avatar, Label, Switch, Checkbox, ScrollView, Sheet } from 'tamagui'
 import { useWizard } from '../wizard-context'
 import { useAuth } from '../../auth/auth-hook'
@@ -16,7 +17,7 @@ const WebCameraModal = Platform.OS === 'web'
 export const ProfileSetupStep = () => {
   const { t } = useTranslation()
   const { data, updateData, nextStep } = useWizard()
-  const { user } = useAuth()
+  const { user, signOut } = useAuth()
   const [name, setName] = useState(data.name)
   const [pushEnabled, setPushEnabled] = useState(data.notifyPush)
   const [smsEnabled, setSmsEnabled] = useState(data.notifySms)
@@ -328,7 +329,7 @@ export const ProfileSetupStep = () => {
                     borderColor={colors.gray[200]} 
                     borderWidth={1}
                     height="$5"
-                    onPress={() => console.log('Back')}
+                    onPress={() => signOut()}
                     hoverStyle={{ backgroundColor: colors.gray[50] }}
                 >
                     <Text color={colors.gray[700]}>{t('profileWizard.setup.back')}</Text>

@@ -22,11 +22,13 @@ export default function Index() {
 
   useEffect(() => {
     const checkAuthAndRedirect = async () => {
+      console.log('🟡 INDEX: checkAuthAndRedirect', { authLoading, user: user?.email ?? null })
       // Wait for auth to finish loading
       if (authLoading) return
       
       // Not logged in → show home page
       if (!user) {
+        console.log('🟡 INDEX: No user, showing home page')
         setShowHome(true)
         setIsChecking(false)
         return
@@ -42,9 +44,11 @@ export default function Index() {
         
         // Complete profile → Feed
         if (profile?.full_name && profile?.home_community_h3_index) {
+          console.log('🟡 INDEX: Complete profile, redirecting to /feed')
           router.replace('/feed')
         } else {
           // Incomplete profile → Profile Wizard
+          console.log('🟡 INDEX: Incomplete profile, redirecting to /profile-wizard')
           router.replace('/profile-wizard')
         }
       } catch (err) {

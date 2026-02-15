@@ -62,6 +62,7 @@ type WizardContextType = {
   prevStep: () => void
   saveProfile: (overrides?: Partial<WizardData>) => Promise<boolean>
   loading: boolean
+  initializing: boolean
 }
 
 const WizardContext = createContext<WizardContextType | null>(null)
@@ -70,20 +71,86 @@ export const WizardProvider = ({ children }: { children: ReactNode }) => {
   const [step, setStep] = useState(0)
   const [data, setData] = useState<WizardData>(defaultData)
   const [loading, setLoading] = useState(false)
+  const [initializing, setInitializing] = useState(true)
   const { user } = useAuth()
 
-  // Pre-populate data from Auth Provider (Social Login)
+  // On mount: fetch existing profile to determine starting step and pre-fill data
   useEffect(() => {
-    if (user && !data.name) {
-      console.log('👤 [Wizard] Pre-populating user data', user.user_metadata)
-      setData(prev => ({
-        ...prev,
-        // Use ?? to avoid overwriting if user already typed something (though check !data.name handles that)
-        name: user.user_metadata.full_name || prev.name,
-        avatar: user.user_metadata.avatar_url || prev.avatar,
-      }))
+    const loadExistingProfile = async () => {
+      if (!user) {
+        setInitializing(false)
+        return
+      }
+
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name, avatar_url, phone_number, notify_on_wanted, notify_on_available, push_enabled, sms_enabled, zip_code, country_code, home_community_h3_index, nearby_community_h3_indices')
+          .eq('id', user.id)
+          .single()
+
+        if (profile) {
+          // Pre-fill wizard data from existing profile
+          const updates: Partial<WizardData> = {}
+          
+          if (profile.full_name) updates.name = profile.full_name
+          if (profile.avatar_url) updates.avatar = profile.avatar_url
+          if (profile.phone_number) updates.phone = profile.phone_number
+          if (profile.zip_code) updates.zipCode = profile.zip_code
+          if (profile.country_code) updates.country = profile.country_code
+          if (profile.notify_on_wanted !== undefined) updates.notifyBuy = profile.notify_on_wanted
+          if (profile.notify_on_available !== undefined) updates.notifySell = profile.notify_on_available
+          if (profile.push_enabled !== undefined) updates.notifyPush = profile.push_enabled
+          if (profile.sms_enabled !== undefined) updates.notifySms = profile.sms_enabled
+          if (profile.nearby_community_h3_indices) updates.nearbyCommunities = profile.nearby_community_h3_indices
+
+          // If community is set, fetch its name for display
+          if (profile.home_community_h3_index) {
+            const { data: community } = await supabase
+              .from('communities')
+              .select('h3_index, name')
+              .eq('h3_index', profile.home_community_h3_index)
+              .single()
+            
+            if (community) {
+              updates.community = {
+                h3Index: community.h3_index,
+                name: community.name,
+                points: 0,
+              }
+            }
+          }
+
+          setData(prev => ({ ...prev, ...updates }))
+
+          // Determine starting step based on what's already completed
+          if (profile.full_name && profile.home_community_h3_index) {
+            // Both name and community set → start at intro post (step 2)
+            setStep(2)
+          } else if (profile.full_name) {
+            // Name set but no community → start at community (step 1)
+            setStep(1)
+          }
+          // else: start at step 0 (default)
+        }
+      } catch (err) {
+        console.warn('⚠️ [Wizard] Could not load existing profile:', err)
+      }
+
+      // Also pre-populate from auth metadata (social login) if name not in DB
+      if (user.user_metadata?.full_name) {
+        setData(prev => ({
+          ...prev,
+          name: prev.name || user.user_metadata.full_name || '',
+          avatar: prev.avatar || user.user_metadata.avatar_url || undefined,
+        }))
+      }
+
+      setInitializing(false)
     }
-  }, [user, data.name])
+
+    loadExistingProfile()
+  }, [user])
 
   const updateData = (updates: Partial<WizardData>) => {
     setData((prev) => ({ ...prev, ...updates }))
@@ -443,7 +510,7 @@ export const WizardProvider = ({ children }: { children: ReactNode }) => {
   const prevStep = () => setStep((s) => Math.max(s - 1, 0))
 
   return (
-    <WizardContext.Provider value={{ step, data, setStep, updateData, nextStep, prevStep, saveProfile, loading }}>
+    <WizardContext.Provider value={{ step, data, setStep, updateData, nextStep, prevStep, saveProfile, loading, initializing }}>
       {children}
     </WizardContext.Provider>
   )

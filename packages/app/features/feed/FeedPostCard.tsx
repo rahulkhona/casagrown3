@@ -197,7 +197,7 @@ export function FeedPostCard({
     parsedDescription.slice(0, 60)
   const postDescription =
     parsedDescription || parsedTitle // show whichever is available
-  const price = post.sell_details?.price_per_unit
+  const price = post.sell_details?.points_per_unit
   const unit = post.sell_details?.unit
   const category =
     post.sell_details?.category || post.buy_details?.category || ''

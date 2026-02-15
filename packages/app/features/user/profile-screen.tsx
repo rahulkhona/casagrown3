@@ -146,7 +146,7 @@ export function ProfileScreen() {
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!authLoading && !user) {
-      router.replace('/login')
+      router.replace('/')
     }
   }, [authLoading, user, router])
 
@@ -427,8 +427,11 @@ export function ProfileScreen() {
 
 
   const handleLogout = async () => {
+    console.log('🔴 LOGOUT: Starting signOut...')
     await signOut()
+    console.log('🔴 LOGOUT: signOut complete, navigating to /')
     router.replace('/')
+    console.log('🔴 LOGOUT: router.replace("/") called')
   }
 
   if (loading) {

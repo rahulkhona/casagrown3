@@ -27,7 +27,7 @@ export interface SellPostData {
     produceName: string;
     unit: string;
     quantity: number;
-    pricePerUnit: number;
+    pointsPerUnit: number;
     dropoffDates: string[];
     /** Media assets to upload (local URIs from camera/gallery) */
     mediaAssets?: Array<{ uri: string; type?: string; isExisting?: boolean }>;
@@ -487,7 +487,7 @@ export async function createSellPost(data: SellPostData) {
             produce_name: data.produceName,
             unit: data.unit,
             total_quantity_available: data.quantity,
-            price_per_unit: data.pricePerUnit,
+            points_per_unit: data.pointsPerUnit,
         });
 
     if (detailError) throw detailError;
@@ -704,7 +704,7 @@ export async function updateSellPost(
             produce_name: data.produceName,
             unit: data.unit,
             total_quantity_available: data.quantity,
-            price_per_unit: data.pricePerUnit,
+            points_per_unit: data.pointsPerUnit,
         })
         .eq("post_id", postId);
 

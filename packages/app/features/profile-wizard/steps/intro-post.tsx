@@ -73,6 +73,13 @@ export const IntroPostStep = () => {
            if (returnTo) {
              window.sessionStorage.removeItem('casagrown_returnTo')
            }
+           // Filter out routes that don't make sense as post-wizard targets.
+           // The AuthGuard saves returnTo for any protected route visited while
+           // logged out (e.g. /profile), which would redirect away from feed.
+           const invalidTargets = ['/profile', '/profile-wizard', '/login', '/login-success', '/logout']
+           if (returnTo && invalidTargets.some(t => returnTo!.startsWith(t))) {
+             returnTo = null
+           }
          }
          // Redirect to the stored returnTo or default to feed
          router.replace(returnTo || '/feed')
@@ -186,15 +193,17 @@ export const IntroPostStep = () => {
                 <YStack 
                     backgroundColor={colors.green[600]} 
                     padding="$4" 
+                    paddingHorizontal="$5"
                     borderRadius={borderRadius.lg} 
                     alignItems="center" 
                     width="100%"
                     gap="$2"
+                    overflow="hidden"
                 >
-                    <Text fontSize="$4" color="white" fontWeight="700">
+                    <Text fontSize="$4" color="white" fontWeight="700" textAlign="center">
                         {t('profileWizard.intro.pointsBannerTitle', { count: postPoints })}
                     </Text>
-                    <Text color="white" textAlign="center" fontSize="$3" opacity={0.9}>{t('profileWizard.intro.pointsBannerText')}</Text>
+                    <Text color="white" textAlign="center" fontSize="$3" opacity={0.9} flexShrink={1}>{t('profileWizard.intro.pointsBannerText')}</Text>
                 </YStack>
 
                 <Text fontSize="$7" fontWeight="700" color={colors.gray[900]} textAlign="center" marginTop="$4">
@@ -464,45 +473,52 @@ export const IntroPostStep = () => {
                  {/* Tip */}
                  <XStack backgroundColor={colors.amber[200]} padding="$3" borderRadius={borderRadius.lg} alignItems="center" gap="$2">
                      <Text fontSize="$4">💡</Text>
-                     <Text fontSize="$3" color={colors.amber[700]} fontWeight="700">{t('profileWizard.intro.tip')}</Text>
+                     <Text fontSize="$3" color={colors.amber[700]} fontWeight="700" flex={1}>{t('profileWizard.intro.tip')}</Text>
                  </XStack>
             </YStack>
 
-            <XStack gap="$3" paddingTop="$4" marginTop="auto">
-               <Button 
-                flex={1} 
-                backgroundColor="white" 
-                borderColor={colors.gray[200]} 
-                borderWidth={1}
-                height="$5"
-                onPress={prevStep}
-                hoverStyle={{ backgroundColor: colors.gray[50] }}
-               >
-                 <Text color={colors.gray[700]}>{t('profileWizard.intro.back')}</Text>
-               </Button>
-               <Button 
-                 flex={1} 
-                 variant="outlined" 
-                 backgroundColor="transparent"
-                 height="$5"
-                 onPress={handleFinish}
-               >
-                 <Text color={colors.gray[500]}>{t('profileWizard.intro.skip')}</Text>
-               </Button>
-               <Button 
-                 flex={2} 
-                 backgroundColor={colors.green[600]} 
-                 height="$5" 
-                 onPress={handleFinish}
-                 disabled={loading}
-                 hoverStyle={{ backgroundColor: colors.green[700] }}
-                 icon={loading ? <Spinner color="white" /> : undefined}
-               >
-                 <Text color="white" fontWeight="600">
+            <YStack gap="$3" paddingTop="$4" marginTop="auto">
+              <XStack gap="$3">
+                <Button 
+                  flex={1} 
+                  backgroundColor="white" 
+                  borderColor={colors.gray[200]} 
+                  borderWidth={1}
+                  height="$5"
+                  onPress={prevStep}
+                  hoverStyle={{ backgroundColor: colors.gray[50] }}
+                >
+                  <Text color={colors.gray[700]}>{t('profileWizard.intro.back')}</Text>
+                </Button>
+                <Button 
+                  flex={2} 
+                  backgroundColor={colors.green[600]} 
+                  height="$5" 
+                  onPress={handleFinish}
+                  disabled={loading}
+                  hoverStyle={{ backgroundColor: colors.green[700] }}
+                  icon={loading ? <Spinner color="white" /> : undefined}
+                >
+                  <Text color="white" fontWeight="600">
                     {loading ? '' : t('profileWizard.intro.postContinue')}
-                 </Text>
-               </Button>
-            </XStack>
+                  </Text>
+                </Button>
+              </XStack>
+              <Button 
+                alignSelf="center"
+                backgroundColor={colors.gray[100]}
+                paddingHorizontal="$6"
+                paddingVertical="$3"
+                onPress={handleFinish}
+                hoverStyle={{ backgroundColor: colors.gray[200] }}
+                pressStyle={{ backgroundColor: colors.gray[200] }}
+                borderRadius="$4"
+                borderWidth={1}
+                borderColor={colors.gray[300]}
+              >
+                <Text color={colors.gray[600]} fontSize="$3" fontWeight="500">{t('profileWizard.intro.skip')}</Text>
+              </Button>
+            </YStack>
         </YStack>
       </YStack>
     </ScrollView>

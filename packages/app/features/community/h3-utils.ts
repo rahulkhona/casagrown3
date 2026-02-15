@@ -9,12 +9,14 @@
 let cellToBoundary: (h3Index: string) => number[][];
 let cellToLatLng: (h3Index: string) => [number, number];
 let gridDisk: (h3Index: string, k: number) => string[];
+let isValidCell: (h3Index: string) => boolean;
 
 try {
     const h3 = require("h3-js");
     cellToBoundary = h3.cellToBoundary;
     cellToLatLng = h3.cellToLatLng;
     gridDisk = h3.gridDisk;
+    isValidCell = h3.isValidCell;
 } catch {
     // h3-js WASM fails on Hermes (utf-16le unsupported) — provide stubs
     console.warn(
@@ -23,6 +25,7 @@ try {
     cellToBoundary = () => [];
     cellToLatLng = () => [0, 0];
     gridDisk = (index) => [index];
+    isValidCell = () => true; // assume valid on native (server provides data)
 }
 
 /** Polygon coordinates for a single H3 hex, in [lat, lng] format */
@@ -222,6 +225,12 @@ export function buildHexRegionsFromIndex(
     h3Index: string,
     primaryName: string,
 ): HexRegion[] {
+    if (!isValidCell(h3Index)) {
+        console.warn(
+            `[h3-utils] Invalid H3 index in buildHexRegionsFromIndex: ${h3Index}`,
+        );
+        return [];
+    }
     const allCells = gridDisk(h3Index, 1);
     const regions: HexRegion[] = [];
 
@@ -254,6 +263,21 @@ export function buildResolveResponseFromIndex(
     overrideLat?: number,
     overrideLng?: number,
 ) {
+    if (!isValidCell(h3Index)) {
+        console.warn(
+            `[h3-utils] Invalid H3 index in buildResolveResponseFromIndex: ${h3Index}`,
+        );
+        return {
+            primary: {
+                h3_index: h3Index,
+                name: communityName,
+                city: communityCity,
+                location: `POINT(${overrideLng ?? 0} ${overrideLat ?? 0})`,
+            },
+            neighbors: [],
+            resolved_location: { lat: overrideLat ?? 0, lng: overrideLng ?? 0 },
+        };
+    }
     const h3Center = getHexCenter(h3Index);
     // Use override coordinates if provided (needed on native where h3-js stubs return 0,0)
     const center = (overrideLat != null && overrideLng != null)

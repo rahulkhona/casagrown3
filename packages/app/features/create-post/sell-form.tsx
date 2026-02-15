@@ -190,7 +190,7 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
               setProductName(parsed.sell_details.produce_name || '')
               setUnit(parsed.sell_details.unit || 'piece')
               setQuantity(String(parsed.sell_details.total_quantity_available || ''))
-              setPrice(String(parsed.sell_details.price_per_unit || ''))
+              setPrice(String(parsed.sell_details.points_per_unit || ''))
             }
             // Copy delivery dates
             if (Array.isArray(parsed.delivery_dates) && parsed.delivery_dates.length > 0) {
@@ -222,7 +222,7 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
           setProductName(post.sell_details.produce_name || '')
           setUnit(post.sell_details.unit || 'piece')
           setQuantity(String(post.sell_details.total_quantity_available || ''))
-          setPrice(String(post.sell_details.price_per_unit || ''))
+          setPrice(String(post.sell_details.points_per_unit || ''))
         }
         // Pre-fill delivery dates
         if (Array.isArray(post.delivery_dates) && post.delivery_dates.length > 0) {
@@ -309,10 +309,9 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
         }
         setCommunityMapData(mapData as unknown as ResolveResponse)
       } else {
-        // No community means stale session — sign out and redirect
-        await signOut()
-        if (typeof window !== 'undefined') { window.location.href = '/' } else { onBack() }
-        return
+        // No community found — show error instead of signing out
+        console.warn('[SELL FORM] No community found for user')
+        setFormError(t('createPost.error.noCommunity', { defaultValue: 'Could not load your community. Please try again.' }))
       }
       setLoadingCommunity(false)
 
@@ -329,9 +328,8 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
       setPlatformFeePercent(fee)
     } catch (err) {
       console.error('Error loading community/categories:', err)
-      // Network/auth error — sign out and redirect
-      await signOut()
-      if (typeof window !== 'undefined') { window.location.href = '/' } else { onBack() }
+      // Show error instead of signing out
+      setFormError(t('createPost.error.loadFailed', { defaultValue: 'Failed to load data. Please try again.' }))
     } finally {
       setLoadingCommunity(false)
       setLoadingCategories(false)
@@ -484,9 +482,8 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
 
   // ── Date Management ─────────────────────────────────────────
   function addDate() {
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    setDropoffDates([...dropoffDates, tomorrow.toISOString().split('T')[0]!])
+    // Add an empty slot — user will pick via calendar (native) or date input (web)
+    setDropoffDates([...dropoffDates, ''])
   }
 
   function removeDate(index: number) {
@@ -506,7 +503,8 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
       setFormError(t('createPost.validation.requiredFields'))
       return
     }
-    if (dropoffDates.length === 0) {
+    const validDates = dropoffDates.filter(d => d.trim() !== '')
+    if (validDates.length === 0) {
       setFormError(t('createPost.validation.dropoffRequired'))
       return
     }
@@ -524,8 +522,8 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
         produceName: productName,
         unit,
         quantity: parseFloat(quantity) || 1,
-        pricePerUnit: parseFloat(price) || 0,
-        dropoffDates,
+        pointsPerUnit: parseFloat(price) || 0,
+        dropoffDates: validDates,
         mediaAssets: mediaAssets.length > 0 ? mediaAssets.map(a => ({ uri: a.uri, type: a.type ?? undefined })) : undefined,
       }
       if (editId) {

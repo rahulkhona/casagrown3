@@ -169,7 +169,7 @@ function PostCard({
             {post.sell_details.produce_name} · {post.sell_details.category}
           </Text>
           <Text fontSize={12} fontWeight="600" color={colors.green[600]}>
-            ${Number(post.sell_details.price_per_unit).toFixed(2)}/{post.sell_details.unit}
+            ${Number(post.sell_details.points_per_unit).toFixed(2)}/{post.sell_details.unit}
           </Text>
         </XStack>
       )}

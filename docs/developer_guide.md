@@ -213,6 +213,63 @@ The presence system uses a **hybrid approach** for reliability:
 
 ---
 
+## 5.5 Payment Architecture
+
+The payment system uses a **provider pattern** to swap between a mock provider
+(development) and Stripe (production) via a single environment variable.
+
+### Key Files
+
+| File                      | Purpose                                                                |
+| :------------------------ | :--------------------------------------------------------------------- |
+| `paymentService.ts`       | Provider interface + factory (`createPaymentService`)                  |
+| `mockPaymentService.ts`   | Mock provider: same server-side flow as Stripe, no real card charges   |
+| `stripePaymentService.ts` | Stripe provider: creates real PaymentIntents (card UI needs finishing) |
+| `usePaymentService.ts`    | React hook wrapping the active provider                                |
+| `usePointsBalance.ts`     | Fetches user's current balance from `point_ledger`                     |
+| `usePendingPayments.ts`   | Resolves stuck payments on app open                                    |
+| `BuyPointsSheet.tsx`      | UI: point packages, card inputs, payment flow                          |
+| `OrderSheet.tsx`          | UI: order form with inline Buy Points                                  |
+
+### Provider Switching
+
+```bash
+# Development (default)
+NEXT_PUBLIC_PAYMENT_MODE=mock       # or EXPO_PUBLIC_PAYMENT_MODE=mock
+
+# Production
+NEXT_PUBLIC_PAYMENT_MODE=stripe     # or EXPO_PUBLIC_PAYMENT_MODE=stripe
+NEXT_PUBLIC_STRIPE_KEY=pk_live_xxx  # or EXPO_PUBLIC_STRIPE_KEY=pk_live_xxx
+```
+
+### Edge Functions (Payment)
+
+| Function                   | Purpose                                             |
+| :------------------------- | :-------------------------------------------------- |
+| `create-payment-intent`    | Creates `payment_transactions` row + Stripe PI      |
+| `confirm-payment`          | Idempotent point crediting (single source of truth) |
+| `stripe-webhook`           | Handles Stripe webhook events (signature verified)  |
+| `resolve-pending-payments` | Recovers stuck payments on app open                 |
+| `create-order`             | Atomic order: conversation + offer + order + ledger |
+
+```bash
+# Deploy all payment edge functions
+supabase functions deploy create-payment-intent
+supabase functions deploy confirm-payment
+supabase functions deploy stripe-webhook
+supabase functions deploy resolve-pending-payments
+supabase functions deploy create-order
+```
+
+### Stripe Secrets (Edge Functions)
+
+```bash
+supabase secrets set STRIPE_SECRET_KEY=sk_live_xxx
+supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_xxx
+```
+
+---
+
 ## 6. Testing
 
 ### Running Tests

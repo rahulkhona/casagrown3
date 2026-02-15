@@ -29,7 +29,7 @@ async function fetchPost(postId: string, userId?: string): Promise<FeedPost | nu
       id, author_id, type, reach, content, created_at, community_h3_index,
       author:profiles!posts_author_id_fkey ( full_name, avatar_url ),
       community:communities!posts_community_h3_index_fkey ( name ),
-      want_to_sell_details ( category, produce_name, unit, total_quantity_available, price_per_unit ),
+      want_to_sell_details ( category, produce_name, unit, total_quantity_available, points_per_unit ),
       want_to_buy_details ( category, produce_names, need_by_date ),
       post_media ( media_id, position, media_asset:media_assets!post_media_media_id_fkey ( storage_path, media_type ) ),
       post_likes ( user_id ),
@@ -220,7 +220,7 @@ export default function PostScreen() {
                 <YStack>
                   <Text fontSize={12} color={colors.gray[500]}>Price</Text>
                   <Text fontSize={18} fontWeight="700" color={colors.green[600]}>
-                    ${post.sell_details.price_per_unit}/{post.sell_details.unit}
+                    ${post.sell_details.points_per_unit}/{post.sell_details.unit}
                   </Text>
                 </YStack>
               </XStack>

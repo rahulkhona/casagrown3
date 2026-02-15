@@ -123,7 +123,7 @@ const baseSellData: SellPostData = {
     produceName: "Tomatoes",
     unit: "lbs",
     quantity: 10,
-    pricePerUnit: 3.5,
+    pointsPerUnit: 3.5,
     dropoffDates: ["2026-02-15", "2026-02-16"],
 };
 

@@ -241,7 +241,37 @@ export function useAuth() {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: "local" });
+    // Explicitly clear persisted auth tokens to prevent stale session issues
+    try {
+      if (Platform.OS === "web") {
+        // Clear all Supabase auth keys from localStorage
+        if (typeof window !== "undefined" && window.localStorage) {
+          const keysToRemove = Object.keys(window.localStorage).filter(
+            (k) => k.startsWith("sb-") || k.startsWith("supabase."),
+          );
+          keysToRemove.forEach((k) => window.localStorage.removeItem(k));
+        }
+      } else {
+        // Native: clear from SecureStore (Supabase stores session under this key)
+        const SecureStore = require("expo-secure-store");
+        // Default Supabase storage key pattern
+        await SecureStore.deleteItemAsync("supabase.auth.token").catch(
+          () => {},
+        );
+        // Also try the project-specific key format
+        const projectRef = supabaseUrl.match(/\/\/([^.]+)/)?.[1] || "";
+        if (projectRef) {
+          await SecureStore.deleteItemAsync(
+            `sb-${projectRef}-auth-token`,
+          ).catch(() => {});
+        }
+      }
+    } catch (e) {
+      console.warn("Could not clear auth storage:", e);
+    }
+    // Force state to logged out
+    setState({ session: null, user: null, loading: false });
   };
 
   return {

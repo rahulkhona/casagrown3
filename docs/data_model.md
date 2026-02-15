@@ -22,7 +22,10 @@ and any associated triggers/functions/RLS policies.
 > `20260210070000_enrich_communities_cron` → `20260210080000_produce_interests`
 > → `20260211000000_post_type_policies` → `20260211100000_posts_on_behalf_of` →
 > `20260212000000_public_post_anon_rls` → `20260213000000_chat_delivery_status`
-> → `20260213010000_chat_realtime`
+> → `20260213010000_chat_realtime` → `20260214000000_payment_transactions` →
+> `20260214100000_signup_baseline_ledger` →
+> `20260214200000_points_per_unit_rename` →
+> `20260215090000_order_status_pending` → `20260215100000_balance_after_trigger`
 
 ## Extensions
 
@@ -49,7 +52,9 @@ create type incentive_action as enum (
 create type incentive_scope as enum ('global', 'country', 'state', 'city', 'zip', 'community');
 
 create type point_transaction_type as enum (
-  'purchase', 'transfer', 'payment', 'platform_charge', 'redemption', 'reward'
+  'purchase', 'transfer', 'payment', 'platform_charge', 'redemption', 'reward',
+  'escrow',   -- buyer's points held until seller accepts an order
+  'refund'    -- points returned to buyer if order is cancelled
 );
 
 create type post_type as enum (
@@ -67,7 +72,7 @@ create type sales_category as enum (
 create type unit_of_measure as enum ('piece', 'dozen', 'box', 'bag');
 create type media_asset_type as enum ('video', 'image');
 create type offer_status as enum ('pending', 'accepted', 'rejected');
-create type order_status as enum ('accepted', 'disputed');
+create type order_status as enum ('pending', 'accepted', 'delivered', 'disputed', 'cancelled');
 create type rating_score as enum ('1', '2', '3', '4', '5');
 create type chat_message_type as enum ('text', 'media', 'mixed', 'system');
 create type escalation_status as enum ('open', 'resolved');
@@ -409,19 +414,24 @@ create table incentive_rules (
 
 Tracks all point transactions — complete audit trail.
 
-| Column          | Type                     | Description                                    |
-| :-------------- | :----------------------- | :--------------------------------------------- |
-| `id`            | `uuid`                   | Primary Key.                                   |
-| `user_id`       | `uuid`                   | FK to `profiles(id)` on delete cascade.        |
-| `type`          | `point_transaction_type` | Transaction type.                              |
-| `amount`        | `integer`                | Points (positive = earned, negative = spent).  |
-| `balance_after` | `integer`                | Balance after transaction.                     |
-| `reference_id`  | `uuid`                   | Optional linked entity.                        |
-| `metadata`      | `jsonb`                  | (e.g., `{"action_type": "join_a_community"}`). |
-| `created_at`    | `timestamptz`            | Default `now()`.                               |
+| Column          | Type                     | Description                                        |
+| :-------------- | :----------------------- | :------------------------------------------------- |
+| `id`            | `uuid`                   | Primary Key.                                       |
+| `user_id`       | `uuid`                   | FK to `profiles(id)` on delete cascade.            |
+| `type`          | `point_transaction_type` | Transaction type.                                  |
+| `amount`        | `integer`                | Points (positive = earned, negative = spent).      |
+| `balance_after` | `integer`                | Running balance — **auto-computed by DB trigger**. |
+| `reference_id`  | `uuid`                   | Optional linked entity.                            |
+| `metadata`      | `jsonb`                  | (e.g., `{"action_type": "join_a_community"}`).     |
+| `created_at`    | `timestamptz`            | Default `now()`.                                   |
 
 **Idempotency**: Reward grants check for existing entries with matching
 `action_type` in metadata.
+
+**Trigger: `trg_compute_balance_after`** (`BEFORE INSERT`): Auto-computes
+`balance_after` as `SUM(existing amounts) + new amount`. Uses
+`pg_advisory_xact_lock` per user to prevent race conditions. Callers pass any
+value for `balance_after` (conventionally `0`) — the trigger overrides it.
 
 ```sql
 create table point_ledger (
@@ -581,7 +591,7 @@ create table post_media (
 | `produce_name`             | `text`            | Name of the produce.                             |
 | `unit`                     | `unit_of_measure` | Unit of measure.                                 |
 | `total_quantity_available` | `numeric`         | Quantity available.                              |
-| `price_per_unit`           | `numeric(10,2)`   | Price per unit.                                  |
+| `points_per_unit`          | `integer`         | Points per unit.                                 |
 | `delegator_id`             | `uuid`            | FK to `profiles(id)`. Optional delegator.        |
 | `need_by_date`             | `date`            | Latest drop-off date. Added by `20260210060000`. |
 | `created_at`               | `timestamptz`     | Default `now()`.                                 |
@@ -595,7 +605,7 @@ create table want_to_sell_details (
   produce_name text not null,
   unit unit_of_measure not null,
   total_quantity_available numeric not null,
-  price_per_unit numeric(10,2) not null,
+  points_per_unit integer not null,
   delegator_id uuid references profiles(id),
   need_by_date date,                               -- 20260210060000
   created_at timestamptz default now(),
@@ -863,7 +873,7 @@ create table offers (
   conversation_id uuid not null references conversations(id) on delete cascade,
   created_by uuid not null references profiles(id),
   quantity numeric not null,
-  price_per_unit numeric(10,2) not null,
+  points_per_unit integer not null,
   status offer_status not null default 'pending',
   created_at timestamptz default now()
 );
@@ -889,13 +899,13 @@ create table orders (
   category sales_category not null,
   product text not null,
   quantity numeric not null,
-  price_per_unit numeric(10,2) not null,
+  points_per_unit integer not null,
   delivery_date date,
   delivery_time time,
   delivery_instructions text,
   delivery_proof_media_id uuid references media_assets(id),
   conversation_id uuid not null references conversations(id),
-  status order_status not null default 'accepted',
+  status order_status not null default 'pending',
   buyer_rating rating_score,
   buyer_feedback text,
   seller_rating rating_score,
@@ -1446,7 +1456,19 @@ begin
     new.raw_user_meta_data->>'avatar_url'
   );
 
-  -- 2. Check for Active Signup Reward (Global Scope)
+  -- 2. Create baseline point_ledger entry (0 points)
+  insert into public.point_ledger (
+    user_id, type, amount, balance_after, metadata
+  )
+  values (
+    new.id,
+    'reward',
+    0,
+    0,
+    jsonb_build_object('reason', 'Account Created')
+  );
+
+  -- 3. Check for Active Signup Reward (Global Scope)
   select points into signup_reward_points
   from incentive_rules
   where action_type = 'signup'
@@ -1454,7 +1476,7 @@ begin
     and (end_date is null or end_date > now())
   limit 1;
 
-  -- 3. Award Points if Rule Exists
+  -- 4. Award Points if Rule Exists
   if signup_reward_points is not null and signup_reward_points > 0 then
     insert into public.point_ledger (
       user_id, type, amount, balance_after, metadata
@@ -1753,3 +1775,141 @@ processing the same community.
 > [!IMPORTANT]
 > Edge functions require `supabase functions serve` to be running locally.
 > Without it, requests return **503 Service Temporarily Unavailable**.
+
+---
+
+## Payment System
+
+### `payment_transactions`
+
+Tracks payment intents for point purchases. Links Stripe PaymentIntents to
+`point_ledger` entries, ensuring idempotent point crediting.
+
+**Migration**: `20260214000000_payment_transactions.sql`
+
+| Column                     | Type          | Description                                            |
+| :------------------------- | :------------ | :----------------------------------------------------- |
+| `id`                       | `uuid`        | Primary Key.                                           |
+| `user_id`                  | `uuid`        | FK to `profiles(id)`.                                  |
+| `stripe_payment_intent_id` | `text`        | Stripe PI ID (or `mock_*` for mock provider).          |
+| `amount_cents`             | `integer`     | Total charge in cents.                                 |
+| `service_fee_cents`        | `integer`     | Service fee portion in cents. Default: `0`.            |
+| `points_amount`            | `integer`     | Number of points to credit.                            |
+| `status`                   | `text`        | `pending`, `succeeded`, or `failed`.                   |
+| `provider`                 | `text`        | `mock` or `stripe`.                                    |
+| `point_ledger_id`          | `uuid`        | FK to `point_ledger(id)`. Set on confirmation.         |
+| `metadata`                 | `jsonb`       | Additional data (card info for mock, Stripe metadata). |
+| `webhook_received_at`      | `timestamptz` | When webhook/confirmation was processed.               |
+| `created_at`               | `timestamptz` | Default `now()`.                                       |
+| `updated_at`               | `timestamptz` | Default `now()`.                                       |
+
+```sql
+create table payment_transactions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  stripe_payment_intent_id text,
+  amount_cents integer not null,
+  service_fee_cents integer not null default 0,
+  points_amount integer not null,
+  status text not null default 'pending' check (status in ('pending','succeeded','failed')),
+  provider text not null default 'mock' check (provider in ('mock','stripe')),
+  point_ledger_id uuid references point_ledger(id),
+  metadata jsonb default '{}',
+  webhook_received_at timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+```
+
+**RLS Policies** (`20260214000000_payment_transactions`):
+
+| Policy                                  | Operation | Rule                                    |
+| :-------------------------------------- | :-------- | :-------------------------------------- |
+| Users can read own payment transactions | `SELECT`  | `using (auth.uid() = user_id)`          |
+| Service role can manage all             | ALL       | Service role bypasses RLS in edge funcs |
+
+**Indexes**: `idx_payment_transactions_user_id`,
+`idx_payment_transactions_status`
+
+---
+
+### Payment Edge Functions
+
+#### `create-payment-intent`
+
+Creates a payment transaction and (for Stripe mode) a Stripe PaymentIntent.
+
+**Endpoint**: `POST /functions/v1/create-payment-intent`
+
+**Input**:
+`{ "amountCents": 1000, "pointsAmount": 100, "serviceFeeCents": 30, "provider": "mock"|"stripe" }`
+
+**Logic**:
+
+1. Authenticate user via JWT
+2. Insert `payment_transactions` row (status: `pending`)
+3. If `provider === 'stripe'`: create Stripe PaymentIntent via API
+4. Return `{ clientSecret, transactionId }`
+
+#### `confirm-payment`
+
+**Single source of truth** for crediting points after payment. Idempotent.
+
+**Endpoint**: `POST /functions/v1/confirm-payment`
+
+**Input**: `{ "paymentTransactionId": "uuid" }`
+
+**Logic**:
+
+1. Fetch transaction — skip if already `succeeded`
+1. Fetch transaction — skip if already `succeeded`
+1. Insert `point_ledger` entry (type: `purchase`, amount: +points) —
+   `balance_after` auto-computed by trigger
+1. Update `payment_transactions` (status: `succeeded`, set `point_ledger_id`)
+1. Return `{ success: true, newBalance, pointsAmount }`
+
+#### `stripe-webhook`
+
+Handles Stripe webhook events for server-side payment confirmation.
+
+**Endpoint**: `POST /functions/v1/stripe-webhook`
+
+**Events handled**: `payment_intent.succeeded`, `payment_intent.payment_failed`
+
+**Security**: Verifies Stripe signature using HMAC-SHA256 (Web Crypto API).
+Calls `confirm-payment` for succeeded events, marks transaction as `failed` for
+failed events.
+
+#### `resolve-pending-payments`
+
+Recovers stuck payments on app open (handles app-kill and webhook delay).
+
+**Endpoint**: `POST /functions/v1/resolve-pending-payments`
+
+**Logic**:
+
+1. Fetch all `pending` transactions for authenticated user
+2. Mark stale transactions (>24h) as `failed`
+3. Mock transactions: auto-confirm via `confirm-payment`
+4. Stripe transactions: check Stripe API status, confirm if `succeeded`
+5. Return `{ resolved: [...], pending: [...] }`
+
+#### `create-order`
+
+Atomically creates a "buy now" order from the feed.
+
+**Endpoint**: `POST /functions/v1/create-order`
+
+**Input**:
+`{ "postId", "sellerId", "quantity", "pricePerUnit", "totalPrice", "category", "product", "deliveryDate", "deliveryInstructions", "deliveryAddress" }`
+
+**Logic**:
+
+1. Verify buyer has sufficient balance
+2. Create/reuse `conversations` row (buyer + seller + post)
+3. Create auto-accepted `offers` row
+4. Create `orders` row
+5. Debit buyer: insert `point_ledger` (type: `payment`, amount: -totalPrice)
+6. Credit seller: insert `point_ledger` (type: `payment`, amount: +totalPrice)
+7. Insert system `chat_messages` ("Order placed: ...")
+8. Return `{ orderId, conversationId, newBalance }`

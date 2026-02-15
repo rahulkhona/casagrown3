@@ -77,7 +77,7 @@ const makeSellPost = (overrides?: Partial<FeedPost>): FeedPost => ({
     produce_name: 'Tomatoes',
     unit: 'box',
     total_quantity_available: 10,
-    price_per_unit: 5,
+    points_per_unit: 5,
   },
   buy_details: null,
   media: [],

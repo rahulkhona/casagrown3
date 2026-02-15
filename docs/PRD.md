@@ -498,32 +498,37 @@ casagrown3/
 
 ### 4.2 Backend (Supabase)
 
-| Service            | Usage                                                |
-| :----------------- | :--------------------------------------------------- |
-| **Postgres**       | Primary database with 30+ tables, RLS, triggers      |
-| **Auth**           | Email/password authentication                        |
-| **Storage**        | Media files (images, videos, avatars)                |
-| **Realtime**       | Live chat messages, delivery receipts, presence      |
-| **Edge Functions** | Community resolution, delegation pairing, enrichment |
-| **PostGIS**        | Spatial queries for community proximity              |
-| **pg_cron**        | Scheduled community enrichment jobs                  |
+| Service            | Usage                                               |
+| :----------------- | :-------------------------------------------------- |
+| **Postgres**       | Primary database with 30+ tables, RLS, triggers     |
+| **Auth**           | Email/password authentication                       |
+| **Storage**        | Media files (images, videos, avatars)               |
+| **Realtime**       | Live chat messages, delivery receipts, presence     |
+| **Edge Functions** | Community, delegation, payments, orders, enrichment |
+| **PostGIS**        | Spatial queries for community proximity             |
+| **pg_cron**        | Scheduled community enrichment jobs                 |
 
 ### 4.3 Edge Functions
 
-| Function             | Purpose                                    |
-| :------------------- | :----------------------------------------- |
-| `resolve-community`  | Resolve H3 index from coordinates/zip code |
-| `enrich-communities` | Auto-name communities from OSM data        |
-| `pair-delegation`    | Match delegates with delegators via code   |
-| `assign-experiment`  | A/B test experiment assignment             |
-| `sync-locations`     | Synchronize location data                  |
-| `update-zip-codes`   | Refresh zip code reference data            |
+| Function                   | Purpose                                             |
+| :------------------------- | :-------------------------------------------------- |
+| `resolve-community`        | Resolve H3 index from coordinates/zip code          |
+| `enrich-communities`       | Auto-name communities from OSM data                 |
+| `pair-delegation`          | Match delegates with delegators via code            |
+| `assign-experiment`        | A/B test experiment assignment                      |
+| `sync-locations`           | Synchronize location data                           |
+| `update-zip-codes`         | Refresh zip code reference data                     |
+| `create-payment-intent`    | Create payment transaction + Stripe PaymentIntent   |
+| `confirm-payment`          | Idempotent point crediting (single source of truth) |
+| `stripe-webhook`           | Handle Stripe webhook events (signature verified)   |
+| `resolve-pending-payments` | Recover stuck payments on app open                  |
+| `create-order`             | Atomic order creation with point debit/credit       |
 
 ### 4.4 Database Migrations
 
-27 sequential migrations covering: schema, RLS policies, triggers, indexes,
-enums, and realtime configuration. Full migration list documented in
-`data_model.md`.
+28 sequential migrations covering: schema, RLS policies, triggers, indexes,
+enums, realtime configuration, and payment transactions. Full migration list
+documented in `data_model.md`.
 
 ### 4.5 Row-Level Security (RLS)
 
@@ -720,8 +725,9 @@ Three item types:
 ### 7.5 Buy Points
 
 **Figma**: `BuyPoints.tsx` (548 lines), `BuyPointsModal.tsx` (392 lines)\
-**Status**: ❌ Not implemented\
-**DB**: Point ledger supports `purchase` type
+**Status**: ✅ Partially implemented (mock provider complete, Stripe UI
+pending)\
+**DB**: `point_ledger` + `payment_transactions` tables
 
 #### 7.5.1 Point Packages
 
@@ -739,11 +745,25 @@ Custom amount option also available.
 - **Credit/Debit Card**: 3% processing fee
 - **ACH/Bank Transfer**: $1.00 flat fee
 
-#### 7.5.3 Checkout
+#### 7.5.3 Payment Architecture (Implemented)
 
-- Cost breakdown: base price + processing fee = total
-- Card/bank entry form
-- Purchase confirmation with updated balance
+- **Provider pattern**: Swappable mock/Stripe via `PAYMENT_MODE` env var
+- **Server-side confirmation**: All point crediting happens via
+  `confirm-payment` edge function (single source of truth)
+- **Payment transactions**: Tracked in `payment_transactions` table with
+  idempotent confirmation
+- **Pending recovery**: `resolve-pending-payments` edge function +
+  `usePendingPayments` hook recover stuck transactions on app open
+- **Webhook-based**: Stripe webhooks trigger `confirm-payment` for reliable
+  server-side processing even if app closes during payment
+
+#### 7.5.4 Remaining Work for Production
+
+- Replace mock `TextInput` card fields with Stripe Elements
+  (`@stripe/react-stripe-js` web, `@stripe/stripe-react-native` native)
+- Finish `stripePaymentService.ts` `confirmPayment()` (~15 lines)
+- Configure Stripe Dashboard webhook endpoint
+- Set production env vars (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`)
 
 ---
 

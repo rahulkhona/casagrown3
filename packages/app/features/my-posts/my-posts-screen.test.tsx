@@ -112,7 +112,7 @@ const mockPosts = [
       produce_name: 'Tomatoes',
       unit: 'lbs',
       total_quantity_available: 10,
-      price_per_unit: 3.5,
+      points_per_unit: 3.5,
     },
     buy_details: null,
     media: [],

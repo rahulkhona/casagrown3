@@ -18,10 +18,14 @@ import { Search, Bell, UserPlus, Home, Plus, Filter, Leaf, Menu, X } from '@tama
 import { Platform, Image, TouchableOpacity, Alert, TextInput } from 'react-native'
 import { InviteModal } from './InviteModal'
 import { FeedPostCard } from './FeedPostCard'
+import { OrderSheet } from './OrderSheet'
+import type { OrderFormData } from './OrderSheet'
 import { getCommunityFeedPosts, togglePostLike, flagPost } from './feed-service'
 import type { FeedPost } from './feed-service'
 import { getCachedFeed, setCachedFeed } from './feed-cache'
 import { getUnreadChatCount } from '../chat/chat-service'
+import { usePointsBalance } from '../../hooks/usePointsBalance'
+import { supabase } from '../auth/auth-hook'
 
 // Types for invite rewards
 interface InviteRewards {
@@ -105,8 +109,11 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
   const [flagReason, setFlagReason] = useState('')
   const [flagSubmitting, setFlagSubmitting] = useState(false)
 
-  // User data
-  const userPoints = 0
+  // Order modal state
+  const [orderPost, setOrderPost] = useState<FeedPost | null>(null)
+
+  // User data — load real balance from point_ledger
+  const { balance: userPoints, refetch: refetchBalance } = usePointsBalance(userId)
   const unreadNotificationsCount = 0
   const userInitial = userDisplayName ? userDisplayName.charAt(0).toUpperCase() : 'A'
 
@@ -255,6 +262,46 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
     setFlagReason('')
     setFlagModalVisible(true)
   }, [])
+
+  const handleOpenOrder = useCallback((postId: string) => {
+    const post = filteredPosts.find(p => p.id === postId)
+    if (post) setOrderPost(post)
+  }, [filteredPosts])
+
+  const handleOrderSubmit = useCallback(async (data: OrderFormData) => {
+    if (!userId || !orderPost) return
+
+    try {
+      const { data: result, error } = await supabase.functions.invoke('create-order', {
+        body: {
+          postId: orderPost.id,
+          sellerId: orderPost.author_id,
+          quantity: data.quantity,
+          pointsPerUnit: orderPost.sell_details?.points_per_unit ?? 0,
+          totalPrice: data.totalPrice,
+          category: orderPost.sell_details?.category ?? 'fruits',
+          product: orderPost.sell_details?.produce_name ?? orderPost.content?.slice(0, 50) ?? 'Item',
+          deliveryDate: data.latestDate,
+          deliveryInstructions: data.instructions,
+          deliveryAddress: data.address,
+        },
+      })
+
+      if (error) {
+        Alert.alert('Order Failed', error.message || 'Failed to place order')
+        return
+      }
+
+      // Refresh balance after successful order
+      await refetchBalance()
+      setOrderPost(null)
+      Alert.alert('Order Placed', `Your order has been placed! New balance: ${result?.newBalance ?? userPoints} points`)
+    } catch (err) {
+      Alert.alert('Error', 'An unexpected error occurred while placing your order')
+      console.error('Order submission error:', err)
+    }
+  }, [userId, orderPost, refetchBalance, userPoints])
+
 
   const handleSubmitFlag = useCallback(async () => {
     if (!flagPostId || !userId || !flagReason.trim()) return
@@ -590,7 +637,6 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
           >
             {/* Search Input */}
             <XStack 
-              flex={1}
               backgroundColor="white"
               borderRadius="$3"
               paddingHorizontal="$3"
@@ -601,17 +647,22 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
             >
               <Search size={18} color={colors.gray[400]} />
               {Platform.OS === 'web' ? (
-                <Input
-                  flex={1}
+                <input
+                  type="text"
                   placeholder={t('feed.searchPlaceholder')}
-                  placeholderTextColor={colors.gray[400] as any}
-                  backgroundColor="transparent"
-                  borderWidth={0}
-                  fontSize={14}
-                  paddingVertical="$2"
                   value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  fontWeight="400"
+                  onChange={(e: any) => setSearchQuery(e.target.value)}
+                  style={{
+                    flex: 1,
+                    border: 'none',
+                    outline: 'none',
+                    backgroundColor: 'transparent',
+                    fontSize: 14,
+                    fontWeight: '400',
+                    padding: '8px 0',
+                    color: colors.gray[900],
+                    fontFamily: 'inherit',
+                  }}
                 />
               ) : (
                 <TextInput
@@ -621,8 +672,9 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
                     fontSize: 14,
                     paddingVertical: 8,
                     fontWeight: 'normal',
-                    fontFamily: Platform.OS === 'ios' ? 'Inter-Regular' : 'Inter',
+                    fontFamily: Platform.OS === 'ios' ? 'System' : undefined,
                     color: colors.gray[900],
+                    letterSpacing: 0,
                   }}
                   placeholder={t('feed.searchPlaceholder')}
                   placeholderTextColor={colors.gray[400]}
@@ -754,6 +806,7 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
                   currentUserId={userId || ''}
                   currentUserName={userDisplayName}
                   onLikeToggle={handleLikeToggle}
+                  onOrder={handleOpenOrder}
                   onChat={onNavigateToChat}
                   onFlag={handleOpenFlag}
                   t={t}
@@ -1040,6 +1093,17 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
           </YStack>
         </YStack>
       )}
+
+      {/* ─── Order Modal ─── */}
+      <OrderSheet
+        visible={orderPost !== null}
+        post={orderPost}
+        userPoints={userPoints}
+        onClose={() => setOrderPost(null)}
+        onSubmit={handleOrderSubmit}
+        onBalanceChanged={refetchBalance}
+        t={t}
+      />
     </YStack>
   )
 }

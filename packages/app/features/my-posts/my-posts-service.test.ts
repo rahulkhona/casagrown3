@@ -55,7 +55,7 @@ const mockPostRow = {
         produce_name: "Tomatoes",
         unit: "lbs",
         total_quantity_available: 10,
-        price_per_unit: 3.5,
+        points_per_unit: 3.5,
     }],
     want_to_buy_details: [],
     post_media: [{
@@ -123,7 +123,7 @@ describe("my-posts-service", () => {
             expect(posts[0].community_name).toBe("Oak Street");
             expect(posts[0].sell_details).toBeTruthy();
             expect(posts[0].sell_details!.produce_name).toBe("Tomatoes");
-            expect(posts[0].sell_details!.price_per_unit).toBe(3.5);
+            expect(posts[0].sell_details!.points_per_unit).toBe(3.5);
             expect(posts[0].media).toHaveLength(1);
             expect(posts[0].media[0].storage_path).toBe("user-123/photo.jpg");
 
@@ -542,7 +542,7 @@ describe("my-posts-service", () => {
                                     produce_name: "Tomatoes",
                                     unit: "lbs",
                                     total_quantity_available: 10,
-                                    price_per_unit: 3.5,
+                                    points_per_unit: 3.5,
                                 }],
                                 want_to_buy_details: [],
                             },
@@ -627,7 +627,7 @@ describe("my-posts-service", () => {
                                     produce_name: "Tomatoes",
                                     unit: "lbs",
                                     total_quantity_available: 5,
-                                    price_per_unit: 2.0,
+                                    points_per_unit: 2.0,
                                 }],
                                 want_to_buy_details: [],
                                 delivery_dates: [

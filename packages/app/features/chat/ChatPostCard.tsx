@@ -95,7 +95,7 @@ export function ChatPostCard({ post, t }: ChatPostCardProps) {
     parsedTitle ||
     parsedDescription.slice(0, 60)
 
-  const price = post.sell_details?.price_per_unit
+  const price = post.sell_details?.points_per_unit
   const unit = post.sell_details?.unit
   const quantity = post.sell_details?.total_quantity_available
 

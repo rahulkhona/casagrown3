@@ -1,5 +1,52 @@
 import React from 'react'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native'
+
+// Mock AsyncStorage (required by supabase.ts)
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  default: {
+    getItem: jest.fn(),
+    setItem: jest.fn(),
+    removeItem: jest.fn(),
+    clear: jest.fn(),
+  },
+}))
+
+// Mock expo-secure-store (required by auth-hook.ts → auth-storage.ts)
+jest.mock('expo-secure-store', () => ({
+  getItemAsync: jest.fn(),
+  setItemAsync: jest.fn(),
+  deleteItemAsync: jest.fn(),
+}))
+
+const mockSupabase = {
+  from: jest.fn(() => ({
+    select: jest.fn().mockReturnThis(),
+    eq: jest.fn().mockReturnThis(),
+    order: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
+    maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+  })),
+  auth: {
+    getUser: jest.fn().mockResolvedValue({ data: { user: null }, error: null }),
+    getSession: jest.fn().mockResolvedValue({ data: { session: null }, error: null }),
+    onAuthStateChange: jest.fn(() => ({ data: { subscription: { unsubscribe: jest.fn() } } })),
+  },
+  functions: {
+    invoke: jest.fn().mockResolvedValue({ data: null, error: null }),
+  },
+}
+
+// Mock supabase (imported transitively by feed-screen → usePointsBalance)
+jest.mock('../../utils/supabase', () => ({
+  supabase: mockSupabase,
+}))
+
+// Mock auth-hook (imported directly by feed-screen for supabase client)
+jest.mock('../auth/auth-hook', () => ({
+  supabase: mockSupabase,
+  useAuth: () => ({ user: null, session: null, loading: false }),
+}))
+
 import { FeedScreen } from './feed-screen'
 
 // Mock feed service
@@ -25,6 +72,28 @@ jest.mock('./feed-cache', () => ({
   getCachedFeed: jest.fn().mockResolvedValue(null),
   setCachedFeed: jest.fn().mockResolvedValue(undefined),
   clearFeedCache: jest.fn().mockResolvedValue(undefined),
+}))
+
+// Mock expo-location (imported by OrderSheet)
+jest.mock('expo-location', () => ({
+  requestForegroundPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
+  getCurrentPositionAsync: jest.fn().mockResolvedValue({ coords: { latitude: 37.3, longitude: -121.9 } }),
+  reverseGeocodeAsync: jest.fn().mockResolvedValue([{ city: 'San Jose', region: 'CA', street: '123 Main St' }]),
+}))
+
+// Mock usePointsBalance hook (imported by feed-screen)
+jest.mock('../../hooks/usePointsBalance', () => ({
+  usePointsBalance: () => ({ balance: 50, loading: false, error: null, refetch: jest.fn() }),
+}))
+
+// Mock usePaymentService hook (imported by BuyPointsSheet via OrderSheet)
+jest.mock('../../hooks/usePaymentService', () => ({
+  usePaymentService: () => ({ createPaymentIntent: jest.fn(), confirmPayment: jest.fn() }),
+}))
+
+// Mock usePendingPayments hook
+jest.mock('../../hooks/usePendingPayments', () => ({
+  usePendingPayments: () => ({ pendingCount: 0, resolving: false }),
 }))
 
 // Mock FeedPostCard
@@ -198,7 +267,7 @@ describe('FeedScreen', () => {
 
   it('renders points display', () => {
     render(<FeedScreen />)
-    expect(screen.getByText('0')).toBeTruthy()
+    expect(screen.getByText('50')).toBeTruthy()
     expect(screen.getByText('feed.header.points')).toBeTruthy()
   })
 

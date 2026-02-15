@@ -51,7 +51,7 @@ export interface ConversationPost {
         produce_name: string;
         unit: string;
         total_quantity_available: number;
-        price_per_unit: number;
+        points_per_unit: number;
     } | null;
     buy_details: {
         category: string;
@@ -183,7 +183,7 @@ export async function getConversationWithDetails(
           produce_name,
           unit,
           total_quantity_available,
-          price_per_unit
+          points_per_unit
         ),
         want_to_buy_details (
           category,
