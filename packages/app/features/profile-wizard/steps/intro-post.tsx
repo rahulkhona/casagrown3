@@ -243,7 +243,7 @@ export const IntroPostStep = () => {
                         borderColor={colors.gray[300]}
                         focusStyle={{ borderColor: colors.green[500], borderWidth: 2 }}
                         size="$4"
-                        style={{ fontWeight: '400', textAlignVertical: 'top' } as any}
+                        style={{ fontWeight: '400', textAlignVertical: 'top' } as Record<string, string>}
                     />
                     <Text fontSize="$2" color={colors.gray[400]} textAlign="right">{intro.length}/500</Text>
                 </YStack>
@@ -320,7 +320,7 @@ export const IntroPostStep = () => {
                                   <video
                                     src={data.mediaUri}
                                     controls
-                                    style={{ width: '100%', height: '100%', objectFit: 'contain' } as any}
+                                    style={{ width: '100%', height: '100%', objectFit: 'contain' } as Record<string, string>}
                                   />
                                 ) : (
                                   <Image source={{ uri: data.mediaUri }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
@@ -389,10 +389,10 @@ export const IntroPostStep = () => {
                                 </Button>
                             </XStack>
                             <input
-                                ref={fileInputRef as any}
+                                ref={fileInputRef}
                                 type="file"
                                 accept="image/*,video/*"
-                                onChange={handleWebFileChange as any}
+                                onChange={handleWebFileChange}
                                 style={{ display: 'none' }}
                             />
                             {cameraMode && WebCameraModal && (

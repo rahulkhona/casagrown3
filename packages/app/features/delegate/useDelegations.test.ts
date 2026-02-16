@@ -19,7 +19,7 @@ const mockOrder = jest.fn();
 const mockUpdate = jest.fn();
 
 // Default successful query result
-const defaultQueryResult = { data: [], error: null };
+const defaultQueryResult = { data: [] as any[], error: null };
 
 // Chain builder — each method returns the chain object
 const buildChain = (result = defaultQueryResult) => {

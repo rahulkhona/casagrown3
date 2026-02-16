@@ -149,11 +149,11 @@ export function GeneralForm({ postType, onBack, onSuccess, editId, cloneData }: 
         )
         // Enhance with neighbor data
         if (communities.neighbors.length > 0) {
-          ;(mapData as any).neighbors = communities.neighbors.map((n) => ({
+          Object.assign(mapData, { neighbors: communities.neighbors.map((n) => ({
             h3_index: n.h3Index,
             name: n.name,
             status: 'active' as const,
-          }))
+          })) })
         }
         setCommunityMapData(mapData as unknown as ResolveResponse)
       } else {
@@ -390,7 +390,7 @@ export function GeneralForm({ postType, onBack, onSuccess, editId, cloneData }: 
             focusStyle={{ borderColor: colors.primary[500] }}
             backgroundColor="white"
             numberOfLines={5}
-            style={{ fontWeight: '400', textAlignVertical: 'top' } as any}
+            style={{ fontWeight: '400', textAlignVertical: 'top' } as Record<string, string>}
           />
         </YStack>
       </YStack>

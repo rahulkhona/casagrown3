@@ -12,7 +12,7 @@ import { ArrowLeft, MessageCircle, Wrench, HelpCircle } from '@tamagui/lucide-ic
 import { useTranslation } from 'react-i18next'
 import { getUserConversations, type ConversationSummary } from './chat-service'
 import { supabase } from '../../utils/supabase'
-import { colors } from '../../design-tokens'
+import { colors, tc } from '../../design-tokens'
 import { normalizeStorageUrl } from '../../utils/normalize-storage-url'
 
 // =============================================================================
@@ -108,7 +108,7 @@ function ConversationCard({
                         width={48}
                         height={48}
                         borderRadius={24}
-                        backgroundColor={badge.color as any}
+                        backgroundColor={tc(badge.color)}
                         alignItems="center"
                         justifyContent="center"
                         flexShrink={0}
@@ -151,8 +151,8 @@ function ConversationCard({
                         <Text
                             fontSize={10}
                             fontWeight="600"
-                            color={badge.color as any}
-                            backgroundColor={badge.bg as any}
+                            color={tc(badge.color)}
+                            backgroundColor={tc(badge.bg)}
                             paddingHorizontal={5}
                             paddingVertical={1}
                             borderRadius={3}
@@ -253,7 +253,7 @@ export function ChatInboxScreen({
                 },
                 (payload) => {
                     // Only refetch if the message is from someone else
-                    if (payload.new && (payload.new as any).sender_id !== currentUserId) {
+                    if (payload.new && (payload.new as Record<string, unknown>).sender_id !== currentUserId) {
                         fetchConversations()
                     }
                 },
@@ -299,6 +299,7 @@ export function ChatInboxScreen({
                     padding="$2"
                     borderRadius="$full"
                     hoverStyle={{ backgroundColor: colors.gray[100] }}
+                    accessibilityLabel="Back"
                 >
                     <ArrowLeft size={22} color={colors.gray[700]} />
                 </Button>

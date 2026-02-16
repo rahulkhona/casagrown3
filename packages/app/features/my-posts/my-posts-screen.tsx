@@ -15,7 +15,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { YStack, XStack, Text, Button, ScrollView, Spinner, Separator, Input } from 'tamagui'
 import { Platform, Alert } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { colors, shadows, borderRadius } from '../../design-tokens'
+import { colors, shadows, borderRadius, tc } from '../../design-tokens'
 import { useTranslation } from 'react-i18next'
 import {
   ArrowLeft,
@@ -131,12 +131,12 @@ function PostCard({
       {/* Top Row: Type Badge + Status Badge */}
       <XStack justifyContent="space-between" alignItems="center">
         <XStack
-          backgroundColor={typeConfig.bg as any}
+          backgroundColor={tc(typeConfig.bg)}
           paddingHorizontal="$2.5"
           paddingVertical="$1"
           borderRadius="$3"
         >
-          <Text fontSize={12} fontWeight="600" color={typeConfig.color as any}>
+          <Text fontSize={12} fontWeight="600" color={tc(typeConfig.color)}>
             {typeConfig.label}
           </Text>
         </XStack>
@@ -221,7 +221,7 @@ function ActionButton({
   onPress,
   variant,
 }: {
-  icon: React.ReactNode
+  icon: React.ReactElement
   label: string
   onPress: () => void
   variant?: 'danger'
@@ -233,7 +233,7 @@ function ActionButton({
       borderWidth={1}
       borderColor={variant === 'danger' ? colors.red[200] : colors.gray[200]}
       borderRadius="$3"
-      icon={icon as any}
+      icon={icon}
       onPress={onPress}
       paddingHorizontal="$2.5"
       hoverStyle={{ backgroundColor: variant === 'danger' ? colors.red[100] : colors.gray[100] }}
@@ -594,6 +594,7 @@ export function MyPostsScreen({
                 onPress={onBack}
                 pressStyle={{ opacity: 0.7 }}
                 padding="$1"
+                accessibilityLabel="Back"
               />
             )}
             <Text fontSize={20} fontWeight="700" color={colors.gray[900]}>
@@ -660,7 +661,7 @@ export function MyPostsScreen({
               <Input
                 flex={1}
                 placeholder={t('myPosts.searchPlaceholder')}
-                placeholderTextColor={colors.gray[400] as any}
+                placeholderTextColor={tc(colors.gray[400])}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 borderWidth={0}

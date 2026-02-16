@@ -25,7 +25,9 @@ and any associated triggers/functions/RLS policies.
 > → `20260213010000_chat_realtime` → `20260214000000_payment_transactions` →
 > `20260214100000_signup_baseline_ledger` →
 > `20260214200000_points_per_unit_rename` →
-> `20260215090000_order_status_pending` → `20260215100000_balance_after_trigger`
+> `20260215090000_order_status_pending` → `20260215090001_order_default_pending`
+> → `20260215100000_balance_after_trigger` →
+> `20260215200000_create_order_atomic`
 
 ## Extensions
 
@@ -53,8 +55,8 @@ create type incentive_scope as enum ('global', 'country', 'state', 'city', 'zip'
 
 create type point_transaction_type as enum (
   'purchase', 'transfer', 'payment', 'platform_charge', 'redemption', 'reward',
-  'escrow',   -- buyer's points held until seller accepts an order
-  'refund'    -- points returned to buyer if order is cancelled
+  'escrow',   -- buyer's points held until seller accepts (20260215090000)
+  'refund'    -- points returned to buyer if order is cancelled (20260215090000)
 );
 
 create type post_type as enum (
@@ -72,6 +74,7 @@ create type sales_category as enum (
 create type unit_of_measure as enum ('piece', 'dozen', 'box', 'bag');
 create type media_asset_type as enum ('video', 'image');
 create type offer_status as enum ('pending', 'accepted', 'rejected');
+-- Updated by 20260215090000: added 'pending' (before 'accepted'), 'delivered', 'cancelled'
 create type order_status as enum ('pending', 'accepted', 'delivered', 'disputed', 'cancelled');
 create type rating_score as enum ('1', '2', '3', '4', '5');
 create type chat_message_type as enum ('text', 'media', 'mixed', 'system');
@@ -905,7 +908,7 @@ create table orders (
   delivery_instructions text,
   delivery_proof_media_id uuid references media_assets(id),
   conversation_id uuid not null references conversations(id),
-  status order_status not null default 'pending',
+  status order_status not null default 'pending',  -- default changed by 20260215090001
   buyer_rating rating_score,
   buyer_feedback text,
   seller_rating rating_score,
@@ -1585,6 +1588,80 @@ begin
 end;
 $$;
 ```
+
+### `compute_balance_after()`
+
+Auto-computes `balance_after` on every `point_ledger` insert. Uses advisory lock
+per user to prevent race conditions from concurrent inserts.
+
+**Migration**: `20260215100000_balance_after_trigger.sql`
+
+```sql
+create or replace function public.compute_balance_after()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  last_balance integer;
+begin
+  -- Advisory lock on user_id to serialize concurrent inserts
+  perform pg_advisory_xact_lock(hashtext(new.user_id::text));
+
+  -- Compute running balance as SUM of all existing amounts
+  select coalesce(sum(amount), 0) into last_balance
+  from point_ledger
+  where user_id = new.user_id;
+
+  if last_balance is null then
+    last_balance := 0;
+  end if;
+
+  new.balance_after := last_balance + new.amount;
+  return new;
+end;
+$$;
+
+-- Trigger fires BEFORE INSERT so we can modify NEW.balance_after
+create trigger trg_compute_balance_after
+  before insert on point_ledger
+  for each row
+  execute function public.compute_balance_after();
+```
+
+### `create_order_atomic()`
+
+Atomically creates a "buy now" order — wraps conversation + offer + order +
+escrow + system message in a single transaction. The `compute_balance_after`
+trigger fires inside this transaction, so advisory locks are properly held.
+
+**Migration**: `20260215200000_create_order_atomic.sql`
+
+```sql
+create or replace function public.create_order_atomic(
+  p_buyer_id  uuid,
+  p_seller_id uuid,
+  p_post_id   uuid,
+  p_quantity   integer,
+  p_points_per_unit integer,
+  p_total_price integer,
+  p_category   text,
+  p_product    text,
+  p_delivery_date  date default null,
+  p_delivery_instructions text default null
+) returns jsonb
+```
+
+**Logic**:
+
+1. Check buyer's balance (sum of all `point_ledger` amounts)
+2. Create or reuse `conversations` row (buyer + seller + post)
+3. Create pending `offers` row
+4. Create pending `orders` row
+5. Escrow buyer's points via `point_ledger` insert (type: `escrow`, amount:
+   `-totalPrice`) — `balance_after` auto-computed by trigger
+6. Insert system `chat_messages` ("Order placed: ...")
+7. Return `{ orderId, conversationId, newBalance }`
 
 ---
 

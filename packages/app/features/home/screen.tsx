@@ -14,9 +14,9 @@ import {
 } from '@casagrown/ui'
 import { useAuth } from '../auth/auth-hook'
 import { ArrowRight, Shield, Zap, HandHeart, Sparkles, Ban, TrendingUp, GraduationCap, Download } from '@tamagui/lucide-icons'
-import { Platform, useWindowDimensions, Image, Linking, Alert } from 'react-native'
+import { Platform, useWindowDimensions, Image, Linking, Alert, type ImageSourcePropType } from 'react-native'
 // Note: expo-clipboard is imported dynamically only on native platforms
-import { colors } from '../../design-tokens'
+import { colors, tc } from '../../design-tokens'
 import { useTranslation } from 'react-i18next'
 
 // ============================================================================
@@ -39,8 +39,8 @@ function useIsMobile(breakpoint = 768) {
 // ============================================================================
 interface HomeScreenProps {
   onLinkPress?: () => void
-  heroImageSrc?: any
-  logoSrc?: any
+  heroImageSrc?: ImageSourcePropType
+  logoSrc?: ImageSourcePropType
   /** Show app store download buttons alongside the Join CTA */
   showAppStoreButtons?: boolean
   /** App Store URL for iOS downloads */
@@ -132,8 +132,8 @@ function HeroSection({
   referralCode
 }: { 
   onLinkPress?: () => void
-  heroImageSrc?: any
-  logoSrc?: any
+  heroImageSrc?: ImageSourcePropType
+  logoSrc?: ImageSourcePropType
   showAppStoreButtons?: boolean
   appStoreUrl?: string
   playStoreUrl?: string
@@ -520,7 +520,7 @@ function PointsSystemSection({ onLinkPress }: { onLinkPress?: () => void }) {
 // Safety & Convenience Section
 // ============================================================================
 function FeatureCard({ icon: Icon, iconBg, title, bullets, introText }: {
-  icon: any
+  icon: typeof Shield
   iconBg: string
   title: string
   bullets: string[]
@@ -545,7 +545,7 @@ function FeatureCard({ icon: Icon, iconBg, title, bullets, introText }: {
       <YStack
         width={56}
         height={56}
-        backgroundColor={iconBg as any}
+        backgroundColor={tc(iconBg)}
         borderRadius={12}
         alignItems="center"
         justifyContent="center"
@@ -645,7 +645,7 @@ function TradeCard({ bgColor, iconBg, iconColor, icon: Icon, title, description 
   bgColor: string
   iconBg: string
   iconColor: string
-  icon: any
+  icon: typeof Shield
   title: string
   description: string
 }) {
@@ -654,7 +654,7 @@ function TradeCard({ bgColor, iconBg, iconColor, icon: Icon, title, description 
       flex={1}
       minWidth={240}
       maxWidth={280}
-      backgroundColor={bgColor as any}
+      backgroundColor={tc(bgColor)}
       borderRadius={12}
       padding="$6"
       gap="$4"
@@ -666,12 +666,12 @@ function TradeCard({ bgColor, iconBg, iconColor, icon: Icon, title, description 
       <YStack
         width={48}
         height={48}
-        backgroundColor={iconBg as any}
+        backgroundColor={tc(iconBg)}
         borderRadius={24}
         alignItems="center"
         justifyContent="center"
       >
-        <Icon size={24} color={iconColor} />
+        <Icon size={24} color={tc(iconColor)} />
       </YStack>
       
       <H3 color={colors.gray[800]} fontSize={16} fontWeight="600">

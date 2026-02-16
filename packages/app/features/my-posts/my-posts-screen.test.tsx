@@ -40,6 +40,7 @@ jest.mock('../../design-tokens', () => ({
   },
   shadows: { sm: { color: '#000', offset: { width: 0, height: 1 }, radius: 2 } },
   borderRadius: { sm: 4, md: 8, lg: 12, full: 9999 },
+  tc: (color: string) => color,
 }))
 
 // Mock tamagui (following existing pattern from feed-screen.test.tsx)

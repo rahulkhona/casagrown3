@@ -180,14 +180,18 @@ export async function getActiveDelegators(
         return [];
     }
 
-    return (data || []).map((d: any) => ({
-        delegationId: d.id,
-        delegatorId: d.delegator_id,
-        fullName: d.delegator_profile?.full_name || null,
-        avatarUrl: d.delegator_profile?.avatar_url || null,
-        communityH3Index: d.delegator_profile?.home_community_h3_index || null,
-        communityName: d.delegator_profile?.communities?.name || null,
-    }));
+    return (data || []).map((d: Record<string, unknown>) => {
+        const dp = d.delegator_profile as Record<string, unknown> | null;
+        return {
+            delegationId: d.id as string,
+            delegatorId: d.delegator_id as string,
+            fullName: (dp?.full_name as string) || null,
+            avatarUrl: (dp?.avatar_url as string) || null,
+            communityH3Index: (dp?.home_community_h3_index as string) || null,
+            communityName: ((dp?.communities as Record<string, unknown>)
+                ?.name as string) || null,
+        };
+    });
 }
 
 // =============================================================================
@@ -295,7 +299,16 @@ export async function getCommunityWithNeighborsByH3(
         return { primary: null, neighbors: [] };
     }
 
-    const parseLoc = (c: any): CommunityInfo => {
+    const parseLoc = (
+        c: {
+            h3_index: string;
+            name: string;
+            city: string | null;
+            state: string | null;
+            country: string | null;
+            location?: unknown;
+        },
+    ): CommunityInfo => {
         const info: CommunityInfo = {
             h3Index: c.h3_index,
             name: c.name,
@@ -303,12 +316,15 @@ export async function getCommunityWithNeighborsByH3(
             state: c.state,
             country: c.country,
         };
+        const loc = c.location as
+            | { coordinates?: [number, number] }
+            | undefined;
         if (
-            c.location && typeof c.location === "object" &&
-            c.location.coordinates
+            loc && typeof loc === "object" &&
+            loc.coordinates
         ) {
-            info.lng = c.location.coordinates[0];
-            info.lat = c.location.coordinates[1];
+            info.lng = loc.coordinates[0];
+            info.lat = loc.coordinates[1];
         }
         return info;
     };
@@ -358,7 +374,7 @@ export async function getUserCommunity(
 
     return {
         h3Index: profile.home_community_h3_index,
-        communityName: (profile.communities as any)?.name ||
+        communityName: ((profile.communities as { name?: string })?.name) ||
             profile.home_community_h3_index,
     };
 }
@@ -432,7 +448,7 @@ export async function getAvailableCategories(
 
     // Collect blocked categories
     const blocked = new Set(
-        (restrictions || []).map((r: any) => r.category),
+        (restrictions || []).map((r: { category: string }) => r.category),
     );
 
     return ALL_CATEGORIES.filter((cat) => !blocked.has(cat));

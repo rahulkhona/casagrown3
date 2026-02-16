@@ -18,6 +18,7 @@ exports[`CreatePostScreen matches snapshot 1`] = `
       paddingHorizontal="$4"
     >
       <View
+        accessibilityLabel="Back"
         accessibilityState={
           {
             "busy": undefined,

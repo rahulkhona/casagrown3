@@ -70,7 +70,7 @@ export function PostFormShell({
         borderBottomWidth={1}
         borderBottomColor={colors.neutral[200]}
       >
-        <Button unstyled onPress={onBack} padding="$2">
+        <Button unstyled onPress={onBack} padding="$2" accessibilityLabel="Back">
           <ArrowLeft size={24} color={colors.neutral[700]} />
         </Button>
         <Text fontSize="$6" fontWeight="700" color={colors.neutral[900]}>

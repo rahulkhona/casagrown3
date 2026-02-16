@@ -79,7 +79,7 @@ export function MediaPickerSection({ media, label }: MediaPickerSectionProps) {
               {Platform.OS === 'web' && asset.type === 'video' ? (
                 <video
                   src={asset.uri}
-                  style={{ width: 140, height: 140, borderRadius: 8, objectFit: 'cover' as any }}
+                  style={{ width: 140, height: 140, borderRadius: 8, objectFit: 'cover' } as Record<string, string | number>}
                   controls
                   playsInline
                   preload="metadata"
@@ -87,7 +87,7 @@ export function MediaPickerSection({ media, label }: MediaPickerSectionProps) {
               ) : Platform.OS === 'web' ? (
                 <img
                   src={asset.uri}
-                  style={{ width: 140, height: 140, borderRadius: 8, objectFit: 'cover' as any }}
+                  style={{ width: 140, height: 140, borderRadius: 8, objectFit: 'cover' } as Record<string, string | number>}
                   alt=""
                 />
               ) : asset.type === 'video' ? (
@@ -194,10 +194,10 @@ export function MediaPickerSection({ media, label }: MediaPickerSectionProps) {
             </Button>
           </XStack>
           <input
-            ref={fileInputRef as any}
+            ref={fileInputRef}
             type="file"
             accept="image/*,video/*"
-            onChange={handleWebFileChange as any}
+            onChange={handleWebFileChange}
             style={{ display: 'none' }}
           />
           {cameraMode && WebCameraModal && (

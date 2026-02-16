@@ -95,6 +95,13 @@ interface ActivityStats {
   following: number
 }
 
+/** Shape of the Supabase join on `communities` from the profiles query */
+interface CommunityJoinData {
+  name?: string
+  city?: string
+  location?: { type: string; coordinates: [number, number] } | string
+}
+
 export function ProfileScreen() {
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
@@ -196,8 +203,8 @@ export function ProfileScreen() {
         notify_on_wanted: data.notify_on_wanted ?? false,
         notify_on_available: data.notify_on_available ?? false,
         home_community_h3_index: data.home_community_h3_index,
-        community_name: (data.communities as any)?.name,
-        community_city: (data.communities as any)?.city,
+        community_name: (data.communities as CommunityJoinData | null)?.name,
+        community_city: (data.communities as CommunityJoinData | null)?.city,
       }
       
       // Fetch map data for CommunityMap
@@ -205,7 +212,8 @@ export function ProfileScreen() {
         // Parse lat/lng from community location (Supabase returns PostGIS geometry as GeoJSON)
         let communityLat: number | undefined
         let communityLng: number | undefined
-        const locationData = (data.communities as any)?.location
+        const communityData = data.communities as CommunityJoinData | null
+        const locationData = communityData?.location
         if (locationData && typeof locationData === 'object' && locationData.coordinates) {
           // GeoJSON Point: { type: "Point", coordinates: [lng, lat] }
           communityLng = locationData.coordinates[0]
@@ -220,8 +228,8 @@ export function ProfileScreen() {
         }
         fetchMapData(
           data.home_community_h3_index,
-          (data.communities as any)?.name || data.home_community_h3_index,
-          (data.communities as any)?.city || '',
+          (data.communities as CommunityJoinData | null)?.name || data.home_community_h3_index,
+          (data.communities as CommunityJoinData | null)?.city || '',
           communityLat,
           communityLng,
         )
@@ -229,8 +237,9 @@ export function ProfileScreen() {
       
       setProfile(profileData)
       setEditData(profileData)
-    } catch (err) {
-      console.error('Error loading profile:', JSON.stringify(err), (err as any)?.message, (err as any)?.code, (err as any)?.details)
+    } catch (err: unknown) {
+      const e = err instanceof Error ? err : { message: String(err), code: undefined, details: undefined }
+      console.error('Error loading profile:', JSON.stringify(err), e.message, (e as Record<string, unknown>).code, (e as Record<string, unknown>).details)
     } finally {
       setLoading(false)
     }
@@ -461,6 +470,7 @@ export function ProfileScreen() {
             borderRadius="$full"
             onPress={() => router.back()}
             hoverStyle={{ backgroundColor: colors.neutral[100] }}
+            accessibilityLabel="Back"
           >
             <ChevronLeft size={24} color={colors.neutral[700]} />
           </Button>
@@ -547,10 +557,10 @@ export function ProfileScreen() {
                 {Platform.OS === 'web' && (
                   <>
                     <input
-                      ref={avatarFileInputRef as any}
+                      ref={avatarFileInputRef}
                       type="file"
                       accept="image/*"
-                      onChange={handleAvatarWebFileChange as any}
+                      onChange={handleAvatarWebFileChange}
                       style={{ display: 'none' }}
                     />
                     {showAvatarCamera && WebCameraModal && (

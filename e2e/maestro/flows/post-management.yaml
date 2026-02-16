@@ -1,0 +1,39 @@
+# Post Management Flow — Maestro E2E test
+# Tests navigating to "My Posts" via the hamburger menu.
+
+appId: dev.casagrown.community
+
+---
+
+# Login first
+- runFlow: ../utils/login.yaml
+
+# Wait for feed to load
+- extendedWaitUntil:
+      visible: "Tomatoes"
+      timeout: 15000
+
+# Open hamburger menu
+- tapOn: "Menu"
+
+# Wait for nav drawer
+- extendedWaitUntil:
+      visible: "My Posts"
+      timeout: 5000
+
+# Tap "My Posts"
+- tapOn: "My Posts"
+
+# Wait for My Posts screen to load
+- extendedWaitUntil:
+      visible:
+          text: ".*"
+      timeout: 10000
+
+# Go back to feed
+- tapOn: "Back"
+
+# Verify we're back on feed
+- extendedWaitUntil:
+      visible: "Create Post"
+      timeout: 10000

@@ -171,11 +171,11 @@ export function BuyForm({ onBack, onSuccess, editId, cloneData }: BuyFormProps) 
           communities.primary.lng,
         )
         if (communities.neighbors.length > 0) {
-          ;(mapData as any).neighbors = communities.neighbors.map((n) => ({
+          Object.assign(mapData, { neighbors: communities.neighbors.map((n) => ({
             h3_index: n.h3Index,
             name: n.name,
             status: 'active' as const,
-          }))
+          })) })
         }
         setCommunityMapData(mapData as unknown as ResolveResponse)
       } else {
@@ -412,7 +412,7 @@ export function BuyForm({ onBack, onSuccess, editId, cloneData }: BuyFormProps) 
             focusStyle={{ borderColor: colors.primary[500] }}
             backgroundColor="white"
             numberOfLines={3}
-            style={{ fontWeight: '400', textAlignVertical: 'top' } as any}
+            style={{ fontWeight: '400', textAlignVertical: 'top' } as Record<string, string>}
           />
         </YStack>
 
@@ -425,7 +425,7 @@ export function BuyForm({ onBack, onSuccess, editId, cloneData }: BuyFormProps) 
             <input
               type="date"
               value={needByDate}
-              onChange={(e: any) => setNeedByDate(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNeedByDate(e.target.value)}
               style={{
                 height: 44,
                 borderRadius: 8,
@@ -486,7 +486,7 @@ export function BuyForm({ onBack, onSuccess, editId, cloneData }: BuyFormProps) 
                 <input
                   type="date"
                   value={date}
-                  onChange={(e: any) => updateAcceptDate(index, e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateAcceptDate(index, e.target.value)}
                   style={{
                     flex: 1,
                     height: 44,
@@ -552,10 +552,10 @@ export function BuyForm({ onBack, onSuccess, editId, cloneData }: BuyFormProps) 
           {/* Hidden date input for web — showPicker() opens browser calendar directly */}
           {Platform.OS === 'web' && (
             <input
-              ref={hiddenDateRef as any}
+              ref={hiddenDateRef}
               type="date"
               style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }}
-              onChange={(e: any) => {
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                 if (e.target.value) {
                   setAcceptDates(prev => [...prev, e.target.value])
                   e.target.value = ''

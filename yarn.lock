@@ -4022,6 +4022,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@playwright/test@npm:^1.58.2":
+  version: 1.58.2
+  resolution: "@playwright/test@npm:1.58.2"
+  dependencies:
+    playwright: "npm:1.58.2"
+  bin:
+    playwright: cli.js
+  checksum: 10/58bf90139280a0235eeeb6049e9fb4db6425e98be1bf0cc17913b068eef616cf67be57bfb36dc4cb56bcf116f498ffd0225c4916e85db404b343ea6c5efdae13
+  languageName: node
+  linkType: hard
+
 "@radix-ui/primitive@npm:1.1.3":
   version: 1.1.3
   resolution: "@radix-ui/primitive@npm:1.1.3"
@@ -5888,6 +5899,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@tamagui/constants@npm:2.0.0-rc.13":
+  version: 2.0.0-rc.13
+  resolution: "@tamagui/constants@npm:2.0.0-rc.13"
+  peerDependencies:
+    react: ">=19"
+    react-native: "*"
+  checksum: 10/ac118fa4a0d4d1127e391b07823be4bacecdc3d0a01d0a6aa729b402c983bf2f7c2a97430da24f94ee54c14e224c12c2d4d166c523950b1ab357aef5b725a577
+  languageName: node
+  linkType: hard
+
 "@tamagui/core@npm:^2.0.0-rc.0":
   version: 2.0.0-rc.0-1769885482630
   resolution: "@tamagui/core@npm:2.0.0-rc.0-1769885482630"
@@ -6354,6 +6375,19 @@ __metadata:
   peerDependencies:
     next: ">=13"
   checksum: 10/3f1bf2e5cc9815c9e71adfdc53ff5a4314efdb24bf3f859e9f658addf32260b9e7e8e8fd166aa54e6e373a020bfbc29ade85fae4a51bf802287edaa59d344315
+  languageName: node
+  linkType: hard
+
+"@tamagui/next-theme@npm:2.0.0-rc.13":
+  version: 2.0.0-rc.13
+  resolution: "@tamagui/next-theme@npm:2.0.0-rc.13"
+  dependencies:
+    "@tamagui/constants": "npm:2.0.0-rc.13"
+    "@tamagui/use-event": "npm:2.0.0-rc.13"
+  peerDependencies:
+    next: ">=14"
+    react: ">=19"
+  checksum: 10/67919ee986f72e5248ad735e2e30d986fee1a9b98ec3581050680c3eed74b20ef308bb4f9eade6d900fd4a782664b38b89095c341a409894c4811f1539f6d3b1
   languageName: node
   linkType: hard
 
@@ -7186,6 +7220,15 @@ __metadata:
   peerDependencies:
     react: ">=19"
   checksum: 10/c092db620c571c2c337b1ddeaf25770b34ce6d183d6f0d0326e647779fe67e0f4aae06a0060823370c7778ee87840433778113221693db3902474317c488ca75
+  languageName: node
+  linkType: hard
+
+"@tamagui/use-event@npm:2.0.0-rc.13":
+  version: 2.0.0-rc.13
+  resolution: "@tamagui/use-event@npm:2.0.0-rc.13"
+  peerDependencies:
+    react: ">=19"
+  checksum: 10/2347e042ae096ef0f3ebf71a2e851fe7d66492388532619afdfbc66ad4e3a88c2a38bf38930bab545567ffeb6e4ee663ed05938d1ce5102a56d4abe508546410
   languageName: node
   linkType: hard
 
@@ -9393,7 +9436,9 @@ __metadata:
   dependencies:
     "@babel/runtime": "npm:^7.24.6"
     "@biomejs/biome": "npm:^1.9.3"
+    "@playwright/test": "npm:^1.58.2"
     "@tamagui/cli": "npm:^2.0.0-rc.0"
+    "@tamagui/next-theme": "npm:2.0.0-rc.13"
     "@tamagui/react-native-svg": "npm:^2.0.0-rc.0"
     "@tamagui/react-native-web-lite": "npm:^2.0.0-rc.0"
     "@types/leaflet": "npm:^1.9.21"
@@ -16761,6 +16806,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"playwright-core@npm:1.58.2":
+  version: 1.58.2
+  resolution: "playwright-core@npm:1.58.2"
+  bin:
+    playwright-core: cli.js
+  checksum: 10/8a98fcf122167e8703d525db2252de0e3da4ab9110ab6ea9951247e52d846310eb25ea2c805e1b7ccb54b4010c44e5adc3a76aae6da02f34324ccc3e76683bb1
+  languageName: node
+  linkType: hard
+
 "playwright@npm:1.58.1":
   version: 1.58.1
   resolution: "playwright@npm:1.58.1"
@@ -16773,6 +16827,21 @@ __metadata:
   bin:
     playwright: cli.js
   checksum: 10/63cf0a858e30d19beef17ec952be427083f3863d1302d53b56f4870972c0083797039a81f909840a903becdbf44285d0940fa74e6c011cfaa4b2bb3448c10536
+  languageName: node
+  linkType: hard
+
+"playwright@npm:1.58.2":
+  version: 1.58.2
+  resolution: "playwright@npm:1.58.2"
+  dependencies:
+    fsevents: "npm:2.3.2"
+    playwright-core: "npm:1.58.2"
+  dependenciesMeta:
+    fsevents:
+      optional: true
+  bin:
+    playwright: cli.js
+  checksum: 10/d89d6c8a32388911b9aff9ee0f1a90076219f15c804f2b287db048b9e9cde182aea3131fac1959051d25189ed4218ec4272b137c83cd7f9cd24781cbc77edd86
   languageName: node
   linkType: hard
 

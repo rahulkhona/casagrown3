@@ -55,7 +55,7 @@ async function readFileAsArrayBuffer(uri: string): Promise<ArrayBuffer> {
             err,
         );
         const base64 = await FileSystem.readAsStringAsync(uri, {
-            encoding: FileSystem.EncodingType.Base64,
+            encoding: "base64",
         });
         return decode(base64);
     }

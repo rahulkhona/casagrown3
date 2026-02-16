@@ -1,34 +1,69 @@
 appId: dev.casagrown.community
+
+env:
+        TEST_EMAIL: "seller@test.local"
+
 ---
-# Login utility flow - reusable for other tests
+# Login utility flow — reusable for other tests
 # Uses OTP email authentication flow
+# Test user: seller@test.local (seeded by seed.sql)
+#
+# Flow: Landing page → Login page → Email OTP → Feed/Wizard
 
-- launchApp
+- launchApp:
+          clearState: false
 
-# App shows landing page first - tap to proceed to login
-- tapOn: "Join the Movement!"
+# If already logged in (feed shows "Create Post"), skip login
+- runFlow:
+          when:
+                  visible: "Create Post"
+          commands:
+                  - assertVisible: "Create Post"
 
-# Step 1: Select email login
-- tapOn: "Continue with Email"
+# If on the landing page, tap "Join the Movement!" to get to login
+- runFlow:
+          when:
+                  visible: "Join the Movement!"
+          commands:
+                  - tapOn: "Join the Movement!"
+                  - extendedWaitUntil:
+                            visible: "Welcome to CasaGrown"
+                            timeout: 15000
 
-# Step 2: Enter email
-- inputText:
-    id: "email_input"
-    text: "test@casagrown.com"
+# Now perform email OTP login
+- runFlow:
+          when:
+                  visible: "Welcome to CasaGrown"
+          commands:
+                  # Tap "Continue with Email"
+                  - tapOn: "Continue with Email"
 
-- tapOn: "Send Verification Code"
+                  # Wait for email input
+                  - extendedWaitUntil:
+                            visible: "Email Address"
+                            timeout: 5000
 
-# Step 3: Enter OTP (for testing, use mock OTP or skip in dev mode)
-# NOTE: For local testing, this requires the app to be in dev mode
-# where verify is auto-approved, or use a test OTP interceptor
-- inputText:
-    id: "otp_input"
-    text: "123456"
+                  # Enter test seller email — clear first, then type, then dismiss keyboard
+                  - tapOn:
+                            id: "email_input"
+                  - eraseText: 30
+                  - inputText: "${TEST_EMAIL}"
+                  - hideKeyboard
 
-- tapOn: "Verify & Continue"
+                  # Tap send code button
+                  - tapOn: "Send Verification Code"
 
-# Wait for navigation to complete
-- extendedWaitUntil:
-    visible:
-      text: ".*"
-    timeout: 5000
+                  # Wait for OTP screen to appear
+                  - extendedWaitUntil:
+                            visible: "Verification Code"
+                            timeout: 15000
+
+                  # In dev mode, the OTP is auto-filled in the input.
+                  # Tap Verify & Continue (dev mode auto-fills OTP).
+                  - tapOn: "Verify & Continue"
+
+                  # Wait for navigation to complete (feed or wizard)
+                  - extendedWaitUntil:
+                            visible:
+                                    text: ".*"
+                            timeout: 15000

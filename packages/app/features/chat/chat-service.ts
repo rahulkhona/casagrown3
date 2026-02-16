@@ -25,7 +25,7 @@ export interface ChatMessage {
     media_url: string | null;
     media_type: string | null;
     type: "text" | "media" | "mixed" | "system";
-    metadata: Record<string, any>;
+    metadata: Record<string, unknown>;
     created_at: string;
     delivered_at: string | null;
     read_at: string | null;
@@ -78,6 +78,95 @@ export interface ConversationWithDetails {
 export interface PresenceState {
     online: boolean;
     typing: boolean;
+}
+
+// -- Internal row types for Supabase join queries (not exported) --
+interface ConversationQueryRow {
+    id: string;
+    post_id: string;
+    buyer_id: string;
+    seller_id: string;
+    created_at: string;
+    post: {
+        id: string;
+        type: string;
+        content: string;
+        created_at: string;
+        author_id: string;
+        author: { full_name: string | null; avatar_url: string | null } | null;
+        community: { name: string | null } | null;
+        want_to_sell_details:
+            | Array<
+                {
+                    category: string;
+                    produce_name: string;
+                    unit: string;
+                    total_quantity_available: number;
+                    points_per_unit: number;
+                }
+            >
+            | null;
+        want_to_buy_details:
+            | Array<
+                {
+                    category: string;
+                    produce_names: string[];
+                    need_by_date: string | null;
+                }
+            >
+            | null;
+        post_media:
+            | Array<
+                {
+                    position: number;
+                    media_asset:
+                        | { storage_path: string; media_type: string }
+                        | null;
+                }
+            >
+            | null;
+    };
+    buyer: ConversationParticipant;
+    seller: ConversationParticipant;
+}
+
+interface ConversationListRow {
+    id: string;
+    post_id: string;
+    buyer_id: string;
+    seller_id: string;
+    created_at: string;
+    post: { type: string; content: string } | null;
+    buyer: ConversationParticipant | null;
+    seller: ConversationParticipant | null;
+}
+
+interface ChatMessageRow {
+    id: string;
+    conversation_id: string;
+    sender_id: string | null;
+    content: string | null;
+    media_id: string | null;
+    type: ChatMessage["type"];
+    metadata: Record<string, unknown> | null;
+    created_at: string;
+    delivered_at: string | null;
+    read_at: string | null;
+    sender: { full_name: string | null; avatar_url: string | null } | null;
+    media: { storage_path: string; media_type: string } | null;
+}
+
+interface ChatMessageRealtimeRow {
+    id: string;
+    conversation_id: string;
+    sender_id: string | null;
+    content: string | null;
+    media_id: string | null;
+    type: ChatMessage["type"];
+    metadata: Record<string, unknown> | null;
+    created_at: string;
+    delivered_at: string | null;
+    read_at: string | null;
 }
 
 // =============================================================================
@@ -218,7 +307,7 @@ export async function getConversationWithDetails(
         throw error;
     }
 
-    const row = data as any;
+    const row = data as unknown as ConversationQueryRow;
 
     return {
         id: row.id,
@@ -238,12 +327,12 @@ export async function getConversationWithDetails(
             sell_details: row.post.want_to_sell_details?.[0] || null,
             buy_details: row.post.want_to_buy_details?.[0] || null,
             media: (row.post.post_media || [])
-                .sort((a: any, b: any) => (a.position || 0) - (b.position || 0))
-                .map((pm: any) => ({
+                .sort((a, b) => (a.position || 0) - (b.position || 0))
+                .map((pm) => ({
                     storage_path: pm.media_asset?.storage_path || "",
                     media_type: pm.media_asset?.media_type || "image",
                 }))
-                .filter((m: any) => m.storage_path),
+                .filter((m) => m.storage_path),
         },
         buyer: {
             id: row.buyer.id,
@@ -318,7 +407,8 @@ export async function getUserConversations(
     if (!data || data.length === 0) return [];
 
     // Fetch last message for each conversation
-    const conversationIds = data.map((c: any) => c.id);
+    const rows = data as unknown as ConversationListRow[];
+    const conversationIds = rows.map((c) => c.id);
     const { data: lastMessages } = await supabase
         .from("chat_messages")
         .select("conversation_id, content, type, created_at")
@@ -326,7 +416,10 @@ export async function getUserConversations(
         .order("created_at", { ascending: false });
 
     // Build a map: conversation_id -> latest message
-    const latestMessageMap = new Map<string, any>();
+    const latestMessageMap = new Map<
+        string,
+        { content: string | null; type: string; created_at: string }
+    >();
     for (const msg of lastMessages || []) {
         if (!latestMessageMap.has(msg.conversation_id)) {
             latestMessageMap.set(msg.conversation_id, msg);
@@ -350,7 +443,7 @@ export async function getUserConversations(
         );
     }
 
-    const summaries: ConversationSummary[] = data.map((row: any) => {
+    const summaries: ConversationSummary[] = rows.map((row) => {
         const isBuyer = row.buyer_id === userId;
         const otherUser = isBuyer ? row.seller : row.buyer;
         const lastMsg = latestMessageMap.get(row.id);
@@ -442,7 +535,8 @@ export async function getConversationMessages(
         throw error;
     }
 
-    return (data || []).map((row: any) => {
+    const rows = (data || []) as unknown as ChatMessageRow[];
+    return rows.map((row) => {
         let mediaUrl: string | null = null;
         if (row.media?.storage_path) {
             const { data: urlData } = supabase.storage
@@ -478,7 +572,7 @@ export async function sendMessage(
     content: string | null,
     type: "text" | "media" | "mixed" | "system" = "text",
     mediaId?: string,
-    metadata?: Record<string, any>,
+    metadata?: Record<string, unknown>,
 ): Promise<ChatMessage> {
     const { data, error } = await supabase
         .from("chat_messages")
@@ -583,7 +677,7 @@ export function subscribeToMessageUpdates(
                 filter: `conversation_id=eq.${conversationId}`,
             },
             (payload) => {
-                const row = payload.new as any;
+                const row = payload.new as ChatMessageRealtimeRow;
                 onMessageUpdated(
                     row.id,
                     row.delivered_at || null,
@@ -619,7 +713,7 @@ export function subscribeToMessages(
                 filter: `conversation_id=eq.${conversationId}`,
             },
             async (payload) => {
-                const row = payload.new as any;
+                const row = payload.new as ChatMessageRealtimeRow;
                 // Fetch sender details for the new message
                 let senderName: string | null = null;
                 let senderAvatarUrl: string | null = null;
@@ -707,7 +801,7 @@ export function createPresenceChannel(
             let found = false;
             for (const key of Object.keys(state)) {
                 if (key !== userId) {
-                    const presences = state[key] as any[];
+                    const presences = state[key] as Record<string, unknown>[];
                     if (presences && presences.length > 0) {
                         otherOnline = true;
                         found = true;
@@ -736,7 +830,7 @@ export function createPresenceChannel(
         })
         // ── Broadcast: typing events (reliable across all platforms) ──
         .on("broadcast", { event: "typing" }, (payload) => {
-            const msg = payload.payload as any;
+            const msg = payload.payload as Record<string, unknown>;
             if (msg?.user_id !== userId) {
                 otherTyping = !!msg?.is_typing;
                 emitState();
@@ -783,7 +877,7 @@ export async function getUnreadChatCount(userId: string): Promise<number> {
 
     if (!conversations || conversations.length === 0) return 0;
 
-    const conversationIds = conversations.map((c: any) => c.id);
+    const conversationIds = conversations.map((c: { id: string }) => c.id);
 
     // Count distinct conversations with unread messages from others
     const { data: unreadMessages } = await supabase

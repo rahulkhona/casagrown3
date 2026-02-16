@@ -246,11 +246,11 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
         )
         // Enhance with neighbor data
         if (communities.neighbors.length > 0) {
-          ;(mapData as any).neighbors = communities.neighbors.map((n) => ({
+          Object.assign(mapData, { neighbors: communities.neighbors.map((n) => ({
             h3_index: n.h3Index,
             name: n.name,
             status: 'active' as const,
-          }))
+          })) })
         }
         setCommunityMapData(mapData as unknown as ResolveResponse)
       } else {
@@ -298,11 +298,11 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
           communities.primary.lng,
         )
         if (communities.neighbors.length > 0) {
-          ;(mapData as any).neighbors = communities.neighbors.map((n) => ({
+          Object.assign(mapData, { neighbors: communities.neighbors.map((n) => ({
             h3_index: n.h3Index,
             name: n.name,
             status: 'active' as const,
-          }))
+          })) })
         }
         setCommunityMapData(mapData as unknown as ResolveResponse)
       }
@@ -819,7 +819,7 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
             backgroundColor="white"
             numberOfLines={4}
             size="$4"
-            style={{ fontWeight: '400', textAlignVertical: 'top' } as any}
+            style={{ fontWeight: '400', textAlignVertical: 'top' } as Record<string, string>}
           />
         </YStack>
 
@@ -1001,10 +1001,10 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
         {/* Hidden date input for web — showPicker() opens browser calendar directly */}
         {Platform.OS === 'web' && (
           <input
-            ref={hiddenDateRef as any}
+            ref={hiddenDateRef}
             type="date"
             style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }}
-            onChange={(e: any) => {
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
               if (e.target.value) {
                 setDropoffDates(prev => [...prev, e.target.value])
                 e.target.value = ''

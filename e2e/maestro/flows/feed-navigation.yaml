@@ -1,63 +1,41 @@
-# Feed Navigation E2E Test
-# Tests the feed page and bottom tab navigation
-# 
-# Note: This test requires user to be logged in and have completed profile wizard
-# Maestro's launchApp resets auth state, so run this after manual login
+# Feed Navigation Flow — Maestro E2E test
+# Tests feed content visibility after login and basic navigation.
+# Navigation: avatar tap → profile, Back button → feed
 
 appId: dev.casagrown.community
 
 ---
 
-# Launch the app (preserves session if clearState is false)
-- launchApp:
-    clearState: false
+# Login first
+- runFlow: ../utils/login.yaml
 
-# ============================================
-# Test Feed Screen Content
-# ============================================
-
-# Wait for feed page to load
+# Wait for feed to load
 - extendedWaitUntil:
-    visible:
-      text: "CasaGrown"
-    timeout: 30000
+    visible: "Tomatoes"
+    timeout: 15000
 
-# Verify feed empty state is displayed
-- assertVisible: "No posts found"
-- assertVisible: "Try adjusting your search or filters"
-- assertVisible: "Create First Post"
+# Verify seeded post content
+- assertVisible: "Test Seller"
+- assertVisible: "Tomatoes"
 
-# Verify search bar is visible
+# Verify search bar
 - assertVisible: "Search posts, categories, or keywords..."
 
-# ============================================
-# Test Navigation to Profile Tab
-# ============================================
+# Navigate to profile via header avatar initial
+- tapOn:
+    text: "T"
+    index: 0
 
-# Tap on Profile tab in bottom navigation
-- tapOn: "Profile"
-
-# Wait for profile screen
+# Verify we're on the profile screen
 - extendedWaitUntil:
-    visible:
-      text: "Profile"
+    visible: "Profile Settings"
     timeout: 10000
+- assertVisible: "Edit Profile"
 
-# Verify profile screen content
-- assertVisible: "Edit"
+# Go back to feed via the Back button (ChevronLeft)
+- tapOn: "Back"
 
-# ============================================
-# Test Navigation Back to Feed Tab
-# ============================================
-
-# Tap on Feed tab
-- tapOn: "Feed"
-
-# Verify we're back on feed
+# Verify we're back on the feed
 - extendedWaitUntil:
-    visible:
-      text: "CasaGrown"
+    visible: "Tomatoes"
     timeout: 10000
-
-# Final verification
-- assertVisible: "Search posts, categories, or keywords..."

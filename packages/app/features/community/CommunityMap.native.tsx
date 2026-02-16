@@ -200,7 +200,7 @@ export default function CommunityMap({
 }: CommunityMapProps) {
   const location = resolveData.resolved_location
   const communityName = resolveData.primary.name
-  const communityCity = (resolveData.primary as any)?.city || ''
+  const communityCity = (resolveData.primary as { city?: string })?.city || ''
 
   // If location is at 0,0 (stub data), show a simple fallback
   if (location.lat === 0 && location.lng === 0) {

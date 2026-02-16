@@ -1,9 +1,11 @@
 {
   "extends": "../../tsconfig.base",
   "include": ["**/*.ts", "**/*.tsx"],
+  "exclude": ["provider/NextTamaguiProvider.tsx"],
   "compilerOptions": {
     "composite": true,
     "jsx": "react-jsx",
+    "types": ["node", "jest"],
     "paths": {
       "app/*": ["./packages/app/*"],
       "@my/ui/*": ["./packages/ui/*"]
@@ -12,3 +14,4 @@
   },
   "references": []
 }
+

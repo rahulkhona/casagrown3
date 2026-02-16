@@ -8,7 +8,7 @@
 
 import { YStack, XStack, Text } from 'tamagui'
 import { Image } from 'react-native'
-import { colors, borderRadius } from '../../design-tokens'
+import { colors, borderRadius, tc } from '../../design-tokens'
 import { normalizeStorageUrl } from '../../utils/normalize-storage-url'
 import { supabase } from '../auth/auth-hook'
 import type { ConversationPost } from './chat-service'
@@ -162,12 +162,12 @@ export function ChatPostCard({ post, t }: ChatPostCardProps) {
 
         {/* Post type badge */}
         <YStack
-          backgroundColor={(typeColor?.bg) as any}
+          backgroundColor={tc(typeColor?.bg)}
           paddingHorizontal="$2"
           paddingVertical={3}
           borderRadius={6}
         >
-          <Text fontSize={11} fontWeight="600" color={(typeColor?.text) as any}>
+          <Text fontSize={11} fontWeight="600" color={tc(typeColor?.text)}>
             {getPostTypeLabel(post.type, t)}
           </Text>
         </YStack>

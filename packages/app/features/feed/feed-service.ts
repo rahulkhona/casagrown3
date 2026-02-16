@@ -13,6 +13,48 @@ import { supabase } from "../auth/auth-hook";
 // Types
 // =============================================================================
 
+/** Shape returned by the Supabase query with joins in getCommunityFeedPosts */
+interface FeedQueryRow {
+    id: string;
+    author_id: string;
+    type: string;
+    reach: string;
+    content: string;
+    created_at: string;
+    community_h3_index: string | null;
+    author: { full_name: string | null; avatar_url: string | null } | null;
+    community: { name: string } | null;
+    want_to_sell_details: Array<{
+        category: string;
+        produce_name: string;
+        unit: string;
+        total_quantity_available: number;
+        points_per_unit: number;
+    }>;
+    want_to_buy_details: Array<{
+        category: string;
+        produce_names: string[];
+        need_by_date: string | null;
+    }>;
+    post_media: Array<{
+        media_id: string;
+        position: number;
+        media_asset: { storage_path: string; media_type: string } | null;
+    }>;
+    post_likes: Array<{ user_id: string }>;
+    post_comments: Array<{ id: string }>;
+    post_flags: Array<{ user_id: string }>;
+}
+
+/** Shape returned by the Supabase query in getPostComments */
+interface CommentQueryRow {
+    id: string;
+    user_id: string;
+    content: string;
+    created_at: string;
+    author: { full_name: string | null; avatar_url: string | null } | null;
+}
+
 export interface FeedPost {
     id: string;
     author_id: string;
@@ -113,7 +155,7 @@ export async function getCommunityFeedPosts(
         throw error;
     }
 
-    return (data || []).map((row: any) => ({
+    return ((data || []) as unknown as FeedQueryRow[]).map((row) => ({
         id: row.id,
         author_id: row.author_id,
         author_name: row.author?.full_name || null,
@@ -127,19 +169,19 @@ export async function getCommunityFeedPosts(
         sell_details: row.want_to_sell_details?.[0] || null,
         buy_details: row.want_to_buy_details?.[0] || null,
         media: (row.post_media || [])
-            .sort((a: any, b: any) => (a.position || 0) - (b.position || 0))
-            .map((pm: any) => ({
+            .sort((a, b) => (a.position || 0) - (b.position || 0))
+            .map((pm) => ({
                 storage_path: pm.media_asset?.storage_path || "",
                 media_type: pm.media_asset?.media_type || "image",
             }))
-            .filter((m: any) => m.storage_path),
+            .filter((m) => m.storage_path),
         like_count: (row.post_likes || []).length,
         comment_count: (row.post_comments || []).length,
         is_liked: (row.post_likes || []).some(
-            (l: any) => l.user_id === currentUserId,
+            (l) => l.user_id === currentUserId,
         ),
         is_flagged: (row.post_flags || []).some(
-            (f: any) => f.user_id === currentUserId,
+            (f) => f.user_id === currentUserId,
         ),
     }));
 }
@@ -271,7 +313,7 @@ export async function getPostComments(postId: string): Promise<PostComment[]> {
         throw error;
     }
 
-    return (data || []).map((row: any) => ({
+    return ((data || []) as unknown as CommentQueryRow[]).map((row) => ({
         id: row.id,
         user_id: row.user_id,
         author_name: row.author?.full_name || null,

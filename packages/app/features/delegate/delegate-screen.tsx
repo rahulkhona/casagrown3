@@ -22,7 +22,7 @@ import {
   ArrowLeft,
 } from '@tamagui/lucide-icons'
 import { useTranslation } from 'react-i18next'
-import { colors, borderRadius } from '../../design-tokens'
+import { colors, borderRadius, tc } from '../../design-tokens'
 import { useDelegations, type DelegationRecord } from './useDelegations'
 import AddDelegateSheet from './AddDelegateSheet'
 import JoinByCodeSheet from './JoinByCodeSheet'
@@ -47,12 +47,12 @@ function StatusBadge({ status, hasActivePosts, t }: { status: string; hasActiveP
 
   return (
     <YStack
-      backgroundColor={c.bg as any}
+      backgroundColor={tc(c.bg)}
       paddingHorizontal="$2"
       paddingVertical="$1"
       borderRadius={borderRadius.default}
     >
-      <Text fontSize={11} fontWeight="600" color={c.text as any}>
+      <Text fontSize={11} fontWeight="600" color={tc(c.text)}>
         {c.label}
       </Text>
     </YStack>
@@ -315,6 +315,7 @@ export default function DelegateScreen({ initialTab }: { initialTab?: 'my' | 'fo
             justifyContent="center"
             onPress={() => router.back()}
             hoverStyle={{ backgroundColor: 'rgba(255,255,255,0.3)' }}
+            accessibilityLabel="Back"
           >
             <ArrowLeft size={20} color="white" />
           </Button>

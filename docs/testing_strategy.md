@@ -54,19 +54,69 @@ authentication enforcement, input validation, and business logic flows.
   deno test --allow-net --allow-env supabase/functions/*/test.ts
   ```
 
-### 2.3 Integration / E2E Tests (Maestro)
+### 2.3 Mobile E2E Tests (Maestro)
 
-**Scope**: `.maestro/*.yaml` **Tools**: `maestro` (Mobile E2E Framework)
+**Scope**: `e2e/maestro/flows/*.yaml` **Tools**:
+[Maestro](https://maestro.mobile.dev/)
 
-These tests verify the app running in a real environment (Simulator/Emulator).
+These tests run against the app on a real iOS Simulator or Android Emulator,
+verifying end-to-end user flows.
 
-- **Key Flows**:
-  - **Home Screen**: Launch, content check, navigation to Login.
-  - **Login**: UI verification (future: actual auth flow).
+#### Directory Structure
 
-- **To Run**:
-  1. Start the app: `npx expo run:ios` (or android)
-  2. Run flow: `maestro test .maestro/home_screen_flow.yaml`
+```
+e2e/maestro/
+├── config.yaml           # appId, env vars, ordered flow list
+├── flows/
+│   ├── login.yaml            # Full login + OTP verification
+│   ├── feed-navigation.yaml  # Feed → Profile → Back
+│   ├── create-post.yaml      # Create Post → Sell form → Back
+│   ├── profile-management.yaml  # Avatar → Profile Settings → Back
+│   ├── chat.yaml             # Menu → Chats → Back
+│   ├── delegation.yaml       # Menu → Delegate Sales → Back
+│   ├── post-management.yaml  # Menu → My Posts → Back
+│   ├── order-flow.yaml       # Conditional: tap Order if visible
+│   └── profile-wizard.yaml   # Conditional: wizard if visible
+└── utils/
+    └── login.yaml            # Reusable login utility (used by all flows)
+```
+
+#### Test Users (from `seed.sql`)
+
+| Role   | Email               | Password           |
+| :----- | :------------------ | :----------------- |
+| Seller | `seller@test.local` | `TestPassword123!` |
+| Buyer  | `buyer@test.local`  | `TestPassword123!` |
+
+#### Navigation Patterns
+
+- **Avatar tap** → Profile screen (e.g., `tapOn: { text: "T", index: 0 }`)
+- **Hamburger menu** → `tapOn: "Menu"` opens navigation drawer (Chats, My Posts,
+  Delegate Sales)
+- **Back navigation** → `tapOn: "Back"` (all screens have
+  `accessibilityLabel="Back"` on their back buttons)
+
+#### To Run
+
+```bash
+# Install Maestro CLI
+curl -Ls "https://get.maestro.mobile.dev" | bash
+
+# Seed test data (reset DB + clear Mailpit)
+./e2e/seed-test-data.sh
+
+# Start the app
+cd apps/expo-community && npx expo run:ios
+
+# Run all 9 flows
+maestro test e2e/maestro/
+
+# Run a single flow
+maestro test e2e/maestro/flows/login.yaml
+
+# Run on a specific device
+maestro --device <DEVICE_UDID> test e2e/maestro/
+```
 
 ## 3. CI/CD Pipeline
 
@@ -82,8 +132,6 @@ These tests verify the app running in a real environment (Simulator/Emulator).
 - **Action**: Runs full Jest test suite (28 suites, 368 tests) with `--bail`.
 - **Goal**: Prevent regressions in all app features.
 - **Note**: Edge function tests run separately via `deno test`.
-- **Note**: Will fail if Maestro is not installed or if the emulator is not
-  running.
 
 ## 4. Configuration Details
 

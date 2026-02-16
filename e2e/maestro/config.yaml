@@ -4,12 +4,20 @@
 # Default app ID for all flows
 appId: dev.casagrown.community
 
-# Environment variables
+# Environment variables (seeded test user from seed.sql)
 env:
-  TEST_EMAIL: test@casagrown.com
+  TEST_EMAIL: seller@test.local
   TEST_PASSWORD: TestPassword123!
+  MAILPIT_URL: http://localhost:54324
 
-# Flow execution settings
+# Flow execution settings — ordered by dependency
 flows:
-  - flows/profile-wizard.yaml
+  - flows/login.yaml
+  - flows/feed-navigation.yaml
+  - flows/create-post.yaml
+  - flows/order-flow.yaml
+  - flows/chat.yaml
+  - flows/post-management.yaml
+  - flows/delegation.yaml
   - flows/profile-management.yaml
+  - flows/profile-wizard.yaml

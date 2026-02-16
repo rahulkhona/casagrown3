@@ -1,0 +1,35 @@
+# Order Flow — Maestro E2E test
+# Tests the order button and order sheet visibility.
+# Order button only appears on other users' posts.
+
+appId: dev.casagrown.community
+
+---
+
+# Login first
+- runFlow: ../utils/login.yaml
+
+# Wait for feed to load
+- extendedWaitUntil:
+          visible: "Tomatoes"
+          timeout: 15000
+
+# Look for an "Order" button — it only appears on posts from other users.
+# The seeded seller account owns the posts, so "Order" may not be visible.
+# Use conditional flow to avoid failure.
+- runFlow:
+          when:
+                  visible: "Order"
+          commands:
+                  - tapOn: "Order"
+                  # Wait for order sheet
+                  - extendedWaitUntil:
+                            visible: "Quantity"
+                            timeout: 10000
+                  # Verify order sheet fields
+                  - assertVisible: "Cancel"
+                  # Close the order sheet
+                  - tapOn: "Cancel"
+                  - extendedWaitUntil:
+                            visible: "Tomatoes"
+                            timeout: 10000

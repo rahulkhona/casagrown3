@@ -214,11 +214,13 @@ function MessageBubble({
         })()}
 
         {/* Location message */}
-        {message.metadata?.location && (
+        {message.metadata?.location && (() => {
+          const loc = message.metadata.location as { latitude: number; longitude: number }
+          return (
           <TouchableOpacity
             activeOpacity={0.7}
             onPress={() => {
-              const { latitude, longitude } = message.metadata.location
+              const { latitude, longitude } = loc
               const url = Platform.select({
                 ios: `maps:0,0?q=${latitude},${longitude}`,
                 android: `geo:${latitude},${longitude}?q=${latitude},${longitude}`,
@@ -241,7 +243,7 @@ function MessageBubble({
                   fontSize={11}
                   color={isOwn ? 'rgba(255,255,255,0.7)' : colors.gray[500]}
                 >
-                  {message.metadata.location.latitude.toFixed(5)}, {message.metadata.location.longitude.toFixed(5)}
+                  {loc.latitude.toFixed(5)}, {loc.longitude.toFixed(5)}
                 </Text>
                 <Text
                   fontSize={11}
@@ -253,7 +255,8 @@ function MessageBubble({
               </YStack>
             </XStack>
           </TouchableOpacity>
-        )}
+          )
+        })()}
 
         {/* Text content (skip if location message — content is redundant) */}
         {message.content && !message.metadata?.location && (
@@ -451,9 +454,9 @@ export function ChatScreen({
         presenceRef.current = presence
 
         setLoading(false)
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!cancelled) {
-          setError(err?.message || 'Failed to load chat')
+          setError(err instanceof Error ? err.message : 'Failed to load chat')
           setLoading(false)
         }
       }
@@ -817,7 +820,7 @@ export function ChatScreen({
   return (
     <YStack flex={1} backgroundColor={colors.gray[100]} alignItems="center">
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: colors.gray[50], width: '100%', maxWidth: isWeb ? 700 : undefined, alignSelf: 'center' } as any}
+      style={{ flex: 1, backgroundColor: colors.gray[50], width: '100%', maxWidth: isWeb ? 700 : undefined, alignSelf: 'center' } as Record<string, unknown>}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
     >
@@ -918,7 +921,7 @@ export function ChatScreen({
         ref={flatListRef}
         data={listData}
         keyExtractor={(item, index) =>
-          item.type === 'date' ? `date-${index}` : `msg-${(item as any).message.id}`
+          item.type === 'date' ? `date-${index}` : `msg-${(item as { message: ChatMessage }).message.id}`
         }
         renderItem={({ item }) => {
           if (item.type === 'date') {
@@ -1089,7 +1092,7 @@ export function ChatScreen({
               color: colors.gray[800],
               maxHeight: 100,
               paddingVertical: Platform.OS === 'ios' ? 0 : 4,
-              ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}),
+              ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as Record<string, string> : {}),
             }}
             placeholder={t('chat.inputPlaceholder')}
             placeholderTextColor={colors.gray[400]}

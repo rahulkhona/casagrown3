@@ -44,6 +44,7 @@ exports[`ProfileScreen matches snapshot 1`] = `
           }
         >
           <View
+            accessibilityLabel="Back"
             accessibilityState={
               {
                 "busy": undefined,

@@ -197,10 +197,10 @@ export const ProfileSetupStep = () => {
                 {Platform.OS === 'web' && (
                   <>
                     <input
-                      ref={fileInputRef as any}
+                      ref={fileInputRef}
                       type="file"
                       accept="image/*"
-                      onChange={handleWebFileChange as any}
+                      onChange={handleWebFileChange}
                       style={{ display: 'none' }}
                     />
                     {showCamera && WebCameraModal && (

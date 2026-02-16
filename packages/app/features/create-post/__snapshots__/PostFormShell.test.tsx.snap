@@ -16,6 +16,7 @@ exports[`PostFormShell matches snapshot in default state 1`] = `
     paddingTop={8}
   >
     <View
+      accessibilityLabel="Back"
       accessibilityState={
         {
           "busy": undefined,
@@ -139,6 +140,7 @@ exports[`PostFormShell matches snapshot in submitting state with error 1`] = `
     paddingTop={8}
   >
     <View
+      accessibilityLabel="Back"
       accessibilityState={
         {
           "busy": undefined,

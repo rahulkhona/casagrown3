@@ -10,7 +10,7 @@ import { useState } from 'react'
 import { YStack, XStack, Text, Button, ScrollView } from 'tamagui'
 import { Pressable } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { colors, borderRadius, shadows } from '../../design-tokens'
+import { colors, borderRadius, shadows, tc } from '../../design-tokens'
 import { useTranslation } from 'react-i18next'
 import {
   ArrowLeft,
@@ -186,6 +186,7 @@ export function CreatePostScreen({ onBack, onSuccess, initialType, editId, clone
             alignItems="center"
             justifyContent="center"
             pressStyle={{ opacity: 0.6 }}
+            accessibilityLabel="Back"
           >
             <ArrowLeft size={24} color={colors.gray[700]} />
           </Button>
@@ -234,7 +235,7 @@ export function CreatePostScreen({ onBack, onSuccess, initialType, editId, clone
                     width={48}
                     height={48}
                     borderRadius={24}
-                    backgroundColor={type.iconBg as any}
+                    backgroundColor={tc(type.iconBg)}
                     alignItems="center"
                     justifyContent="center"
                   >

@@ -7,7 +7,7 @@
  * Renders community feed posts with filtering, search, like/flag/share actions.
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { normalizeStorageUrl } from '../../utils/normalize-storage-url'
 import { YStack, XStack, Text, Button, ScrollView, useMedia, Input, Spinner } from 'tamagui'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -15,7 +15,7 @@ import { useFocusEffect } from '@react-navigation/native'
 import { colors, shadows, borderRadius } from '../../design-tokens'
 import { useTranslation } from 'react-i18next'
 import { Search, Bell, UserPlus, Home, Plus, Filter, Leaf, Menu, X } from '@tamagui/lucide-icons'
-import { Platform, Image, TouchableOpacity, Alert, TextInput } from 'react-native'
+import { Platform, Image, TouchableOpacity, Alert, TextInput, FlatList } from 'react-native'
 import { InviteModal } from './InviteModal'
 import { FeedPostCard } from './FeedPostCard'
 import { OrderSheet } from './OrderSheet'
@@ -244,10 +244,14 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
     setFlagModalVisible(true)
   }, [])
 
+  // Keep a stable ref to filteredPosts for use in callbacks
+  const postsRef = useRef(filteredPosts)
+  postsRef.current = filteredPosts
+
   const handleOpenOrder = useCallback((postId: string) => {
-    const post = filteredPosts.find(p => p.id === postId)
+    const post = postsRef.current.find(p => p.id === postId)
     if (post) setOrderPost(post)
-  }, [filteredPosts])
+  }, [])
 
   const handleOrderSubmit = useCallback(async (data: OrderFormData) => {
     if (!userId || !orderPost) return
@@ -301,6 +305,41 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
 
   const hasPosts = filteredPosts.length > 0 || loading
 
+  // Reorder posts if one is highlighted (move to top)
+  const orderedPosts = useMemo(() => {
+    if (!highlightPostId) return filteredPosts
+    const idx = filteredPosts.findIndex(p => p.id === highlightPostId)
+    if (idx <= 0) return filteredPosts
+    return [
+      filteredPosts[idx]!,
+      ...filteredPosts.slice(0, idx),
+      ...filteredPosts.slice(idx + 1),
+    ]
+  }, [filteredPosts, highlightPostId])
+
+  // FlatList renderItem
+  const renderPostItem = useCallback(({ item: post }: { item: FeedPost }) => (
+    <YStack
+      borderWidth={post.id === highlightPostId ? 2 : 0}
+      borderColor={post.id === highlightPostId ? colors.green[500] : 'transparent'}
+      borderRadius={post.id === highlightPostId ? borderRadius.lg : 0}
+      overflow="hidden"
+    >
+      <FeedPostCard
+        post={post}
+        currentUserId={userId || ''}
+        currentUserName={userDisplayName}
+        onLikeToggle={handleLikeToggle}
+        onOrder={handleOpenOrder}
+        onChat={onNavigateToChat}
+        onFlag={handleOpenFlag}
+        t={t}
+      />
+    </YStack>
+  ), [highlightPostId, userId, userDisplayName, handleLikeToggle, handleOpenOrder, onNavigateToChat, handleOpenFlag, t])
+
+  const keyExtractor = useCallback((item: FeedPost) => item.id, [])
+
   return (
     <YStack flex={1} backgroundColor={colors.gray[50]}>
       {/* ============ HEADER ============ */}
@@ -310,7 +349,7 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
         borderBottomWidth={1} 
         borderBottomColor={colors.gray[200]}
         paddingTop={insets.top || (isWeb ? 0 : 16)}
-        position={isWeb ? 'sticky' as any : 'relative'}
+        position={isWeb ? ('sticky' as 'sticky') : 'relative'}
         top={0}
         zIndex={50}
       >
@@ -480,6 +519,7 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
                 style={{ padding: 8, borderRadius: 999, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
                 activeOpacity={0.6}
                 onPress={() => setMobileMenuOpen(!mobileMenuOpen)}
+                accessibilityLabel="Menu"
               >
                 {mobileMenuOpen ? (
                   <X size={24} color={colors.gray[700]} />
@@ -505,377 +545,350 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
       </YStack>
 
       {/* ============ MAIN CONTENT ============ */}
-      <ScrollView 
-        flex={1}
+      <FlatList
+        data={loading || error ? [] : orderedPosts}
+        renderItem={renderPostItem}
+        keyExtractor={keyExtractor}
         contentContainerStyle={{ flexGrow: 1 }}
         keyboardShouldPersistTaps="handled"
-      >
-        {/* Search Bar Section */}
-        <YStack 
-          maxWidth={896}
-          width="100%"
-          alignSelf="center"
-          padding={isDesktop ? '$6' : '$4'}
-          gap="$4"
-        >
-          <YStack 
-            backgroundColor="white" 
-            borderRadius={borderRadius.lg}
-            padding="$4"
-            shadowColor={shadows.sm.color}
-            shadowOffset={shadows.sm.offset}
-            shadowOpacity={0.05}
-            shadowRadius={shadows.sm.radius}
-            gap="$3"
-          >
-            {/* Search Input */}
-            <XStack 
-              backgroundColor="white"
-              borderRadius="$3"
-              paddingHorizontal="$3"
-              alignItems="center"
-              gap="$2"
-              borderWidth={1}
-              borderColor={colors.gray[300]}
-            >
-              <Search size={18} color={colors.gray[400]} />
-              {Platform.OS === 'web' ? (
-                <input
-                  type="text"
-                  placeholder={t('feed.searchPlaceholder')}
-                  value={searchQuery}
-                  onChange={(e: any) => setSearchQuery(e.target.value)}
-                  style={{
-                    flex: 1,
-                    border: 'none',
-                    outline: 'none',
-                    backgroundColor: 'transparent',
-                    fontSize: 14,
-                    fontWeight: '400',
-                    padding: '8px 0',
-                    color: colors.gray[900],
-                    fontFamily: 'inherit',
-                  }}
-                />
-              ) : (
-                <TextInput
-                  style={{
-                    flex: 1,
-                    backgroundColor: 'transparent',
-                    fontSize: 14,
-                    paddingVertical: 8,
-                    fontWeight: 'normal',
-                    fontFamily: Platform.OS === 'ios' ? 'System' : undefined,
-                    color: colors.gray[900],
-                    letterSpacing: 0,
-                  }}
-                  placeholder={t('feed.searchPlaceholder')}
-                  placeholderTextColor={colors.gray[400]}
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                />
-              )}
-            </XStack>
-
-            {/* Filter Pills — below search, above create post */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <XStack gap="$2" paddingVertical="$1">
-                {FILTER_OPTIONS.map((opt) => {
-                  const isActive = selectedFilter === opt.value
-                  return (
-                    <Button
-                      key={opt.value}
-                      size="$3"
-                      backgroundColor={isActive ? colors.green[600] : colors.gray[100]}
-                      borderRadius={20}
-                      paddingHorizontal="$3"
-                      paddingVertical="$1"
-                      pressStyle={isActive ? { backgroundColor: colors.green[700] } : { backgroundColor: colors.gray[200] }}
-                      onPress={() => setSelectedFilter(opt.value)}
-                    >
-                      <Text
-                        fontSize={13}
-                        fontWeight={isActive ? '600' : '500'}
-                        color={isActive ? 'white' : colors.gray[700]}
-                      >
-                        {t(opt.labelKey)}
-                      </Text>
-                    </Button>
-                  )
-                })}
-              </XStack>
-            </ScrollView>
-
-            {/* Create Post Button — inline on desktop */}
-            {isDesktop && (
-              <Button
-                backgroundColor={colors.green[600]}
-                paddingHorizontal="$4"
-                paddingVertical="$2"
-                borderRadius="$3"
-                gap="$2"
-                hoverStyle={{ backgroundColor: colors.green[700] }}
-                pressStyle={{ backgroundColor: colors.green[700] }}
-                onPress={onCreatePost}
-                icon={<Plus size={18} color="white" />}
-              >
-                <Text color="white" fontSize="$3" fontWeight="500">{t('feed.createPost')}</Text>
-              </Button>
-            )}
-
-            {/* Create Post Button — full-width on mobile */}
-            {!isDesktop && (
-              <Button
-                backgroundColor={colors.green[600]}
-                paddingVertical="$3"
-                borderRadius="$3"
-                gap="$2"
-                minHeight={48}
-                pressStyle={{ backgroundColor: colors.green[700], scale: 0.98 }}
-                onPress={onCreatePost}
-                icon={<Plus size={20} color="white" />}
-              >
-                <Text color="white" fontSize="$4" fontWeight="600">{t('feed.createPost')}</Text>
-              </Button>
-            )}
-          </YStack>
-
-          {/* ─── Feed Content ─── */}
-          {loading ? (
-            <YStack padding="$8" alignItems="center">
-              <Spinner size="large" color={colors.green[600]} />
-              <Text marginTop="$3" color={colors.gray[500]}>{t('feed.loading')}</Text>
-            </YStack>
-          ) : error ? (
-            <YStack
-              backgroundColor="white"
-              borderRadius={borderRadius.lg}
-              padding="$8"
-              alignItems="center"
-              gap="$4"
-              shadowColor={shadows.sm.color}
-              shadowOffset={shadows.sm.offset}
-              shadowOpacity={0.05}
-              shadowRadius={shadows.sm.radius}
-            >
-              <Text fontSize="$4" color={colors.gray[600]} textAlign="center">{error}</Text>
-              <Button
-                backgroundColor={colors.green[600]}
-                paddingHorizontal="$5"
-                paddingVertical="$2"
-                borderRadius="$3"
-                pressStyle={{ backgroundColor: colors.green[700] }}
-                onPress={() => fullFetch(true)}
-              >
-                <Text color="white" fontWeight="500">{t('feed.retry')}</Text>
-              </Button>
-            </YStack>
-          ) : hasPosts ? (
-            <YStack gap="$4">
-              {(() => {
-                // If a post is highlighted, move it to the top
-                let orderedPosts = filteredPosts
-                if (highlightPostId) {
-                  const idx = filteredPosts.findIndex(p => p.id === highlightPostId)
-                  if (idx > 0) {
-                    orderedPosts = [
-                      filteredPosts[idx]!,
-                      ...filteredPosts.slice(0, idx),
-                      ...filteredPosts.slice(idx + 1),
-                    ]
-                  }
-                }
-                return orderedPosts.map((post) => (
-                <YStack
-                  key={post.id}
-                  borderWidth={post.id === highlightPostId ? 2 : 0}
-                  borderColor={post.id === highlightPostId ? colors.green[500] : 'transparent'}
-                  borderRadius={post.id === highlightPostId ? borderRadius.lg : 0}
-                  overflow="hidden"
-                >
-                <FeedPostCard
-                  key={post.id}
-                  post={post}
-                  currentUserId={userId || ''}
-                  currentUserName={userDisplayName}
-                  onLikeToggle={handleLikeToggle}
-                  onOrder={handleOpenOrder}
-                  onChat={onNavigateToChat}
-                  onFlag={handleOpenFlag}
-                  t={t}
-                />
-                </YStack>
-              ))
-              })()}
-            </YStack>
-          ) : (
-            /* Empty State */
-            <YStack 
-              backgroundColor="white" 
-              borderRadius={borderRadius.lg}
-              padding="$8"
-              alignItems="center"
-              gap="$4"
-              shadowColor={shadows.sm.color}
-              shadowOffset={shadows.sm.offset}
-              shadowOpacity={0.05}
-              shadowRadius={shadows.sm.radius}
-            >
-              <YStack 
-                width={64} 
-                height={64} 
-                borderRadius={32} 
-                backgroundColor={colors.gray[100]} 
-                alignItems="center" 
-                justifyContent="center"
-              >
-                <Search size={32} color={colors.gray[400]} />
-              </YStack>
-              
-              <Text fontSize="$5" fontWeight="600" color={colors.gray[900]} textAlign="center">
-                {t('feed.emptyTitle')}
-              </Text>
-              
-              <Text fontSize="$4" color={colors.gray[600]} textAlign="center">
-                {t('feed.emptyDescription')}
-              </Text>
-
-              {onCreatePost && (
-                <Button
-                  backgroundColor={colors.green[600]}
-                  paddingHorizontal="$5"
-                  paddingVertical="$3"
-                  borderRadius="$3"
-                  gap="$2"
-                  marginTop="$2"
-                  hoverStyle={{ backgroundColor: colors.green[700] }}
-                  onPress={onCreatePost}
-                  icon={<Plus size={18} color="white" />}
-                >
-                  <Text color="white" fontSize="$4" fontWeight="500">{t('feed.createFirstPost')}</Text>
-                </Button>
-              )}
-            </YStack>
-          )}
-        </YStack>
-
-        {/* ============ FOOTER ============ */}
-        {/* Based on figma_extracted/src/App.tsx lines 572-640 */}
-        {/* Only show on web - mobile has navigation in header */}
-        {isWeb && (
-        <YStack 
-          backgroundColor={colors.gray[50]} 
-          borderTopWidth={1}
-          borderTopColor={colors.gray[200]}
-          marginTop="auto"
-        >
+        style={{ flex: 1 }}
+        ListHeaderComponent={
           <YStack 
             maxWidth={896}
             width="100%"
             alignSelf="center"
-            paddingHorizontal={isDesktop ? '$6' : '$4'}
-            paddingVertical="$8"
+            padding={isDesktop ? '$6' : '$4'}
+            gap="$4"
           >
-            {/* 3-column grid layout - matches Figma grid grid-cols-1 md:grid-cols-3 gap-8 */}
-            <XStack 
-              flexWrap="wrap"
-              gap="$8"
-              justifyContent={isDesktop ? 'space-between' : 'flex-start'}
-            >
-              {/* Branding Column - First column takes more space */}
-              <YStack flex={1} minWidth={250} maxWidth={350}>
-                {/* Logo + Brand - mb-4 in Figma */}
-                <XStack alignItems="center" gap="$2" marginBottom="$4">
-                  {isWeb ? (
-                    <img 
-                      src="/logo.png" 
-                      alt="CasaGrown" 
-                      style={{ width: 32, height: 32, objectFit: 'contain' }} 
-                    />
-                  ) : logoSrc ? (
-                    <Image
-                      source={logoSrc}
-                      style={{ width: 32, height: 32 }}
-                      resizeMode="contain"
-                    />
-                  ) : (
-                    <YStack 
-                      width={32} 
-                      height={32} 
-                      borderRadius="$full" 
-                      backgroundColor={colors.green[600]} 
-                      alignItems="center" 
-                      justifyContent="center"
-                    >
-                      <Leaf size={20} color="white" />
-                    </YStack>
-                  )}
-                  <Text fontSize="$5" fontWeight="700" color={colors.gray[900]}>
-                    CasaGrown
-                  </Text>
-                </XStack>
-                {/* Description - text-sm in Figma */}
-                <Text fontSize="$3" color={colors.gray[600]} lineHeight={20}>
-                  {t('feed.footer.description')}
-                </Text>
-              </YStack>
-
-              {/* Learn More Column */}
-              <YStack minWidth={120}>
-                {/* Heading - mb-4 in Figma */}
-                <Text fontSize="$3" fontWeight="600" color={colors.gray[900]} marginBottom="$4">
-                  {t('feed.footer.learnMore')}
-                </Text>
-                {/* Links - space-y-2 in Figma */}
-                <YStack gap="$2">
-                  <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
-                    {t('feed.footer.whyPoints')}
-                  </Text>
-                  <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
-                    {t('feed.footer.howItWorks')}
-                  </Text>
-                  <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
-                    {t('feed.footer.support')}
-                  </Text>
-                </YStack>
-              </YStack>
-
-              {/* Legal Column */}
-              <YStack minWidth={120}>
-                {/* Heading - mb-4 in Figma */}
-                <Text fontSize="$3" fontWeight="600" color={colors.gray[900]} marginBottom="$4">
-                  {t('feed.footer.legal')}
-                </Text>
-                {/* Links - space-y-2 in Figma */}
-                <YStack gap="$2">
-                  <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
-                    {t('feed.footer.privacyPolicy')}
-                  </Text>
-                  <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
-                    {t('feed.footer.userAgreement')}
-                  </Text>
-                  <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
-                    {t('feed.footer.termsOfService')}
-                  </Text>
-                </YStack>
-              </YStack>
-            </XStack>
-
-            {/* Copyright */}
             <YStack 
-              marginTop="$8" 
-              paddingTop="$8" 
-              borderTopWidth={1} 
-              borderTopColor={colors.gray[200]}
+              backgroundColor="white" 
+              borderRadius={borderRadius.lg}
+              padding="$4"
+              shadowColor={shadows.sm.color}
+              shadowOffset={shadows.sm.offset}
+              shadowOpacity={0.05}
+              shadowRadius={shadows.sm.radius}
+              gap="$3"
             >
-              <Text fontSize="$2" color={colors.gray[500]} textAlign="center">
-                {t('feed.footer.copyright')}
-              </Text>
+              {/* Search Input */}
+              <XStack 
+                backgroundColor="white"
+                borderRadius="$3"
+                paddingHorizontal="$3"
+                alignItems="center"
+                gap="$2"
+                borderWidth={1}
+                borderColor={colors.gray[300]}
+              >
+                <Search size={18} color={colors.gray[400]} />
+                {Platform.OS === 'web' ? (
+                  <input
+                    type="text"
+                    placeholder={t('feed.searchPlaceholder')}
+                    value={searchQuery}
+                    onChange={(e: any) => setSearchQuery(e.target.value)}
+                    style={{
+                      flex: 1,
+                      border: 'none',
+                      outline: 'none',
+                      backgroundColor: 'transparent',
+                      fontSize: 14,
+                      fontWeight: '400',
+                      padding: '8px 0',
+                      color: colors.gray[900],
+                      fontFamily: 'inherit',
+                    }}
+                  />
+                ) : (
+                  <TextInput
+                    style={{
+                      flex: 1,
+                      backgroundColor: 'transparent',
+                      fontSize: 14,
+                      paddingVertical: 8,
+                      fontWeight: 'normal',
+                      fontFamily: Platform.OS === 'ios' ? 'System' : undefined,
+                      color: colors.gray[900],
+                      letterSpacing: 0,
+                    }}
+                    placeholder={t('feed.searchPlaceholder')}
+                    placeholderTextColor={colors.gray[400]}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                  />
+                )}
+              </XStack>
+
+              {/* Filter Pills — below search, above create post */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <XStack gap="$2" paddingVertical="$1">
+                  {FILTER_OPTIONS.map((opt) => {
+                    const isActive = selectedFilter === opt.value
+                    return (
+                      <Button
+                        key={opt.value}
+                        size="$3"
+                        backgroundColor={isActive ? colors.green[600] : colors.gray[100]}
+                        borderRadius={20}
+                        paddingHorizontal="$3"
+                        paddingVertical="$1"
+                        pressStyle={isActive ? { backgroundColor: colors.green[700] } : { backgroundColor: colors.gray[200] }}
+                        onPress={() => setSelectedFilter(opt.value)}
+                      >
+                        <Text
+                          fontSize={13}
+                          fontWeight={isActive ? '600' : '500'}
+                          color={isActive ? 'white' : colors.gray[700]}
+                        >
+                          {t(opt.labelKey)}
+                        </Text>
+                      </Button>
+                    )
+                  })}
+                </XStack>
+              </ScrollView>
+
+              {/* Create Post Button — inline on desktop */}
+              {isDesktop && (
+                <Button
+                  backgroundColor={colors.green[600]}
+                  paddingHorizontal="$4"
+                  paddingVertical="$2"
+                  borderRadius="$3"
+                  gap="$2"
+                  hoverStyle={{ backgroundColor: colors.green[700] }}
+                  pressStyle={{ backgroundColor: colors.green[700] }}
+                  onPress={onCreatePost}
+                  icon={<Plus size={18} color="white" />}
+                >
+                  <Text color="white" fontSize="$3" fontWeight="500">{t('feed.createPost')}</Text>
+                </Button>
+              )}
+
+              {/* Create Post Button — full-width on mobile */}
+              {!isDesktop && (
+                <Button
+                  backgroundColor={colors.green[600]}
+                  paddingVertical="$3"
+                  borderRadius="$3"
+                  gap="$2"
+                  minHeight={48}
+                  pressStyle={{ backgroundColor: colors.green[700], scale: 0.98 }}
+                  onPress={onCreatePost}
+                  icon={<Plus size={20} color="white" />}
+                >
+                  <Text color="white" fontSize="$4" fontWeight="600">{t('feed.createPost')}</Text>
+                </Button>
+              )}
             </YStack>
+
+            {/* ─── Loading / Error states (above the list) ─── */}
+            {loading ? (
+              <YStack padding="$8" alignItems="center">
+                <Spinner size="large" color={colors.green[600]} />
+                <Text marginTop="$3" color={colors.gray[500]}>{t('feed.loading')}</Text>
+              </YStack>
+            ) : error ? (
+              <YStack
+                backgroundColor="white"
+                borderRadius={borderRadius.lg}
+                padding="$8"
+                alignItems="center"
+                gap="$4"
+                shadowColor={shadows.sm.color}
+                shadowOffset={shadows.sm.offset}
+                shadowOpacity={0.05}
+                shadowRadius={shadows.sm.radius}
+              >
+                <Text fontSize="$4" color={colors.gray[600]} textAlign="center">{error}</Text>
+                <Button
+                  backgroundColor={colors.green[600]}
+                  paddingHorizontal="$5"
+                  paddingVertical="$2"
+                  borderRadius="$3"
+                  pressStyle={{ backgroundColor: colors.green[700] }}
+                  onPress={() => fullFetch(true)}
+                >
+                  <Text color="white" fontWeight="500">{t('feed.retry')}</Text>
+                </Button>
+              </YStack>
+            ) : null}
           </YStack>
-        </YStack>
-        )}
-      </ScrollView>
+        }
+        ListEmptyComponent={
+          !loading && !error ? (
+            <YStack
+              maxWidth={896}
+              width="100%"
+              alignSelf="center"
+              paddingHorizontal={isDesktop ? '$6' : '$4'}
+            >
+              <YStack 
+                backgroundColor="white" 
+                borderRadius={borderRadius.lg}
+                padding="$8"
+                alignItems="center"
+                gap="$4"
+                shadowColor={shadows.sm.color}
+                shadowOffset={shadows.sm.offset}
+                shadowOpacity={0.05}
+                shadowRadius={shadows.sm.radius}
+              >
+                <YStack 
+                  width={64} 
+                  height={64} 
+                  borderRadius={32} 
+                  backgroundColor={colors.gray[100]} 
+                  alignItems="center" 
+                  justifyContent="center"
+                >
+                  <Search size={32} color={colors.gray[400]} />
+                </YStack>
+                
+                <Text fontSize="$5" fontWeight="600" color={colors.gray[900]} textAlign="center">
+                  {t('feed.emptyTitle')}
+                </Text>
+                
+                <Text fontSize="$4" color={colors.gray[600]} textAlign="center">
+                  {t('feed.emptyDescription')}
+                </Text>
+
+                {onCreatePost && (
+                  <Button
+                    backgroundColor={colors.green[600]}
+                    paddingHorizontal="$5"
+                    paddingVertical="$3"
+                    borderRadius="$3"
+                    gap="$2"
+                    marginTop="$2"
+                    hoverStyle={{ backgroundColor: colors.green[700] }}
+                    onPress={onCreatePost}
+                    icon={<Plus size={18} color="white" />}
+                  >
+                    <Text color="white" fontSize="$4" fontWeight="500">{t('feed.createFirstPost')}</Text>
+                  </Button>
+                )}
+              </YStack>
+            </YStack>
+          ) : null
+        }
+        ItemSeparatorComponent={() => <YStack height={16} />}
+        ListFooterComponent={
+          isWeb ? (
+            <YStack 
+              backgroundColor={colors.gray[50]} 
+              borderTopWidth={1}
+              borderTopColor={colors.gray[200]}
+              marginTop="auto"
+            >
+              <YStack 
+                maxWidth={896}
+                width="100%"
+                alignSelf="center"
+                paddingHorizontal={isDesktop ? '$6' : '$4'}
+                paddingVertical="$8"
+              >
+                {/* 3-column grid layout - matches Figma grid grid-cols-1 md:grid-cols-3 gap-8 */}
+                <XStack 
+                  flexWrap="wrap"
+                  gap="$8"
+                  justifyContent={isDesktop ? 'space-between' : 'flex-start'}
+                >
+                  {/* Branding Column - First column takes more space */}
+                  <YStack flex={1} minWidth={250} maxWidth={350}>
+                    {/* Logo + Brand - mb-4 in Figma */}
+                    <XStack alignItems="center" gap="$2" marginBottom="$4">
+                      {isWeb ? (
+                        <img 
+                          src="/logo.png" 
+                          alt="CasaGrown" 
+                          style={{ width: 32, height: 32, objectFit: 'contain' }} 
+                        />
+                      ) : logoSrc ? (
+                        <Image
+                          source={logoSrc}
+                          style={{ width: 32, height: 32 }}
+                          resizeMode="contain"
+                        />
+                      ) : (
+                        <YStack 
+                          width={32} 
+                          height={32} 
+                          borderRadius="$full" 
+                          backgroundColor={colors.green[600]} 
+                          alignItems="center" 
+                          justifyContent="center"
+                        >
+                          <Leaf size={20} color="white" />
+                        </YStack>
+                      )}
+                      <Text fontSize="$5" fontWeight="700" color={colors.gray[900]}>
+                        CasaGrown
+                      </Text>
+                    </XStack>
+                    {/* Description - text-sm in Figma */}
+                    <Text fontSize="$3" color={colors.gray[600]} lineHeight={20}>
+                      {t('feed.footer.description')}
+                    </Text>
+                  </YStack>
+
+                  {/* Learn More Column */}
+                  <YStack minWidth={120}>
+                    {/* Heading - mb-4 in Figma */}
+                    <Text fontSize="$3" fontWeight="600" color={colors.gray[900]} marginBottom="$4">
+                      {t('feed.footer.learnMore')}
+                    </Text>
+                    {/* Links - space-y-2 in Figma */}
+                    <YStack gap="$2">
+                      <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
+                        {t('feed.footer.whyPoints')}
+                      </Text>
+                      <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
+                        {t('feed.footer.howItWorks')}
+                      </Text>
+                      <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
+                        {t('feed.footer.support')}
+                      </Text>
+                    </YStack>
+                  </YStack>
+
+                  {/* Legal Column */}
+                  <YStack minWidth={120}>
+                    {/* Heading - mb-4 in Figma */}
+                    <Text fontSize="$3" fontWeight="600" color={colors.gray[900]} marginBottom="$4">
+                      {t('feed.footer.legal')}
+                    </Text>
+                    {/* Links - space-y-2 in Figma */}
+                    <YStack gap="$2">
+                      <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
+                        {t('feed.footer.privacyPolicy')}
+                      </Text>
+                      <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
+                        {t('feed.footer.userAgreement')}
+                      </Text>
+                      <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
+                        {t('feed.footer.termsOfService')}
+                      </Text>
+                    </YStack>
+                  </YStack>
+                </XStack>
+
+                {/* Copyright */}
+                <YStack 
+                  marginTop="$8" 
+                  paddingTop="$8" 
+                  borderTopWidth={1} 
+                  borderTopColor={colors.gray[200]}
+                >
+                  <Text fontSize="$2" color={colors.gray[500]} textAlign="center">
+                    {t('feed.footer.copyright')}
+                  </Text>
+                </YStack>
+              </YStack>
+            </YStack>
+          ) : null
+        }
+      />
 
       {/* Floating Action Button (FAB) for mobile - Based on Figma mobile design */}
       {!isDesktop && (

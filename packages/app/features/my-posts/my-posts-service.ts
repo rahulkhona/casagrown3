@@ -10,6 +10,55 @@
 
 import { supabase } from "../auth/auth-hook";
 
+// -- Internal row type for Supabase post join queries --
+interface PostQueryRow {
+    id: string;
+    author_id: string;
+    on_behalf_of: string | null;
+    on_behalf_of_profile: {
+        full_name: string | null;
+        avatar_url: string | null;
+    } | null;
+    type: string;
+    reach: string;
+    content: string;
+    created_at: string;
+    updated_at: string;
+    community_h3_index: string | null;
+    community: { name: string | null } | null;
+    want_to_sell_details:
+        | Array<
+            {
+                category: string;
+                produce_name: string;
+                unit: string;
+                total_quantity_available: number;
+                points_per_unit: number;
+            }
+        >
+        | null;
+    want_to_buy_details:
+        | Array<
+            {
+                category: string;
+                produce_names: string[];
+                need_by_date: string | null;
+            }
+        >
+        | null;
+    post_media:
+        | Array<
+            {
+                position: number;
+                media_asset:
+                    | { storage_path: string; media_type: string }
+                    | null;
+            }
+        >
+        | null;
+    delivery_dates: Array<{ delivery_date: string }> | null;
+}
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -153,7 +202,8 @@ export async function getUserPosts(userId: string): Promise<UserPost[]> {
         throw error;
     }
 
-    return (data || []).map((row: any) => ({
+    const rows = (data || []) as unknown as PostQueryRow[];
+    return rows.map((row) => ({
         id: row.id,
         author_id: row.author_id,
         on_behalf_of: row.on_behalf_of || null,
@@ -167,15 +217,14 @@ export async function getUserPosts(userId: string): Promise<UserPost[]> {
         sell_details: row.want_to_sell_details?.[0] || null,
         buy_details: row.want_to_buy_details?.[0] || null,
         media: (row.post_media || [])
-            .sort((a: any, b: any) => (a.position || 0) - (b.position || 0))
-            .map((pm: any) => ({
+            .sort((a, b) => (a.position || 0) - (b.position || 0))
+            .map((pm) => ({
                 storage_path: pm.media_asset?.storage_path || "",
                 media_type: pm.media_asset?.media_type || "image",
             }))
-            .filter((m: any) => m.storage_path),
-        delivery_dates: (row.delivery_dates || []).map((d: any) =>
-            d.delivery_date
-        ).filter(Boolean),
+            .filter((m) => m.storage_path),
+        delivery_dates: (row.delivery_dates || []).map((d) => d.delivery_date)
+            .filter(Boolean),
     }));
 }
 
@@ -336,7 +385,7 @@ export async function getPostById(postId: string): Promise<UserPost | null> {
         return null;
     }
 
-    const row = data as any;
+    const row = data as unknown as PostQueryRow;
     return {
         id: row.id,
         author_id: row.author_id,
@@ -352,15 +401,14 @@ export async function getPostById(postId: string): Promise<UserPost | null> {
         sell_details: row.want_to_sell_details?.[0] || null,
         buy_details: row.want_to_buy_details?.[0] || null,
         media: (row.post_media || [])
-            .sort((a: any, b: any) => (a.position || 0) - (b.position || 0))
-            .map((pm: any) => ({
+            .sort((a, b) => (a.position || 0) - (b.position || 0))
+            .map((pm) => ({
                 storage_path: pm.media_asset?.storage_path || "",
                 media_type: pm.media_asset?.media_type || "image",
             }))
-            .filter((m: any) => m.storage_path),
-        delivery_dates: (row.delivery_dates || []).map((d: any) =>
-            d.delivery_date
-        ).filter(Boolean),
+            .filter((m) => m.storage_path),
+        delivery_dates: (row.delivery_dates || []).map((d) => d.delivery_date)
+            .filter(Boolean),
     };
 }
 
@@ -398,10 +446,33 @@ export async function clonePostData(postId: string): Promise<CloneData> {
         type: data.type,
         content: data.content,
         community_h3_index: data.community_h3_index,
-        sell_details: (data.want_to_sell_details as any)?.[0] || null,
-        buy_details: (data.want_to_buy_details as any)?.[0] || null,
-        delivery_dates: ((data as any).delivery_dates || []).map((d: any) =>
-            d.delivery_date
-        ).filter(Boolean),
+        sell_details:
+            (data.want_to_sell_details as
+                | Array<
+                    {
+                        category: string;
+                        produce_name: string;
+                        unit: string;
+                        total_quantity_available: number;
+                        points_per_unit: number;
+                    }
+                >
+                | null)?.[0] || null,
+        buy_details:
+            (data.want_to_buy_details as
+                | Array<
+                    {
+                        category: string;
+                        produce_names: string[];
+                        need_by_date: string | null;
+                    }
+                >
+                | null)?.[0] || null,
+        delivery_dates:
+            ((data as unknown as {
+                delivery_dates: Array<{ delivery_date: string }> | null;
+            }).delivery_dates || []).map((d) => d.delivery_date).filter(
+                Boolean,
+            ),
     };
 }

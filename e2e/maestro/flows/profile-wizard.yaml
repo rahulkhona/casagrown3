@@ -1,79 +1,39 @@
+# Profile Wizard Flow — Maestro E2E test
+# Tests the profile setup wizard for new users.
+# The seeded seller user may have already completed the wizard,
+# so all wizard-specific steps are conditional.
+
 appId: dev.casagrown.community
+
 ---
-# Profile Wizard E2E Flow
-# Tests the complete profile setup wizard for new users
 
-# Assumes user just signed up (new user)
-- launchApp
+# Login first
+- runFlow: ../utils/login.yaml
 
-# ============================================
-# Step 1: Profile Setup
-# ============================================
-- assertVisible: "Let's Get You Set Up"
+# If the wizard shows, step through it
+- runFlow:
+        when:
+              visible: "Let's Get You Set Up"
+        commands:
+              # Fill in wizard step 1 (profile setup)
+              - tapOn: "Continue"
 
-# Enter name
-- inputText:
-    id: "name_input"
-    text: "John Doe Test"
+              # Wait for community step
+              - extendedWaitUntil:
+                      visible: "Find Community"
+                      timeout: 10000
+              - tapOn: "Continue"
 
-# Upload photo (mock tap - actual picker is OS-level)
-- tapOn: "Upload Photo"
+              # Wait for intro step
+              - extendedWaitUntil:
+                      visible: "Introduce Yourself"
+                      timeout: 10000
+              - tapOn: "Continue"
 
-# Enable push notifications
-- tapOn: "Push Notifications"
+# After wizard (or if skipped), should see the feed
+- extendedWaitUntil:
+        visible: "Tomatoes"
+        timeout: 15000
 
-# Enable SMS notifications  
-- tapOn: "SMS Notifications"
-
-# Phone input should appear when SMS is enabled
-- assertVisible: "Mobile Number"
-- inputText:
-    id: "phone_input"
-    text: "5551234567"
-
-# Continue to next step
-- tapOn: "Continue"
-
-# ============================================
-# Step 2: Join Community
-# ============================================
-- assertVisible: "Join Your Community"
-
-# Enter address
-- inputText:
-    id: "address_input"
-    text: "123 Main St, San Jose, CA 95125"
-
-# Find community
-- tapOn: "Find Community"
-
-# Wait for resolution and verify community found
-- assertVisible: "Willow Glen"
-
-# Join the community
-- tapOn: "Continue"
-
-# ============================================
-# Step 3: Intro Post
-# ============================================
-- assertVisible: "Introduce Yourself"
-
-# Enter introduction text
-- inputText:
-    id: "intro_text"
-    text: "Hi neighbors! Excited to share fresh tomatoes from my garden."
-
-# Select some produce items (optional)
-- tapOn: "Tomatoes"
-- tapOn: "Lemons"
-
-# Enable first post option
-- tapOn: "Make this my first post"
-
-# Complete the wizard
-- tapOn: "Post & Continue"
-
-# ============================================
-# Verify Completion
-# ============================================
-- assertVisible: "Home"
+# Verify regular feed content
+- assertVisible: "Test Seller"

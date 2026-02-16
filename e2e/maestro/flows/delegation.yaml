@@ -1,0 +1,39 @@
+# Delegation Flow — Maestro E2E test
+# Tests navigating to delegate sales via the hamburger menu.
+
+appId: dev.casagrown.community
+
+---
+
+# Login first
+- runFlow: ../utils/login.yaml
+
+# Wait for feed to load
+- extendedWaitUntil:
+      visible: "Tomatoes"
+      timeout: 15000
+
+# Open hamburger menu
+- tapOn: "Menu"
+
+# Wait for nav drawer
+- extendedWaitUntil:
+      visible: "Delegate Sales"
+      timeout: 5000
+
+# Tap "Delegate Sales"
+- tapOn: "Delegate Sales"
+
+# Wait for delegate screen to load
+- extendedWaitUntil:
+      visible:
+          text: ".*Delegate.*"
+      timeout: 10000
+
+# Go back to feed
+- tapOn: "Back"
+
+# Verify we're back on feed
+- extendedWaitUntil:
+      visible: "Tomatoes"
+      timeout: 10000

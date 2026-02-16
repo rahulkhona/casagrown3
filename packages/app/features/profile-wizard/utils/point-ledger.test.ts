@@ -13,7 +13,7 @@ describe("Point Ledger Idempotency Logic", () => {
             // Logic from wizard-context.tsx
             if (!existingReward) {
                 // Would grant reward
-                expect.fail("Should not reach here when reward exists");
+                throw new Error("Should not reach here when reward exists");
             }
 
             expect(existingReward).toBeDefined();
@@ -39,7 +39,7 @@ describe("Point Ledger Idempotency Logic", () => {
             const existingReward = { id: "existing-post-reward" };
 
             if (!existingReward) {
-                expect.fail("Should not reach here when reward exists");
+                throw new Error("Should not reach here when reward exists");
             }
 
             expect(existingReward).toBeDefined();
@@ -71,9 +71,9 @@ describe("Point Ledger Idempotency Logic", () => {
         it("should start from 0 if no previous balance", () => {
             const latestLedger: { balance_after: number } | null = null;
 
-            const currentBalance = latestLedger
-                ? latestLedger.balance_after
-                : 0;
+            const currentBalance =
+                (latestLedger as { balance_after: number } | null)
+                    ?.balance_after ?? 0;
 
             expect(currentBalance).toBe(0);
         });

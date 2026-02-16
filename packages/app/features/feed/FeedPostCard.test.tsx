@@ -84,6 +84,7 @@ const makeSellPost = (overrides?: Partial<FeedPost>): FeedPost => ({
   like_count: 3,
   comment_count: 1,
   is_liked: false,
+  is_flagged: false,
   ...overrides,
 })
 

@@ -107,27 +107,26 @@ export function useAuth() {
     });
     if (error) throw error;
 
-    // DEV MODE: Fetch OTP from local Supabase's Inbucket (email catcher)
-    // Inbucket runs on port 54324 in local Supabase
+    // DEV MODE: Fetch OTP from local Supabase's Mailpit (email catcher)
+    // Mailpit runs on port 54324 in local Supabase
     if (__DEV__ || process.env.NODE_ENV === "development") {
       try {
         // Wait a moment for the email to be captured
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
 
-        // Get mailbox for this email
         // Android emulator needs 10.0.2.2 to reach host machine
-        const inbucketUrl = Platform.OS === "android"
+        const mailpitUrl = Platform.OS === "android"
           ? "http://10.0.2.2:54324"
           : "http://localhost:54324";
-        const mailbox = email.split("@")[0]; // Inbucket uses local part as mailbox
 
-        // Add 2-second timeout to prevent blocking UI
+        // Add 3-second timeout to prevent blocking UI
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
 
         try {
+          // Mailpit API: search messages sent to this email
           const listResponse = await fetch(
-            `${inbucketUrl}/api/v1/mailbox/${mailbox}`,
+            `${mailpitUrl}/api/v1/search?query=to:${encodeURIComponent(email)}`,
             {
               signal: controller.signal,
             },
@@ -135,22 +134,24 @@ export function useAuth() {
           clearTimeout(timeoutId);
 
           if (listResponse.ok) {
-            const messages = await listResponse.json();
-            if (messages && messages.length > 0) {
-              // Get most recent message
-              const latestMsgId = messages[messages.length - 1].id;
+            const data = await listResponse.json();
+            const messages = data.messages || [];
+            if (messages.length > 0) {
+              // Get most recent message (first in list, sorted by newest)
+              const latestMsgId = messages[0].ID;
               const msgResponse = await fetch(
-                `${inbucketUrl}/api/v1/mailbox/${mailbox}/${latestMsgId}`,
+                `${mailpitUrl}/api/v1/message/${latestMsgId}`,
                 {
                   signal: controller.signal,
                 },
               );
               if (msgResponse.ok) {
                 const msgData = await msgResponse.json();
-                // Extract 6-digit OTP from email body
-                const otpMatch = msgData.body?.text?.match(/\b(\d{6})\b/);
+                // Extract 6-digit OTP from email text body or snippet
+                const textBody = msgData.Text || msgData.Snippet || "";
+                const otpMatch = textBody.match(/\b(\d{6})\b/);
                 if (otpMatch) {
-                  console.log("🔑 [DEV] OTP from Inbucket:", otpMatch[1]);
+                  console.log("🔑 [DEV] OTP from Mailpit:", otpMatch[1]);
                   return { otpToken: otpMatch[1] };
                 }
               }
@@ -159,14 +160,14 @@ export function useAuth() {
         } catch (fetchError: any) {
           if (fetchError.name === "AbortError") {
             console.warn(
-              "⏱️ Inbucket fetch timed out - proceeding without dev OTP",
+              "⏱️ Mailpit fetch timed out - proceeding without dev OTP",
             );
           } else {
             throw fetchError;
           }
         }
       } catch (e) {
-        console.warn("Could not fetch OTP from Inbucket:", e);
+        console.warn("Could not fetch OTP from Mailpit:", e);
       }
     }
 

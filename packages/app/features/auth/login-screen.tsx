@@ -405,6 +405,7 @@ export function LoginScreen({ logoSrc, onLogin, onBack, referralCode, delegation
                     <YStack gap="$2">
                         <Text color={colors.gray[700]} fontWeight="500">{t('auth.login.emailLabel')}</Text>
                         <Input 
+                            testID="email_input"
                             value={email}
                             onChangeText={(text) => {
                                 setEmail(text)
@@ -455,6 +456,7 @@ export function LoginScreen({ logoSrc, onLogin, onBack, referralCode, delegation
                     <YStack gap="$2">
                          <Text color={colors.gray[700]} fontWeight="500">{t('auth.login.codeLabel')}</Text>
                          <Input 
+                            testID="otp_input"
                             value={otp}
                             onChangeText={(text) => {
                                 setOtp(text)

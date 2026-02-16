@@ -8,14 +8,10 @@ import {
 /**
  * create-order — Supabase Edge Function
  *
- * Atomically creates a "buy now" order from the feed:
- *   1. Creates/reuses a conversation between buyer and seller
- *   2. Creates a pending offer
- *   3. Creates a pending order record
- *   4. Debits points from the buyer's balance as escrow (inserts into point_ledger)
- *
- * NOTE: Points are debited from buyer immediately (escrow). Seller is credited
- * only when they accept the order (via accept-order edge function, not yet built).
+ * Atomically creates a "buy now" order from the feed via a single
+ * Postgres RPC call (create_order_atomic). This ensures all-or-nothing
+ * execution: conversation, offer, order, escrow, and system message
+ * are all committed or all rolled back.
  *
  * Request body: {
  *   postId: string,
@@ -73,149 +69,53 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
         return jsonError("Cannot order from yourself", corsHeaders);
     }
 
-    // 1. Check buyer's balance
-    const { data: lastEntry } = await supabase
-        .from("point_ledger")
-        .select("balance_after")
-        .eq("user_id", buyerId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
+    // Combine delivery address and instructions
+    const combinedInstructions =
+        [deliveryAddress, deliveryInstructions].filter(Boolean).join("\n") ||
+        null;
 
-    const currentBalance = lastEntry?.balance_after || 0;
+    // Call atomic RPC — all 6 steps in one transaction
+    const { data, error } = await supabase.rpc("create_order_atomic", {
+        p_buyer_id: buyerId,
+        p_seller_id: sellerId,
+        p_post_id: postId,
+        p_quantity: quantity,
+        p_points_per_unit: pointsPerUnit,
+        p_total_price: totalPrice,
+        p_category: category,
+        p_product: product,
+        p_delivery_date: deliveryDate || null,
+        p_delivery_instructions: combinedInstructions,
+    });
 
-    if (currentBalance < totalPrice) {
+    if (error) {
+        throw new Error(`create_order_atomic failed: ${error.message}`);
+    }
+
+    // RPC returns jsonb — check for business logic errors
+    if (data.error) {
         return jsonOk(
             {
-                error: "Insufficient points",
-                currentBalance,
-                required: totalPrice,
+                error: data.error,
+                currentBalance: data.currentBalance,
+                required: data.required,
             },
             corsHeaders,
             400,
         );
     }
 
-    // 2. Create or reuse conversation
-    const { data: existingConvo } = await supabase
-        .from("conversations")
-        .select("id")
-        .eq("post_id", postId)
-        .eq("buyer_id", buyerId)
-        .eq("seller_id", sellerId)
-        .single();
-
-    let conversationId: string;
-
-    if (existingConvo) {
-        conversationId = existingConvo.id;
-    } else {
-        const { data: newConvo, error: convoError } = await supabase
-            .from("conversations")
-            .insert({
-                post_id: postId,
-                buyer_id: buyerId,
-                seller_id: sellerId,
-            })
-            .select("id")
-            .single();
-
-        if (convoError || !newConvo) {
-            throw new Error(
-                `Failed to create conversation: ${convoError?.message}`,
-            );
-        }
-        conversationId = newConvo.id;
-    }
-
-    // 3. Create pending offer (seller must accept)
-    const { data: offer, error: offerError } = await supabase
-        .from("offers")
-        .insert({
-            conversation_id: conversationId,
-            created_by: buyerId,
-            quantity,
-            points_per_unit: pointsPerUnit,
-            status: "pending",
-        })
-        .select("id")
-        .single();
-
-    if (offerError || !offer) {
-        throw new Error(`Failed to create offer: ${offerError?.message}`);
-    }
-
-    // 4. Create order (pending — seller must accept)
-    const { data: order, error: orderError } = await supabase
-        .from("orders")
-        .insert({
-            offer_id: offer.id,
-            buyer_id: buyerId,
-            seller_id: sellerId,
-            category,
-            product,
-            quantity,
-            points_per_unit: pointsPerUnit,
-            delivery_date: deliveryDate || null,
-            delivery_instructions:
-                [deliveryAddress, deliveryInstructions].filter(Boolean)
-                    .join("\n") || null,
-            conversation_id: conversationId,
-            status: "pending",
-        })
-        .select("id")
-        .single();
-
-    if (orderError || !order) {
-        throw new Error(`Failed to create order: ${orderError?.message}`);
-    }
-
-    // 5. Hold buyer's points in escrow
-    const { error: ledgerError } = await supabase
-        .from("point_ledger")
-        .insert({
-            user_id: buyerId,
-            type: "escrow",
-            amount: -totalPrice,
-            balance_after: 0, // overridden by DB trigger
-            reference_id: order.id,
-            metadata: {
-                order_id: order.id,
-                post_id: postId,
-                seller_id: sellerId,
-                product,
-                quantity,
-                points_per_unit: pointsPerUnit,
-            },
-        });
-
-    if (ledgerError) {
-        console.error("Failed to escrow points:", ledgerError);
-    }
-
-    // 6. Send system message in conversation
-    await supabase
-        .from("chat_messages")
-        .insert({
-            conversation_id: conversationId,
-            sender_id: null,
-            content:
-                `Order placed: ${quantity} ${product} for ${totalPrice} points. Delivery by ${
-                    deliveryDate || "TBD"
-                }.`,
-            type: "system",
-        });
-
     console.log(
-        `✅ Order created: ${order.id}, buyer=${buyerId}, seller=${sellerId}, ` +
-            `product=${product}, qty=${quantity}, total=${totalPrice}pts, newBalance=${
-                currentBalance - totalPrice
-            }`,
+        `✅ Order created: ${data.orderId}, buyer=${buyerId}, seller=${sellerId}, ` +
+            `product=${product}, qty=${quantity}, total=${totalPrice}pts, newBalance=${data.newBalance}`,
     );
 
-    return jsonOk({
-        orderId: order.id,
-        conversationId,
-        newBalance: currentBalance - totalPrice,
-    }, corsHeaders);
+    return jsonOk(
+        {
+            orderId: data.orderId,
+            conversationId: data.conversationId,
+            newBalance: data.newBalance,
+        },
+        corsHeaders,
+    );
 });

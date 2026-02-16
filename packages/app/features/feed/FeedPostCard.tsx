@@ -5,12 +5,12 @@
  * Uses Tamagui primitives + design tokens for cross-platform rendering.
  */
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, memo } from 'react'
 import { YStack, XStack, Text, Button, Input, ScrollView } from 'tamagui'
 import { Image, Platform, Share, Alert, TextInput } from 'react-native'
 import { Heart, ShoppingCart, ThumbsUp, MessageCircle, MessagesSquare, Share2, Flag, Play, Send } from '@tamagui/lucide-icons'
 import { FeedVideoPlayer } from './FeedVideoPlayer'
-import { colors, shadows, borderRadius } from '../../design-tokens'
+import { colors, shadows, borderRadius, tc } from '../../design-tokens'
 import { normalizeStorageUrl } from '../../utils/normalize-storage-url'
 import { supabase } from '../auth/auth-hook'
 import { getPostComments, addComment } from './feed-service'
@@ -82,7 +82,7 @@ function getThumbnailUrl(storagePath: string): string | undefined {
 // Component
 // =============================================================================
 
-export function FeedPostCard({
+function FeedPostCardInner({
   post,
   currentUserId,
   currentUserName,
@@ -263,9 +263,9 @@ export function FeedPostCard({
           paddingHorizontal="$2"
           paddingVertical="$1"
           borderRadius={12}
-          backgroundColor={typeColor.bg as any}
+          backgroundColor={tc(typeColor.bg)}
         >
-          <Text fontSize={11} fontWeight="600" color={typeColor.text as any}>
+          <Text fontSize={11} fontWeight="600" color={tc(typeColor.text)}>
             {getPostTypeLabel(post.type, t)}
           </Text>
         </YStack>
@@ -617,3 +617,5 @@ export function FeedPostCard({
     </YStack>
   )
 }
+
+export const FeedPostCard = memo(FeedPostCardInner)

@@ -307,6 +307,12 @@ deno test --allow-net --allow-env supabase/functions/*/test.ts
 # Web integration tests (Playwright)
 cd apps/next-community && npx playwright test
 
+# Mobile E2E tests (Maestro — 9 flows)
+# Requires: app running on iOS Simulator or Android Emulator
+./e2e/seed-test-data.sh            # Reset DB + clear Mailpit
+maestro test e2e/maestro/          # Run all 9 flows
+maestro test e2e/maestro/flows/login.yaml  # Run a single flow
+
 # Root-level tests (Vitest)
 yarn test
 ```

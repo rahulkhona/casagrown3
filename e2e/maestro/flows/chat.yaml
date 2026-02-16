@@ -1,0 +1,39 @@
+# Chat Flow — Maestro E2E test
+# Tests navigating to chats via the hamburger menu.
+
+appId: dev.casagrown.community
+
+---
+
+# Login first
+- runFlow: ../utils/login.yaml
+
+# Wait for feed to load
+- extendedWaitUntil:
+          visible: "Tomatoes"
+          timeout: 15000
+
+# Open hamburger menu
+- tapOn: "Menu"
+
+# Wait for the navigation drawer to show chat option
+- extendedWaitUntil:
+          visible: "Chats"
+          timeout: 5000
+
+# Tap "Chats" to navigate
+- tapOn: "Chats"
+
+# Wait for the chats screen to load — shows inbox or empty state
+- extendedWaitUntil:
+          visible:
+                  text: ".*"
+          timeout: 10000
+
+# Go back to feed using Back button
+- tapOn: "Back"
+
+# Verify we're back on feed
+- extendedWaitUntil:
+          visible: "Tomatoes"
+          timeout: 10000

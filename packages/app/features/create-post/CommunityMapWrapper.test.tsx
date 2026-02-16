@@ -34,15 +34,14 @@ jest.mock('../community/CommunityMap', () => {
 import { CommunityMapWrapper } from './CommunityMapWrapper'
 
 const defaultResolveData = {
-  primaryCommunity: {
+  primary: {
     h3_index: '872834461ffffff',
     name: 'Oak Street',
     city: 'San Jose',
-    state: 'CA',
-    country: 'USA',
-    created_at: '2025-01-01',
+    location: 'POINT(-121.8863 37.3382)',
   },
-  neighborCommunities: [],
+  neighbors: [],
+  resolved_location: { lat: 37.3382, lng: -121.8863 },
 }
 
 describe('CommunityMapWrapper', () => {

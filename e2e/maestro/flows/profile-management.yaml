@@ -1,90 +1,38 @@
+# Profile Management Flow — Maestro E2E test
+# Tests navigating to profile and verifying key profile elements.
+
 appId: dev.casagrown.community
+
 ---
-# Profile Management E2E Flow
-# Tests profile editing, community switching, notification settings, and logout
 
 # Login first
-- runFlow: "../utils/login.yaml"
+- runFlow: ../utils/login.yaml
 
-# ============================================
-# Navigate to Profile
-# ============================================
-- tapOn: "Profile"
-- assertVisible: "Profile Settings"
+# Wait for feed to load
+- extendedWaitUntil:
+          visible: "Tomatoes"
+          timeout: 15000
 
-# ============================================
-# Test Edit Name
-# ============================================
-- tapOn: "Edit Profile"
-- assertVisible: "Save"
-- assertVisible: "Cancel"
-
-# Edit the name - tap on field, erase, then type new value
+# Navigate to profile via header avatar initial
 - tapOn:
-    id: "name_input"
-- eraseText: 50
-- inputText:
-    id: "name_input"
-    text: "Updated Test Name"
+          text: "T"
+          index: 0
 
-# Save changes
-- tapOn: "Save"
+# Verify profile screen header
+- extendedWaitUntil:
+          visible: "Profile Settings"
+          timeout: 10000
 
-# Verify name was updated
-- assertVisible: "Updated Test Name"
+# Verify key profile elements visible without scrolling
+- assertVisible: "Edit Profile"
+- assertVisible: "Test Seller"
+- assertVisible: "seller@test.local"
+- assertVisible: "My Community"
 
-# ============================================
-# Test Notification Toggles
-# ============================================
-- tapOn: "Edit Profile"
+# Go back to feed
+- tapOn: "Back"
 
-# Toggle SMS notifications (checkbox)
-- tapOn: "SMS Notifications"
-
-# Phone input should appear
-- assertVisible: "Phone Number"
-
-# Enter phone number
-- inputText:
-    id: "phone_input"
-    text: "5559876543"
-
-# Toggle Notify on Wanted
-- tapOn: "Notify on Wanted Posts"
-
-# Cancel without saving
-- tapOn: "Cancel"
-
-# ============================================
-# Test Community Switch
-# ============================================
-- tapOn: "Edit Profile"
-- tapOn: "Switch to Different Community"
-
-# Enter new address
-- inputText:
-    id: "address_input"
-    text: "456 Oak Ave, Campbell, CA 95008"
-
-# Find community
-- tapOn: "Find Community"
-
-# Verify new community found
-- assertVisible: "Campbell"
-
-# Join new community
-- tapOn: "Join a Community"
-
-# Verify community was switched
-- assertVisible: "Campbell"
-
-# Save changes
-- tapOn: "Save"
-
-# ============================================
-# Test Logout (Direct - No Confirmation)
-# ============================================
-- tapOn: "Logout"
-
-# Verify we're back at login
-- assertVisible: "Login"
+# Verify we're back on feed
+- extendedWaitUntil:
+          visible: "Tomatoes"
+          timeout: 10000

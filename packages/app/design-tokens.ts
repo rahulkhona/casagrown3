@@ -441,6 +441,20 @@ export const safetyFeatures = [
 // Export all tokens as a single object for convenience
 // =============================================================================
 
+/**
+ * Helper to pass custom hex color strings to Tamagui color props.
+ *
+ * Tamagui's `backgroundColor` / `color` props use a branded union type
+ * (`GetThemeValueForKey<"backgroundColor">`) that rejects plain `string`.
+ * This function contains the single unavoidable cast so that consumer code
+ * never needs `as any` for color values.
+ *
+ * @example backgroundColor={tc(badge.bg)}
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const tc = (color: string): any => color;
+export type TamaguiColor = string & {};
+
 export const designTokens = {
   colors,
   typography,
