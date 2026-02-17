@@ -26,8 +26,8 @@ test.describe("Feed Page", () => {
         // The post card should show price info (25 points)
         await expect(page.locator("text=25")).toBeVisible();
 
-        // The post card should show quantity info (Qty: 10)
-        await expect(page.locator("text=/Qty.*10/")).toBeVisible();
+        // The post card should show quantity info (Available: 10)
+        await expect(page.locator("text=/Available.*10/")).toBeVisible();
 
         // Look for Strawberries sell post
         await expect(page.locator("text=Strawberries").first()).toBeVisible();

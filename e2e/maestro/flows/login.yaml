@@ -10,43 +10,49 @@ appId: dev.casagrown.community
 
 # Launch app without clearing state (clearState wipes Expo dev server URL)
 - launchApp:
-        clearState: false
+          clearState: false
+
+# Wait for the app to fully load before checking conditions
+- extendedWaitUntil:
+          visible:
+                  text: ".*(?:Create Post|Join the Movement|Welcome to CasaGrown|Get You Set Up).*"
+          timeout: 30000
 
 # If already logged in (feed shows "Create Post"), log out first
 - runFlow:
-        when:
-              visible: "Create Post"
-        commands:
-              # Navigate to profile via avatar initial
-              - tapOn:
-                      text: "T"
-                      index: 0
-              - extendedWaitUntil:
-                      visible: "Profile Settings"
-                      timeout: 10000
-              # Scroll down to find logout
-              - scroll
-              - scroll
-              - extendedWaitUntil:
-                      visible: "Logout"
-                      timeout: 5000
-              - tapOn: "Logout"
-              - extendedWaitUntil:
-                      visible: "Join the Movement!"
-                      timeout: 15000
+          when:
+                  visible: "Create Post"
+          commands:
+                  # Navigate to profile via avatar initial
+                  - tapOn:
+                            text: "T"
+                            index: 0
+                  - extendedWaitUntil:
+                            visible: "Profile Settings"
+                            timeout: 10000
+                  # Scroll down to find logout
+                  - scroll
+                  - scroll
+                  - extendedWaitUntil:
+                            visible: "Logout"
+                            timeout: 5000
+                  - tapOn: "Logout"
+                  - extendedWaitUntil:
+                            visible: "Join the Movement!"
+                            timeout: 15000
 
 # Verify the landing/home page
 - extendedWaitUntil:
-        visible: "Join the Movement!"
-        timeout: 30000
+          visible: "Join the Movement!"
+          timeout: 30000
 
 # Navigate to login
 - tapOn: "Join the Movement!"
 
 # Wait for login page
 - extendedWaitUntil:
-        visible: "Welcome to CasaGrown"
-        timeout: 15000
+          visible: "Welcome to CasaGrown"
+          timeout: 15000
 
 # Should show sign-in options
 - assertVisible: "Continue with Email"
@@ -54,19 +60,19 @@ appId: dev.casagrown.community
 
 # Should show footer with terms & privacy
 - assertVisible:
-        text: ".*Terms of Service.*Privacy Policy.*"
+          text: ".*Terms of Service.*Privacy Policy.*"
 
 # Test the email login flow
 - tapOn: "Continue with Email"
 
 # Should see email input label
 - extendedWaitUntil:
-        visible: "Email Address"
-        timeout: 5000
+          visible: "Email Address"
+          timeout: 5000
 
 # Enter test email — clear first, then type, then dismiss keyboard
 - tapOn:
-        id: "email_input"
+          id: "email_input"
 - eraseText: 30
 - inputText: "seller@test.local"
 - hideKeyboard
@@ -76,8 +82,8 @@ appId: dev.casagrown.community
 
 # Should show verification code screen
 - extendedWaitUntil:
-        visible: "Verification Code"
-        timeout: 15000
+          visible: "Verification Code"
+          timeout: 15000
 
 # Should show the email we entered
 - assertVisible: "seller@test.local"

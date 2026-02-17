@@ -13,6 +13,17 @@ env:
 - launchApp:
           clearState: false
 
+# Wait for the app to fully load before checking conditions.
+# The app may show any of these screens after launch:
+#   - "Create Post" → already logged in, on feed
+#   - "Join the Movement!" → landing page, not logged in
+#   - "Welcome to CasaGrown" → login page
+#   - "Let's Get You Set Up" → profile wizard
+- extendedWaitUntil:
+          visible:
+                  text: ".*(?:Create Post|Join the Movement|Welcome to CasaGrown|Get You Set Up).*"
+          timeout: 30000
+
 # If already logged in (feed shows "Create Post"), skip login
 - runFlow:
           when:
@@ -58,12 +69,33 @@ env:
                             visible: "Verification Code"
                             timeout: 15000
 
-                  # In dev mode, the OTP is auto-filled in the input.
-                  # Tap Verify & Continue (dev mode auto-fills OTP).
+                  # Tap Verify & Continue (dev mode auto-fills OTP)
                   - tapOn: "Verify & Continue"
 
                   # Wait for navigation to complete (feed or wizard)
                   - extendedWaitUntil:
                             visible:
-                                    text: ".*"
+                                    text: ".*(?:Create Post|Get You Set Up).*"
                             timeout: 15000
+
+# If wizard shows after login, step through it
+- runFlow:
+          when:
+                  visible:
+                          text: ".*Get You Set Up.*"
+          commands:
+                  - tapOn: "Continue"
+                  - extendedWaitUntil:
+                            visible:
+                                    text: ".*"
+                            timeout: 10000
+                  - tapOn: "Continue"
+                  - extendedWaitUntil:
+                            visible:
+                                    text: ".*"
+                            timeout: 10000
+                  - tapOn: "Continue"
+                  - extendedWaitUntil:
+                            visible:
+                                    text: ".*"
+                            timeout: 10000

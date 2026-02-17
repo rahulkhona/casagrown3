@@ -26,13 +26,17 @@ test.describe("Order Flow", () => {
 
     test("Offer button is visible on buy posts", async ({ page }) => {
         // The seeded Basil buy post (from Test Buyer) should show "Offer" button
-        const offerBtn = page.locator("text=Offer").first();
-        const hasOffer = await offerBtn.isVisible().catch(() => false);
+        // Scroll to the basil post first since it may be below the fold
+        const basilPost = page.locator("text=basil").first();
+        const hasBasil = await basilPost.isVisible().catch(() => false);
 
-        if (!hasOffer) {
-            test.skip();
+        if (hasBasil) {
+            await basilPost.scrollIntoViewIfNeeded();
+            await page.waitForTimeout(1000);
         }
-        await expect(offerBtn).toBeVisible();
+
+        const offerBtn = page.getByText("Offer", { exact: true }).first();
+        await expect(offerBtn).toBeVisible({ timeout: 5_000 });
     });
 
     test("Chat button is visible on other users posts", async ({ page }) => {
