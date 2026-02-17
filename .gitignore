@@ -61,3 +61,6 @@ supabase/functions/.debug/
 
 # Figma exported code
 figma_code/
+
+# Test output artifacts
+test-results/
