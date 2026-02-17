@@ -27,7 +27,15 @@ and any associated triggers/functions/RLS policies.
 > `20260214200000_points_per_unit_rename` →
 > `20260215090000_order_status_pending` → `20260215090001_order_default_pending`
 > → `20260215100000_balance_after_trigger` →
-> `20260215200000_create_order_atomic`
+> `20260215200000_create_order_atomic` → `20260216070000_order_version` →
+> `20260216070001_accept_reject_versioned` →
+> `20260217000001_modify_order_address` → `20260217000002_rpc_user_messages` →
+> `20260217000003_storage_buckets` → `20260217000004_storage_policies` →
+> `20260217000005_chat_media_bucket` → `20260217000006_cancel_order_rpc` →
+> `20260217000007_mark_delivered_rpc` → `20260217000008_confirm_delivery_rpc` →
+> `20260217000008_dispute_escalation_rpcs` → `20260217000009_fix_point_flow` →
+> `20260217000010_orders_realtime` → `20260217000011_order_messages_with_units`
+> → `20260217003100_add_unit_to_order_messages`
 
 ## Extensions
 
@@ -893,6 +901,36 @@ conversation membership.
 
 ### `orders`
 
+| Column                     | Type             | Description                                                         |
+| :------------------------- | :--------------- | :------------------------------------------------------------------ |
+| `id`                       | `uuid`           | Primary Key.                                                        |
+| `offer_id`                 | `uuid`           | FK to `offers(id)`.                                                 |
+| `buyer_id`                 | `uuid`           | FK to `profiles(id)`.                                               |
+| `seller_id`                | `uuid`           | FK to `profiles(id)`.                                               |
+| `category`                 | `sales_category` | Product category.                                                   |
+| `product`                  | `text`           | Product name.                                                       |
+| `quantity`                 | `numeric`        | Ordered quantity.                                                   |
+| `points_per_unit`          | `integer`        | Price per unit in points.                                           |
+| `delivery_date`            | `date`           | Expected delivery date.                                             |
+| `delivery_time`            | `time`           | Expected delivery time (optional).                                  |
+| `delivery_instructions`    | `text`           | Delivery notes.                                                     |
+| `delivery_address`         | `text`           | Delivery location. Added by `20260217000001`.                       |
+| `delivery_proof_media_id`  | `uuid`           | FK to `media_assets(id)`. Seller's delivery proof.                  |
+| `delivery_proof_url`       | `text`           | URL of delivery proof image.                                        |
+| `delivery_proof_location`  | `text`           | Geo coordinates of delivery (lat,lng).                              |
+| `delivery_proof_timestamp` | `timestamptz`    | When delivery proof was captured.                                   |
+| `dispute_proof_media_id`   | `uuid`           | FK to `media_assets(id)`. Buyer's dispute evidence.                 |
+| `dispute_proof_url`        | `text`           | URL of dispute evidence image.                                      |
+| `conversation_id`          | `uuid`           | FK to `conversations(id)`.                                          |
+| `status`                   | `order_status`   | Default `'pending'` (changed by `20260215090001`).                  |
+| `version`                  | `integer`        | Optimistic locking version. Default `1`. Added by `20260216070000`. |
+| `buyer_rating`             | `rating_score`   | Buyer's rating of the transaction.                                  |
+| `buyer_feedback`           | `text`           | Buyer's feedback text.                                              |
+| `seller_rating`            | `rating_score`   | Seller's rating of the transaction.                                 |
+| `seller_feedback`          | `text`           | Seller's feedback text.                                             |
+| `created_at`               | `timestamptz`    | Default `now()`.                                                    |
+| `updated_at`               | `timestamptz`    | Default `now()`.                                                    |
+
 ```sql
 create table orders (
   id uuid primary key default gen_random_uuid(),
@@ -906,9 +944,16 @@ create table orders (
   delivery_date date,
   delivery_time time,
   delivery_instructions text,
+  delivery_address text,                                    -- 20260217000001
   delivery_proof_media_id uuid references media_assets(id),
+  delivery_proof_url text,                                  -- 20260217000007
+  delivery_proof_location text,                             -- 20260217000007
+  delivery_proof_timestamp timestamptz,                     -- 20260217000007
+  dispute_proof_media_id uuid references media_assets(id),  -- 20260217000008
+  dispute_proof_url text,                                   -- 20260217000008
   conversation_id uuid not null references conversations(id),
-  status order_status not null default 'pending',  -- default changed by 20260215090001
+  status order_status not null default 'pending',           -- 20260215090001
+  version integer not null default 1,                       -- 20260216070000
   buyer_rating rating_score,
   buyer_feedback text,
   seller_rating rating_score,
@@ -917,6 +962,18 @@ create table orders (
   updated_at timestamptz default now()
 );
 ```
+
+**Realtime Configuration** (`20260217000010_orders_realtime`):
+
+```sql
+ALTER PUBLICATION supabase_realtime ADD TABLE public.orders;
+ALTER TABLE public.orders REPLICA IDENTITY FULL;
+```
+
+| Setting          | Value               | Purpose                                          |
+| :--------------- | :------------------ | :----------------------------------------------- |
+| Publication      | `supabase_realtime` | Broadcasts INSERT/UPDATE events for live updates |
+| Replica Identity | `FULL`              | All columns in UPDATE payloads                   |
 
 **RLS Policies** (`20260207070000_shared_tables_rls`): Two-party access — only
 `buyer_id` or `seller_id`.
@@ -1985,8 +2042,224 @@ Atomically creates a "buy now" order from the feed.
 1. Verify buyer has sufficient balance
 2. Create/reuse `conversations` row (buyer + seller + post)
 3. Create auto-accepted `offers` row
-4. Create `orders` row
-5. Debit buyer: insert `point_ledger` (type: `payment`, amount: -totalPrice)
-6. Credit seller: insert `point_ledger` (type: `payment`, amount: +totalPrice)
-7. Insert system `chat_messages` ("Order placed: ...")
-8. Return `{ orderId, conversationId, newBalance }`
+4. Create `orders` row (status=`pending`, version=`1`)
+5. Debit buyer: insert `point_ledger` (type: `escrow`, amount: -totalPrice)
+6. Insert system `chat_messages` ("Order placed: ...")
+7. Return `{ orderId, conversationId, newBalance }`
+
+---
+
+## Order Lifecycle RPC Functions
+
+Server-side functions implementing the order state machine with optimistic
+locking (`version` column) and escrow-based point flows. All RPCs use
+`SECURITY DEFINER` and `FOR UPDATE` row locking.
+
+### `accept_order_versioned`
+
+**Migration**: `20260216070001`, updated by `20260217003100`
+
+**Signature**:
+`accept_order_versioned(p_order_id uuid, p_expected_version integer) → jsonb`
+
+**Logic**:
+
+1. Lock and fetch order
+2. Verify status = `pending`
+3. Verify `version = p_expected_version` (returns `VERSION_MISMATCH` error +
+   system message if stale)
+4. Set status → `accepted`, reduce
+   `want_to_sell_details.total_quantity_available`
+5. Insert system message with unit-aware formatting (e.g., "2 dozen Tomatoes for
+   200 points. Points held in escrow…")
+6. Return `{ success: true }`
+
+### `reject_order_versioned`
+
+**Migration**: `20260216070001`
+
+**Signature**:
+`reject_order_versioned(p_order_id uuid, p_expected_version integer) → jsonb`
+
+**Logic**:
+
+1. Lock and fetch order, verify pending + version match
+2. Set status → `cancelled`
+3. Refund buyer: insert `point_ledger` (type: `refund`, amount: +total)
+4. Insert system message ("Order rejected by seller. Points refunded.")
+5. Return `{ success: true }`
+
+### `cancel_order`
+
+**Migration**: `20260217000006`
+
+**Signature**: `cancel_order(p_order_id uuid, p_user_id uuid) → jsonb`
+
+**Logic**:
+
+1. Lock and fetch order
+2. Verify caller is buyer or seller
+3. Verify status is `pending` or `accepted` (not already
+   cancelled/delivered/disputed)
+4. Set status → `cancelled`
+5. Refund buyer: insert `point_ledger` (type: `refund`, amount: +total)
+6. Insert system message ("Order cancelled by buyer/seller. Points refunded.")
+7. Return `{ success: true }`
+
+### `mark_delivered`
+
+**Migration**: `20260217000007`
+
+**Signature**:
+`mark_delivered(p_order_id uuid, p_seller_id uuid, p_proof_url text, p_proof_location text) → jsonb`
+
+**Logic**:
+
+1. Lock and fetch order, verify caller is seller
+2. Verify status = `accepted`
+3. Set status → `delivered`, store proof URL/location/timestamp
+4. Insert system message ("Order marked as delivered by seller. Buyer: please
+   confirm receipt.")
+5. Return `{ success: true }`
+
+### `confirm_delivery`
+
+**Migration**: `20260217000008_confirm_delivery_rpc`
+
+**Signature**: `confirm_delivery(p_order_id uuid, p_buyer_id uuid) → jsonb`
+
+**Logic**:
+
+1. Lock and fetch order, verify caller is buyer
+2. Verify status = `delivered`
+3. Release escrow: insert `point_ledger` (type: `payment`, amount: +total for
+   seller)
+4. Set status → `accepted` (terminal — confirmed delivery)
+5. Insert system message ("Delivery confirmed! Points released to seller.")
+6. Return `{ success: true }`
+
+### `create_escalation`
+
+**Migration**: `20260217000008_dispute_escalation_rpcs`
+
+**Signature**:
+`create_escalation(p_order_id uuid, p_buyer_id uuid, p_reason text, p_proof_url text) → jsonb`
+
+**Logic**:
+
+1. Lock and fetch order, verify caller is buyer
+2. Verify status = `delivered` or `accepted` (can dispute before or after
+   delivery)
+3. Set order status → `disputed`
+4. Create `escalations` row (status: `open`)
+5. Insert system message ("Buyer has disputed this order. Reason: ...")
+6. Return `{ escalationId, success: true }`
+
+### `create_refund_offer`
+
+**Migration**: `20260217000008_dispute_escalation_rpcs`
+
+**Signature**:
+`create_refund_offer(p_escalation_id uuid, p_user_id uuid, p_amount numeric, p_message text) → jsonb`
+
+**Logic**:
+
+1. Verify escalation exists and is `open`
+2. Create `refund_offers` row (status: `pending`)
+3. Insert system message ("Refund offer: X points. Message: ...")
+4. Return `{ refundOfferId, success: true }`
+
+### `accept_refund_offer`
+
+**Migration**: `20260217000008_dispute_escalation_rpcs`
+
+**Signature**:
+`accept_refund_offer(p_refund_offer_id uuid, p_user_id uuid) → jsonb`
+
+**Logic**:
+
+1. Lock refund offer, verify `pending`
+2. Set offer status → `accepted`
+3. Close escalation (status: `resolved`, resolution: `refund_accepted`)
+4. Refund buyer the partial amount, release remainder to seller
+5. Insert system message ("Refund offer accepted. X points refunded.")
+6. Return `{ success: true }`
+
+### `modify_order`
+
+**Migration**: `20260217000011`, updated by `20260217003100`
+
+**Signature**:
+`modify_order(p_order_id uuid, p_buyer_id uuid, p_quantity integer, p_delivery_date date, p_points_per_unit integer, p_delivery_address text, p_delivery_instructions text) → jsonb`
+
+**Logic**:
+
+1. Lock and fetch order, verify caller is buyer, status = `pending`
+2. Compute price difference (old total vs new total)
+3. If cost increased: verify buyer balance, escrow additional amount
+4. If cost decreased: refund difference to buyer
+5. Update order fields + bump `version`
+6. Insert system message with unit ("Order modified: 3 boxes Tomatoes for 300
+   points…")
+7. Return `{ success: true, newVersion, newTotal }`
+
+---
+
+## Storage Buckets
+
+Supabase Storage buckets for media uploads. Created by migrations
+`20260217000003` – `20260217000005`.
+
+### `avatars`
+
+Profile avatar images.
+
+| Setting            | Value                                                |
+| :----------------- | :--------------------------------------------------- |
+| Public             | `true`                                               |
+| File size limit    | 5 MB                                                 |
+| Allowed MIME types | `image/jpeg`, `image/png`, `image/webp`, `image/gif` |
+
+**Policies**: Authenticated users can upload to their own path (`uid/filename`),
+public read access.
+
+### `chat-media`
+
+Chat message attachments (images, videos).
+
+| Setting            | Value                |
+| :----------------- | :------------------- |
+| Public             | `true`               |
+| File size limit    | 50 MB                |
+| Allowed MIME types | `image/*`, `video/*` |
+
+**Policies**: Authenticated users can upload, public read access.
+
+### `delivery-proof-images`
+
+Delivery and dispute proof photos.
+
+| Setting            | Value                                   |
+| :----------------- | :-------------------------------------- |
+| Public             | `true`                                  |
+| File size limit    | 10 MB                                   |
+| Allowed MIME types | `image/jpeg`, `image/png`, `image/webp` |
+
+**Policies**: Authenticated users can upload, public read access.
+
+---
+
+## Database RPC Helpers
+
+### `get_user_messages`
+
+**Migration**: `20260217000002`
+
+Returns the most recent messages for a user across all their conversations, used
+for building the chat inbox view.
+
+**Signature**:
+`get_user_messages(p_user_id uuid) → TABLE(conversation_id, post_id, buyer_id, seller_id, other_user_id, other_user_name, other_user_avatar, last_message, last_message_at, unread_count)`
+
+**Logic**: Joins `conversations` → `chat_messages` → `profiles` to build inbox
+summary with unread counts and last message preview.

@@ -30,8 +30,8 @@ import {
   getUserCommunitiesWithNeighbors,
   getAvailableCategories,
   type UserCommunitiesResult,
+  buildCommunityMapData,
 } from './post-service'
-import { buildResolveResponseFromIndex } from '../community/h3-utils'
 import type { ResolveResponse } from '../community/use-resolve-community'
 import { loadMediaFromStorage } from './load-media-helper'
 import { useMediaAssets } from './useMediaAssets'
@@ -163,21 +163,8 @@ export function BuyForm({ onBack, onSuccess, editId, cloneData }: BuyFormProps) 
       if (communities.primary) {
         setCommunityH3Index(communities.primary.h3Index)
         setCommunityName(communities.primary.name)
-        const mapData = buildResolveResponseFromIndex(
-          communities.primary.h3Index,
-          communities.primary.name,
-          communities.primary.city || '',
-          communities.primary.lat,
-          communities.primary.lng,
-        )
-        if (communities.neighbors.length > 0) {
-          Object.assign(mapData, { neighbors: communities.neighbors.map((n) => ({
-            h3_index: n.h3Index,
-            name: n.name,
-            status: 'active' as const,
-          })) })
-        }
-        setCommunityMapData(mapData as unknown as ResolveResponse)
+        const mapData = await buildCommunityMapData(communities.primary, communities.neighbors)
+        setCommunityMapData(mapData)
       } else {
         // No community means stale session — sign out and redirect
         await signOut()

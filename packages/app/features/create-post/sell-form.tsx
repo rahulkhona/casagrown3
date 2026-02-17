@@ -37,8 +37,8 @@ import {
   getPlatformFeePercent,
   type DelegatorInfo,
   type UserCommunitiesResult,
+  buildCommunityMapData,
 } from './post-service'
-import { buildResolveResponseFromIndex } from '../community/h3-utils'
 import type { ResolveResponse } from '../community/use-resolve-community'
 import { useMediaAssets } from './useMediaAssets'
 import { CommunityMapWrapper } from './CommunityMapWrapper'
@@ -236,23 +236,9 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
           setSelfCommunityH3(communities.primary.h3Index)
           setSelfCommunityName(communities.primary.name)
         }
-        // Build map data for CommunityMap
-        const mapData = buildResolveResponseFromIndex(
-          communities.primary.h3Index,
-          communities.primary.name,
-          communities.primary.city || '',
-          communities.primary.lat,
-          communities.primary.lng,
-        )
-        // Enhance with neighbor data
-        if (communities.neighbors.length > 0) {
-          Object.assign(mapData, { neighbors: communities.neighbors.map((n) => ({
-            h3_index: n.h3Index,
-            name: n.name,
-            status: 'active' as const,
-          })) })
-        }
-        setCommunityMapData(mapData as unknown as ResolveResponse)
+        // Build map data for CommunityMap (edge function on native for hex_boundaries)
+        const mapData = await buildCommunityMapData(communities.primary, communities.neighbors)
+        setCommunityMapData(mapData)
       } else {
         // No community found — show error instead of signing out
         console.warn('[SELL FORM] No community found for user')
@@ -290,21 +276,8 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
       if (communities.primary) {
         setCommunityH3Index(communities.primary.h3Index)
         setCommunityName(communities.primary.name)
-        const mapData = buildResolveResponseFromIndex(
-          communities.primary.h3Index,
-          communities.primary.name,
-          communities.primary.city || '',
-          communities.primary.lat,
-          communities.primary.lng,
-        )
-        if (communities.neighbors.length > 0) {
-          Object.assign(mapData, { neighbors: communities.neighbors.map((n) => ({
-            h3_index: n.h3Index,
-            name: n.name,
-            status: 'active' as const,
-          })) })
-        }
-        setCommunityMapData(mapData as unknown as ResolveResponse)
+        const mapData = await buildCommunityMapData(communities.primary, communities.neighbors)
+        setCommunityMapData(mapData)
       }
       setLoadingCommunity(false)
 
@@ -671,28 +644,32 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
                   {communitiesData.neighbors.map((n) => {
                     const isSelected = selectedNeighborH3Indices.includes(n.h3Index)
                     return (
-                      <Button
+                      <Pressable
                         key={n.h3Index}
-                        size="$2"
-                        backgroundColor={isSelected ? colors.green[600] : 'white'}
-                        borderWidth={1}
-                        borderColor={isSelected ? colors.green[600] : colors.neutral[300]}
-                        borderRadius={borderRadius.full}
-                        paddingHorizontal="$3"
-                        icon={<MapPin size={12} color={isSelected ? 'white' : colors.neutral[500]} />}
                         onPress={() => {
                           setSelectedNeighborH3Indices((prev) =>
-                            isSelected
+                            prev.includes(n.h3Index)
                               ? prev.filter((h) => h !== n.h3Index)
                               : [...prev, n.h3Index]
                           )
                         }}
-                        pressStyle={{ scale: 0.97 }}
                       >
-                        <Text fontSize="$2" color={isSelected ? 'white' : colors.neutral[700]} fontWeight="500">
-                          {n.name}
-                        </Text>
-                      </Button>
+                        <XStack
+                          alignItems="center"
+                          gap="$1.5"
+                          backgroundColor={isSelected ? colors.green[600] : 'white'}
+                          borderWidth={1}
+                          borderColor={isSelected ? colors.green[600] : colors.neutral[300]}
+                          borderRadius={borderRadius.full}
+                          paddingHorizontal="$3"
+                          paddingVertical="$1.5"
+                        >
+                          <MapPin size={12} color={isSelected ? 'white' : colors.neutral[500]} />
+                          <Text fontSize="$2" color={isSelected ? 'white' : colors.neutral[700]} fontWeight="500">
+                            {n.name}
+                          </Text>
+                        </XStack>
+                      </Pressable>
                     )
                   })}
                 </XStack>

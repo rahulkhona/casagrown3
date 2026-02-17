@@ -5,6 +5,8 @@
 ALTER TYPE order_status ADD VALUE IF NOT EXISTS 'pending' BEFORE 'accepted';
 ALTER TYPE order_status ADD VALUE IF NOT EXISTS 'cancelled' AFTER 'disputed';
 ALTER TYPE order_status ADD VALUE IF NOT EXISTS 'delivered' AFTER 'accepted';
+ALTER TYPE order_status ADD VALUE IF NOT EXISTS 'escalated' AFTER 'disputed';
+ALTER TYPE order_status ADD VALUE IF NOT EXISTS 'completed' AFTER 'delivered';
 
 -- Add escrow and refund types to point_transaction_type enum
 -- escrow = buyer's points held until seller accepts

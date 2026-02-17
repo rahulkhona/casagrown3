@@ -852,10 +852,31 @@ describe("createPresenceChannel", () => {
     const conversationId = "conv-test";
     const userId = "user-me";
     const otherUserId = "user-other";
+    // Keep track of created channels for cleanup (prevents setInterval from hanging Jest)
+    const channels: Array<{ destroy: () => void }> = [];
+
+    const createAndTrack = (
+        cId: string,
+        uId: string,
+        cb: jest.Mock,
+    ) => {
+        const result = createPresenceChannel(cId, uId, cb);
+        channels.push(result);
+        return result;
+    };
+
+    afterEach(() => {
+        for (const ch of channels) {
+            try {
+                ch.destroy();
+            } catch (_) { /* ignore */ }
+        }
+        channels.length = 0;
+    });
 
     it("creates channel and returns expected API shape", () => {
         const onPresenceChange = jest.fn();
-        const result = createPresenceChannel(
+        const result = createAndTrack(
             conversationId,
             userId,
             onPresenceChange,
@@ -870,7 +891,7 @@ describe("createPresenceChannel", () => {
 
     it("tracks online status on subscribe", () => {
         const onPresenceChange = jest.fn();
-        createPresenceChannel(conversationId, userId, onPresenceChange);
+        createAndTrack(conversationId, userId, onPresenceChange);
 
         // subscribe callback fires automatically with "SUBSCRIBED"
         expect(mockChannelTrack).toHaveBeenCalledWith({ online: true });
@@ -878,19 +899,20 @@ describe("createPresenceChannel", () => {
 
     it("registers presence and broadcast listeners", () => {
         const onPresenceChange = jest.fn();
-        createPresenceChannel(conversationId, userId, onPresenceChange);
+        createAndTrack(conversationId, userId, onPresenceChange);
 
-        // Should register: presence:sync, presence:join, presence:leave, broadcast:typing
-        expect(mockChannel.on).toHaveBeenCalledTimes(4);
+        // Should register: presence:sync, presence:join, presence:leave, broadcast:heartbeat, broadcast:typing
+        expect(mockChannel.on).toHaveBeenCalledTimes(5);
         expect(mockChannelListeners.has("presence:sync")).toBe(true);
         expect(mockChannelListeners.has("presence:join")).toBe(true);
         expect(mockChannelListeners.has("presence:leave")).toBe(true);
+        expect(mockChannelListeners.has("broadcast:heartbeat")).toBe(true);
         expect(mockChannelListeners.has("broadcast:typing")).toBe(true);
     });
 
     it("sends typing broadcast via channel.send()", () => {
         const onPresenceChange = jest.fn();
-        const { setTyping } = createPresenceChannel(
+        const { setTyping } = createAndTrack(
             conversationId,
             userId,
             onPresenceChange,
@@ -907,7 +929,7 @@ describe("createPresenceChannel", () => {
 
     it("sends stop-typing broadcast", () => {
         const onPresenceChange = jest.fn();
-        const { setTyping } = createPresenceChannel(
+        const { setTyping } = createAndTrack(
             conversationId,
             userId,
             onPresenceChange,
@@ -924,7 +946,7 @@ describe("createPresenceChannel", () => {
 
     it("calls onPresenceChange when receiving broadcast typing from other user", () => {
         const onPresenceChange = jest.fn();
-        createPresenceChannel(conversationId, userId, onPresenceChange);
+        createAndTrack(conversationId, userId, onPresenceChange);
 
         // Simulate broadcast typing event from other user
         const broadcastHandler = mockChannelListeners.get("broadcast:typing");
@@ -940,7 +962,7 @@ describe("createPresenceChannel", () => {
 
     it("ignores own typing broadcasts", () => {
         const onPresenceChange = jest.fn();
-        createPresenceChannel(conversationId, userId, onPresenceChange);
+        createAndTrack(conversationId, userId, onPresenceChange);
 
         // Clear any calls from subscribe/init
         onPresenceChange.mockClear();
@@ -957,7 +979,7 @@ describe("createPresenceChannel", () => {
 
     it("reports other user as online on presence join", () => {
         const onPresenceChange = jest.fn();
-        createPresenceChannel(conversationId, userId, onPresenceChange);
+        createAndTrack(conversationId, userId, onPresenceChange);
         onPresenceChange.mockClear();
 
         const joinHandler = mockChannelListeners.get("presence:join");
@@ -969,23 +991,22 @@ describe("createPresenceChannel", () => {
         });
     });
 
-    it("reports other user as offline on presence leave", () => {
+    it("does NOT immediately mark offline on presence leave (defers to heartbeat timeout)", () => {
         const onPresenceChange = jest.fn();
-        createPresenceChannel(conversationId, userId, onPresenceChange);
+        createAndTrack(conversationId, userId, onPresenceChange);
         onPresenceChange.mockClear();
 
         const leaveHandler = mockChannelListeners.get("presence:leave");
         leaveHandler!({ key: otherUserId });
 
-        expect(onPresenceChange).toHaveBeenCalledWith({
-            online: false,
-            typing: false,
-        });
+        // With the heartbeat system, leave no longer immediately sets offline
+        // It defers to the heartbeat timeout to prevent flicker
+        expect(onPresenceChange).not.toHaveBeenCalled();
     });
 
     it("cleans up channel on destroy", () => {
         const onPresenceChange = jest.fn();
-        const { destroy } = createPresenceChannel(
+        const { destroy } = createAndTrack(
             conversationId,
             userId,
             onPresenceChange,
@@ -995,5 +1016,56 @@ describe("createPresenceChannel", () => {
 
         expect(mockChannelUntrack).toHaveBeenCalled();
         expect(mockRemoveChannel).toHaveBeenCalledWith(mockChannel);
+    });
+
+    // ── Heartbeat tests ──
+
+    it("sends heartbeat broadcast immediately on subscribe", async () => {
+        const onPresenceChange = jest.fn();
+        createAndTrack(conversationId, userId, onPresenceChange);
+
+        // startHeartbeat() runs after `await channel.track()` in the async subscribe callback
+        // Need to flush microtasks so the resolved promise completes
+        await new Promise((r) => setTimeout(r, 0));
+
+        expect(mockChannelSend).toHaveBeenCalledWith({
+            type: "broadcast",
+            event: "heartbeat",
+            payload: { user_id: userId },
+        });
+    });
+
+    it("marks other user online on heartbeat reception", () => {
+        const onPresenceChange = jest.fn();
+        createAndTrack(conversationId, userId, onPresenceChange);
+        onPresenceChange.mockClear();
+
+        const heartbeatHandler = mockChannelListeners.get(
+            "broadcast:heartbeat",
+        );
+        heartbeatHandler!({
+            payload: { user_id: otherUserId },
+        });
+
+        expect(onPresenceChange).toHaveBeenCalledWith({
+            online: true,
+            typing: false,
+        });
+    });
+
+    it("ignores own heartbeat broadcasts", () => {
+        const onPresenceChange = jest.fn();
+        createAndTrack(conversationId, userId, onPresenceChange);
+        onPresenceChange.mockClear();
+
+        const heartbeatHandler = mockChannelListeners.get(
+            "broadcast:heartbeat",
+        );
+        heartbeatHandler!({
+            payload: { user_id: userId },
+        });
+
+        // Should NOT update presence for own heartbeat
+        expect(onPresenceChange).not.toHaveBeenCalled();
     });
 });

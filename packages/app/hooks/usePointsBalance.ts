@@ -79,6 +79,36 @@ export function usePointsBalance(userId?: string): UsePointsBalanceReturn {
         };
     }, [fetchBalance]);
 
+    // ── Realtime: auto-refresh balance when ledger entries are created ──
+    useEffect(() => {
+        if (!userId) return;
+
+        const channel = supabase
+            .channel(`points-balance:${userId}`)
+            .on(
+                "postgres_changes",
+                {
+                    event: "INSERT",
+                    schema: "public",
+                    table: "point_ledger",
+                    filter: `user_id=eq.${userId}`,
+                },
+                (payload) => {
+                    // Directly use the balance_after from the new entry
+                    if (
+                        mountedRef.current && payload.new?.balance_after != null
+                    ) {
+                        setBalance(payload.new.balance_after);
+                    }
+                },
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [userId]);
+
     return {
         balance,
         loading,

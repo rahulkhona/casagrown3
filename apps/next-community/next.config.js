@@ -26,6 +26,7 @@ module.exports = {
     '@casagrown/app',
     '@casagrown/config',
   ],
+  devIndicators: false,
   experimental: {
     scrollRestoration: true,
   },

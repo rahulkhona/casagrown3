@@ -66,6 +66,8 @@ interface FeedScreenProps {
   onNavigateToChat?: (postId: string, authorId: string) => void
   /** Navigate to chat inbox */
   onNavigateToChats?: () => void
+  /** Navigate to orders screen */
+  onNavigateToOrders?: () => void
 }
 
 // Navigation item keys - labels are localized via t()
@@ -80,7 +82,7 @@ const NAV_KEYS_BASE = [
   { key: 'delegateSales', badge: 0 },
 ]
 
-export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDelegate, onNavigateToMyPosts, logoSrc, referralCode, inviteRewards, userAvatarUrl: rawAvatarUrl, userDisplayName, communityH3Index, userId, highlightPostId, onNavigateToChat, onNavigateToChats }: FeedScreenProps) {
+export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDelegate, onNavigateToMyPosts, logoSrc, referralCode, inviteRewards, userAvatarUrl: rawAvatarUrl, userDisplayName, communityH3Index, userId, highlightPostId, onNavigateToChat, onNavigateToChats, onNavigateToOrders }: FeedScreenProps) {
   const userAvatarUrl = normalizeStorageUrl(rawAvatarUrl)
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
@@ -145,12 +147,12 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
     [unreadChats],
   )
 
-  // Consolidated navigation handler — used by FeedNavigation for both variants
   const handleNavPress = useCallback((key: string) => {
     if (key === 'delegateSales') onNavigateToDelegate?.()
     else if (key === 'myPosts') onNavigateToMyPosts?.()
     else if (key === 'chats') onNavigateToChats?.()
-  }, [onNavigateToDelegate, onNavigateToMyPosts, onNavigateToChats])
+    else if (key === 'orders') onNavigateToOrders?.()
+  }, [onNavigateToDelegate, onNavigateToMyPosts, onNavigateToChats, onNavigateToOrders])
 
   // ── Full fetch: download all posts and update cache ──
   const fullFetch = useCallback(async (showSpinner: boolean) => {
@@ -213,14 +215,37 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
 
     // Always refresh to pick up new likes, comments, and posts from other users
     fullFetch(false)
-    // Also refresh unread chat count
+    // Also refresh unread chat count and points balance
     fetchUnreadChats()
-  }, [communityH3Index, userId, fullFetch, fetchUnreadChats])
+    refetchBalance()
+  }, [communityH3Index, userId, fullFetch, fetchUnreadChats, refetchBalance])
 
+  // Re-fetch feed when screen is focused (native only — web uses Next.js without
+  // NavigationContainer, so useFocusEffect is unavailable there).
   if (Platform.OS !== 'web') {
     // eslint-disable-next-line react-hooks/rules-of-hooks
     useFocusEffect(focusCallback)
   }
+
+  // ── Web: refresh when tab becomes visible again ──
+  useEffect(() => {
+    if (Platform.OS !== 'web') return
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        focusCallback()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibility)
+    // Also refresh when the window regains focus (e.g. switching between tabs)
+    window.addEventListener('focus', handleVisibility)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      window.removeEventListener('focus', handleVisibility)
+    }
+  }, [focusCallback])
 
   // Filtered posts
   const filteredPosts = useMemo(
@@ -317,26 +342,32 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
     ]
   }, [filteredPosts, highlightPostId])
 
-  // FlatList renderItem
   const renderPostItem = useCallback(({ item: post }: { item: FeedPost }) => (
     <YStack
-      borderWidth={post.id === highlightPostId ? 2 : 0}
-      borderColor={post.id === highlightPostId ? colors.green[500] : 'transparent'}
-      borderRadius={post.id === highlightPostId ? borderRadius.lg : 0}
-      overflow="hidden"
+      maxWidth={896}
+      width="100%"
+      alignSelf="center"
+      paddingHorizontal={isDesktop ? '$6' : '$4'}
     >
-      <FeedPostCard
-        post={post}
-        currentUserId={userId || ''}
-        currentUserName={userDisplayName}
-        onLikeToggle={handleLikeToggle}
-        onOrder={handleOpenOrder}
-        onChat={onNavigateToChat}
-        onFlag={handleOpenFlag}
-        t={t}
-      />
+      <YStack
+        borderWidth={post.id === highlightPostId ? 2 : 0}
+        borderColor={post.id === highlightPostId ? colors.green[500] : 'transparent'}
+        borderRadius={post.id === highlightPostId ? borderRadius.lg : 0}
+        overflow="hidden"
+      >
+        <FeedPostCard
+          post={post}
+          currentUserId={userId || ''}
+          currentUserName={userDisplayName}
+          onLikeToggle={handleLikeToggle}
+          onOrder={handleOpenOrder}
+          onChat={onNavigateToChat}
+          onFlag={handleOpenFlag}
+          t={t}
+        />
+      </YStack>
     </YStack>
-  ), [highlightPostId, userId, userDisplayName, handleLikeToggle, handleOpenOrder, onNavigateToChat, handleOpenFlag, t])
+  ), [highlightPostId, userId, userDisplayName, handleLikeToggle, handleOpenOrder, onNavigateToChat, handleOpenFlag, t, isDesktop])
 
   const keyExtractor = useCallback((item: FeedPost) => item.id, [])
 
@@ -772,122 +803,7 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
             </YStack>
           ) : null
         }
-        ItemSeparatorComponent={() => <YStack height={16} />}
-        ListFooterComponent={
-          isWeb ? (
-            <YStack 
-              backgroundColor={colors.gray[50]} 
-              borderTopWidth={1}
-              borderTopColor={colors.gray[200]}
-              marginTop="auto"
-            >
-              <YStack 
-                maxWidth={896}
-                width="100%"
-                alignSelf="center"
-                paddingHorizontal={isDesktop ? '$6' : '$4'}
-                paddingVertical="$8"
-              >
-                {/* 3-column grid layout - matches Figma grid grid-cols-1 md:grid-cols-3 gap-8 */}
-                <XStack 
-                  flexWrap="wrap"
-                  gap="$8"
-                  justifyContent={isDesktop ? 'space-between' : 'flex-start'}
-                >
-                  {/* Branding Column - First column takes more space */}
-                  <YStack flex={1} minWidth={250} maxWidth={350}>
-                    {/* Logo + Brand - mb-4 in Figma */}
-                    <XStack alignItems="center" gap="$2" marginBottom="$4">
-                      {isWeb ? (
-                        <img 
-                          src="/logo.png" 
-                          alt="CasaGrown" 
-                          style={{ width: 32, height: 32, objectFit: 'contain' }} 
-                        />
-                      ) : logoSrc ? (
-                        <Image
-                          source={logoSrc}
-                          style={{ width: 32, height: 32 }}
-                          resizeMode="contain"
-                        />
-                      ) : (
-                        <YStack 
-                          width={32} 
-                          height={32} 
-                          borderRadius="$full" 
-                          backgroundColor={colors.green[600]} 
-                          alignItems="center" 
-                          justifyContent="center"
-                        >
-                          <Leaf size={20} color="white" />
-                        </YStack>
-                      )}
-                      <Text fontSize="$5" fontWeight="700" color={colors.gray[900]}>
-                        CasaGrown
-                      </Text>
-                    </XStack>
-                    {/* Description - text-sm in Figma */}
-                    <Text fontSize="$3" color={colors.gray[600]} lineHeight={20}>
-                      {t('feed.footer.description')}
-                    </Text>
-                  </YStack>
-
-                  {/* Learn More Column */}
-                  <YStack minWidth={120}>
-                    {/* Heading - mb-4 in Figma */}
-                    <Text fontSize="$3" fontWeight="600" color={colors.gray[900]} marginBottom="$4">
-                      {t('feed.footer.learnMore')}
-                    </Text>
-                    {/* Links - space-y-2 in Figma */}
-                    <YStack gap="$2">
-                      <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
-                        {t('feed.footer.whyPoints')}
-                      </Text>
-                      <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
-                        {t('feed.footer.howItWorks')}
-                      </Text>
-                      <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
-                        {t('feed.footer.support')}
-                      </Text>
-                    </YStack>
-                  </YStack>
-
-                  {/* Legal Column */}
-                  <YStack minWidth={120}>
-                    {/* Heading - mb-4 in Figma */}
-                    <Text fontSize="$3" fontWeight="600" color={colors.gray[900]} marginBottom="$4">
-                      {t('feed.footer.legal')}
-                    </Text>
-                    {/* Links - space-y-2 in Figma */}
-                    <YStack gap="$2">
-                      <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
-                        {t('feed.footer.privacyPolicy')}
-                      </Text>
-                      <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
-                        {t('feed.footer.userAgreement')}
-                      </Text>
-                      <Text fontSize="$3" color={colors.gray[600]} cursor="pointer" hoverStyle={{ color: colors.green[600] }}>
-                        {t('feed.footer.termsOfService')}
-                      </Text>
-                    </YStack>
-                  </YStack>
-                </XStack>
-
-                {/* Copyright */}
-                <YStack 
-                  marginTop="$8" 
-                  paddingTop="$8" 
-                  borderTopWidth={1} 
-                  borderTopColor={colors.gray[200]}
-                >
-                  <Text fontSize="$2" color={colors.gray[500]} textAlign="center">
-                    {t('feed.footer.copyright')}
-                  </Text>
-                </YStack>
-              </YStack>
-            </YStack>
-          ) : null
-        }
+        ItemSeparatorComponent={() => <YStack height={16} maxWidth={896} width="100%" alignSelf="center" />}
       />
 
       {/* Floating Action Button (FAB) for mobile - Based on Figma mobile design */}

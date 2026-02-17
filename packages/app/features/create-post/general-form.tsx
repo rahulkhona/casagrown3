@@ -21,6 +21,7 @@ import {
   Check,
 } from '@tamagui/lucide-icons'
 import { useTranslation } from 'react-i18next'
+import { Pressable } from 'react-native'
 import { colors, borderRadius } from '../../design-tokens'
 import { useAuth } from '../auth/auth-hook'
 import {
@@ -28,8 +29,8 @@ import {
   updateGeneralPost,
   getUserCommunitiesWithNeighbors,
   type UserCommunitiesResult,
+  buildCommunityMapData,
 } from './post-service'
-import { buildResolveResponseFromIndex } from '../community/h3-utils'
 import type { ResolveResponse } from '../community/use-resolve-community'
 import { loadMediaFromStorage } from './load-media-helper'
 import { useMediaAssets } from './useMediaAssets'
@@ -140,22 +141,8 @@ export function GeneralForm({ postType, onBack, onSuccess, editId, cloneData }: 
         setCommunityH3Index(communities.primary.h3Index)
         setCommunityName(communities.primary.name)
         // Build map data for CommunityMap
-        const mapData = buildResolveResponseFromIndex(
-          communities.primary.h3Index,
-          communities.primary.name,
-          communities.primary.city || '',
-          communities.primary.lat,
-          communities.primary.lng,
-        )
-        // Enhance with neighbor data
-        if (communities.neighbors.length > 0) {
-          Object.assign(mapData, { neighbors: communities.neighbors.map((n) => ({
-            h3_index: n.h3Index,
-            name: n.name,
-            status: 'active' as const,
-          })) })
-        }
-        setCommunityMapData(mapData as unknown as ResolveResponse)
+        const mapData = await buildCommunityMapData(communities.primary, communities.neighbors)
+        setCommunityMapData(mapData)
       } else {
         // No community means stale session — sign out and redirect
         await signOut()
@@ -295,28 +282,32 @@ export function GeneralForm({ postType, onBack, onSuccess, editId, cloneData }: 
                       {communitiesData.neighbors.map((n) => {
                         const isSelected = selectedNeighborH3Indices.includes(n.h3Index)
                         return (
-                          <Button
+                          <Pressable
                             key={n.h3Index}
-                            size="$2"
-                            backgroundColor={isSelected ? colors.green[600] : 'white'}
-                            borderWidth={1}
-                            borderColor={isSelected ? colors.green[600] : colors.neutral[300]}
-                            borderRadius={borderRadius.full}
-                            paddingHorizontal="$3"
-                            icon={<MapPin size={12} color={isSelected ? 'white' : colors.neutral[500]} />}
                             onPress={() => {
                               setSelectedNeighborH3Indices((prev) =>
-                                isSelected
+                                prev.includes(n.h3Index)
                                   ? prev.filter((h) => h !== n.h3Index)
                                   : [...prev, n.h3Index]
                               )
                             }}
-                            pressStyle={{ scale: 0.97 }}
                           >
-                            <Text fontSize="$2" color={isSelected ? 'white' : colors.neutral[700]} fontWeight="500">
-                              {n.name}
-                            </Text>
-                          </Button>
+                            <XStack
+                              alignItems="center"
+                              gap="$1.5"
+                              backgroundColor={isSelected ? colors.green[600] : 'white'}
+                              borderWidth={1}
+                              borderColor={isSelected ? colors.green[600] : colors.neutral[300]}
+                              borderRadius={borderRadius.full}
+                              paddingHorizontal="$3"
+                              paddingVertical="$1.5"
+                            >
+                              <MapPin size={12} color={isSelected ? 'white' : colors.neutral[500]} />
+                              <Text fontSize="$2" color={isSelected ? 'white' : colors.neutral[700]} fontWeight="500">
+                                {n.name}
+                              </Text>
+                            </XStack>
+                          </Pressable>
                         )
                       })}
                     </XStack>

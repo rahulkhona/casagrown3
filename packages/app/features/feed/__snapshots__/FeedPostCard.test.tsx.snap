@@ -141,7 +141,7 @@ exports[`FeedPostCard matches snapshot 1`] = `
           feed.qty
           : 
           10
-           boxs
+           boxes
         </Text>
       </View>
     </View>

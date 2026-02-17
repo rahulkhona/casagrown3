@@ -26,5 +26,7 @@ export function normalizeStorageUrl(
             .replace("http://10.0.2.2:", "http://localhost:");
     }
 
-    return url;
+    // On web, rewrite Android emulator address back to localhost
+    return url
+        .replace("http://10.0.2.2:", "http://127.0.0.1:");
 }

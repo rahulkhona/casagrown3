@@ -470,7 +470,7 @@ export function ProfileScreen() {
             borderRadius="$full"
             onPress={() => router.back()}
             hoverStyle={{ backgroundColor: colors.neutral[100] }}
-            accessibilityLabel="Back"
+            aria-label="Back"
           >
             <ChevronLeft size={24} color={colors.neutral[700]} />
           </Button>

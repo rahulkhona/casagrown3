@@ -56,10 +56,10 @@ const mockFlagPost = jest.fn()
 const mockGetLatestPostTimestamp = jest.fn()
 
 jest.mock('./feed-service', () => ({
-  getCommunityFeedPosts: (...args: any[]) => mockGetCommunityFeedPosts(...args),
-  getLatestPostTimestamp: (...args: any[]) => mockGetLatestPostTimestamp(...args),
-  togglePostLike: (...args: any[]) => mockTogglePostLike(...args),
-  flagPost: (...args: any[]) => mockFlagPost(...args),
+  getCommunityFeedPosts: (...args) => mockGetCommunityFeedPosts(...args),
+  getLatestPostTimestamp: (...args) => mockGetLatestPostTimestamp(...args),
+  togglePostLike: (...args) => mockTogglePostLike(...args),
+  flagPost: (...args) => mockFlagPost(...args),
 }))
 
 // Mock chat-service (imported by feed-screen for unread badge)
@@ -98,7 +98,7 @@ jest.mock('../../hooks/usePendingPayments', () => ({
 
 // Mock FeedPostCard
 jest.mock('./FeedPostCard', () => ({
-  FeedPostCard: ({ post, t }: any) => {
+  FeedPostCard: ({ post, t }) => {
     const { Text } = require('react-native')
     return <Text testID={`post-card-${post.id}`}>{post.content}</Text>
   },
@@ -111,7 +111,7 @@ jest.mock('react-native-safe-area-context', () => ({
 
 // Mock @react-navigation/native
 jest.mock('@react-navigation/native', () => ({
-  useFocusEffect: (cb: any) => {
+  useFocusEffect: (cb) => {
     const { useEffect } = require('react')
     useEffect(() => { cb() }, [])
   },
@@ -120,7 +120,7 @@ jest.mock('@react-navigation/native', () => ({
 // Mock react-i18next
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, defaultValue?: string) => defaultValue || key,
+    t: (key, defaultValue) => defaultValue || key,
   }),
 }))
 
@@ -148,18 +148,18 @@ jest.mock('tamagui', () => {
   const { View, Text: RNText, TouchableOpacity, ScrollView: RNScrollView, TextInput, ActivityIndicator } = require('react-native')
   
   return {
-    Button: ({ children, onPress, icon, ...props }: any) => (
+    Button: ({ children, onPress, icon, ...props }) => (
       <TouchableOpacity onPress={onPress} {...props}>
         {icon}
         {typeof children === 'string' ? <RNText>{children}</RNText> : children}
       </TouchableOpacity>
     ),
-    Text: ({ children, ...props }: any) => <RNText {...props}>{children}</RNText>,
-    YStack: ({ children, ...props }: any) => <View {...props}>{children}</View>,
-    XStack: ({ children, ...props }: any) => <View {...props}>{children}</View>,
-    ScrollView: ({ children, ...props }: any) => <RNScrollView {...props}>{children}</RNScrollView>,
-    Input: ({ placeholder, ...props }: any) => <TextInput placeholder={placeholder} {...props} />,
-    Spinner: (props: any) => <ActivityIndicator {...props} />,
+    Text: ({ children, ...props }) => <RNText {...props}>{children}</RNText>,
+    YStack: ({ children, ...props }) => <View {...props}>{children}</View>,
+    XStack: ({ children, ...props }) => <View {...props}>{children}</View>,
+    ScrollView: ({ children, ...props }) => <RNScrollView {...props}>{children}</RNScrollView>,
+    Input: ({ placeholder, ...props }) => <TextInput placeholder={placeholder} {...props} />,
+    Spinner: (props) => <ActivityIndicator {...props} />,
     useMedia: () => ({ sm: false, md: true, lg: false }),
   }
 })

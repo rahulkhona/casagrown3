@@ -76,24 +76,29 @@ sequenceDiagram
 ### `pending` → `accepted`
 
 - **Actor:** Seller
-- **Edge function:** `accept-order` _(not yet built)_
+- **RPC function:** `accept_order_versioned(order_id, expected_version)`
 - **Point action:** None — points remain in escrow
-- **Side effects:** System message in conversation, notification to buyer
+- **Version check:** Returns `VERSION_MISMATCH` if buyer modified the order
+  since seller last viewed it
+- **Side effects:** System message in conversation (with unit), reduces
+  `want_to_sell_details.total_quantity_available`
 
 ### `pending` → `cancelled`
 
 - **Actor:** Buyer (cancels) or Seller (declines)
-- **Edge function:** `cancel-order` _(not yet built)_
+- **RPC function:** `cancel_order(order_id, user_id)` or
+  `reject_order_versioned(order_id, expected_version)`
 - **Point action:** Refund buyer (type=`refund`, +N points)
-- **Side effects:** System message in conversation, notification to counterparty
+- **Side effects:** System message in conversation
 
 ### `accepted` → `delivered`
 
 - **Actor:** Seller
-- **Edge function:** `mark-delivered` _(not yet built)_
+- **RPC function:**
+  `mark_delivered(order_id, seller_id, proof_url, proof_location)`
 - **Point action:** None yet — buyer must confirm first
-- **Side effects:** Delivery proof optional (media upload), notification to
-  buyer to confirm
+- **Side effects:** Delivery proof stored (URL, geo location, timestamp), system
+  message prompts buyer to confirm
 
 ### `accepted` → `cancelled`
 
@@ -110,21 +115,24 @@ sequenceDiagram
 ### `delivered` → confirmed (terminal)
 
 - **Actor:** Buyer confirms, or auto-confirm after timeout (e.g. 48h)
+- **RPC function:** `confirm_delivery(order_id, buyer_id)`
 - **Point action:** Release escrow to seller (type=`payment`, +N points)
 - **Side effects:** System message, ratings prompt
 
 ### `delivered` → `disputed`
 
 - **Actor:** Buyer (wrong item, quality issue, etc.)
+- **RPC function:** `create_escalation(order_id, buyer_id, reason, proof_url)`
 - **Point action:** None — points remain in escrow pending resolution
 - **Side effects:** Escalation record created, delivery proof reviewed
 
 ### `disputed` → resolved (terminal)
 
 - **Actor:** Admin or automated resolution
+- **RPC functions:** `create_refund_offer`, `accept_refund_offer`
 - **Point action:** Either refund buyer or release to seller depending on
   resolution
-- **Side effects:** Escalation closed, notification to both parties
+- **Side effects:** Escalation closed, system messages for both parties
 
 ---
 
@@ -144,14 +152,18 @@ sequenceDiagram
 
 ## Edge Functions (Current & Planned)
 
-| Function            | Status     | Purpose                                 |
-| :------------------ | :--------- | :-------------------------------------- |
-| `create-order`      | ✅ Built   | Places order, escrows buyer points      |
-| `accept-order`      | 🔲 Planned | Seller accepts pending order            |
-| `cancel-order`      | 🔲 Planned | Cancel/decline order, refund buyer      |
-| `mark-delivered`    | 🔲 Planned | Seller marks delivery complete          |
-| `confirm-delivery`  | 🔲 Planned | Buyer confirms receipt, releases escrow |
-| `create-escalation` | 🔲 Planned | Buyer disputes order                    |
+| Function                 | Status   | Type      | Purpose                                     |
+| :----------------------- | :------- | :-------- | :------------------------------------------ |
+| `create-order`           | ✅ Built | Edge func | Places order, escrows buyer points          |
+| `accept_order_versioned` | ✅ Built | SQL RPC   | Seller accepts with version check           |
+| `reject_order_versioned` | ✅ Built | SQL RPC   | Seller declines, refunds buyer              |
+| `cancel_order`           | ✅ Built | SQL RPC   | Cancel by buyer or seller, refunds buyer    |
+| `mark_delivered`         | ✅ Built | SQL RPC   | Seller marks delivered with proof           |
+| `confirm_delivery`       | ✅ Built | SQL RPC   | Buyer confirms receipt, releases escrow     |
+| `create_escalation`      | ✅ Built | SQL RPC   | Buyer disputes order                        |
+| `create_refund_offer`    | ✅ Built | SQL RPC   | Counter-offer during dispute                |
+| `accept_refund_offer`    | ✅ Built | SQL RPC   | Accept refund, close escalation             |
+| `modify_order`           | ✅ Built | SQL RPC   | Buyer modifies pending order, bumps version |
 
 ---
 
@@ -162,4 +174,11 @@ sequenceDiagram
 - The `OrderSheet` shows a "Buy Points & Submit" flow when buyer has
   insufficient balance
 - Points are escrowed immediately at order creation to prevent double-spending
-- Seller credit and acceptance UI are **not yet implemented**
+- All order lifecycle transitions use SQL RPC functions with `SECURITY DEFINER`
+  and `FOR UPDATE` row-level locking to prevent race conditions
+- Optimistic locking via `version` column prevents stale accept/reject when
+  buyer modifies a pending order
+- System messages are auto-inserted into conversations for every state change
+  with unit-aware formatting (e.g., "2 dozen Tomatoes")
+- `orders` table is added to `supabase_realtime` publication with
+  `REPLICA IDENTITY FULL` for live UI updates

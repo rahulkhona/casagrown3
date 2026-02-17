@@ -27,7 +27,9 @@
       "dependencies": [
         "npm:@babel/runtime@^7.24.6",
         "npm:@biomejs/biome@^1.9.3",
+        "npm:@playwright/test@^1.58.2",
         "npm:@tamagui/cli@^2.0.0-rc.0",
+        "npm:@tamagui/next-theme@2.0.0-rc.13",
         "npm:@tamagui/react-native-svg@^2.0.0-rc.0",
         "npm:@tamagui/react-native-web-lite@^2.0.0-rc.0",
         "npm:@types/leaflet@^1.9.21",

@@ -49,62 +49,53 @@ values
   ('vegetables', 'global', true, 'USA'),
   ('fruits', 'global', true, 'USA');
 
--- 8. Storage Buckets
-insert into storage.buckets (id, name, public)
-values ('avatars', 'avatars', true)
-on conflict (id) do nothing;
+-- 8. Storage Buckets & Policies
+-- Everything in a single DO block to work with Supabase's prepared statement runner.
+DO $$
+BEGIN
+  -- Create buckets
+  INSERT INTO storage.buckets (id, name, public)
+  VALUES ('avatars', 'avatars', true)
+  ON CONFLICT (id) DO NOTHING;
 
--- Storage policies for avatars bucket
-DO $$ BEGIN
-  CREATE POLICY "Allow authenticated uploads" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'avatars');
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  CREATE POLICY "Allow public read" ON storage.objects FOR SELECT USING (bucket_id = 'avatars');
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  CREATE POLICY "Allow owner updates" ON storage.objects FOR UPDATE TO authenticated USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  CREATE POLICY "Allow owner deletes" ON storage.objects FOR DELETE TO authenticated USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+  INSERT INTO storage.buckets (id, name, public)
+  VALUES ('post-media', 'post-media', true)
+  ON CONFLICT (id) DO NOTHING;
 
--- Post media bucket
-insert into storage.buckets (id, name, public)
-values ('post-media', 'post-media', true)
-on conflict (id) do nothing;
+  INSERT INTO storage.buckets (id, name, public)
+  VALUES ('chat-media', 'chat-media', true)
+  ON CONFLICT (id) DO NOTHING;
 
--- Storage policies for post-media bucket
-DO $$ BEGIN
-  CREATE POLICY "post_media_insert" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'post-media');
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  CREATE POLICY "post_media_select" ON storage.objects FOR SELECT USING (bucket_id = 'post-media');
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  CREATE POLICY "post_media_update" ON storage.objects FOR UPDATE TO authenticated USING (bucket_id = 'post-media' AND (storage.foldername(name))[1] = auth.uid()::text);
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  CREATE POLICY "post_media_delete" ON storage.objects FOR DELETE TO authenticated USING (bucket_id = 'post-media' AND (storage.foldername(name))[1] = auth.uid()::text);
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+  -- Avatars policies
+  BEGIN CREATE POLICY "Allow authenticated uploads" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'avatars');
+  EXCEPTION WHEN duplicate_object THEN NULL; END;
+  BEGIN CREATE POLICY "Allow public read" ON storage.objects FOR SELECT USING (bucket_id = 'avatars');
+  EXCEPTION WHEN duplicate_object THEN NULL; END;
+  BEGIN CREATE POLICY "Allow owner updates" ON storage.objects FOR UPDATE TO authenticated USING (bucket_id = 'avatars');
+  EXCEPTION WHEN duplicate_object THEN NULL; END;
+  BEGIN CREATE POLICY "Allow owner deletes" ON storage.objects FOR DELETE TO authenticated USING (bucket_id = 'avatars');
+  EXCEPTION WHEN duplicate_object THEN NULL; END;
 
--- Chat media bucket
-insert into storage.buckets (id, name, public)
-values ('chat-media', 'chat-media', true)
-on conflict (id) do nothing;
+  -- Post-media policies
+  BEGIN CREATE POLICY "post_media_insert" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'post-media');
+  EXCEPTION WHEN duplicate_object THEN NULL; END;
+  BEGIN CREATE POLICY "post_media_select" ON storage.objects FOR SELECT USING (bucket_id = 'post-media');
+  EXCEPTION WHEN duplicate_object THEN NULL; END;
+  BEGIN CREATE POLICY "post_media_update" ON storage.objects FOR UPDATE TO authenticated USING (bucket_id = 'post-media');
+  EXCEPTION WHEN duplicate_object THEN NULL; END;
+  BEGIN CREATE POLICY "post_media_delete" ON storage.objects FOR DELETE TO authenticated USING (bucket_id = 'post-media');
+  EXCEPTION WHEN duplicate_object THEN NULL; END;
 
--- Storage policies for chat-media bucket
-DO $$ BEGIN
-  CREATE POLICY "chat_media_insert" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'chat-media');
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  CREATE POLICY "chat_media_select" ON storage.objects FOR SELECT USING (bucket_id = 'chat-media');
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  CREATE POLICY "chat_media_update" ON storage.objects FOR UPDATE TO authenticated USING (bucket_id = 'chat-media' AND (storage.foldername(name))[1] = auth.uid()::text);
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  CREATE POLICY "chat_media_delete" ON storage.objects FOR DELETE TO authenticated USING (bucket_id = 'chat-media' AND (storage.foldername(name))[1] = auth.uid()::text);
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+  -- Chat-media policies
+  BEGIN CREATE POLICY "chat_media_insert" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'chat-media');
+  EXCEPTION WHEN duplicate_object THEN NULL; END;
+  BEGIN CREATE POLICY "chat_media_select" ON storage.objects FOR SELECT USING (bucket_id = 'chat-media');
+  EXCEPTION WHEN duplicate_object THEN NULL; END;
+  BEGIN CREATE POLICY "chat_media_update" ON storage.objects FOR UPDATE TO authenticated USING (bucket_id = 'chat-media');
+  EXCEPTION WHEN duplicate_object THEN NULL; END;
+  BEGIN CREATE POLICY "chat_media_delete" ON storage.objects FOR DELETE TO authenticated USING (bucket_id = 'chat-media');
+  EXCEPTION WHEN duplicate_object THEN NULL; END;
+END $$;
 
 -- 9. Platform Config
 INSERT INTO public.platform_config (key, value, description)
@@ -262,3 +253,97 @@ VALUES (
   'seeking_advice', 'community',
   '{"title":"Tomato growing tips","description":"Anyone have tips for growing tomatoes in raised beds?"}'
 );
+
+-- =============================================================================
+-- 13. Buyer-Owned Sell Post (so Seller sees Chat/Order buttons in E2E tests)
+-- =============================================================================
+
+INSERT INTO public.posts (id, author_id, community_h3_index, type, reach, content)
+VALUES (
+  'a7777777-7777-7777-7777-777777777777',
+  'b2222222-2222-2222-2222-222222222222',
+  '89283470c2fffff',
+  'want_to_sell', 'community',
+  '{"produceName":"Peppers","description":"Fresh bell peppers, red and green"}'
+);
+
+INSERT INTO public.want_to_sell_details (post_id, category, produce_name, unit, total_quantity_available, points_per_unit)
+VALUES ('a7777777-7777-7777-7777-777777777777', 'vegetables', 'Peppers', 'bag', 8, 15);
+
+INSERT INTO public.delivery_dates (post_id, delivery_date)
+VALUES
+  ('a7777777-7777-7777-7777-777777777777', CURRENT_DATE + interval '2 days'),
+  ('a7777777-7777-7777-7777-777777777777', CURRENT_DATE + interval '6 days');
+
+-- =============================================================================
+-- 14. Pre-Existing Conversation + Order (for order action tests)
+-- =============================================================================
+-- Conversation between seller (as buyer) and buyer (as seller) on the Peppers post
+
+INSERT INTO public.conversations (id, post_id, buyer_id, seller_id)
+VALUES (
+  'b8888888-8888-8888-8888-888888888888',
+  'a7777777-7777-7777-7777-777777777777',
+  'a1111111-1111-1111-1111-111111111111',  -- seller is the buyer here
+  'b2222222-2222-2222-2222-222222222222'   -- buyer is the seller here
+);
+
+-- Auto-accepted offer for the order
+INSERT INTO public.offers (id, conversation_id, created_by, quantity, points_per_unit, status)
+VALUES (
+  'c9999999-9999-9999-9999-999999999999',
+  'b8888888-8888-8888-8888-888888888888',
+  'a1111111-1111-1111-1111-111111111111',
+  3, 15, 'accepted'
+);
+
+-- Pending order (seller placed an order on buyer's Peppers post)
+INSERT INTO public.orders (
+  id, offer_id, buyer_id, seller_id, category, product,
+  quantity, points_per_unit, delivery_date,
+  conversation_id, status, version
+)
+VALUES (
+  'd0000000-0000-0000-0000-000000000001',
+  'c9999999-9999-9999-9999-999999999999',
+  'a1111111-1111-1111-1111-111111111111',
+  'b2222222-2222-2222-2222-222222222222',
+  'vegetables', 'Peppers',
+  3, 15, CURRENT_DATE + interval '2 days',
+  'b8888888-8888-8888-8888-888888888888',
+  'pending', 1
+);
+
+-- Escrow: debit buyer (seller account) 45 points for the order
+INSERT INTO public.point_ledger (user_id, type, amount, balance_after, reference_id, metadata)
+VALUES (
+  'a1111111-1111-1111-1111-111111111111',
+  'escrow', -45, 455,
+  'd0000000-0000-0000-0000-000000000001',
+  '{"reason":"Order escrow for Peppers","order_id":"d0000000-0000-0000-0000-000000000001"}'
+);
+
+-- System message in the conversation
+INSERT INTO public.chat_messages (conversation_id, sender_id, content, type)
+VALUES (
+  'b8888888-8888-8888-8888-888888888888',
+  null,
+  'Order placed: 3 bags Peppers for 45 points.',
+  'system'
+);
+
+-- =============================================================================
+-- 15. Delivery Proof Storage Bucket
+-- =============================================================================
+DO $$
+BEGIN
+  INSERT INTO storage.buckets (id, name, public)
+  VALUES ('delivery-proof-images', 'delivery-proof-images', true)
+  ON CONFLICT (id) DO NOTHING;
+
+  BEGIN CREATE POLICY "delivery_proof_insert" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'delivery-proof-images');
+  EXCEPTION WHEN duplicate_object THEN NULL; END;
+  BEGIN CREATE POLICY "delivery_proof_select" ON storage.objects FOR SELECT USING (bucket_id = 'delivery-proof-images');
+  EXCEPTION WHEN duplicate_object THEN NULL; END;
+END $$;
+

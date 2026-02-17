@@ -293,6 +293,7 @@
   "common": {
     "error": "Error",
     "cancel": "Cancel",
+    "confirm": "Confirm",
     "done": "Done"
   },
   "feed": {
@@ -332,7 +333,7 @@
     "points": "pts",
     "buy": "Buy",
     "order": "Order",
-    "qty": "Qty",
+    "qty": "Available",
     "offer": "Offer",
     "chat": "Chat",
     "reported": "Reported",
@@ -839,5 +840,120 @@
     "locationDeniedTitle": "Location Permission",
     "locationDeniedMessage": "Please enable location access in your device settings to share your location.",
     "uploading": "Sending..."
+  },
+  "orders": {
+    "title": "Orders",
+    "loading": "Loading orders…",
+    "retry": "Retry",
+    "points": "points",
+    "from": "From",
+    "to": "To",
+    "buying": "Buying",
+    "selling": "Selling",
+    "unknownBuyer": "Unknown Buyer",
+    "unknownSeller": "Unknown Seller",
+    "deliveredAt": "Delivered {{date}}",
+    "refundOffer": "Refund offer: {{amount}} pts",
+    "escalatedNotice": "This order is under review by CasaGrown support.",
+    "confirmCancel": "Cancel Order?",
+    "confirmCancelMessage": "Points will be refunded to the buyer. This cannot be undone.",
+    "confirmReject": "Reject Order?",
+    "confirmRejectMessage": "The buyer will be notified and their points refunded.",
+    "confirmDelivery": "Confirm Delivery?",
+    "confirmDeliveryMessage": "Points will be released to the seller. Make sure you've received everything.",
+    "confirmAcceptOffer": "Accept Refund?",
+    "confirmAcceptOfferMessage": "{{amount}} points will be refunded. The order will be marked complete.",
+    "confirmEscalate": "Escalate to CasaGrown?",
+    "confirmEscalateMessage": "Our team will review this dispute and get back to both parties.",
+    "tabs": {
+      "open": "Open",
+      "past": "Past"
+    },
+    "filters": {
+      "all": "All",
+      "buying": "Buying",
+      "selling": "Selling"
+    },
+    "emptyOpen": "No open orders",
+    "emptyPast": "No past orders",
+    "emptyHint": "Orders appear here when you buy or sell produce.",
+    "actions": {
+      "modify": "Modify",
+      "cancel": "Cancel",
+      "accept": "Accept",
+      "reject": "Reject",
+      "markDelivered": "Mark Delivered",
+      "confirmDelivery": "Confirm Delivery",
+      "dispute": "Dispute",
+      "makeOffer": "Offer Refund",
+      "acceptOffer": "Accept Offer",
+      "acceptOfferResolve": "Accept Offer & Resolve",
+      "rejectOffer": "Reject Offer",
+      "escalate": "Escalate",
+      "resolve": "Resolve",
+      "rate": "Rate"
+    },
+    "delivery": {
+      "title": "Delivery Proof",
+      "subtitle": "Take a geotagged photo as proof of delivery",
+      "takePhoto": "Take Delivery Photo",
+      "autoGeotag": "Location & time captured automatically",
+      "retake": "Retake Photo",
+      "confirm": "Confirm Delivery",
+      "geotagNote": "This photo is geotagged with your current location and timestamp to verify delivery.",
+      "locationRequired": "Location Required",
+      "locationRequiredMessage": "We need your location to verify delivery. Please enable location access.",
+      "cameraRequired": "Camera Required",
+      "cameraRequiredMessage": "We need camera access to take a delivery proof photo.",
+      "captureError": "Could not capture photo. Please try again."
+    },
+    "dispute": {
+      "title": "File a Dispute",
+      "warning": "Filing a dispute will freeze the points in escrow until resolved. The seller will be notified.",
+      "reason": "Reason for dispute",
+      "reasonPlaceholder": "Describe what went wrong with this delivery…",
+      "reasonRequired": "Please describe the issue before submitting.",
+      "proofPhoto": "Proof Photo (optional)",
+      "addPhoto": "Add a proof photo",
+      "removePhoto": "Remove photo",
+      "submit": "File Dispute",
+      "cameraRequired": "Camera access is required to take a proof photo."
+    },
+    "refund": {
+      "title": "Offer Refund",
+      "orderTotal": "Order Total",
+      "amount": "Refund Amount",
+      "exceedsTotal": "Refund cannot exceed order total.",
+      "message": "Message (optional)",
+      "messagePlaceholder": "Add a message to explain the refund…",
+      "send": "Send Offer"
+    },
+    "rating": {
+      "title": "Rate Your Experience",
+      "subtitle": "How was your experience with {{name}}?",
+      "terrible": "Terrible",
+      "poor": "Poor",
+      "okay": "Okay",
+      "good": "Good",
+      "excellent": "Excellent",
+      "feedback": "Feedback (optional)",
+      "feedbackPlaceholder": "Share your thoughts…",
+      "later": "Later",
+      "submit": "Submit Rating"
+    },
+    "summary": {
+      "title": "Order Details",
+      "seller": "Seller",
+      "buyer": "Buyer",
+      "quantity": "Quantity",
+      "total": "Total",
+      "deliveryDate": "Delivery Date",
+      "address": "Address",
+      "instructions": "Instructions",
+      "deliveryProof": "Delivery Proof",
+      "ratings": "Ratings",
+      "yourRating": "Your rating",
+      "theirRating": "{{name}}'s rating"
+    }
   }
 }

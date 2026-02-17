@@ -186,7 +186,7 @@ export function CreatePostScreen({ onBack, onSuccess, initialType, editId, clone
             alignItems="center"
             justifyContent="center"
             pressStyle={{ opacity: 0.6 }}
-            accessibilityLabel="Back"
+            aria-label="Back"
           >
             <ArrowLeft size={24} color={colors.gray[700]} />
           </Button>

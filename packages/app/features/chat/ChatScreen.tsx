@@ -10,13 +10,14 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { YStack, XStack, Text, Button, Spinner, ScrollView } from 'tamagui'
-import { Platform, TextInput, FlatList, KeyboardAvoidingView, TouchableOpacity, Image, Alert, Linking } from 'react-native'
-import { ArrowLeft, Send, Paperclip, MapPin, Camera, Video, X, Loader, Image as LucideImage, Check, CheckCheck } from '@tamagui/lucide-icons'
+import { Platform, TextInput, FlatList, KeyboardAvoidingView, TouchableOpacity, Pressable, Image, Alert, Linking, Modal } from 'react-native'
+import { ArrowLeft, Send, Paperclip, MapPin, Camera, Video, X, Loader, Image as LucideImage, Check, CheckCheck, Calendar, Package, ShoppingCart } from '@tamagui/lucide-icons'
 import { colors, borderRadius, shadows } from '../../design-tokens'
 import { normalizeStorageUrl } from '../../utils/normalize-storage-url'
 import { useTranslation } from 'react-i18next'
 import { ChatPostCard } from './ChatPostCard'
 import { FeedVideoPlayer } from '../feed/FeedVideoPlayer'
+import { CalendarPicker } from '../create-post/CalendarPicker'
 import * as ImagePicker from 'expo-image-picker'
 import * as Location from 'expo-location'
 
@@ -39,6 +40,26 @@ import type {
   ConversationWithDetails,
   PresenceState,
 } from './chat-service'
+import { ChatOrderActions } from './ChatOrderActions'
+import { useConversationOrder } from '../orders/useOrders'
+import {
+  markDelivered,
+  disputeOrder,
+  makeRefundOffer,
+  submitRating,
+  modifyOrder,
+} from '../orders/order-service'
+import { DeliveryProofSheet } from '../orders/DeliveryProofSheet'
+import { DisputeSheet } from '../orders/DisputeSheet'
+import { RefundOfferSheet } from '../orders/RefundOfferSheet'
+import { RatingSheet } from '../orders/RatingSheet'
+import { ModifyOrderSheet } from '../orders/ModifyOrderSheet'
+import type { ModifyOrderFormData } from '../orders/ModifyOrderSheet'
+import { OrderSheet } from '../feed/OrderSheet'
+import type { OrderFormData } from '../feed/OrderSheet'
+import type { FeedPost } from '../feed/feed-service'
+import { usePointsBalance } from '../../hooks/usePointsBalance'
+import { supabase } from '../auth/auth-hook'
 
 // =============================================================================
 // Props
@@ -310,22 +331,60 @@ function MessageBubble({
 // System Message
 // =============================================================================
 
-function SystemMessage({ message }: { message: ChatMessage }) {
+function SystemMessage({ message, deliveryAddress, deliveryInstructions }: {
+  message: ChatMessage;
+  deliveryAddress?: string | null;
+  deliveryInstructions?: string | null;
+}) {
   return (
-    <XStack justifyContent="center" paddingHorizontal="$6" paddingVertical="$2">
+    <XStack justifyContent="center" paddingHorizontal="$4" paddingVertical="$2">
       <YStack
         backgroundColor={colors.gray[100]}
         paddingHorizontal="$3"
-        paddingVertical="$1.5"
+        paddingVertical="$2"
         borderRadius={12}
+        gap="$1"
+        maxWidth="90%"
       >
         <Text fontSize={12} color={colors.gray[500]} textAlign="center">
           {message.content}
         </Text>
+        {deliveryAddress && (
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => {
+              const query = encodeURIComponent(deliveryAddress)
+              const url = Platform.select({
+                ios: `maps:0,0?q=${query}`,
+                android: `geo:0,0?q=${query}`,
+                default: `https://www.google.com/maps/search/?api=1&query=${query}`,
+              })
+              Linking.openURL(url!)
+            }}
+          >
+            <XStack alignItems="center" justifyContent="center" gap="$1" paddingTop="$0.5">
+              <MapPin size={11} color={colors.green[600]} />
+              <Text
+                fontSize={11}
+                color={colors.green[700]}
+                textDecorationLine="underline"
+                numberOfLines={1}
+              >
+                {deliveryAddress}
+              </Text>
+            </XStack>
+          </TouchableOpacity>
+        )}
+        {deliveryInstructions && (
+          <Text fontSize={11} color={colors.gray[400]} textAlign="center">
+            📋 {deliveryInstructions}
+          </Text>
+        )}
       </YStack>
     </XStack>
   )
 }
+
 
 // =============================================================================
 // Date Separator
@@ -372,6 +431,31 @@ export function ChatScreen({
   const [otherPresence, setOtherPresence] = useState<PresenceState>({ online: false, typing: false })
   const [attachMenuOpen, setAttachMenuOpen] = useState(false)
   const [cameraMode, setCameraMode] = useState<'photo' | 'video' | null>(null)
+  
+  // Order action sheet state
+  const [deliveryProofOpen, setDeliveryProofOpen] = useState(false)
+  const [disputeOpen, setDisputeOpen] = useState(false)
+  const [refundOfferOpen, setRefundOfferOpen] = useState(false)
+  const [ratingOpen, setRatingOpen] = useState(false)
+
+  // Seller suggestion modal state
+  const [suggestDateOpen, setSuggestDateOpen] = useState(false)
+  const [suggestQtyOpen, setSuggestQtyOpen] = useState(false)
+  const [suggestDateValue, setSuggestDateValue] = useState('')
+  const [suggestQtyValue, setSuggestQtyValue] = useState('')
+  const [suggestCalendarOpen, setSuggestCalendarOpen] = useState(false)
+
+  // Buyer modify modal state
+  const [modifyOrderOpen, setModifyOrderOpen] = useState(false)
+
+  // Buyer new order modal state (when no order exists yet)
+  const [newOrderOpen, setNewOrderOpen] = useState(false)
+
+  // Order data for this conversation
+  const orderData = useConversationOrder(conversation?.id ?? null)
+
+  // Points balance for the current user (needed for ModifyOrderSheet)
+  const { balance: userPoints, refetch: refetchBalance } = usePointsBalance(currentUserId)
 
   const flatListRef = useRef<FlatList>(null)
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -392,6 +476,37 @@ export function ChatScreen({
 
   const otherUserName = otherUser?.full_name || t('chat.unknownUser')
   const otherUserAvatar = normalizeStorageUrl(otherUser?.avatar_url)
+
+  // Show "Place Order" button for buyers on for-sale posts with no existing order or completed/cancelled order
+  const isBuyer = conversation?.buyer_id === currentUserId
+  const isForSalePost = conversation?.post?.type === 'want_to_sell'
+  const showPlaceOrderButton = isBuyer && isForSalePost && !orderData.loading &&
+    (!orderData.order || orderData.order.status === 'completed' || orderData.order.status === 'cancelled')
+
+  // Adapt ConversationPost → FeedPost for the OrderSheet component
+  const orderSheetPost: FeedPost | null = useMemo(() => {
+    if (!conversation?.post?.sell_details) return null
+    const p = conversation.post
+    return {
+      id: p.id,
+      author_id: p.author_id,
+      author_name: p.author_name,
+      author_avatar_url: p.author_avatar_url,
+      type: p.type,
+      reach: 'community',
+      content: p.content,
+      created_at: p.created_at,
+      community_h3_index: null,
+      community_name: p.community_name,
+      sell_details: p.sell_details,
+      buy_details: p.buy_details,
+      media: p.media,
+      like_count: 0,
+      comment_count: 0,
+      is_liked: false,
+      is_flagged: false,
+    }
+  }, [conversation])
 
   // ── Initialize conversation and load messages ──
   useEffect(() => {
@@ -763,6 +878,143 @@ export function ChatScreen({
     }, 2000)
   }, [])
 
+  // ── Seller: Suggest alternate date ──
+  const handleSuggestDate = useCallback(async (dateStr: string) => {
+    if (!conversation || !dateStr.trim()) return
+    setSuggestDateOpen(false)
+    setSending(true)
+    try {
+      const msg1 = await sendMessage(
+        conversation.id, currentUserId,
+        `🗓️ I'd like to suggest delivery by ${dateStr} instead.`,
+        'text',
+      )
+      setMessages(prev => {
+        if (prev.some(m => m.id === msg1.id)) return prev
+        return [...prev, { ...msg1, sender_name: currentUserName || null }]
+      })
+      const msg2 = await sendMessage(
+        conversation.id, currentUserId,
+        '💡 If this works for you, tap Modify to update the order.',
+        'text',
+      )
+      setMessages(prev => {
+        if (prev.some(m => m.id === msg2.id)) return prev
+        return [...prev, { ...msg2, sender_name: currentUserName || null }]
+      })
+    } catch (err) {
+      console.error('Error suggesting date:', err)
+    } finally {
+      setSending(false)
+    }
+  }, [conversation, currentUserId, currentUserName])
+
+  // ── Seller: Suggest alternate quantity ──
+  const handleSuggestQty = useCallback(async (qty: string) => {
+    if (!conversation || !qty.trim()) return
+    setSuggestQtyOpen(false)
+    setSending(true)
+    try {
+      const msg1 = await sendMessage(
+        conversation.id, currentUserId,
+        `📦 I'd like to suggest ${qty} units instead.`,
+        'text',
+      )
+      setMessages(prev => {
+        if (prev.some(m => m.id === msg1.id)) return prev
+        return [...prev, { ...msg1, sender_name: currentUserName || null }]
+      })
+      const msg2 = await sendMessage(
+        conversation.id, currentUserId,
+        '💡 If this works for you, tap Modify to update the order.',
+        'text',
+      )
+      setMessages(prev => {
+        if (prev.some(m => m.id === msg2.id)) return prev
+        return [...prev, { ...msg2, sender_name: currentUserName || null }]
+      })
+    } catch (err) {
+      console.error('Error suggesting qty:', err)
+    } finally {
+      setSending(false)
+    }
+  }, [conversation, currentUserId, currentUserName])
+
+  // ── Buyer: Modify order (via ModifyOrderSheet) ──
+  const handleModifyOrder = useCallback(async (data: ModifyOrderFormData) => {
+    if (!orderData.order) return
+    setModifyOrderOpen(false)
+    setSending(true)
+    try {
+      const changes: {
+        quantity?: number
+        deliveryDate?: string
+        deliveryAddress?: string
+        deliveryInstructions?: string
+      } = {}
+      if (data.quantity !== orderData.order.quantity) changes.quantity = data.quantity
+      if (data.deliveryDate !== (orderData.order.delivery_date ?? '')) changes.deliveryDate = data.deliveryDate
+      if (data.deliveryAddress !== (orderData.order.delivery_address ?? '')) changes.deliveryAddress = data.deliveryAddress
+      if (data.deliveryInstructions !== (orderData.order.delivery_instructions ?? '')) changes.deliveryInstructions = data.deliveryInstructions
+
+      if (Object.keys(changes).length === 0) return
+
+      const result = await modifyOrder(orderData.order.id, currentUserId, changes)
+      if (!result.success) {
+        if (Platform.OS === 'web') {
+          window.alert(result.error || 'Failed to modify order')
+        } else {
+          Alert.alert('Cannot Modify', result.error || 'Failed to modify order')
+        }
+      }
+      orderData.refresh()
+      refetchBalance()
+    } catch (err) {
+      console.error('Error modifying order:', err)
+    } finally {
+      setSending(false)
+    }
+  }, [orderData, currentUserId, refetchBalance])
+
+  // ── Buyer: Place new order (via OrderSheet) ──
+  const handleNewOrderSubmit = useCallback(async (data: OrderFormData) => {
+    if (!conversation?.post?.sell_details) return
+    setNewOrderOpen(false)
+    setSending(true)
+    try {
+      const post = conversation.post
+      const { data: result, error } = await supabase.functions.invoke('create-order', {
+        body: {
+          postId: post.id,
+          sellerId: post.author_id,
+          quantity: data.quantity,
+          pointsPerUnit: post.sell_details.points_per_unit,
+          totalPrice: data.totalPrice,
+          category: post.sell_details.category,
+          product: post.sell_details.produce_name,
+          deliveryDate: data.latestDate,
+          deliveryInstructions: data.instructions,
+          deliveryAddress: data.address,
+        },
+      })
+      if (error) {
+        if (Platform.OS === 'web') {
+          window.alert(error.message || 'Failed to place order')
+        } else {
+          Alert.alert('Order Failed', error.message || 'Failed to place order')
+        }
+        return
+      }
+      // Refresh order data & balance
+      orderData.refresh()
+      refetchBalance()
+    } catch (err) {
+      console.error('Error placing order:', err)
+    } finally {
+      setSending(false)
+    }
+  }, [conversation, orderData, refetchBalance])
+
   // ── Build flat list data with date separators ──
   const listData = useMemo(() => {
     const items: Array<{ type: 'date'; label: string } | { type: 'message'; message: ChatMessage; showAvatar: boolean }> = []
@@ -892,6 +1144,9 @@ export function ChatScreen({
             </YStack>
 
             <YStack>
+              <Text fontSize={10} color={colors.gray[400]} fontWeight="500" letterSpacing={0.5}>
+                CHAT WITH
+              </Text>
               <Text fontSize={15} fontWeight="600" color={colors.gray[900]}>
                 {otherUserName}
               </Text>
@@ -912,9 +1167,14 @@ export function ChatScreen({
       {/* ============ POST CARD ============ */}
       {conversation && (
         <YStack paddingHorizontal="$3" paddingTop="$2" paddingBottom="$1">
+          <Text fontSize={10} color={colors.gray[400]} fontWeight="500" letterSpacing={0.5} paddingBottom="$1" paddingLeft="$1">
+            DISCUSSING
+          </Text>
           <ChatPostCard post={conversation.post} t={t} />
         </YStack>
       )}
+
+
 
       {/* ============ MESSAGES ============ */}
       <FlatList
@@ -929,7 +1189,7 @@ export function ChatScreen({
           }
           const msgItem = item as { type: 'message'; message: ChatMessage; showAvatar: boolean }
           if (msgItem.message.type === 'system') {
-            return <SystemMessage message={msgItem.message} />
+            return <SystemMessage message={msgItem.message} deliveryAddress={orderData.order?.delivery_address} deliveryInstructions={orderData.order?.delivery_instructions} />
           }
           return (
             <MessageBubble
@@ -939,7 +1199,8 @@ export function ChatScreen({
             />
           )
         }}
-        contentContainerStyle={{ paddingVertical: 8, flexGrow: 1 }}
+        contentContainerStyle={{ paddingVertical: 8, flexGrow: 1, justifyContent: 'flex-end' }}
+        keyboardShouldPersistTaps="handled"
         style={{ flex: 1 }}
         onContentSizeChange={() => {
           if (isAtBottomRef.current) {
@@ -1049,6 +1310,66 @@ export function ChatScreen({
         />
       )}
 
+      {/* ============ ORDER ACTIONS ============ */}
+      {orderData.order && (
+        <ChatOrderActions
+          order={orderData.order}
+          currentUserId={currentUserId}
+          escalation={orderData.escalation}
+          refundOffers={orderData.refundOffers}
+          onOrderUpdated={orderData.refresh}
+          onDeliveryProof={() => setDeliveryProofOpen(true)}
+          onDispute={() => setDisputeOpen(true)}
+          onMakeOffer={() => setRefundOfferOpen(true)}
+          onRate={() => setRatingOpen(true)}
+          onSuggestDate={() => {
+            setSuggestDateValue('')
+            setSuggestDateOpen(true)
+          }}
+          onSuggestQty={() => {
+            setSuggestQtyValue(String(orderData.order?.quantity ?? ''))
+            setSuggestQtyOpen(true)
+          }}
+          onModify={() => {
+            setModifyOrderOpen(true)
+          }}
+          t={t}
+        />
+      )}
+
+      {/* ============ PLACE ORDER BUTTON (buyer, no active order) ============ */}
+      {showPlaceOrderButton && (
+        <YStack
+          backgroundColor="white"
+          borderTopWidth={1}
+          borderBottomWidth={1}
+          borderColor={colors.gray[200]}
+          paddingHorizontal="$3"
+          paddingVertical="$2.5"
+        >
+          <XStack justifyContent="flex-start">
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setNewOrderOpen(true)}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 4,
+                paddingHorizontal: 8,
+                paddingVertical: 4,
+                borderRadius: 6,
+                backgroundColor: colors.green[600],
+              }}
+            >
+              <ShoppingCart size={13} color="white" />
+              <Text fontSize={11} fontWeight="600" color="white">
+                Order
+              </Text>
+            </TouchableOpacity>
+          </XStack>
+        </YStack>
+      )}
+
       {/* ============ INPUT BAR ============ */}
       <XStack
         backgroundColor="white"
@@ -1075,15 +1396,18 @@ export function ChatScreen({
           <Paperclip size={20} color={attachMenuOpen ? colors.green[600] : colors.gray[500]} />
         </TouchableOpacity>
 
-        {/* Text input */}
-        <YStack
-          flex={1}
-          backgroundColor={colors.gray[100]}
-          borderRadius={20}
-          paddingHorizontal="$3"
-          paddingVertical={Platform.OS === 'ios' ? '$2' : '$1'}
-          minHeight={40}
-          justifyContent="center"
+        {/* Text input — use Pressable to ensure Android touch events reach TextInput */}
+        <Pressable
+          onPress={() => inputRef.current?.focus()}
+          style={{
+            flex: 1,
+            backgroundColor: colors.gray[100],
+            borderRadius: 20,
+            paddingHorizontal: 12,
+            paddingVertical: Platform.OS === 'ios' ? 8 : 4,
+            minHeight: 40,
+            justifyContent: 'center',
+          }}
         >
           <TextInput
             ref={inputRef}
@@ -1091,7 +1415,9 @@ export function ChatScreen({
               fontSize: 15,
               color: colors.gray[800],
               maxHeight: 100,
+              minHeight: Platform.OS === 'android' ? 24 : undefined,
               paddingVertical: Platform.OS === 'ios' ? 0 : 4,
+              textAlignVertical: 'center',
               ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as Record<string, string> : {}),
             }}
             placeholder={t('chat.inputPlaceholder')}
@@ -1099,10 +1425,11 @@ export function ChatScreen({
             value={inputText}
             onChangeText={handleTextChange}
             multiline
+            editable={true}
             returnKeyType="default"
             blurOnSubmit={false}
           />
-        </YStack>
+        </Pressable>
 
         {/* Send button */}
         <TouchableOpacity
@@ -1122,6 +1449,259 @@ export function ChatScreen({
         </TouchableOpacity>
       </XStack>
     </KeyboardAvoidingView>
+
+      {/* ============ ORDER SHEETS ============ */}
+      {orderData.order && (
+        <>
+          <DeliveryProofSheet
+            visible={deliveryProofOpen}
+            orderId={orderData.order.id}
+            onClose={() => setDeliveryProofOpen(false)}
+            onSubmit={async (data) => {
+              try {
+                // Upload proof photo to chat-media storage
+                const fileName = `delivery-proof-${orderData.order!.id}-${Date.now()}.jpg`
+                const { mediaId } = await uploadChatMedia(
+                  currentUserId, data.photoUri, fileName, 'image/jpeg', 'image',
+                )
+                // Mark order as delivered with proof (RPC also sends chat message)
+                await markDelivered(orderData.order!.id, currentUserId, mediaId)
+                orderData.refresh()
+              } catch (err) {
+                console.error('Delivery proof error:', err)
+                Alert.alert('Error', 'Failed to submit delivery proof. Please try again.')
+              }
+            }}
+            t={t}
+          />
+          <DisputeSheet
+            visible={disputeOpen}
+            orderId={orderData.order.id}
+            onClose={() => setDisputeOpen(false)}
+            onSubmit={async (data) => {
+              await disputeOrder(
+                orderData.order!.id,
+                currentUserId,
+                data.reason,
+              )
+              orderData.refresh()
+            }}
+            t={t}
+          />
+          <RefundOfferSheet
+            visible={refundOfferOpen}
+            orderId={orderData.order.id}
+            totalPrice={orderData.order.total_price}
+            onClose={() => setRefundOfferOpen(false)}
+            onSubmit={async (data) => {
+              await makeRefundOffer(
+                orderData.order!.id,
+                currentUserId,
+                data.amount,
+                data.message,
+              )
+              orderData.refresh()
+            }}
+            t={t}
+          />
+          <RatingSheet
+            visible={ratingOpen}
+            orderId={orderData.order.id}
+            otherUserName={
+              currentUserId === orderData.order.buyer_id
+                ? orderData.order.seller_name || ''
+                : orderData.order.buyer_name || ''
+            }
+            onClose={() => setRatingOpen(false)}
+            onSubmit={async (data) => {
+              const role = currentUserId === orderData.order!.buyer_id ? 'buyer' : 'seller' as const
+              await submitRating(orderData.order!.id, role, data.score, data.feedback)
+              orderData.refresh()
+            }}
+            t={t}
+          />
+        </>
+      )}
+
+      {/* ============ SUGGEST DATE MODAL ============ */}
+      <Modal
+        visible={suggestDateOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSuggestDateOpen(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}
+          onPress={() => setSuggestDateOpen(false)}
+        >
+          <Pressable
+            style={{
+              backgroundColor: 'white',
+              borderRadius: 16,
+              padding: 24,
+              width: '85%',
+              maxWidth: 340,
+            }}
+            onPress={() => {}} // prevent close on inner tap
+          >
+            <Text fontSize={16} fontWeight="700" color={colors.gray[800]} marginBottom="$3">
+              Suggest Delivery Date
+            </Text>
+            {/* Date Selector */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setSuggestCalendarOpen(true)}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                borderWidth: 1,
+                borderColor: colors.gray[300],
+                borderRadius: 8,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                gap: 8,
+                marginBottom: 16,
+              }}
+            >
+              <Calendar size={16} color={colors.gray[400]} />
+              <Text
+                flex={1}
+                fontSize={14}
+                color={suggestDateValue ? colors.gray[900] : colors.gray[400]}
+              >
+                {suggestDateValue
+                  ? new Date(suggestDateValue + 'T00:00:00').toLocaleDateString(undefined, {
+                      weekday: 'short',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })
+                  : 'Select a date'}
+              </Text>
+            </TouchableOpacity>
+
+            <CalendarPicker
+              visible={suggestCalendarOpen}
+              initialDate={suggestDateValue || undefined}
+              minimumDate={new Date()}
+              onSelect={(dateStr) => {
+                setSuggestDateValue(dateStr)
+                setSuggestCalendarOpen(false)
+              }}
+              onCancel={() => setSuggestCalendarOpen(false)}
+            />
+
+            <XStack gap="$2" justifyContent="flex-end">
+              <TouchableOpacity
+                onPress={() => setSuggestDateOpen(false)}
+                style={{ paddingHorizontal: 16, paddingVertical: 8 }}
+              >
+                <Text fontSize={14} color={colors.gray[500]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleSuggestDate(suggestDateValue)}
+                style={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
+                  backgroundColor: '#0369a1',
+                  borderRadius: 8,
+                  opacity: suggestDateValue.trim() ? 1 : 0.5,
+                }}
+                disabled={!suggestDateValue.trim()}
+              >
+                <Text fontSize={14} fontWeight="600" color="white">Send Suggestion</Text>
+              </TouchableOpacity>
+            </XStack>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ============ SUGGEST QTY MODAL ============ */}
+      <Modal
+        visible={suggestQtyOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSuggestQtyOpen(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}
+          onPress={() => setSuggestQtyOpen(false)}
+        >
+          <Pressable
+            style={{
+              backgroundColor: 'white',
+              borderRadius: 16,
+              padding: 24,
+              width: '85%',
+              maxWidth: 340,
+            }}
+            onPress={() => {}}
+          >
+            <Text fontSize={16} fontWeight="700" color={colors.gray[800]} marginBottom="$3">
+              Suggest Quantity
+            </Text>
+            <TextInput
+              style={{
+                borderWidth: 1,
+                borderColor: colors.gray[300],
+                borderRadius: 8,
+                padding: 12,
+                fontSize: 15,
+                color: colors.gray[800],
+                marginBottom: 16,
+              }}
+              placeholder="Enter quantity"
+              placeholderTextColor={colors.gray[400]}
+              value={suggestQtyValue}
+              onChangeText={setSuggestQtyValue}
+              keyboardType="number-pad"
+            />
+            <XStack gap="$2" justifyContent="flex-end">
+              <TouchableOpacity
+                onPress={() => setSuggestQtyOpen(false)}
+                style={{ paddingHorizontal: 16, paddingVertical: 8 }}
+              >
+                <Text fontSize={14} color={colors.gray[500]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleSuggestQty(suggestQtyValue)}
+                style={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
+                  backgroundColor: colors.amber[600],
+                  borderRadius: 8,
+                  opacity: suggestQtyValue.trim() ? 1 : 0.5,
+                }}
+                disabled={!suggestQtyValue.trim()}
+              >
+                <Text fontSize={14} fontWeight="600" color="white">Send Suggestion</Text>
+              </TouchableOpacity>
+            </XStack>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ============ MODIFY ORDER SHEET (buyer) ============ */}
+      <ModifyOrderSheet
+        visible={modifyOrderOpen}
+        order={orderData.order}
+        userPoints={userPoints}
+        onClose={() => setModifyOrderOpen(false)}
+        onSubmit={handleModifyOrder}
+        onBalanceChanged={refetchBalance}
+        t={t}
+      />
+
+      {/* ============ NEW ORDER SHEET (buyer, no existing order) ============ */}
+      <OrderSheet
+        visible={newOrderOpen}
+        post={orderSheetPost}
+        userPoints={userPoints}
+        onClose={() => setNewOrderOpen(false)}
+        onSubmit={handleNewOrderSubmit}
+        onBalanceChanged={refetchBalance}
+        t={t}
+      />
     </YStack>
   )
 }

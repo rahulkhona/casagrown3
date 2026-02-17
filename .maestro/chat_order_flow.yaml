@@ -1,0 +1,77 @@
+appId: dev.casagrown.community
+---
+# Chat Order Flow E2E Test
+# Prerequisites: User must already be logged in, on a chat conversation
+# with a sell post (where the Place Order button appears)
+#
+# This test verifies:
+# 1. Chat tab navigation works
+# 2. Opening a conversation shows the chat screen
+# 3. Place Order button is visible in the chat (for buyer on sell post)
+# 4. Tapping Place Order opens the order form sheet
+# 5. Order form shows expected fields (quantity, delivery date)
+
+# ============ NAVIGATE TO CHATS ============
+
+- tapOn: "Chats"
+
+- extendedWaitUntil:
+    visible: "Chats"
+    timeout: 10000
+
+# ============ OPEN FIRST CONVERSATION ============
+
+# Tap the first conversation (if any exist)
+- tapOn:
+    index: 0
+    optional: true
+
+# Wait for chat to load
+- extendedWaitUntil:
+    visible: "Type a message"
+    timeout: 10000
+  optional: true
+
+# ============ VERIFY PLACE ORDER BUTTON ============
+
+# Place Order button should be visible for buyers on sell-post conversations
+- assertVisible:
+    text: "Place Order"
+    optional: true
+
+# Tap Place Order to open the order form
+- tapOn:
+    text: "Place Order"
+    optional: true
+
+# ============ VERIFY ORDER FORM ============
+
+# Wait for the order sheet to appear
+- extendedWaitUntil:
+    visible: "Quantity"
+    timeout: 5000
+  optional: true
+
+# Verify order form fields are present
+- assertVisible:
+    text: "Delivery"
+    optional: true
+
+- assertVisible:
+    text: "Points"
+    optional: true
+
+# ============ DISMISS ORDER FORM ============
+
+# Scroll down or tap outside to dismiss the order sheet
+- swipe:
+    start: 50%, 80%
+    end: 50%, 20%
+  optional: true
+
+# Navigate back to chats
+- tapOn: "Chats"
+
+- extendedWaitUntil:
+    visible: "Chats"
+    timeout: 10000

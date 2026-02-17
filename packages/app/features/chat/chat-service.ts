@@ -789,13 +789,47 @@ export function createPresenceChannel(
     // Track the latest known state so we can merge presence + broadcast
     let otherOnline = false;
     let otherTyping = false;
+    let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+    let heartbeatTimeout: ReturnType<typeof setTimeout> | null = null;
+    const HEARTBEAT_INTERVAL_MS = 10_000; // Send heartbeat every 10s
+    const HEARTBEAT_TIMEOUT_MS = 25_000; // Consider offline after 25s without heartbeat
 
     const emitState = () => {
         onPresenceChange({ online: otherOnline, typing: otherTyping });
     };
 
+    // Reset the offline timeout — called every time we receive a heartbeat
+    const resetHeartbeatTimeout = () => {
+        if (heartbeatTimeout) clearTimeout(heartbeatTimeout);
+        heartbeatTimeout = setTimeout(() => {
+            if (otherOnline) {
+                otherOnline = false;
+                otherTyping = false;
+                emitState();
+            }
+        }, HEARTBEAT_TIMEOUT_MS);
+    };
+
+    // Start sending heartbeats
+    const startHeartbeat = () => {
+        // Send one immediately
+        channel.send({
+            type: "broadcast",
+            event: "heartbeat",
+            payload: { user_id: userId },
+        });
+        // Then send periodically
+        heartbeatInterval = setInterval(() => {
+            channel.send({
+                type: "broadcast",
+                event: "heartbeat",
+                payload: { user_id: userId },
+            });
+        }, HEARTBEAT_INTERVAL_MS);
+    };
+
     channel
-        // ── Presence: online/offline ──
+        // ── Presence: online/offline (secondary signal) ──
         .on("presence", { event: "sync" }, () => {
             const state = channel.presenceState();
             let found = false;
@@ -805,27 +839,38 @@ export function createPresenceChannel(
                     if (presences && presences.length > 0) {
                         otherOnline = true;
                         found = true;
+                        resetHeartbeatTimeout();
                         break;
                     }
                 }
             }
-            if (!found) {
-                otherOnline = false;
-                otherTyping = false; // If they left, they're not typing
+            if (!found && !otherOnline) {
+                // Don't override heartbeat-based online — only set offline if heartbeat also timed out
             }
             emitState();
         })
         .on("presence", { event: "join" }, ({ key }) => {
             if (key !== userId) {
                 otherOnline = true;
+                resetHeartbeatTimeout();
                 emitState();
             }
         })
         .on("presence", { event: "leave" }, ({ key }) => {
             if (key !== userId) {
-                otherOnline = false;
-                otherTyping = false;
-                emitState();
+                // Don't immediately mark offline — wait for heartbeat timeout
+                // This prevents flicker when presence reconnects
+            }
+        })
+        // ── Broadcast: heartbeat events (primary online signal) ──
+        .on("broadcast", { event: "heartbeat" }, (payload) => {
+            const msg = payload.payload as Record<string, unknown>;
+            if (msg?.user_id !== userId) {
+                if (!otherOnline) {
+                    otherOnline = true;
+                    emitState();
+                }
+                resetHeartbeatTimeout();
             }
         })
         // ── Broadcast: typing events (reliable across all platforms) ──
@@ -839,6 +884,7 @@ export function createPresenceChannel(
         .subscribe(async (status) => {
             if (status === "SUBSCRIBED") {
                 await channel.track({ online: true });
+                startHeartbeat();
             }
         });
 
@@ -852,6 +898,8 @@ export function createPresenceChannel(
     };
 
     const destroy = () => {
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        if (heartbeatTimeout) clearTimeout(heartbeatTimeout);
         channel.untrack();
         supabase.removeChannel(channel);
     };

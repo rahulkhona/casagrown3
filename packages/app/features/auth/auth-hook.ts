@@ -46,7 +46,32 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: false,
     flowType: "pkce", // Implicit flow can cause issues in key exchange on native
   },
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    },
+    heartbeatIntervalMs: 15000, // Keep WebSocket alive
+    reconnectAfterMs: (tries: number) =>
+      // Exponential backoff capped at 10 seconds
+      Math.min(1000 * 2 ** tries, 10000),
+  },
 });
+
+// ── Reconnect realtime channels when app returns from background ──
+// Android emulators (and sometimes real devices) silently drop WebSocket
+// connections when the app is backgrounded. This listener forces a reconnect.
+if (Platform.OS !== "web") {
+  const { AppState } = require("react-native");
+  let lastState = "active";
+  AppState.addEventListener("change", (nextState: string) => {
+    if (lastState.match(/inactive|background/) && nextState === "active") {
+      console.log("📡 App resumed — reconnecting Supabase realtime channels");
+      supabase.realtime.disconnect();
+      supabase.realtime.connect();
+    }
+    lastState = nextState;
+  });
+}
 
 // 2. Define Hook Types
 type AuthState = {

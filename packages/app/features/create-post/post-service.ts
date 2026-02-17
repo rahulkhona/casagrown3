@@ -9,7 +9,10 @@
  */
 
 import { supabase } from "../auth/auth-hook";
+import { Platform } from "react-native";
 import { UploadedMedia, uploadPostMediaBatch } from "./media-upload";
+import { buildResolveResponseFromIndex } from "../community/h3-utils";
+import type { ResolveResponse } from "../community/use-resolve-community";
 
 // =============================================================================
 // Types
@@ -807,4 +810,80 @@ export async function updateBuyPost(
     }
 
     return { id: postId };
+}
+
+// =============================================================================
+// Community Map Data Helper
+// =============================================================================
+
+/**
+ * Build map data (ResolveResponse) for CommunityMap rendering.
+ *
+ * On **web**, h3-js works client-side so we compute boundaries locally.
+ * On **native** (Hermes), h3-js WASM fails, so we call the resolve-community
+ * edge function which returns hex_boundaries and enriched neighbor names.
+ *
+ * The edge function also triggers background enrichment for any communities
+ * that still have fallback "Zone NNN" names.
+ */
+export async function buildCommunityMapData(
+    primary: CommunityInfo,
+    neighbors: CommunityInfo[],
+): Promise<ResolveResponse> {
+    if (Platform.OS === "web") {
+        // Web: h3-js works — compute client-side
+        const mapData = buildResolveResponseFromIndex(
+            primary.h3Index,
+            primary.name,
+            primary.city || "",
+        );
+        // Override neighbors with real DB names
+        if (neighbors.length > 0) {
+            Object.assign(mapData, {
+                neighbors: neighbors.map((n) => ({
+                    h3_index: n.h3Index,
+                    name: n.name,
+                    status: "active" as const,
+                })),
+            });
+        }
+        return mapData as unknown as ResolveResponse;
+    }
+
+    // Native: call edge function for hex_boundaries + enriched names
+    try {
+        const { data, error } = await supabase.functions.invoke(
+            "resolve-community",
+            {
+                body: {
+                    lat: primary.lat ?? 0,
+                    lng: primary.lng ?? 0,
+                },
+            },
+        );
+        if (!error && data) {
+            return data as ResolveResponse;
+        }
+    } catch (err) {
+        console.warn("[buildCommunityMapData] Edge function failed:", err);
+    }
+
+    // Fallback: use DB data with override lat/lng (no hex boundaries)
+    const fallback = buildResolveResponseFromIndex(
+        primary.h3Index,
+        primary.name,
+        primary.city || "",
+        primary.lat,
+        primary.lng,
+    );
+    if (neighbors.length > 0) {
+        Object.assign(fallback, {
+            neighbors: neighbors.map((n) => ({
+                h3_index: n.h3Index,
+                name: n.name,
+                status: "active" as const,
+            })),
+        });
+    }
+    return fallback as unknown as ResolveResponse;
 }

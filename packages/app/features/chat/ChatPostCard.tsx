@@ -219,7 +219,7 @@ export function ChatPostCard({ post, t }: ChatPostCardProps) {
             <>
               <Text fontSize={12} color={colors.gray[300]}>·</Text>
               <Text fontSize={12} color={colors.gray[500]}>
-                {t('feed.qty')}: {quantity}{unit ? ` ${unit}${quantity !== 1 ? 's' : ''}` : ''}
+                {t('feed.qty')}: {quantity}{unit ? ` ${unit === 'dozen' ? unit : unit === 'box' && quantity !== 1 ? 'boxes' : unit === 'bag' && quantity !== 1 ? 'bags' : unit !== 'piece' ? unit : ''}` : ''}
               </Text>
             </>
           )}
