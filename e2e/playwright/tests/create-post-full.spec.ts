@@ -113,23 +113,50 @@ test.describe("Create Post - Full Flow", () => {
             page.locator("text=/Looking to Buy/i").first(),
         ).toBeVisible({ timeout: 10_000 });
 
-        // "What are you looking for?" field
-        const hasLookingFor = await page
-            .locator("text=/looking for/i")
-            .or(page.locator("[placeholder*='Tomatoes']"))
-            .or(page.locator("[placeholder*='Lemons']"))
-            .first()
-            .isVisible()
-            .catch(() => false);
+        // "What are you looking for?" field (required)
+        await expect(
+            page.locator("text=/What are you looking for/i").first(),
+        ).toBeVisible({ timeout: 5_000 });
 
-        // Latest drop-off date
-        const hasDate = await page
-            .locator("text=/Latest Drop-off|need.*by/i")
-            .first()
-            .isVisible()
-            .catch(() => false);
+        // Desired Quantity field
+        await expect(
+            page.locator("text=/Desired Quantity/i").first(),
+        ).toBeVisible({ timeout: 5_000 });
 
-        expect(hasLookingFor || hasDate).toBeTruthy();
+        // Unit selection buttons (piece, dozen, box, bag)
+        await expect(
+            page.locator("text=Unit").or(page.locator("text=unit")).first(),
+        ).toBeVisible({ timeout: 5_000 });
+
+        // Scroll to see fields below the fold (dates section)
+        await page.locator("text=/Latest Drop-off Date/i").first()
+            .scrollIntoViewIfNeeded();
+
+        // Latest Drop-off Date field
+        await expect(
+            page.locator("text=/Latest Drop-off Date/i").first(),
+        ).toBeVisible({ timeout: 5_000 });
+
+        // Accept Drop-off Dates section
+        await expect(
+            page.locator("text=/Accept Drop-off Dates/i").first(),
+        ).toBeVisible({ timeout: 5_000 });
+
+        // Scroll further to "Add a date" button
+        await page.locator("text=/Add a date/i").first()
+            .scrollIntoViewIfNeeded();
+
+        // "Add a date" button for drop-off dates
+        await expect(
+            page.locator("text=/Add a date/i").first(),
+        ).toBeVisible({ timeout: 5_000 });
+
+        // Submit button
+        await page.locator("text=Post to Community").first()
+            .scrollIntoViewIfNeeded();
+        await expect(
+            page.locator("text=Post to Community").first(),
+        ).toBeVisible({ timeout: 5_000 });
     });
 
     test("selecting advice type opens general form", async ({ page }) => {

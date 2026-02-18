@@ -45,6 +45,10 @@ export interface BuyPostData {
     category: string;
     produceNames: string[];
     needByDate?: string;
+    /** Optional desired quantity (how much the buyer wants) */
+    desiredQuantity?: number;
+    /** Optional desired unit (piece, dozen, box, bag) */
+    desiredUnit?: string;
     /** Optional accept drop-off dates */
     acceptDates?: string[];
     /** Media assets to upload (local URIs from camera/gallery) */
@@ -565,14 +569,20 @@ export async function createBuyPost(data: BuyPostData) {
     if (postError) throw postError;
     if (!post) throw new Error("Failed to create post");
 
+    const detailRow: Record<string, unknown> = {
+        post_id: post.id,
+        category: data.category,
+        produce_names: data.produceNames,
+        need_by_date: data.needByDate || null,
+    };
+    if (data.desiredQuantity != null) {
+        detailRow.desired_quantity = data.desiredQuantity;
+    }
+    if (data.desiredUnit) detailRow.desired_unit = data.desiredUnit;
+
     const { error: detailError } = await supabase
         .from("want_to_buy_details")
-        .insert({
-            post_id: post.id,
-            category: data.category,
-            produce_names: data.produceNames,
-            need_by_date: data.needByDate || null,
-        });
+        .insert(detailRow);
 
     if (detailError) throw detailError;
 
@@ -773,13 +783,17 @@ export async function updateBuyPost(
     if (postError) throw postError;
 
     // Update buy details
+    const detailUpdate: Record<string, unknown> = {
+        category: data.category,
+        produce_names: data.produceNames,
+        need_by_date: data.needByDate || null,
+        desired_quantity: data.desiredQuantity ?? null,
+        desired_unit: data.desiredUnit || null,
+    };
+
     const { error: detailError } = await supabase
         .from("want_to_buy_details")
-        .update({
-            category: data.category,
-            produce_names: data.produceNames,
-            need_by_date: data.needByDate || null,
-        })
+        .update(detailUpdate)
         .eq("post_id", postId);
 
     if (detailError) throw detailError;

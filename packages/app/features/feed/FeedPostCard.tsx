@@ -8,7 +8,7 @@
 import { useState, useCallback, useEffect, memo } from 'react'
 import { YStack, XStack, Text, Button, Input, ScrollView } from 'tamagui'
 import { Image, Platform, Share, Alert, TextInput } from 'react-native'
-import { Heart, ShoppingCart, ThumbsUp, MessageCircle, MessagesSquare, Share2, Flag, Play, Send } from '@tamagui/lucide-icons'
+import { Heart, ShoppingCart, ThumbsUp, MessageCircle, MessagesSquare, Share2, Flag, Play, Send, Calendar, Package } from '@tamagui/lucide-icons'
 import { FeedVideoPlayer } from './FeedVideoPlayer'
 import { colors, shadows, borderRadius, tc } from '../../design-tokens'
 import { normalizeStorageUrl } from '../../utils/normalize-storage-url'
@@ -304,6 +304,7 @@ function FeedPostCardInner({
                 {category}
               </Text>
             ) : null}
+            {/* Sell post: price */}
             {price != null && (
               <>
                 {category ? (
@@ -314,6 +315,7 @@ function FeedPostCardInner({
                 </Text>
               </>
             )}
+            {/* Sell post: quantity */}
             {post.sell_details?.total_quantity_available != null && (
               <>
                 <Text fontSize={12} color={colors.gray[300]}>·</Text>
@@ -322,10 +324,51 @@ function FeedPostCardInner({
                 </Text>
               </>
             )}
+            {/* Buy post: desired quantity & unit */}
+            {post.buy_details?.desired_quantity != null && (
+              <>
+                {category ? (
+                  <Text fontSize={12} color={colors.gray[300]}>·</Text>
+                ) : null}
+                <Text fontSize={13} fontWeight="600" color="#2563eb">
+                  {t('feed.lookingFor')}: {post.buy_details.desired_quantity}
+                  {post.buy_details.desired_unit ? ` ${post.buy_details.desired_unit}${post.buy_details.desired_quantity !== 1 && post.buy_details.desired_unit === 'box' ? 'es' : post.buy_details.desired_quantity !== 1 && post.buy_details.desired_unit === 'bag' ? 's' : ''}` : ''}
+                </Text>
+              </>
+            )}
+            {/* Buy post: need-by date */}
+            {post.buy_details?.need_by_date && (
+              <>
+                <Text fontSize={12} color={colors.gray[300]}>·</Text>
+                <Text fontSize={12} color={colors.gray[500]}>
+                  {t('feed.needBy')}: {new Date(post.buy_details.need_by_date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                </Text>
+              </>
+            )}
           </XStack>
+          {/* Buy post: drop-off dates (compact pill row) */}
+          {post.buy_details?.delivery_dates && post.buy_details.delivery_dates.length > 0 && (
+            <XStack gap="$1" alignItems="center" marginTop="$1" flexWrap="wrap">
+              <Text fontSize={11} color={colors.gray[500]}>
+                {t('feed.dropOffDates')}:
+              </Text>
+              {post.buy_details.delivery_dates.map((date) => (
+                <YStack
+                  key={date}
+                  backgroundColor={colors.gray[100]}
+                  paddingHorizontal="$1.5"
+                  paddingVertical={1}
+                  borderRadius={4}
+                >
+                  <Text fontSize={11} color={colors.gray[600]} fontWeight="500">
+                    {new Date(date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                  </Text>
+                </YStack>
+              ))}
+            </XStack>
+          )}
         </YStack>
       </YStack>
-
       {/* ─── Action Bar ─── */}
       <XStack
         paddingHorizontal="$3"

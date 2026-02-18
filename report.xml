@@ -1,0 +1,35 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<testsuites>
+  <testsuite name="Test Suite" device="Medium_Phone_API_36.1" tests="10" failures="0" time="310.0">
+    <testcase id="delegation" name="delegation" classname="delegation" time="28.0" status="SUCCESS">
+      <properties/>
+    </testcase>
+    <testcase id="post-management" name="post-management" classname="post-management" time="22.0" status="SUCCESS">
+      <properties/>
+    </testcase>
+    <testcase id="chat" name="chat" classname="chat" time="24.0" status="SUCCESS">
+      <properties/>
+    </testcase>
+    <testcase id="create-post" name="create-post" classname="create-post" time="39.0" status="SUCCESS">
+      <properties/>
+    </testcase>
+    <testcase id="profile-wizard" name="profile-wizard" classname="profile-wizard" time="26.0" status="SUCCESS">
+      <properties/>
+    </testcase>
+    <testcase id="feed-navigation" name="feed-navigation" classname="feed-navigation" time="27.0" status="SUCCESS">
+      <properties/>
+    </testcase>
+    <testcase id="orders" name="orders" classname="orders" time="32.0" status="SUCCESS">
+      <properties/>
+    </testcase>
+    <testcase id="order-flow" name="order-flow" classname="order-flow" time="22.0" status="SUCCESS">
+      <properties/>
+    </testcase>
+    <testcase id="login" name="login" classname="login" time="45.0" status="SUCCESS">
+      <properties/>
+    </testcase>
+    <testcase id="profile-management" name="profile-management" classname="profile-management" time="45.0" status="SUCCESS">
+      <properties/>
+    </testcase>
+  </testsuite>
+</testsuites>

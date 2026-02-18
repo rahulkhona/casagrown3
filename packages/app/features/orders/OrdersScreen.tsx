@@ -105,7 +105,7 @@ export function OrdersScreen({
               justifyContent: 'center',
             }}
             activeOpacity={0.6}
-            accessibilityLabel="Back"
+            aria-label="Back"
           >
             <ArrowLeft size={22} color={colors.gray[700]} />
           </TouchableOpacity>

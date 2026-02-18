@@ -594,7 +594,7 @@ export function MyPostsScreen({
                 onPress={onBack}
                 pressStyle={{ opacity: 0.7 }}
                 padding="$1"
-                accessibilityLabel="Back"
+                aria-label="Back"
               />
             )}
             <Text fontSize={20} fontWeight="700" color={colors.gray[900]}>

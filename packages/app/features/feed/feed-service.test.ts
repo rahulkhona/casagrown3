@@ -55,6 +55,7 @@ describe("getCommunityFeedPosts", () => {
                     },
                 ],
                 want_to_buy_details: [],
+                delivery_dates: [],
                 post_media: [],
                 post_likes: [{ user_id: "current-user" }],
                 post_comments: [{ id: "c1" }, { id: "c2" }],
@@ -137,7 +138,13 @@ describe("getCommunityFeedPosts", () => {
                         category: "fruits",
                         produce_names: ["apples"],
                         need_by_date: "2026-03-01",
+                        desired_quantity: 5,
+                        desired_unit: "box",
                     },
+                ],
+                delivery_dates: [
+                    { delivery_date: "2026-02-25" },
+                    { delivery_date: "2026-02-28" },
                 ],
                 post_media: [],
                 post_likes: [],
@@ -160,6 +167,12 @@ describe("getCommunityFeedPosts", () => {
         const posts = await getCommunityFeedPosts("h3-abc", "other-user");
         expect(posts[0].is_liked).toBe(false);
         expect(posts[0].buy_details?.produce_names).toEqual(["apples"]);
+        expect(posts[0].buy_details?.desired_quantity).toBe(5);
+        expect(posts[0].buy_details?.desired_unit).toBe("box");
+        expect(posts[0].buy_details?.delivery_dates).toEqual([
+            "2026-02-25",
+            "2026-02-28",
+        ]);
     });
 });
 

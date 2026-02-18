@@ -315,7 +315,7 @@ export default function DelegateScreen({ initialTab }: { initialTab?: 'my' | 'fo
             justifyContent="center"
             onPress={() => router.back()}
             hoverStyle={{ backgroundColor: 'rgba(255,255,255,0.3)' }}
-            accessibilityLabel="Back"
+            aria-label="Back"
           >
             <ArrowLeft size={20} color="white" />
           </Button>

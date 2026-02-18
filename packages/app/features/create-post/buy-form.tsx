@@ -55,6 +55,8 @@ export function BuyForm({ onBack, onSuccess, editId, cloneData }: BuyFormProps) 
   const [category, setCategory] = useState('')
   const [lookingFor, setLookingFor] = useState('')
   const [description, setDescription] = useState('')
+  const [desiredQuantity, setDesiredQuantity] = useState('')
+  const [desiredUnit, setDesiredUnit] = useState('piece')
   const [needByDate, setNeedByDate] = useState('')
   const [acceptDates, setAcceptDates] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
@@ -62,6 +64,9 @@ export function BuyForm({ onBack, onSuccess, editId, cloneData }: BuyFormProps) 
   const [editingDateIndex, setEditingDateIndex] = useState<number | null>(null)
   const [isAddingNewDate, setIsAddingNewDate] = useState(false)
   const [formError, setFormError] = useState('')
+
+  // ── Units ───────────────────────────────────────────────────
+  const UNITS = ['piece', 'dozen', 'box', 'bag']
 
   // ── Community State ─────────────────────────────────────────
   const [communityName, setCommunityName] = useState('')
@@ -100,6 +105,8 @@ export function BuyForm({ onBack, onSuccess, editId, cloneData }: BuyFormProps) 
                 setLookingFor(parsed.buy_details.produce_names.join(', '))
               }
               if (parsed.buy_details.need_by_date) setNeedByDate(parsed.buy_details.need_by_date)
+              if (parsed.buy_details.desired_quantity != null) setDesiredQuantity(String(parsed.buy_details.desired_quantity))
+              if (parsed.buy_details.desired_unit) setDesiredUnit(parsed.buy_details.desired_unit)
             }
             // Copy accept drop-off dates
             if (Array.isArray(parsed.delivery_dates) && parsed.delivery_dates.length > 0) {
@@ -133,6 +140,8 @@ export function BuyForm({ onBack, onSuccess, editId, cloneData }: BuyFormProps) 
             setLookingFor(post.buy_details.produce_names.join(', '))
           }
           if (post.buy_details.need_by_date) setNeedByDate(post.buy_details.need_by_date)
+          if (post.buy_details.desired_quantity != null) setDesiredQuantity(String(post.buy_details.desired_quantity))
+          if (post.buy_details.desired_unit) setDesiredUnit(post.buy_details.desired_unit)
         }
         // Pre-fill accept drop-off dates
         if (Array.isArray(post.delivery_dates) && post.delivery_dates.length > 0) {
@@ -235,6 +244,8 @@ export function BuyForm({ onBack, onSuccess, editId, cloneData }: BuyFormProps) 
         category,
         produceNames: lookingFor.split(',').map((s) => s.trim()).filter(Boolean),
         needByDate: needByDate || undefined,
+        desiredQuantity: desiredQuantity ? parseFloat(desiredQuantity) : undefined,
+        desiredUnit: desiredQuantity ? desiredUnit : undefined,
         acceptDates: acceptDates.length > 0 ? acceptDates : undefined,
         mediaAssets: media.mediaAssets.length > 0 ? media.mediaAssets.map(a => ({ uri: a.uri, type: a.type ?? undefined })) : undefined,
       }
@@ -385,6 +396,56 @@ export function BuyForm({ onBack, onSuccess, editId, cloneData }: BuyFormProps) 
             {t('createPost.fields.lookingForHint')}
           </Text>
         </YStack>
+
+        {/* Desired Quantity + Unit */}
+        <XStack gap="$3">
+          <YStack gap="$2" flex={1}>
+            <Label fontWeight="600" color={colors.neutral[900]}>
+              {t('createPost.fields.desiredQuantity')}
+            </Label>
+            <Input
+              size="$4"
+              value={desiredQuantity}
+              onChangeText={setDesiredQuantity}
+              placeholder={t('createPost.fields.desiredQuantityPlaceholder')}
+              keyboardType="numeric"
+              borderColor={colors.neutral[300]}
+              focusStyle={{ borderColor: colors.primary[500] }}
+              backgroundColor="white"
+              fontWeight="400"
+            />
+          </YStack>
+          <YStack gap="$2" flex={1}>
+            <Label fontWeight="600" color={colors.neutral[900]}>
+              {t('createPost.fields.unit')}
+            </Label>
+            <XStack flexWrap="wrap" gap="$1">
+              {UNITS.map((u) => (
+                <Button
+                  key={u}
+                  size="$2"
+                  backgroundColor={desiredUnit === u ? colors.primary[600] : 'white'}
+                  borderWidth={1}
+                  borderColor={desiredUnit === u ? colors.primary[600] : colors.neutral[300]}
+                  borderRadius={borderRadius.md}
+                  onPress={() => setDesiredUnit(u)}
+                >
+                  <Text
+                    color={desiredUnit === u ? 'white' : colors.neutral[700]}
+                    fontSize="$2"
+                    fontWeight={desiredUnit === u ? '600' : '400'}
+                    textTransform="capitalize"
+                  >
+                    {u}
+                  </Text>
+                </Button>
+              ))}
+            </XStack>
+          </YStack>
+        </XStack>
+        <Text fontSize="$1" color={colors.neutral[400]}>
+          {t('createPost.fields.desiredQuantityHint')}
+        </Text>
 
         <YStack gap="$2">
           <Label fontWeight="600" color={colors.neutral[900]}>

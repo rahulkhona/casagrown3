@@ -11,25 +11,41 @@ appId: dev.casagrown.community
 
 # Wait for feed to load
 - extendedWaitUntil:
-    visible: "Tomatoes"
-    timeout: 15000
+      visible: "Tomatoes"
+      timeout: 15000
 
 # Verify seeded post content
 - assertVisible: "Test Seller"
 - assertVisible: "Tomatoes"
 
-# Verify search bar
-- assertVisible: "Search posts, categories, or keywords..."
+# Scroll down to find the buy post and verify its new fields
+- scroll
+- extendedWaitUntil:
+      visible:
+          text: ".*Looking for.*"
+      timeout: 10000
+- assertVisible:
+      text: ".*Looking for.*3.*"
+- assertVisible:
+      text: ".*Need by.*"
+- assertVisible:
+      text: ".*Drop-off.*"
+
+# Scroll back up
+- scrollUntilVisible:
+      element: "Tomatoes"
+      direction: UP
+      timeout: 10000
 
 # Navigate to profile via header avatar initial
 - tapOn:
-    text: "T"
-    index: 0
+      text: "T"
+      index: 0
 
 # Verify we're on the profile screen
 - extendedWaitUntil:
-    visible: "Profile Settings"
-    timeout: 10000
+      visible: "Profile Settings"
+      timeout: 10000
 - assertVisible: "Edit Profile"
 
 # Go back to feed via the Back button (ChevronLeft)
@@ -37,5 +53,5 @@ appId: dev.casagrown.community
 
 # Verify we're back on the feed
 - extendedWaitUntil:
-    visible: "Tomatoes"
-    timeout: 10000
+      visible: "Tomatoes"
+      timeout: 10000

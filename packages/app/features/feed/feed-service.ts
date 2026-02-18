@@ -35,6 +35,11 @@ interface FeedQueryRow {
         category: string;
         produce_names: string[];
         need_by_date: string | null;
+        desired_quantity: number | null;
+        desired_unit: string | null;
+    }>;
+    delivery_dates: Array<{
+        delivery_date: string;
     }>;
     post_media: Array<{
         media_id: string;
@@ -77,6 +82,9 @@ export interface FeedPost {
         category: string;
         produce_names: string[];
         need_by_date: string | null;
+        desired_quantity: number | null;
+        desired_unit: string | null;
+        delivery_dates: string[];
     } | null;
     media: Array<{
         storage_path: string;
@@ -127,7 +135,12 @@ export async function getCommunityFeedPosts(
             want_to_buy_details (
                 category,
                 produce_names,
-                need_by_date
+                need_by_date,
+                desired_quantity,
+                desired_unit
+            ),
+            delivery_dates (
+                delivery_date
             ),
             post_media (
                 media_id,
@@ -167,7 +180,14 @@ export async function getCommunityFeedPosts(
         community_h3_index: row.community_h3_index,
         community_name: row.community?.name || null,
         sell_details: row.want_to_sell_details?.[0] || null,
-        buy_details: row.want_to_buy_details?.[0] || null,
+        buy_details: row.want_to_buy_details?.[0]
+            ? {
+                ...row.want_to_buy_details[0],
+                delivery_dates: (row.delivery_dates || []).map((d) =>
+                    d.delivery_date
+                ).sort(),
+            }
+            : null,
         media: (row.post_media || [])
             .sort((a, b) => (a.position || 0) - (b.position || 0))
             .map((pm) => ({

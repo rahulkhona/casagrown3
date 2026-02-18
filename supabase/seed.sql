@@ -241,8 +241,13 @@ VALUES (
   '{"description":"Looking for fresh basil for cooking"}'
 );
 
-INSERT INTO public.want_to_buy_details (post_id, category, produce_names)
-VALUES ('e5555555-5555-5555-5555-555555555555', 'herbs', ARRAY['Basil', 'Thai Basil']);
+INSERT INTO public.want_to_buy_details (post_id, category, produce_names, desired_quantity, desired_unit, need_by_date)
+VALUES ('e5555555-5555-5555-5555-555555555555', 'herbs', ARRAY['Basil', 'Thai Basil'], 3, 'bag', CURRENT_DATE + interval '14 days');
+
+INSERT INTO public.delivery_dates (post_id, delivery_date)
+VALUES
+  ('e5555555-5555-5555-5555-555555555555', CURRENT_DATE + interval '10 days'),
+  ('e5555555-5555-5555-5555-555555555555', CURRENT_DATE + interval '12 days');
 
 -- General Post: Gardening Advice
 INSERT INTO public.posts (id, author_id, community_h3_index, type, reach, content)

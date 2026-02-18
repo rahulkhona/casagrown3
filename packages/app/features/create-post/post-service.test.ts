@@ -134,6 +134,8 @@ const baseBuyData: BuyPostData = {
     category: "fruits",
     produceNames: ["Lemons", "Limes"],
     needByDate: "2026-02-20",
+    desiredQuantity: 5,
+    desiredUnit: "dozen",
 };
 
 const baseGeneralData: GeneralPostData = {
@@ -434,6 +436,76 @@ describe("post-service", () => {
             await expect(createBuyPost(baseBuyData)).rejects.toEqual(
                 expect.objectContaining({ message: "Buy post failed" }),
             );
+        });
+
+        it("inserts buy details with desired_quantity and desired_unit", async () => {
+            let capturedInsert: any = null;
+
+            mockFrom.mockImplementation((table: string) => {
+                if (table === "posts") {
+                    return {
+                        insert: jest.fn().mockReturnValue({
+                            select: jest.fn().mockReturnValue({
+                                single: jest.fn().mockResolvedValue({
+                                    data: { id: "buy-post-qty" },
+                                    error: null,
+                                }),
+                            }),
+                        }),
+                    };
+                }
+                if (table === "want_to_buy_details") {
+                    return {
+                        insert: jest.fn().mockImplementation((rows: any) => {
+                            capturedInsert = rows;
+                            return Promise.resolve({ error: null });
+                        }),
+                    };
+                }
+                return buildChain(table);
+            });
+
+            await createBuyPost(baseBuyData);
+
+            expect(capturedInsert).toBeDefined();
+            expect(capturedInsert.desired_quantity).toBe(5);
+            expect(capturedInsert.desired_unit).toBe("dozen");
+        });
+
+        it("omits desired_quantity and desired_unit when not provided", async () => {
+            let capturedInsert: any = null;
+
+            mockFrom.mockImplementation((table: string) => {
+                if (table === "posts") {
+                    return {
+                        insert: jest.fn().mockReturnValue({
+                            select: jest.fn().mockReturnValue({
+                                single: jest.fn().mockResolvedValue({
+                                    data: { id: "buy-post-no-qty" },
+                                    error: null,
+                                }),
+                            }),
+                        }),
+                    };
+                }
+                if (table === "want_to_buy_details") {
+                    return {
+                        insert: jest.fn().mockImplementation((rows: any) => {
+                            capturedInsert = rows;
+                            return Promise.resolve({ error: null });
+                        }),
+                    };
+                }
+                return buildChain(table);
+            });
+
+            const { desiredQuantity, desiredUnit, ...dataWithoutQty } =
+                baseBuyData;
+            await createBuyPost(dataWithoutQty as BuyPostData);
+
+            expect(capturedInsert).toBeDefined();
+            expect(capturedInsert.desired_quantity).toBeUndefined();
+            expect(capturedInsert.desired_unit).toBeUndefined();
         });
     });
 
@@ -1302,6 +1374,8 @@ describe("post-service", () => {
 
             await updateBuyPost("post-2", {
                 ...baseBuyData,
+                desiredQuantity: 10,
+                desiredUnit: "box",
                 acceptDates: ["2026-03-01", "2026-03-02"],
                 mediaAssets: [],
             });

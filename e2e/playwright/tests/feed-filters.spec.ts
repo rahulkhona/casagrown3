@@ -60,6 +60,14 @@ test.describe("Feed Filters", () => {
             timeout: 10_000,
         });
 
+        // Buy post details should be visible: quantity and need-by date
+        await expect(
+            page.locator("text=/Looking for.*3/i").first(),
+        ).toBeVisible({ timeout: 5_000 });
+        await expect(
+            page.locator("text=/Need by/i").first(),
+        ).toBeVisible({ timeout: 5_000 });
+
         // Tomatoes sell post should NOT be visible
         const tomatoVisible = await page
             .locator("text=Tomatoes")

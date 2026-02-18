@@ -550,7 +550,7 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
                 style={{ padding: 8, borderRadius: 999, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
                 activeOpacity={0.6}
                 onPress={() => setMobileMenuOpen(!mobileMenuOpen)}
-                accessibilityLabel="Menu"
+                aria-label="Menu"
               >
                 {mobileMenuOpen ? (
                   <X size={24} color={colors.gray[700]} />

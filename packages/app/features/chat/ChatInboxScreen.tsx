@@ -299,7 +299,7 @@ export function ChatInboxScreen({
                     padding="$2"
                     borderRadius="$full"
                     hoverStyle={{ backgroundColor: colors.gray[100] }}
-                    accessibilityLabel="Back"
+                    aria-label="Back"
                 >
                     <ArrowLeft size={22} color={colors.gray[700]} />
                 </Button>

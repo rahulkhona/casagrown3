@@ -36,6 +36,10 @@ jest.mock('@tamagui/lucide-icons', () => ({
   MessagesSquare: () => null,
   Share2: () => null,
   Flag: () => null,
+  Play: () => null,
+  Send: () => null,
+  Calendar: () => null,
+  Package: () => null,
 }))
 
 // Mock tamagui
@@ -98,6 +102,9 @@ const makeBuyPost = (overrides?: Partial<FeedPost>): FeedPost => ({
     category: 'fruits',
     produce_names: ['Apples', 'Pears'],
     need_by_date: '2026-03-01',
+    desired_quantity: 5,
+    desired_unit: 'box',
+    delivery_dates: ['2026-02-25', '2026-02-28'],
   },
   ...overrides,
 })

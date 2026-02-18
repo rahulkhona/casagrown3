@@ -50,6 +50,17 @@ export default function CommunityMap({
       dragging: true,
     })
 
+    // Fit map to primary hex boundary so hexagons are clearly visible.
+    // Fitting all 7 hexes makes them tiny in the short container; fitting the
+    // primary hex alone gives a zoom level matching iOS/Android.
+    const primaryRegion = regions.find((r) => r.isPrimary)
+    if (primaryRegion && primaryRegion.boundary.length > 0) {
+      const bounds = L.latLngBounds(
+        primaryRegion.boundary.map(([lat, lng]) => L.latLng(lat, lng)),
+      )
+      map.fitBounds(bounds, { padding: [30, 30], maxZoom: 16 })
+    }
+
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(map)

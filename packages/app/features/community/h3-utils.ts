@@ -200,8 +200,8 @@ export function computeViewport(
         lng: (minLng + maxLng) / 2,
     };
 
-    const latDelta = (maxLat - minLat) * 1.3; // 30% padding
-    const lngDelta = (maxLng - minLng) * 1.3;
+    const latDelta = (maxLat - minLat) * 1.1; // 10% padding
+    const lngDelta = (maxLng - minLng) * 1.1;
 
     return {
         center,

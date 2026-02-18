@@ -47,11 +47,26 @@ test.describe("Feed Page", () => {
         });
     });
 
-    test("displays buy posts", async ({ page }) => {
+    test("displays buy posts with quantity, need-by date, and drop-off dates", async ({ page }) => {
         // The basil buy post from Test Buyer should be visible
         await expect(page.locator("text=basil").first()).toBeVisible({
             timeout: 10_000,
         });
+
+        // Buy post should show "Looking for: 3 bags" (desired_quantity + desired_unit)
+        await expect(
+            page.locator("text=/Looking for.*3/i").first(),
+        ).toBeVisible({ timeout: 5_000 });
+
+        // Buy post should show need-by date
+        await expect(
+            page.locator("text=/Need by/i").first(),
+        ).toBeVisible({ timeout: 5_000 });
+
+        // Buy post should show drop-off dates section
+        await expect(
+            page.locator("text=/Drop-off/i").first(),
+        ).toBeVisible({ timeout: 5_000 });
     });
 
     test("search bar is visible", async ({ page }) => {

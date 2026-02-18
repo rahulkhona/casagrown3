@@ -88,7 +88,7 @@ function OrderCardInner({
       activeOpacity={0.7}
       onPress={() => onPress(order)}
       testID={`order-card-${order.id}`}
-      accessibilityLabel={`${order.product} order - ${statusConfig.label}`}
+      aria-label={`${order.product} order - ${statusConfig.label}`}
     >
       <YStack
         backgroundColor="white"

@@ -632,6 +632,16 @@ create table want_to_sell_details (
 
 ### `delivery_dates`
 
+Accepted drop-off dates for a post. Used by both sell and buy posts to indicate
+when the seller/buyer can accept deliveries.
+
+| Column          | Type          | Description                          |
+| :-------------- | :------------ | :----------------------------------- |
+| `id`            | `uuid`        | Primary Key.                         |
+| `post_id`       | `uuid`        | FK to `posts(id)` on delete cascade. |
+| `delivery_date` | `date`        | An accepted delivery date.           |
+| `created_at`    | `timestamptz` | Default `now()`.                     |
+
 ```sql
 create table delivery_dates (
   id uuid primary key default gen_random_uuid(),
@@ -643,6 +653,18 @@ create table delivery_dates (
 
 ### `want_to_buy_details`
 
+| Column             | Type              | Description                                                    |
+| :----------------- | :---------------- | :------------------------------------------------------------- |
+| `id`               | `uuid`            | Primary Key.                                                   |
+| `post_id`          | `uuid`            | FK to `posts(id)` on delete cascade.                           |
+| `category`         | `sales_category`  | Sales category.                                                |
+| `produce_names`    | `text[]`          | Array of produce names the buyer is looking for.               |
+| `need_by_date`     | `date`            | Latest date by which the buyer needs the produce.              |
+| `desired_quantity` | `numeric`         | Optional. How much the buyer needs. Added by `20260218000000`. |
+| `desired_unit`     | `unit_of_measure` | Optional. Unit of measure. Added by `20260218000000`.          |
+| `created_at`       | `timestamptz`     | Default `now()`.                                               |
+| `updated_at`       | `timestamptz`     | Default `now()`.                                               |
+
 ```sql
 create table want_to_buy_details (
   id uuid primary key default gen_random_uuid(),
@@ -650,6 +672,8 @@ create table want_to_buy_details (
   category sales_category not null,
   produce_names text[] not null,
   need_by_date date,
+  desired_quantity numeric,         -- 20260218000000
+  desired_unit unit_of_measure,     -- 20260218000000
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
