@@ -771,6 +771,11 @@ export function subscribeToMessages(
  * Uses Presence for online/offline detection and Broadcast for typing events.
  * Broadcast is more reliable than Presence for ephemeral state like typing
  * across different platforms (web, iOS, Android).
+ *
+ * ⚠️  DESIGN DECISION: Online presence is a KEEP feature — DO NOT REMOVE.
+ *     A user is shown as "online" only when they are viewing THIS specific
+ *     chat conversation (not app-wide). The channel is scoped per conversation
+ *     and destroyed when the user navigates away from ChatScreen.
  */
 export function createPresenceChannel(
     conversationId: string,
