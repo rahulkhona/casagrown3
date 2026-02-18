@@ -10,44 +10,45 @@ appId: dev.casagrown.community
 
 # Wait for feed to load
 - extendedWaitUntil:
-    visible: "Create Post"
-    timeout: 15000
+      visible: "Create Post"
+      timeout: 15000
 
 # Tap create post button
 - tapOn: "Create Post"
 
 # Should show post type selection
 - extendedWaitUntil:
-    visible: "What would you like to share with your community?"
-    timeout: 10000
+      visible: "What would you like to share with your community?"
+      timeout: 10000
 
 # Select "Looking to Sell" (a11y label includes full description)
 - tapOn:
-    text: ".*Looking to Sell.*"
+      text: ".*Looking to Sell.*"
 
 # Should show the sell form — title is "Sell Produce"
 - extendedWaitUntil:
-    visible: "Sell Produce"
-    timeout: 10000
+      visible: "Sell Produce"
+      timeout: 10000
 
 # Verify form fields (labels include * for required)
 - assertVisible:
-    text: ".*Category.*"
+      text: ".*Category.*"
 - assertVisible:
-    text: ".*Product.*"
+      text: ".*Product.*"
 
 # Go back to type selection
 - tapOn: "Back"
 
 # Verify we're back on type selection
 - extendedWaitUntil:
-    visible: "What would you like to share with your community?"
-    timeout: 5000
+      visible: "What would you like to share with your community?"
+      timeout: 5000
 
 # Go back to feed
 - tapOn: "Back"
 
-# Verify we're back on feed
+# Verify we're back on feed (longer timeout — community resolution
+# may still be in progress after a fresh login)
 - extendedWaitUntil:
-    visible: "Tomatoes"
-    timeout: 10000
+      visible: "Tomatoes"
+      timeout: 30000

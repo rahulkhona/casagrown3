@@ -14,6 +14,7 @@ export default function ChatPage() {
 
   const postId = searchParams.get('postId')
   const otherUserId = searchParams.get('otherUserId')
+  const from = searchParams.get('from')
 
   useEffect(() => {
     if (!user) return
@@ -43,7 +44,7 @@ export default function ChatPage() {
         otherUserId={otherUserId}
         currentUserId={user.id}
         currentUserName={userDisplayName}
-        onClose={() => router.back()}
+        onClose={() => router.push(from === 'orders' ? '/orders' : '/feed')}
       />
     </div>
   )

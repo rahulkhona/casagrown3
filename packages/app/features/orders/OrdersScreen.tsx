@@ -2,7 +2,9 @@
  * OrdersScreen — Orders list with Open/Past tabs and role filters
  *
  * Accessible from the hamburger menu. Shows all orders where the
- * current user is buyer or seller.
+ * current user is buyer or seller, displayed as status-only cards.
+ * Tapping any card opens the associated chat conversation where
+ * all order actions are handled.
  */
 
 import React, { useState, useCallback, useMemo } from 'react'
@@ -11,15 +13,12 @@ import { Platform, TouchableOpacity, FlatList } from 'react-native'
 import {
   ArrowLeft,
   Package,
-  Search,
   ShoppingBag,
 } from '@tamagui/lucide-icons'
 import { colors, borderRadius } from '../../design-tokens'
 import { useTranslation } from 'react-i18next'
 import { OrderCard } from './OrderCard'
-import { OrderSummary } from './OrderSummary'
 import { useOrders } from './useOrders'
-import { isOpenOrder } from './order-types'
 import type { Order, OrderFilter, OrderTab, OrderRoleFilter } from './order-types'
 
 // =============================================================================
@@ -29,7 +28,7 @@ import type { Order, OrderFilter, OrderTab, OrderRoleFilter } from './order-type
 interface OrdersScreenProps {
   currentUserId: string
   onClose: () => void
-  onOpenChat?: (conversationId: string) => void
+  onOpenChat?: (postId: string, otherUserId: string) => void
 }
 
 // =============================================================================
@@ -46,7 +45,6 @@ export function OrdersScreen({
   // State
   const [activeTab, setActiveTab] = useState<OrderTab>('open')
   const [roleFilter, setRoleFilter] = useState<OrderRoleFilter>('all')
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
 
   const filter: OrderFilter = useMemo(
     () => ({ tab: activeTab, role: roleFilter }),
@@ -58,26 +56,16 @@ export function OrdersScreen({
   // ── Handlers ──
   const handleOrderPress = useCallback(
     (order: Order) => {
-      if (isOpenOrder(order) && onOpenChat) {
-        onOpenChat(order.conversation_id)
-      } else {
-        setSelectedOrder(order)
+      if (onOpenChat && order.post_id) {
+        const otherUserId =
+          order.buyer_id === currentUserId
+            ? order.seller_id
+            : order.buyer_id
+        onOpenChat(order.post_id, otherUserId)
       }
     },
-    [onOpenChat],
+    [currentUserId, onOpenChat],
   )
-
-  // ── Show summary if selected ──
-  if (selectedOrder) {
-    return (
-      <OrderSummary
-        order={selectedOrder}
-        currentUserId={currentUserId}
-        onClose={() => setSelectedOrder(null)}
-        t={t}
-      />
-    )
-  }
 
   const tabs: { key: OrderTab; label: string }[] = [
     { key: 'open', label: t('orders.tabs.open') },
@@ -91,12 +79,14 @@ export function OrdersScreen({
   ]
 
   return (
-    <YStack flex={1} backgroundColor={colors.gray[50]}>
+    <YStack flex={1} backgroundColor={colors.gray[50]} alignItems="center">
       {/* ── Header ── */}
       <YStack
         backgroundColor="white"
         borderBottomWidth={1}
         borderBottomColor={colors.gray[200]}
+        width="100%"
+        maxWidth={896}
       >
         <XStack
           paddingHorizontal="$4"
@@ -136,6 +126,7 @@ export function OrdersScreen({
                 key={tab.key}
                 onPress={() => setActiveTab(tab.key)}
                 activeOpacity={0.7}
+                testID={`orders-tab-${tab.key}`}
                 style={{
                   flex: 1,
                   paddingVertical: 10,
@@ -164,6 +155,8 @@ export function OrdersScreen({
         paddingHorizontal="$4"
         paddingVertical="$2.5"
         gap="$2"
+        width="100%"
+        maxWidth={896}
       >
         {roleFilters.map((rf) => {
           const isActive = roleFilter === rf.key
@@ -172,6 +165,7 @@ export function OrdersScreen({
               key={rf.key}
               onPress={() => setRoleFilter(rf.key)}
               activeOpacity={0.7}
+              testID={`orders-filter-${rf.key}`}
               style={{
                 paddingHorizontal: 14,
                 paddingVertical: 6,
@@ -226,6 +220,7 @@ export function OrdersScreen({
         </YStack>
       ) : (
         <FlatList
+          style={{ width: '100%', maxWidth: 896, alignSelf: 'center' as const }}
           data={orders}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (

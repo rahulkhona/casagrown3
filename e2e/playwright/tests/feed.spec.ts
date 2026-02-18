@@ -24,10 +24,11 @@ test.describe("Feed Page", () => {
         await expect(tomatoPost).toBeVisible({ timeout: 10_000 });
 
         // The post card should show price info (25 points)
-        await expect(page.locator("text=25")).toBeVisible();
+        await expect(page.locator("text=25").first()).toBeVisible();
 
         // The post card should show quantity info (Available: 10)
-        await expect(page.locator("text=/Available.*10/")).toBeVisible();
+        await expect(page.locator("text=/Available.*10/").first())
+            .toBeVisible();
 
         // Look for Strawberries sell post
         await expect(page.locator("text=Strawberries").first()).toBeVisible();

@@ -8,7 +8,7 @@ import { YStack } from 'tamagui'
 export default function ChatTab() {
   const router = useRouter()
   const { user } = useAuth()
-  const params = useLocalSearchParams<{ postId: string; otherUserId: string }>()
+  const params = useLocalSearchParams<{ postId: string; otherUserId: string; from?: string }>()
   const insets = useSafeAreaInsets()
   const [userDisplayName, setUserDisplayName] = useState<string | undefined>()
 
@@ -40,7 +40,13 @@ export default function ChatTab() {
         otherUserId={params.otherUserId}
         currentUserId={user.id}
         currentUserName={userDisplayName}
-        onClose={() => router.back()}
+        onClose={() => {
+          if (params.from === 'orders') {
+            router.push('/(tabs)/orders')
+          } else {
+            router.back()
+          }
+        }}
       />
     </YStack>
   )

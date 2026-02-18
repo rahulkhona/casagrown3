@@ -105,6 +105,10 @@ export default function FeedPage() {
     router.push('/chats')
   }
 
+  const handleNavigateToOrders = () => {
+    router.push('/orders')
+  }
+
 
   return (
     <FeedScreen
@@ -121,6 +125,7 @@ export default function FeedPage() {
       highlightPostId={highlightPostId}
       onNavigateToChat={handleNavigateToChat}
       onNavigateToChats={handleNavigateToChats}
+      onNavigateToOrders={handleNavigateToOrders}
     />
   )
 }

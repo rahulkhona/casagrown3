@@ -38,14 +38,16 @@ test.describe("Feed Filters", () => {
             timeout: 10_000,
         });
 
-        // Basil buy post should be hidden (it is a "want_to_buy" type)
-        const basilVisible = await page
-            .locator("text=basil")
+        // The "Looking for" buy post should be hidden (it is a "want_to_buy" type)
+        // Note: A "Basil" sell post exists from order seed data, so we check
+        // specifically for the buy-post title which contains "Looking for"
+        const buyPostVisible = await page
+            .locator("text=Looking for")
             .first()
             .isVisible()
             .catch(() => false);
         // Buy posts should be filtered out
-        expect(basilVisible).toBeFalsy();
+        expect(buyPostVisible).toBeFalsy();
     });
 
     test('clicking "Wanted" filter shows only buy posts', async ({ page }) => {

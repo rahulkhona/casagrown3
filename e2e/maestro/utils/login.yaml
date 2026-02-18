@@ -12,6 +12,7 @@ env:
 
 - launchApp:
           clearState: false
+          clearKeychain: true
 
 # Wait for the app to fully load before checking conditions.
 # The app may show any of these screens after launch:

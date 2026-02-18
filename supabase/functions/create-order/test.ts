@@ -277,12 +277,12 @@ Deno.test("create-order — happy path: creates order atomically", async () => {
     assertEquals(escrowEntries[0]!.amount, -30);
     assertEquals(escrowEntries[0]!.reference_id, orderId);
 
-    // 10. Verify system message in chat
+    // 10. Verify order message in chat (attributed to buyer, type='text')
     const messages = await supabaseRest(
         "chat_messages",
         "GET",
         undefined,
-        `conversation_id=eq.${conversationId}&type=eq.system&select=*`,
+        `conversation_id=eq.${conversationId}&sender_id=eq.${buyer.userId}&select=*&order=created_at.desc&limit=1`,
     );
     assertEquals(messages.length, 1);
     assertEquals(
@@ -293,6 +293,7 @@ Deno.test("create-order — happy path: creates order atomically", async () => {
         (messages[0]!.content as string).includes("30 points"),
         true,
     );
+    assertEquals(messages[0]!.type, "text");
 });
 
 // ============================================================

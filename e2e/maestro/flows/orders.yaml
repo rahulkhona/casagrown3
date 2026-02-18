@@ -1,0 +1,69 @@
+# Orders Screen — Maestro E2E test (Seller perspective)
+# Tests order card visibility, status badge, no action buttons,
+# and the click-to-chat navigation flow.
+#
+# Action buttons have been removed — all order actions
+# are now handled in the chat interface.
+#
+# Logged in as Test Seller (seller@test.local)
+
+appId: dev.casagrown.community
+
+---
+
+# Login first
+- runFlow: ../utils/login.yaml
+
+# Wait for feed to load
+- extendedWaitUntil:
+      visible: "Tomatoes"
+      timeout: 15000
+
+# Open hamburger menu and navigate to Orders
+- tapOn: "Menu"
+- tapOn: "Orders"
+
+# Wait for Orders screen to load
+- extendedWaitUntil:
+      visible: "Open"
+      timeout: 10000
+
+# ── Verify tabs and filters are present ──
+- assertVisible: "Open"
+- assertVisible: "Past"
+- assertVisible: "All"
+- assertVisible: "Buying"
+- assertVisible: "Selling"
+
+# ── Verify at least one order card is visible ──
+- assertVisible: "Strawberries"
+- assertVisible: "Delivered"
+
+# ── Verify NO action buttons are present (they were removed) ──
+- assertNotVisible: "Cancel"
+- assertNotVisible: "Modify"
+- assertNotVisible: "Mark Delivered"
+
+# ── Click-to-chat: tap an order card to open chat ──
+- tapOn: "Strawberries"
+- extendedWaitUntil:
+      visible: "CHAT WITH"
+      timeout: 10000
+
+# ── Verify chat opened (CHAT WITH header visible) ──
+
+# ── Tap back button to return to Orders ──
+- tapOn: "Back"
+- extendedWaitUntil:
+      visible: "Orders"
+      timeout: 10000
+
+# ── Verify we're back on the Orders screen ──
+- assertVisible: "Open"
+- assertVisible: "Strawberries"
+
+# ── Go back to feed ──
+- tapOn: "Back"
+- extendedWaitUntil:
+      visible: "Tomatoes"
+      timeout: 10000

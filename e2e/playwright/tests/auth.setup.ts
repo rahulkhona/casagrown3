@@ -12,25 +12,19 @@
  */
 
 import { expect, test as setup } from "@playwright/test";
-import { signInWithPassword, TEST_SELLER } from "../helpers/auth";
+import { signInWithPassword, TEST_BUYER, TEST_SELLER } from "../helpers/auth";
 
-const authFile = "e2e/playwright/.auth/seller.json";
+const sellerAuthFile = "e2e/playwright/.auth/seller.json";
+const buyerAuthFile = "e2e/playwright/.auth/buyer.json";
 
-setup("authenticate as test seller", async ({ page }) => {
-    // 1. Get a fresh JWT from Supabase directly
-    const session = await signInWithPassword(
-        TEST_SELLER.email,
-        TEST_SELLER.password,
-    );
-
-    // 2. Navigate to the app (login page)
-    await page.goto("/login");
-    await page.waitForTimeout(2000);
-
-    // 3. Inject the session into localStorage under ALL key patterns
-    //    that the GoTrueClient might check, based on the Supabase URL hostname.
-    //    On web, the app uses http://127.0.0.1:54321, so GoTrueClient derives
-    //    the storage key from that hostname.
+async function injectSession(
+    page: import("@playwright/test").Page,
+    session: {
+        access_token: string;
+        refresh_token: string;
+        user: { id: string; email: string };
+    },
+) {
     await page.evaluate(
         ({ accessToken, refreshToken, user }) => {
             const sessionPayload = JSON.stringify({
@@ -42,7 +36,6 @@ setup("authenticate as test seller", async ({ page }) => {
                 user,
             });
 
-            // Try all possible key patterns the GoTrueClient might use
             const keys = [
                 "sb-127.0.0.1-auth-token",
                 "sb-127-auth-token",
@@ -59,22 +52,50 @@ setup("authenticate as test seller", async ({ page }) => {
             user: session.user,
         },
     );
+}
 
-    // 4. Reload to pick up the session
+setup("authenticate as test seller", async ({ page }) => {
+    const session = await signInWithPassword(
+        TEST_SELLER.email,
+        TEST_SELLER.password,
+    );
+
+    await page.goto("/login");
+    await page.waitForTimeout(2000);
+    await injectSession(page, session);
     await page.reload();
 
-    // 5. Wait for the app to recognize the session
-    //    It should navigate away from login to feed, wizard, or profile
     try {
         await page.waitForURL(/\/(feed|wizard|profile)/, { timeout: 15_000 });
     } catch {
-        // If still on login, log the current URL for debugging
         console.log(
-            "Auth setup: could not auto-login. URL:",
+            "Auth setup: could not auto-login seller. URL:",
             page.url(),
         );
     }
 
-    // 6. Save the authenticated storage state
-    await page.context().storageState({ path: authFile });
+    await page.context().storageState({ path: sellerAuthFile });
+});
+
+setup("authenticate as test buyer", async ({ page }) => {
+    const session = await signInWithPassword(
+        TEST_BUYER.email,
+        TEST_BUYER.password,
+    );
+
+    await page.goto("/login");
+    await page.waitForTimeout(2000);
+    await injectSession(page, session);
+    await page.reload();
+
+    try {
+        await page.waitForURL(/\/(feed|wizard|profile)/, { timeout: 15_000 });
+    } catch {
+        console.log(
+            "Auth setup: could not auto-login buyer. URL:",
+            page.url(),
+        );
+    }
+
+    await page.context().storageState({ path: buyerAuthFile });
 });

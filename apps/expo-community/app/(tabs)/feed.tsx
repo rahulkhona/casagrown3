@@ -61,6 +61,10 @@ export default function FeedTab() {
     router.push('/(tabs)/chats')
   }
 
+  const handleNavigateToOrders = () => {
+    router.push('/(tabs)/orders')
+  }
+
 
   return (
     <FeedScreen
@@ -75,6 +79,7 @@ export default function FeedTab() {
       communityH3Index={communityH3Index}
       onNavigateToChat={handleNavigateToChat}
       onNavigateToChats={handleNavigateToChats}
+      onNavigateToOrders={handleNavigateToOrders}
       userId={user?.id}
     />
   )

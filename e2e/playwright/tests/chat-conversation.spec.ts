@@ -108,8 +108,10 @@ test.describe("Chat Conversation", () => {
         // Chat header should contain a status indicator (online/offline text or dot)
         const hasPresence = await page
             .locator(
-                "text=/online|offline|Active now|Last seen/i, [data-testid*='presence'], [data-testid*='status']",
+                "text=/online|offline|Active now|Last seen/i",
             )
+            .or(page.locator("[data-testid*='presence']"))
+            .or(page.locator("[data-testid*='status']"))
             .first()
             .isVisible()
             .catch(() => false);

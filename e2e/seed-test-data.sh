@@ -56,8 +56,57 @@ if [ "$SKIP_RESET" = false ]; then
 
   npx supabase db reset --workdir "$REPO_ROOT"
 
+  # Wait for Supabase Auth to be healthy after container restart.
+  # db reset restarts containers and auth may not be immediately ready,
+  # causing "Database error finding user" on OTP login.
+  echo ""
+  echo -e "${YELLOW}  Waiting for Supabase Auth to be ready...${NC}"
+  AUTH_URL="${SUPABASE_URL:-http://127.0.0.1:54321}/auth/v1/health"
+  for i in $(seq 1 30); do
+    if curl -sf "$AUTH_URL" > /dev/null 2>&1; then
+      echo -e "${GREEN}  ✅ Auth service healthy${NC}"
+      break
+    fi
+    if [ "$i" = "30" ]; then
+      echo -e "${RED}  ⚠️  Auth service not responding after 30s — tests may fail${NC}"
+    fi
+    sleep 1
+  done
+
   echo ""
   echo -e "${GREEN}  ✅ Database reset complete${NC}"
+
+  # Clear app data on any booted iOS Simulator to invalidate stale auth sessions.
+  # After a DB reset, all auth users are recreated with new UUIDs, so any cached
+  # tokens in the app become invalid. Without this, Maestro flows that reuse the
+  # cached session will fail.
+  BOOTED_SIM=$(xcrun simctl list devices booted -j 2>/dev/null | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+for runtime, devices in data.get('devices', {}).items():
+    for d in devices:
+        if d.get('state') == 'Booted':
+            print(d['udid'])
+            sys.exit(0)
+" 2>/dev/null || true)
+
+  if [ -n "$BOOTED_SIM" ]; then
+    echo ""
+    echo -e "${YELLOW}  Clearing app data on simulator to invalidate stale auth...${NC}"
+    # Terminate the app first (if running), then erase its data
+    xcrun simctl terminate "$BOOTED_SIM" dev.casagrown.community 2>/dev/null || true
+    # Remove app data container (keeps the app installed but clears storage/keychain data)
+    APP_DATA_DIR=$(xcrun simctl get_app_container "$BOOTED_SIM" dev.casagrown.community data 2>/dev/null || true)
+    if [ -n "$APP_DATA_DIR" ]; then
+      rm -rf "$APP_DATA_DIR"/Library/Preferences/dev.casagrown.community* 2>/dev/null || true
+      rm -rf "$APP_DATA_DIR"/Library/Application\ Support/* 2>/dev/null || true
+      rm -rf "$APP_DATA_DIR"/Documents/* 2>/dev/null || true
+      rm -rf "$APP_DATA_DIR"/tmp/* 2>/dev/null || true
+      echo -e "${GREEN}  ✅ App data cleared on simulator${NC}"
+    else
+      echo -e "${YELLOW}  ⚠️  App not installed on simulator — will be fresh on first launch${NC}"
+    fi
+  fi
 else
   echo -e "${YELLOW}[1/3] Skipping database reset (--skip-reset)${NC}"
 fi

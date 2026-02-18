@@ -20,13 +20,21 @@ export default defineConfig({
     },
 
     projects: [
-        // Auth setup — runs once to create a signed-in storage state
+        // Auth setup — runs once to create signed-in storage states
         { name: "setup", testMatch: /.*\.setup\.ts/ },
         {
-            name: "chromium",
+            name: "seller",
             use: {
                 ...devices["Desktop Chrome"],
                 storageState: "e2e/playwright/.auth/seller.json",
+            },
+            dependencies: ["setup"],
+        },
+        {
+            name: "buyer",
+            use: {
+                ...devices["Desktop Chrome"],
+                storageState: "e2e/playwright/.auth/buyer.json",
             },
             dependencies: ["setup"],
         },

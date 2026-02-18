@@ -86,8 +86,11 @@ test.describe("Order from Chat Flow", () => {
 
         // Try to dismiss with close button, Cancel, or ESC key
         const closeBtn = page.locator(
-            "[aria-label*='close'], [aria-label*='Close'], text=Cancel, text=×, text=Close",
-        ).first();
+            "[aria-label*='close'], [aria-label*='Close']",
+        ).or(page.getByText("Cancel", { exact: true }))
+            .or(page.getByText("×", { exact: true }))
+            .or(page.getByText("Close", { exact: true }))
+            .first();
         const hasClose = await closeBtn.isVisible().catch(() => false);
 
         if (hasClose) {

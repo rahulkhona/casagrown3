@@ -75,6 +75,7 @@ e2e/maestro/
 │   ├── chat.yaml             # Menu → Chats → Back
 │   ├── delegation.yaml       # Menu → Delegate Sales → Back
 │   ├── post-management.yaml  # Menu → My Posts → Back
+│   ├── orders.yaml           # Orders screen: tabs, cards, click-to-chat
 │   ├── order-flow.yaml       # Conditional: tap Order if visible
 │   └── profile-wizard.yaml   # Conditional: wizard if visible
 └── utils/
@@ -118,6 +119,68 @@ maestro test e2e/maestro/flows/login.yaml
 maestro --device <DEVICE_UDID> test e2e/maestro/
 ```
 
+### 2.4 Web E2E Tests (Playwright)
+
+**Scope**: `e2e/playwright/tests/*.spec.ts` **Tools**:
+[Playwright](https://playwright.dev/)
+
+These tests run against the Next.js web app (`localhost:3000`) using real
+browser sessions. Tests are organized into two projects (`seller` and `buyer`)
+that share the same test files but use different authenticated storage states.
+
+#### Directory Structure
+
+```
+e2e/playwright/
+├── playwright.config.ts      # Projects: setup, seller, buyer
+├── helpers/
+│   └── auth.ts               # Supabase auth helper (signInWithPassword)
+├── tests/
+│   ├── auth.setup.ts          # Auth setup: creates seller.json, buyer.json
+│   ├── feed.spec.ts           # Feed page: posts, navigation
+│   ├── feed-filters.spec.ts   # Feed filter tabs (All, For Sale, Wanted)
+│   ├── create-post.spec.ts    # Create post form basics
+│   ├── create-post-full.spec.ts # Full create post flow
+│   ├── profile.spec.ts        # Profile screen
+│   ├── chat.spec.ts           # Chat list
+│   ├── chat-conversation.spec.ts  # Chat conversation details
+│   ├── chat-order-from-chat.spec.ts # Order flow from chat
+│   ├── post-management.spec.ts # My Posts management
+│   ├── my-posts.spec.ts       # My Posts filters
+│   ├── delegate.spec.ts       # Delegation
+│   ├── orders.spec.ts         # Orders screen (seller + buyer perspectives)
+│   └── order-flow.spec.ts     # Order/Offer button visibility
+└── .auth/
+    ├── seller.json            # Seller storage state (auto-generated)
+    └── buyer.json             # Buyer storage state (auto-generated)
+```
+
+#### Role-Based Testing
+
+All test files run for both `seller` and `buyer` projects. Tests that are
+role-specific use `test.skip(test.info().project.name !== "seller")` to skip for
+the wrong role. This produces intentional skips (e.g., seller-only orders tests
+skip for the buyer project).
+
+#### To Run
+
+```bash
+# Seed test data
+./e2e/seed-test-data.sh
+
+# Start dev server
+yarn web
+
+# Run all 180 tests (164 pass, 16 role-based skips)
+npx playwright test --config=e2e/playwright/playwright.config.ts
+
+# Run a single file
+npx playwright test --config=e2e/playwright/playwright.config.ts orders.spec.ts
+
+# Re-run only failed tests
+npx playwright test --config=e2e/playwright/playwright.config.ts --last-failed
+```
+
 ## 3. CI/CD Pipeline
 
 ### Pre-Commit (Husky + lint-staged)
@@ -129,7 +192,7 @@ maestro --device <DEVICE_UDID> test e2e/maestro/
 ### Pre-Push (Husky)
 
 - **Trigger**: `git push`
-- **Action**: Runs full Jest test suite (28 suites, 368 tests) with `--bail`.
+- **Action**: Runs full Jest test suite (36 suites, 520 tests) with `--bail`.
 - **Goal**: Prevent regressions in all app features.
 - **Note**: Edge function tests run separately via `deno test`.
 

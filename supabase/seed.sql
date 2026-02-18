@@ -333,6 +333,151 @@ VALUES (
 );
 
 -- =============================================================================
+-- 14b. Additional Orders in Various States (for manual testing of Orders screen)
+-- Each order needs its own post to avoid violating the conversations unique constraint
+-- =============================================================================
+
+-- Posts for additional orders
+INSERT INTO public.posts (id, author_id, community_h3_index, type, reach, content)
+VALUES
+  ('f0000002-0000-0000-0000-000000000002', 'a1111111-1111-1111-1111-111111111111', '89283470c2fffff',
+   'want_to_sell', 'community', '{"produceName":"Tomatoes","description":"Extra batch of tomatoes"}'),
+  ('f0000003-0000-0000-0000-000000000003', 'a1111111-1111-1111-1111-111111111111', '89283470c2fffff',
+   'want_to_sell', 'community', '{"produceName":"Strawberries","description":"Late season strawberries"}'),
+  ('f0000004-0000-0000-0000-000000000004', 'b2222222-2222-2222-2222-222222222222', '89283470c2fffff',
+   'want_to_sell', 'community', '{"produceName":"Basil","description":"Fresh basil from my garden"}'),
+  ('f0000005-0000-0000-0000-000000000005', 'a1111111-1111-1111-1111-111111111111', '89283470c2fffff',
+   'want_to_sell', 'community', '{"produceName":"Lemons","description":"Meyer lemons, organic"}'),
+  ('f0000006-0000-0000-0000-000000000006', 'a1111111-1111-1111-1111-111111111111', '89283470c2fffff',
+   'want_to_sell', 'community', '{"produceName":"Herbs Mix","description":"Mixed fresh herbs bundle"}')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.want_to_sell_details (post_id, category, produce_name, unit, total_quantity_available, points_per_unit)
+VALUES
+  ('f0000002-0000-0000-0000-000000000002', 'vegetables', 'Tomatoes', 'box', 10, 25),
+  ('f0000003-0000-0000-0000-000000000003', 'fruits', 'Strawberries', 'box', 5, 50),
+  ('f0000004-0000-0000-0000-000000000004', 'herbs', 'Basil', 'bag', 10, 8),
+  ('f0000005-0000-0000-0000-000000000005', 'fruits', 'Lemons', 'bag', 8, 20),
+  ('f0000006-0000-0000-0000-000000000006', 'herbs', 'Herbs Mix', 'bag', 6, 12);
+
+-- Conversations for additional orders (each uses its own post_id → unique constraint satisfied)
+INSERT INTO public.conversations (id, post_id, buyer_id, seller_id)
+VALUES
+  ('b8888888-8888-8888-8888-888888888802', 'f0000002-0000-0000-0000-000000000002',
+   'b2222222-2222-2222-2222-222222222222', 'a1111111-1111-1111-1111-111111111111'),
+  ('b8888888-8888-8888-8888-888888888803', 'f0000003-0000-0000-0000-000000000003',
+   'b2222222-2222-2222-2222-222222222222', 'a1111111-1111-1111-1111-111111111111'),
+  ('b8888888-8888-8888-8888-888888888804', 'f0000004-0000-0000-0000-000000000004',
+   'a1111111-1111-1111-1111-111111111111', 'b2222222-2222-2222-2222-222222222222'),
+  ('b8888888-8888-8888-8888-888888888805', 'f0000005-0000-0000-0000-000000000005',
+   'b2222222-2222-2222-2222-222222222222', 'a1111111-1111-1111-1111-111111111111'),
+  ('b8888888-8888-8888-8888-888888888806', 'f0000006-0000-0000-0000-000000000006',
+   'b2222222-2222-2222-2222-222222222222', 'a1111111-1111-1111-1111-111111111111')
+ON CONFLICT (id) DO NOTHING;
+
+-- Offers for additional orders
+INSERT INTO public.offers (id, conversation_id, created_by, quantity, points_per_unit, status)
+VALUES
+  ('c9999999-9999-9999-9999-999999999902', 'b8888888-8888-8888-8888-888888888802',
+   'b2222222-2222-2222-2222-222222222222', 2, 25, 'accepted'),
+  ('c9999999-9999-9999-9999-999999999903', 'b8888888-8888-8888-8888-888888888803',
+   'b2222222-2222-2222-2222-222222222222', 1, 50, 'accepted'),
+  ('c9999999-9999-9999-9999-999999999904', 'b8888888-8888-8888-8888-888888888804',
+   'a1111111-1111-1111-1111-111111111111', 5, 8, 'accepted'),
+  ('c9999999-9999-9999-9999-999999999905', 'b8888888-8888-8888-8888-888888888805',
+   'b2222222-2222-2222-2222-222222222222', 4, 20, 'accepted'),
+  ('c9999999-9999-9999-9999-999999999906', 'b8888888-8888-8888-8888-888888888806',
+   'b2222222-2222-2222-2222-222222222222', 3, 12, 'accepted')
+ON CONFLICT (id) DO NOTHING;
+
+-- Accepted Order: Tomatoes (buyer=Test Buyer, seller=Test Seller)
+INSERT INTO public.orders (
+  id, offer_id, buyer_id, seller_id, category, product,
+  quantity, points_per_unit, delivery_date, delivery_instructions,
+  conversation_id, status, version
+)
+VALUES (
+  'd0000000-0000-0000-0000-000000000002',
+  'c9999999-9999-9999-9999-999999999902',
+  'b2222222-2222-2222-2222-222222222222',
+  'a1111111-1111-1111-1111-111111111111',
+  'vegetables', 'Tomatoes',
+  2, 25, CURRENT_DATE + interval '3 days', '456 Elm Street',
+  'b8888888-8888-8888-8888-888888888802',
+  'accepted', 1
+) ON CONFLICT (id) DO NOTHING;
+
+-- Delivered Order: Strawberries (buyer=Test Buyer, seller=Test Seller)
+INSERT INTO public.orders (
+  id, offer_id, buyer_id, seller_id, category, product,
+  quantity, points_per_unit, delivery_date, delivery_instructions,
+  conversation_id, status, version
+)
+VALUES (
+  'd0000000-0000-0000-0000-000000000003',
+  'c9999999-9999-9999-9999-999999999903',
+  'b2222222-2222-2222-2222-222222222222',
+  'a1111111-1111-1111-1111-111111111111',
+  'fruits', 'Strawberries',
+  1, 50, CURRENT_DATE - interval '1 day', '789 Pine Road',
+  'b8888888-8888-8888-8888-888888888803',
+  'delivered', 2
+) ON CONFLICT (id) DO NOTHING;
+
+-- Disputed Order: Basil (buyer=Test Seller, seller=Test Buyer)
+INSERT INTO public.orders (
+  id, offer_id, buyer_id, seller_id, category, product,
+  quantity, points_per_unit, delivery_date, delivery_instructions,
+  conversation_id, status, version
+)
+VALUES (
+  'd0000000-0000-0000-0000-000000000004',
+  'c9999999-9999-9999-9999-999999999904',
+  'a1111111-1111-1111-1111-111111111111',
+  'b2222222-2222-2222-2222-222222222222',
+  'herbs', 'Basil',
+  5, 8, CURRENT_DATE - interval '3 days', '321 Maple Lane',
+  'b8888888-8888-8888-8888-888888888804',
+  'disputed', 3
+) ON CONFLICT (id) DO NOTHING;
+
+-- Completed Order: Lemons (buyer=Test Buyer, seller=Test Seller)
+INSERT INTO public.orders (
+  id, offer_id, buyer_id, seller_id, category, product,
+  quantity, points_per_unit, delivery_date, delivery_instructions,
+  conversation_id, status, version,
+  buyer_rating, buyer_feedback
+)
+VALUES (
+  'd0000000-0000-0000-0000-000000000005',
+  'c9999999-9999-9999-9999-999999999905',
+  'b2222222-2222-2222-2222-222222222222',
+  'a1111111-1111-1111-1111-111111111111',
+  'fruits', 'Lemons',
+  4, 20, CURRENT_DATE - interval '7 days', '555 Oak Avenue',
+  'b8888888-8888-8888-8888-888888888805',
+  'completed', 4,
+  '5', 'Excellent lemons, very fresh!'
+) ON CONFLICT (id) DO NOTHING;
+
+-- Cancelled Order: Herbs Mix (buyer=Test Buyer, seller=Test Seller)
+INSERT INTO public.orders (
+  id, offer_id, buyer_id, seller_id, category, product,
+  quantity, points_per_unit, delivery_date,
+  conversation_id, status, version
+)
+VALUES (
+  'd0000000-0000-0000-0000-000000000006',
+  'c9999999-9999-9999-9999-999999999906',
+  'b2222222-2222-2222-2222-222222222222',
+  'a1111111-1111-1111-1111-111111111111',
+  'herbs', 'Herbs Mix',
+  3, 12, CURRENT_DATE + interval '5 days',
+  'b8888888-8888-8888-8888-888888888806',
+  'cancelled', 2
+) ON CONFLICT (id) DO NOTHING;
+
+-- =============================================================================
 -- 15. Delivery Proof Storage Bucket
 -- =============================================================================
 DO $$
