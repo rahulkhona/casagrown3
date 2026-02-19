@@ -77,6 +77,7 @@ export interface FeedPost {
         unit: string;
         total_quantity_available: number;
         points_per_unit: number;
+        delivery_dates: string[];
     } | null;
     buy_details: {
         category: string;
@@ -179,7 +180,14 @@ export async function getCommunityFeedPosts(
         created_at: row.created_at,
         community_h3_index: row.community_h3_index,
         community_name: row.community?.name || null,
-        sell_details: row.want_to_sell_details?.[0] || null,
+        sell_details: row.want_to_sell_details?.[0]
+            ? {
+                ...row.want_to_sell_details[0],
+                delivery_dates: (row.delivery_dates || []).map((d) =>
+                    d.delivery_date
+                ).sort(),
+            }
+            : null,
         buy_details: row.want_to_buy_details?.[0]
             ? {
                 ...row.want_to_buy_details[0],

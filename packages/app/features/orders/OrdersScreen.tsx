@@ -10,6 +10,7 @@
 import React, { useState, useCallback, useMemo } from 'react'
 import { YStack, XStack, Text, Spinner } from 'tamagui'
 import { Platform, TouchableOpacity, FlatList } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   ArrowLeft,
   Package,
@@ -41,6 +42,7 @@ export function OrdersScreen({
   onOpenChat,
 }: OrdersScreenProps) {
   const { t } = useTranslation()
+  const insets = useSafeAreaInsets()
 
   // State
   const [activeTab, setActiveTab] = useState<OrderTab>('open')
@@ -85,6 +87,7 @@ export function OrdersScreen({
         backgroundColor="white"
         borderBottomWidth={1}
         borderBottomColor={colors.gray[200]}
+        paddingTop={insets.top}
         width="100%"
         maxWidth={896}
       >

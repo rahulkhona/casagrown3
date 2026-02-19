@@ -1,5 +1,5 @@
--- modify_order — now includes unit in system message and delivery_address/instructions params
--- Updated to show e.g. "2 dozen Tomatoes" instead of "2 Tomatoes"
+-- modify_order — includes unit in system message, merges delivery_address into
+-- delivery_instructions (orders table has no delivery_address column).
 
 create or replace function public.modify_order(
   p_order_id       uuid,
@@ -24,6 +24,7 @@ declare
   v_diff integer;
   v_current_balance integer;
   v_unit text;
+  v_new_delivery_instructions text;
 begin
   -- Lock and fetch
   select * into v_order
@@ -102,27 +103,41 @@ begin
     );
   end if;
 
+  -- Merge delivery_address (line 1) + delivery_instructions (rest) into the
+  -- single delivery_instructions column (the DB has no delivery_address column).
+  if p_delivery_address is not null and p_delivery_instructions is not null then
+    v_new_delivery_instructions := p_delivery_address || E'\n' || p_delivery_instructions;
+  elsif p_delivery_address is not null then
+    v_new_delivery_instructions := p_delivery_address;
+  elsif p_delivery_instructions is not null then
+    -- Keep existing address (first line), replace instructions
+    v_new_delivery_instructions := split_part(coalesce(v_order.delivery_instructions, ''), E'\n', 1)
+      || E'\n' || p_delivery_instructions;
+  else
+    v_new_delivery_instructions := v_order.delivery_instructions;
+  end if;
+
   -- Update order with new values and bump version
   update orders
   set quantity = v_new_quantity,
       points_per_unit = v_new_ppu,
       delivery_date = v_new_date,
-      delivery_address = coalesce(p_delivery_address, delivery_address),
-      delivery_instructions = coalesce(p_delivery_instructions, delivery_instructions),
+      delivery_instructions = v_new_delivery_instructions,
       version = version + 1,
       updated_at = now()
   where id = p_order_id;
 
-  -- System message showing modification with unit
+  -- Chat message showing modification with unit (attributed to buyer)
   insert into chat_messages (conversation_id, sender_id, content, type)
   values (
     v_order.conversation_id,
-    null,
+    p_buyer_id,
     'Order modified: ' || v_new_quantity
       || case when v_unit is not null and v_unit != 'piece' then ' ' || v_unit else '' end
       || ' ' || v_order.product
-      || ' for ' || v_new_total || ' points. Delivery by ' || coalesce(v_new_date::text, 'TBD') || '.',
-    'system'
+      || ' for ' || v_new_total || ' points. Delivery by ' || coalesce(v_new_date::text, 'TBD') || '.'
+      || case when v_new_delivery_instructions is not null then E'\nDelivery info: ' || v_new_delivery_instructions else '' end,
+    'text'
   );
 
   return jsonb_build_object(

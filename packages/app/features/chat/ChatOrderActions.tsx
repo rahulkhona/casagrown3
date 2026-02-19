@@ -359,7 +359,7 @@ export function ChatOrderActions({
             </Text>
           </YStack>
           <Text fontSize={13} color={colors.gray[700]} fontWeight="500">
-            {order.product} x{order.quantity}
+            {order.product} x{order.quantity}{order.unit ? ` ${order.unit}` : ''}
           </Text>
         </XStack>
         <Text fontSize={12} color={colors.gray[500]}>
@@ -399,9 +399,9 @@ export function ChatOrderActions({
             <Text fontSize={12} fontWeight="600" color={colors.amber[800]}>
               {t('orders.refundOffer', { amount: pendingOffer.amount })}
             </Text>
-            {pendingOffer.message && (
+            {!!pendingOffer.message && (
               <Text fontSize={11} color={colors.amber[700]}>
-                "{pendingOffer.message}"
+                &quot;{pendingOffer.message}&quot;
               </Text>
             )}
           </YStack>

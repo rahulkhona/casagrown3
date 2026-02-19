@@ -76,6 +76,8 @@ export function ModifyOrderSheet({
   const [effectivePoints, setEffectivePoints] = useState(userPoints)
 
   // Pre-fill when order changes or sheet opens
+  // Note: We intentionally exclude userPoints from deps to avoid resetting
+  // effectivePoints after buying points triggers a balance refetch.
   useEffect(() => {
     if (visible && order) {
       setQuantity(String(order.quantity))
@@ -84,7 +86,15 @@ export function ModifyOrderSheet({
       setInstructions(order.delivery_instructions ?? '')
       setEffectivePoints(userPoints)
     }
-  }, [visible, order, userPoints])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, order])
+
+  // Keep effectivePoints in sync when userPoints increases (e.g., after refetch completes)
+  useEffect(() => {
+    if (visible) {
+      setEffectivePoints(prev => Math.max(prev, userPoints))
+    }
+  }, [visible, userPoints])
 
   // Derived values
   const pointsPerUnit = order?.points_per_unit ?? 0

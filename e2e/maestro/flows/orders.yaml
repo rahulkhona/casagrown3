@@ -16,8 +16,8 @@ appId: dev.casagrown.community
 
 # Wait for feed to load
 - extendedWaitUntil:
-      visible: "Tomatoes"
-      timeout: 15000
+        visible: "Tomatoes"
+        timeout: 15000
 
 # Open hamburger menu and navigate to Orders
 - tapOn: "Menu"
@@ -25,8 +25,8 @@ appId: dev.casagrown.community
 
 # Wait for Orders screen to load
 - extendedWaitUntil:
-      visible: "Open"
-      timeout: 10000
+        visible: "Open"
+        timeout: 10000
 
 # ── Verify tabs and filters are present ──
 - assertVisible: "Open"
@@ -36,8 +36,12 @@ appId: dev.casagrown.community
 - assertVisible: "Selling"
 
 # ── Verify at least one order card is visible ──
-- assertVisible: "Strawberries"
-- assertVisible: "Delivered"
+# iOS combines order card text into a single accessibility label
+# e.g. "Strawberries order - Delivered"
+- assertVisible:
+        text: ".*Strawberries.*"
+- assertVisible:
+        text: ".*Delivered.*"
 
 # ── Verify NO action buttons are present (they were removed) ──
 - assertNotVisible: "Cancel"
@@ -45,25 +49,27 @@ appId: dev.casagrown.community
 - assertNotVisible: "Mark Delivered"
 
 # ── Click-to-chat: tap an order card to open chat ──
-- tapOn: "Strawberries"
+- tapOn:
+        text: ".*Strawberries.*"
 - extendedWaitUntil:
-      visible: "CHAT WITH"
-      timeout: 10000
+        visible: "CHAT WITH"
+        timeout: 10000
 
 # ── Verify chat opened (CHAT WITH header visible) ──
 
 # ── Tap back button to return to Orders ──
 - tapOn: "Back"
 - extendedWaitUntil:
-      visible: "Orders"
-      timeout: 10000
+        visible: "Orders"
+        timeout: 10000
 
 # ── Verify we're back on the Orders screen ──
 - assertVisible: "Open"
-- assertVisible: "Strawberries"
+- assertVisible:
+        text: ".*Strawberries.*"
 
 # ── Go back to feed ──
 - tapOn: "Back"
 - extendedWaitUntil:
-      visible: "Tomatoes"
-      timeout: 10000
+        visible: "Tomatoes"
+        timeout: 10000

@@ -57,17 +57,25 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-// ── Reconnect realtime channels when app returns from background ──
+// ── Reconnect realtime when app returns from background ──
 // Android emulators (and sometimes real devices) silently drop WebSocket
-// connections when the app is backgrounded. This listener forces a reconnect.
+// connections when the app is backgrounded.
+// IMPORTANT: We must NOT call disconnect()/connect() — that destroys ALL
+// existing channels (including presence). The Supabase client's built-in
+// reconnectAfterMs handles reconnection automatically. We just need to
+// ensure the socket transport is aware the connection may have dropped.
 if (Platform.OS !== "web") {
   const { AppState } = require("react-native");
   let lastState = "active";
   AppState.addEventListener("change", (nextState: string) => {
     if (lastState.match(/inactive|background/) && nextState === "active") {
-      console.log("📡 App resumed — reconnecting Supabase realtime channels");
-      supabase.realtime.disconnect();
-      supabase.realtime.connect();
+      console.log("📡 App resumed — checking Supabase realtime connection");
+      // Only reconnect if the socket is actually disconnected
+      const socket = (supabase.realtime as any)?.conn;
+      if (socket && socket.readyState !== 1 /* WebSocket.OPEN */) {
+        console.log("📡 WebSocket not open, triggering reconnect");
+        supabase.realtime.connect();
+      }
     }
     lastState = nextState;
   });

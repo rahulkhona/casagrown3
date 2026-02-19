@@ -59,10 +59,16 @@ appId: dev.casagrown.community
 # Verify buy form fields
 - assertVisible:
           text: ".*What are you looking for.*"
-- assertVisible:
-          text: ".*Desired Quantity.*"
-- assertVisible:
-          text: ".*Unit.*"
+- scrollUntilVisible:
+          element:
+                  text: ".*Desired Quantity.*"
+          direction: DOWN
+          timeout: 10000
+- scrollUntilVisible:
+          element:
+                  text: ".*Unit.*"
+          direction: DOWN
+          timeout: 10000
 
 # Scroll to see date fields (below the fold on mobile)
 - scrollUntilVisible:

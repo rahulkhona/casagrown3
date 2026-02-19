@@ -367,6 +367,28 @@ function FeedPostCardInner({
               ))}
             </XStack>
           )}
+          {/* Sell post: delivery dates (compact pill row) */}
+          {post.sell_details?.delivery_dates && post.sell_details.delivery_dates.length > 0 && (
+            <XStack gap="$1" alignItems="center" marginTop="$1" flexWrap="wrap">
+              <Calendar size={12} color={colors.green[600]} />
+              <Text fontSize={11} color={colors.gray[500]}>
+                {t('feed.canDeliver')}:
+              </Text>
+              {post.sell_details.delivery_dates.map((date) => (
+                <YStack
+                  key={date}
+                  backgroundColor={colors.green[50]}
+                  paddingHorizontal="$1.5"
+                  paddingVertical={1}
+                  borderRadius={4}
+                >
+                  <Text fontSize={11} color={colors.green[700]} fontWeight="500">
+                    {new Date(date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                  </Text>
+                </YStack>
+              ))}
+            </XStack>
+          )}
         </YStack>
       </YStack>
       {/* ─── Action Bar ─── */}

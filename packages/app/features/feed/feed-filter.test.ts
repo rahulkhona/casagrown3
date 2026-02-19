@@ -25,6 +25,7 @@ function makePost(overrides: Partial<FeedPost> = {}): FeedPost {
             unit: "lb",
             total_quantity_available: 10,
             points_per_unit: 5,
+            delivery_dates: [],
         },
         buy_details: null,
         media: [],
@@ -47,6 +48,9 @@ const BUY_POST = makePost({
         category: "Herbs",
         produce_names: ["Basil", "Mint"],
         need_by_date: "2025-03-01",
+        desired_quantity: null,
+        desired_unit: null,
+        delivery_dates: [],
     },
 });
 const SERVICE_OFFERING = makePost({

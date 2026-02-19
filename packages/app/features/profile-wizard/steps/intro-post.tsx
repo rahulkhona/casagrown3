@@ -73,11 +73,11 @@ export const IntroPostStep = () => {
            if (returnTo) {
              window.sessionStorage.removeItem('casagrown_returnTo')
            }
-           // Filter out routes that don't make sense as post-wizard targets.
-           // The AuthGuard saves returnTo for any protected route visited while
-           // logged out (e.g. /profile), which would redirect away from feed.
-           const invalidTargets = ['/profile', '/profile-wizard', '/login', '/login-success', '/logout']
-           if (returnTo && invalidTargets.some(t => returnTo!.startsWith(t))) {
+           // Only allow specific routes as post-wizard targets (allowlist).
+           // Prevents stale/unexpected returnTo values (e.g. /logout, /orders)
+           // from misdirecting the user after completing the wizard.
+           const validTargets = ['/feed', '/post/']
+           if (returnTo && !validTargets.some(t => returnTo!.startsWith(t))) {
              returnTo = null
            }
          }

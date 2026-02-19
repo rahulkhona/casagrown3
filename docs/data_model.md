@@ -35,7 +35,10 @@ and any associated triggers/functions/RLS policies.
 > `20260217000007_mark_delivered_rpc` → `20260217000008_confirm_delivery_rpc` →
 > `20260217000008_dispute_escalation_rpcs` → `20260217000009_fix_point_flow` →
 > `20260217000010_orders_realtime` → `20260217000011_order_messages_with_units`
-> → `20260217003100_add_unit_to_order_messages`
+> → `20260217003100_add_unit_to_order_messages` →
+> `20260218000000_add_buy_quantity_unit` →
+> `20260219000001_role_specific_messages` →
+> `20260219000002_cancel_order_system_message`
 
 ## Extensions
 
@@ -2115,9 +2118,10 @@ locking (`version` column) and escrow-based point flows. All RPCs use
 
 ### `cancel_order`
 
-**Migration**: `20260217000006`
+**Migration**: `20260217000006`, updated by `20260219000002`
 
-**Signature**: `cancel_order(p_order_id uuid, p_user_id uuid) → jsonb`
+**Signature**:
+`cancel_order_with_message(p_order_id uuid, p_user_id uuid) → jsonb`
 
 **Logic**:
 
@@ -2125,10 +2129,13 @@ locking (`version` column) and escrow-based point flows. All RPCs use
 2. Verify caller is buyer or seller
 3. Verify status is `pending` or `accepted` (not already
    cancelled/delivered/disputed)
-4. Set status → `cancelled`
-5. Refund buyer: insert `point_ledger` (type: `refund`, amount: +total)
-6. Insert system message ("Order cancelled by buyer/seller. Points refunded.")
-7. Return `{ success: true }`
+4. Determine canceller role (`buyer` or `seller`)
+5. Set status → `cancelled`
+6. Refund buyer: insert `point_ledger` (type: `refund`, amount: +total)
+7. If previously `accepted`, restore `total_quantity_available` on the post
+8. Insert **system message** (`sender_id = null`, `type = 'system'`): "Order
+   cancelled by buyer/seller. X points have been refunded to the buyer."
+9. Return `{ success: true }`
 
 ### `mark_delivered`
 
@@ -2150,17 +2157,25 @@ locking (`version` column) and escrow-based point flows. All RPCs use
 
 **Migration**: `20260217000008_confirm_delivery_rpc`
 
-**Signature**: `confirm_delivery(p_order_id uuid, p_buyer_id uuid) → jsonb`
+**Signature**:
+`confirm_order_delivery(p_order_id uuid, p_buyer_id uuid) → jsonb`
 
 **Logic**:
 
 1. Lock and fetch order, verify caller is buyer
 2. Verify status = `delivered`
-3. Release escrow: insert `point_ledger` (type: `payment`, amount: +total for
-   seller)
-4. Set status → `accepted` (terminal — confirmed delivery)
-5. Insert system message ("Delivery confirmed! Points released to seller.")
-6. Return `{ success: true }`
+3. Calculate total, platform fee (10%), and seller payout
+4. Release escrow: insert `point_ledger` (type: `payment`, amount: +seller
+   payout)
+5. Insert `point_ledger` platform fee entry (type: `platform_fee`, amount: -fee)
+6. Set status → `completed` (terminal)
+7. Insert **role-specific system messages** (both `sender_id = null`,
+   `type = 'system'`):
+   - _Buyer sees_: "✅ Order complete! X escrowed points released…"
+     (`metadata.visible_to = buyer_id`)
+   - _Seller sees_: "💰 Payment received: X points credited…"
+     (`metadata.visible_to = seller_id`)
+8. Return `{ success: true }`
 
 ### `create_escalation`
 
@@ -2195,19 +2210,34 @@ locking (`version` column) and escrow-based point flows. All RPCs use
 
 ### `accept_refund_offer`
 
-**Migration**: `20260217000008_dispute_escalation_rpcs`
+**Migration**: `20260217000008_dispute_escalation_rpcs`, updated by
+`20260219000001`
 
 **Signature**:
-`accept_refund_offer(p_refund_offer_id uuid, p_user_id uuid) → jsonb`
+`accept_refund_offer_with_message(p_order_id uuid, p_buyer_id uuid, p_offer_id uuid) → jsonb`
 
 **Logic**:
 
-1. Lock refund offer, verify `pending`
-2. Set offer status → `accepted`
-3. Close escalation (status: `resolved`, resolution: `refund_accepted`)
-4. Refund buyer the partial amount, release remainder to seller
-5. Insert system message ("Refund offer accepted. X points refunded.")
-6. Return `{ success: true }`
+1. Lock order and refund offer, verify caller is buyer, offer is `pending`
+2. Calculate refund, seller amount, platform fee, and seller payout
+3. Set offer status → `accepted`
+4. Close escalation (status: `resolved`, resolution: `refund_accepted`)
+5. Refund buyer the partial amount
+6. Credit seller remaining minus fee, record platform fee
+7. Set order status → `completed`
+8. Insert **role-specific system messages**:
+   - _Buyer sees_: "✅ Dispute resolved! X points refunded…"
+     (`metadata.visible_to = buyer_id`)
+   - _Seller sees_: "💰 Dispute resolved: X points credited…"
+     (`metadata.visible_to = seller_id`)
+9. Return `{ success: true }`
+
+> [!NOTE]
+> **`visible_to` metadata pattern**: System messages with
+> `metadata.visible_to = <user_id>` are only shown to that user. Messages
+> without `visible_to` (or `visible_to = null`) are visible to all participants.
+> RPCs updated in `20260219000001`: `confirm_order_delivery`,
+> `accept_refund_offer_with_message`, `resolve_dispute_with_message`.
 
 ### `modify_order`
 

@@ -504,8 +504,8 @@ export const JoinCommunityStep = () => {
                  height="$5"
                  // If matched, go next. If not matched, search.
                  onPress={isMatched ? nextStep : handleSearch}
-                 disabled={(!address || !zip) || resolving}
-                 opacity={(!address || !zip || resolving) ? 0.5 : 1}
+                 disabled={(!isMatched && (!address || !zip)) || resolving}
+                 opacity={((!isMatched && (!address || !zip)) || resolving) ? 0.5 : 1}
                  hoverStyle={{ backgroundColor: colors.green[700] }}
                  icon={resolving ? <Spinner color="white" /> : undefined}
                >

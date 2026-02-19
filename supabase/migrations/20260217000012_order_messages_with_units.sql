@@ -104,7 +104,8 @@ begin
          WHEN v_unit = 'bag' AND p_quantity > 1 THEN 'bags '
          ELSE v_unit || ' '
     END ||
-    p_product || ' for ' || p_total_price || ' points. Delivery by ' || coalesce(p_delivery_date::text, 'TBD') || '.',
+    p_product || ' for ' || p_total_price || ' points. Delivery by ' || coalesce(p_delivery_date::text, 'TBD') || '.'
+    || case when p_delivery_instructions is not null then E'\nDelivery info: ' || p_delivery_instructions else '' end,
     'text'
   );
 

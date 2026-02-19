@@ -944,6 +944,61 @@ describe("createPresenceChannel", () => {
         });
     });
 
+    it("setTyping is a no-op when channel is not yet subscribed", () => {
+        // Override subscribe to NOT auto-fire SUBSCRIBED
+        mockChannel.subscribe.mockImplementation((callback?: Function) => {
+            mockChannelSubscribeCallback = callback || null;
+            // Do NOT call callback — channel stays unsubscribed
+            return mockChannel;
+        });
+
+        const onPresenceChange = jest.fn();
+        const { setTyping } = createAndTrack(
+            conversationId,
+            userId,
+            onPresenceChange,
+        );
+
+        // Clear any sends from channel setup
+        mockChannelSend.mockClear();
+
+        setTyping(true);
+
+        // send() should NOT be called because isSubscribed is false
+        expect(mockChannelSend).not.toHaveBeenCalled();
+    });
+
+    it("skips heartbeat when channel is not subscribed", async () => {
+        // Override subscribe to fire CHANNEL_ERROR so isSubscribed stays false
+        // but the channel still attempts to start heartbeat on retry
+        mockChannel.subscribe.mockImplementation((callback?: Function) => {
+            mockChannelSubscribeCallback = callback || null;
+            // Fire with error status — isSubscribed remains false
+            if (callback) callback("CHANNEL_ERROR");
+            return mockChannel;
+        });
+
+        const consoleSpy = jest
+            .spyOn(console, "warn")
+            .mockImplementation();
+
+        const onPresenceChange = jest.fn();
+        const { setTyping } = createAndTrack(
+            conversationId,
+            userId,
+            onPresenceChange,
+        );
+
+        // Clear any sends from channel setup
+        mockChannelSend.mockClear();
+
+        // setTyping should also be guarded
+        setTyping(true);
+        expect(mockChannelSend).not.toHaveBeenCalled();
+
+        consoleSpy.mockRestore();
+    });
+
     it("calls onPresenceChange when receiving broadcast typing from other user", () => {
         const onPresenceChange = jest.fn();
         createAndTrack(conversationId, userId, onPresenceChange);

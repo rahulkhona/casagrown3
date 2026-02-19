@@ -481,7 +481,7 @@ export function ChatScreen({
   const isBuyer = conversation?.buyer_id === currentUserId
   const isForSalePost = conversation?.post?.type === 'want_to_sell'
   const showPlaceOrderButton = isBuyer && isForSalePost && !orderData.loading &&
-    (!orderData.order || orderData.order.status === 'completed' || orderData.order.status === 'cancelled')
+    (!orderData.order || orderData.order.status === 'cancelled')
 
   // Adapt ConversationPost → FeedPost for the OrderSheet component
   const orderSheetPost: FeedPost | null = useMemo(() => {
@@ -498,8 +498,8 @@ export function ChatScreen({
       created_at: p.created_at,
       community_h3_index: null,
       community_name: p.community_name,
-      sell_details: p.sell_details,
-      buy_details: p.buy_details,
+      sell_details: p.sell_details ? { ...p.sell_details } : null,
+      buy_details: p.buy_details ? { desired_quantity: null, desired_unit: null, delivery_dates: [], ...p.buy_details } : null,
       media: p.media,
       like_count: 0,
       comment_count: 0,
@@ -957,15 +957,25 @@ export function ChatScreen({
       if (data.deliveryAddress !== (orderData.order.delivery_address ?? '')) changes.deliveryAddress = data.deliveryAddress
       if (data.deliveryInstructions !== (orderData.order.delivery_instructions ?? '')) changes.deliveryInstructions = data.deliveryInstructions
 
-      if (Object.keys(changes).length === 0) return
+      if (Object.keys(changes).length === 0) {
+        console.log('[ModifyOrder] No changes detected, skipping')
+        return
+      }
 
+      console.log('[ModifyOrder] Sending changes:', JSON.stringify(changes), 'for order:', orderData.order.id)
       const result = await modifyOrder(orderData.order.id, currentUserId, changes)
+      console.log('[ModifyOrder] Result:', JSON.stringify(result))
       if (!result.success) {
         if (Platform.OS === 'web') {
           window.alert(result.error || 'Failed to modify order')
         } else {
           Alert.alert('Cannot Modify', result.error || 'Failed to modify order')
         }
+      } else if (conversation) {
+        // Refetch messages so the system message inserted by modify_order shows immediately
+        const freshMessages = await getConversationMessages(conversation.id)
+        console.log('[ModifyOrder] Refetched', freshMessages.length, 'messages')
+        setMessages(freshMessages)
       }
       orderData.refresh()
       refetchBalance()
@@ -974,7 +984,7 @@ export function ChatScreen({
     } finally {
       setSending(false)
     }
-  }, [orderData, currentUserId, refetchBalance])
+  }, [orderData, currentUserId, conversation, refetchBalance])
 
   // ── Buyer: Place new order (via OrderSheet) ──
   const handleNewOrderSubmit = useCallback(async (data: OrderFormData) => {
@@ -983,15 +993,16 @@ export function ChatScreen({
     setSending(true)
     try {
       const post = conversation.post
+      const sellDetails = post.sell_details!
       const { data: result, error } = await supabase.functions.invoke('create-order', {
         body: {
           postId: post.id,
           sellerId: post.author_id,
           quantity: data.quantity,
-          pointsPerUnit: post.sell_details.points_per_unit,
+          pointsPerUnit: sellDetails.points_per_unit,
           totalPrice: data.totalPrice,
-          category: post.sell_details.category,
-          product: post.sell_details.produce_name,
+          category: sellDetails.category,
+          product: sellDetails.produce_name,
           deliveryDate: data.latestDate,
           deliveryInstructions: data.instructions,
           deliveryAddress: data.address,
@@ -1020,7 +1031,14 @@ export function ChatScreen({
     const items: Array<{ type: 'date'; label: string } | { type: 'message'; message: ChatMessage; showAvatar: boolean }> = []
     let lastDate = ''
 
-    messages.forEach((msg, i) => {
+    // Filter out system messages targeted to other users (role-specific points messages)
+    const visibleMessages = messages.filter((msg) => {
+      const visibleTo = (msg.metadata as Record<string, unknown>)?.visible_to
+      if (visibleTo && visibleTo !== currentUserId) return false
+      return true
+    })
+
+    visibleMessages.forEach((msg, i) => {
       const dateLabel = getDateLabel(msg.created_at)
       if (dateLabel !== lastDate) {
         items.push({ type: 'date', label: dateLabel })
@@ -1028,7 +1046,7 @@ export function ChatScreen({
       }
 
       // Show avatar only for the last consecutive message from the same sender
-      const nextMsg = messages[i + 1]
+      const nextMsg = visibleMessages[i + 1]
       const showAvatar = !nextMsg || nextMsg.sender_id !== msg.sender_id
 
       items.push({ type: 'message', message: msg, showAvatar })

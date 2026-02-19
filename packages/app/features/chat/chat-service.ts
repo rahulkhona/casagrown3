@@ -52,6 +52,7 @@ export interface ConversationPost {
         unit: string;
         total_quantity_available: number;
         points_per_unit: number;
+        delivery_dates: string[];
     } | null;
     buy_details: {
         category: string;
@@ -125,6 +126,7 @@ interface ConversationQueryRow {
                 }
             >
             | null;
+        delivery_dates: Array<{ delivery_date: string }> | null;
     };
     buyer: ConversationParticipant;
     seller: ConversationParticipant;
@@ -274,6 +276,9 @@ export async function getConversationWithDetails(
           total_quantity_available,
           points_per_unit
         ),
+        delivery_dates (
+          delivery_date
+        ),
         want_to_buy_details (
           category,
           produce_names,
@@ -324,7 +329,14 @@ export async function getConversationWithDetails(
             author_name: row.post.author?.full_name || null,
             author_avatar_url: row.post.author?.avatar_url || null,
             community_name: row.post.community?.name || null,
-            sell_details: row.post.want_to_sell_details?.[0] || null,
+            sell_details: row.post.want_to_sell_details?.[0]
+                ? {
+                    ...row.post.want_to_sell_details[0],
+                    delivery_dates: (row.post.delivery_dates || []).map((
+                        d: any,
+                    ) => d.delivery_date).sort(),
+                }
+                : null,
             buy_details: row.post.want_to_buy_details?.[0] || null,
             media: (row.post.post_media || [])
                 .sort((a, b) => (a.position || 0) - (b.position || 0))
@@ -796,6 +808,8 @@ export function createPresenceChannel(
     let otherTyping = false;
     let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
     let heartbeatTimeout: ReturnType<typeof setTimeout> | null = null;
+    let presenceRetryCount = 0;
+    let isSubscribed = false;
     const HEARTBEAT_INTERVAL_MS = 10_000; // Send heartbeat every 10s
     const HEARTBEAT_TIMEOUT_MS = 25_000; // Consider offline after 25s without heartbeat
 
@@ -815,32 +829,40 @@ export function createPresenceChannel(
         }, HEARTBEAT_TIMEOUT_MS);
     };
 
-    // Start sending heartbeats
-    const startHeartbeat = () => {
-        // Send one immediately
+    // Send a heartbeat only if channel is subscribed
+    const sendHeartbeat = () => {
+        if (!isSubscribed) {
+            console.warn(
+                "[Presence] Skipping heartbeat — channel not subscribed",
+            );
+            return;
+        }
         channel.send({
             type: "broadcast",
             event: "heartbeat",
             payload: { user_id: userId },
         });
+    };
+
+    // Start sending heartbeats
+    const startHeartbeat = () => {
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        // Send one immediately
+        sendHeartbeat();
         // Then send periodically
-        heartbeatInterval = setInterval(() => {
-            channel.send({
-                type: "broadcast",
-                event: "heartbeat",
-                payload: { user_id: userId },
-            });
-        }, HEARTBEAT_INTERVAL_MS);
+        heartbeatInterval = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
     };
 
     channel
         // ── Presence: online/offline (secondary signal) ──
         .on("presence", { event: "sync" }, () => {
             const state = channel.presenceState();
+
             let found = false;
             for (const key of Object.keys(state)) {
                 if (key !== userId) {
                     const presences = state[key] as Record<string, unknown>[];
+
                     if (presences && presences.length > 0) {
                         otherOnline = true;
                         found = true;
@@ -870,6 +892,7 @@ export function createPresenceChannel(
         // ── Broadcast: heartbeat events (primary online signal) ──
         .on("broadcast", { event: "heartbeat" }, (payload) => {
             const msg = payload.payload as Record<string, unknown>;
+
             if (msg?.user_id !== userId) {
                 if (!otherOnline) {
                     otherOnline = true;
@@ -887,13 +910,30 @@ export function createPresenceChannel(
             }
         })
         .subscribe(async (status) => {
+            console.log(`[Presence] Channel status: ${status}`);
             if (status === "SUBSCRIBED") {
+                isSubscribed = true;
+                presenceRetryCount = 0;
                 await channel.track({ online: true });
                 startHeartbeat();
+            } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+                isSubscribed = false;
+                // Retry with exponential backoff (1s, 2s, 4s… max 30s)
+                const delay = Math.min(1000 * 2 ** presenceRetryCount, 30_000);
+                presenceRetryCount++;
+                console.warn(
+                    `[Presence] ${status}, retrying in ${delay}ms (attempt ${presenceRetryCount})`,
+                );
+                setTimeout(() => {
+                    channel.subscribe();
+                }, delay);
+            } else if (status === "CLOSED") {
+                isSubscribed = false;
             }
         });
 
     const setTyping = (isTyping: boolean) => {
+        if (!isSubscribed) return;
         // Use broadcast for typing — more reliable than presence.track()
         channel.send({
             type: "broadcast",

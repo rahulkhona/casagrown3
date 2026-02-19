@@ -89,8 +89,10 @@ test.describe("Feed Page", () => {
             .catch(() => false);
         expect(hasProfile || page.url().includes("/profile")).toBeTruthy();
 
-        // Navigate back to Feed
-        await page.goto("/feed");
-        await page.waitForURL(/\/feed/, { timeout: 10_000 });
+        // Navigate back to Feed — use domcontentloaded to avoid auth redirect timeout
+        await page.goto("/feed", { waitUntil: "domcontentloaded" });
+        await page.locator("text=Tomatoes").or(
+            page.locator("text=No posts found"),
+        ).first().waitFor({ timeout: 15_000 });
     });
 });

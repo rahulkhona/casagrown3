@@ -9,10 +9,26 @@ env:
 # Test user: seller@test.local (seeded by seed.sql)
 #
 # Flow: Landing page → Login page → Email OTP → Feed/Wizard
+#
+# Uses stopApp + launchApp to guarantee a fresh app start from the root
+# screen regardless of where the previous flow left the app.
 
+- stopApp:
+          appId: dev.casagrown.community
 - launchApp:
           clearState: false
-          clearKeychain: true
+          clearKeychain: false
+          stopApp: false
+
+# The Expo dev-client shows a launcher with the dev server URL.
+# Tap it to load the JS bundle.  If the app is already past this
+# screen (e.g. when clearState kept the session), the runFlow guard
+# will skip this step.
+- runFlow:
+          when:
+                  visible: "localhost"
+          commands:
+                  - tapOn: "localhost"
 
 # Wait for the app to fully load before checking conditions.
 # The app may show any of these screens after launch:
@@ -20,10 +36,11 @@ env:
 #   - "Join the Movement!" → landing page, not logged in
 #   - "Welcome to CasaGrown" → login page
 #   - "Let's Get You Set Up" → profile wizard
+#   - "Loading..." → auth check in progress (wait for it to resolve)
 - extendedWaitUntil:
           visible:
                   text: ".*(?:Create Post|Join the Movement|Welcome to CasaGrown|Get You Set Up).*"
-          timeout: 30000
+          timeout: 45000
 
 # If already logged in (feed shows "Create Post"), skip login
 - runFlow:
