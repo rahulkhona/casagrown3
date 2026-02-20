@@ -284,6 +284,7 @@
       "feed": "Feed",
       "chats": "Chats",
       "orders": "Pedidos",
+      "offers": "Ofertas",
       "myPosts": "Mis Publicaciones",
       "redeem": "Canjear",
       "transferPoints": "Transferir Puntos",
@@ -321,6 +322,8 @@
     "needBy": "Necesario para",
     "dropOffDates": "Fechas de entrega",
     "canDeliver": "Puede entregar",
+    "desiredQty": "Cantidad deseada",
+    "deliveryDates": "Fechas de entrega",
     "tapToPlayVideo": "Toca para reproducir video",
     "writeComment": "Escribe un comentario...",
     "unknownAuthor": "Desconocido",
@@ -740,5 +743,83 @@
     "views": "{{count}} vistas",
     "responses": "{{count}} respuestas",
     "postedAgo": "Publicado hace {{days}} días"
+  },
+  "offers": {
+    "title": "Ofertas",
+    "loading": "Cargando ofertas…",
+    "retry": "Reintentar",
+    "unknownBuyer": "Comprador Desconocido",
+    "unknownSeller": "Vendedor Desconocido",
+    "unknownProduct": "Producto Desconocido",
+    "tabs": {
+      "open": "Abiertas",
+      "past": "Pasadas"
+    },
+    "filters": {
+      "all": "Todas",
+      "buying": "Comprando",
+      "selling": "Vendiendo"
+    },
+    "emptyOpen": "Sin ofertas abiertas",
+    "emptyPast": "Sin ofertas pasadas",
+    "emptyHint": "Las ofertas aparecen aquí cuando haces o recibes ofertas en publicaciones de compra.",
+    "card": {
+      "from": "De",
+      "to": "Para"
+    },
+    "form": {
+      "title": "Hacer una Oferta",
+      "modifyTitle": "Modificar Oferta",
+      "subtitle": "Oferta para {{buyer}}",
+      "buyerNeeds": "Necesidades del Comprador",
+      "desiredQty": "Cantidad deseada",
+      "needBy": "Necesita para",
+      "matchFromPosts": "Coincidencia de mis publicaciones",
+      "searchPostsPlaceholder": "Buscar tus publicaciones…",
+      "noMatchingPosts": "No se encontraron publicaciones coincidentes",
+      "category": "Categoría",
+      "product": "Producto",
+      "quantity": "Cantidad",
+      "quantityPlaceholder": "Ingresa cantidad",
+      "exceedsDesired": "Excede la cantidad deseada de {{desired}} {{unit}} del comprador",
+      "pricePerUnit": "Puntos por unidad",
+      "pricePlaceholder": "Ingresa precio",
+      "totalPoints": "Total",
+      "deliveryDate": "Fecha de Entrega",
+      "selectDate": "Selecciona una fecha",
+      "deliveryAddress": "Dirección de Entrega",
+      "addressPlaceholder": "Ingresa dirección de entrega…",
+      "useMyLocation": "Usar mi ubicación",
+      "locationDenied": "Se denegó el acceso a la ubicación",
+      "locationError": "No se pudo determinar la ubicación",
+      "message": "Mensaje (opcional)",
+      "messagePlaceholder": "Agrega una nota para el comprador…",
+      "cancel": "Cancelar",
+      "submitOffer": "Enviar Oferta",
+      "updateOffer": "Actualizar Oferta",
+      "requiredFields": "Por favor completa cantidad y precio por unidad.",
+      "errorQuantity": "La cantidad debe ser mayor a 0",
+      "errorPrice": "El precio debe ser mayor a 0"
+    },
+    "chat": {
+      "youAreBuyer": "Recibiste esta oferta",
+      "youAreSeller": "Hiciste esta oferta"
+    },
+    "actions": {
+      "accept": "Aceptar",
+      "reject": "Rechazar",
+      "modify": "Modificar",
+      "withdraw": "Retirar",
+      "makeOffer": "Hacer Oferta",
+      "error": "Error",
+      "unknownError": "Ocurrió un error inesperado",
+      "cancel": "Cancelar",
+      "confirmRejectTitle": "¿Rechazar Oferta?",
+      "confirmRejectMessage": "Se notificará al vendedor. Puedes recibir nuevas ofertas.",
+      "confirmReject": "Rechazar",
+      "confirmWithdrawTitle": "¿Retirar Oferta?",
+      "confirmWithdrawMessage": "Tu oferta será retirada. Puedes hacer una nueva oferta.",
+      "confirmWithdraw": "Retirar"
+    }
   }
 }

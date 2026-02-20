@@ -1,0 +1,34 @@
+appId: dev.casagrown.community
+---
+# 1. Login as Seller (Test Seller)
+- runFlow:
+      file: ../utils/login.yaml
+      env:
+          TEST_EMAIL: "seller@test.local"
+          TEST_PASSWORD: "TestPassword123!"
+
+# 2. Go to Orders Tab
+- tapOn: "Menu"
+- tapOn: "Orders"
+- extendedWaitUntil:
+      visible: "Open"
+      timeout: 10000
+
+# 3. Open Tomatoes Order
+- tapOn:
+      text: "Tomatoes"
+- extendedWaitUntil:
+      visible: "Chat"
+      timeout: 10000
+
+# Screenshot 3: Seller View - Mark Delivered (Tomatoes)
+- takeScreenshot: "/Users/rkhona/.gemini/antigravity/brain/60f9107c-c793-45d2-8d1c-86b77b638162/03_seller_order_actions"
+
+# 4. Tap Mark Delivered (to show sheet)
+- tapOn: "Mark Delivered"
+- extendedWaitUntil:
+      visible: "Take Photo"
+      timeout: 5000
+
+# Screenshot 4: Delivery Proof Sheet
+- takeScreenshot: "/Users/rkhona/.gemini/antigravity/brain/60f9107c-c793-45d2-8d1c-86b77b638162/04_delivery_proof_sheet"

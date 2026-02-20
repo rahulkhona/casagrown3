@@ -2,5 +2,18 @@
 -- chat UI receives live updates when an order is modified/cancelled/accepted,
 -- and the points balance auto-refreshes when escrow/refund entries are created.
 
-ALTER PUBLICATION supabase_realtime ADD TABLE orders;
-ALTER PUBLICATION supabase_realtime ADD TABLE point_ledger;
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'orders'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE orders;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'point_ledger'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE point_ledger;
+  END IF;
+END $$;

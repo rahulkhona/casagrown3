@@ -11,7 +11,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { YStack, XStack, Text, Button, Spinner, ScrollView } from 'tamagui'
 import { Platform, TextInput, FlatList, KeyboardAvoidingView, TouchableOpacity, Pressable, Image, Alert, Linking, Modal } from 'react-native'
-import { ArrowLeft, Send, Paperclip, MapPin, Camera, Video, X, Loader, Image as LucideImage, Check, CheckCheck, Calendar, Package, ShoppingCart } from '@tamagui/lucide-icons'
+import { ArrowLeft, Send, Paperclip, MapPin, Camera, Video, X, Loader, Image as LucideImage, Check, CheckCheck, Calendar, Package, ShoppingCart, ThumbsUp } from '@tamagui/lucide-icons'
 import { colors, borderRadius, shadows } from '../../design-tokens'
 import { normalizeStorageUrl } from '../../utils/normalize-storage-url'
 import { useTranslation } from 'react-i18next'
@@ -41,7 +41,10 @@ import type {
   PresenceState,
 } from './chat-service'
 import { ChatOrderActions } from './ChatOrderActions'
+import { ChatOfferActions } from './ChatOfferActions'
 import { useConversationOrder } from '../orders/useOrders'
+import { useConversationOffer, createOffer, modifyOffer, acceptOffer } from '../offers/offer-service'
+import { uploadPostMediaBatch } from '../create-post/media-upload'
 import {
   markDelivered,
   disputeOrder,
@@ -57,6 +60,9 @@ import { ModifyOrderSheet } from '../orders/ModifyOrderSheet'
 import type { ModifyOrderFormData } from '../orders/ModifyOrderSheet'
 import { OrderSheet } from '../feed/OrderSheet'
 import type { OrderFormData } from '../feed/OrderSheet'
+import { OfferSheet } from '../feed/OfferSheet'
+import type { OfferFormData } from '../feed/OfferSheet'
+import { AcceptOfferSheet } from '../feed/AcceptOfferSheet'
 import type { FeedPost } from '../feed/feed-service'
 import { usePointsBalance } from '../../hooks/usePointsBalance'
 import { supabase } from '../auth/auth-hook'
@@ -451,8 +457,17 @@ export function ChatScreen({
   // Buyer new order modal state (when no order exists yet)
   const [newOrderOpen, setNewOrderOpen] = useState(false)
 
+  // Seller new offer modal state (when no offer exists yet for buy posts)
+  const [newOfferOpen, setNewOfferOpen] = useState(false)
+
+  // Accept offer modal state (buyer provides delivery address)
+  const [acceptOfferOpen, setAcceptOfferOpen] = useState(false)
+
   // Order data for this conversation
   const orderData = useConversationOrder(conversation?.id ?? null)
+
+  // Offer data for this conversation (buy posts)
+  const offerData = useConversationOffer(conversation?.id ?? null)
 
   // Points balance for the current user (needed for ModifyOrderSheet)
   const { balance: userPoints, refetch: refetchBalance } = usePointsBalance(currentUserId)
@@ -483,9 +498,42 @@ export function ChatScreen({
   const showPlaceOrderButton = isBuyer && isForSalePost && !orderData.loading &&
     (!orderData.order || orderData.order.status === 'cancelled')
 
+  // Show "Make Offer" button for sellers on buy posts with no active offer
+  // For buy posts: the post author is the buyer, anyone else is a potential seller
+  const isBuyPost = conversation?.post?.type === 'want_to_buy'
+  const isPostAuthor = conversation?.post?.author_id === currentUserId
+  const isSeller = !isPostAuthor && !!conversation
+  const showMakeOfferButton = isSeller && isBuyPost && !offerData.loading &&
+    (!offerData.offer || offerData.offer.status === 'rejected' || offerData.offer.status === 'withdrawn')
+
   // Adapt ConversationPost → FeedPost for the OrderSheet component
   const orderSheetPost: FeedPost | null = useMemo(() => {
     if (!conversation?.post?.sell_details) return null
+    const p = conversation.post
+    return {
+      id: p.id,
+      author_id: p.author_id,
+      author_name: p.author_name,
+      author_avatar_url: p.author_avatar_url,
+      type: p.type,
+      reach: 'community',
+      content: p.content,
+      created_at: p.created_at,
+      community_h3_index: null,
+      community_name: p.community_name,
+      sell_details: p.sell_details ? { ...p.sell_details } : null,
+      buy_details: p.buy_details ? { desired_quantity: null, desired_unit: null, delivery_dates: [], ...p.buy_details } : null,
+      media: p.media,
+      like_count: 0,
+      comment_count: 0,
+      is_liked: false,
+      is_flagged: false,
+    }
+  }, [conversation])
+
+  // Adapt ConversationPost → FeedPost for the OfferSheet component (buy posts)
+  const offerSheetPost: FeedPost | null = useMemo(() => {
+    if (!conversation?.post?.buy_details) return null
     const p = conversation.post
     return {
       id: p.id,
@@ -517,10 +565,28 @@ export function ChatScreen({
         setLoading(true)
         setError(null)
 
-        // Determine buyer/seller — the post author is the "seller",
-        // the current user initiating chat is the "buyer"
-        const sellerId = otherUserId
-        const buyerId = currentUserId
+        // Determine buyer/seller based on post type:
+        // - For sell posts (want_to_sell): post author = seller, other user = buyer
+        // - For buy posts (want_to_buy): post author = buyer, other user = seller
+        // Look up the post to determine the correct role assignment
+        const { data: postData } = await supabase
+          .from('posts')
+          .select('type, author_id')
+          .eq('id', postId)
+          .single()
+
+        let buyerId: string
+        let sellerId: string
+
+        if (postData?.type === 'want_to_buy') {
+          // Buy post: post author is the buyer, the other user (respondent) is the seller
+          buyerId = postData.author_id
+          sellerId = postData.author_id === currentUserId ? otherUserId : currentUserId
+        } else {
+          // Sell/other posts: post author is the seller, current user is the buyer
+          sellerId = otherUserId
+          buyerId = currentUserId
+        }
 
         // Get or create conversation
         const conversationId = await getOrCreateConversation(postId, buyerId, sellerId)
@@ -1026,6 +1092,91 @@ export function ChatScreen({
     }
   }, [conversation, orderData, refetchBalance])
 
+  /** Submit a new offer or modify an existing one on a buy post */
+  const handleOfferSubmit = useCallback(async (data: OfferFormData) => {
+    if (!conversation?.post) return
+    setNewOfferOpen(false)
+    setSending(true)
+    try {
+      // Static imports used (dynamic import() causes "Could not load bundle" on Metro)
+
+      // Upload media if provided
+      let media: Array<{ storage_path: string; media_type: 'image' | 'video' }> | undefined
+      if (data.mediaAssets && data.mediaAssets.length > 0) {
+        // uploadPostMediaBatch is statically imported
+        const uploaded = await uploadPostMediaBatch(currentUserId, data.mediaAssets.map(a => ({
+          uri: a.uri,
+          type: a.type,
+        })))
+        if (uploaded.length > 0) {
+          media = uploaded.map(u => ({
+            storage_path: u.storagePath,
+            media_type: u.mediaType,
+          }))
+        }
+      }
+
+      if (offerData.offer?.status === 'pending') {
+        // Modify existing offer
+        const result = await modifyOffer(offerData.offer.id, currentUserId, {
+          quantity: data.quantity,
+          pointsPerUnit: data.pointsPerUnit,
+          deliveryDates: data.deliveryDates,
+          deliveryDate: data.deliveryDates?.[0] || undefined,
+          message: data.description || undefined,
+          media,
+          communityH3Index: data.communityH3Index,
+          additionalCommunityH3Indices: data.additionalCommunityH3Indices,
+        })
+        if (!result.success) {
+          if (Platform.OS === 'web') {
+            window.alert(result.error || 'Failed to modify offer')
+          } else {
+            Alert.alert('Offer Failed', result.error || 'Failed to modify offer')
+          }
+          return
+        }
+      } else {
+        // Create new offer
+        const result = await createOffer({
+          postId: conversation.post.id,
+          buyerId: conversation.post.author_id,
+          quantity: data.quantity,
+          pointsPerUnit: data.pointsPerUnit,
+          category: data.category,
+          product: data.product,
+          unit: data.unit,
+          deliveryDates: data.deliveryDates,
+          deliveryDate: data.deliveryDates?.[0] || undefined,
+          message: data.description || undefined,
+          sellerPostId: data.sellerPostId,
+          media,
+          communityH3Index: data.communityH3Index,
+          additionalCommunityH3Indices: data.additionalCommunityH3Indices,
+        })
+
+        // If the RPC created/used a different conversation, reload it
+        if (result.conversationId && result.conversationId !== conversation.id) {
+          const details = await getConversationWithDetails(result.conversationId)
+          setConversation(details)
+          const msgs = await getConversationMessages(result.conversationId)
+          setMessages(msgs)
+        }
+      }
+      offerData.refetch()
+    } catch (err) {
+      console.error('Error with offer:', err)
+      const msg = err instanceof Error ? err.message : 'An unexpected error occurred'
+      if (Platform.OS === 'web') {
+        window.alert(msg)
+      } else {
+        Alert.alert(t('offers.actions.error'), msg)
+      }
+    } finally {
+      setSending(false)
+    }
+  }, [conversation, currentUserId, offerData, t])
+
   // ── Build flat list data with date separators ──
   const listData = useMemo(() => {
     const items: Array<{ type: 'date'; label: string } | { type: 'message'; message: ChatMessage; showAvatar: boolean }> = []
@@ -1356,6 +1507,20 @@ export function ChatScreen({
         />
       )}
 
+      {/* ============ OFFER ACTIONS (buy post) ============ */}
+      {offerData.offer && offerData.offer.status === 'pending' && (
+        <ChatOfferActions
+          offer={offerData.offer}
+          currentUserId={currentUserId}
+          buyerId={conversation?.post?.author_id ?? ''}
+          sellerId={conversation?.post?.author_id === currentUserId ? (conversation?.seller_id ?? '') : currentUserId}
+          onOfferUpdated={offerData.refetch}
+          onModify={() => setNewOfferOpen(true)}
+          onAccept={() => setAcceptOfferOpen(true)}
+          t={t}
+        />
+      )}
+
       {/* ============ PLACE ORDER BUTTON (buyer, no active order) ============ */}
       {showPlaceOrderButton && (
         <YStack
@@ -1383,6 +1548,39 @@ export function ChatScreen({
               <ShoppingCart size={13} color="white" />
               <Text fontSize={11} fontWeight="600" color="white">
                 Order
+              </Text>
+            </TouchableOpacity>
+          </XStack>
+        </YStack>
+      )}
+
+      {/* ============ MAKE OFFER BUTTON (seller, buy post, no active offer) ============ */}
+      {showMakeOfferButton && (
+        <YStack
+          backgroundColor="white"
+          borderTopWidth={1}
+          borderBottomWidth={1}
+          borderColor={colors.gray[200]}
+          paddingHorizontal="$3"
+          paddingVertical="$2.5"
+        >
+          <XStack justifyContent="flex-start">
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setNewOfferOpen(true)}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 4,
+                paddingHorizontal: 8,
+                paddingVertical: 4,
+                borderRadius: 6,
+                backgroundColor: '#2563eb',
+              }}
+            >
+              <ThumbsUp size={13} color="white" />
+              <Text fontSize={11} fontWeight="600" color="white">
+                {t('offers.actions.makeOffer')}
               </Text>
             </TouchableOpacity>
           </XStack>
@@ -1718,6 +1916,44 @@ export function ChatScreen({
         userPoints={userPoints}
         onClose={() => setNewOrderOpen(false)}
         onSubmit={handleNewOrderSubmit}
+        onBalanceChanged={refetchBalance}
+        t={t}
+      />
+
+      {/* ============ NEW OFFER SHEET (seller, buy post) ============ */}
+      <OfferSheet
+        visible={newOfferOpen}
+        buyPost={offerSheetPost}
+        existingOffer={offerData.offer?.status === 'pending' ? offerData.offer : null}
+        onClose={() => setNewOfferOpen(false)}
+        onSubmit={handleOfferSubmit}
+        t={t}
+      />
+
+      {/* ============ ACCEPT OFFER SHEET (buyer, delivery details) ============ */}
+      <AcceptOfferSheet
+        visible={acceptOfferOpen}
+        offer={offerData.offer ?? null}
+        userPoints={userPoints}
+        buyPostQuantity={conversation?.post?.buy_details?.desired_quantity ?? null}
+        onClose={() => setAcceptOfferOpen(false)}
+        onConfirm={async (formData) => {
+          if (!offerData.offer) return
+          // acceptOffer is statically imported
+          const result = await acceptOffer(
+            offerData.offer.id,
+            currentUserId,
+            formData.address,
+            formData.instructions,
+            formData.quantity,
+          )
+          if (!result.success) {
+            throw new Error(result.error || 'Failed to accept offer')
+          }
+          setAcceptOfferOpen(false)
+          offerData.refetch()
+          refetchBalance()
+        }}
         onBalanceChanged={refetchBalance}
         t={t}
       />

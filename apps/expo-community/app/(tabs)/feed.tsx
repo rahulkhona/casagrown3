@@ -65,6 +65,10 @@ export default function FeedTab() {
     router.push('/(tabs)/orders')
   }
 
+  const handleNavigateToOffers = () => {
+    router.push('/(tabs)/offers')
+  }
+
 
   return (
     <FeedScreen
@@ -80,6 +84,7 @@ export default function FeedTab() {
       onNavigateToChat={handleNavigateToChat}
       onNavigateToChats={handleNavigateToChats}
       onNavigateToOrders={handleNavigateToOrders}
+      onNavigateToOffers={handleNavigateToOffers}
       userId={user?.id}
     />
   )

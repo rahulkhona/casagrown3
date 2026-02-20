@@ -1,0 +1,74 @@
+appId: dev.casagrown.community
+---
+# 1. Login as Buyer (Test Buyer)
+- runFlow:
+    file: ../utils/login.yaml
+    env:
+      TEST_EMAIL: "buyer@test.local"
+      TEST_PASSWORD: "TestPassword123!"
+
+# 2. Go to Offers Tab (to find the pending Cilantro offer)
+- tapOn: "Offers"
+- extendedWaitUntil:
+    visible: "Open"
+    timeout: 10000
+
+# 3. Open Cilantro Offer
+- tapOn: "Cilantro"
+- extendedWaitUntil:
+    visible: "Chat"
+    timeout: 10000
+
+# Screenshot 1: Buyer Accepting
+- takeScreenshot: "/Users/rkhona/.gemini/antigravity/brain/60f9107c-c793-45d2-8d1c-86b77b638162/01_buyer_offer_actions"
+
+# 4. Accept Offer
+- tapOn: "Accept Offer"
+- extendedWaitUntil:
+    visible: "Order placed"
+    timeout: 10000
+
+# Screenshot 2: Order Created (Status: Pending)
+- takeScreenshot: "/Users/rkhona/.gemini/antigravity/brain/60f9107c-c793-45d2-8d1c-86b77b638162/02_order_created"
+
+# 5. Logout Buyer
+- tapOn: "Back"
+# Go to Menu -> Logout
+- tapOn: "Menu"
+- tapOn: "Log Out"
+- tapOn: "Log Out" # Confirm in sheet
+
+# 6. Login as Seller (Test Seller)
+- runFlow:
+    file: ../utils/login.yaml
+    env:
+      TEST_EMAIL: "seller@test.local"
+      TEST_PASSWORD: "TestPassword123!"
+
+# 7. Go to Orders Tab
+- tapOn: "Menu"
+- tapOn: "Orders"
+- extendedWaitUntil:
+    visible: "Open"
+    timeout: 10000
+
+# 8. Open Cilantro Order
+# Seller made the offer, Buyer accepted. Seller is the SELLER.
+- tapOn:
+    text: "Cilantro"
+    index: 0
+- extendedWaitUntil:
+    visible: "Chat"
+    timeout: 10000
+
+# Screenshot 3: Seller Delivering
+- takeScreenshot: "/Users/rkhona/.gemini/antigravity/brain/60f9107c-c793-45d2-8d1c-86b77b638162/03_seller_order_actions"
+
+# 9. Tap Mark Delivered
+- tapOn: "Mark Delivered"
+- extendedWaitUntil:
+    visible: "Take Photo"
+    timeout: 5000
+
+# Screenshot 4: Delivery Proof Sheet
+- takeScreenshot: "/Users/rkhona/.gemini/antigravity/brain/60f9107c-c793-45d2-8d1c-86b77b638162/04_delivery_proof_sheet"

@@ -1,7 +1,7 @@
 # CasaGrown — Product Requirements Document (PRD)
 
-**Version**: 1.0\
-**Last Updated**: February 13, 2026\
+**Version**: 1.1\
+**Last Updated**: February 20, 2026\
 **Platform**: Cross-platform (iOS, Android, Web)\
 **Tech Stack**: React Native (Expo) + Tamagui + Supabase + Next.js Admin
 
@@ -256,7 +256,33 @@ Six post types presented as icon cards:
 
 **Shared location**: Location messages display inline with map preview
 
-#### 3.6.4 Delivery & Read Receipts
+#### 3.6.4 Chat Post Card (`ChatPostCard`)
+
+Displayed at the top of each conversation to show the post context:
+
+- **Sell posts**: Product name, available quantity, price per unit, delivery
+  dates
+- **Buy posts**: Localized details — desired quantity (`feed.desiredQty`),
+  need-by date (`feed.needBy`), available delivery dates (`feed.deliveryDates`)
+- All strings are localized via `react-i18next`
+
+#### 3.6.5 Offer & Order Actions in Chat
+
+- **Seller on buy posts**: "Make Offer" button opens `OfferSheet` (quantity,
+  price, delivery dates, message, media)
+- **Buyer on sell posts**: "Order" button opens `OrderSheet` (quantity, delivery
+  date, address, instructions)
+- **Buyer reviewing offers**: Accept → `AcceptOfferSheet` (delivery address,
+  partial quantity), Reject → `reject_offer_with_message` RPC
+- **Seller managing offers**: Modify → `OfferSheet` (edit mode), Withdraw →
+  `withdraw_offer_with_message` RPC
+- **Seller managing orders**: Accept Order, Reject Order buttons (versioned RPCs
+  with optimistic locking)
+- **Buyer managing orders**: Cancel, Confirm Delivery, Dispute buttons
+- Order completion triggers role-specific system messages via `visible_to`
+  metadata
+
+#### 3.6.6 Delivery & Read Receipts
 
 - **Sent**: Single grey checkmark (✓)
 - **Delivered**: Double grey checkmarks (✓✓) — set when recipient's device
@@ -266,7 +292,7 @@ Six post types presented as icon cards:
 - Database columns: `delivered_at`, `read_at` on `chat_messages`
 - Realtime UPDATE subscription for live status changes
 
-#### 3.6.5 Presence & Typing Indicators
+#### 3.6.7 Presence & Typing Indicators
 
 Hybrid architecture for reliability:
 
@@ -279,7 +305,7 @@ Hybrid architecture for reliability:
 - Own typing events are filtered out client-side
 - Leave events immediately clear both online and typing state
 
-#### 3.6.6 Media in Chat
+#### 3.6.8 Media in Chat
 
 - Send photos/videos within chat messages
 - Camera capture + gallery selection
@@ -416,33 +442,118 @@ Full audit trail of all point transactions:
 
 ### 3.11 Transaction System
 
-#### 3.11.1 Offers
+The transaction system supports two distinct flows depending on the post type:
 
-- Buyer makes offer on a sell post within a conversation
-- Offer includes: quantity, price per unit
-- Seller can accept/reject
+- **Sell posts** (`want_to_sell`): Buyer places an order directly
+- **Buy posts** (`want_to_buy`): Seller makes an offer, buyer accepts/rejects →
+  order created on acceptance
 
-#### 3.11.2 Orders
+#### 3.11.1 Sell-Post Order Flow
 
-Created when an offer is accepted:
+```
+Buyer sees sell post → Opens chat → Taps "Order" →
+OrderSheet (qty, date, address) → create-order edge function →
+Order created (pending) + Points escrowed → Seller accepts/rejects
+```
 
-- Tracks: category, product, quantity, price, delivery date/time/instructions
-- Delivery proof via media upload
-- Status: `accepted` or `disputed`
+- Buyer specifies: quantity, delivery date, delivery address, instructions
+- Points are escrowed immediately via `create-order` edge function
+- Order is created in `pending` status
+- Seller reviews and accepts (via `accept_order_versioned`) or rejects
 
-#### 3.11.3 Ratings & Reviews
+#### 3.11.2 Buy-Post Offer Flow
+
+```
+Seller sees buy post → Opens chat → Taps "Make Offer" →
+OfferSheet (product, qty, price, dates, media) → create_offer_atomic RPC →
+Offer created (pending) → Buyer reviews →
+Accept (AcceptOfferSheet: address, partial qty) / Reject / Wait
+```
+
+- Seller specifies: category, product, quantity, points per unit, delivery
+  dates, message, media attachments, optional link to their own sell post
+- Offer created via `create_offer_atomic` SQL RPC
+- Buyer reviews offer in chat and can:
+  - **Accept** → `accept_offer_atomic` creates order + escrows points (buyer can
+    specify partial quantity and delivery address)
+  - **Reject** → `reject_offer_with_message` (system message)
+- Seller can **Modify** (bump version) or **Withdraw** a pending offer
+
+#### 3.11.3 Offer Lifecycle
+
+| Status      | Description                                      |
+| :---------- | :----------------------------------------------- |
+| `pending`   | Offer submitted, awaiting buyer response         |
+| `accepted`  | Buyer accepted → order created                   |
+| `rejected`  | Buyer declined the offer                         |
+| `withdrawn` | Seller withdrew the offer before buyer responded |
+
+**Offer RPCs** (all SQL RPC with `SECURITY DEFINER`):
+
+| RPC                           | Actor  | Effect                                                |
+| :---------------------------- | :----- | :---------------------------------------------------- |
+| `create_offer_atomic`         | Seller | Creates conversation + offer + seller chat message    |
+| `accept_offer_atomic`         | Buyer  | Accepts offer, creates order, escrows points          |
+| `reject_offer_with_message`   | Buyer  | Rejects offer, system message                         |
+| `withdraw_offer_with_message` | Seller | Withdraws pending offer, system message               |
+| `modify_offer_with_message`   | Seller | Modifies pending offer, bumps version, seller message |
+
+#### 3.11.4 Order Lifecycle
+
+| Status      | Description                                                         |
+| :---------- | :------------------------------------------------------------------ |
+| `pending`   | Order placed by buyer. Points escrowed. Awaiting seller acceptance. |
+| `accepted`  | Seller accepted. Delivery expected.                                 |
+| `delivered` | Seller marked delivered. Buyer confirms or auto-confirms.           |
+| `disputed`  | Buyer raised a dispute. Escalation flow begins.                     |
+| `cancelled` | Order cancelled. Points refunded.                                   |
+
+Full order lifecycle details documented in
+[order_lifecycle.md](order_lifecycle.md).
+
+**Order RPCs** (all SQL RPC with `SECURITY DEFINER` + `FOR UPDATE` locking):
+
+| RPC                         | Actor  | Effect                                           |
+| :-------------------------- | :----- | :----------------------------------------------- |
+| `accept_order_versioned`    | Seller | Accepts with version check, reduces quantity     |
+| `reject_order_versioned`    | Seller | Declines, refunds buyer                          |
+| `cancel_order_with_message` | Either | Cancel + refund + system message                 |
+| `mark_delivered`            | Seller | Marks delivered with proof (URL, geo, timestamp) |
+| `confirm_order_delivery`    | Buyer  | Confirms receipt, releases escrow minus fees     |
+| `modify_order`              | Buyer  | Modifies pending order, bumps version            |
+
+#### 3.11.5 Orders Screen
+
+- **Buying tab** — Orders where user is the buyer
+- **Selling tab** — Orders where user is the seller
+- Each order card shows: product name, category, quantity, price, other party
+  name, status badge, delivery date
+- Tap order → navigates to conversation
+- Status-aware action buttons in chat
+
+#### 3.11.6 Ratings & Reviews
 
 - Mutual ratings: buyer rates seller AND seller rates buyer
 - 1–5 star scale with optional text feedback
 
-#### 3.11.4 Disputes & Escalations
+#### 3.11.7 Disputes & Escalations
 
 - Either party can escalate an order
 - Escalation includes: reason, proof media
 - Resolution types: refund accepted, resolved without refund, dismissed
 - Refund offers can be made with amounts and messages
+- Role-specific system messages: buyer sees refund details, seller sees payout
+  details (via `visible_to` metadata)
 
-#### 3.11.5 Platform Fees
+#### 3.11.8 Point Escrow Model
+
+- Points are **never transferred directly** between buyer and seller
+- Buyer's points are escrowed at order creation (type=`escrow`)
+- On completion: seller receives payment minus platform fee (type=`payment` +
+  type=`platform_fee`)
+- On cancellation or dispute refund: buyer receives refund (type=`refund`)
+
+#### 3.11.9 Platform Fees
 
 - Configurable platform fee percentage (default: 10%)
 - Stored in `platform_config` table (database-driven, not hardcoded)
@@ -526,9 +637,9 @@ casagrown3/
 
 ### 4.4 Database Migrations
 
-28 sequential migrations covering: schema, RLS policies, triggers, indexes,
-enums, realtime configuration, and payment transactions. Full migration list
-documented in `data_model.md`.
+72 sequential migrations covering: schema, RLS policies, triggers, indexes,
+enums, realtime configuration, payment transactions, offer lifecycle, and order
+management. Full migration list documented in `data_model.md`.
 
 ### 4.5 Row-Level Security (RLS)
 
@@ -546,17 +657,12 @@ Comprehensive RLS policies on all tables ensuring:
 
 ### 5.1 Test Suite
 
-| Suite                      |   Tests | Coverage                                             |
-| :------------------------- | ------: | :--------------------------------------------------- |
-| `chat-service.test.ts`     |      34 | All 10 exported chat functions including presence    |
-| `ChatInboxScreen.test.tsx` |      11 | Loading, empty, error states, unread indicators      |
-| `ChatScreen.test.tsx`      |      13 | Timestamp formatting, date labels, message rendering |
-| `feed-screen.test.tsx`     |  varies | Feed rendering, filters, navigation                  |
-| `profile-wizard/`          |  varies | All 3 wizard steps                                   |
-| `create-post/`             |  varies | Post creation flow                                   |
-| `my-posts/`                |  varies | Post management                                      |
-| `delegate/`                |  varies | Delegation UI                                        |
-| **Total**                  | **309** | **23 suites, all passing**                           |
+| Layer              | Suites/Flows |   Tests | Status      |
+| :----------------- | -----------: | ------: | :---------- |
+| **Jest (Unit)**    |           37 |     549 | ✅ All pass |
+| **Playwright E2E** |           14 |     206 | ✅ All pass |
+| **Maestro E2E**    |           12 |      12 | ✅ All pass |
+| **Total**          |       **63** | **767** | ✅ All pass |
 
 ### 5.2 Git Hooks
 
@@ -613,53 +719,13 @@ Full post detail page with transactional capabilities:
 
 ---
 
-### 7.2 Orders & Transaction Management
+### 7.2 ~~Orders & Transaction Management~~ → Implemented ✅
 
-**Figma**: `OrdersPage.tsx` (1,078 lines)\
-**Status**: ❌ Navigation placeholder exists, no UI implementation\
-**DB**: Schema complete (`orders`, `escalations`, `refund_offers`)
-
-#### 7.2.1 Order Tabs
-
-- **Buying** — Orders where user is the buyer
-- **Selling** — Orders where user is the seller
-
-#### 7.2.2 Order Lifecycle
-
-```
-Offer Accepted → Order Created → Drop-off Scheduled →
-Seller Delivers (geotagged photo) → Buyer Confirms → Rating → Complete
-```
-
-#### 7.2.3 Order Card
-
-Each order shows: product name, category, quantity, price, other party name,
-status badge, delivery date, time remaining countdown
-
-#### 7.2.4 Drop-off Confirmation
-
-- Seller captures **geotagged photo** as delivery proof
-- Photo stored in `delivery_proof_media_id`
-- Buyer reviews proof and confirms receipt
-
-#### 7.2.5 Disputes
-
-- Either party can initiate dispute with reason + photo evidence
-- Dispute states: `buyer-initiated` → `seller-refunded` | `buyer-resolved` |
-  `escalated-to-admin`
-- Seller can offer refund → buyer accepts/rejects
-- Escalation to admin if unresolved
-
-#### 7.2.6 Ratings
-
-- After order completion, both parties rate (1–5 stars + text feedback)
-- Star selector UI with optional review text
-
-#### 7.2.7 Cancellation
-
-- Either party can cancel with reason
-- Confirmation dialog before processing
-- Records `cancelled_by`, `cancelled_at`, `cancellation_reason`
+> [!NOTE]
+> Orders, offers, and transaction management are **fully implemented**. See
+> **Section 3.11** for complete documentation of the offer + order lifecycle,
+> including both sell-post and buy-post flows, with 11 SQL RPC functions, point
+> escrow, and the Orders screen UI.
 
 ---
 

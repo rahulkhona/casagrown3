@@ -208,7 +208,7 @@ export function ChatPostCard({ post, t }: ChatPostCardProps) {
           </Text>
         )}
 
-        {/* Price + Quantity row */}
+        {/* Price + Quantity row (sell posts) */}
         <XStack alignItems="center" gap="$3" marginTop="$1" flexWrap="wrap">
           {price != null && (
             <Text fontSize={13} fontWeight="600" color={colors.green[700]}>
@@ -216,17 +216,57 @@ export function ChatPostCard({ post, t }: ChatPostCardProps) {
             </Text>
           )}
           {quantity != null && (
-            <>
+            <XStack alignItems="center" gap="$1">
               <Text fontSize={12} color={colors.gray[300]}>·</Text>
               <Text fontSize={12} color={colors.gray[500]}>
                 {t('feed.qty')}: {quantity}{unit ? ` ${unit === 'dozen' ? unit : unit === 'box' && quantity !== 1 ? 'boxes' : unit === 'bag' && quantity !== 1 ? 'bags' : unit !== 'piece' ? unit : ''}` : ''}
               </Text>
-            </>
+            </XStack>
           )}
         </XStack>
 
-        {/* Delivery dates (green pills) */}
-        {post.sell_details?.delivery_dates && post.sell_details.delivery_dates.length > 0 && (
+        {/* Buy post details (quantity, need-by date, delivery dates) */}
+        {post.buy_details && (
+          <YStack gap="$1" marginTop="$1">
+            {post.buy_details.desired_quantity != null && (
+              <XStack alignItems="center" gap="$1.5">
+                <Text fontSize={12} color="#1d4ed8" fontWeight="600">
+                  📦 {t('feed.desiredQty')}: {post.buy_details.desired_quantity} {post.buy_details.desired_unit ?? ''}
+                </Text>
+              </XStack>
+            )}
+            {post.buy_details.need_by_date && (
+              <XStack alignItems="center" gap="$1.5">
+                <Text fontSize={12} color="#c2410c" fontWeight="600">
+                  📅 {t('feed.needBy')}: {new Date(post.buy_details.need_by_date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                </Text>
+              </XStack>
+            )}
+            {post.delivery_dates && post.delivery_dates.length > 0 && (
+              <XStack gap="$1" alignItems="center" flexWrap="wrap">
+                <Text fontSize={11} color="#1d4ed8">
+                  🗓 {t('feed.deliveryDates')}:
+                </Text>
+                {post.delivery_dates.map((date) => (
+                  <YStack
+                    key={date}
+                    backgroundColor="#dbeafe"
+                    paddingHorizontal="$1.5"
+                    paddingVertical={1}
+                    borderRadius={4}
+                  >
+                    <Text fontSize={11} color="#1d4ed8" fontWeight="500">
+                      {new Date(date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    </Text>
+                  </YStack>
+                ))}
+              </XStack>
+            )}
+          </YStack>
+        )}
+
+        {/* Delivery dates for sell posts (green pills) */}
+        {!post.buy_details && post.sell_details?.delivery_dates && post.sell_details.delivery_dates.length > 0 && (
           <XStack gap="$1" alignItems="center" marginTop="$1" flexWrap="wrap">
             <Text fontSize={11} color={colors.green[600]}>
               🗓 {t('feed.canDeliver')}

@@ -1,0 +1,34 @@
+appId: dev.casagrown.community
+---
+# 1. Login as Buyer (Test Buyer) - assuming Tomatoes order is DELIVERED via script
+- runFlow:
+    file: ../utils/login.yaml
+    env:
+      TEST_EMAIL: "buyer@test.local"
+      TEST_PASSWORD: "TestPassword123!"
+
+# 2. Go to Orders Tab
+- tapOn: "Menu"
+- tapOn: "Orders"
+- extendedWaitUntil:
+    visible: "Open"
+    timeout: 10000
+
+# 3. Open Tomatoes Order
+- tapOn:
+    text: "Tomatoes"
+- extendedWaitUntil:
+    visible: "Chat"
+    timeout: 10000
+
+# Screenshot 5: Buyer View - Confirm/Dispute
+- takeScreenshot: "/Users/rkhona/.gemini/antigravity/brain/60f9107c-c793-45d2-8d1c-86b77b638162/05_buyer_delivery_actions"
+
+# 4. Tap Report Issue
+- tapOn: "Report Issue"
+- extendedWaitUntil:
+    visible: "Report Issue" # Header of sheet
+    timeout: 5000
+
+# Screenshot 6: Dispute Sheet
+- takeScreenshot: "/Users/rkhona/.gemini/antigravity/brain/60f9107c-c793-45d2-8d1c-86b77b638162/06_dispute_sheet"

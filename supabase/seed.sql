@@ -483,7 +483,102 @@ VALUES (
 ) ON CONFLICT (id) DO NOTHING;
 
 -- =============================================================================
--- 15. Delivery Proof Storage Bucket
+-- 15. Standalone Offers (for Offers screen E2E tests)
+-- =============================================================================
+-- Creates buy posts + conversations + offers in various states so the Offers
+-- screen can show Open (pending) and Past (accepted/rejected/withdrawn) tabs.
+
+-- Buy Post 2: Looking for Cilantro (by Test Buyer)
+INSERT INTO public.posts (id, author_id, community_h3_index, type, reach, content)
+VALUES (
+  'e5550001-0000-0000-0000-000000000001',
+  'b2222222-2222-2222-2222-222222222222',
+  '89283470c2fffff',
+  'want_to_buy', 'community',
+  '{"description":"Need fresh cilantro"}'
+) ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.want_to_buy_details (post_id, category, produce_names, desired_quantity, desired_unit, need_by_date)
+VALUES ('e5550001-0000-0000-0000-000000000001', 'herbs', ARRAY['Cilantro'], 5, 'bag', CURRENT_DATE + interval '7 days')
+ON CONFLICT (post_id) DO NOTHING;
+
+-- Buy Post 3: Looking for Mint (by Test Buyer)
+INSERT INTO public.posts (id, author_id, community_h3_index, type, reach, content)
+VALUES (
+  'e5550002-0000-0000-0000-000000000002',
+  'b2222222-2222-2222-2222-222222222222',
+  '89283470c2fffff',
+  'want_to_buy', 'community',
+  '{"description":"Need fresh mint leaves"}'
+) ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.want_to_buy_details (post_id, category, produce_names, desired_quantity, desired_unit, need_by_date)
+VALUES ('e5550002-0000-0000-0000-000000000002', 'herbs', ARRAY['Mint'], 3, 'bag', CURRENT_DATE + interval '10 days')
+ON CONFLICT (post_id) DO NOTHING;
+
+-- Buy Post 4: Looking for Rosemary (by Test Buyer)
+INSERT INTO public.posts (id, author_id, community_h3_index, type, reach, content)
+VALUES (
+  'e5550003-0000-0000-0000-000000000003',
+  'b2222222-2222-2222-2222-222222222222',
+  '89283470c2fffff',
+  'want_to_buy', 'community',
+  '{"description":"Looking for fresh rosemary sprigs"}'
+) ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.want_to_buy_details (post_id, category, produce_names, desired_quantity, desired_unit, need_by_date)
+VALUES ('e5550003-0000-0000-0000-000000000003', 'herbs', ARRAY['Rosemary'], 2, 'bag', CURRENT_DATE + interval '5 days')
+ON CONFLICT (post_id) DO NOTHING;
+
+-- Conversations for standalone offers (seller=Test Seller acting as offer maker)
+INSERT INTO public.conversations (id, post_id, buyer_id, seller_id)
+VALUES
+  ('b8880001-0000-0000-0000-000000000001', 'e5550001-0000-0000-0000-000000000001',
+   'b2222222-2222-2222-2222-222222222222', 'a1111111-1111-1111-1111-111111111111'),
+  ('b8880002-0000-0000-0000-000000000002', 'e5550002-0000-0000-0000-000000000002',
+   'b2222222-2222-2222-2222-222222222222', 'a1111111-1111-1111-1111-111111111111'),
+  ('b8880003-0000-0000-0000-000000000003', 'e5550003-0000-0000-0000-000000000003',
+   'b2222222-2222-2222-2222-222222222222', 'a1111111-1111-1111-1111-111111111111')
+ON CONFLICT (id) DO NOTHING;
+
+-- Offer 1: Cilantro — PENDING (shows on Open tab)
+INSERT INTO public.offers (id, conversation_id, created_by, post_id, quantity, points_per_unit, category, product, unit, delivery_date, status, version)
+VALUES (
+  'c9990001-0000-0000-0000-000000000001',
+  'b8880001-0000-0000-0000-000000000001',
+  'a1111111-1111-1111-1111-111111111111',
+  'e5550001-0000-0000-0000-000000000001',
+  5, 10, 'herbs', 'Cilantro', 'bunch',
+  CURRENT_DATE + interval '5 days',
+  'pending', 1
+) ON CONFLICT (id) DO NOTHING;
+
+-- Offer 2: Mint — REJECTED (shows on Past tab)
+INSERT INTO public.offers (id, conversation_id, created_by, post_id, quantity, points_per_unit, category, product, unit, delivery_date, status, version)
+VALUES (
+  'c9990002-0000-0000-0000-000000000002',
+  'b8880002-0000-0000-0000-000000000002',
+  'a1111111-1111-1111-1111-111111111111',
+  'e5550002-0000-0000-0000-000000000002',
+  3, 15, 'herbs', 'Mint', 'bunch',
+  CURRENT_DATE + interval '7 days',
+  'rejected', 1
+) ON CONFLICT (id) DO NOTHING;
+
+-- Offer 3: Rosemary — WITHDRAWN (shows on Past tab)
+INSERT INTO public.offers (id, conversation_id, created_by, post_id, quantity, points_per_unit, category, product, unit, delivery_date, status, version)
+VALUES (
+  'c9990003-0000-0000-0000-000000000003',
+  'b8880003-0000-0000-0000-000000000003',
+  'a1111111-1111-1111-1111-111111111111',
+  'e5550003-0000-0000-0000-000000000003',
+  2, 20, 'herbs', 'Rosemary', 'bunch',
+  CURRENT_DATE + interval '3 days',
+  'withdrawn', 1
+) ON CONFLICT (id) DO NOTHING;
+
+-- =============================================================================
+-- 16. Delivery Proof Storage Bucket
 -- =============================================================================
 DO $$
 BEGIN

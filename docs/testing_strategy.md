@@ -77,7 +77,10 @@ e2e/maestro/
 │   ├── post-management.yaml  # Menu → My Posts → Back
 │   ├── orders.yaml           # Orders screen: tabs, cards, click-to-chat
 │   ├── order-flow.yaml       # Conditional: tap Order if visible
-│   └── profile-wizard.yaml   # Conditional: wizard if visible
+│   ├── profile-wizard.yaml   # Conditional: wizard if visible
+│   ├── offers.yaml           # Offer submission and lifecycle on buy posts
+│   ├── chat-buy-post.yaml    # Chat flow from buy post with offer actions
+│   └── chat-order-sale-post.yaml  # Order flow from sale post in chat
 └── utils/
     └── login.yaml            # Reusable login utility (used by all flows)
 ```
@@ -109,7 +112,7 @@ curl -Ls "https://get.maestro.mobile.dev" | bash
 # Start the app
 cd apps/expo-community && npx expo run:ios
 
-# Run all 9 flows
+# Run all 12 flows
 maestro test e2e/maestro/
 
 # Run a single flow
@@ -171,7 +174,7 @@ skip for the buyer project).
 # Start dev server
 yarn web
 
-# Run all 180 tests (164 pass, 16 role-based skips)
+# Run all 206 tests (190 pass, 16 role-based skips)
 npx playwright test --config=e2e/playwright/playwright.config.ts
 
 # Run a single file
@@ -192,7 +195,7 @@ npx playwright test --config=e2e/playwright/playwright.config.ts --last-failed
 ### Pre-Push (Husky)
 
 - **Trigger**: `git push`
-- **Action**: Runs full Jest test suite (36 suites, 520 tests) with `--bail`.
+- **Action**: Runs full Jest test suite (37 suites, 549 tests) with `--bail`.
 - **Goal**: Prevent regressions in all app features.
 - **Note**: Edge function tests run separately via `deno test`.
 
@@ -218,3 +221,7 @@ with specific `transformIgnorePatterns` for Tamagui and monorepo packages.
 - **Shared create-post components**: `PostFormShell`, `MediaPickerSection`, and
   `CommunityMapWrapper` have their own test files. When testing forms that use
   them, mock at the module level to avoid transitive dependency issues.
+- **Expo native module mocks**: `expo-modules-core` (`NativeModule`,
+  `EventEmitter`), `expo-image-picker`, and `expo-file-system` are mocked to
+  prevent native module loading errors in the Jest environment. These are
+  configured in `jest.setup.js` and apply to all test suites.

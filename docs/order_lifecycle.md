@@ -1,9 +1,161 @@
-# Order Lifecycle & State Transitions
+# Offer & Order Lifecycle
 
-This document defines the complete order lifecycle, including state transitions,
-point flows, and the roles of buyer and seller at each stage.
+This document defines the complete offer and order lifecycles, including state
+transitions, point flows, and the roles of buyer and seller at each stage.
 
-## Order Statuses
+The transaction system supports **two distinct flows** depending on the post
+type:
+
+- **Sell posts** (`want_to_sell`): Buyer places an order directly →
+  `create-order` edge function
+- **Buy posts** (`want_to_buy`): Seller makes an offer → buyer accepts/rejects →
+  order created on acceptance
+
+---
+
+## Offer Lifecycle (Buy-Post Flow)
+
+When a seller responds to a buyer's `want_to_buy` post, they create an **offer**
+rather than a direct order. The buyer then reviews and accepts/rejects.
+
+### Offer Statuses
+
+| Status      | Description                                         |
+| :---------- | :-------------------------------------------------- |
+| `pending`   | Offer submitted by seller. Awaiting buyer response. |
+| `accepted`  | Buyer accepted → order created automatically.       |
+| `rejected`  | Buyer declined the offer.                           |
+| `withdrawn` | Seller withdrew before buyer responded.             |
+
+### Offer State Diagram
+
+```mermaid
+stateDiagram-v2
+    [*] --> pending : Seller creates offer
+
+    pending --> accepted : Buyer accepts
+    pending --> rejected : Buyer rejects
+    pending --> withdrawn : Seller withdraws
+    pending --> pending : Seller modifies\n(version bump)
+
+    accepted --> [*] : Order created\n+ Points escrowed
+    rejected --> [*]
+    withdrawn --> [*]
+```
+
+### Offer Flow
+
+```mermaid
+sequenceDiagram
+    participant S as Seller
+    participant DB as Database
+    participant B as Buyer
+
+    S->>DB: create_offer_atomic(product, qty, price, dates)
+    DB->>DB: Create conversation (if needed)
+    DB->>DB: Create offer (pending)
+    DB->>DB: Insert seller chat message
+
+    alt Buyer Accepts
+        B->>DB: accept_offer_atomic(offer_id, address, qty)
+        DB->>DB: offer.status → accepted
+        DB->>DB: Create order (pending)
+        DB->>DB: Escrow buyer's points
+        DB->>DB: Insert buyer chat message
+    else Buyer Rejects
+        B->>DB: reject_offer_with_message(offer_id)
+        DB->>DB: offer.status → rejected
+        DB->>DB: Insert system message
+    else Seller Modifies
+        S->>DB: modify_offer_with_message(offer_id, ...)
+        DB->>DB: Update offer + bump version
+        DB->>DB: Insert seller chat message
+    else Seller Withdraws
+        S->>DB: withdraw_offer_with_message(offer_id)
+        DB->>DB: offer.status → withdrawn
+        DB->>DB: Insert system message
+    end
+```
+
+### Offer RPCs
+
+| Function                      | Actor  | Status   | Purpose                                                       |
+| :---------------------------- | :----- | :------- | :------------------------------------------------------------ |
+| `create_offer_atomic`         | Seller | ✅ Built | Creates conversation + offer + seller chat message atomically |
+| `accept_offer_atomic`         | Buyer  | ✅ Built | Accepts offer, creates order, escrows points, buyer message   |
+| `reject_offer_with_message`   | Buyer  | ✅ Built | Rejects offer, inserts system message                         |
+| `withdraw_offer_with_message` | Seller | ✅ Built | Withdraws pending offer, inserts system message               |
+| `modify_offer_with_message`   | Seller | ✅ Built | Modifies pending offer (qty/price/dates/media), bumps version |
+
+#### `create_offer_atomic`
+
+**Signature**:
+`create_offer_atomic(p_seller_id, p_buyer_id, p_post_id, p_quantity, p_points_per_unit, p_category, p_product, p_unit, p_delivery_date, p_message, p_seller_post_id, p_media, p_delivery_dates, p_community_h3_index, p_additional_community_h3_indices) → jsonb`
+
+**Logic**:
+
+1. Prevent self-offers
+2. Resolve delivery dates (prefer array, fall back to single date)
+3. Create or reuse conversation for `(post_id, buyer_id, seller_id)`
+4. Check no active pending offer or active order exists
+5. Insert offer row with all details
+6. Insert seller chat message (shown as from seller, not system)
+7. Return `{ offerId, conversationId }`
+
+#### `accept_offer_atomic`
+
+**Signature**:
+`accept_offer_atomic(p_offer_id, p_buyer_id, p_delivery_address, p_delivery_instructions, p_quantity) → jsonb`
+
+**Logic**:
+
+1. Lock and fetch offer, verify `pending` status
+2. Verify caller is the buyer (conversation buyer)
+3. Validate delivery address is provided
+4. Use buyer's requested quantity (default: full offer quantity, must not exceed
+   offer)
+5. Calculate total price using buyer's quantity × points per unit
+6. Check buyer's point balance ≥ total price
+7. Mark offer as `accepted`
+8. Create order in `pending` status
+9. Escrow buyer's points (type=`escrow`)
+10. Insert buyer chat message ("✅ Offer accepted! Order placed: ...")
+11. Return `{ orderId, conversationId, newBalance }`
+
+#### `reject_offer_with_message`
+
+**Signature**: `reject_offer_with_message(p_offer_id, p_buyer_id) → jsonb`
+
+**Logic**: Lock offer, verify pending + buyer, set status → `rejected`, insert
+system message.
+
+#### `withdraw_offer_with_message`
+
+**Signature**: `withdraw_offer_with_message(p_offer_id, p_seller_id) → jsonb`
+
+**Logic**: Lock offer, verify pending + creator, set status → `withdrawn`,
+insert system message.
+
+#### `modify_offer_with_message`
+
+**Signature**:
+`modify_offer_with_message(p_offer_id, p_seller_id, p_quantity, p_points_per_unit, p_delivery_date, p_message, p_media, p_delivery_dates, p_community_h3_index, p_additional_community_h3_indices) → jsonb`
+
+**Logic**: Lock offer, verify pending + creator, update changed fields, bump
+version, insert seller message with change summary ("✏️ Offer modified: qty: 5 →
+3, price: 10 → 8 pts").
+
+---
+
+## Order Lifecycle
+
+Orders are created either:
+
+- **Directly** from sell posts via `create-order` edge function (invoked from
+  `OrderSheet.tsx`)
+- **From accepted offers** on buy posts via `accept_offer_atomic` SQL RPC
+
+### Order Statuses
 
 | Status      | Description                                                                            |
 | :---------- | :------------------------------------------------------------------------------------- |
@@ -13,9 +165,7 @@ point flows, and the roles of buyer and seller at each stage.
 | `disputed`  | Buyer raised a dispute. Escalation flow begins.                                        |
 | `cancelled` | Order cancelled (by buyer before acceptance, or by seller declining). Points refunded. |
 
----
-
-## State Transition Diagram
+### Order State Diagram
 
 ```mermaid
 stateDiagram-v2
@@ -71,7 +221,7 @@ sequenceDiagram
 
 ---
 
-## Transition Rules
+## Order Transition Rules
 
 ### `pending` → `accepted`
 
@@ -145,17 +295,29 @@ sequenceDiagram
 
 | Table           | Role                                          |
 | :-------------- | :-------------------------------------------- |
+| `offers`        | Offer record with lifecycle status            |
 | `orders`        | Primary order record with `status` field      |
-| `offers`        | The offer that generated this order           |
 | `point_ledger`  | All point movements (escrow, payment, refund) |
 | `conversations` | Chat thread between buyer and seller          |
-| `chat_messages` | System messages for order events              |
+| `chat_messages` | System messages for offer/order events        |
 | `escalations`   | Dispute records                               |
 | `refund_offers` | Refund negotiation during disputes            |
 
 ---
 
-## Edge Functions (Current & Planned)
+## All RPCs
+
+### Offer RPCs
+
+| Function                      | Status   | Type    | Purpose                                               |
+| :---------------------------- | :------- | :------ | :---------------------------------------------------- |
+| `create_offer_atomic`         | ✅ Built | SQL RPC | Creates conversation + offer + seller message         |
+| `accept_offer_atomic`         | ✅ Built | SQL RPC | Accepts offer, creates order, escrows points          |
+| `reject_offer_with_message`   | ✅ Built | SQL RPC | Rejects offer, system message                         |
+| `withdraw_offer_with_message` | ✅ Built | SQL RPC | Withdraws pending offer, system message               |
+| `modify_offer_with_message`   | ✅ Built | SQL RPC | Modifies pending offer, bumps version, seller message |
+
+### Order RPCs
 
 | Function                           | Status   | Type      | Purpose                                     |
 | :--------------------------------- | :------- | :-------- | :------------------------------------------ |
@@ -173,15 +335,15 @@ sequenceDiagram
 
 ---
 
-## Current Implementation Notes
+## Implementation Notes
 
 - Orders are created via `create-order` edge function invoked from
-  `OrderSheet.tsx`
+  `OrderSheet.tsx` (sell posts) or via `accept_offer_atomic` RPC (buy posts)
 - The `OrderSheet` shows a "Buy Points & Submit" flow when buyer has
   insufficient balance
 - Points are escrowed immediately at order creation to prevent double-spending
-- All order lifecycle transitions use SQL RPC functions with `SECURITY DEFINER`
-  and `FOR UPDATE` row-level locking to prevent race conditions
+- All lifecycle transitions use SQL RPC functions with `SECURITY DEFINER` and
+  `FOR UPDATE` row-level locking to prevent race conditions
 - Optimistic locking via `version` column prevents stale accept/reject when
   buyer modifies a pending order
 - System messages are auto-inserted into conversations for every state change
@@ -192,5 +354,8 @@ sequenceDiagram
   user only sees their relevant notification.
 - **Cancel messages**: `cancel_order_with_message` inserts a single system
   message (visible to all) with `sender_id = null` and `type = 'system'`
-- `orders` table is added to `supabase_realtime` publication with
+- `orders` and `offers` tables are added to `supabase_realtime` publication with
   `REPLICA IDENTITY FULL` for live UI updates
+- **Partial quantity acceptance**: When accepting an offer, the buyer can
+  request a quantity less than or equal to the offer quantity. Price is
+  calculated using the buyer's requested quantity × points per unit.

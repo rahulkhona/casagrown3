@@ -17,6 +17,7 @@ flows:
   - flows/create-post.yaml
   - flows/order-flow.yaml
   - flows/orders.yaml
+  - flows/offers.yaml
   - flows/chat.yaml
   - flows/post-management.yaml
   - flows/delegation.yaml

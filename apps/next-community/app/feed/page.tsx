@@ -109,6 +109,10 @@ export default function FeedPage() {
     router.push('/orders')
   }
 
+  const handleNavigateToOffers = () => {
+    router.push('/offers')
+  }
+
 
   return (
     <FeedScreen
@@ -126,6 +130,7 @@ export default function FeedPage() {
       onNavigateToChat={handleNavigateToChat}
       onNavigateToChats={handleNavigateToChats}
       onNavigateToOrders={handleNavigateToOrders}
+      onNavigateToOffers={handleNavigateToOffers}
     />
   )
 }

@@ -10,6 +10,11 @@ appId: dev.casagrown.community
 - runFlow: ../utils/login.yaml
 
 # Wait for feed to load
+# Wait for feed to load and filter to For Sale (stability)
+- extendedWaitUntil:
+          visible: "For Sale"
+          timeout: 15000
+- tapOn: "For Sale"
 - extendedWaitUntil:
           visible: "Tomatoes"
           timeout: 15000

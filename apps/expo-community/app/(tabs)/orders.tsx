@@ -11,7 +11,7 @@ export default function OrdersTab() {
   return (
     <OrdersScreen
       currentUserId={user.id}
-      onClose={() => router.push('/(tabs)/feed')}
+      onClose={() => router.back()}
       onOpenChat={(postId, otherUserId) =>
         router.push(`/(tabs)/chat?postId=${postId}&otherUserId=${otherUserId}&from=orders`)
       }

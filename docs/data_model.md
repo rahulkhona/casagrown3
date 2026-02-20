@@ -37,8 +37,18 @@ and any associated triggers/functions/RLS policies.
 > `20260217000010_orders_realtime` → `20260217000011_order_messages_with_units`
 > → `20260217003100_add_unit_to_order_messages` →
 > `20260218000000_add_buy_quantity_unit` →
+> `20260218000001_order_conversation_param` →
 > `20260219000001_role_specific_messages` →
-> `20260219000002_cancel_order_system_message`
+> `20260219000002_cancel_order_system_message` →
+> `20260219099000_offer_status_withdrawn` → `20260219100000_offers_extended` →
+> `20260219100001_create_offer_atomic` → `20260219100002_accept_offer_atomic` →
+> `20260219100003_reject_offer_rpc` → `20260219100004_withdraw_offer_rpc` →
+> `20260219100005_modify_offer_rpc` → `20260219999000_storage_buckets_fix` →
+> `20260220000000_storage_rls_policies` →
+> `20260220100000_offer_message_from_seller` →
+> `20260220100001_buy_details_unique_postid` →
+> `20260220200000_offer_delivery_dates` →
+> `20260220300000_accept_offer_buyer_qty`
 
 ## Extensions
 
@@ -84,7 +94,8 @@ create type sales_category as enum (
 
 create type unit_of_measure as enum ('piece', 'dozen', 'box', 'bag');
 create type media_asset_type as enum ('video', 'image');
-create type offer_status as enum ('pending', 'accepted', 'rejected');
+create type offer_status as enum ('pending', 'accepted', 'rejected', 'withdrawn');
+-- Updated by 20260219099000: added 'withdrawn'
 -- Updated by 20260215090000: added 'pending' (before 'accepted'), 'delivered', 'cancelled'
 create type order_status as enum ('pending', 'accepted', 'delivered', 'disputed', 'cancelled');
 create type rating_score as enum ('1', '2', '3', '4', '5');
@@ -905,26 +916,73 @@ ALTER TABLE public.chat_messages REPLICA IDENTITY FULL;
 
 ### `offers`
 
+The offers table stores seller-initiated offers on buy posts. Extended by
+migrations `20260219100000_offers_extended`,
+`20260220200000_offer_delivery_dates`.
+
+| Column                            | Type           | Description                                                                  |
+| :-------------------------------- | :------------- | :--------------------------------------------------------------------------- |
+| `id`                              | `uuid`         | Primary Key.                                                                 |
+| `conversation_id`                 | `uuid`         | FK to `conversations(id)`.                                                   |
+| `created_by`                      | `uuid`         | FK to `profiles(id)`. The seller who created the offer.                      |
+| `post_id`                         | `uuid`         | FK to `posts(id)`. The `want_to_buy` post this offer responds to.            |
+| `quantity`                        | `numeric`      | Offered quantity.                                                            |
+| `points_per_unit`                 | `integer`      | Price per unit in points.                                                    |
+| `category`                        | `text`         | Product category (mirrors `sales_category` enum values).                     |
+| `product`                         | `text`         | Product name.                                                                |
+| `unit`                            | `text`         | Unit of measure (e.g., 'box', 'dozen'). Optional.                            |
+| `delivery_date`                   | `date`         | Primary delivery date (first element of `delivery_dates`).                   |
+| `delivery_dates`                  | `date[]`       | Array of available delivery dates. Added by `20260220200000`.                |
+| `message`                         | `text`         | Optional message from seller to buyer.                                       |
+| `seller_post_id`                  | `uuid`         | FK to `posts(id)`. Optional link to seller's own sell post.                  |
+| `media`                           | `jsonb`        | Media attachments (images/videos). Default `'[]'`.                           |
+| `community_h3_index`              | `text`         | Community where the offer originates. Added by `20260220200000`.             |
+| `additional_community_h3_indices` | `text[]`       | Additional communities for the offer. Added by `20260220200000`.             |
+| `status`                          | `offer_status` | Default `'pending'`. Values: `pending`, `accepted`, `rejected`, `withdrawn`. |
+| `version`                         | `integer`      | Optimistic locking version. Default `1`. Bumped on modify.                   |
+| `created_at`                      | `timestamptz`  | Default `now()`.                                                             |
+| `updated_at`                      | `timestamptz`  | Default `now()`. Updated on modify/accept/reject/withdraw.                   |
+
 ```sql
 create table offers (
   id uuid primary key default gen_random_uuid(),
   conversation_id uuid not null references conversations(id) on delete cascade,
   created_by uuid not null references profiles(id),
+  post_id uuid references posts(id) on delete cascade,           -- 20260219100000
   quantity numeric not null,
   points_per_unit integer not null,
+  category text,                                                  -- 20260219100000
+  product text,                                                   -- 20260219100000
+  unit text,                                                      -- 20260219100000
+  delivery_date date,                                             -- 20260219100000
+  delivery_dates date[] default '{}',                             -- 20260220200000
+  message text,                                                   -- 20260219100000
+  seller_post_id uuid references posts(id),                       -- 20260219100000
+  media jsonb default '[]'::jsonb,                                -- 20260219100000
+  community_h3_index text,                                        -- 20260220200000
+  additional_community_h3_indices text[] default '{}',             -- 20260220200000
   status offer_status not null default 'pending',
-  created_at timestamptz default now()
+  version integer not null default 1,                             -- 20260219100000
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()                            -- 20260219100000
 );
 ```
 
-**RLS Policies** (`20260207070000_shared_tables_rls`): Access inherited from
-conversation membership.
+**Realtime Configuration** (`20260219100000_offers_extended`):
+
+```sql
+ALTER PUBLICATION supabase_realtime ADD TABLE public.offers;
+```
+
+**RLS Policies** (`20260207070000_shared_tables_rls`, updated by
+`20260219100000`):
 
 | Policy                                       | Operation | Rule                                              |
 | :------------------------------------------- | :-------- | :------------------------------------------------ |
 | Conversation parties can read offers         | `SELECT`  | `conversation_id` in user's conversations         |
 | Conversation parties can create offers       | `INSERT`  | `created_by = auth.uid()` AND conversation member |
-| Conversation parties can update offer status | `UPDATE`  | Conversation member                               |
+| Conversation parties can update offer status | `UPDATE`  | Conversation member (original policy)             |
+| Conversation parties can update offers       | `UPDATE`  | Conversation member (added by `20260219100000`)   |
 
 ### `orders`
 
@@ -2256,6 +2314,110 @@ locking (`version` column) and escrow-based point flows. All RPCs use
 6. Insert system message with unit ("Order modified: 3 boxes Tomatoes for 300
    points…")
 7. Return `{ success: true, newVersion, newTotal }`
+
+---
+
+## Offer RPCs
+
+All offer RPCs were added in migrations `20260219100001` – `20260219100005`,
+with updates in `20260220100000` (seller message) and `20260220300000` (buyer
+quantity support).
+
+### `create_offer_atomic`
+
+**Migration**: `20260219100001_create_offer_atomic`, updated by
+`20260220100000_offer_message_from_seller`,
+`20260220200000_offer_delivery_dates`
+
+**Signature**:
+`create_offer_atomic(p_seller_id uuid, p_buyer_id uuid, p_post_id uuid, p_quantity integer, p_points_per_unit integer, p_category text, p_product text, p_unit text, p_delivery_date date, p_message text, p_seller_post_id uuid, p_media jsonb, p_delivery_dates date[], p_community_h3_index text, p_additional_community_h3_indices text[]) → jsonb`
+
+**Logic**:
+
+1. Prevent self-offers (`p_seller_id != p_buyer_id`)
+2. Resolve delivery dates: prefer `p_delivery_dates` array, fall back to
+   `ARRAY[p_delivery_date]`
+3. Create or reuse conversation for `(post_id, buyer_id, seller_id)`
+4. Check no pending offer or active order (`pending`/`accepted`/`delivered`)
+   exists for this conversation
+5. Insert offer with all columns including `delivery_dates`,
+   `community_h3_index`, `additional_community_h3_indices`
+6. Insert seller chat message (type=`text`, from seller — not system)
+7. Return `{ offerId, conversationId }`
+
+### `accept_offer_atomic`
+
+**Migration**: `20260219100002_accept_offer_atomic`, updated by
+`20260220300000_accept_offer_buyer_qty`
+
+**Signature**:
+`accept_offer_atomic(p_offer_id uuid, p_buyer_id uuid, p_delivery_address text, p_delivery_instructions text, p_quantity numeric) → jsonb`
+
+**Logic**:
+
+1. Lock and fetch offer (`FOR UPDATE`), verify `status = 'pending'`
+2. Fetch conversation, verify `p_buyer_id = conversation.buyer_id`
+3. Validate `p_delivery_address` is not empty
+4. Use buyer's requested quantity:
+   `v_quantity := coalesce(p_quantity, offer.quantity)`
+5. Validate `v_quantity > 0` and `v_quantity <= offer.quantity`
+6. Calculate total price: `v_total_price := v_quantity × offer.points_per_unit`
+7. Verify buyer's point balance ≥ `v_total_price`
+8. Update offer: `status → 'accepted'`, `updated_at → now()`
+9. Insert order (status=`pending`) with buyer's quantity and calculated price
+10. Escrow buyer's points: `point_ledger` INSERT (type=`escrow`, −total_price)
+11. Update buyer's balance: `profiles.current_points -= v_total_price`
+12. Insert buyer chat message (type=`text`, "✅ Offer accepted! Order placed:
+    ...")
+13. Return `{ orderId, conversationId, newBalance }`
+
+### `reject_offer_with_message`
+
+**Migration**: `20260219100003_reject_offer_rpc`
+
+**Signature**:
+`reject_offer_with_message(p_offer_id uuid, p_buyer_id uuid) → jsonb`
+
+**Logic**:
+
+1. Lock offer (`FOR UPDATE`), verify `status = 'pending'`
+2. Verify caller is the buyer (`conversation.buyer_id = p_buyer_id`)
+3. Update offer: `status → 'rejected'`, `updated_at → now()`
+4. Insert system message: "Offer rejected: X unit product at Y pts/unit."
+5. Return `{ success: true }`
+
+### `withdraw_offer_with_message`
+
+**Migration**: `20260219100004_withdraw_offer_rpc`
+
+**Signature**:
+`withdraw_offer_with_message(p_offer_id uuid, p_seller_id uuid) → jsonb`
+
+**Logic**:
+
+1. Lock offer (`FOR UPDATE`), verify `status = 'pending'`
+2. Verify caller is the creator (`offer.created_by = p_seller_id`)
+3. Update offer: `status → 'withdrawn'`, `updated_at → now()`
+4. Insert system message: "Offer withdrawn: X unit product."
+5. Return `{ success: true }`
+
+### `modify_offer_with_message`
+
+**Migration**: `20260219100005_modify_offer_rpc`
+
+**Signature**:
+`modify_offer_with_message(p_offer_id uuid, p_seller_id uuid, p_quantity integer, p_points_per_unit integer, p_delivery_date date, p_message text, p_media jsonb, p_delivery_dates date[], p_community_h3_index text, p_additional_community_h3_indices text[]) → jsonb`
+
+**Logic**:
+
+1. Lock offer (`FOR UPDATE`), verify `status = 'pending'`
+2. Verify caller is the creator (`offer.created_by = p_seller_id`)
+3. Resolve delivery dates (prefer array, fall back to single date)
+4. Track field changes for system message (qty, price, delivery, media)
+5. Update offer with new values + `version += 1` + `updated_at → now()`
+6. Insert seller chat message (type=`text`): "✏️ Offer modified: {changes}. New
+   total: X pts."
+7. Return `{ success: true, newVersion }`
 
 ---
 

@@ -19,6 +19,8 @@ import { Platform, Image, TouchableOpacity, Alert, TextInput, FlatList } from 'r
 import { InviteModal } from './InviteModal'
 import { FeedPostCard } from './FeedPostCard'
 import { OrderSheet } from './OrderSheet'
+import { OfferSheet } from './OfferSheet'
+import type { OfferFormData } from './OfferSheet'
 import { FeedNavigation } from './FeedNavigation'
 import type { OrderFormData } from './OrderSheet'
 import { getCommunityFeedPosts, togglePostLike, flagPost } from './feed-service'
@@ -27,6 +29,8 @@ import { getCachedFeed, setCachedFeed } from './feed-cache'
 import { getUnreadChatCount } from '../chat/chat-service'
 import { usePointsBalance } from '../../hooks/usePointsBalance'
 import { supabase } from '../auth/auth-hook'
+import { createOffer } from '../offers/offer-service'
+import { uploadPostMediaBatch } from '../create-post/media-upload'
 import { filterPosts, type PostTypeFilter } from './feed-filter'
 
 // Types for invite rewards
@@ -68,6 +72,8 @@ interface FeedScreenProps {
   onNavigateToChats?: () => void
   /** Navigate to orders screen */
   onNavigateToOrders?: () => void
+  /** Navigate to offers screen */
+  onNavigateToOffers?: () => void
 }
 
 // Navigation item keys - labels are localized via t()
@@ -76,13 +82,14 @@ const NAV_KEYS_BASE = [
   { key: 'feed', active: true, badge: 0 },
   { key: 'chats', badge: 0 },
   { key: 'orders', badge: 0 },
+  { key: 'offers', badge: 0 },
   { key: 'myPosts', badge: 0 },
   { key: 'redeem', badge: 0 },
   { key: 'transferPoints', badge: 0 },
   { key: 'delegateSales', badge: 0 },
 ]
 
-export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDelegate, onNavigateToMyPosts, logoSrc, referralCode, inviteRewards, userAvatarUrl: rawAvatarUrl, userDisplayName, communityH3Index, userId, highlightPostId, onNavigateToChat, onNavigateToChats, onNavigateToOrders }: FeedScreenProps) {
+export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDelegate, onNavigateToMyPosts, logoSrc, referralCode, inviteRewards, userAvatarUrl: rawAvatarUrl, userDisplayName, communityH3Index, userId, highlightPostId, onNavigateToChat, onNavigateToChats, onNavigateToOrders, onNavigateToOffers }: FeedScreenProps) {
   const userAvatarUrl = normalizeStorageUrl(rawAvatarUrl)
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
@@ -115,6 +122,9 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
 
   // Order modal state
   const [orderPost, setOrderPost] = useState<FeedPost | null>(null)
+
+  // Offer modal state (for buy posts)
+  const [offerPost, setOfferPost] = useState<FeedPost | null>(null)
 
   // User data — load real balance from point_ledger
   const { balance: userPoints, refetch: refetchBalance } = usePointsBalance(userId)
@@ -152,7 +162,8 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
     else if (key === 'myPosts') onNavigateToMyPosts?.()
     else if (key === 'chats') onNavigateToChats?.()
     else if (key === 'orders') onNavigateToOrders?.()
-  }, [onNavigateToDelegate, onNavigateToMyPosts, onNavigateToChats, onNavigateToOrders])
+    else if (key === 'offers') onNavigateToOffers?.()
+  }, [onNavigateToDelegate, onNavigateToMyPosts, onNavigateToChats, onNavigateToOrders, onNavigateToOffers])
 
   // ── Full fetch: download all posts and update cache ──
   const fullFetch = useCallback(async (showSpinner: boolean) => {
@@ -278,6 +289,11 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
     if (post) setOrderPost(post)
   }, [])
 
+  const handleOpenOffer = useCallback((postId: string) => {
+    const post = postsRef.current.find(p => p.id === postId)
+    if (post) setOfferPost(post)
+  }, [])
+
   const handleOrderSubmit = useCallback(async (data: OrderFormData) => {
     if (!userId || !orderPost) return
 
@@ -361,13 +377,14 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
           currentUserName={userDisplayName}
           onLikeToggle={handleLikeToggle}
           onOrder={handleOpenOrder}
+          onOffer={handleOpenOffer}
           onChat={onNavigateToChat}
           onFlag={handleOpenFlag}
           t={t}
         />
       </YStack>
     </YStack>
-  ), [highlightPostId, userId, userDisplayName, handleLikeToggle, handleOpenOrder, onNavigateToChat, handleOpenFlag, t, isDesktop])
+  ), [highlightPostId, userId, userDisplayName, handleLikeToggle, handleOpenOrder, handleOpenOffer, onNavigateToChat, handleOpenFlag, t, isDesktop])
 
   const keyExtractor = useCallback((item: FeedPost) => item.id, [])
 
@@ -924,6 +941,56 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
         onClose={() => setOrderPost(null)}
         onSubmit={handleOrderSubmit}
         onBalanceChanged={refetchBalance}
+        t={t}
+      />
+
+      {/* ─── Offer Modal ─── */}
+      <OfferSheet
+        visible={offerPost !== null}
+        buyPost={offerPost}
+        onClose={() => setOfferPost(null)}
+        onSubmit={async (data: OfferFormData) => {
+          if (!userId || !offerPost) return
+          try {
+            // Upload media assets to storage first (if any)
+            let media: Array<{ storage_path: string; media_type: 'image' | 'video' }> | undefined
+            if (data.mediaAssets && data.mediaAssets.length > 0) {
+              // uploadPostMediaBatch is statically imported (dynamic import causes Metro bundle errors)
+              const uploaded = await uploadPostMediaBatch(userId, data.mediaAssets.map(a => ({
+                uri: a.uri,
+                type: a.type,
+              })))
+              if (uploaded.length > 0) {
+                media = uploaded.map(u => ({
+                  storage_path: u.storagePath,
+                  media_type: u.mediaType,
+                }))
+              }
+            }
+
+            // createOffer is statically imported (dynamic import causes Metro bundle errors)
+            await createOffer({
+              postId: offerPost.id,
+              buyerId: offerPost.author_id,
+              quantity: data.quantity,
+              pointsPerUnit: data.pointsPerUnit,
+              category: data.category,
+              product: data.product,
+              unit: data.unit,
+              deliveryDates: data.deliveryDates,
+              deliveryDate: data.deliveryDates?.[0] || undefined,
+              message: data.description || undefined,
+              sellerPostId: data.sellerPostId,
+              media,
+              communityH3Index: data.communityH3Index,
+              additionalCommunityH3Indices: data.additionalCommunityH3Indices,
+            })
+            setOfferPost(null)
+            Alert.alert('Offer Sent', 'Your offer has been sent to the buyer!')
+          } catch (err: unknown) {
+            Alert.alert('Offer Failed', (err as Error).message || 'Failed to send offer')
+          }
+        }}
         t={t}
       />
     </YStack>

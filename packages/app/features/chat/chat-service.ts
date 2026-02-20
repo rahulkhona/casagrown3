@@ -58,7 +58,11 @@ export interface ConversationPost {
         category: string;
         produce_names: string[];
         need_by_date: string | null;
+        desired_quantity: number | null;
+        desired_unit: string | null;
     } | null;
+    /** Post-level delivery dates (available for both buy and sell posts) */
+    delivery_dates: string[];
     media: Array<{
         storage_path: string;
         media_type: string;
@@ -113,6 +117,8 @@ interface ConversationQueryRow {
                     category: string;
                     produce_names: string[];
                     need_by_date: string | null;
+                    desired_quantity: number | null;
+                    desired_unit: string | null;
                 }
             >
             | null;
@@ -282,7 +288,9 @@ export async function getConversationWithDetails(
         want_to_buy_details (
           category,
           produce_names,
-          need_by_date
+          need_by_date,
+          desired_quantity,
+          desired_unit
         ),
         post_media (
           media_id,
@@ -338,6 +346,9 @@ export async function getConversationWithDetails(
                 }
                 : null,
             buy_details: row.post.want_to_buy_details?.[0] || null,
+            delivery_dates: (row.post.delivery_dates || []).map((
+                d: any,
+            ) => d.delivery_date).sort(),
             media: (row.post.post_media || [])
                 .sort((a, b) => (a.position || 0) - (b.position || 0))
                 .map((pm) => ({
