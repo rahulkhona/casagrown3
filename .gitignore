@@ -64,3 +64,4 @@ figma_code/
 
 # Test output artifacts
 test-results/
+playwright-report/
