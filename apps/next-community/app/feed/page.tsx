@@ -114,6 +114,10 @@ export default function FeedPage() {
   }
 
 
+  const handleNavigateToBuyPoints = () => {
+    router.push('/buy-points')
+  }
+
   return (
     <FeedScreen
       onCreatePost={handleCreatePost}
@@ -131,6 +135,7 @@ export default function FeedPage() {
       onNavigateToChats={handleNavigateToChats}
       onNavigateToOrders={handleNavigateToOrders}
       onNavigateToOffers={handleNavigateToOffers}
+      onNavigateToBuyPoints={handleNavigateToBuyPoints}
     />
   )
 }

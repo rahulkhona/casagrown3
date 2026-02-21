@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next'
 import { Search, Bell, UserPlus, Home, Plus, Filter, Leaf, Menu, X } from '@tamagui/lucide-icons'
 import { Platform, Image, TouchableOpacity, Alert, TextInput, FlatList } from 'react-native'
 import { InviteModal } from './InviteModal'
+import { PointsMenu } from '../points/PointsMenu'
 import { FeedPostCard } from './FeedPostCard'
 import { OrderSheet } from './OrderSheet'
 import { OfferSheet } from './OfferSheet'
@@ -74,6 +75,8 @@ interface FeedScreenProps {
   onNavigateToOrders?: () => void
   /** Navigate to offers screen */
   onNavigateToOffers?: () => void
+  /** Navigate to buy points screen */
+  onNavigateToBuyPoints?: () => void
 }
 
 // Navigation item keys - labels are localized via t()
@@ -87,9 +90,11 @@ const NAV_KEYS_BASE = [
   { key: 'redeem', badge: 0 },
   { key: 'transferPoints', badge: 0 },
   { key: 'delegateSales', badge: 0 },
+  { key: 'buyPoints', badge: 0 },
+  { key: 'invite', badge: 0 },
 ]
 
-export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDelegate, onNavigateToMyPosts, logoSrc, referralCode, inviteRewards, userAvatarUrl: rawAvatarUrl, userDisplayName, communityH3Index, userId, highlightPostId, onNavigateToChat, onNavigateToChats, onNavigateToOrders, onNavigateToOffers }: FeedScreenProps) {
+export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDelegate, onNavigateToMyPosts, logoSrc, referralCode, inviteRewards, userAvatarUrl: rawAvatarUrl, userDisplayName, communityH3Index, userId, highlightPostId, onNavigateToChat, onNavigateToChats, onNavigateToOrders, onNavigateToOffers, onNavigateToBuyPoints }: FeedScreenProps) {
   const userAvatarUrl = normalizeStorageUrl(rawAvatarUrl)
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
@@ -163,7 +168,8 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
     else if (key === 'chats') onNavigateToChats?.()
     else if (key === 'orders') onNavigateToOrders?.()
     else if (key === 'offers') onNavigateToOffers?.()
-  }, [onNavigateToDelegate, onNavigateToMyPosts, onNavigateToChats, onNavigateToOrders, onNavigateToOffers])
+    else if (key === 'buyPoints') onNavigateToBuyPoints?.()
+  }, [onNavigateToDelegate, onNavigateToMyPosts, onNavigateToChats, onNavigateToOrders, onNavigateToOffers, onNavigateToBuyPoints])
 
   // ── Full fetch: download all posts and update cache ──
   const fullFetch = useCallback(async (showSpinner: boolean) => {
@@ -462,52 +468,14 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
           {/* Right Actions - Based on App.tsx lines 371-466 */}
           <XStack alignItems="center" gap={isDesktop ? '$3' : '$2'}>
 
-            {/* Invite Button - Based on App.tsx lines 381-398 */}
-            {isDesktop ? (
-              <Button
-                backgroundColor={colors.green[600]}
-                paddingHorizontal="$3"
-                paddingVertical="$1.5"
-                borderRadius="$full"
-                gap="$2"
-                hoverStyle={{ backgroundColor: colors.green[700] }}
-                icon={<UserPlus size={16} color="white" />}
-                onPress={() => setInviteModalOpen(true)}
-              >
-                <Text color="white" fontSize="$3" fontWeight="500">{t('feed.header.invite')}</Text>
-              </Button>
-            ) : (
-              <TouchableOpacity
-                style={{ padding: 8, borderRadius: 999, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
-                activeOpacity={0.6}
-                onPress={() => {
-                  setInviteModalOpen(true)
-                }}
-              >
-                <UserPlus size={20} color={colors.green[600]} />
-              </TouchableOpacity>
-            )}
 
-            {/* Points Display - Based on App.tsx lines 400-431 */}
-            <TouchableOpacity
-              style={{
-                paddingHorizontal: 12,
-                paddingVertical: 6,
-                backgroundColor: colors.green[50],
-                borderRadius: 999,
-                flexDirection: 'row',
-                gap: 4,
-                alignItems: 'center',
-                minHeight: 44,
-                justifyContent: 'center',
-              }}
-              activeOpacity={0.6}
-            >
-              <Text fontWeight="600" color={colors.green[700]}>{userPoints}</Text>
-              {isDesktop && (
-                <Text fontSize="$3" color={colors.green[700]}>{t('feed.header.points')}</Text>
-              )}
-            </TouchableOpacity>
+            {/* Points Sub-Menu */}
+            <PointsMenu
+              userPoints={userPoints}
+              isDesktop={isDesktop}
+              onNavigateToBuyPoints={onNavigateToBuyPoints}
+              onNavigateToRedeemPoints={() => handleNavPress('redeem')}
+            />
 
             {/* Notifications - Based on App.tsx lines 433-444 */}
             <XStack position="relative">
@@ -584,9 +552,16 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
           <FeedNavigation
             navKeys={NAV_KEYS}
             variant="mobile"
+            userPoints={userPoints}
             onNavigate={(key) => {
               setMobileMenuOpen(false)
-              handleNavPress(key)
+              if (key === 'invite') {
+                setInviteModalOpen(true)
+              } else if (key === 'buyPoints') {
+                onNavigateToBuyPoints?.()
+              } else {
+                handleNavPress(key)
+              }
             }}
           />
         )}

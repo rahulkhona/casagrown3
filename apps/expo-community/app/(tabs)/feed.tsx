@@ -85,6 +85,7 @@ export default function FeedTab() {
       onNavigateToChats={handleNavigateToChats}
       onNavigateToOrders={handleNavigateToOrders}
       onNavigateToOffers={handleNavigateToOffers}
+      onNavigateToBuyPoints={() => router.push('/(tabs)/buy-points' as any)}
       userId={user?.id}
     />
   )

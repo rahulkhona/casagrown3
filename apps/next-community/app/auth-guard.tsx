@@ -10,7 +10,7 @@ import { colors } from '@casagrown/app/design-tokens'
  * Routes that do NOT require authentication.
  * All other routes redirect to /login if the user is not logged in.
  */
-const PUBLIC_ROUTES = ['/', '/login', '/login-success', '/logout']
+const PUBLIC_ROUTES = ['/', '/login', '/login-success', '/logout', '/buy-points-mockup']
 
 /** Route prefixes that are public (for dynamic routes like /invite/[code]) */
 const PUBLIC_PREFIXES = ['/invite/', '/delegate-invite/', '/post/']

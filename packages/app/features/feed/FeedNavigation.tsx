@@ -20,6 +20,7 @@ interface FeedNavigationProps {
   navKeys: NavItem[]
   variant: 'desktop' | 'mobile'
   onNavigate: (key: string) => void
+  userPoints?: number
 }
 
 /** Badge pill shown on nav items with a count > 0 */
@@ -49,7 +50,7 @@ function NavBadge({ count, size }: { count: number; size: 'sm' | 'md' }) {
   )
 }
 
-export function FeedNavigation({ navKeys, variant, onNavigate }: FeedNavigationProps) {
+export function FeedNavigation({ navKeys, variant, onNavigate, userPoints }: FeedNavigationProps) {
   const { t } = useTranslation()
 
   if (variant === 'desktop') {
@@ -88,6 +89,23 @@ export function FeedNavigation({ navKeys, variant, onNavigate }: FeedNavigationP
       paddingHorizontal="$4"
       paddingVertical="$2"
     >
+      {userPoints !== undefined && (
+        <Button
+          unstyled
+          paddingVertical="$3"
+          paddingHorizontal="$2"
+          borderBottomWidth={1}
+          borderBottomColor={colors.gray[100]}
+          flexDirection="row"
+          justifyContent="space-between"
+          alignItems="center"
+          onPress={() => onNavigate('buyPoints')}
+        >
+          <Text fontSize="$4" color={colors.green[700]} fontWeight="700">
+            {t('feed.header.points') || 'Points'}: {userPoints}
+          </Text>
+        </Button>
+      )}
       {navKeys.map((item) => (
         <Button
           key={item.key}

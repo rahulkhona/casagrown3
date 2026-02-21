@@ -303,9 +303,11 @@
       "orders": "Orders",
       "offers": "Offers",
       "myPosts": "My Posts",
+      "buyPoints": "Buy Points",
       "redeem": "Redeem",
       "transferPoints": "Transfer Points",
-      "delegateSales": "Delegate Sales"
+      "delegateSales": "Delegate Sales",
+      "invite": "Invite Friends"
     },
     "header": {
       "invite": "Invite",

@@ -1,0 +1,40 @@
+appId: com.casagrown.universal.community
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+- runFlow:
+    when:
+      visible: "Login"
+    file: login.yaml
+- assertVisible: "Feed"
+
+# Open Mobile Hamburger Menu
+- tapOn:
+    id: "Menu"
+    optional: true
+
+# Top header points should be visible in drawer or directly
+- assertVisible: ".*[Pp]oints.*"
+
+# Open the Buy Points screen
+- tapOn: ".*Buy Points.*"
+- assertVisible: "Add Points to Your Loop"
+
+# Verify packages exist
+- assertVisible: "1000 Points"
+- assertVisible: "2500 Points"
+
+# Select a package
+- tapOn: "1000 Points"
+
+# Verify order summary
+- assertVisible: "Order Summary"
+- assertVisible: "$10.00"
+
+# Tap Purchase
+- tapOn: "Purchase"
+
+# Note: In Maestro, interacting with system-level Apple Pay prompts is out of bound and flaky.
+# We stop the flow logically before fully completing an external intent.
+- assertVisible: "Processing..."

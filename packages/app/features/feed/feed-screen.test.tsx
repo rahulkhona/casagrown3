@@ -104,6 +104,14 @@ jest.mock('./FeedPostCard', () => ({
   },
 }))
 
+// Mock PointsMenu
+jest.mock('../points/PointsMenu', () => ({
+  PointsMenu: ({ userPoints }) => {
+    const { Text } = require('react-native')
+    return <Text>PointsMenuMock: {userPoints}</Text>
+  }
+}))
+
 // Mock safe-area-context
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
@@ -260,15 +268,14 @@ describe('FeedScreen', () => {
     expect(mockOnCreatePost).toHaveBeenCalled()
   })
 
-  it('renders Invite button', () => {
+  it('renders Invite button in navigation', () => {
     render(<FeedScreen />)
-    expect(screen.getByText('feed.header.invite')).toBeTruthy()
+    expect(screen.getByText('feed.nav.invite')).toBeTruthy()
   })
 
-  it('renders points display', () => {
+  it('renders points display from mocked PointsMenu', () => {
     render(<FeedScreen />)
-    expect(screen.getByText('50')).toBeTruthy()
-    expect(screen.getByText('feed.header.points')).toBeTruthy()
+    expect(screen.getByText('PointsMenuMock: 50')).toBeTruthy()
   })
 
   it('calls onNavigateToProfile when profile avatar is pressed', () => {

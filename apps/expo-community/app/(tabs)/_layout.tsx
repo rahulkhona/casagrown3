@@ -60,6 +60,12 @@ export default function TabLayout() {
           headerShown: false,
         }} 
       />
+      <Stack.Screen 
+        name="buy-points" 
+        options={{ 
+          headerShown: false,
+        }} 
+      />
     </Stack>
   )
 }

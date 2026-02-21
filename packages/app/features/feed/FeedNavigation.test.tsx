@@ -99,6 +99,14 @@ describe('FeedNavigation', () => {
     expect(onNavigate).toHaveBeenCalledWith('chats')
   })
 
+  it('renders userPoints header in mobile variant when provided', () => {
+    render(
+      <FeedNavigation navKeys={NAV_ITEMS} variant="mobile" onNavigate={jest.fn()} userPoints={250} />
+    )
+    // t('feed.header.points') normally renders as the key since mocked, so we search for "feed.header.points: 250"
+    expect(screen.getByText('feed.header.points: 250')).toBeTruthy()
+  })
+
   // ─── Edge cases ────────────────────────────────────
 
   it('does not render any badges when all items have badge 0', () => {
