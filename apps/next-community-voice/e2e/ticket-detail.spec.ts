@@ -17,10 +17,8 @@ test.describe("Ticket Detail", () => {
         });
 
         // Get the title of the first ticket to verify later
-        const firstTicket = page.locator('div[tabindex="0"], a').filter({
-            hasText: /Vote/i,
-        }).first();
-        await expect(firstTicket).toBeVisible();
+        const firstTicket = page.getByTestId("ticket-card-title").first();
+        await expect(firstTicket).toBeVisible({ timeout: 20000 });
 
         // Click the first ticket
         await firstTicket.click();
@@ -44,9 +42,7 @@ test.describe("Ticket Detail", () => {
         });
 
         // Navigate to the first ticket. If seed data has official comments, it's usually the first.
-        const firstTicket = page.locator('div[tabindex="0"], a').filter({
-            hasText: /Vote/i,
-        }).first();
+        const firstTicket = page.getByTestId("ticket-card-title").first();
         await firstTicket.click();
         await page.waitForTimeout(2000);
 
@@ -61,9 +57,7 @@ test.describe("Ticket Detail", () => {
             timeout: 30_000,
         });
 
-        const firstTicket = page.locator('div[tabindex="0"], a').filter({
-            hasText: /Vote/i,
-        }).first();
+        const firstTicket = page.getByTestId("ticket-card-title").first();
         await firstTicket.click();
         await page.waitForTimeout(2000);
 
@@ -82,9 +76,7 @@ test.describe("Ticket Detail", () => {
             timeout: 30_000,
         });
 
-        const firstTicket = page.locator('div[tabindex="0"], a').filter({
-            hasText: /Vote/i,
-        }).first();
+        const firstTicket = page.getByTestId("ticket-card-title").first();
         await firstTicket.click();
         await page.waitForTimeout(2000);
 

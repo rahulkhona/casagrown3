@@ -566,6 +566,7 @@ export function FeedbackBoard({ isStaff = false, hideHeader = false }: { isStaff
                       </XStack>
                       
                       <Text 
+                        testID="ticket-card-title"
                         fontSize="$5" fontWeight="600" numberOfLines={1}
                         cursor="pointer"
                         hoverStyle={{ color: colors.green[700] }}
