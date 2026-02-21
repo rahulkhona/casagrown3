@@ -1,1 +1,23 @@
-npx lint-staged
+#!/bin/sh
+
+# Pre-commit hook: Run unit tests before committing
+# Ensures service logic is not broken across apps.
+
+echo "🔍 Running pre-commit checks..."
+
+# 1. Run Community Voice unit tests (vitest, ~300ms)
+echo "📋 Running Community Voice unit tests..."
+cd apps/next-community-voice && npx vitest run --reporter=dot 2>&1 || {
+    echo "❌ Community Voice unit tests failed — commit aborted."
+    exit 1
+}
+cd ../..
+
+# 2. Run Community App unit tests (jest, ~10s)
+echo "📋 Running Community App unit tests..."
+yarn workspace @casagrown/app jest --passWithNoTests --bail 2>&1 || {
+    echo "❌ Community App unit tests failed — commit aborted."
+    exit 1
+}
+
+echo "✅ All pre-commit checks passed!"

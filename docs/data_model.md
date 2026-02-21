@@ -48,7 +48,7 @@ and any associated triggers/functions/RLS policies.
 > `20260220100000_offer_message_from_seller` →
 > `20260220100001_buy_details_unique_postid` →
 > `20260220200000_offer_delivery_dates` →
-> `20260220300000_accept_offer_buyer_qty`
+> `20260220300000_accept_offer_buyer_qty` → `20260220400006_feedback_flags`
 
 ## Extensions
 
@@ -1430,6 +1430,43 @@ create table feedback_comments (
   created_at timestamptz default now()
 );
 ```
+
+### `feedback_flags`
+
+Content flagging table — community users can flag offensive/inappropriate
+content. Staff can filter flagged tickets and moderate (dismiss flags or delete
+tickets).
+
+**Migration**: `20260220400006_feedback_flags.sql`
+
+| Column        | Type          | Description                                  |
+| :------------ | :------------ | :------------------------------------------- |
+| `id`          | `uuid`        | Primary Key.                                 |
+| `feedback_id` | `uuid`        | FK to `user_feedback(id)` on delete cascade. |
+| `user_id`     | `uuid`        | FK to `auth.users(id)` on delete cascade.    |
+| `reason`      | `text`        | Optional reason for flagging.                |
+| `created_at`  | `timestamptz` | Default `now()`.                             |
+
+**Unique**: `(feedback_id, user_id)` — one flag per user per ticket.
+
+```sql
+create table feedback_flags (
+  id uuid primary key default gen_random_uuid(),
+  feedback_id uuid not null references user_feedback(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  reason text,
+  created_at timestamptz not null default now(),
+  unique(feedback_id, user_id)
+);
+```
+
+**RLS Policies**:
+
+| Policy                                 | Operation | Rule                                           |
+| :------------------------------------- | :-------- | :--------------------------------------------- |
+| Users can see own flags, staff see all | `SELECT`  | `user_id = auth.uid() OR is_staff(auth.uid())` |
+| Authenticated users can flag content   | `INSERT`  | `user_id = auth.uid()`                         |
+| Users can unflag own, staff can delete | `DELETE`  | `user_id = auth.uid() OR is_staff(auth.uid())` |
 
 ---
 

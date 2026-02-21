@@ -15695,6 +15695,36 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"next-community-voice@workspace:apps/next-community-voice":
+  version: 0.0.0-use.local
+  resolution: "next-community-voice@workspace:apps/next-community-voice"
+  dependencies:
+    "@casagrown/app": "npm:*"
+    "@playwright/test": "npm:^1.57.0"
+    "@tailwindcss/postcss": "npm:^4.1.18"
+    "@tamagui/config": "npm:^2.0.0-rc.0"
+    "@tamagui/next-plugin": "npm:^2.0.0-rc.0"
+    "@tamagui/next-theme": "npm:2.0.0-rc.13"
+    "@types/node": "npm:^20.14.1"
+    autoprefixer: "npm:^10.4.24"
+    lucide-react: "npm:^0.563.0"
+    next: "npm:16.1.1"
+    next-compose-plugins: "npm:^2.2.1"
+    next-transpile-modules: "npm:^10.0.1"
+    postcss: "npm:^8.5.6"
+    raf: "npm:^3.4.1"
+    react: "npm:19.0.0"
+    react-dom: "npm:19.0.0"
+    react-native: "npm:0.79.2"
+    react-native-web: "npm:^0.21.2"
+    tailwindcss: "npm:^4.1.18"
+    tamagui: "npm:^2.0.0-rc.0"
+    tree-kill: "npm:^1.2.2"
+    vercel: "npm:latest"
+    vitest: "npm:^2.1.1"
+  languageName: unknown
+  linkType: soft
+
 "next-community@workspace:apps/next-community":
   version: 0.0.0-use.local
   resolution: "next-community@workspace:apps/next-community"
