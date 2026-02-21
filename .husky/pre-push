@@ -1,15 +1,150 @@
 #!/bin/sh
 
-# Pre-push hook: Run full test suite before pushing
-# Ensures nothing is broken before code reaches the remote.
+# ═══════════════════════════════════════════════════════════════════
+# Pre-push hook — Full E2E test suite
+# Starts/stops dev servers, simulators as needed, runs all tests.
+# ═══════════════════════════════════════════════════════════════════
+
+set -e
+
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+cd "$ROOT_DIR"
+
+# Track PIDs so we can clean up on exit
+PIDS_TO_KILL=""
+SUPABASE_STARTED_BY_US=false
+
+cleanup() {
+    echo ""
+    echo "🧹 Cleaning up..."
+    for pid in $PIDS_TO_KILL; do
+        kill "$pid" 2>/dev/null && echo "   Stopped background process $pid"
+    done
+
+    if [ "$SUPABASE_STARTED_BY_US" = true ]; then
+        echo "   Stopping Supabase..."
+        supabase stop 2>/dev/null || true
+    fi
+    echo "🧹 Cleanup complete."
+}
+trap cleanup EXIT
+
+# ─── Helpers ──────────────────────────────────────────────────────
+
+wait_for_port() {
+    local port=$1
+    local label=$2
+    local timeout=${3:-60}
+    local elapsed=0
+    echo "   Waiting for $label on port $port..."
+    while ! curl -s "http://localhost:$port" > /dev/null 2>&1; do
+        sleep 2
+        elapsed=$((elapsed + 2))
+        if [ "$elapsed" -ge "$timeout" ]; then
+            echo "❌ Timed out waiting for $label on port $port"
+            exit 1
+        fi
+    done
+    echo "   ✓ $label ready on port $port"
+}
+
+is_port_in_use() {
+    lsof -i :"$1" -sTCP:LISTEN > /dev/null 2>&1
+}
 
 echo "🔍 Running pre-push checks..."
+echo ""
 
-# 1. Run all app unit tests
-echo "📋 Running app unit tests..."
-yarn workspace @casagrown/app jest --passWithNoTests --bail || {
-    echo "❌ App tests failed — push aborted."
+# ═══════════════════════════════════════════════════════════════════
+# PHASE 1: Unit Tests (no servers needed)
+# ═══════════════════════════════════════════════════════════════════
+
+echo "━━━ Phase 1: Unit Tests ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+echo "📋 [1/4] Community App unit tests (jest)..."
+yarn workspace @casagrown/app jest --passWithNoTests --bail 2>&1 || {
+    echo "❌ Community App unit tests failed — push aborted."
     exit 1
 }
 
+echo "📋 [2/4] Community Voice unit tests (vitest)..."
+cd apps/next-community-voice && npx vitest run --reporter=dot 2>&1 || {
+    echo "❌ Community Voice unit tests failed — push aborted."
+    exit 1
+}
+cd "$ROOT_DIR"
+
+echo ""
+
+# ═══════════════════════════════════════════════════════════════════
+# PHASE 2: Playwright E2E (start web dev servers if needed)
+# ═══════════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════════════════════
+# PHASE 1.5: Supabase (database, auth, edge functions, realtime)
+# ═══════════════════════════════════════════════════════════════════
+
+echo "━━━ Infrastructure: Supabase ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if supabase status > /dev/null 2>&1; then
+    echo "   ✓ Supabase already running"
+else
+    echo "   Starting Supabase (db, auth, edge functions, realtime, storage)..."
+    supabase start 2>&1 || {
+        echo "❌ Failed to start Supabase — push aborted."
+        exit 1
+    }
+    SUPABASE_STARTED_BY_US=true
+    echo "   ✓ Supabase started"
+fi
+
+echo ""
+
+echo "━━━ Phase 2: Playwright E2E (Web) ━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# --- Start Community Voice dev server (port 3002) if not running ---
+if is_port_in_use 3002; then
+    echo "   ✓ Community Voice dev server already running on 3002"
+else
+    echo "   Starting Community Voice dev server (port 3002)..."
+    cd apps/next-community-voice && yarn dev > /dev/null 2>&1 &
+    PIDS_TO_KILL="$PIDS_TO_KILL $!"
+    cd "$ROOT_DIR"
+    wait_for_port 3002 "Community Voice" 90
+fi
+
+echo "🎭 [3/4] Community Voice Playwright E2E tests..."
+cd apps/next-community-voice && npx playwright test --reporter=dot 2>&1 || {
+    echo "❌ Community Voice Playwright tests failed — push aborted."
+    exit 1
+}
+cd "$ROOT_DIR"
+
+# --- Start Community Web dev server (port 3000) if not running ---
+if is_port_in_use 3000; then
+    echo "   ✓ Community Web dev server already running on 3000"
+else
+    echo "   Starting Community Web dev server (port 3000)..."
+    yarn web > /dev/null 2>&1 &
+    PIDS_TO_KILL="$PIDS_TO_KILL $!"
+    wait_for_port 3000 "Community Web" 90
+fi
+
+echo "🎭 [4/4] Community Web Playwright E2E tests..."
+npx playwright test --config=e2e/playwright/playwright.config.ts --reporter=dot 2>&1 || {
+    echo "❌ Community Web Playwright tests failed — push aborted."
+    exit 1
+}
+
+echo ""
+
+# NOTE: Maestro mobile E2E tests are disabled in pre-push for now.
+# Run them manually: maestro test e2e/maestro/
+
+# ═══════════════════════════════════════════════════════════════════
+# Done
+# ═══════════════════════════════════════════════════════════════════
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "✅ All pre-push checks passed!"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

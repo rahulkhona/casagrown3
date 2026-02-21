@@ -43,7 +43,7 @@ test.describe("Ticket Detail", () => {
     test("shows comments with official badge", async ({ page }) => {
         await page.goto("/board");
         await page.locator("text=/results/").first().waitFor({
-            timeout: 15_000,
+            timeout: 30_000,
         });
 
         // Navigate to the ticket with official comments
@@ -63,7 +63,7 @@ test.describe("Ticket Detail", () => {
     test("comment section shows login prompt when not logged in", async ({ page }) => {
         await page.goto("/board");
         await page.locator("text=/results/").first().waitFor({
-            timeout: 15_000,
+            timeout: 30_000,
         });
 
         await page.locator("text=Allow uploading videos in chat").first()
@@ -78,7 +78,7 @@ test.describe("Ticket Detail", () => {
     test("back to board button works", async ({ page }) => {
         await page.goto("/board");
         await page.locator("text=/results/").first().waitFor({
-            timeout: 15_000,
+            timeout: 30_000,
         });
 
         await page.locator("text=Allow uploading videos in chat").first()

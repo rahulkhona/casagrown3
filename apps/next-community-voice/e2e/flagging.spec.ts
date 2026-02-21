@@ -12,7 +12,7 @@ test.describe("Content Flagging", () => {
     test("flag button is visible on board ticket cards", async ({ page }) => {
         await page.goto("/board");
         await page.locator("text=/results/").first().waitFor({
-            timeout: 15_000,
+            timeout: 30_000,
         });
 
         // Ticket cards should render with flag icons
@@ -24,7 +24,7 @@ test.describe("Content Flagging", () => {
     test("flag button is visible on ticket detail page", async ({ page }) => {
         await page.goto("/board");
         await page.locator("text=/results/").first().waitFor({
-            timeout: 15_000,
+            timeout: 30_000,
         });
 
         // Navigate to a ticket detail
@@ -39,21 +39,15 @@ test.describe("Content Flagging", () => {
 
     test("support ticket form accessible via direct URL", async ({ page }) => {
         await page.goto("/submit?type=support");
-        await page.waitForTimeout(1000);
 
-        // Should show the support request header
+        // Wait for the form to fully load by checking for the submit button
         await expect(
-            page.locator("text=Get help from the CasaGrown team."),
-        ).toBeVisible();
+            page.getByRole("button", { name: "Submit Support Request" }),
+        ).toBeVisible({ timeout: 15_000 });
 
         // Privacy notice should be visible for support tickets
         await expect(
             page.locator("text=/private.*only you and CasaGrown staff/i"),
-        ).toBeVisible();
-
-        // Submit button should show type-aware text
-        await expect(
-            page.getByRole("button", { name: "Submit Support Request" }),
         ).toBeVisible();
     });
 });

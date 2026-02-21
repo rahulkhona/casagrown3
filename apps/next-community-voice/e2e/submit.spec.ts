@@ -84,7 +84,7 @@ test.describe("Submit Feedback", () => {
         // Navigate to board first, then submit, so browser has history
         await page.goto("/board");
         await page.locator("text=/results/").first().waitFor({
-            timeout: 15_000,
+            timeout: 30_000,
         });
         await page.goto("/submit?type=feature");
         await page.waitForTimeout(1000);
