@@ -33,7 +33,9 @@ test.describe("Content Flagging", () => {
         await page.waitForTimeout(2000);
 
         // Should show the ticket detail with title
-        await expect(page.locator("text=Allow uploading videos in chat"))
+        await expect(
+            page.locator("text=Allow uploading videos in chat").first(),
+        )
             .toBeVisible();
     });
 

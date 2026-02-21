@@ -138,8 +138,45 @@ npx playwright test --config=e2e/playwright/playwright.config.ts --reporter=dot 
 
 echo ""
 
-# NOTE: Maestro mobile E2E tests are disabled in pre-push for now.
-# Run them manually: maestro test e2e/maestro/
+# ═══════════════════════════════════════════════════════════════════
+# PHASE 3: Maestro Mobile E2E
+# ═══════════════════════════════════════════════════════════════════
+
+echo "━━━ Phase 3: Maestro E2E (Mobile) ━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# --- Start Expo Native dev server (port 8081) if not running ---
+if is_port_in_use 8081; then
+    echo "   ✓ Expo dev server already running on 8081"
+else
+    echo "   Starting Expo dev server (port 8081)..."
+    CI=1 yarn native > /dev/null 2>&1 &
+    PIDS_TO_KILL="$PIDS_TO_KILL $!"
+    wait_for_port 8081 "Expo Dev Server" 90
+fi
+
+IOS_UDID=$(xcrun simctl list devices | grep Booted | grep -v 'Apple Watch' | head -1 | awk -F'[()]' '{print $2}')
+if [ -n "$IOS_UDID" ]; then
+    echo "📱 [5/6] iOS Maestro Mobile E2E tests..."
+    maestro --udid "$IOS_UDID" test e2e/maestro/ || {
+        echo "❌ iOS Maestro tests failed — push aborted."
+        exit 1
+    }
+else
+    echo "⚠️ No booted iOS Simulator found. Skipping iOS Maestro tests."
+fi
+
+ANDROID_SERIAL=$(adb devices | grep -v "List" | grep "device$" | head -1 | awk '{print $1}')
+if [ -n "$ANDROID_SERIAL" ]; then
+    echo "📱 [6/6] Android Maestro Mobile E2E tests..."
+    maestro --udid "$ANDROID_SERIAL" test e2e/maestro/ || {
+        echo "❌ Android Maestro tests failed — push aborted."
+        exit 1
+    }
+else
+    echo "⚠️ No attached Android device/emulator found. Skipping Android Maestro tests."
+fi
+
+echo ""
 
 # ═══════════════════════════════════════════════════════════════════
 # Done

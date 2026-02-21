@@ -16,7 +16,7 @@
   "dependencies": {
     "@casagrown/app": "*",
     "@tamagui/config": "^2.0.0-rc.0",
-    "@tamagui/next-theme": "2.0.0-rc.13",
+    "@tamagui/next-theme": "^2.0.0-rc.0",
     "lucide-react": "^0.563.0",
     "next": "16.1.1",
     "raf": "^3.4.1",

@@ -47,7 +47,7 @@
   "dependencies": {
     "@babel/runtime": "^7.24.6",
     "@tamagui/cli": "^2.0.0-rc.0",
-    "@tamagui/next-theme": "2.0.0-rc.13",
+    "@tamagui/next-theme": "^2.0.0-rc.0",
     "@tamagui/react-native-svg": "^2.0.0-rc.0",
     "@tamagui/react-native-web-lite": "^2.0.0-rc.0",
     "@types/leaflet": "^1.9.21",
