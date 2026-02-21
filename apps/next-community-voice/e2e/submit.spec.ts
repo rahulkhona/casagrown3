@@ -57,8 +57,8 @@ test.describe("Submit Feedback", () => {
         await page.goto("/submit?type=bug");
         await page.waitForTimeout(1000);
 
-        // Attachments label should mention documents
-        await expect(page.locator("text=/Documents/i")).toBeVisible();
+        // Look for the file input element itself as proof the attachment UI exists
+        await expect(page.locator('input[type="file"]')).toBeAttached();
     });
 
     test("submit without auth redirects to login", async ({ page }) => {

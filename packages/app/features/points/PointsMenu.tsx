@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { YStack, Text, Button } from 'tamagui'
-import { Platform, ActionSheetIOS, Alert } from 'react-native'
+import { Platform, Alert } from 'react-native'
 import { Coins, ShoppingBag } from '@tamagui/lucide-icons'
 import { useTranslation } from 'react-i18next'
 import { colors, borderRadius, shadows } from '../../design-tokens'
@@ -49,6 +49,7 @@ export function PointsMenu({
 
   const handleMenuPress = () => {
     if (Platform.OS === 'ios') {
+      const { ActionSheetIOS } = require('react-native')
       ActionSheetIOS.showActionSheetWithOptions(
         {
           options: ['Cancel', t('feed.nav.buyPoints') || 'Buy Points', t('feed.nav.redeem') || 'Redeem Points'],
