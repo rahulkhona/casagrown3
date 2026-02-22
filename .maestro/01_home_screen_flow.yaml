@@ -1,0 +1,43 @@
+appId: dev.casagrown.community
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: ".*developer menu.*|.*CasaGrown.*|.*Join the Movement.*"
+    timeout: 60000
+
+# Dismiss developer menu if showing
+- runFlow:
+    when:
+      visible: ".*developer menu.*"
+    commands:
+      - tapOn: "Continue"
+
+# Handle dev tools panel (Android)
+- runFlow:
+    when:
+      visible: "Go home"
+    commands:
+      - tapOn: "Go home"
+
+# Handle Reload button
+- runFlow:
+    when:
+      visible: "Reload"
+    commands:
+      - tapOn: "Reload"
+
+- extendedWaitUntil:
+    visible: ".*Join the Movement.*"
+    timeout: 60000
+
+# Verify Home Screen
+- assertVisible: ".*Fresh from Neighbors.*"
+- assertVisible: ".*Join the Movement.*"
+
+# Test Navigation
+- tapOn: ".*Join the Movement.*"
+
+# Verify Login Screen
+- assertVisible: ".*Welcome to CasaGrown.*"
+- assertVisible: ".*Continue with Google.*"

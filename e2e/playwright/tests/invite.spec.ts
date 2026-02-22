@@ -1,7 +1,8 @@
 /**
  * Invite Modal E2E Tests — validate the invite friends modal.
  *
- * Tests opening the invite modal, QR code, referral link, and share functionality.
+ * Tests opening the invite modal via the hamburger menu, QR code, referral link,
+ * and share functionality.
  *
  * Prerequisites:
  * - Local Supabase running with seed data
@@ -11,6 +12,25 @@
 
 import { expect, test } from "@playwright/test";
 
+/**
+ * Helper: open the Invite modal via the hamburger menu.
+ * The nav bar has too many items to display "Invite" inline,
+ * so we use the hamburger menu → "Invite Friends" instead.
+ */
+async function openInviteModal(page: any) {
+    // Open the hamburger menu
+    const menuBtn = page.locator("[aria-label='Menu']").first();
+    await expect(menuBtn).toBeVisible({ timeout: 10_000 });
+    await menuBtn.click();
+    await page.waitForTimeout(500);
+
+    // Click "Invite Friends" in the dropdown
+    const inviteFriends = page.locator("text=Invite Friends").first();
+    await expect(inviteFriends).toBeVisible({ timeout: 5_000 });
+    await inviteFriends.click();
+    await page.waitForTimeout(1000);
+}
+
 test.describe("Invite Modal", () => {
     test.beforeEach(async ({ page }) => {
         await page.goto("/feed");
@@ -19,15 +39,18 @@ test.describe("Invite Modal", () => {
         ).first().waitFor({ timeout: 15_000 });
     });
 
-    test("Invite button is visible in the header", async ({ page }) => {
-        // The "Invite" button should be visible in the header
-        const inviteBtn = page.locator("text=Invite").first();
-        await expect(inviteBtn).toBeVisible({ timeout: 10_000 });
+    test("Invite Friends is accessible via hamburger menu", async ({ page }) => {
+        const menuBtn = page.locator("[aria-label='Menu']").first();
+        await expect(menuBtn).toBeVisible({ timeout: 10_000 });
+        await menuBtn.click();
+        await page.waitForTimeout(500);
+
+        const inviteFriends = page.locator("text=Invite Friends").first();
+        await expect(inviteFriends).toBeVisible({ timeout: 5_000 });
     });
 
-    test("clicking Invite opens the invite modal", async ({ page }) => {
-        await page.locator("text=Invite").first().click();
-        await page.waitForTimeout(1000);
+    test("clicking Invite Friends opens the invite modal", async ({ page }) => {
+        await openInviteModal(page);
 
         // Modal should show invite title
         await expect(
@@ -36,10 +59,8 @@ test.describe("Invite Modal", () => {
     });
 
     test("invite modal shows QR code section", async ({ page }) => {
-        await page.locator("text=Invite").first().click();
-        await page.waitForTimeout(1000);
+        await openInviteModal(page);
 
-        // QR code section should be visible
         const hasQR = await page
             .locator("text=/Scan to Join|QR/i")
             .first()
@@ -50,10 +71,8 @@ test.describe("Invite Modal", () => {
     });
 
     test("invite modal shows share link section", async ({ page }) => {
-        await page.locator("text=Invite").first().click();
-        await page.waitForTimeout(1000);
+        await openInviteModal(page);
 
-        // Share link section with Copy button
         const hasCopy = await page
             .locator("text=Copy")
             .first()
@@ -69,10 +88,8 @@ test.describe("Invite Modal", () => {
     });
 
     test("invite modal shows benefits section", async ({ page }) => {
-        await page.locator("text=Invite").first().click();
-        await page.waitForTimeout(1000);
+        await openInviteModal(page);
 
-        // "Why Invite Others?" section
         const hasWhy = await page
             .locator("text=/Why Invite/i")
             .first()
@@ -88,15 +105,17 @@ test.describe("Invite Modal", () => {
     });
 
     test("invite modal can be closed", async ({ page }) => {
-        await page.locator("text=Invite").first().click();
+        await openInviteModal(page);
+
+        // Verify modal is open
         await page.locator("text=/Invite Friends|Invite.*Neighbors/i").first()
             .waitFor({ timeout: 10_000 });
 
-        // Close via Escape key (most reliable cross-platform modal close)
+        // Close via Escape key
         await page.keyboard.press("Escape");
         await page.waitForTimeout(500);
 
-        // Or try clicking outside / close button
+        // Or try clicking close button
         const closeBtn = page
             .locator("[aria-label*='close'], [aria-label*='Close']")
             .first();

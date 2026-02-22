@@ -148,15 +148,17 @@ export function BuyPointsStandaloneMockup({ t = (k: string) => k }: { t?: (key: 
         borderWidth={1}
         borderColor={colors.gray[200]}
       >
-        {/* Header */}
-        <YStack gap="$1">
-          <Text fontSize={22} fontWeight="700" color={colors.gray[900]}>
-            Buy Points
-          </Text>
-          <Text fontSize={14} color={colors.gray[500]}>
-            Add points to your balance instantly using your credit card.
-          </Text>
-        </YStack>
+        {/* Header (Hidden on Web as it's redundant with the page layout) */}
+        {Platform.OS !== 'web' && (
+          <YStack gap="$1">
+            <Text fontSize={22} fontWeight="700" color={colors.gray[900]}>
+              Buy Points
+            </Text>
+            <Text fontSize={14} color={colors.gray[500]}>
+              Add points to your balance instantly using your credit card.
+            </Text>
+          </YStack>
+        )}
 
         {/* Input */}
         <YStack gap="$2" marginTop="$2">

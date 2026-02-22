@@ -6,7 +6,7 @@
  */
 
 import React from 'react'
-import { YStack, XStack, Text, Button } from 'tamagui'
+import { YStack, XStack, Text, Button, useMedia } from 'tamagui'
 import { useTranslation } from 'react-i18next'
 import { colors } from '../../design-tokens'
 
@@ -52,10 +52,13 @@ function NavBadge({ count, size }: { count: number; size: 'sm' | 'md' }) {
 
 export function FeedNavigation({ navKeys, variant, onNavigate, userPoints }: FeedNavigationProps) {
   const { t } = useTranslation()
+  const media = useMedia()
+  // @ts-ignore
+  const isDesktopNav = media.lg || media.xl || media.xxl
 
   if (variant === 'desktop') {
     return (
-      <XStack gap="$5" marginLeft="$5">
+      <XStack gap={isDesktopNav ? "$5" : "$3"} paddingHorizontal={isDesktopNav ? "$5" : "$1"} paddingVertical="$2" alignItems="center">
         {navKeys.map((item) => (
           <XStack
             key={item.key}
@@ -89,23 +92,7 @@ export function FeedNavigation({ navKeys, variant, onNavigate, userPoints }: Fee
       paddingHorizontal="$4"
       paddingVertical="$2"
     >
-      {userPoints !== undefined && (
-        <Button
-          unstyled
-          paddingVertical="$3"
-          paddingHorizontal="$2"
-          borderBottomWidth={1}
-          borderBottomColor={colors.gray[100]}
-          flexDirection="row"
-          justifyContent="space-between"
-          alignItems="center"
-          onPress={() => onNavigate('buyPoints')}
-        >
-          <Text fontSize="$4" color={colors.green[700]} fontWeight="700">
-            {t('feed.header.points') || 'Points'}: {userPoints}
-          </Text>
-        </Button>
-      )}
+
       {navKeys.map((item) => (
         <Button
           key={item.key}
@@ -120,9 +107,9 @@ export function FeedNavigation({ navKeys, variant, onNavigate, userPoints }: Fee
           onPress={() => onNavigate(item.key)}
         >
           <Text
-            fontSize="$4"
-            color={item.active ? colors.green[600] : colors.gray[700]}
-            fontWeight={item.active ? '600' : '400'}
+            fontSize={isDesktopNav ? 16 : 14}
+            color={item.active ? colors.green[600] : colors.gray[600]}
+            fontWeight={item.active ? '700' : '500'}
           >
             {t(`feed.nav.${item.key}`)}
           </Text>

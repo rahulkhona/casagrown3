@@ -28,20 +28,6 @@ exports[`MyPostsScreen matches snapshot 1`] = `
         >
           myPosts.title
         </Text>
-        <View
-          backgroundColor="#dcfce7"
-          borderRadius="$full"
-          paddingHorizontal="$2"
-          paddingVertical="$0.5"
-        >
-          <Text
-            color="#15803d"
-            fontSize={12}
-            fontWeight="600"
-          >
-            3
-          </Text>
-        </View>
       </View>
     </View>
   </View>

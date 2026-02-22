@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import { AppHeader } from '@casagrown/app/features/common/AppHeader'
 import { useAuth } from '@casagrown/app/features/auth/auth-hook'
 import { YStack, Spinner, Text } from 'tamagui'
 import { colors } from '@casagrown/app/design-tokens'
@@ -60,7 +61,21 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   // Public route or authorized → render children
   if (isPublicRoute(pathname) || authorized) {
-    return <>{children}</>
+    const showHeader = authorized && !['/login', '/login-success', '/logout', '/profile-wizard'].includes(pathname)
+    let activeKey = 'feed'
+    if (pathname.startsWith('/offers')) activeKey = 'offers'
+    else if (pathname.startsWith('/orders')) activeKey = 'orders'
+    else if (pathname.startsWith('/my-posts')) activeKey = 'myPosts'
+    else if (pathname.startsWith('/chats')) activeKey = 'chats'
+    else if (pathname.startsWith('/buy-points')) activeKey = 'buyPoints'
+    else if (pathname.startsWith('/delegate')) activeKey = 'delegateSales'
+
+    return (
+      <>
+        {showHeader && <AppHeader activeKey={activeKey} />}
+        {children}
+      </>
+    )
   }
 
   // Redirecting — show loading

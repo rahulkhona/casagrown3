@@ -10,6 +10,7 @@ export default function OrdersTab() {
 
   return (
     <OrdersScreen
+      isTab={true}
       currentUserId={user.id}
       onClose={() => router.back()}
       onOpenChat={(postId, otherUserId) =>

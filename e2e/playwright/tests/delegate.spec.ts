@@ -1,7 +1,7 @@
 /**
  * Delegate Screen E2E Tests — validate the delegation management UI.
  *
- * Tests the delegate screen including tabs, add delegate flow, and join by code.
+ * Tests the delegate screen including title, add delegate button, and empty state.
  *
  * Prerequisites:
  * - Local Supabase running with seed data
@@ -27,13 +27,10 @@ test.describe("Delegate Screen", () => {
         ).toBeVisible({ timeout: 10_000 });
     });
 
-    test("shows My Delegates and Delegating For tabs", async ({ page }) => {
+    test("shows manage subtitle", async ({ page }) => {
         await expect(
-            page.locator("text=My Delegates").first(),
+            page.locator("text=Manage who can sell on your behalf").first(),
         ).toBeVisible({ timeout: 10_000 });
-        await expect(
-            page.locator("text=Delegating For").first(),
-        ).toBeVisible();
     });
 
     test("shows info banner about delegation", async ({ page }) => {
@@ -50,7 +47,7 @@ test.describe("Delegate Screen", () => {
         ).toBeVisible({ timeout: 10_000 });
     });
 
-    test("clicking Add New Delegate shows the add delegate modal", async ({page,}) => {
+    test("clicking Add New Delegate shows the add delegate modal", async ({ page }) => {
         await page.locator("text=Add New Delegate").first().click();
         await page.waitForTimeout(1000);
 
@@ -72,38 +69,6 @@ test.describe("Delegate Screen", () => {
             .catch(() => false);
 
         expect(hasTitle || hasInPerson || hasSearch).toBeTruthy();
-    });
-
-    test("Delegating For tab shows correct content", async ({ page }) => {
-        await page.locator("text=Delegating For").first().click();
-        await page.waitForTimeout(1000);
-
-        // Should show either delegates or empty state
-        const hasEmpty = await page
-            .locator("text=/Not Delegating for Anyone/i")
-            .first()
-            .isVisible()
-            .catch(() => false);
-        const hasDelegates = await page
-            .locator("text=/selling for|Pending|Active/i")
-            .first()
-            .isVisible()
-            .catch(() => false);
-
-        expect(hasEmpty || hasDelegates).toBeTruthy();
-    });
-
-    test("Join by Code button is visible in Delegating For tab", async ({page,}) => {
-        await page.locator("text=Delegating For").first().click();
-        await page.waitForTimeout(1000);
-
-        const hasJoinByCode = await page
-            .locator("text=Join by Code")
-            .first()
-            .isVisible()
-            .catch(() => false);
-
-        expect(hasJoinByCode).toBeTruthy();
     });
 
     test("empty state shows when no delegates exist", async ({ page }) => {

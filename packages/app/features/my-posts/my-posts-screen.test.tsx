@@ -26,6 +26,9 @@ jest.mock('@tamagui/lucide-icons', () => ({
   AlertTriangle: () => null,
   FileText: () => null,
   Search: () => null,
+  HandCoins: () => null,
+  Bell: () => null,
+  Menu: () => null,
 }))
 
 // Mock design-tokens
@@ -61,7 +64,7 @@ jest.mock('tamagui', () => {
     Spinner: () => <RNText>Loading...</RNText>,
     Separator: () => <View />,
     Input: ({ placeholder, ...props }: any) => <TextInput placeholder={placeholder} {...props} />,
-    useMedia: () => ({ sm: false, md: true, lg: false }),
+    useMedia: () => ({ sm: false, md: false, lg: true, xl: false, xxl: false }),
   }
 })
 
@@ -212,14 +215,6 @@ describe('MyPostsScreen', () => {
     })
     expect(screen.getByText('Looking for lemons')).toBeTruthy()
     expect(screen.getByText('How to grow tomatoes?')).toBeTruthy()
-  })
-
-  it('displays post count badge', async () => {
-    render(<MyPostsScreen />)
-    await waitFor(() => {
-      // Total count displayed in header badge
-      expect(screen.getByText('3')).toBeTruthy()
-    })
   })
 
   it('renders Type and Status filter dropdowns', async () => {

@@ -54,6 +54,9 @@ jest.mock("@tamagui/lucide-icons", () => ({
     MessageCircle: () => null,
     Wrench: () => null,
     HelpCircle: () => null,
+    HandCoins: () => null,
+    Bell: () => null,
+    Menu: () => null,
 }));
 
 jest.mock("tamagui", () => {
@@ -86,6 +89,14 @@ jest.mock("tamagui", () => {
         Spinner: (props: any) => <ActivityIndicator {...props} />,
     };
 });
+
+jest.mock("react-native-safe-area-context", () => ({
+    useSafeAreaInsets: () => ({ top: 47, bottom: 34, left: 0, right: 0 }),
+}));
+
+jest.mock("../common/MobileTabHeader", () => ({
+    MobileTabHeader: () => null,
+}));
 
 jest.mock("../../utils/normalize-storage-url", () => ({
     normalizeStorageUrl: (url: string | null) => url,

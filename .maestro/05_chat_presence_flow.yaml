@@ -1,0 +1,55 @@
+appId: dev.casagrown.community
+---
+- launchApp
+- extendedWaitUntil:
+      visible: ".*developer menu.*|.*CasaGrown.*|.*Join the Movement.*"
+      timeout: 60000
+
+# Dismiss developer menu if showing
+- runFlow:
+      when:
+          visible: ".*developer menu.*"
+      commands:
+          - tapOn: "Continue"
+
+# Handle dev tools panel (Android)
+- runFlow:
+      when:
+          visible: "Go home"
+      commands:
+          - tapOn: "Go home"
+
+# Handle Reload button
+- runFlow:
+      when:
+          visible: "Reload"
+      commands:
+          - tapOn: "Reload"
+
+- extendedWaitUntil:
+      visible: ".*Join the Movement.*|.*Feed.*|.*Chats.*"
+      timeout: 60000
+
+# Navigate to Chats tab
+- tapOn: ".*Chats.*"
+
+- extendedWaitUntil:
+      visible: ".*Chats.*|.*No conversations.*"
+      timeout: 15000
+
+# Try clicking on a conversation
+- tapOn:
+      index: 0
+      optional: true
+
+# Wait for chat screen or no conversations message
+- extendedWaitUntil:
+      visible: ".*Type a message.*|.*No conversations.*|.*Chats.*"
+      timeout: 10000
+
+# ============ BACK NAVIGATION ============
+- tapOn: ".*Chats.*"
+
+- extendedWaitUntil:
+      visible: ".*Chats.*"
+      timeout: 10000

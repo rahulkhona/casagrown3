@@ -7,7 +7,7 @@
  * all order actions are handled.
  */
 
-import React, { useState, useCallback, useMemo } from 'react'
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { YStack, XStack, Text, Spinner } from 'tamagui'
 import { Platform, TouchableOpacity, FlatList } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -20,6 +20,7 @@ import { colors, borderRadius } from '../../design-tokens'
 import { useTranslation } from 'react-i18next'
 import { OrderCard } from './OrderCard'
 import { useOrders } from './useOrders'
+import { MobileTabHeader } from '../common/MobileTabHeader'
 import type { Order, OrderFilter, OrderTab, OrderRoleFilter } from './order-types'
 
 // =============================================================================
@@ -30,6 +31,7 @@ interface OrdersScreenProps {
   currentUserId: string
   onClose: () => void
   onOpenChat?: (postId: string, otherUserId: string) => void
+  isTab?: boolean
 }
 
 // =============================================================================
@@ -40,9 +42,11 @@ export function OrdersScreen({
   currentUserId,
   onClose,
   onOpenChat,
+  isTab,
 }: OrdersScreenProps) {
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
+  const isWeb = Platform.OS === 'web'
 
   // State
   const [activeTab, setActiveTab] = useState<OrderTab>('open')
@@ -54,6 +58,32 @@ export function OrdersScreen({
   )
 
   const { orders, loading, error, refresh } = useOrders(currentUserId, filter)
+
+  // Scroll restoration reference
+  const flatListRef = useRef<FlatList>(null)
+  const isScrollRestored = useRef(false)
+
+  // ── Restore Scroll Position on Web ──
+  useEffect(() => {
+    if (isWeb && orders.length > 0 && !isScrollRestored.current && flatListRef.current) {
+      const savedScroll = sessionStorage.getItem('ordersScrollPos')
+      if (savedScroll) {
+        setTimeout(() => {
+          flatListRef.current?.scrollToOffset({ offset: parseFloat(savedScroll), animated: false })
+          isScrollRestored.current = true
+        }, 50)
+      } else {
+        isScrollRestored.current = true
+      }
+    }
+  }, [orders.length, isWeb])
+
+  const handleScroll = useCallback((e: any) => {
+    if (isWeb) {
+      const offset = e.nativeEvent.contentOffset.y
+      sessionStorage.setItem('ordersScrollPos', offset.toString())
+    }
+  }, [isWeb])
 
   // ── Handlers ──
   const handleOrderPress = useCallback(
@@ -82,43 +112,46 @@ export function OrdersScreen({
 
   return (
     <YStack flex={1} backgroundColor={colors.gray[50]} alignItems="center">
+      <MobileTabHeader />
       {/* ── Header ── */}
       <YStack
         backgroundColor="white"
         borderBottomWidth={1}
         borderBottomColor={colors.gray[200]}
-        paddingTop={insets.top}
+        paddingTop={isWeb ? insets.top : 0}
         width="100%"
         maxWidth={896}
       >
-        <XStack
-          paddingHorizontal="$4"
-          height={56}
-          alignItems="center"
-          gap="$3"
-        >
-          <TouchableOpacity
-            onPress={onClose}
-            style={{
-              padding: 8,
-              borderRadius: 20,
-              minWidth: 40,
-              minHeight: 40,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-            activeOpacity={0.6}
-            aria-label="Back"
+        {!isWeb && !isTab && (
+          <XStack
+            paddingHorizontal="$4"
+            height={56}
+            alignItems="center"
+            gap="$3"
           >
-            <ArrowLeft size={22} color={colors.gray[700]} />
-          </TouchableOpacity>
-          <XStack flex={1} alignItems="center" gap="$2">
-            <ShoppingBag size={22} color={colors.green[700]} />
-            <Text fontSize={18} fontWeight="700" color={colors.gray[900]}>
-              {t('orders.title')}
-            </Text>
+            <TouchableOpacity
+              onPress={onClose}
+              style={{
+                padding: 8,
+                borderRadius: 20,
+                minWidth: 40,
+                minHeight: 40,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              activeOpacity={0.6}
+              aria-label="Back"
+            >
+              <ArrowLeft size={22} color={colors.gray[700]} />
+            </TouchableOpacity>
+            <XStack flex={1} alignItems="center" gap="$2">
+              <ShoppingBag size={22} color={colors.green[700]} />
+              <Text fontSize={18} fontWeight="700" color={colors.gray[900]}>
+                {t('orders.title')}
+              </Text>
+            </XStack>
           </XStack>
-        </XStack>
+        )}
 
         {/* ── Tabs ── */}
         <XStack paddingHorizontal="$4" gap="$1">
@@ -223,6 +256,7 @@ export function OrdersScreen({
         </YStack>
       ) : (
         <FlatList
+          ref={flatListRef}
           style={{ width: '100%', maxWidth: 896, alignSelf: 'center' as const }}
           data={orders}
           keyExtractor={(item) => item.id}
@@ -237,6 +271,8 @@ export function OrdersScreen({
             </YStack>
           )}
           contentContainerStyle={{ paddingVertical: 8, flexGrow: 1 }}
+          onScroll={handleScroll}
+          scrollEventThrottle={100}
           ListEmptyComponent={
             <YStack
               flex={1}

@@ -17,7 +17,8 @@ export default function ChatsTab() {
   return (
     <YStack flex={1} paddingTop={insets.top}>
       <ChatInboxScreen
-        currentUserId={user.id}
+        isTab={true}
+        currentUserId={user.id} 
         onOpenChat={(postId, otherUserId) => {
           router.push(`/(tabs)/chat?postId=${postId}&otherUserId=${otherUserId}`)
         }}

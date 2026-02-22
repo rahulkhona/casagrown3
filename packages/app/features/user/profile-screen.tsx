@@ -1236,17 +1236,6 @@ export function ProfileScreen() {
             >
               <Text color="white">{t('profile.logout')}</Text>
             </Button>
-            <Button
-              size="$4"
-              variant="outlined"
-              borderColor={colors.error[600]}
-              onPress={() => {
-                // TODO: Implement account deactivation
-                console.log('Deactivate account')
-              }}
-            >
-              <Text color={colors.error[600]}>{t('profile.deactivateAccount')}</Text>
-            </Button>
           </YStack>
         </YStack>
       </YStack>

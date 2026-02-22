@@ -141,6 +141,7 @@ jest.mock('@tamagui/lucide-icons', () => ({
   Plus: () => null,
   Filter: () => null,
   Leaf: () => null,
+  HandCoins: () => null,
   Menu: () => null,
   X: () => null,
   Heart: () => null,
@@ -168,7 +169,7 @@ jest.mock('tamagui', () => {
     ScrollView: ({ children, ...props }) => <RNScrollView {...props}>{children}</RNScrollView>,
     Input: ({ placeholder, ...props }) => <TextInput placeholder={placeholder} {...props} />,
     Spinner: (props) => <ActivityIndicator {...props} />,
-    useMedia: () => ({ sm: false, md: true, lg: false }),
+    useMedia: () => ({ sm: false, md: false, lg: true, xl: false, xxl: false }),
   }
 })
 
@@ -273,9 +274,10 @@ describe('FeedScreen', () => {
     expect(screen.getByText('feed.nav.invite')).toBeTruthy()
   })
 
-  it('renders points display from mocked PointsMenu', () => {
+  it('renders points display from mocked balance', () => {
     render(<FeedScreen />)
-    expect(screen.getByText('PointsMenuMock: 50')).toBeTruthy()
+    expect(screen.getByText('50')).toBeTruthy()
+    expect(screen.getByText('feed.header.points')).toBeTruthy()
   })
 
   it('calls onNavigateToProfile when profile avatar is pressed', () => {

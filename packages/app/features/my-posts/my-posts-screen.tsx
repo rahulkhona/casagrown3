@@ -419,6 +419,7 @@ export function MyPostsScreen({
 }: MyPostsScreenProps) {
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
+  const isWeb = Platform.OS === 'web'
   const { user } = useAuth()
 
   const [posts, setPosts] = useState<UserPost[]>([])
@@ -587,30 +588,22 @@ export function MyPostsScreen({
           justifyContent="space-between"
         >
           <XStack alignItems="center" gap="$3">
-            {onBack && (
-              <Button
-                icon={<ArrowLeft size={20} color={colors.gray[700]} />}
-                unstyled
-                onPress={onBack}
-                pressStyle={{ opacity: 0.7 }}
-                padding="$1"
-                aria-label="Back"
-              />
-            )}
-            <Text fontSize={20} fontWeight="700" color={colors.gray[900]}>
-              {t('myPosts.title')}
-            </Text>
-            {!loading && (
-              <YStack
-                backgroundColor={colors.green[100]}
-                paddingHorizontal="$2"
-                paddingVertical="$0.5"
-                borderRadius="$full"
-              >
-                <Text fontSize={12} fontWeight="600" color={colors.green[700]}>
-                  {posts.length}
+            {!isWeb && (
+              <>
+                {onBack && (
+                  <Button
+                    icon={<ArrowLeft size={20} color={colors.gray[700]} />}
+                    unstyled
+                    onPress={onBack}
+                    pressStyle={{ opacity: 0.7 }}
+                    padding="$1"
+                    aria-label="Back"
+                  />
+                )}
+                <Text fontSize={20} fontWeight="700" color={colors.gray[900]}>
+                  {t('myPosts.title')}
                 </Text>
-              </YStack>
+              </>
             )}
           </XStack>
 

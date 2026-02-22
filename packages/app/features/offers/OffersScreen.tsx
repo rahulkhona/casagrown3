@@ -7,9 +7,9 @@
  * Mirrors OrdersScreen layout and interaction patterns.
  */
 
-import React, { useState, useCallback, useMemo, useEffect } from 'react'
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { YStack, XStack, Text, Spinner } from 'tamagui'
-import { TouchableOpacity, FlatList } from 'react-native'
+import { TouchableOpacity, FlatList, Platform } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   ArrowLeft,
@@ -25,6 +25,7 @@ import { colors, borderRadius } from '../../design-tokens'
 import { useTranslation } from 'react-i18next'
 import { getOffers } from './offer-service'
 import { OFFER_STATUS_CONFIG } from './offer-types'
+import { MobileTabHeader } from '../common/MobileTabHeader'
 import type { Offer, OfferFilter, OfferTab, OfferRoleFilter } from './offer-types'
 
 // =============================================================================
@@ -44,21 +45,19 @@ const STATUS_ICON_MAP: Record<string, React.ElementType> = {
 
 interface OffersScreenProps {
   currentUserId: string
-  onClose: () => void
   onOpenChat?: (postId: string, otherUserId: string) => void
+  onClose?: () => void
+  isTab?: boolean
 }
 
 // =============================================================================
 // Component
 // =============================================================================
 
-export function OffersScreen({
-  currentUserId,
-  onClose,
-  onOpenChat,
-}: OffersScreenProps) {
+export function OffersScreen({ currentUserId, onOpenChat, onClose, isTab }: OffersScreenProps) {
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
+  const isWeb = Platform.OS === 'web'
 
   // State
   const [activeTab, setActiveTab] = useState<OfferTab>('open')
@@ -66,6 +65,32 @@ export function OffersScreen({
   const [offers, setOffers] = useState<Offer[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Scroll restoration reference
+  const flatListRef = useRef<FlatList>(null)
+  const isScrollRestored = useRef(false)
+
+  // ── Restore Scroll Position on Web ──
+  useEffect(() => {
+    if (isWeb && offers.length > 0 && !isScrollRestored.current && flatListRef.current) {
+      const savedScroll = sessionStorage.getItem('offersScrollPos')
+      if (savedScroll) {
+        setTimeout(() => {
+          flatListRef.current?.scrollToOffset({ offset: parseFloat(savedScroll), animated: false })
+          isScrollRestored.current = true
+        }, 50)
+      } else {
+        isScrollRestored.current = true
+      }
+    }
+  }, [offers.length, isWeb])
+
+  const handleScroll = useCallback((e: any) => {
+    if (isWeb) {
+      const offset = e.nativeEvent.contentOffset.y
+      sessionStorage.setItem('offersScrollPos', offset.toString())
+    }
+  }, [isWeb])
 
   const filter: OfferFilter = useMemo(
     () => ({ tab: activeTab, role: roleFilter }),
@@ -214,43 +239,46 @@ export function OffersScreen({
 
   return (
     <YStack flex={1} backgroundColor={colors.gray[50]} alignItems="center">
+      <MobileTabHeader />
       {/* ── Header ── */}
       <YStack
         backgroundColor="white"
         borderBottomWidth={1}
         borderBottomColor={colors.gray[200]}
-        paddingTop={insets.top}
+        paddingTop={isWeb ? insets.top : 0}
         width="100%"
         maxWidth={896}
       >
-        <XStack
-          paddingHorizontal="$4"
-          height={56}
-          alignItems="center"
-          gap="$3"
-        >
-          <TouchableOpacity
-            onPress={onClose}
-            style={{
-              padding: 8,
-              borderRadius: 20,
-              minWidth: 40,
-              minHeight: 40,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-            activeOpacity={0.6}
-            aria-label="Back"
+        {!isWeb && !isTab && (
+          <XStack
+            paddingHorizontal="$4"
+            height={56}
+            alignItems="center"
+            gap="$3"
           >
-            <ArrowLeft size={22} color={colors.gray[700]} />
-          </TouchableOpacity>
-          <XStack flex={1} alignItems="center" gap="$2">
-            <ThumbsUp size={22} color="#2563eb" />
-            <Text fontSize={18} fontWeight="700" color={colors.gray[900]}>
-              {t('offers.title')}
-            </Text>
+            <TouchableOpacity
+              onPress={onClose}
+              style={{
+                padding: 8,
+                borderRadius: 20,
+                minWidth: 40,
+                minHeight: 40,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              activeOpacity={0.6}
+              aria-label="Back"
+            >
+              <ArrowLeft size={22} color={colors.gray[700]} />
+            </TouchableOpacity>
+            <XStack flex={1} alignItems="center" gap="$2">
+              <ThumbsUp size={22} color="#2563eb" />
+              <Text fontSize={18} fontWeight="700" color={colors.gray[900]}>
+                {t('offers.title')}
+              </Text>
+            </XStack>
           </XStack>
-        </XStack>
+        )}
 
         {/* ── Tabs ── */}
         <XStack paddingHorizontal="$4" gap="$1">
@@ -345,11 +373,14 @@ export function OffersScreen({
         </YStack>
       ) : (
         <FlatList
+          ref={flatListRef}
           style={{ width: '100%', maxWidth: 896, alignSelf: 'center' as const }}
           data={offers}
           keyExtractor={(item) => item.id}
           renderItem={renderOfferCard}
           contentContainerStyle={{ paddingVertical: 8, flexGrow: 1 }}
+          onScroll={handleScroll}
+          scrollEventThrottle={100}
           ListEmptyComponent={
             <YStack
               flex={1}

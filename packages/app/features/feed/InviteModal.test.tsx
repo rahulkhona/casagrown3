@@ -83,7 +83,7 @@ jest.mock('react-native-qrcode-svg', () => {
 })
 
 // Import Clipboard so we can spy on its methods
-import { Clipboard } from 'react-native'
+import * as Clipboard from 'expo-clipboard'
 
 describe('InviteModal', () => {
   const mockOnClose = jest.fn()
@@ -163,7 +163,7 @@ describe('InviteModal', () => {
   // =========================================
 
   it('copies invite link WITH referral code to clipboard', () => {
-    const clipboardSpy = jest.spyOn(Clipboard, 'setString')
+    const clipboardSpy = jest.spyOn(Clipboard, 'setStringAsync')
     
     render(
       <InviteModal visible={true} onClose={mockOnClose} referralCode="abc12345" />
@@ -177,7 +177,7 @@ describe('InviteModal', () => {
   })
 
   it('copies base URL to clipboard when NO referral code', () => {
-    const clipboardSpy = jest.spyOn(Clipboard, 'setString')
+    const clipboardSpy = jest.spyOn(Clipboard, 'setStringAsync')
     
     render(
       <InviteModal visible={true} onClose={mockOnClose} />

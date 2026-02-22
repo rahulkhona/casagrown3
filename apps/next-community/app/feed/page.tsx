@@ -93,6 +93,10 @@ export default function FeedPage() {
     router.push('/delegate')
   }
 
+  const handleNavigateToAcceptDelegation = () => {
+    router.push('/accept-delegation')
+  }
+
   const handleNavigateToMyPosts = () => {
     router.push('/my-posts')
   }
@@ -123,6 +127,7 @@ export default function FeedPage() {
       onCreatePost={handleCreatePost}
       onNavigateToProfile={handleNavigateToProfile}
       onNavigateToDelegate={handleNavigateToDelegate}
+      onNavigateToAcceptDelegation={handleNavigateToAcceptDelegation}
       onNavigateToMyPosts={handleNavigateToMyPosts}
       referralCode={referralCode}
       inviteRewards={inviteRewards}

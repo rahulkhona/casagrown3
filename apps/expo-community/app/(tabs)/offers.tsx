@@ -10,6 +10,7 @@ export default function OffersTab() {
 
   return (
     <OffersScreen
+      isTab={true}
       currentUserId={user.id}
       onClose={() => router.back()}
       onOpenChat={(postId, otherUserId) =>

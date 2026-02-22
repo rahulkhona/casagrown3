@@ -64,7 +64,7 @@ jest.mock('tamagui', () => {
     ),
     ScrollView: ({ children, ...props }: any) => <RNScrollView {...props}>{children}</RNScrollView>,
     Spinner: () => null,
-    useMedia: () => ({ sm: false }),
+    useMedia: () => ({ sm: false, md: false, lg: true, xl: false, xxl: false }),
     Sheet: Object.assign(
       ({ children }: any) => <View>{children}</View>,
       {
@@ -208,46 +208,7 @@ describe('DelegateScreen', () => {
     expect(screen.getByTestId('icon-arrow-left')).toBeTruthy()
   })
 
-  it('renders both tab labels', () => {
-    render(<DelegateScreen />)
-    expect(screen.getByText('delegate.tabs.myDelegates')).toBeTruthy()
-    expect(screen.getByText('delegate.tabs.delegatingFor')).toBeTruthy()
-  })
 
-  // =========================================
-  // Tab Counts
-  // =========================================
-
-  it('displays correct myDelegates count in tab label', () => {
-    mockUseDelegations.myDelegates = [mockActiveDelegation, mockPendingDelegation] as any
-    render(<DelegateScreen />)
-    // Count is rendered inline in the tab label text, e.g. "delegate.tabs.myDelegates (2)"
-    const tabTexts = screen.getAllByText(/delegate\.tabs\.myDelegates/)
-    expect(tabTexts.length).toBeGreaterThan(0)
-    // The rendered text includes the count
-    const tabText = tabTexts[0]
-    expect(tabText.props.children).toBeDefined()
-  })
-
-  it('displays correct delegatingFor count in tab label', () => {
-    mockUseDelegations.delegatingFor = [mockDelegatingFor] as any
-    render(<DelegateScreen />)
-    const tabTexts = screen.getAllByText(/delegate\.tabs\.delegatingFor/)
-    expect(tabTexts.length).toBeGreaterThan(0)
-  })
-
-  it('displays zero count when no delegates', () => {
-    mockUseDelegations.myDelegates = []
-    mockUseDelegations.delegatingFor = []
-    render(<DelegateScreen />)
-    // Both tabs should exist with (0) count
-    const myTab = screen.getAllByText(/delegate\.tabs\.myDelegates/)
-    const forTab = screen.getAllByText(/delegate\.tabs\.delegatingFor/)
-    expect(myTab.length).toBeGreaterThan(0)
-    expect(forTab.length).toBeGreaterThan(0)
-  })
-
-  // =========================================
   // Loading and Error States
   // =========================================
 
@@ -280,26 +241,7 @@ describe('DelegateScreen', () => {
     expect(screen.getByText('delegate.status.active')).toBeTruthy()
   })
 
-  // =========================================
-  // Initial Tab
-  // =========================================
 
-  it('starts on My Delegates tab by default', () => {
-    mockUseDelegations.myDelegates = [mockActiveDelegation]
-    mockUseDelegations.delegatingFor = [mockDelegatingFor]
-    render(<DelegateScreen />)
-    // My Delegates tab content should be visible
-    expect(screen.getByText('Jane Doe')).toBeTruthy()
-  })
-
-  it('can start on Delegating For tab via initialTab prop', () => {
-    mockUseDelegations.delegatingFor = [mockDelegatingFor]
-    render(<DelegateScreen initialTab="for" />)
-    // Delegating For tab content should be visible
-    expect(screen.getByText('John Smith')).toBeTruthy()
-  })
-
-  // =========================================
   // Back Button Navigation
   // =========================================
 

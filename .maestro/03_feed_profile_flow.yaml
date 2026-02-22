@@ -1,0 +1,57 @@
+appId: dev.casagrown.community
+---
+- launchApp
+- extendedWaitUntil:
+      visible: ".*developer menu.*|.*CasaGrown.*|.*Join the Movement.*"
+      timeout: 60000
+
+# Dismiss developer menu if showing
+- runFlow:
+      when:
+          visible: ".*developer menu.*"
+      commands:
+          - tapOn: "Continue"
+
+# Handle dev tools panel (Android)
+- runFlow:
+      when:
+          visible: "Go home"
+      commands:
+          - tapOn: "Go home"
+
+# Handle Reload button
+- runFlow:
+      when:
+          visible: "Reload"
+      commands:
+          - tapOn: "Reload"
+
+- extendedWaitUntil:
+      visible: ".*Join the Movement.*|.*Feed.*"
+      timeout: 60000
+
+# Verify search functionality is present
+- assertVisible: ".*Search.*"
+
+# ============ PROFILE NAVIGATION TEST ============
+
+# Navigate to Profile via tab bar
+- tapOn: ".*Menu.*"
+
+# Wait for Menu screen to load
+- extendedWaitUntil:
+      visible: ".*Profile.*|.*Settings.*"
+      timeout: 10000
+
+# Verify Menu screen elements
+- assertVisible: ".*Profile.*"
+
+# ============ BACK NAVIGATION TEST ============
+
+# Navigate back using Feed tab
+- tapOn: ".*Feed.*"
+
+# Wait and verify we're back on Feed screen
+- extendedWaitUntil:
+      visible: ".*Feed.*"
+      timeout: 10000

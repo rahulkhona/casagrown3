@@ -44,7 +44,13 @@ export default function ChatPage() {
         otherUserId={otherUserId}
         currentUserId={user.id}
         currentUserName={userDisplayName}
-        onClose={() => router.push(from === 'orders' ? '/orders' : '/feed')}
+        onClose={() => {
+          if (window.history.length > 1) {
+            router.back()
+          } else {
+            router.push(from === 'orders' ? '/orders' : from === 'offers' ? '/offers' : '/feed')
+          }
+        }}
       />
     </div>
   )

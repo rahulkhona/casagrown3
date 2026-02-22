@@ -42,6 +42,9 @@ jest.mock('@tamagui/lucide-icons', () => {
     Calendar: MockIcon,
     MapPin: MockIcon,
     MessageCircle: MockIcon,
+    HandCoins: MockIcon,
+    Bell: MockIcon,
+    Menu: MockIcon,
   }
 })
 
@@ -81,6 +84,10 @@ jest.mock('../../design-tokens', () => ({
   },
   borderRadius: { sm: 4, md: 8, lg: 12 },
   shadows: { sm: { color: '#000', offset: { width: 0, height: 1 }, radius: 2 } },
+}))
+
+jest.mock('../common/MobileTabHeader', () => ({
+  MobileTabHeader: () => null,
 }))
 
 jest.mock('../../utils/normalize-storage-url', () => ({

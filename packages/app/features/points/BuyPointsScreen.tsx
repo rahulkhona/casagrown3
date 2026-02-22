@@ -32,6 +32,7 @@ export interface BuyPointsScreenProps {
   onNavigateToOffers?: () => void
   onNavigateToMyPosts?: () => void
   onNavigateToDelegate?: () => void
+  onNavigateToAcceptDelegation?: () => void
 }
 
 const NAV_KEYS_BASE = [
@@ -43,6 +44,7 @@ const NAV_KEYS_BASE = [
   { key: 'redeem', badge: 0 },
   { key: 'transferPoints', badge: 0 },
   { key: 'delegateSales', badge: 0 },
+  { key: 'acceptDelegation', badge: 0 },
   { key: 'buyPoints', badge: 0 },
   { key: 'invite', badge: 0 },
 ]
@@ -55,13 +57,15 @@ export function BuyPointsScreen({
   onNavigateToOrders,
   onNavigateToOffers,
   onNavigateToMyPosts,
-  onNavigateToDelegate
+  onNavigateToDelegate,
+  onNavigateToAcceptDelegation
 }: BuyPointsScreenProps) {
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
   const media = useMedia()
   const isWeb = Platform.OS === 'web'
-  const isDesktop = media.md || media.lg
+  // @ts-ignore
+  const isDesktop = media.lg || media.xl || media.xxl
 
   const { user } = useAuth()
   const userId = user?.id
@@ -128,15 +132,17 @@ export function BuyPointsScreen({
   const handleNavPress = useCallback((key: string) => {
     if (key === 'feed') onNavigateToFeed?.()
     else if (key === 'delegateSales') onNavigateToDelegate?.()
+    else if (key === 'acceptDelegation') onNavigateToAcceptDelegation?.()
     else if (key === 'myPosts') onNavigateToMyPosts?.()
     else if (key === 'chats') onNavigateToChats?.()
     else if (key === 'orders') onNavigateToOrders?.()
     else if (key === 'offers') onNavigateToOffers?.()
-  }, [onNavigateToFeed, onNavigateToDelegate, onNavigateToMyPosts, onNavigateToChats, onNavigateToOrders, onNavigateToOffers])
+  }, [onNavigateToFeed, onNavigateToDelegate, onNavigateToAcceptDelegation, onNavigateToMyPosts, onNavigateToChats, onNavigateToOrders, onNavigateToOffers])
 
   return (
     <YStack flex={1} backgroundColor={colors.gray[50]}>
       {/* HEADER (Replicated from FeedScreen) */}
+      {!isWeb && (
       <YStack 
         backgroundColor="white" 
         borderBottomWidth={1} 
@@ -285,6 +291,7 @@ export function BuyPointsScreen({
           />
         )}
       </YStack>
+      )}
 
       <InviteModal 
         visible={inviteModalOpen} 

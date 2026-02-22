@@ -9,7 +9,7 @@ import { useState, useEffect } from 'react'
 import { YStack, XStack, Text, Button, ScrollView, Image } from 'tamagui'
 import { useTranslation } from 'react-i18next'
 import { UserPlus, Users, ShoppingCart, Gift, Leaf, X, Copy, Check, Send, Smartphone } from '@tamagui/lucide-icons'
-import { Platform, Share, Clipboard, Dimensions } from 'react-native'
+import { Platform, Share, Dimensions } from 'react-native'
 // Platform-specific QR code: see QRCodeDisplay.web.tsx and QRCodeDisplay.tsx
 import { QRCodeDisplay } from './QRCodeDisplay'
 import { colors, borderRadius } from '../../design-tokens'
@@ -67,7 +67,8 @@ export function InviteModal({ visible, onClose, referralCode, inviteRewards }: I
       if (isWeb && navigator.clipboard) {
         await navigator.clipboard.writeText(inviteLink)
       } else {
-        Clipboard.setString(inviteLink)
+        const Clipboard = require('expo-clipboard')
+        await Clipboard.setStringAsync(inviteLink)
       }
       setLinkCopied(true)
       setTimeout(() => setLinkCopied(false), 2000)
@@ -109,7 +110,7 @@ export function InviteModal({ visible, onClose, referralCode, inviteRewards }: I
 
   return (
     <YStack
-      position="absolute"
+      position={isWeb ? ('fixed' as any) : 'absolute'}
       top={0}
       left={0}
       right={0}

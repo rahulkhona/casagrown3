@@ -307,6 +307,7 @@
       "redeem": "Redeem",
       "transferPoints": "Transfer Points",
       "delegateSales": "Delegate Sales",
+      "acceptDelegation": "Accept Delegation",
       "invite": "Invite Friends"
     },
     "header": {

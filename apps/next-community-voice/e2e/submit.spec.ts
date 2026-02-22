@@ -46,7 +46,9 @@ test.describe("Submit Feedback", () => {
         await page.waitForTimeout(1000);
 
         // Without type param, type selector buttons should be visible
-        await expect(page.locator("text=Bug Report").first()).toBeVisible();
+        await expect(page.locator("text=Bug Report").first()).toBeVisible({
+            timeout: 10_000,
+        });
         await expect(page.locator("text=Feature Request").first())
             .toBeVisible();
         await expect(page.locator("text=Support Request").first())

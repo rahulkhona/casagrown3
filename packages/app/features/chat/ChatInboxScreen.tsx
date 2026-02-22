@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next'
 import { getUserConversations, type ConversationSummary } from './chat-service'
 import { supabase } from '../../utils/supabase'
 import { colors, tc } from '../../design-tokens'
+import { MobileTabHeader } from '../common/MobileTabHeader'
 import { normalizeStorageUrl } from '../../utils/normalize-storage-url'
 
 // =============================================================================
@@ -23,6 +24,7 @@ export interface ChatInboxScreenProps {
     currentUserId: string
     onOpenChat: (postId: string, otherUserId: string) => void
     onClose: () => void
+    isTab?: boolean
 }
 
 // =============================================================================
@@ -215,12 +217,40 @@ export function ChatInboxScreen({
     currentUserId,
     onOpenChat,
     onClose,
+    isTab,
 }: ChatInboxScreenProps) {
     const { t } = useTranslation()
+    const isWeb = Platform.OS === 'web'
     const [conversations, setConversations] = useState<ConversationSummary[]>([])
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
     const [error, setError] = useState<string | null>(null)
+
+    // Scroll restoration reference
+    const flatListRef = useRef<FlatList>(null)
+    const isScrollRestored = useRef(false)
+
+    // ── Restore Scroll Position on Web ──
+    useEffect(() => {
+        if (isWeb && conversations.length > 0 && !isScrollRestored.current && flatListRef.current) {
+            const savedScroll = sessionStorage.getItem('inboxScrollPos')
+            if (savedScroll) {
+                setTimeout(() => {
+                    flatListRef.current?.scrollToOffset({ offset: parseFloat(savedScroll), animated: false })
+                    isScrollRestored.current = true
+                }, 50)
+            } else {
+                isScrollRestored.current = true
+            }
+        }
+    }, [conversations.length, isWeb])
+
+    const handleScroll = useCallback((e: any) => {
+        if (isWeb) {
+            const offset = e.nativeEvent.contentOffset.y
+            sessionStorage.setItem('inboxScrollPos', offset.toString())
+        }
+    }, [isWeb])
 
     const fetchConversations = useCallback(async () => {
         try {
@@ -282,34 +312,37 @@ export function ChatInboxScreen({
 
     return (
         <YStack flex={1} backgroundColor="white" alignItems="center">
+            <MobileTabHeader />
             <YStack flex={1} width="100%" maxWidth={896}>
             {/* Header */}
-            <XStack
-                paddingHorizontal="$4"
-                paddingVertical="$3"
-                alignItems="center"
-                gap="$3"
-                borderBottomWidth={1}
-                borderBottomColor={colors.gray[200]}
-                backgroundColor="white"
-            >
-                <Button
-                    unstyled
-                    onPress={onClose}
-                    padding="$2"
-                    borderRadius="$full"
-                    hoverStyle={{ backgroundColor: colors.gray[100] }}
-                    aria-label="Back"
+            {!isWeb && !isTab && (
+                <XStack
+                    paddingHorizontal="$4"
+                    paddingVertical="$3"
+                    alignItems="center"
+                    gap="$3"
+                    borderBottomWidth={1}
+                    borderBottomColor={colors.gray[200]}
+                    backgroundColor="white"
                 >
-                    <ArrowLeft size={22} color={colors.gray[700]} />
-                </Button>
-                <XStack alignItems="center" gap="$2" flex={1}>
-                    <MessageCircle size={20} color={colors.green[600]} />
-                    <Text fontSize={18} fontWeight="700" color={colors.gray[900]}>
-                        {t('chat.inboxTitle')}
-                    </Text>
+                    <Button
+                        unstyled
+                        onPress={onClose}
+                        padding="$2"
+                        borderRadius="$full"
+                        hoverStyle={{ backgroundColor: colors.gray[100] }}
+                        aria-label="Back"
+                    >
+                        <ArrowLeft size={22} color={colors.gray[700]} />
+                    </Button>
+                    <XStack alignItems="center" gap="$2" flex={1}>
+                        <MessageCircle size={20} color={colors.green[600]} />
+                        <Text fontSize={18} fontWeight="700" color={colors.gray[900]}>
+                            {t('chat.inboxTitle')}
+                        </Text>
+                    </XStack>
                 </XStack>
-            </XStack>
+            )}
 
             {/* Content */}
             {loading ? (
@@ -350,9 +383,12 @@ export function ChatInboxScreen({
                 </YStack>
             ) : (
                 <FlatList
+                    ref={flatListRef}
                     data={conversations}
                     keyExtractor={(item) => item.id}
                     renderItem={renderItem}
+                    onScroll={handleScroll}
+                    scrollEventThrottle={100}
                     refreshControl={
                         <RefreshControl
                             refreshing={refreshing}

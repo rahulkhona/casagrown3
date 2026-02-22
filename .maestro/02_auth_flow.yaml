@@ -1,0 +1,60 @@
+appId: dev.casagrown.community
+---
+- launchApp
+- extendedWaitUntil:
+    visible: ".*developer menu.*|.*CasaGrown.*|.*Join the Movement.*"
+    timeout: 60000
+
+# Dismiss developer menu if showing
+- runFlow:
+    when:
+      visible: ".*developer menu.*"
+    commands:
+      - tapOn: "Continue"
+
+# Handle dev tools panel (Android)
+- runFlow:
+    when:
+      visible: "Go home"
+    commands:
+      - tapOn: "Go home"
+
+# Handle Reload button
+- runFlow:
+    when:
+      visible: "Reload"
+    commands:
+      - tapOn: "Reload"
+
+- extendedWaitUntil:
+    visible: ".*Join the Movement.*"
+    timeout: 60000
+
+# Navigate to Login from Home Screen
+- tapOn: ".*Join the Movement.*"
+
+# Verify Login Screen loaded
+- assertVisible: ".*Welcome to CasaGrown.*"
+- assertVisible: ".*Sign in to start buying and selling.*"
+- assertVisible: ".*Continue with Google.*"
+
+# Test Email OTP Flow
+- tapOn: "Continue with Email"
+- extendedWaitUntil:
+    visible: ".*Email Address.*"
+    timeout: 10000
+- tapOn:
+    id: "email_input"
+- eraseText: 50
+- inputText: "buyer@test.local"
+- pressKey: enter
+- tapOn: ".*Send Verification Code.*"
+
+# Verify OTP screen is displayed
+- extendedWaitUntil:
+    visible: ".*verification code.*|.*Verification Code.*"
+    timeout: 60000
+- assertVisible: ".*buyer@test.local.*"
+- assertVisible: ".*Verification Code.*"
+- assertVisible: ".*Verify.*Continue.*"
+- assertVisible: ".*Resend code.*"

@@ -280,7 +280,6 @@ describe('ProfileScreen', () => {
     await waitFor(() => {
       expect(getByText('profile.accountActions')).toBeTruthy()
       expect(getByText('profile.logout')).toBeTruthy()
-      expect(getByText('profile.deactivateAccount')).toBeTruthy()
     })
   })
 

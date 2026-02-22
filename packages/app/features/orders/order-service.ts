@@ -557,3 +557,15 @@ export async function submitRating(
     if (error) throw new Error(`Failed to submit rating: ${error.message}`);
     return mapOrderRow(data);
 }
+
+/** Get the count of open orders for a user */
+export async function getOpenOrderCount(userId: string): Promise<number> {
+    const { count, error } = await supabase
+        .from("orders")
+        .select("*", { count: "exact", head: true })
+        .not("status", "in", '("cancelled","completed")')
+        .or(`buyer_id.eq.${userId},seller_id.eq.${userId}`);
+
+    if (error) return 0;
+    return count ?? 0;
+}

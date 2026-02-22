@@ -49,6 +49,10 @@ export default function FeedTab() {
     router.push('/(tabs)/delegate')
   }
 
+  const handleNavigateToAcceptDelegation = () => {
+    router.push('/(tabs)/accept-delegation')
+  }
+
   const handleNavigateToMyPosts = () => {
     router.push('/(tabs)/my-posts')
   }
@@ -75,6 +79,7 @@ export default function FeedTab() {
       onCreatePost={handleCreatePost}
       onNavigateToProfile={handleNavigateToProfile}
       onNavigateToDelegate={handleNavigateToDelegate}
+      onNavigateToAcceptDelegation={handleNavigateToAcceptDelegation}
       onNavigateToMyPosts={handleNavigateToMyPosts}
       logoSrc={logoSrc}
       referralCode={referralCode}
