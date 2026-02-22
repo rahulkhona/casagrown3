@@ -1,54 +1,72 @@
 appId: dev.casagrown.community
 ---
+# 06 — Delegation Login
+# Verifies: Login flow for delegation testing
+# Signs out first if logged in, then starts email OTP flow
 - launchApp
-- extendedWaitUntil:
-    visible: ".*developer menu.*|.*CasaGrown.*|.*Join the Movement.*"
-    timeout: 60000
-
-# Dismiss developer menu if showing
-- runFlow:
-    when:
-      visible: ".*developer menu.*"
-    commands:
-      - tapOn: "Continue"
-
-# Handle dev tools panel (Android)
-- runFlow:
-    when:
-      visible: "Go home"
-    commands:
-      - tapOn: "Go home"
-
-# Handle Reload button
-- runFlow:
-    when:
-      visible: "Reload"
-    commands:
-      - tapOn: "Reload"
 
 - extendedWaitUntil:
-    visible: ".*Join the Movement.*"
-    timeout: 60000
+      visible: "Continue|.*Join the Movement.*|.*Feed.*|.*Search.*|.*pts.*"
+      timeout: 30000
+
+# Dismiss Expo dev menu if showing
+- runFlow:
+      when:
+          visible: "Continue"
+      commands:
+          - tapOn: "Continue"
+- runFlow:
+      when:
+          visible: ".*Connected to.*"
+      commands:
+          - pressKey: back
+
+- extendedWaitUntil:
+      visible: ".*Join the Movement.*|.*Feed.*|.*Search.*|.*pts.*"
+      timeout: 30000
+
+# If logged in, sign out first
+- runFlow:
+      when:
+          visible: ".*Feed.*"
+      commands:
+          - tapOn: ".*Menu.*"
+          - extendedWaitUntil:
+                visible: ".*Sign Out.*"
+                timeout: 10000
+          - tapOn: ".*Sign Out.*"
+          - extendedWaitUntil:
+                visible: ".*Sign Out.*"
+                timeout: 5000
+          - tapOn: ".*Sign Out.*"
+          - extendedWaitUntil:
+                visible: ".*Join the Movement.*"
+                timeout: 15000
 
 # Navigate to Login
 - tapOn: ".*Join the Movement.*"
 
 - extendedWaitUntil:
-    visible: ".*Welcome to CasaGrown.*"
-    timeout: 15000
+      visible: ".*Welcome to CasaGrown.*"
+      timeout: 15000
 
 # Tap Continue with Email
 - tapOn: "Continue with Email"
 
 - extendedWaitUntil:
-    visible: ".*Email Address.*"
-    timeout: 10000
+      visible: ".*Email Address.*"
+      timeout: 10000
 
 - tapOn:
-    id: "email_input"
+      id: "email_input"
 - eraseText: 50
 - inputText: "buyer@test.local"
 - pressKey: enter
 
 # Tap Send
 - tapOn: ".*Send Verification Code.*"
+
+# Verify OTP screen
+- extendedWaitUntil:
+      visible: ".*verification code.*|.*Verification Code.*"
+      timeout: 60000

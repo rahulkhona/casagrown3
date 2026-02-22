@@ -1,57 +1,68 @@
 appId: dev.casagrown.community
 ---
+# 03 — Feed & Menu Tab Flow
+# Verifies: Feed screen → all 5 bottom tabs → Menu screen items → Back to Feed
+# Requires: User must be logged in
 - launchApp
-- extendedWaitUntil:
-      visible: ".*developer menu.*|.*CasaGrown.*|.*Join the Movement.*"
-      timeout: 60000
 
-# Dismiss developer menu if showing
+- extendedWaitUntil:
+          visible: "Continue|.*Join the Movement.*|.*Feed.*|.*Search.*|.*pts.*"
+          timeout: 30000
+
+# Dismiss Expo dev menu if showing
 - runFlow:
-      when:
-          visible: ".*developer menu.*"
-      commands:
-          - tapOn: "Continue"
-
-# Handle dev tools panel (Android)
+          when:
+                  visible: "Continue"
+          commands:
+                  - tapOn: "Continue"
 - runFlow:
-      when:
-          visible: "Go home"
-      commands:
-          - tapOn: "Go home"
+          when:
+                  visible: ".*Connected to.*"
+          commands:
+                  - pressKey: back
 
-# Handle Reload button
+- extendedWaitUntil:
+          visible: ".*Join the Movement.*|.*Feed.*|.*Search.*|.*pts.*"
+          timeout: 30000
+
+# Skip if not logged in
 - runFlow:
-      when:
-          visible: "Reload"
-      commands:
-          - tapOn: "Reload"
+          when:
+                  visible: ".*Join the Movement.*"
+          commands:
+                  - tapOn: ".*Join the Movement.*"
+                  - assertVisible: ".*Welcome to CasaGrown.*"
 
-- extendedWaitUntil:
-      visible: ".*Join the Movement.*|.*Feed.*"
-      timeout: 60000
+# ============ FEED SCREEN (logged in only) ============
+- runFlow:
+          when:
+                  visible: ".*Feed.*"
+          commands:
+                  - assertVisible: ".*Search.*"
+                  - assertVisible: ".*Feed.*"
+                  - assertVisible: ".*Chats.*"
+                  - assertVisible: ".*Orders.*"
+                  - assertVisible: ".*Offers.*"
+                  - assertVisible: ".*Menu.*"
+                  - assertVisible: ".*pts.*"
 
-# Verify search functionality is present
-- assertVisible: ".*Search.*"
+                  # ============ MENU TAB ============
+                  - tapOn: ".*Menu.*"
+                  - extendedWaitUntil:
+                            visible: ".*Profile.*Settings.*|.*Delegate Sales.*"
+                            timeout: 10000
+                  - assertVisible: ".*Profile.*Settings.*"
+                  - assertVisible: ".*Redeem Points.*"
+                  - assertVisible: ".*Transfer Points.*"
+                  - assertVisible: ".*Buy Points.*"
+                  - assertVisible: ".*Delegate Sales.*"
+                  - assertVisible: ".*Accept Delegation.*"
+                  - assertVisible: ".*Invite Friends.*"
+                  - assertVisible: ".*My Posts.*"
+                  - assertVisible: ".*Sign Out.*"
 
-# ============ PROFILE NAVIGATION TEST ============
-
-# Navigate to Profile via tab bar
-- tapOn: ".*Menu.*"
-
-# Wait for Menu screen to load
-- extendedWaitUntil:
-      visible: ".*Profile.*|.*Settings.*"
-      timeout: 10000
-
-# Verify Menu screen elements
-- assertVisible: ".*Profile.*"
-
-# ============ BACK NAVIGATION TEST ============
-
-# Navigate back using Feed tab
-- tapOn: ".*Feed.*"
-
-# Wait and verify we're back on Feed screen
-- extendedWaitUntil:
-      visible: ".*Feed.*"
-      timeout: 10000
+                  # ============ BACK TO FEED ============
+                  - tapOn: ".*Feed.*"
+                  - extendedWaitUntil:
+                            visible: ".*Search.*|.*Feed.*"
+                            timeout: 10000

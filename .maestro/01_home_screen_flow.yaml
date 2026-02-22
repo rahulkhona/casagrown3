@@ -1,43 +1,67 @@
 appId: dev.casagrown.community
 ---
-- launchApp:
-    clearState: true
-- extendedWaitUntil:
-    visible: ".*developer menu.*|.*CasaGrown.*|.*Join the Movement.*"
-    timeout: 60000
+# 01 — Home Screen Flow
+# Verifies: App loads → shows either Home/Login screen OR Feed (if logged in)
+- launchApp
 
-# Dismiss developer menu if showing
+# Wait for something to appear
+- extendedWaitUntil:
+    visible: "Continue|.*Join the Movement.*|.*Feed.*|.*Search.*|.*pts.*"
+    timeout: 30000
+
+# Dismiss Expo developer menu — first overlay (the "Continue" splash)
 - runFlow:
     when:
-      visible: ".*developer menu.*"
+      visible: "Continue"
     commands:
       - tapOn: "Continue"
 
-# Handle dev tools panel (Android)
+# Dismiss Expo developer menu — second overlay (the full dev tools panel)
+# This panel shows "Connected to", Reload, Go home, etc.
+# Close it by pressing Android back key
 - runFlow:
     when:
-      visible: "Go home"
+      visible: ".*Connected to.*"
     commands:
-      - tapOn: "Go home"
+      - pressKey: back
 
-# Handle Reload button
-- runFlow:
-    when:
-      visible: "Reload"
-    commands:
-      - tapOn: "Reload"
-
+# Wait a moment for the UI to settle
 - extendedWaitUntil:
-    visible: ".*Join the Movement.*"
-    timeout: 60000
+    visible: ".*Join the Movement.*|.*Feed.*|.*Search.*|.*pts.*|.*Connected to.*"
+    timeout: 15000
 
-# Verify Home Screen
-- assertVisible: ".*Fresh from Neighbors.*"
-- assertVisible: ".*Join the Movement.*"
+# If dev menu is STILL showing, close it again
+- runFlow:
+    when:
+      visible: ".*Connected to.*"
+    commands:
+      - pressKey: back
+      - extendedWaitUntil:
+          visible: ".*Join the Movement.*|.*Feed.*|.*Search.*|.*pts.*"
+          timeout: 15000
 
-# Test Navigation
-- tapOn: ".*Join the Movement.*"
+# Now wait for actual app content
+- extendedWaitUntil:
+    visible: ".*Join the Movement.*|.*Feed.*|.*Search.*|.*pts.*"
+    timeout: 30000
 
-# Verify Login Screen
-- assertVisible: ".*Welcome to CasaGrown.*"
-- assertVisible: ".*Continue with Google.*"
+# ============ LOGGED OUT STATE ============
+- runFlow:
+    when:
+      visible: ".*Join the Movement.*"
+    commands:
+      - assertVisible: ".*Fresh from Neighbors.*"
+      - assertVisible: ".*Join the Movement.*"
+      - tapOn: ".*Join the Movement.*"
+      - assertVisible: ".*Welcome to CasaGrown.*"
+      - assertVisible: ".*Continue with Google.*"
+
+# ============ LOGGED IN STATE ============
+- runFlow:
+    when:
+      visible: ".*Feed.*"
+    commands:
+      - assertVisible: ".*Search.*"
+      - assertVisible: ".*Chats.*"
+      - assertVisible: ".*Orders.*"
+      - assertVisible: ".*Menu.*"

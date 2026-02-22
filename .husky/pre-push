@@ -138,6 +138,36 @@ npx playwright test --config=e2e/playwright/playwright.config.ts --reporter=dot 
 
 
 # ═══════════════════════════════════════════════════════════════════
+# PHASE 3: Maestro Mobile E2E (iOS simulator)
+# ═══════════════════════════════════════════════════════════════════
+
+echo ""
+echo "━━━ Phase 3: Maestro Mobile E2E ━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Check if maestro CLI is available
+if ! command -v maestro > /dev/null 2>&1; then
+    echo "   ⚠️  Maestro CLI not found — skipping mobile E2E tests."
+else
+    # Kill stale XCTest/Maestro processes that can block the iOS driver
+    pkill -f "XCTRunner" 2>/dev/null || true
+    pkill -f "maestro" 2>/dev/null || true
+    sleep 1
+
+    # Find a booted iOS simulator
+    IOS_UDID=$(xcrun simctl list devices | grep "Booted" | head -1 | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' || true)
+
+    if [ -n "$IOS_UDID" ]; then
+        echo "📱 [5/5] Maestro E2E tests (iOS: $IOS_UDID)..."
+        MAESTRO_DRIVER_STARTUP_TIMEOUT=120000 maestro test --udid "$IOS_UDID" .maestro/ 2>&1 || {
+            echo "❌ Maestro E2E tests failed — push aborted."
+            exit 1
+        }
+    else
+        echo "   ⚠️  No booted iOS simulator found — skipping Maestro tests."
+    fi
+fi
+
+# ═══════════════════════════════════════════════════════════════════
 # Done
 # ═══════════════════════════════════════════════════════════════════
 

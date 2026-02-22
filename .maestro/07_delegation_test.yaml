@@ -1,59 +1,50 @@
 appId: dev.casagrown.community
 ---
+# 07 — Delegation Test (Menu → Delegate Sales)
+# Verifies: Menu tab → Delegate Sales → delegate screen elements
+# Requires: User must be logged in
 - launchApp
-- extendedWaitUntil:
-    visible: ".*developer menu.*|.*CasaGrown.*|.*Join the Movement.*"
-    timeout: 60000
 
-# Dismiss developer menu if showing
+- extendedWaitUntil:
+      visible: "Continue|.*Feed.*|.*Search.*|.*pts.*|.*Join the Movement.*"
+      timeout: 30000
+
+# Dismiss Expo dev menu if showing
 - runFlow:
-    when:
-      visible: ".*developer menu.*"
-    commands:
-      - tapOn: "Continue"
-
-# Handle dev tools panel (Android)
+      when:
+          visible: "Continue"
+      commands:
+          - tapOn: "Continue"
 - runFlow:
-    when:
-      visible: "Go home"
-    commands:
-      - tapOn: "Go home"
+      when:
+          visible: ".*Connected to.*"
+      commands:
+          - pressKey: back
 
-# Handle Reload button
+- extendedWaitUntil:
+      visible: ".*Feed.*|.*Search.*|.*pts.*|.*Join the Movement.*"
+      timeout: 30000
+
 - runFlow:
-    when:
-      visible: "Reload"
-    commands:
-      - tapOn: "Reload"
+      when:
+          visible: ".*Feed.*"
+      commands:
+          # ============ NAVIGATE TO DELEGATE SALES ============
+          - tapOn: ".*Menu.*"
+          - extendedWaitUntil:
+                visible: ".*Delegate Sales.*"
+                timeout: 10000
+          - tapOn: ".*Delegate Sales.*"
+          - extendedWaitUntil:
+                visible: ".*Delegate.*|.*Add New Delegate.*"
+                timeout: 15000
 
-- extendedWaitUntil:
-    visible: ".*Join the Movement.*"
-    timeout: 60000
+          # Verify Delegate screen
+          - assertVisible: ".*Delegate Sales.*"
 
-# Navigate to Login
-- tapOn: ".*Join the Movement.*"
-
-- extendedWaitUntil:
-    visible: ".*Welcome to CasaGrown.*"
-    timeout: 15000
-
-# Tap Continue with Email
-- tapOn: "Continue with Email"
-
-- extendedWaitUntil:
-    visible: ".*Email Address.*"
-    timeout: 10000
-
-- tapOn:
-    id: "email_input"
-- eraseText: 50
-- inputText: "buyer@test.local"
-- pressKey: enter
-
-# Tap Send Verification Code
-- tapOn: ".*Send Verification Code.*"
-
-# Wait for OTP screen
-- extendedWaitUntil:
-    visible: ".*verification code.*|.*Verification Code.*"
-    timeout: 60000
+          # ============ BACK TO MENU ============
+          - pressKey: back
+          - tapOn: ".*Feed.*"
+          - extendedWaitUntil:
+                visible: ".*Search.*|.*Feed.*"
+                timeout: 10000

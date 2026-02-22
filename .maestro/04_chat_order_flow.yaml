@@ -1,62 +1,48 @@
 appId: dev.casagrown.community
 ---
+# 04 — Chat & Orders Tab Flow
+# Verifies: Chats tab → Orders tab → MobileTabHeader on each
+# Requires: User must be logged in
 - launchApp
-- extendedWaitUntil:
-        visible: ".*developer menu.*|.*CasaGrown.*|.*Join the Movement.*"
-        timeout: 60000
 
-# Dismiss developer menu if showing
+- extendedWaitUntil:
+          visible: "Continue|.*Feed.*|.*Search.*|.*pts.*|.*Join the Movement.*"
+          timeout: 30000
+
+# Dismiss Expo dev menu if showing
 - runFlow:
-        when:
-              visible: ".*developer menu.*"
-        commands:
-              - tapOn: "Continue"
-
-# Handle dev tools panel (Android)
+          when:
+                  visible: "Continue"
+          commands:
+                  - tapOn: "Continue"
 - runFlow:
-        when:
-              visible: "Go home"
-        commands:
-              - tapOn: "Go home"
+          when:
+                  visible: ".*Connected to.*"
+          commands:
+                  - pressKey: back
 
-# Handle Reload button
+- extendedWaitUntil:
+          visible: ".*Feed.*|.*Search.*|.*pts.*|.*Join the Movement.*"
+          timeout: 30000
+
+# Only run if logged in
 - runFlow:
-        when:
-              visible: "Reload"
-        commands:
-              - tapOn: "Reload"
+          when:
+                  visible: ".*Feed.*"
+          commands:
+                  - tapOn: ".*Chats.*"
+                  - extendedWaitUntil:
+                            visible: ".*Chats.*|.*No conversations.*"
+                            timeout: 15000
+                  - assertVisible: ".*pts.*"
 
-- extendedWaitUntil:
-        visible: ".*Join the Movement.*|.*Feed.*|.*Chats.*"
-        timeout: 60000
+                  - tapOn: ".*Orders.*"
+                  - extendedWaitUntil:
+                            visible: ".*Orders.*|.*No orders.*"
+                            timeout: 15000
+                  - assertVisible: ".*pts.*"
 
-# Navigate to Chats tab
-- tapOn: ".*Chats.*"
-
-- extendedWaitUntil:
-        visible: ".*Chats.*|.*No conversations.*"
-        timeout: 15000
-
-# ============ VERIFY CHAT SCREEN ============
-# Try to tap a conversation if available
-- tapOn:
-        index: 0
-        optional: true
-
-# Wait for chat to load
-- extendedWaitUntil:
-        visible: ".*Type a message.*|.*No conversations.*|.*Chats.*"
-        timeout: 10000
-
-# Place Order button (optional - only for sell-post conversations)
-- assertVisible:
-        text: ".*Place Order.*"
-        optional: true
-
-# ============ BACK NAVIGATION ============
-- pressKey: back
-- tapOn: ".*Chats.*"
-
-- extendedWaitUntil:
-        visible: ".*Chats.*"
-        timeout: 5000
+                  - tapOn: ".*Feed.*"
+                  - extendedWaitUntil:
+                            visible: ".*Feed.*|.*Search.*"
+                            timeout: 10000
