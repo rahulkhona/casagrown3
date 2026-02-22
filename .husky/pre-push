@@ -2,7 +2,9 @@
 
 # ═══════════════════════════════════════════════════════════════════
 # Pre-push hook — Full E2E test suite
-# Starts/stops dev servers, simulators as needed, runs all tests.
+# Manages dev servers, emulators/simulators, runs all tests.
+# Shuts down heavy processes (emulators) before web tests,
+# boots iOS simulator for mobile tests, then restores state.
 # ═══════════════════════════════════════════════════════════════════
 
 set -e
@@ -10,9 +12,11 @@ set -e
 ROOT_DIR="$(git rev-parse --show-toplevel)"
 cd "$ROOT_DIR"
 
-# Track PIDs so we can clean up on exit
+# Track PIDs and state so we can clean up on exit
 PIDS_TO_KILL=""
 SUPABASE_STARTED_BY_US=false
+ANDROID_WAS_RUNNING=false
+ANDROID_EMU_NAME=""
 
 cleanup() {
     echo ""
@@ -25,6 +29,13 @@ cleanup() {
         echo "   Stopping Supabase..."
         supabase stop 2>/dev/null || true
     fi
+
+    # Restart Android emulator if it was running before we shut it down
+    if [ "$ANDROID_WAS_RUNNING" = true ] && [ -n "$ANDROID_EMU_NAME" ]; then
+        echo "   Restarting Android emulator ($ANDROID_EMU_NAME)..."
+        emulator -avd "$ANDROID_EMU_NAME" -no-snapshot-load > /dev/null 2>&1 &
+    fi
+
     echo "🧹 Cleanup complete."
 }
 trap cleanup EXIT
@@ -56,18 +67,38 @@ echo "🔍 Running pre-push checks..."
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════
+# PHASE 0: Shut down resource-heavy processes for web tests
+# ═══════════════════════════════════════════════════════════════════
+
+echo "━━━ Phase 0: Resource Management ━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Shut down Android emulator if running (saves ~2GB RAM + CPU)
+ANDROID_EMU_NAME=$(adb shell getprop ro.boot.qemu.avd_name 2>/dev/null | tr -d '\r' || true)
+if [ -n "$ANDROID_EMU_NAME" ]; then
+    ANDROID_WAS_RUNNING=true
+    echo "   Shutting down Android emulator ($ANDROID_EMU_NAME) to free resources..."
+    adb emu kill 2>/dev/null || true
+    sleep 3
+    echo "   ✓ Android emulator stopped"
+else
+    echo "   ✓ No Android emulator running"
+fi
+
+echo ""
+
+# ═══════════════════════════════════════════════════════════════════
 # PHASE 1: Unit Tests (no servers needed)
 # ═══════════════════════════════════════════════════════════════════
 
 echo "━━━ Phase 1: Unit Tests ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-echo "📋 [1/4] Community App unit tests (jest)..."
+echo "📋 [1/5] Community App unit tests (jest)..."
 yarn workspace @casagrown/app jest --passWithNoTests --bail 2>&1 || {
     echo "❌ Community App unit tests failed — push aborted."
     exit 1
 }
 
-echo "📋 [2/4] Community Voice unit tests (vitest)..."
+echo "📋 [2/5] Community Voice unit tests (vitest)..."
 cd apps/next-community-voice && npx vitest run --reporter=dot 2>&1 || {
     echo "❌ Community Voice unit tests failed — push aborted."
     exit 1
@@ -75,10 +106,6 @@ cd apps/next-community-voice && npx vitest run --reporter=dot 2>&1 || {
 cd "$ROOT_DIR"
 
 echo ""
-
-# ═══════════════════════════════════════════════════════════════════
-# PHASE 2: Playwright E2E (start web dev servers if needed)
-# ═══════════════════════════════════════════════════════════════════
 
 # ═══════════════════════════════════════════════════════════════════
 # PHASE 1.5: Supabase (database, auth, edge functions, realtime)
@@ -100,6 +127,10 @@ fi
 
 echo ""
 
+# ═══════════════════════════════════════════════════════════════════
+# PHASE 2: Playwright E2E (web tests — emulators already shut down)
+# ═══════════════════════════════════════════════════════════════════
+
 echo "━━━ Phase 2: Playwright E2E (Web) ━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # --- Start Community Voice dev server (port 3002) if not running ---
@@ -113,7 +144,7 @@ else
     wait_for_port 3002 "Community Voice" 90
 fi
 
-echo "🎭 [3/4] Community Voice Playwright E2E tests..."
+echo "🎭 [3/5] Community Voice Playwright E2E tests..."
 cd apps/next-community-voice && npx playwright test --reporter=dot 2>&1 || {
     echo "❌ Community Voice Playwright tests failed — push aborted."
     exit 1
@@ -130,12 +161,11 @@ else
     wait_for_port 3000 "Community Web" 90
 fi
 
-echo "🎭 [4/4] Community Web Playwright E2E tests..."
+echo "🎭 [4/5] Community Web Playwright E2E tests..."
 npx playwright test --config=e2e/playwright/playwright.config.ts --reporter=dot 2>&1 || {
     echo "❌ Community Web Playwright tests failed — push aborted."
     exit 1
 }
-
 
 # ═══════════════════════════════════════════════════════════════════
 # PHASE 3: Maestro Mobile E2E (iOS simulator)
@@ -153,8 +183,19 @@ else
     pkill -f "maestro" 2>/dev/null || true
     sleep 1
 
-    # Find a booted iOS simulator
+    # Find a booted iOS simulator, or boot one if available
     IOS_UDID=$(xcrun simctl list devices | grep "Booted" | head -1 | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' || true)
+
+    if [ -z "$IOS_UDID" ]; then
+        # Try to find an available iPhone simulator and boot it
+        IOS_UDID=$(xcrun simctl list devices available | grep "iPhone" | head -1 | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' || true)
+        if [ -n "$IOS_UDID" ]; then
+            echo "   Booting iOS simulator ($IOS_UDID)..."
+            xcrun simctl boot "$IOS_UDID" 2>/dev/null || true
+            sleep 5
+            echo "   ✓ iOS simulator booted"
+        fi
+    fi
 
     if [ -n "$IOS_UDID" ]; then
         echo "📱 [5/5] Maestro E2E tests (iOS: $IOS_UDID)..."
@@ -163,7 +204,7 @@ else
             exit 1
         }
     else
-        echo "   ⚠️  No booted iOS simulator found — skipping Maestro tests."
+        echo "   ⚠️  No iOS simulator found — skipping Maestro tests."
     fi
 fi
 
