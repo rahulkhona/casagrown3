@@ -1,6 +1,9 @@
 # Feed Navigation Flow — Maestro E2E test
 # Tests feed content visibility after login and basic navigation.
-# Navigation: avatar tap → profile, Back button → feed
+# Verifies: seeded posts visible, buy post fields, Menu tab navigation.
+#
+# Tab labels need regex: ".*Menu.*" etc.
+# (React Navigation iOS accessibility label = "Menu, tab, 5 of 5")
 
 appId: dev.casagrown.community
 
@@ -11,8 +14,8 @@ appId: dev.casagrown.community
 
 # Wait for feed to load
 - extendedWaitUntil:
-      visible: "Tomatoes"
-      timeout: 15000
+          visible: "Tomatoes"
+          timeout: 15000
 
 # Verify seeded post content
 - assertVisible: "Test Seller"
@@ -21,37 +24,37 @@ appId: dev.casagrown.community
 # Scroll down to find the buy post and verify its new fields
 - scroll
 - extendedWaitUntil:
-      visible:
-          text: ".*Looking for.*"
-      timeout: 10000
+          visible:
+                  text: ".*Looking for.*"
+          timeout: 10000
 - assertVisible:
-      text: ".*Looking for.*3.*"
+          text: ".*Looking for.*3.*"
 - assertVisible:
-      text: ".*Need by.*"
+          text: ".*Need by.*"
 - assertVisible:
-      text: ".*Drop-off.*"
+          text: ".*Drop-off.*"
 
 # Scroll back up
 - scrollUntilVisible:
-      element: "Tomatoes"
-      direction: UP
-      timeout: 10000
+          element: "Tomatoes"
+          direction: UP
+          timeout: 10000
 
-# Navigate to profile via header avatar initial
+# Navigate to Menu tab and verify key items are present
 - tapOn:
-      text: "T"
-      index: 0
-
-# Verify we're on the profile screen
+          text: ".*Menu.*"
 - extendedWaitUntil:
-      visible: "Profile Settings"
-      timeout: 10000
-- assertVisible: "Edit Profile"
+          visible:
+                  text: ".*Profile.*Settings.*"
+          timeout: 5000
+- assertVisible:
+          text: ".*Redeem Points.*"
+- assertVisible:
+          text: ".*Buy Points.*"
 
-# Go back to feed via the Back button (ChevronLeft)
-- tapOn: "Back"
-
-# Verify we're back on the feed
-- extendedWaitUntil:
-      visible: "Tomatoes"
-      timeout: 10000
+# Scroll down to verify more menu items
+- scrollUntilVisible:
+          element: "Sign Out"
+          direction: DOWN
+          timeout: 5000
+- assertVisible: "Sign Out"

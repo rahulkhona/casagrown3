@@ -217,7 +217,8 @@ export function BuyPointsScreen({
               userPoints={userPoints}
               isDesktop={isDesktop}
               onNavigateToBuyPoints={() => {}}
-              onNavigateToRedeemPoints={() => console.log('Redeem clicked')}
+              onNavigateToRedeemPoints={() => require('solito/navigation').useRouter().push('/redeem')}
+              onNavigateToTransactionHistory={() => require('solito/navigation').useRouter().push('/transaction-history')}
             />
 
             {/* Notifications */}
@@ -254,42 +255,9 @@ export function BuyPointsScreen({
               )}
             </TouchableOpacity>
 
-            {/* Mobile Hamburger Menu */}
-            {!isDesktop && (
-              <TouchableOpacity
-                style={{ padding: 8, borderRadius: 999, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
-                activeOpacity={0.6}
-                onPress={() => setMobileMenuOpen(!mobileMenuOpen)}
-                aria-label="Menu"
-              >
-                {mobileMenuOpen ? (
-                  <X size={24} color={colors.gray[700]} />
-                ) : (
-                  <Menu size={24} color={colors.gray[700]} />
-                )}
-              </TouchableOpacity>
-            )}
           </XStack>
         </XStack>
 
-        {/* Mobile Navigation Drawer */}
-        {!isDesktop && mobileMenuOpen && (
-          <FeedNavigation
-            navKeys={NAV_KEYS}
-            variant="mobile"
-            userPoints={userPoints}
-            onNavigate={(key) => {
-              setMobileMenuOpen(false)
-              if (key === 'invite') {
-                setInviteModalOpen(true)
-              } else if (key === 'buyPoints') {
-                // Already on Buy Points screen, maybe just close drawer
-              } else {
-                handleNavPress(key)
-              }
-            }}
-          />
-        )}
       </YStack>
       )}
 
@@ -301,22 +269,19 @@ export function BuyPointsScreen({
       />
       
       {/* MAIN CONTENT AREA */}
-      <ScrollView 
-        flex={1} 
-        contentContainerStyle={{ flexGrow: 1 }}
-        keyboardShouldPersistTaps="handled"
-      >
+      <YStack flex={1}>
         <YStack
           maxWidth={896}
           width="100%"
           alignSelf="center"
           paddingHorizontal={isDesktop ? '$6' : '$4'}
           paddingVertical="$6"
+          flex={1}
         >
           {/* Embedded Standalone Mockup */}
           <BuyPointsStandaloneMockup t={t} />
         </YStack>
-      </ScrollView>
+      </YStack>
 
     </YStack>
   )

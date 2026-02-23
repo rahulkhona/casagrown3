@@ -1,25 +1,37 @@
-appId: com.casagrown.universal.community
+# Points Flow — Maestro E2E test
+# Tests points visibility and buy points navigation.
+# Tab labels need regex: ".*Menu.*" etc.
+
+appId: dev.casagrown.community
+
 ---
+
 - launchApp:
-    clearState: true
-    clearKeychain: true
-- runFlow:
-    when:
-      visible: "Login"
-    file: login.yaml
-- assertVisible: "Feed"
+          clearState: false
 
-# Open Mobile Hamburger Menu
+- runFlow: utils/login.yaml
+
+# Wait for feed
+- extendedWaitUntil:
+          visible: "Tomatoes"
+          timeout: 15000
+
+# Points should be visible in header (e.g. "550 pts")
+- assertVisible:
+          text: ".*pts.*"
+
+# Open Menu via bottom tab to navigate to Buy Points
 - tapOn:
-    id: "Menu"
-    optional: true
-
-# Top header points should be visible in drawer or directly
-- assertVisible: ".*[Pp]oints.*"
+          text: ".*Menu.*"
 
 # Open the Buy Points screen
-- tapOn: ".*Buy Points.*"
-- assertVisible: "Add Points to Your Loop"
+- extendedWaitUntil:
+          visible: "Buy Points"
+          timeout: 5000
+- tapOn: "Buy Points"
+- extendedWaitUntil:
+          visible: "Add Points to Your Loop"
+          timeout: 10000
 
 # Verify packages exist
 - assertVisible: "1000 Points"
@@ -37,4 +49,5 @@ appId: com.casagrown.universal.community
 
 # Note: In Maestro, interacting with system-level Apple Pay prompts is out of bound and flaky.
 # We stop the flow logically before fully completing an external intent.
-- assertVisible: "Processing..."
+- assertVisible:
+          text: ".*Processing.*"

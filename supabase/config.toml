@@ -447,3 +447,23 @@ entrypoint = "./functions/create-order/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/resolve-pending-payments/index.ts"
+
+[functions.fetch-gift-cards]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/fetch-gift-cards/index.ts"
+
+[functions.fetch-donation-projects]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/fetch-donation-projects/index.ts"
+
+[functions.redeem-gift-card]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/redeem-gift-card/index.ts"
+
+[functions.donate-points]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/donate-points/index.ts"

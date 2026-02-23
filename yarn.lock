@@ -5068,6 +5068,40 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@stripe/react-stripe-js@npm:^5.6.0":
+  version: 5.6.0
+  resolution: "@stripe/react-stripe-js@npm:5.6.0"
+  dependencies:
+    prop-types: "npm:^15.7.2"
+  peerDependencies:
+    "@stripe/stripe-js": ">=8.0.0 <9.0.0"
+    react: ">=16.8.0 <20.0.0"
+    react-dom: ">=16.8.0 <20.0.0"
+  checksum: 10/967388451f3b27d630a010c3ef5172f4878a05b8ff1fd65928fdaf7b6ec6923745b7ddd40679b2ee7bc142e401fab98eddc4b58bc49b6bed8be102913d905a59
+  languageName: node
+  linkType: hard
+
+"@stripe/stripe-js@npm:^8.8.0":
+  version: 8.8.0
+  resolution: "@stripe/stripe-js@npm:8.8.0"
+  checksum: 10/a059771590c6eb57efdcfb789da4783eb6e5a10d716bfe094ce5bcf7b28ba439867af53d055f7998cbd15a255e9dae020f9f4e6276defb4416d0457fc674fcfe
+  languageName: node
+  linkType: hard
+
+"@stripe/stripe-react-native@npm:0.50.3":
+  version: 0.50.3
+  resolution: "@stripe/stripe-react-native@npm:0.50.3"
+  peerDependencies:
+    expo: ">=46.0.9"
+    react: "*"
+    react-native: "*"
+  peerDependenciesMeta:
+    expo:
+      optional: true
+  checksum: 10/fc6c14f6b95d3e0f24a08d2c3b5b7b651f007235f03c1ef3bbb33a85d4a89078770413d6ae505154cb6b7ab94e5128aba17c9d241611e3554941ef2a11028d9a
+  languageName: node
+  linkType: hard
+
 "@supabase/auth-js@npm:2.93.3":
   version: 2.93.3
   resolution: "@supabase/auth-js@npm:2.93.3"
@@ -9405,6 +9439,8 @@ __metadata:
     "@babel/runtime": "npm:^7.24.6"
     "@biomejs/biome": "npm:^1.9.3"
     "@playwright/test": "npm:^1.58.2"
+    "@stripe/react-stripe-js": "npm:^5.6.0"
+    "@stripe/stripe-js": "npm:^8.8.0"
     "@tamagui/cli": "npm:^2.0.0-rc.0"
     "@tamagui/next-theme": "npm:^2.0.0-rc.0"
     "@tamagui/react-native-svg": "npm:^2.0.0-rc.0"
@@ -11496,6 +11532,7 @@ __metadata:
     "@expo/metro-config": "npm:~54.0.12"
     "@expo/metro-runtime": "npm:~6.1.2"
     "@react-native-async-storage/async-storage": "npm:^2.2.0"
+    "@stripe/stripe-react-native": "npm:0.50.3"
     "@tamagui/babel-plugin": "npm:^2.0.0-rc.0"
     "@types/text-encoding": "npm:^0"
     babel-plugin-module-resolver: "npm:^5.0.2"
@@ -17123,7 +17160,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"prop-types@npm:^15.8.0, prop-types@npm:^15.8.1":
+"prop-types@npm:^15.7.2, prop-types@npm:^15.8.0, prop-types@npm:^15.8.1":
   version: 15.8.1
   resolution: "prop-types@npm:15.8.1"
   dependencies:

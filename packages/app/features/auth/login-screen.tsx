@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Platform, Image } from 'react-native'
+import { Platform, Image, TextInput } from 'react-native'
 import { YStack, XStack, Text, Button, Input, ScrollView, Separator, useMedia, Spinner } from 'tamagui'
 import { ArrowLeft, Mail, Chrome } from '@tamagui/lucide-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -281,7 +281,7 @@ export function LoginScreen({ logoSrc, onLogin, onBack, referralCode, delegation
     <ScrollView 
       contentContainerStyle={{ flexGrow: 1 }} 
       backgroundColor={colors.green[50]}
-      keyboardShouldPersistTaps="handled"
+      keyboardShouldPersistTaps="always"
       automaticallyAdjustKeyboardInsets
     >
       <YStack 
@@ -404,7 +404,7 @@ export function LoginScreen({ logoSrc, onLogin, onBack, referralCode, delegation
                 <YStack gap="$4">
                     <YStack gap="$2">
                         <Text color={colors.gray[700]} fontWeight="500">{t('auth.login.emailLabel')}</Text>
-                        <Input 
+                        <TextInput
                             testID="email_input"
                             value={email}
                             onChangeText={(text) => {
@@ -412,14 +412,23 @@ export function LoginScreen({ logoSrc, onLogin, onBack, referralCode, delegation
                                 if (errors.email) setErrors({ ...errors, email: undefined })
                             }}
                             placeholder={t('auth.login.emailPlaceholder')}
-                            size="$5"
-                            borderRadius="$4"
-                            borderWidth={1}
                             autoCapitalize="none"
+                            autoCorrect={false}
                             keyboardType="email-address"
-                            fontWeight="400"
-                            borderColor={errors.email ? '$red10' : colors.gray[300]}
-                            focusStyle={{ borderColor: errors.email ? '$red9' : colors.green[500], borderWidth: 2 }}
+                            returnKeyType="send"
+                            onSubmitEditing={handleEmailSubmit}
+                            style={{
+                                height: 48,
+                                borderRadius: 12,
+                                borderWidth: 1,
+                                borderColor: errors.email ? '#E53E3E' : colors.gray[300],
+                                paddingHorizontal: 16,
+                                fontSize: 16,
+                                fontWeight: '400',
+                                backgroundColor: 'white',
+                                color: colors.gray[900],
+                            }}
+                            placeholderTextColor={colors.gray[400]}
                         />
                         {errors.email && (
                             <Text color="$red10" fontSize="$2">{errors.email}</Text>

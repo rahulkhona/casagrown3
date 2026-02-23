@@ -90,7 +90,9 @@ export default function FeedTab() {
       onNavigateToChats={handleNavigateToChats}
       onNavigateToOrders={handleNavigateToOrders}
       onNavigateToOffers={handleNavigateToOffers}
-      onNavigateToBuyPoints={() => router.push('/(tabs)/buy-points' as any)}
+      onNavigateToBuyPoints={() => router.push('/buy-points' as any)}
+      onNavigateToRedeemPoints={() => router.push('/redeem' as any)}
+      onNavigateToTransactionHistory={() => router.push('/transaction-history' as any)}
       userId={user?.id}
     />
   )

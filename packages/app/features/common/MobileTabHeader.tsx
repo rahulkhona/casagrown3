@@ -7,6 +7,7 @@ import { HandCoins, Bell } from '@tamagui/lucide-icons'
 import { useAuth } from '../auth/auth-hook'
 import { usePointsBalance } from '../../hooks/usePointsBalance'
 import { colors } from '../../design-tokens'
+import { PointsMenu } from '../points/PointsMenu'
 
 export function MobileTabHeader() {
   const insets = useSafeAreaInsets()
@@ -40,23 +41,13 @@ export function MobileTabHeader() {
       </XStack>
 
       <XStack alignItems="center" gap="$3">
-        <TouchableOpacity onPress={() => router.push('/buy-points')}>
-          <XStack 
-            backgroundColor={colors.green[50]} 
-            paddingHorizontal="$2.5" 
-            paddingVertical="$1.5" 
-            borderRadius="$full" 
-            alignItems="center" 
-            gap="$1.5" 
-            borderWidth={1} 
-            borderColor={colors.green[200]}
-          >
-            <HandCoins size={14} color={colors.green[700]} />
-            <Text fontSize={13} fontWeight="800" color={colors.green[700]}>
-              {userPoints !== null ? `${userPoints.toLocaleString()} pts` : '...'}
-            </Text>
-          </XStack>
-        </TouchableOpacity>
+        <PointsMenu 
+          userPoints={userPoints || 0}
+          isDesktop={false}
+          onNavigateToBuyPoints={() => router.push('/buy-points')}
+          onNavigateToRedeemPoints={() => router.push('/redeem')}
+          onNavigateToTransactionHistory={() => router.push('/transaction-history')}
+        />
 
         <TouchableOpacity style={{ position: 'relative' }}>
           <Bell size={24} color={colors.gray[700]} />

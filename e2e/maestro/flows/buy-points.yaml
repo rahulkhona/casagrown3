@@ -1,0 +1,45 @@
+# Buy Points Flow — Maestro E2E test
+# Tests the buy points screen UI from the Menu tab.
+# Verifies: screen loads, input field works, payment details section visible.
+
+appId: dev.casagrown.community
+
+---
+
+# Login first
+- runFlow: ../utils/login.yaml
+
+# Wait for feed to load
+- extendedWaitUntil:
+          visible: "Tomatoes"
+          timeout: 15000
+
+# Open Menu via bottom tab (regex for iOS accessibility label)
+- tapOn:
+          text: ".*Menu.*"
+
+# Navigate to Buy Points
+- extendedWaitUntil:
+          visible:
+                  text: ".*Buy Points.*"
+          timeout: 5000
+- tapOn:
+          text: ".*Buy Points.*"
+
+# Verify Buy Points screen loaded
+- extendedWaitUntil:
+          visible:
+                  text: ".*Buy Points.*"
+          timeout: 10000
+
+# Verify key UI elements
+- assertVisible:
+          text: ".*How many points.*"
+- assertVisible:
+          text: ".*Payment Details.*"
+- assertVisible:
+          text: ".*Pay.*"
+
+# Verify Stripe badge
+- assertVisible:
+          text: ".*Stripe.*"

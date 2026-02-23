@@ -1,6 +1,6 @@
 import React from 'react'
 import { render, screen, fireEvent } from '@testing-library/react-native'
-import { Platform, ActionSheetIOS, Alert } from 'react-native'
+import { Platform, ActionSheetIOS, Alert, Modal } from 'react-native'
 
 // Mock tamagui
 jest.mock('tamagui', () => {
@@ -26,13 +26,15 @@ jest.mock('react-i18next', () => ({
 jest.mock('@tamagui/lucide-icons', () => ({
   Coins: () => null,
   ShoppingBag: () => null,
+  History: () => null,
 }))
 
 // Mock design tokens
 jest.mock('../../design-tokens', () => ({
   colors: {
     green: { 50: '#f0fdf4', 100: '#dcfce3', 600: '#16a34a', 700: '#15803d' },
-    gray: { 100: '#f3f4f6', 200: '#e5e7eb', 800: '#1f2937' },
+    gray: { 100: '#f3f4f6', 200: '#e5e7eb', 300: '#d1d5db', 500: '#6b7280', 800: '#1f2937', 900: '#111827' },
+    red: { 50: '#fef2f2', 600: '#dc2626' },
   },
   borderRadius: { md: 6 },
   shadows: { lg: { radius: 10, offset: { width: 0, height: 4 }, color: 'rgba(0,0,0,0.1)' } }
@@ -46,6 +48,7 @@ describe('PointsMenu', () => {
     isDesktop: false,
     onNavigateToBuyPoints: jest.fn(),
     onNavigateToRedeemPoints: jest.fn(),
+    onNavigateToTransactionHistory: jest.fn(),
   }
 
   const originalDocument = global.document
@@ -99,7 +102,21 @@ describe('PointsMenu', () => {
     expect(screen.queryByText('feed.nav.buyPoints')).toBeNull()
   })
 
-  it('handles ActionSheetIOS on iOS', () => {
+  it('handles transaction history in web dropdown', () => {
+    Platform.OS = 'web'
+    render(<PointsMenu {...defaultProps} />)
+    
+    fireEvent.press(screen.getByText('150'))
+    
+    // Transaction history should be visible
+    const historyButton = screen.getByText('Transaction History')
+    expect(historyButton).toBeTruthy()
+    
+    fireEvent.press(historyButton)
+    expect(defaultProps.onNavigateToTransactionHistory).toHaveBeenCalled()
+  })
+
+  it('handles ActionSheetIOS on iOS with transaction history', () => {
     Platform.OS = 'ios'
     render(<PointsMenu {...defaultProps} />)
     
@@ -108,30 +125,27 @@ describe('PointsMenu', () => {
     
     const callback = (ActionSheetIOS.showActionSheetWithOptions as jest.Mock).mock.calls[0][1]
     
-    // Trigger buy points
+    // Trigger buy points (index 1)
     callback(1)
     expect(defaultProps.onNavigateToBuyPoints).toHaveBeenCalled()
     
-    // Trigger redeem points
+    // Trigger redeem points (index 2)
     callback(2)
     expect(defaultProps.onNavigateToRedeemPoints).toHaveBeenCalled()
+
+    // Trigger transaction history (index 3)
+    callback(3)
+    expect(defaultProps.onNavigateToTransactionHistory).toHaveBeenCalled()
   })
 
-  it('handles Alert on Android', () => {
+  it('opens Android bottom sheet modal on Android', () => {
     Platform.OS = 'android'
     render(<PointsMenu {...defaultProps} />)
     
+    // Android no longer uses Alert.alert — it uses a Modal bottom sheet
     fireEvent.press(screen.getByText('150'))
-    expect(Alert.alert).toHaveBeenCalled()
     
-    const buttons = (Alert.alert as jest.Mock).mock.calls[0][2]
-    
-    // Trigger buy points (index 1 is buy)
-    buttons[1].onPress()
-    expect(defaultProps.onNavigateToBuyPoints).toHaveBeenCalled()
-    
-    // Trigger redeem points (index 2 is redeem)
-    buttons[2].onPress()
-    expect(defaultProps.onNavigateToRedeemPoints).toHaveBeenCalled()
+    // Alert should NOT be called (old behavior)
+    expect(Alert.alert).not.toHaveBeenCalled()
   })
 })

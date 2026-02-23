@@ -8,6 +8,7 @@
 import React from 'react'
 import { YStack, XStack, Text, Button, useMedia } from 'tamagui'
 import { useTranslation } from 'react-i18next'
+import { Home, MessagesSquare, ShoppingBag, Tag } from '@tamagui/lucide-icons'
 import { colors } from '../../design-tokens'
 
 export interface NavItem {
@@ -21,6 +22,13 @@ interface FeedNavigationProps {
   variant: 'desktop' | 'mobile'
   onNavigate: (key: string) => void
   userPoints?: number
+}
+
+const NAV_ICONS: Record<string, any> = {
+  feed: Home,
+  chats: MessagesSquare,
+  orders: ShoppingBag,
+  offers: Tag,
 }
 
 /** Badge pill shown on nav items with a count > 0 */
@@ -37,11 +45,7 @@ function NavBadge({ count, size }: { count: number; size: 'sm' | 'md' }) {
       alignItems="center"
       justifyContent="center"
       paddingHorizontal="$1"
-      {...(size === 'sm' && {
-        position: 'absolute' as const,
-        top: -8,
-        right: -14,
-      })}
+      marginLeft={4}
     >
       <Text fontSize={fontSize} color="white" fontWeight="700">
         {count}
@@ -58,27 +62,54 @@ export function FeedNavigation({ navKeys, variant, onNavigate, userPoints }: Fee
 
   if (variant === 'desktop') {
     return (
-      <XStack gap={isDesktopNav ? "$5" : "$3"} paddingHorizontal={isDesktopNav ? "$5" : "$1"} paddingVertical="$2" alignItems="center">
-        {navKeys.map((item) => (
-          <XStack
-            key={item.key}
-            alignItems="center"
-            position="relative"
-            cursor="pointer"
-            onPress={() => onNavigate(item.key)}
-          >
-            <Text
-              fontSize="$3"
-              color={item.active ? colors.green[600] : colors.gray[700]}
-              fontWeight={item.active ? '600' : '500'}
+      <XStack gap={isDesktopNav ? "$5" : "$3"} paddingHorizontal={isDesktopNav ? "$5" : "$2"} paddingVertical="$1" alignItems="center">
+        {navKeys.map((item) => {
+          const IconComponent = NAV_ICONS[item.key]
+          return (
+            <YStack
+              key={item.key}
+              alignItems="center"
               cursor="pointer"
-              hoverStyle={{ color: colors.green[600] }}
+              gap={2}
+              onPress={() => onNavigate(item.key)}
+              paddingVertical="$1"
+              paddingHorizontal="$2"
+              position="relative"
             >
-              {t(`feed.nav.${item.key}`)}
-            </Text>
-            <NavBadge count={item.badge} size="sm" />
-          </XStack>
-        ))}
+              {IconComponent && (
+                <IconComponent
+                  size={20}
+                  color={item.active ? colors.green[600] : colors.gray[500]}
+                />
+              )}
+              <Text
+                fontSize={11}
+                color={item.active ? colors.green[600] : colors.gray[600]}
+                fontWeight={item.active ? '600' : '500'}
+                cursor="pointer"
+                hoverStyle={{ color: colors.green[600] }}
+              >
+                {t(`feed.nav.${item.key}`)}
+              </Text>
+              {item.badge > 0 && (
+                <YStack
+                  position="absolute"
+                  top={-4}
+                  right={-4}
+                  backgroundColor={colors.red[500]}
+                  borderRadius="$full"
+                  minWidth={16}
+                  height={16}
+                  alignItems="center"
+                  justifyContent="center"
+                  paddingHorizontal={3}
+                >
+                  <Text fontSize={9} color="white" fontWeight="700">{item.badge}</Text>
+                </YStack>
+              )}
+            </YStack>
+          )
+        })}
       </XStack>
     )
   }

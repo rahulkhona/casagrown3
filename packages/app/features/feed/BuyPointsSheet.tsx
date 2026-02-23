@@ -13,9 +13,9 @@
  * UI-only — Stripe integration will replace mocked card fields.
  */
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { YStack, XStack, Text, Button, ScrollView, Spinner } from 'tamagui'
-import { Platform, TextInput, TouchableOpacity, View } from 'react-native'
+import { Platform, TextInput, TouchableOpacity, View, useWindowDimensions, Text as RNText } from 'react-native'
 import {
   X,
   CreditCard,
@@ -26,9 +26,25 @@ import {
   AlertCircle,
   CheckCircle2,
 } from '@tamagui/lucide-icons'
+import { CardField, useStripe } from '@stripe/stripe-react-native'
 import { colors, shadows, borderRadius } from '../../design-tokens'
 import { usePaymentService } from '../../hooks/usePaymentService'
-import { isMockPaymentMode } from './paymentService'
+import { isMockPaymentMode, getPaymentMode } from './paymentService'
+import { supabase } from '../auth/auth-hook'
+
+// Lazy import StripeCardForm (web only)
+let StripeCardForm: any = null
+let StripeCardFormHandle: any = null
+if (Platform.OS === 'web') {
+  try {
+    const mod = require('./StripeCardForm')
+    StripeCardForm = mod.StripeCardForm
+  } catch {
+    // Not available
+  }
+}
+
+const isStripeWebMode = Platform.OS === 'web' && getPaymentMode() === 'stripe' && StripeCardForm != null
 
 // =============================================================================
 // Configuration — these will come from a country-specific policy API
@@ -82,6 +98,7 @@ export function BuyPointsSheet({
   onComplete,
   t,
 }: BuyPointsSheetProps) {
+  const { height: windowHeight } = useWindowDimensions()
   // The deficit: how many points the user needs
   const deficit = Math.max(suggestedAmount, 0)
 
@@ -95,10 +112,7 @@ export function BuyPointsSheet({
 
   const [selectedOption, setSelectedOption] = useState<PurchaseOption>('recommended')
 
-  // Card fields (mocked — will be replaced by Stripe Elements)
-  const [cardNumber, setCardNumber] = useState('')
-  const [cardExpiry, setCardExpiry] = useState('')
-  const [cardCvc, setCardCvc] = useState('')
+  // Card fields
   const [cardName, setCardName] = useState('')
 
   // Precomputed costs for each option (used in labels)
@@ -118,29 +132,22 @@ export function BuyPointsSheet({
   // Payment service integration
   const { processPayment, status: paymentStatus, isProcessing, error: paymentError, isMock, reset: resetPayment } = usePaymentService()
 
+  // Stripe Elements (web only)
+  const stripeFormRef = useRef<any>(null)
+  const [stripeCardReady, setStripeCardReady] = useState(false)
+  const [stripeError, setStripeError] = useState<string | null>(null)
+
   // In mock mode, skip card validation
-  const isCardValid = isMockPaymentMode()
-    ? true
-    : cardNumber.replace(/\s/g, '').length >= 15 &&
-      cardExpiry.length >= 4 &&
-      cardCvc.length >= 3
+  // In stripe web mode, use Stripe Elements validation
+  // In native mode, we use Stripe's CardField validation flag
+  const [nativeCardReady, setNativeCardReady] = useState(false)
+  const isCardValid = isStripeWebMode
+    ? stripeCardReady
+    : nativeCardReady
 
-  // Format card number with spaces
-  const formatCardNumber = useCallback((text: string) => {
-    const cleaned = text.replace(/\D/g, '').substring(0, 16)
-    const groups = cleaned.match(/.{1,4}/g)
-    setCardNumber(groups ? groups.join(' ') : cleaned)
-  }, [])
+  const { initPaymentSheet, presentPaymentSheet, confirmPayment } = useStripe()
 
-  // Format expiry as MM/YY
-  const formatExpiry = useCallback((text: string) => {
-    const cleaned = text.replace(/\D/g, '').substring(0, 4)
-    if (cleaned.length > 2) {
-      setCardExpiry(`${cleaned.substring(0, 2)}/${cleaned.substring(2)}`)
-    } else {
-      setCardExpiry(cleaned)
-    }
-  }, [])
+
 
   // Reset payment state when modal opens/closes
   useEffect(() => {
@@ -159,17 +166,107 @@ export function BuyPointsSheet({
     }
   }, [paymentStatus, purchaseAmount, onComplete])
 
+  // Stripe payment state (separate from mock flow's paymentStatus)
+  const [stripePaymentError, setStripePaymentError] = useState<string | null>(null)
+  const [stripeProcessing, setStripeProcessing] = useState(false)
+
   const handleComplete = useCallback(async () => {
     if (purchaseAmount <= 0) return
     const totalCents = Math.round(totalCost * 100)
     const feeCents = Math.round(serviceFee * 100)
-    await processPayment(totalCents, purchaseAmount, feeCents, {
-      number: cardNumber,
-      expiry: cardExpiry,
-      cvc: cardCvc,
-      name: cardName,
-    })
-  }, [purchaseAmount, totalCost, serviceFee, processPayment, cardNumber, cardExpiry, cardCvc, cardName])
+
+    if (isStripeWebMode && stripeFormRef.current) {
+      // Stripe Elements flow
+      setStripePaymentError(null)
+      setStripeProcessing(true)
+      try {
+        const { data, error: fnError } = await supabase.functions.invoke(
+          'create-payment-intent',
+          {
+            body: {
+              amountCents: totalCents,
+              pointsAmount: purchaseAmount,
+              serviceFeeCents: feeCents,
+              provider: 'stripe',
+            },
+          },
+        )
+
+        if (fnError || !data?.clientSecret) {
+          throw new Error(fnError?.message || 'Failed to create payment intent')
+        }
+
+        // Confirm with Stripe Elements
+        const result = await stripeFormRef.current.confirmPayment(data.clientSecret)
+
+        if (!result.success) {
+          throw new Error(result.error || 'Payment failed')
+        }
+
+        // Credit points server-side
+        await supabase.functions.invoke('confirm-payment', {
+          body: { paymentTransactionId: data.transactionId },
+        })
+
+        // Trigger success
+        setStripeProcessing(false)
+        onComplete(purchaseAmount)
+      } catch (err: any) {
+        console.error('[STRIPE ELEMENTS]', err)
+        setStripePaymentError(err.message || 'Payment failed. Please try again.')
+        setStripeProcessing(false)
+      }
+    } else {
+      // ── Native Stripe Flow ──
+      setStripePaymentError(null)
+      setStripeProcessing(true)
+      try {
+        // 1. Create Payment Intent
+        const { data, error: fnError } = await supabase.functions.invoke(
+          'create-payment-intent',
+          {
+            body: {
+              amountCents: totalCents,
+              pointsAmount: purchaseAmount,
+              serviceFeeCents: feeCents,
+              provider: 'stripe',
+            },
+          },
+        )
+
+        if (fnError || !data?.clientSecret) {
+          throw new Error(fnError?.message || 'Failed to create payment intent')
+        }
+
+        // 2. Confirm Payment using Native SDK context (CardField)
+        const { error: stripeErr } = await confirmPayment(data.clientSecret, {
+          paymentMethodType: 'Card',
+          paymentMethodData: {
+            billingDetails: {
+              name: cardName || undefined,
+            }
+          }
+        })
+
+        if (stripeErr) {
+          throw new Error(stripeErr.message || 'Payment failed')
+        }
+
+        // 3. Confirm with our backend to finalize internal balances
+        await supabase.functions.invoke('confirm-payment', {
+          body: { paymentTransactionId: data.transactionId },
+        })
+
+        // Success!
+        setStripeProcessing(false)
+        onComplete(purchaseAmount)
+      } catch (err: any) {
+        console.error('[STRIPE NATIVE]', err)
+        setStripePaymentError(err.message || 'Payment failed. Please try again.')
+        setStripeProcessing(false)
+      }
+    }
+  }, [purchaseAmount, totalCost, serviceFee, confirmPayment, cardName])
 
   if (!visible) return null
 
@@ -181,27 +278,29 @@ export function BuyPointsSheet({
       right={0}
       bottom={0}
       backgroundColor="rgba(0,0,0,0.5)"
-      justifyContent="center"
       alignItems="center"
+      justifyContent="center"
       zIndex={200}
       padding="$4"
     >
-      <ScrollView
-        style={{ width: '100%', maxWidth: 440, maxHeight: '90%' }}
-        contentContainerStyle={{ flexGrow: 0 }}
-        keyboardShouldPersistTaps="handled"
-        bounces={false}
+      <YStack
+        backgroundColor="white"
+        borderRadius={borderRadius.xl}
+        width="100%"
+        maxWidth={440}
+        maxHeight={windowHeight - (Platform.OS === 'web' ? 40 : 160)}
+        shadowColor={shadows.lg.color}
+        shadowOffset={shadows.lg.offset}
+        shadowOpacity={0.15}
+        shadowRadius={shadows.lg.radius}
+        overflow="hidden"
       >
-        <YStack
-          backgroundColor="white"
-          borderRadius={borderRadius.xl}
-          padding="$5"
-          width="100%"
-          gap="$4"
-          shadowColor={shadows.lg.color}
-          shadowOffset={shadows.lg.offset}
-          shadowOpacity={0.15}
-          shadowRadius={shadows.lg.radius}
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: 20, paddingBottom: 32, gap: 16 }}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+          showsVerticalScrollIndicator
         >
           {/* ─── Header ─── */}
           <XStack justifyContent="space-between" alignItems="center">
@@ -590,132 +689,103 @@ export function BuyPointsSheet({
               </Text>
             </XStack>
 
-            {/* Card Number */}
-            <XStack
-              borderWidth={1}
-              borderColor={colors.gray[300]}
-              borderRadius={borderRadius.md}
-              alignItems="center"
-              paddingHorizontal="$3"
-              backgroundColor="white"
-            >
-              <CreditCard size={16} color={colors.gray[400]} />
-              <TextInput
-                style={{
-                  flex: 1,
-                  fontSize: 15,
-                  paddingVertical: 12,
-                  paddingHorizontal: 10,
-                  color: colors.gray[900],
-                  letterSpacing: 1,
-                  fontFamily:
-                    Platform.OS === 'ios' ? 'Inter-Regular' : 'Inter',
-                }}
-                placeholder={t('feed.buyPoints.cardNumberPlaceholder')}
-                placeholderTextColor={colors.gray[400]}
-                value={cardNumber}
-                onChangeText={formatCardNumber}
-                keyboardType="numeric"
-                maxLength={19}
-              />
-            </XStack>
+            {isStripeWebMode ? (
+              /* ── Stripe Elements (web) ── */
+              <YStack gap="$2">
+                <View style={{
+                  borderWidth: 1,
+                  borderColor: stripeError ? '#dc2626' : colors.gray[300],
+                  borderRadius: 8,
+                  padding: 12,
+                  backgroundColor: 'white',
+                }}>
+                  <StripeCardForm
+                    ref={stripeFormRef}
+                    onReady={setStripeCardReady}
+                    onError={setStripeError}
+                  />
+                </View>
+                {stripeError && (
+                  <Text fontSize={12} color="#dc2626">{stripeError}</Text>
+                )}
+                <XStack alignItems="center" gap="$1" paddingTop="$1">
+                  <ShieldCheck size={14} color={colors.gray[400]} />
+                  <Text fontSize={11} color={colors.gray[400]}>
+                    {t('feed.buyPoints.securedByStripe')}
+                  </Text>
+                </XStack>
+              </YStack>
+            ) : (
+              /* ── Stripe Native CardField ── */
+              <YStack gap="$3">
+                <View style={{
+                  borderWidth: 1,
+                  borderColor: stripePaymentError ? '#dc2626' : colors.gray[300],
+                  borderRadius: borderRadius.md,
+                  backgroundColor: 'white',
+                  overflow: 'hidden'
+                }}>
+                  <CardField
+                    postalCodeEnabled={false}
+                    onCardChange={(cardDetails) => {
+                      setNativeCardReady(cardDetails.complete)
+                    }}
+                    style={{
+                      width: '100%',
+                      height: 56,
+                      backgroundColor: 'transparent'
+                    }}
+                    cardStyle={{
+                      backgroundColor: '#FFFFFF',
+                      textColor: colors.gray[900],
+                      placeholderColor: colors.gray[400],
+                      fontSize: 16,
+                      borderRadius: borderRadius.md,
+                    }}
+                  />
+                </View>
 
-            {/* Name on Card */}
-            <XStack
-              borderWidth={1}
-              borderColor={colors.gray[300]}
-              borderRadius={borderRadius.md}
-              alignItems="center"
-              paddingHorizontal="$3"
-              backgroundColor="white"
-            >
-              <TextInput
-                style={{
-                  flex: 1,
-                  fontSize: 15,
-                  paddingVertical: 12,
-                  paddingHorizontal: 4,
-                  color: colors.gray[900],
-                  fontFamily:
-                    Platform.OS === 'ios' ? 'Inter-Regular' : 'Inter',
-                }}
-                placeholder={t('feed.buyPoints.cardNamePlaceholder')}
-                placeholderTextColor={colors.gray[400]}
-                value={cardName}
-                onChangeText={setCardName}
-                autoCapitalize="words"
-              />
-            </XStack>
+                {/* Name on Card (optional for Stripe, but good for UI) */}
+                <XStack
+                  borderWidth={1}
+                  borderColor={colors.gray[300]}
+                  borderRadius={borderRadius.md}
+                  alignItems="center"
+                  paddingHorizontal="$3"
+                  backgroundColor="white"
+                  height={52}
+                >
+                  <TextInput
+                    style={{
+                      flex: 1,
+                      fontSize: 16,
+                      paddingVertical: 14,
+                      paddingHorizontal: 4,
+                      color: colors.gray[900],
+                      fontFamily:
+                        Platform.OS === 'ios' ? 'Inter-Regular' : 'Inter',
+                    }}
+                    placeholder={t('feed.buyPoints.cardNamePlaceholder')}
+                    placeholderTextColor={colors.gray[400]}
+                    value={cardName}
+                    onChangeText={setCardName}
+                    autoCapitalize="words"
+                  />
+                </XStack>
 
-            {/* Expiry + CVC row */}
-            <XStack gap="$2">
-              <XStack
-                flex={1}
-                borderWidth={1}
-                borderColor={colors.gray[300]}
-                borderRadius={borderRadius.md}
-                alignItems="center"
-                paddingHorizontal="$3"
-                backgroundColor="white"
-              >
-                <TextInput
-                  style={{
-                    flex: 1,
-                    fontSize: 15,
-                    paddingVertical: 12,
-                    paddingHorizontal: 4,
-                    color: colors.gray[900],
-                    fontFamily:
-                      Platform.OS === 'ios' ? 'Inter-Regular' : 'Inter',
-                  }}
-                  placeholder={t('feed.buyPoints.expiryPlaceholder')}
-                  placeholderTextColor={colors.gray[400]}
-                  value={cardExpiry}
-                  onChangeText={formatExpiry}
-                  keyboardType="numeric"
-                  maxLength={5}
-                />
-              </XStack>
-              <XStack
-                flex={1}
-                borderWidth={1}
-                borderColor={colors.gray[300]}
-                borderRadius={borderRadius.md}
-                alignItems="center"
-                paddingHorizontal="$3"
-                backgroundColor="white"
-              >
-                <Lock size={14} color={colors.gray[400]} />
-                <TextInput
-                  style={{
-                    flex: 1,
-                    fontSize: 15,
-                    paddingVertical: 12,
-                    paddingHorizontal: 8,
-                    color: colors.gray[900],
-                    fontFamily:
-                      Platform.OS === 'ios' ? 'Inter-Regular' : 'Inter',
-                  }}
-                  placeholder={t('feed.buyPoints.cvcPlaceholder')}
-                  placeholderTextColor={colors.gray[400]}
-                  value={cardCvc}
-                  onChangeText={(text) =>
-                    setCardCvc(text.replace(/\D/g, '').substring(0, 4))
-                  }
-                  keyboardType="numeric"
-                  maxLength={4}
-                  secureTextEntry
-                />
-              </XStack>
-            </XStack>
+                {stripePaymentError && (
+                  <Text fontSize={12} color="#dc2626">{stripePaymentError}</Text>
+                )}
 
-            {/* Stripe badge */}
-            <XStack alignItems="center" gap="$1" paddingTop="$1">
-              <ShieldCheck size={14} color={colors.gray[400]} />
-              <Text fontSize={11} color={colors.gray[400]}>
-                {t('feed.buyPoints.securedByStripe')}
-              </Text>
-            </XStack>
+                {/* Stripe badge */}
+                <XStack alignItems="center" gap="$1" paddingTop="$1">
+                  <ShieldCheck size={14} color={colors.gray[400]} />
+                  <Text fontSize={11} color={colors.gray[400]}>
+                    {t('feed.buyPoints.securedByStripe')}
+                  </Text>
+                </XStack>
+              </YStack>
+            )}
           </YStack>
 
           {/* ─── Balance Summary ─── */}
@@ -752,7 +822,7 @@ export function BuyPointsSheet({
           </YStack>
 
           {/* ─── Payment Status Overlay ─── */}
-          {(isProcessing || paymentStatus === 'success' || paymentStatus === 'error') && (
+          {(isProcessing || stripeProcessing || paymentStatus === 'success' || paymentStatus === 'error' || stripePaymentError) && (
             <YStack
               backgroundColor="rgba(255,255,255,0.95)"
               borderRadius={borderRadius.lg}
@@ -763,11 +833,11 @@ export function BuyPointsSheet({
               borderWidth={1}
               borderColor={colors.gray[200]}
             >
-              {isProcessing && (
+              {(isProcessing || stripeProcessing) && paymentStatus !== 'error' && !stripePaymentError && (
                 <>
                   <Spinner size="large" color={colors.green[600]} />
                   <Text fontSize={16} fontWeight="600" color={colors.gray[700]}>
-                    {isMock ? 'Processing mock payment…' : 'Processing payment…'}
+                    Processing payment...
                   </Text>
                   <Text fontSize={13} color={colors.gray[500]}>
                     {isMock ? 'Simulating payment flow' : 'Please wait while we process your card'}
@@ -796,7 +866,7 @@ export function BuyPointsSheet({
                   </Text>
                 </>
               )}
-              {paymentStatus === 'error' && (
+              {(paymentStatus === 'error' || stripePaymentError) && (
                 <>
                   <View
                     style={{
@@ -815,8 +885,7 @@ export function BuyPointsSheet({
                   </Text>
                   <Text fontSize={13} color={colors.gray[500]} textAlign="center">
                     {(() => {
-                      // Never expose internal errors to users
-                      const msg = (paymentError || '').toLowerCase()
+                      const msg = (stripePaymentError || paymentError || '').toLowerCase()
                       if (
                         msg.includes('edge function') ||
                         msg.includes('non-2xx') ||
@@ -826,7 +895,8 @@ export function BuyPointsSheet({
                         msg.includes('bundle') ||
                         msg.includes('relay') ||
                         msg.includes('fetch') ||
-                        msg.includes('isolate')
+                        msg.includes('isolate') ||
+                        msg.includes('name resolution')
                       ) {
                         return 'Something went wrong processing your payment. Please try again.'
                       }
@@ -839,7 +909,7 @@ export function BuyPointsSheet({
                     paddingHorizontal="$4"
                     borderRadius={borderRadius.md}
                     pressStyle={{ backgroundColor: colors.gray[200] }}
-                    onPress={resetPayment}
+                    onPress={() => { resetPayment(); setStripePaymentError(null) }}
                   >
                     <Text color={colors.gray[700]} fontWeight="600" fontSize={14}>
                       Try Again
@@ -851,44 +921,48 @@ export function BuyPointsSheet({
           )}
 
           {/* ─── Action Buttons ─── */}
-          {!isProcessing && paymentStatus !== 'success' && (
+          {!isProcessing && !stripeProcessing && paymentStatus !== 'success' && !stripePaymentError && (
             <XStack gap="$3">
-              <Button
-                flex={1}
-                backgroundColor={colors.gray[100]}
-                paddingVertical="$2.5"
-                borderRadius={borderRadius.md}
-                pressStyle={{ backgroundColor: colors.gray[200] }}
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  backgroundColor: colors.gray[100],
+                  paddingVertical: 14,
+                  borderRadius: 10,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minHeight: 50,
+                }}
+                activeOpacity={0.7}
                 onPress={onClose}
                 disabled={isProcessing}
               >
-                <Text color={colors.gray[700]} fontWeight="600" fontSize={15}>
+                <RNText style={{ color: colors.gray[700], fontWeight: '600', fontSize: 15 }}>
                   {t('feed.buyPoints.cancel')}
-                </Text>
-              </Button>
-              <Button
-                flex={1}
-                backgroundColor={
-                  purchaseAmount > 0 && isCardValid ? colors.green[600] : colors.gray[300]
-                }
-                paddingVertical="$2.5"
-                borderRadius={borderRadius.md}
-                pressStyle={
-                  purchaseAmount > 0 && isCardValid
-                    ? { backgroundColor: colors.green[700] }
-                    : undefined
-                }
+                </RNText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  backgroundColor: purchaseAmount > 0 && isCardValid ? colors.green[600] : colors.gray[300],
+                  paddingVertical: 14,
+                  borderRadius: 10,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minHeight: 50,
+                }}
+                activeOpacity={0.7}
                 disabled={purchaseAmount <= 0 || !isCardValid}
                 onPress={handleComplete}
               >
-                <Text color="white" fontWeight="600" fontSize={15}>
+                <RNText style={{ color: 'white', fontWeight: '600', fontSize: 15 }}>
                   {t('feed.buyPoints.complete')}
-                </Text>
-              </Button>
+                </RNText>
+              </TouchableOpacity>
             </XStack>
           )}
-        </YStack>
-      </ScrollView>
+        </ScrollView>
+      </YStack>
     </YStack>
   )
 }

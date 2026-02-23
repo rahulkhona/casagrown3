@@ -1,0 +1,61 @@
+# Hamburger Menu Flow — Maestro E2E test
+# Tests the native Menu screen items and navigation.
+# Tab labels need regex: ".*Menu.*" etc.
+
+appId: dev.casagrown.community
+
+---
+
+# Login first
+- runFlow: ../utils/login.yaml
+
+# Wait for feed to load
+- extendedWaitUntil:
+          visible: "Tomatoes"
+          timeout: 15000
+
+# Open Menu via bottom tab (regex for iOS accessibility label)
+- tapOn:
+          text: ".*Menu.*"
+
+# Verify menu items are visible
+- extendedWaitUntil:
+          visible:
+                  text: ".*Profile.*Settings.*"
+          timeout: 5000
+- assertVisible:
+          text: ".*Redeem Points.*"
+- assertVisible:
+          text: ".*Buy Points.*"
+- assertVisible:
+          text: ".*Transaction History.*"
+
+# Scroll down to see more items
+- scrollUntilVisible:
+          element: "Invite Friends"
+          direction: DOWN
+          timeout: 5000
+- assertVisible:
+          text: ".*Invite Friends.*"
+
+# Scroll to Sign Out
+- scrollUntilVisible:
+          element: "Sign Out"
+          direction: DOWN
+          timeout: 5000
+- assertVisible: "Sign Out"
+
+# Scroll back up to Buy Points and navigate to it
+- scrollUntilVisible:
+          element:
+                  text: ".*Buy Points.*"
+          direction: UP
+          timeout: 5000
+- tapOn:
+          text: ".*Buy Points.*"
+
+# Verify we navigated to buy points
+- extendedWaitUntil:
+          visible:
+                  text: ".*Points.*"
+          timeout: 10000

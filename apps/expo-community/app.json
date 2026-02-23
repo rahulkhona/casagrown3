@@ -15,7 +15,9 @@
     "updates": {
       "fallbackToCacheTimeout": 0
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "dev.casagrown.community",
@@ -48,7 +50,12 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      ["expo-router", { "root": "./app" }],
+      [
+        "expo-router",
+        {
+          "root": "./app"
+        }
+      ],
       "expo-font",
       [
         "expo-image-picker",
@@ -61,6 +68,12 @@
         "expo-location",
         {
           "locationWhenInUsePermission": "CasaGrown uses your location to geotag delivery proof photos and verify drop-off locations."
+        }
+      ],
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.dev.casagrown.community"
         }
       ]
     ],

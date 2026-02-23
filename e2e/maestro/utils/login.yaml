@@ -72,15 +72,14 @@ env:
                             visible: "Email Address"
                             timeout: 5000
 
-                  # Enter test seller email — clear first, then type, then dismiss keyboard
-                  - tapOn:
+                  # Enter test seller email — long press to select all, clear, type, then submit via keyboard
+                  - longPressOn:
                             id: "email_input"
-                  - eraseText: 30
+                  - eraseText: 50
                   - inputText: "${TEST_EMAIL}"
-                  - hideKeyboard
 
-                  # Tap send code button
-                  - tapOn: "Send Verification Code"
+                  # Submit email via keyboard Enter key (button may be hidden by keyboard)
+                  - pressKey: Enter
 
                   # Wait for OTP screen to appear
                   - extendedWaitUntil:

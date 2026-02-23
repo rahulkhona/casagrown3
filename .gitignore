@@ -42,7 +42,15 @@ yarn-error.log
 unplugged/
 
 # Local env files
+.env
 .env*.local
+supabase/.env
+supabase/functions/.env
+
+# Simulator artifacts
+*.sim_log.txt
+apps/expo-community/sim_log.txt
+apps/expo-community/simulator_screen.png
 
 # Logs
 npm-debug.log*

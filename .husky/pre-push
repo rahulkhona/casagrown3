@@ -145,6 +145,11 @@ else
 fi
 
 echo "🎭 [3/5] Community Voice Playwright E2E tests..."
+
+# Seed Community Voice feedback data (idempotent — safe to re-run)
+echo "   Seeding Community Voice test data..."
+docker exec -i supabase_db_casagrown3 psql -U postgres -d postgres < "$ROOT_DIR/scripts/seed-feedback.sql" 2>&1 | grep -v "^$" || true
+
 cd apps/next-community-voice && npx playwright test --reporter=dot 2>&1 || {
     echo "❌ Community Voice Playwright tests failed — push aborted."
     exit 1

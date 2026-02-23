@@ -32,6 +32,7 @@ import { createOffer } from '../offers/offer-service'
 import { uploadPostMediaBatch } from '../create-post/media-upload'
 import { filterPosts, type PostTypeFilter } from './feed-filter'
 import { FeedNavigation } from './FeedNavigation'
+import { PointsMenu } from '../points/PointsMenu'
 
 // Types for invite rewards
 interface InviteRewards {
@@ -77,6 +78,10 @@ interface FeedScreenProps {
   onNavigateToOffers?: () => void
   /** Navigate to buy points screen */
   onNavigateToBuyPoints?: () => void
+  /** Navigate to redeem points screen */
+  onNavigateToRedeemPoints?: () => void
+  /** Navigate to transaction history screen */
+  onNavigateToTransactionHistory?: () => void
 }
 
 // Navigation item keys - labels are localized via t()
@@ -95,7 +100,7 @@ const NAV_KEYS_BASE = [
   { key: 'invite', badge: 0 },
 ]
 
-export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDelegate, onNavigateToAcceptDelegation, onNavigateToMyPosts, logoSrc, referralCode, inviteRewards, userAvatarUrl: rawAvatarUrl, userDisplayName, communityH3Index, userId, highlightPostId, onNavigateToChat, onNavigateToChats, onNavigateToOrders, onNavigateToOffers, onNavigateToBuyPoints }: FeedScreenProps) {
+export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDelegate, onNavigateToAcceptDelegation, onNavigateToMyPosts, logoSrc, referralCode, inviteRewards, userAvatarUrl: rawAvatarUrl, userDisplayName, communityH3Index, userId, highlightPostId, onNavigateToChat, onNavigateToChats, onNavigateToOrders, onNavigateToOffers, onNavigateToBuyPoints, onNavigateToRedeemPoints, onNavigateToTransactionHistory }: FeedScreenProps) {
   const userAvatarUrl = normalizeStorageUrl(rawAvatarUrl)
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
@@ -427,210 +432,8 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
 
   return (
     <YStack flex={1} backgroundColor={colors.gray[50]}>
-            {/* ============ DESKTOP & WEB HEADER ============ */}
-      {(isWeb || isDesktop) && (
-        <YStack 
-          backgroundColor="white" 
-          borderBottomWidth={1} 
-          borderBottomColor={colors.gray[200]}
-          paddingTop={insets.top || (isWeb ? 0 : 16)}
-          position={isWeb ? ('sticky' as 'sticky') : 'relative'}
-          top={0}
-          zIndex={50}
-        >
-          <XStack 
-            paddingHorizontal={isDesktop ? '$6' : '$4'} 
-            height={64}
-            alignItems="center"
-            justifyContent="space-between"
-            maxWidth={1280}
-            width="100%"
-            alignSelf="center"
-          >
-            {/* Left: Logo + Nav */}
-            <XStack alignItems="center" gap="$2" flex={1}>
-              {/* Logo - Using actual CasaGrown logo */}
-              <XStack 
-                alignItems="center" 
-                gap="$2" 
-                cursor="pointer"
-              >
-                {isWeb ? (
-                  <img 
-                    src="/logo.png" 
-                    alt="CasaGrown" 
-                    style={{ width: 32, height: 32, objectFit: 'contain' }} 
-                  />
-                ) : logoSrc ? (
-                  <Image
-                    source={logoSrc}
-                    style={{ width: 32, height: 32 }}
-                    resizeMode="contain"
-                    accessible={true}
-                    accessibilityLabel="CasaGrown Logo"
-                  />
-                ) : (
-                  <YStack 
-                    width={32} 
-                    height={32} 
-                    borderRadius="$full" 
-                    backgroundColor={colors.green[600]} 
-                    alignItems="center" 
-                    justifyContent="center"
-                  >
-                    <Leaf size={18} color="white" />
-                  </YStack>
-                )}
-                {isDesktop && (
-                  <Text fontSize="$5" fontWeight="700" color={colors.gray[900]}>
-                    CasaGrown
-                  </Text>
-                )}
-              </XStack>
+            {/* Web header is rendered by AppHeader via auth-guard */}
 
-              {/* Desktop Navigation */}
-              {isDesktop && (
-                <FeedNavigation
-                  navKeys={NAV_KEYS}
-                  variant="desktop"
-                  onNavigate={handleNavPress}
-                />
-              )}
-            </XStack>
-
-            {/* Right Actions - Based on App.tsx lines 371-466 */}
-            <XStack alignItems="center" gap={isDesktop ? '$3' : '$2'}>
-
-              {/* Invite Button - Based on App.tsx lines 381-398 */}
-              {isDesktop ? (
-                <Button
-                  backgroundColor={colors.green[600]}
-                  paddingHorizontal="$3"
-                  paddingVertical="$1.5"
-                  borderRadius="$full"
-                  gap="$2"
-                  hoverStyle={{ backgroundColor: colors.green[700] }}
-                  icon={<UserPlus size={16} color="white" />}
-                  onPress={() => setInviteModalOpen(true)}
-                >
-                  <Text color="white" fontSize="$3" fontWeight="500">{t('feed.header.invite')}</Text>
-                </Button>
-              ) : (
-                <TouchableOpacity
-                  style={{ padding: 8, borderRadius: 999, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
-                  activeOpacity={0.6}
-                  onPress={() => {
-                    setInviteModalOpen(true)
-                  }}
-                >
-                  <UserPlus size={20} color={colors.green[600]} />
-                </TouchableOpacity>
-              )}
-
-              {/* Points Display - Based on App.tsx lines 400-431 */}
-              <TouchableOpacity
-                style={{
-                  paddingHorizontal: 12,
-                  paddingVertical: 6,
-                  backgroundColor: colors.green[50],
-                  borderRadius: 999,
-                  flexDirection: 'row',
-                  gap: 4,
-                  alignItems: 'center',
-                  minHeight: 44,
-                  justifyContent: 'center',
-                }}
-                activeOpacity={0.6}
-              >
-                <Text fontWeight="600" color={colors.green[700]}>{userPoints}</Text>
-                {isDesktop && (
-                  <Text fontSize="$3" color={colors.green[700]}>{t('feed.header.points')}</Text>
-                )}
-              </TouchableOpacity>
-
-              {/* Notifications - Based on App.tsx lines 433-444 */}
-              <XStack position="relative">
-                <TouchableOpacity
-                  style={{ padding: 8, borderRadius: 999, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
-                  activeOpacity={0.6}
-                >
-                  <Bell size={20} color={colors.gray[600]} />
-                </TouchableOpacity>
-                {unreadNotificationsCount > 0 && (
-                  <YStack 
-                    position="absolute" 
-                    top={0} 
-                    right={0} 
-                    backgroundColor={colors.red[500]} 
-                    borderRadius="$full" 
-                    minWidth={18}
-                    height={18}
-                    alignItems="center" 
-                    justifyContent="center"
-                    paddingHorizontal="$1"
-                  >
-                    <Text fontSize={10} color="white" fontWeight="700">
-                      {unreadNotificationsCount}
-                    </Text>
-                  </YStack>
-                )}
-              </XStack>
-
-              {/* Profile Avatar - Based on App.tsx lines 446-458 */}
-              <TouchableOpacity
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 22,
-                  backgroundColor: userAvatarUrl ? undefined : colors.green[600],
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  overflow: 'hidden',
-                }}
-                activeOpacity={0.7}
-                onPress={onNavigateToProfile}
-              >
-                {userAvatarUrl ? (
-                  <Image 
-                    source={{ uri: userAvatarUrl }}
-                    style={{ width: 44, height: 44, borderRadius: 22 }}
-                  />
-                ) : (
-                  <Text color="white" fontWeight="600" fontSize="$3">{userInitial}</Text>
-                )}
-              </TouchableOpacity>
-
-              {/* Mobile Hamburger Menu */}
-              {!isDesktop && (
-                <TouchableOpacity
-                  style={{ padding: 8, borderRadius: 999, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
-                  activeOpacity={0.6}
-                  onPress={() => setMobileMenuOpen(!mobileMenuOpen)}
-                  aria-label="Menu"
-                >
-                  {mobileMenuOpen ? (
-                    <X size={24} color={colors.gray[700]} />
-                  ) : (
-                    <Menu size={24} color={colors.gray[700]} />
-                  )}
-                </TouchableOpacity>
-              )}
-            </XStack>
-          </XStack>
-
-          {/* Mobile Navigation Drawer */}
-          {!isDesktop && mobileMenuOpen && (
-            <FeedNavigation
-              navKeys={NAV_KEYS}
-              variant="mobile"
-              onNavigate={(key) => {
-                setMobileMenuOpen(false)
-                handleNavPress(key)
-              }}
-            />
-          )}
-        </YStack>
-      )}
 
 {/* ============ HEADER (Mobile Native Only) ============ */}
       {!isWeb && !isDesktop && (
@@ -651,23 +454,13 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
           )}
 
           <XStack alignItems="center" gap="$3">
-            <TouchableOpacity onPress={onNavigateToBuyPoints}>
-              <XStack 
-                backgroundColor={colors.green[50]} 
-                paddingHorizontal="$2.5" 
-                paddingVertical="$1.5" 
-                borderRadius="$full" 
-                alignItems="center" 
-                gap="$1.5" 
-                borderWidth={1} 
-                borderColor={colors.green[200]}
-              >
-                <HandCoins size={14} color={colors.green[700]} />
-                <Text fontSize={13} fontWeight="800" color={colors.green[700]}>
-                  {userPoints !== null ? `${userPoints.toLocaleString()} pts` : '...'}
-                </Text>
-              </XStack>
-            </TouchableOpacity>
+            <PointsMenu
+              userPoints={userPoints || 0}
+              isDesktop={false}
+              onNavigateToBuyPoints={onNavigateToBuyPoints}
+              onNavigateToRedeemPoints={onNavigateToRedeemPoints}
+              onNavigateToTransactionHistory={onNavigateToTransactionHistory}
+            />
 
             <TouchableOpacity style={{ position: 'relative' }}>
               <Bell size={24} color={colors.gray[700]} />

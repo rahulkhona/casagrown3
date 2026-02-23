@@ -11,6 +11,16 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   },
 }))
 
+// Mock @stripe/stripe-react-native (native TurboModule — not available in test env)
+jest.mock('@stripe/stripe-react-native', () => ({
+  CardField: () => null,
+  useStripe: () => ({
+    confirmPayment: jest.fn(),
+    createPaymentMethod: jest.fn(),
+  }),
+  StripeProvider: ({ children }: any) => children,
+}))
+
 // Mock expo-secure-store (required by auth-hook.ts → auth-storage.ts)
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(),
@@ -146,10 +156,22 @@ jest.mock('@tamagui/lucide-icons', () => ({
   X: () => null,
   Heart: () => null,
   ShoppingCart: () => null,
+  ShoppingBag: () => null,
   ThumbsUp: () => null,
   MessageCircle: () => null,
+  MessagesSquare: () => null,
   Share2: () => null,
   Flag: () => null,
+  Tag: () => null,
+  Coins: () => null,
+  History: () => null,
+  User: () => null,
+  Users: () => null,
+  LogOut: () => null,
+  ChevronRight: () => null,
+  PackageCheck: () => null,
+  ShieldCheck: () => null,
+  Separator: () => null,
 }))
 
 // Mock tamagui (following profile-screen.test.tsx pattern)
@@ -184,16 +206,17 @@ describe('FeedScreen', () => {
     render(<FeedScreen />)
   })
 
-  it('renders CasaGrown branding in header', () => {
+  it('does not render inline header on desktop (delegated to AppHeader)', () => {
+    // In test env: isWeb=false, isDesktop=true (lg:true) → native header hidden
     render(<FeedScreen />)
-    expect(screen.getAllByText('CasaGrown').length).toBeGreaterThan(0)
+    // CasaGrown branding only renders on mobile native (!isWeb && !isDesktop)
+    expect(screen.queryByText('CasaGrown')).toBeNull()
   })
 
-  it('renders navigation items on desktop', () => {
+  it('renders content area without nav items on non-web desktop', () => {
+    // FeedScreen no longer renders FeedNavigation — delegated to AppHeader
     render(<FeedScreen />)
-    expect(screen.getByText('feed.nav.feed')).toBeTruthy()
-    expect(screen.getByText('feed.nav.chats')).toBeTruthy()
-    expect(screen.getByText('feed.nav.orders')).toBeTruthy()
+    expect(screen.queryByText('feed.nav.feed')).toBeNull()
   })
 
   it('renders empty state when no posts', async () => {
@@ -269,24 +292,24 @@ describe('FeedScreen', () => {
     expect(mockOnCreatePost).toHaveBeenCalled()
   })
 
-  it('renders Invite button in navigation', () => {
+  it('does not render invite/nav on desktop (delegated to AppHeader)', () => {
+    // Navigation is handled by AppHeader on web and not rendered inline
     render(<FeedScreen />)
-    expect(screen.getByText('feed.nav.invite')).toBeTruthy()
+    expect(screen.queryByText('feed.nav.invite')).toBeNull()
   })
 
-  it('renders points display from mocked balance', () => {
+  it('does not render inline points display on desktop', () => {
+    // Points menu is in the native header which only shows on !isWeb && !isDesktop
     render(<FeedScreen />)
-    expect(screen.getByText('50')).toBeTruthy()
-    expect(screen.getByText('feed.header.points')).toBeTruthy()
+    // PointsMenu is mocked and would render "PointsMenuMock: 50" if visible
+    expect(screen.queryByText('PointsMenuMock: 50')).toBeNull()
   })
 
-  it('calls onNavigateToProfile when profile avatar is pressed', () => {
-    const mockOnNavigateToProfile = jest.fn()
-    render(<FeedScreen onNavigateToProfile={mockOnNavigateToProfile} />)
-    
-    // Profile avatar displays first letter "A"
-    fireEvent.press(screen.getByText('A'))
-    expect(mockOnNavigateToProfile).toHaveBeenCalled()
+  it('does not render profile avatar on desktop (delegated to AppHeader)', () => {
+    // Profile avatar is handled by AppHeader
+    render(<FeedScreen />)
+    // Avatar initial "A" not rendered in feed-screen on desktop
+    expect(screen.queryByText('A')).toBeNull()
   })
 
   it('fetches community posts on mount', async () => {

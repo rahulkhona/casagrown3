@@ -48,7 +48,9 @@ and any associated triggers/functions/RLS policies.
 > `20260220100000_offer_message_from_seller` →
 > `20260220100001_buy_details_unique_postid` →
 > `20260220200000_offer_delivery_dates` →
-> `20260220300000_accept_offer_buyer_qty` → `20260220400006_feedback_flags`
+> `20260220300000_accept_offer_buyer_qty` → `20260220400006_feedback_flags` →
+> `20260222100000_redemption_providers` → `20260223000000_feature_waitlist` →
+> `20260223020000_redemptions_rls_policies`
 
 ## Extensions
 
@@ -76,8 +78,9 @@ create type incentive_scope as enum ('global', 'country', 'state', 'city', 'zip'
 
 create type point_transaction_type as enum (
   'purchase', 'transfer', 'payment', 'platform_charge', 'redemption', 'reward',
-  'escrow',   -- buyer's points held until seller accepts (20260215090000)
-  'refund'    -- points returned to buyer if order is cancelled (20260215090000)
+  'escrow',    -- buyer's points held until seller accepts (20260215090000)
+  'refund',    -- points returned to buyer if order is cancelled (20260215090000)
+  'donation'   -- points spent on charitable donations (20260222100000)
 );
 
 create type post_type as enum (
@@ -1881,7 +1884,7 @@ DB). Logs `✅ All communities found in DB cache` when fully cached.
 **Dependencies**: `@supabase/supabase-js@2`, `h3-js@4.1.0`
 
 **Source**:
-[resolve-community/index.ts](file:///Volumes/Seagate%20Portabl/development/casagrown3/supabase/functions/resolve-community/index.ts)
+[resolve-community/index.ts](file:///Users/rkhona/development/bug_reporting/casagrown3/supabase/functions/resolve-community/index.ts)
 
 ### `assign-experiment`
 
@@ -1902,7 +1905,7 @@ Assigns a user/device to an experiment variant using deterministic bucketing
 5. Persist assignment to `experiment_assignments`
 
 **Source**:
-[assign-experiment/index.ts](file:///Volumes/Seagate%20Portabl/development/casagrown3/supabase/functions/assign-experiment/index.ts)
+[assign-experiment/index.ts](file:///Users/rkhona/development/bug_reporting/casagrown3/supabase/functions/assign-experiment/index.ts)
 
 ### `sync-locations`
 
@@ -1915,7 +1918,7 @@ table.
 `iso_3`.
 
 **Source**:
-[sync-locations/index.ts](file:///Volumes/Seagate%20Portabl/development/casagrown3/supabase/functions/sync-locations/index.ts)
+[sync-locations/index.ts](file:///Users/rkhona/development/bug_reporting/casagrown3/supabase/functions/sync-locations/index.ts)
 
 ### `update-zip-codes`
 
@@ -1927,7 +1930,7 @@ Bulk imports US zip codes with state/city auto-population.
 in dependency order, then upserts zip codes with resolved `city_id` FKs.
 
 **Source**:
-[update-zip-codes/index.ts](file:///Volumes/Seagate%20Portabl/development/casagrown3/supabase/functions/update-zip-codes/index.ts)
+[update-zip-codes/index.ts](file:///Users/rkhona/development/bug_reporting/casagrown3/supabase/functions/update-zip-codes/index.ts)
 
 ### `pair-delegation`
 
@@ -1977,7 +1980,7 @@ delegate counts.
   pasted from clipboard") and was a poor UX pattern.
 
 **Source**:
-[pair-delegation/index.ts](file:///Volumes/Seagate%20Portabl/development/casagrown3/supabase/functions/pair-delegation/index.ts)
+[pair-delegation/index.ts](file:///Users/rkhona/development/bug_reporting/casagrown3/supabase/functions/pair-delegation/index.ts)
 
 ### `enrich-communities`
 
@@ -2026,7 +2029,7 @@ processing the same community.
 **Dependencies**: `@supabase/supabase-js@2`, `h3-js@4.1.0`, `pg_cron`, `pg_net`
 
 **Source**:
-[enrich-communities/index.ts](file:///Users/rkhona/development/casagrown3/supabase/functions/enrich-communities/index.ts)
+[enrich-communities/index.ts](file:///Users/rkhona/development/bug_reporting/casagrown3/supabase/functions/enrich-communities/index.ts)
 
 > [!IMPORTANT]
 > Edge functions require `supabase functions serve` to be running locally.
@@ -2168,6 +2171,170 @@ Atomically creates a "buy now" order from the feed.
 5. Debit buyer: insert `point_ledger` (type: `escrow`, amount: -totalPrice)
 6. Insert system `chat_messages` ("Order placed: ...")
 7. Return `{ orderId, conversationId, newBalance }`
+
+#### `create-offer`
+
+Thin wrapper around the `create_offer_atomic` RPC. Validates inputs and
+delegates to the SQL function for atomic conversation + offer creation.
+
+**Endpoint**: `POST /functions/v1/create-offer`
+
+**Input**:
+`{ "postId", "buyerId", "quantity", "pointsPerUnit", "category", "product", "unit?", "deliveryDate?", "message?", "sellerPostId?", "media?" }`
+
+**Logic**:
+
+1. Authenticate seller via JWT
+2. Validate required fields (`postId`, `buyerId`, `quantity`, `pointsPerUnit`,
+   `category`, `product`)
+3. Reject self-offers (`sellerId === buyerId`)
+4. Call `create_offer_atomic` RPC with all parameters
+5. Return `{ offerId, conversationId }` or business logic error
+   (`existingOfferId`, `existingOrderId`)
+
+**Source**:
+[create-offer/index.ts](file:///Users/rkhona/development/bug_reporting/casagrown3/supabase/functions/create-offer/index.ts)
+
+---
+
+### Redemption Edge Functions
+
+Edge functions for the redemption system: gift card purchases, charitable
+donations, catalog management, and provider balance monitoring. These work with
+the tables added in migration `20260222100000_redemption_providers`.
+
+#### `donate-points`
+
+Donates user points to GlobalGiving charitable projects. Implements full
+lifecycle: debit → API call → receipt → refund on failure.
+
+**Endpoint**: `POST /functions/v1/donate-points`
+
+**Input**:
+`{ "projectId?", "projectTitle?", "organizationName", "theme?", "pointsAmount", "itemId?" }`
+
+**Logic**:
+
+1. Validate balance (`point_ledger` latest `balance_after`)
+2. Create pending `redemptions` row (provider: `globalgiving`)
+3. Debit points: insert `point_ledger` (type: `donation`, −pointsAmount)
+4. Call GlobalGiving Donation API (or simulate if `GLOBALGIVING_SANDBOX=true`)
+5. Log `provider_transactions` row (status: `success`)
+6. Store `donation_receipts` row (receipt number, URL, tax-deductible flag)
+7. Mark redemption `completed`
+8. On API failure: refund points, mark redemption `failed`
+
+**Env vars**: `GLOBALGIVING_API_KEY`, `GLOBALGIVING_SANDBOX`
+
+**Conversion**: 100 points = $1.00 USD
+
+**Source**:
+[donate-points/index.ts](file:///Users/rkhona/development/bug_reporting/casagrown3/supabase/functions/donate-points/index.ts)
+
+#### `fetch-donation-projects`
+
+Fetches charitable project catalog from GlobalGiving. Supports search and browse
+modes with 24-hour caching.
+
+**Endpoint**: `POST /functions/v1/fetch-donation-projects`
+
+**Input**: `{ "q?": "search term" }` or `?q=search+term` query parameter
+
+**Modes**:
+
+| Mode   | Trigger             | API Call                     | Cache                                                 |
+| :----- | :------------------ | :--------------------------- | :---------------------------------------------------- |
+| Search | `q` param ≥ 2 chars | GlobalGiving search API      | No cache (live)                                       |
+| Browse | No `q` param        | GlobalGiving active projects | `platform_config` key `donation_projects_v1`, 24h TTL |
+
+**Fallback**: Returns hardcoded mock projects (4 items) when
+`GLOBALGIVING_API_KEY` is not configured.
+
+**Output**: `{ projects: DonationProject[], cached: boolean }`
+
+**Source**:
+[fetch-donation-projects/index.ts](file:///Users/rkhona/development/bug_reporting/casagrown3/supabase/functions/fetch-donation-projects/index.ts)
+
+#### `fetch-gift-cards`
+
+Merges gift card catalogs from Reloadly and Tremendous providers into a unified,
+deduplicated list sorted by brand popularity.
+
+**Endpoint**: `POST /functions/v1/fetch-gift-cards`
+
+**Logic**:
+
+1. Check cache (`platform_config` key `gift_card_catalog_v4`, 24h TTL)
+2. Fetch catalogs from both providers in parallel (`Promise.allSettled`)
+3. Process Tremendous first (preferred — no processing fees)
+4. Merge Reloadly cards: extend denomination ranges for existing brands, add new
+   brands
+5. Compute `hasProcessingFee` and `processingFeeUsd` per brand
+6. Sort by popularity (curated top 10: Amazon, Target, Walmart, Starbucks, …)
+   then alphabetically
+7. Cache results to `platform_config`
+8. Return `{ cards: UnifiedGiftCard[], cached: boolean, count }`
+
+**Brand deduplication**: Normalizes brand names (lowercase, strip punctuation,
+remove country suffixes) to merge the same brand from different providers.
+
+**Env vars**: `TREMENDOUS_API_KEY`, `RELOADLY_CLIENT_ID`,
+`RELOADLY_CLIENT_SECRET`, `RELOADLY_SANDBOX`
+
+**Source**:
+[fetch-gift-cards/index.ts](file:///Users/rkhona/development/bug_reporting/casagrown3/supabase/functions/fetch-gift-cards/index.ts)
+
+#### `redeem-gift-card`
+
+Purchases a gift card with points. Picks the cheapest provider, handles the full
+lifecycle: debit → provider order → delivery → refund on failure.
+
+**Endpoint**: `POST /functions/v1/redeem-gift-card`
+
+**Input**: `{ "brandName", "faceValueCents", "pointsCost" }`
+
+**Logic**:
+
+1. Validate balance
+2. Look up brand in cached catalog (`gift_card_catalog_v4`) to find available
+   providers and compute net fees
+3. Pick cheapest provider (Tremendous first — free; Reloadly as fallback)
+4. Create pending `redemptions` row
+5. Debit points: insert `point_ledger` (type: `redemption`, −pointsCost)
+6. Place order with selected provider API
+7. On provider failure: refund points, mark redemption `failed`
+8. Log `provider_transactions` row
+9. Store `gift_card_deliveries` row (card code, URL, PIN, expiry)
+10. Mark redemption `completed`
+11. Return `{ success, redemptionId, provider, cardCode, cardUrl, netFeeCents }`
+
+**Source**:
+[redeem-gift-card/index.ts](file:///Users/rkhona/development/bug_reporting/casagrown3/supabase/functions/redeem-gift-card/index.ts)
+
+#### `sync-provider-balance`
+
+Cron function that polls Reloadly and Tremendous balance APIs, updates
+`provider_accounts` table, and warns on low balances.
+
+**Endpoint**: `POST /functions/v1/sync-provider-balance`
+
+**Logic**:
+
+1. **Tremendous**: Fetch `funding_sources` → find `method === "balance"` →
+   update `provider_accounts.balance_cents`
+2. **Reloadly**: OAuth token → `accounts/balance` → update
+   `provider_accounts.balance_cents`
+3. For each provider: compare balance against `low_balance_threshold_cents`
+   (default $100), log warning if below
+4. Return `{ success, synced_at, providers: { tremendous, reloadly } }`
+
+**Env vars**: `TREMENDOUS_API_KEY`, `RELOADLY_CLIENT_ID`,
+`RELOADLY_CLIENT_SECRET`
+
+**Intended scheduling**: Called via `pg_cron` (similar to `enrich-communities`).
+
+**Source**:
+[sync-provider-balance/index.ts](file:///Users/rkhona/development/bug_reporting/casagrown3/supabase/functions/sync-provider-balance/index.ts)
 
 ---
 
@@ -2516,3 +2683,164 @@ for building the chat inbox view.
 
 **Logic**: Joins `conversations` → `chat_messages` → `profiles` to build inbox
 summary with unread counts and last message preview.
+
+---
+
+## Redemption Provider Integration
+
+**Migration**: `20260222100000_redemption_providers`
+
+Adds tables for tracking provider accounts (Reloadly, Tremendous, GlobalGiving),
+logging provider API transactions, and enriching the existing `redemptions`
+table with delivery details (gift card codes, donation receipts).
+
+### New Enum: `provider_transaction_status`
+
+```sql
+CREATE TYPE provider_transaction_status AS ENUM ('pending', 'success', 'failed', 'refunded');
+```
+
+### `provider_accounts`
+
+Tracks API credentials reference and balance snapshots for each integration
+provider.
+
+| Column                        | Type          | Notes                                          |
+| :---------------------------- | :------------ | :--------------------------------------------- |
+| `id`                          | `uuid` PK     | Auto-generated                                 |
+| `provider_name`               | `text` UNIQUE | `'reloadly'`, `'tremendous'`, `'globalgiving'` |
+| `display_name`                | `text`        | Human-readable name                            |
+| `is_active`                   | `boolean`     | Default `true`                                 |
+| `balance_cents`               | `integer`     | Current balance in cents (USD)                 |
+| `balance_updated_at`          | `timestamptz` | Last time balance was synced                   |
+| `low_balance_threshold_cents` | `integer`     | Default `10000` ($100)                         |
+| `metadata`                    | `jsonb`       | Provider-specific config                       |
+| `created_at`                  | `timestamptz` | Auto-generated                                 |
+| `updated_at`                  | `timestamptz` | Auto-generated                                 |
+
+**RLS**: Service role only (no user access).
+
+**Seed data**: `reloadly`, `tremendous`, `globalgiving` rows inserted.
+
+### `provider_transactions`
+
+Logs every API call to external providers for audit and debugging.
+
+| Column              | Type                          | Notes                         |
+| :------------------ | :---------------------------- | :---------------------------- |
+| `id`                | `uuid` PK                     | Auto-generated                |
+| `provider_name`     | `text`                        | Provider key                  |
+| `redemption_id`     | `uuid` FK → `redemptions`     | Link to user redemption       |
+| `user_id`           | `uuid` FK → `profiles`        | NOT NULL                      |
+| `external_order_id` | `text`                        | Provider's order ID           |
+| `item_type`         | `text`                        | `'gift_card'`, `'donation'`   |
+| `item_name`         | `text`                        | e.g. `'Amazon $25 Gift Card'` |
+| `face_value_cents`  | `integer`                     | Face value in cents           |
+| `cost_cents`        | `integer`                     | Actual cost after discount    |
+| `discount_cents`    | `integer`                     | Default `0`                   |
+| `fee_cents`         | `integer`                     | Default `0`                   |
+| `status`            | `provider_transaction_status` | Default `'pending'`           |
+| `status_message`    | `text`                        | Error message if failed       |
+| `request_payload`   | `jsonb`                       | Default `'{}'`                |
+| `response_payload`  | `jsonb`                       | Default `'{}'`                |
+| `created_at`        | `timestamptz`                 | Auto-generated                |
+| `updated_at`        | `timestamptz`                 | Auto-generated                |
+
+**Indexes**: `user_id`, `redemption_id`, `status`, `created_at DESC`.
+
+**RLS**: Service role full access; authenticated users can read their own rows.
+
+### `gift_card_deliveries`
+
+Stores delivered card details for gift card redemptions.
+
+| Column                    | Type          | Notes                              |
+| :------------------------ | :------------ | :--------------------------------- |
+| `id`                      | `uuid` PK     | Auto-generated                     |
+| `redemption_id`           | `uuid` FK     | ON DELETE CASCADE                  |
+| `provider_transaction_id` | `uuid` FK     | Link to `provider_transactions`    |
+| `brand_name`              | `text`        | e.g. `'Amazon'`, `'Starbucks'`     |
+| `face_value_cents`        | `integer`     | Face value in cents                |
+| `card_code`               | `text`        | Gift card code (encrypted at rest) |
+| `card_url`                | `text`        | Redemption URL                     |
+| `card_pin`                | `text`        | PIN if applicable                  |
+| `expiry_date`             | `date`        | Card expiry                        |
+| `delivered_at`            | `timestamptz` | When the card was delivered        |
+| `created_at`              | `timestamptz` | Auto-generated                     |
+
+**RLS**: Service role write; authenticated users read own (via `redemption_id`
+ownership check).
+
+### `donation_receipts`
+
+Stores donation confirmation details for charitable donations.
+
+| Column                    | Type          | Notes                             |
+| :------------------------ | :------------ | :-------------------------------- |
+| `id`                      | `uuid` PK     | Auto-generated                    |
+| `redemption_id`           | `uuid` FK     | ON DELETE CASCADE                 |
+| `provider_transaction_id` | `uuid` FK     | Link to `provider_transactions`   |
+| `organization_name`       | `text`        | e.g. `'Food For All Foundation'`  |
+| `project_title`           | `text`        | Specific project name             |
+| `theme`                   | `text`        | `'Hunger'`, `'Environment'`, etc. |
+| `donation_amount_cents`   | `integer`     | Amount donated in cents           |
+| `points_spent`            | `integer`     | Points deducted from user         |
+| `receipt_url`             | `text`        | Downloadable receipt URL          |
+| `receipt_number`          | `text`        | Receipt reference number          |
+| `tax_deductible`          | `boolean`     | Default `true`                    |
+| `donated_at`              | `timestamptz` | Default `now()`                   |
+| `created_at`              | `timestamptz` | Auto-generated                    |
+
+**RLS**: Service role write; authenticated users read own (via `redemption_id`
+ownership check).
+
+### Columns added to `redemptions`
+
+| Column              | Type          | Notes                              |
+| :------------------ | :------------ | :--------------------------------- |
+| `provider`          | `text`        | `'reloadly'`, `'tremendous'`, etc. |
+| `provider_order_id` | `text`        | External order ID                  |
+| `failed_reason`     | `text`        | Reason if failed                   |
+| `completed_at`      | `timestamptz` | When fulfillment completed         |
+| `refunded_at`       | `timestamptz` | When points were refunded          |
+
+**Realtime**: `redemptions` added to `supabase_realtime` publication.
+
+---
+
+## Feature Waitlist
+
+**Migration**: `20260223000000_feature_waitlist`
+
+Tracks user interest in upcoming features (e.g., 529 savings plans).
+
+### `feature_waitlist`
+
+| Column       | Type          | Notes                        |
+| :----------- | :------------ | :--------------------------- |
+| `id`         | `uuid` PK     | Auto-generated               |
+| `user_id`    | `uuid` FK     | → `auth.users(id)`, NOT NULL |
+| `feature`    | `text`        | Default `'529'`              |
+| `email`      | `text`        | Optional contact email       |
+| `created_at` | `timestamptz` | Auto-generated               |
+
+**Constraints**: UNIQUE on `(user_id, feature)`.
+
+**RLS**: Users can insert and read their own rows only.
+
+---
+
+## Redemptions RLS Policies
+
+**Migration**: `20260223020000_redemptions_rls_policies`
+
+Adds missing RLS policies to the `redemptions` table (previously blocking all
+operations) and makes `item_id` nullable for API-based redemptions.
+
+**Policies**:
+
+- Users can INSERT own redemptions (`auth.uid() = user_id`)
+- Users can SELECT own redemptions
+- Users can UPDATE own redemptions
+
+**Schema change**: `ALTER TABLE redemptions ALTER COLUMN item_id DROP NOT NULL`

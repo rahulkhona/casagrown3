@@ -69,6 +69,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     else if (pathname.startsWith('/chats')) activeKey = 'chats'
     else if (pathname.startsWith('/buy-points')) activeKey = 'buyPoints'
     else if (pathname.startsWith('/delegate')) activeKey = 'delegateSales'
+    else if (pathname.startsWith('/redeem')) activeKey = 'redeem'
+    else if (pathname.startsWith('/transaction-history')) activeKey = 'transactionHistory'
 
     return (
       <>

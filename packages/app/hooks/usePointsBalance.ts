@@ -9,6 +9,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Platform } from "react-native";
 import { supabase } from "../features/auth/auth-hook";
 
 interface UsePointsBalanceReturn {
@@ -20,6 +21,8 @@ interface UsePointsBalanceReturn {
     error: string | null;
     /** Refetch balance from DB */
     refetch: () => Promise<void>;
+    /** Optimistically adjust balance by delta (e.g., -1000 for redemption, +500 for purchase) */
+    adjustBalance: (delta: number) => void;
 }
 
 export function usePointsBalance(userId?: string): UsePointsBalanceReturn {
@@ -27,6 +30,12 @@ export function usePointsBalance(userId?: string): UsePointsBalanceReturn {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const mountedRef = useRef(true);
+    const balanceRef = useRef(0);
+
+    // Keep ref in sync with state
+    useEffect(() => {
+        balanceRef.current = balance;
+    }, [balance]);
 
     const fetchBalance = useCallback(async () => {
         if (!userId) {
@@ -36,7 +45,6 @@ export function usePointsBalance(userId?: string): UsePointsBalanceReturn {
         }
 
         try {
-            // Get the most recent point_ledger entry for this user
             const { data, error: queryError } = await supabase
                 .from("point_ledger")
                 .select("balance_after")
@@ -80,6 +88,10 @@ export function usePointsBalance(userId?: string): UsePointsBalanceReturn {
     }, [fetchBalance]);
 
     // ── Realtime: auto-refresh balance when ledger entries are created ──
+    // The DB trigger (trg_compute_balance_after) may run AFTER the realtime
+    // event fires, so we poll a few times with increasing delays.
+    // IMPORTANT: We use balanceRef (not state) to avoid re-creating the channel
+    // on every balance change, which would kill in-flight polling timers.
     useEffect(() => {
         if (!userId) return;
 
@@ -93,13 +105,38 @@ export function usePointsBalance(userId?: string): UsePointsBalanceReturn {
                     table: "point_ledger",
                     filter: `user_id=eq.${userId}`,
                 },
-                (payload) => {
-                    // Directly use the balance_after from the new entry
-                    if (
-                        mountedRef.current && payload.new?.balance_after != null
-                    ) {
-                        setBalance(payload.new.balance_after);
-                    }
+                () => {
+                    // Snapshot the current balance via ref (stable, no closure issue)
+                    const previousBalance = balanceRef.current;
+                    const delays = [100, 300, 600, 1200, 2500];
+                    let attempt = 0;
+
+                    const poll = async () => {
+                        if (!mountedRef.current || attempt >= delays.length) {
+                            return;
+                        }
+
+                        const { data } = await supabase
+                            .from("point_ledger")
+                            .select("balance_after")
+                            .eq("user_id", userId)
+                            .order("created_at", { ascending: false })
+                            .limit(1)
+                            .maybeSingle();
+
+                        const newBalance = data?.balance_after ?? 0;
+
+                        if (newBalance !== previousBalance) {
+                            if (mountedRef.current) setBalance(newBalance);
+                        } else {
+                            attempt++;
+                            if (attempt < delays.length) {
+                                setTimeout(poll, delays[attempt]!);
+                            }
+                        }
+                    };
+
+                    setTimeout(poll, delays[0]!);
                 },
             )
             .subscribe();
@@ -107,12 +144,72 @@ export function usePointsBalance(userId?: string): UsePointsBalanceReturn {
         return () => {
             supabase.removeChannel(channel);
         };
+        // NOTE: Only depend on userId — NOT balance. Using balanceRef avoids
+        // tearing down the channel on every optimistic balance update.
     }, [userId]);
+
+    // ── Web: refetch when tab regains focus ──
+    useEffect(() => {
+        if (Platform.OS !== "web") return;
+        const handleFocus = () => {
+            if (mountedRef.current) fetchBalance();
+        };
+        window.addEventListener("focus", handleFocus);
+        return () => window.removeEventListener("focus", handleFocus);
+    }, [fetchBalance]);
+
+    // ── Cross-instance sync: listen for balance changes from other hook instances ──
+    useEffect(() => {
+        if (Platform.OS !== "web") return;
+        const handleAdjust = (e: Event) => {
+            const delta = (e as CustomEvent).detail?.delta;
+            if (typeof delta === "number" && mountedRef.current) {
+                setBalance((prev) => Math.max(0, prev + delta));
+            }
+        };
+        const handleRefetch = () => {
+            if (mountedRef.current) fetchBalance();
+        };
+        window.addEventListener("points-balance-adjust", handleAdjust);
+        window.addEventListener("points-balance-refetch", handleRefetch);
+        return () => {
+            window.removeEventListener("points-balance-adjust", handleAdjust);
+            window.removeEventListener("points-balance-refetch", handleRefetch);
+        };
+    }, [fetchBalance]);
+
+    // ── Web: periodic poll every 5 seconds as safety net ──
+    useEffect(() => {
+        if (typeof window === "undefined" || !userId) return;
+        const interval = setInterval(() => {
+            if (mountedRef.current) fetchBalance();
+        }, 5000);
+        return () => clearInterval(interval);
+    }, [fetchBalance, userId]);
+
+    const adjustBalance = useCallback((delta: number) => {
+        setBalance((prev) => Math.max(0, prev + delta));
+        // Notify all other hook instances (header, other pages) to apply the same delta
+        if (Platform.OS === "web" && typeof window !== "undefined") {
+            window.dispatchEvent(
+                new CustomEvent("points-balance-adjust", { detail: { delta } }),
+            );
+        }
+    }, []);
+
+    // Wrap refetch to also trigger cross-instance refetch
+    const triggerRefetch = useCallback(async () => {
+        await fetchBalance();
+        if (Platform.OS === "web" && typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("points-balance-refetch"));
+        }
+    }, [fetchBalance]);
 
     return {
         balance,
         loading,
         error,
-        refetch: fetchBalance,
+        refetch: triggerRefetch,
+        adjustBalance,
     };
 }

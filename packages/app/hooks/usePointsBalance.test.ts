@@ -135,6 +135,7 @@ describe("usePointsBalance", () => {
     });
 
     it("updates balance via realtime INSERT event", async () => {
+        jest.useFakeTimers();
         mockQueryResult = { data: { balance_after: 100 }, error: null };
         mockFrom.mockImplementation(() => createChain(mockQueryResult));
 
@@ -143,12 +144,17 @@ describe("usePointsBalance", () => {
         await waitFor(() => expect(result.current.loading).toBe(false));
         expect(result.current.balance).toBe(100);
 
-        // Simulate realtime INSERT
+        // Simulate realtime INSERT — the hook now polls via setTimeout
         const insertListener = mockChannelOnListeners.find(
             (l) =>
                 l.filter.event === "INSERT" &&
                 l.filter.table === "point_ledger",
         );
+
+        // Update mock to return new balance for the poll refetch
+        mockQueryResult = { data: { balance_after: 250 }, error: null };
+        mockFrom.mockImplementation(() => createChain(mockQueryResult));
+
         if (insertListener) {
             act(() => {
                 insertListener.callback({
@@ -157,7 +163,13 @@ describe("usePointsBalance", () => {
             });
         }
 
+        // Advance timers to trigger the first poll (100ms delay)
+        await act(async () => {
+            jest.advanceTimersByTime(150);
+        });
+
         expect(result.current.balance).toBe(250);
+        jest.useRealTimers();
     });
 
     it("cleans up channel on unmount", async () => {
@@ -189,5 +201,41 @@ describe("usePointsBalance", () => {
         });
 
         expect(result.current.balance).toBe(200);
+    });
+
+    it("adjustBalance optimistically updates and clamps to 0", async () => {
+        mockQueryResult = { data: { balance_after: 100 }, error: null };
+        mockFrom.mockImplementation(() => createChain(mockQueryResult));
+
+        const { result } = renderHook(() => usePointsBalance("user-1"));
+
+        await waitFor(() => expect(result.current.loading).toBe(false));
+        expect(result.current.balance).toBe(100);
+
+        // Positive adjustment
+        act(() => {
+            result.current.adjustBalance(50);
+        });
+        expect(result.current.balance).toBe(150);
+
+        // Negative adjustment that would go below zero
+        act(() => {
+            result.current.adjustBalance(-200);
+        });
+        expect(result.current.balance).toBe(0);
+    });
+
+    it("adjustBalance does not go below zero", async () => {
+        mockQueryResult = { data: { balance_after: 30 }, error: null };
+        mockFrom.mockImplementation(() => createChain(mockQueryResult));
+
+        const { result } = renderHook(() => usePointsBalance("user-1"));
+
+        await waitFor(() => expect(result.current.loading).toBe(false));
+
+        act(() => {
+            result.current.adjustBalance(-100);
+        });
+        expect(result.current.balance).toBe(0);
     });
 });

@@ -13,7 +13,8 @@ import {
   LogOut, 
   ChevronRight,
   ShieldCheck,
-  PackageCheck
+  PackageCheck,
+  History
 } from '@tamagui/lucide-icons'
 
 import { useAuth, supabase } from '../auth/auth-hook'
@@ -171,7 +172,7 @@ export function MenuScreen() {
             icon={User} 
             title={t('header.profileTitle', 'Profile & Settings')} 
             subtitle="Manage your location and details"
-            onPress={() => navigateTo('/profile-wizard')} 
+            onPress={() => navigateTo('/profile')} 
           />
           <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
           <MenuItem 
@@ -193,6 +194,13 @@ export function MenuScreen() {
             title={t('header.buyPoints', 'Buy Points')} 
             subtitle="Purchase more points for the market"
             onPress={() => navigateTo('/buy-points')} 
+          />
+          <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+          <MenuItem 
+            icon={History} 
+            title="Transaction History" 
+            subtitle="View all point activity"
+            onPress={() => navigateTo('/transaction-history')} 
           />
         </YStack>
 

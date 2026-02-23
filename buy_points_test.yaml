@@ -1,0 +1,9 @@
+appId: dev.casagrown.community
+---
+- launchApp
+- tapOn: "Profile"
+- tapOn: "Buy Points"
+- extendedWaitUntil:
+    visible: "Payment Details"
+    timeout: 10000
+- takeScreenshot: stripe_test

@@ -308,7 +308,8 @@
       "transferPoints": "Transfer Points",
       "delegateSales": "Delegate Sales",
       "acceptDelegation": "Accept Delegation",
-      "invite": "Invite Friends"
+      "invite": "Invite Friends",
+      "transactionHistory": "Transaction History"
     },
     "header": {
       "invite": "Invite",

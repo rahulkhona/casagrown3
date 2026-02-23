@@ -35,6 +35,7 @@ module.exports = {
       'react-native': 'react-native-web',
       'react-native-svg': '@tamagui/react-native-svg',
       'react-native-safe-area-context': './shims/react-native-safe-area-context.js',
+      '@stripe/stripe-react-native': './shims/stripe-react-native.js',
     },
     resolveExtensions: [
       '.web.tsx',
@@ -54,6 +55,11 @@ module.exports = {
       '.web.tsx', '.web.ts', '.web.js', '.web.jsx',
       ...config.resolve.extensions,
     ]
+    // Alias @stripe/stripe-react-native to web shim
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@stripe/stripe-react-native': require('path').resolve(__dirname, './shims/stripe-react-native.js'),
+    }
     // Define __DEV__ for React Native packages
     config.plugins.push(
       new webpack.DefinePlugin({

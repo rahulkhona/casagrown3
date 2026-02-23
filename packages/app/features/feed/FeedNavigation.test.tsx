@@ -26,9 +26,17 @@ jest.mock('react-i18next', () => ({
 jest.mock('../../design-tokens', () => ({
   colors: {
     green: { 600: '#16a34a' },
-    gray: { 100: '#f3f4f6', 200: '#e5e7eb', 700: '#374151' },
+    gray: { 100: '#f3f4f6', 200: '#e5e7eb', 500: '#6b7280', 700: '#374151' },
     red: { 500: '#ef4444' },
   },
+}))
+
+// Mock lucide icons used by NAV_ICONS
+jest.mock('@tamagui/lucide-icons', () => ({
+  Home: () => null,
+  MessagesSquare: () => null,
+  ShoppingBag: () => null,
+  Tag: () => null,
 }))
 
 import { FeedNavigation, type NavItem } from './FeedNavigation'

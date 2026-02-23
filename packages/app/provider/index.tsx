@@ -3,12 +3,20 @@ if (typeof globalThis !== 'undefined' && typeof (globalThis as any).__DEV__ === 
   (globalThis as any).__DEV__ = process.env.NODE_ENV !== 'production'
 }
 
-import { useColorScheme } from 'react-native'
+import { useColorScheme, Platform } from 'react-native'
 import { TamaguiProvider, type TamaguiProviderProps } from 'tamagui'
 import { config } from '@casagrown/config'
 import { SupabaseProvider } from './supabase'
 import { I18nextProvider } from 'react-i18next'
 import i18n from '../i18n'
+
+// Only import Stripe on native — the package contains RN-only code that breaks Next.js
+let StripeProvider: any = null
+if (Platform.OS !== 'web') {
+  try {
+    StripeProvider = require('@stripe/stripe-react-native').StripeProvider
+  } catch { /* Stripe native not available */ }
+}
 
 export function Provider({
   children,
@@ -18,6 +26,17 @@ export function Provider({
   const colorScheme = useColorScheme()
   const theme = defaultTheme || (colorScheme === 'dark' ? 'dark' : 'light')
 
+  const stripePublishableKey = 
+    process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || 
+    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || 
+    ''
+
+  const wrappedChildren = (
+    <SupabaseProvider>
+      {children}
+    </SupabaseProvider>
+  )
+
   return (
     <TamaguiProvider
       config={config}
@@ -25,9 +44,11 @@ export function Provider({
       {...rest}
     >
       <I18nextProvider i18n={i18n}>
-        <SupabaseProvider>
-          {children}
-        </SupabaseProvider>
+        {StripeProvider ? (
+          <StripeProvider publishableKey={stripePublishableKey}>
+            {wrappedChildren}
+          </StripeProvider>
+        ) : wrappedChildren}
       </I18nextProvider>
     </TamaguiProvider>
   )

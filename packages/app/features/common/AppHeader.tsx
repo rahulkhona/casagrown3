@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
-import { YStack, XStack, Text, ScrollView } from 'tamagui'
+import { YStack, XStack, Text, ScrollView, Separator } from 'tamagui'
 import { Image, TouchableOpacity, Platform } from 'react-native'
 import { useAuth, supabase } from '../auth/auth-hook'
 import { usePointsBalance } from '../../hooks/usePointsBalance'
 import { getUnreadChatCount } from '../chat/chat-service'
 import { getOpenOrderCount } from '../orders/order-service'
 import { getOpenOfferCount } from '../offers/offer-service'
-import { Bell, Menu, X } from '@tamagui/lucide-icons'
+import { Bell, Menu, X, HandCoins, User, Share2, Users, LogOut, ChevronRight, PackageCheck, ShieldCheck, History } from '@tamagui/lucide-icons'
 import { useRouter } from 'solito/navigation'
 import { FeedNavigation } from '../feed/FeedNavigation'
 import { PointsMenu } from '../points/PointsMenu'
@@ -28,16 +28,47 @@ const NAV_KEYS_BASE = [
   { key: 'acceptDelegation', badge: 0 },
   { key: 'buyPoints', badge: 0 },
   { key: 'invite', badge: 0 },
+  { key: 'transactionHistory', badge: 0 },
 ]
+
+function HamburgerItem({ icon: Icon, title, subtitle, onPress, destructive = false }: {
+  icon: any; title: string; subtitle?: string; onPress: () => void; destructive?: boolean
+}) {
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+      <XStack paddingVertical="$3" paddingHorizontal="$4" alignItems="center" justifyContent="space-between">
+        <XStack alignItems="center" gap="$3">
+          <YStack width={36} height={36} borderRadius={18}
+            backgroundColor={destructive ? colors.red[50] : colors.gray[100]}
+            alignItems="center" justifyContent="center"
+          >
+            <Icon size={18} color={destructive ? colors.red[600] : colors.gray[700]} />
+          </YStack>
+          <YStack>
+            <Text fontSize={14} fontWeight="600" color={destructive ? colors.red[600] : colors.gray[900]}>
+              {title}
+            </Text>
+            {subtitle && (
+              <Text fontSize={12} color={colors.gray[500]} marginTop={1}>{subtitle}</Text>
+            )}
+          </YStack>
+        </XStack>
+        {!destructive && <ChevronRight size={18} color={colors.gray[400]} />}
+      </XStack>
+    </TouchableOpacity>
+  )
+}
 
 export function AppHeader({ activeKey = 'feed' }: { activeKey?: string }) {
   const { t } = useTranslation()
   const router = useRouter()
-  const { user } = useAuth()
+  const { user, signOut } = useAuth()
   const { balance: userPoints } = usePointsBalance(user?.id)
   const media = useMedia()
   // @ts-ignore
   const isDesktop = media.lg || media.xl || media.xxl
+  // @ts-ignore
+  const isMediumUp = media.md || media.lg || media.xl || media.xxl
   const insets = useSafeAreaInsets()
   
   const [unreadChats, setUnreadChats] = useState(0)
@@ -115,6 +146,7 @@ export function AppHeader({ activeKey = 'feed' }: { activeKey?: string }) {
     else if (key === 'buyPoints') router.push('/buy-points')
     else if (key === 'redeem') router.push('/redeem')
     else if (key === 'invite') router.push('/invite')
+    else if (key === 'transactionHistory') router.push('/transaction-history')
   }, [router])
 
   const userInitial = userDisplayName ? userDisplayName.charAt(0).toUpperCase() : 'A'
@@ -182,6 +214,7 @@ export function AppHeader({ activeKey = 'feed' }: { activeKey?: string }) {
             isDesktop={isDesktop}
             onNavigateToBuyPoints={() => handleNavPress('buyPoints')}
             onNavigateToRedeemPoints={() => handleNavPress('redeem')}
+            onNavigateToTransactionHistory={() => handleNavPress('transactionHistory')}
           />
 
           <XStack position="relative">
@@ -211,28 +244,30 @@ export function AppHeader({ activeKey = 'feed' }: { activeKey?: string }) {
             )}
           </XStack>
 
-          <TouchableOpacity
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 22,
-              backgroundColor: userAvatarUrl ? undefined : colors.green[600],
-              alignItems: 'center',
-              justifyContent: 'center',
-              overflow: 'hidden',
-            }}
-            activeOpacity={0.7}
-            onPress={() => router.push('/profile')}
-          >
-            {userAvatarUrl ? (
-              <Image 
-                source={{ uri: userAvatarUrl }}
-                style={{ width: 44, height: 44, borderRadius: 22 }}
-              />
-            ) : (
-              <Text color="white" fontWeight="600" fontSize="$3">{userInitial}</Text>
-            )}
-          </TouchableOpacity>
+          {isMediumUp && (
+            <TouchableOpacity
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                backgroundColor: userAvatarUrl ? undefined : colors.green[600],
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
+              }}
+              activeOpacity={0.7}
+              onPress={() => router.push('/profile')}
+            >
+              {userAvatarUrl ? (
+                <Image 
+                  source={{ uri: userAvatarUrl }}
+                  style={{ width: 44, height: 44, borderRadius: 22 }}
+                />
+              ) : (
+                <Text color="white" fontWeight="600" fontSize="$3">{userInitial}</Text>
+              )}
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={{ padding: 8, borderRadius: 999, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
@@ -250,15 +285,79 @@ export function AppHeader({ activeKey = 'feed' }: { activeKey?: string }) {
       </XStack>
 
       {mobileMenuOpen && (
-        <FeedNavigation
-          navKeys={hamburgerNavKeys}
-          variant="mobile"
-          userPoints={userPoints}
-          onNavigate={(key) => {
-            setMobileMenuOpen(false)
-            handleNavPress(key)
-          }}
-        />
+        <>
+          {/* Backdrop */}
+          {Platform.OS === 'web' ? (
+            <div
+              onClick={() => setMobileMenuOpen(false)}
+              style={{
+                position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                backgroundColor: 'rgba(0,0,0,0.3)', zIndex: 998,
+              }}
+            />
+          ) : null}
+          <YStack
+            position="absolute"
+            top="100%"
+            right={8}
+            zIndex={999}
+            width={300}
+            backgroundColor={colors.gray[50]}
+            borderRadius={16}
+            shadowColor="black"
+            shadowOpacity={0.15}
+            shadowRadius={12}
+            shadowOffset={{ width: 0, height: 4 }}
+            elevation={8}
+          >
+            <YStack>
+              {/* Account Section */}
+              <YStack backgroundColor="white" borderBottomWidth={1} borderBottomColor={colors.gray[200]}>
+                <HamburgerItem icon={User} title="Profile & Settings" subtitle="Manage your location and details"
+                  onPress={() => { setMobileMenuOpen(false); handleNavPress('myPosts') }} />
+                <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+                <HamburgerItem icon={HandCoins} title="Redeem Points" subtitle="Cash out your earned points"
+                  onPress={() => { setMobileMenuOpen(false); handleNavPress('redeem') }} />
+                <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+                <HamburgerItem icon={HandCoins} title="Transfer Points" subtitle="Send points to another user"
+                  onPress={() => { setMobileMenuOpen(false); handleNavPress('transferPoints') }} />
+                <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+                <HamburgerItem icon={HandCoins} title="Buy Points" subtitle="Purchase more points for the market"
+                  onPress={() => { setMobileMenuOpen(false); handleNavPress('buyPoints') }} />
+                <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+                <HamburgerItem icon={History} title="Transaction History" subtitle="View all point activity"
+                  onPress={() => { setMobileMenuOpen(false); handleNavPress('transactionHistory') }} />
+              </YStack>
+
+              {/* Community Section */}
+              <YStack backgroundColor="white" marginTop="$2" borderTopWidth={1} borderBottomWidth={1} borderColor={colors.gray[200]}>
+                <Text fontSize={12} fontWeight="700" color={colors.gray[500]} marginHorizontal="$4" marginTop="$3" marginBottom="$1" textTransform="uppercase">
+                  Community
+                </Text>
+                <HamburgerItem icon={PackageCheck} title="Delegate Sales"
+                  onPress={() => { setMobileMenuOpen(false); handleNavPress('delegateSales') }} />
+                <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+                <HamburgerItem icon={ShieldCheck} title="Accept Delegation"
+                  onPress={() => { setMobileMenuOpen(false); handleNavPress('acceptDelegation') }} />
+                <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+                <HamburgerItem icon={Share2} title="Invite Friends"
+                  onPress={() => { setMobileMenuOpen(false); handleNavPress('invite') }} />
+                <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+                <HamburgerItem icon={Users} title="My Posts"
+                  onPress={() => { setMobileMenuOpen(false); handleNavPress('myPosts') }} />
+              </YStack>
+
+              {/* Sign Out */}
+              <YStack backgroundColor="white" marginTop="$2" borderTopWidth={1} borderBottomWidth={1} borderColor={colors.gray[200]}>
+                <HamburgerItem icon={LogOut} title="Sign Out" destructive
+                  onPress={async () => {
+                    setMobileMenuOpen(false)
+                    await signOut()
+                  }} />
+              </YStack>
+            </YStack>
+          </YStack>
+        </>
       )}
     </YStack>
   )

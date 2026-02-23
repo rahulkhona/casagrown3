@@ -288,7 +288,10 @@
       "myPosts": "Mis Publicaciones",
       "redeem": "Canjear",
       "transferPoints": "Transferir Puntos",
-      "delegateSales": "Delegar Ventas"
+      "delegateSales": "Delegar Ventas",
+      "acceptDelegation": "Aceptar Delegación",
+      "invite": "Invitar Amigos",
+      "transactionHistory": "Historial de Transacciones"
     },
     "header": {
       "invite": "Invitar",

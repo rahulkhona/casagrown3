@@ -7,6 +7,17 @@
 
 import React from 'react'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native'
+
+// Mock @stripe/stripe-react-native (native TurboModule — not available in test env)
+jest.mock('@stripe/stripe-react-native', () => ({
+  CardField: () => null,
+  useStripe: () => ({
+    confirmPayment: jest.fn(),
+    createPaymentMethod: jest.fn(),
+  }),
+  StripeProvider: ({ children }: any) => children,
+}))
+
 import { OrderSheet } from './OrderSheet'
 import type { FeedPost } from './feed-service'
 // Mock supabase (must come before imports that trigger the chain)

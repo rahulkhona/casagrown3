@@ -14,6 +14,8 @@ env:
 flows:
   - flows/login.yaml
   - flows/feed-navigation.yaml
+  - flows/hamburger-menu.yaml
+  - flows/buy-points.yaml
   - flows/create-post.yaml
   - flows/order-flow.yaml
   - flows/orders.yaml

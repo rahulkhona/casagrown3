@@ -43,6 +43,14 @@ jest.mock("../../utils/supabase", () => ({
     },
 }));
 
+// ChatInboxScreen imports supabase from '../auth/auth-hook'
+jest.mock("../auth/auth-hook", () => ({
+    supabase: {
+        channel: (...args: any[]) => mockChannel(...args),
+        removeChannel: (...args: any[]) => mockRemoveChannel(...args),
+    },
+}));
+
 jest.mock("react-i18next", () => ({
     useTranslation: () => ({
         t: (key: string) => key,

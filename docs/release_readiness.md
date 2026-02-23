@@ -101,7 +101,23 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-production-anon-key
 | Order creation with point debit/credit | ✅ Works |
 | Points balance loaded from DB          | ✅ Works |
 | Pending payment recovery on app open   | ✅ Works |
+| Stripe web payment (Stripe.js)         | ✅ Works |
 
 ---
 
-_Last Updated: 2026-02-14_
+## 🔴 Integration Providers — Pending
+
+> [!IMPORTANT]
+> For the full integration checklist with env vars and deployment steps, see
+> [integrations_checklist.md](integrations_checklist.md).
+
+| Provider         | Status     | Description                                                              |
+| ---------------- | ---------- | ------------------------------------------------------------------------ |
+| Reloadly         | ⏳ Pending | Gift card catalog + ordering. `reloadly.ts` implemented, needs prod keys |
+| Tremendous       | ⏳ Pending | Gift card ordering. `tremendous.ts` implemented, needs prod URL + key    |
+| GlobalGiving     | ⏳ Pending | Charitable donations. No client implementation yet                       |
+| Feature Waitlist | ✅ Done    | `feature_waitlist` table + RLS live                                      |
+
+---
+
+_Last Updated: 2026-02-23_

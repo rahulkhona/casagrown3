@@ -66,14 +66,18 @@ Each app has its own `.env` file with Supabase credentials:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key from supabase status>
+NEXT_PUBLIC_PAYMENT_MODE=mock
+# NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_xxx  # Only for Stripe mode
 ```
 
 #### Native (Expo) — `apps/expo-community/.env`
 
 ```env
 # iOS Simulator uses localhost; Android Emulator uses 10.0.2.2
-NEXT_PUBLIC_SUPABASE_URL=http://10.0.2.2:54321
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key from supabase status>
+EXPO_PUBLIC_SUPABASE_URL=http://10.0.2.2:54321
+EXPO_PUBLIC_SUPABASE_ANON_KEY=<anon key from supabase status>
+EXPO_PUBLIC_PAYMENT_MODE=mock
+# EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_xxx  # Only for Stripe mode
 ```
 
 > [!IMPORTANT]
@@ -245,7 +249,7 @@ NEXT_PUBLIC_PAYMENT_MODE=mock       # or EXPO_PUBLIC_PAYMENT_MODE=mock
 
 # Production
 NEXT_PUBLIC_PAYMENT_MODE=stripe     # or EXPO_PUBLIC_PAYMENT_MODE=stripe
-NEXT_PUBLIC_STRIPE_KEY=pk_live_xxx  # or EXPO_PUBLIC_STRIPE_KEY=pk_live_xxx
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_xxx  # or EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_xxx
 ```
 
 ### Edge Functions
@@ -262,6 +266,12 @@ client initialization, and error wrapping. Functions requiring auth use
 | `stripe-webhook`           | No   | Handles Stripe webhook events (signature verified)  |
 | `resolve-pending-payments` | Yes  | Recovers stuck payments on app open                 |
 | `create-order`             | Yes  | Atomic order: conversation + offer + order + ledger |
+| `create-offer`             | Yes  | Atomic offer creation on buy posts (wraps RPC)      |
+| `donate-points`            | Yes  | Donate points to GlobalGiving charitable projects   |
+| `fetch-donation-projects`  | No   | Fetch/search GlobalGiving project catalog           |
+| `fetch-gift-cards`         | No   | Merged Reloadly + Tremendous gift card catalog      |
+| `redeem-gift-card`         | Yes  | Purchase gift card with points via provider APIs    |
+| `sync-provider-balance`    | No   | Cron: monitor Reloadly/Tremendous balances          |
 | `assign-experiment`        | No   | Deterministic A/B experiment assignment             |
 | `resolve-community`        | No   | Resolves H3 community from lat/lng or address       |
 | `enrich-communities`       | No   | Background enrichment of community metadata         |
@@ -283,6 +293,28 @@ npx supabase functions deploy
 supabase secrets set STRIPE_SECRET_KEY=sk_live_xxx
 supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_xxx
 ```
+
+### Redemption Provider Secrets (Edge Functions)
+
+```bash
+# Gift cards — Tremendous (preferred: no fees)
+supabase secrets set TREMENDOUS_API_KEY=xxx
+
+# Gift cards — Reloadly (fallback provider)
+supabase secrets set RELOADLY_CLIENT_ID=xxx
+supabase secrets set RELOADLY_CLIENT_SECRET=xxx
+supabase secrets set RELOADLY_SANDBOX=true         # Set to "false" for production
+
+# Charitable donations — GlobalGiving
+supabase secrets set GLOBALGIVING_API_KEY=xxx
+supabase secrets set GLOBALGIVING_SANDBOX=true      # Set to "false" for production
+```
+
+> [!NOTE]
+> All edge function secrets are injected at runtime via `Deno.env.get()`. The
+> shared `serveWithCors` wrapper provides an `env()` helper that reads from
+> `Deno.env`. For local development, set these in `supabase/.env` or pass them
+> via `supabase functions serve --env-file supabase/.env`.
 
 ---
 
@@ -388,6 +420,37 @@ npx supabase link --project-ref <project-id>
 npx supabase db push    # Apply pending migrations to remote
 npx supabase functions deploy  # Deploy edge functions
 ```
+
+### Required Environment Variables — Full Reference
+
+#### Client-Side (App `.env` Files)
+
+| Variable                             | Platform | Required    | Purpose                      |
+| :----------------------------------- | :------- | :---------- | :--------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`           | Web      | Yes         | Supabase API endpoint        |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`      | Web      | Yes         | Supabase anonymous JWT       |
+| `NEXT_PUBLIC_PAYMENT_MODE`           | Web      | No          | `mock` (default) or `stripe` |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Web      | Stripe only | Stripe publishable key       |
+| `EXPO_PUBLIC_SUPABASE_URL`           | Native   | Yes         | Supabase API endpoint        |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY`      | Native   | Yes         | Supabase anonymous JWT       |
+| `EXPO_PUBLIC_PAYMENT_MODE`           | Native   | No          | `mock` (default) or `stripe` |
+| `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Native   | Stripe only | Stripe publishable key       |
+
+#### Server-Side (Supabase Secrets — `supabase secrets set`)
+
+| Secret                      | Required    | Purpose                              |
+| :-------------------------- | :---------- | :----------------------------------- |
+| `SUPABASE_URL`              | Auto        | Injected automatically by Supabase   |
+| `SUPABASE_ANON_KEY`         | Auto        | Injected automatically by Supabase   |
+| `SUPABASE_SERVICE_ROLE_KEY` | Auto        | Injected automatically by Supabase   |
+| `STRIPE_SECRET_KEY`         | Stripe mode | Stripe API secret key                |
+| `STRIPE_WEBHOOK_SECRET`     | Stripe mode | Stripe webhook signing secret        |
+| `TREMENDOUS_API_KEY`        | Redemptions | Gift card provider (preferred: free) |
+| `RELOADLY_CLIENT_ID`        | Redemptions | Gift card provider (fallback)        |
+| `RELOADLY_CLIENT_SECRET`    | Redemptions | Gift card provider (fallback)        |
+| `RELOADLY_SANDBOX`          | Redemptions | `true` for sandbox, `false` for prod |
+| `GLOBALGIVING_API_KEY`      | Donations   | Charitable donation API              |
+| `GLOBALGIVING_SANDBOX`      | Donations   | `true` for sandbox, `false` for prod |
 
 ---
 

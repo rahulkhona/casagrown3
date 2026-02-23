@@ -1,7 +1,7 @@
 # CasaGrown — Product Requirements Document (PRD)
 
-**Version**: 1.1\
-**Last Updated**: February 20, 2026\
+**Version**: 1.2\
+**Last Updated**: February 23, 2026\
 **Platform**: Cross-platform (iOS, Android, Web)\
 **Tech Stack**: React Native (Expo) + Tamagui + Supabase + Next.js Admin
 
@@ -426,17 +426,53 @@ Full audit trail of all point transactions:
 
 ### 3.10 Redemption System
 
-#### 3.10.1 Redemption Catalog
+The redemption system allows users to spend earned points on gift cards and
+charitable donations. Provider integrations handle fulfillment via external
+APIs.
 
-- Items available for point redemption: gift cards, merchandise, donations
-- Each item has: name, description, point cost, media, active status
-- Geographic reach restrictions (global or restricted to specific areas)
+#### 3.10.1 Gift Cards
 
-#### 3.10.2 Redemption Flow
+- **Catalog**: Unified catalog from Reloadly and Tremendous providers, merged
+  and deduplicated by brand
+- **Browse**: Cards sorted by popularity (Amazon, Target, Walmart, Starbucks,
+  etc.) then alphabetically
+- **Purchase flow**:
+  1. User selects brand and face value
+  2. `redeem-gift-card` edge function: validates balance → picks cheapest
+     provider → debits points → places provider order → stores delivery
+  3. Card code, URL, and PIN displayed to user
+- **Pricing**: Tremendous cards are free (no processing fee); Reloadly cards may
+  have per-transaction fees displayed before purchase
+- **Caching**: Catalog cached in `platform_config` (24h TTL) via
+  `fetch-gift-cards` edge function
 
-- User browses catalog → selects item → confirms redemption
-- Points deducted from balance → redemption record created
-- Status tracking: `pending` → `completed` / `failed`
+#### 3.10.2 Charitable Donations
+
+- **Projects**: Fetched from GlobalGiving API with search and browse modes
+- **Donation flow**:
+  1. User selects project and point amount
+  2. `donate-points` edge function: validates balance → debits points → calls
+     GlobalGiving API → stores receipt
+  3. Tax-deductible receipt generated with receipt number and URL
+- **Conversion**: 100 points = $1.00 USD
+- **Fallback**: Mock project data when GlobalGiving API key is not configured
+
+#### 3.10.3 Provider Management
+
+- **Provider accounts**: Tracked in `provider_accounts` table (Reloadly,
+  Tremendous, GlobalGiving)
+- **Balance monitoring**: `sync-provider-balance` cron function polls provider
+  APIs and warns on low balances
+- **Audit trail**: Every provider API call logged in `provider_transactions`
+  table
+
+#### 3.10.4 Redemption Lifecycle
+
+| Status      | Description                                       |
+| :---------- | :------------------------------------------------ |
+| `pending`   | Redemption created, points debited, API in flight |
+| `completed` | Provider fulfilled, delivery details stored       |
+| `failed`    | Provider error, points automatically refunded     |
 
 ---
 
@@ -634,12 +670,19 @@ casagrown3/
 | `stripe-webhook`           | Handle Stripe webhook events (signature verified)   |
 | `resolve-pending-payments` | Recover stuck payments on app open                  |
 | `create-order`             | Atomic order creation with point debit/credit       |
+| `create-offer`             | Atomic offer creation (wraps RPC)                   |
+| `donate-points`            | Donate points to GlobalGiving charitable projects   |
+| `fetch-donation-projects`  | Fetch/search GlobalGiving project catalog           |
+| `fetch-gift-cards`         | Merged Reloadly + Tremendous gift card catalog      |
+| `redeem-gift-card`         | Purchase gift card with points via provider APIs    |
+| `sync-provider-balance`    | Cron: monitor Reloadly/Tremendous account balances  |
 
 ### 4.4 Database Migrations
 
-72 sequential migrations covering: schema, RLS policies, triggers, indexes,
-enums, realtime configuration, payment transactions, offer lifecycle, and order
-management. Full migration list documented in `data_model.md`.
+82 sequential migrations covering: schema, RLS policies, triggers, indexes,
+enums, realtime configuration, payment transactions, offer lifecycle, order
+management, redemption providers, and feature waitlist. Full migration list
+documented in `data_model.md`.
 
 ### 4.5 Row-Level Security (RLS)
 
@@ -729,40 +772,14 @@ Full post detail page with transactional capabilities:
 
 ---
 
-### 7.3 Redemption Store
+### 7.3 ~~Redemption Store~~ → Implemented ✅
 
-**Figma**: `RedemptionStore.tsx` (379 lines)\
-**Status**: ❌ Navigation placeholder exists, no UI implementation\
-**DB**: Schema complete (`redemption_merchandize`,
-`redemption_merchandize_media`, `redemption_orders`)
-
-#### 7.3.1 Store Layout
-
-- **Points balance** banner at top
-- **Search** bar to filter items
-- **Category tabs**: All, Retail, Food & Drink, Charity
-- **Grid of cards**: Image, name, point cost, "Redeem" button
-
-#### 7.3.2 Catalog Items
-
-Three item types:
-
-| Type                  | Examples                               |
-| :-------------------- | :------------------------------------- |
-| **Gift Cards**        | Amazon, Target, Starbucks, Whole Foods |
-| **Food & Drink**      | Restaurant gift cards                  |
-| **Charity Donations** | Feeding America, local food bank       |
-
-#### 7.3.3 Redemption Flow
-
-1. User taps "Redeem" on card
-2. Confirmation dialog: item name, cost, remaining balance preview
-3. Points deducted → success animation
-4. Record saved to `redemption_orders`
-
-#### 7.3.4 Transaction History
-
-- "History" tab showing past redemptions with date, type, name, points spent
+> [!NOTE]
+> The Redemption System is **fully implemented** with API-driven gift card and
+> donation fulfillment. See **Section 3.10** for complete documentation,
+> including the gift card catalog (Reloadly + Tremendous), charitable donations
+> (GlobalGiving), provider balance monitoring, and the full redemption lifecycle
+> with 6 supporting edge functions.
 
 ---
 

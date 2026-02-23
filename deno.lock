@@ -28,8 +28,10 @@
         "npm:@babel/runtime@^7.24.6",
         "npm:@biomejs/biome@^1.9.3",
         "npm:@playwright/test@^1.58.2",
+        "npm:@stripe/react-stripe-js@^5.6.0",
+        "npm:@stripe/stripe-js@^8.8.0",
         "npm:@tamagui/cli@^2.0.0-rc.0",
-        "npm:@tamagui/next-theme@2.0.0-rc.13",
+        "npm:@tamagui/next-theme@^2.0.0-rc.0",
         "npm:@tamagui/react-native-svg@^2.0.0-rc.0",
         "npm:@tamagui/react-native-web-lite@^2.0.0-rc.0",
         "npm:@types/leaflet@^1.9.21",
@@ -105,6 +107,7 @@
             "npm:@expo/metro-config@~54.0.12",
             "npm:@expo/metro-runtime@~6.1.2",
             "npm:@react-native-async-storage/async-storage@^2.2.0",
+            "npm:@stripe/stripe-react-native@0.50.3",
             "npm:@tamagui/babel-plugin@^2.0.0-rc.0",
             "npm:@types/text-encoding@0",
             "npm:babel-plugin-module-resolver@^5.0.2",
@@ -174,6 +177,35 @@
         }
       },
       "apps/next-community": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@casagrown/app@*",
+            "npm:@playwright/test@^1.57.0",
+            "npm:@tailwindcss/postcss@^4.1.18",
+            "npm:@tamagui/config@^2.0.0-rc.0",
+            "npm:@tamagui/next-plugin@^2.0.0-rc.0",
+            "npm:@tamagui/next-theme@^2.0.0-rc.0",
+            "npm:@types/node@^20.14.1",
+            "npm:autoprefixer@^10.4.24",
+            "npm:lucide-react@0.563",
+            "npm:next-compose-plugins@^2.2.1",
+            "npm:next-transpile-modules@^10.0.1",
+            "npm:next@16.1.1",
+            "npm:postcss@^8.5.6",
+            "npm:raf@^3.4.1",
+            "npm:react-dom@19.0.0",
+            "npm:react-native-web@~0.21.2",
+            "npm:react-native@0.79.2",
+            "npm:react@19.0.0",
+            "npm:tailwindcss@^4.1.18",
+            "npm:tamagui@^2.0.0-rc.0",
+            "npm:tree-kill@^1.2.2",
+            "npm:vercel@latest",
+            "npm:vitest@^2.1.1"
+          ]
+        }
+      },
+      "apps/next-community-voice": {
         "packageJson": {
           "dependencies": [
             "npm:@casagrown/app@*",
