@@ -53,7 +53,7 @@ appId: dev.casagrown.community
                             timeout: 10000
                   - assertVisible: ".*Profile.*Settings.*"
                   - assertVisible: ".*Redeem Points.*"
-                  - assertVisible: ".*Transfer Points.*"
+                  - assertVisible: ".*Transaction History.*"
                   - assertVisible: ".*Buy Points.*"
                   - assertVisible: ".*Delegate Sales.*"
                   - assertVisible: ".*Accept Delegation.*"

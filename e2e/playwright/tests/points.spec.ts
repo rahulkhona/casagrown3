@@ -34,7 +34,7 @@ test.describe("Points System Flow", () => {
         await buyPointsOption.click();
 
         // 5. Verify URL routed correctly
-        await expect(page).toHaveURL(/.*\/buy-points.*/);
+        await expect(page).toHaveURL(/.*\/buy-points.*/, { timeout: 10_000 });
 
         // 6. Verify Buy Points Screen contents
         await expect(

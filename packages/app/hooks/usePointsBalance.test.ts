@@ -238,4 +238,53 @@ describe("usePointsBalance", () => {
         });
         expect(result.current.balance).toBe(0);
     });
+
+    // ── Visibility-awareness regression tests ──
+
+    it("starts periodic poll (cross-platform, not web-only)", async () => {
+        jest.useFakeTimers();
+        mockQueryResult = { data: { balance_after: 100 }, error: null };
+        mockFrom.mockImplementation(() => createChain(mockQueryResult));
+
+        renderHook(() => usePointsBalance("user-1"));
+
+        await waitFor(() => expect(mockFrom).toHaveBeenCalled());
+
+        // Clear calls from initial fetch
+        mockFrom.mockClear();
+
+        // Advance by 5s (the poll interval) — should trigger another fetch
+        await act(async () => {
+            jest.advanceTimersByTime(5100);
+        });
+
+        // The poll should fire regardless of platform (was web-only before fix)
+        expect(mockFrom).toHaveBeenCalled();
+        jest.useRealTimers();
+    });
+
+    it("subscribes to realtime channel with visibility-aware lifecycle", async () => {
+        mockQueryResult = { data: { balance_after: 100 }, error: null };
+        mockFrom.mockImplementation(() => createChain(mockQueryResult));
+
+        renderHook(() => usePointsBalance("user-1"));
+
+        await waitFor(() => expect(mockSubscribe).toHaveBeenCalled());
+
+        // Channel should be created and subscribed
+        expect(mockSubscribe).toHaveBeenCalledTimes(1);
+    });
+
+    it("removes channel on unmount (visibility cleanup)", async () => {
+        mockQueryResult = { data: { balance_after: 100 }, error: null };
+        mockFrom.mockImplementation(() => createChain(mockQueryResult));
+
+        const { unmount } = renderHook(() => usePointsBalance("user-1"));
+
+        await waitFor(() => expect(mockSubscribe).toHaveBeenCalled());
+        unmount();
+
+        // Channel should be removed on cleanup
+        expect(mockRemoveChannel).toHaveBeenCalled();
+    });
 });

@@ -65,6 +65,7 @@ import type { OfferFormData } from '../feed/OfferSheet'
 import { AcceptOfferSheet } from '../feed/AcceptOfferSheet'
 import type { FeedPost } from '../feed/feed-service'
 import { usePointsBalance } from '../../hooks/usePointsBalance'
+import { useIsOnline } from '../../hooks/useAppPresence'
 import { supabase } from '../auth/auth-hook'
 
 // =============================================================================
@@ -435,6 +436,9 @@ export function ChatScreen({
   const [sending, setSending] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [otherPresence, setOtherPresence] = useState<PresenceState>({ online: false, typing: false })
+
+  // Online status from root-level presence provider (app-wide, not per-chat)
+  const isOtherUserOnline = useIsOnline(otherUserId)
   const [attachMenuOpen, setAttachMenuOpen] = useState(false)
   const [cameraMode, setCameraMode] = useState<'photo' | 'video' | null>(null)
   
@@ -1307,7 +1311,7 @@ export function ChatScreen({
                 width={12}
                 height={12}
                 borderRadius={6}
-                backgroundColor={otherPresence.online ? '#22c55e' : colors.gray[400]}
+                backgroundColor={isOtherUserOnline ? '#22c55e' : colors.gray[400]}
                 borderWidth={2}
                 borderColor="white"
               />
@@ -1325,8 +1329,8 @@ export function ChatScreen({
                   {t('chat.typing')}
                 </Text>
               ) : (
-                <Text fontSize={11} color={otherPresence.online ? colors.green[600] : colors.gray[400]}>
-                  {otherPresence.online ? t('chat.online', 'Online') : t('chat.offline', 'Offline')}
+                <Text fontSize={11} color={isOtherUserOnline ? colors.green[600] : colors.gray[400]}>
+                  {isOtherUserOnline ? t('chat.online', 'Online') : t('chat.offline', 'Offline')}
                 </Text>
               )}
             </YStack>

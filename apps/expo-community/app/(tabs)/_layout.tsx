@@ -6,6 +6,7 @@ import { useAuth } from '@casagrown/app/features/auth/auth-hook'
 import { getUnreadChatCount } from '@casagrown/app/features/chat/chat-service'
 import { getOpenOrderCount } from '@casagrown/app/features/orders/order-service'
 import { getOpenOfferCount } from '@casagrown/app/features/offers/offer-service'
+import { AppPresenceProvider } from '@casagrown/app/hooks/useAppPresence'
 
 export default function TabLayout() {
   const { user } = useAuth()
@@ -36,6 +37,7 @@ export default function TabLayout() {
   }, [fetchCounts])
 
   return (
+    <AppPresenceProvider userId={user?.id}>
     <Tabs
       screenOptions={{
         headerShown: false,
@@ -147,5 +149,6 @@ export default function TabLayout() {
         }} 
       />
     </Tabs>
+    </AppPresenceProvider>
   )
 }

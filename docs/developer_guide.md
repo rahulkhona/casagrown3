@@ -181,19 +181,19 @@ files:
 
 ### Service Layer — `packages/app/features/chat/chat-service.ts`
 
-| Function                     | Purpose                                                            |
-| :--------------------------- | :----------------------------------------------------------------- |
-| `getOrCreateConversation`    | Find or create a conversation (handles duplicate-safe upsert)      |
-| `getConversationWithDetails` | Fetch conversation with post info and participant details          |
-| `getUserConversations`       | Inbox: list all conversations, sorted unread-first then by recency |
-| `getConversationMessages`    | Fetch messages with sender info and media URLs                     |
-| `sendMessage`                | Send text/media/mixed/system messages                              |
-| `markMessagesAsDelivered`    | Mark incoming messages as delivered (single checkmark → double)    |
-| `markMessagesAsRead`         | Mark incoming messages as read (grey checkmarks → blue)            |
-| `subscribeToMessages`        | Realtime subscription for new messages (INSERT events)             |
-| `subscribeToMessageUpdates`  | Realtime subscription for delivery/read status (UPDATE events)     |
-| `createPresenceChannel`      | Online status via Presence + typing via Broadcast (cross-platform) |
-| `getUnreadChatCount`         | Count distinct conversations with unread messages (for nav badge)  |
+| Function                     | Purpose                                                                       |
+| :--------------------------- | :---------------------------------------------------------------------------- |
+| `getOrCreateConversation`    | Find or create a conversation (handles duplicate-safe upsert)                 |
+| `getConversationWithDetails` | Fetch conversation with post info and participant details                     |
+| `getUserConversations`       | Inbox: list all conversations, sorted unread-first then by recency            |
+| `getConversationMessages`    | Fetch messages with sender info and media URLs                                |
+| `sendMessage`                | Send text/media/mixed/system messages                                         |
+| `markMessagesAsDelivered`    | Mark incoming messages as delivered (single checkmark → double)               |
+| `markMessagesAsRead`         | Mark incoming messages as read (grey checkmarks → blue)                       |
+| `subscribeToMessages`        | Realtime subscription for new messages (INSERT events)                        |
+| `subscribeToMessageUpdates`  | Realtime subscription for delivery/read status (UPDATE events)                |
+| `createPresenceChannel`      | Per-conversation typing indicator via Broadcast (online status is root-level) |
+| `getUnreadChatCount`         | Count distinct conversations with unread messages (for nav badge)             |
 
 ### Realtime Configuration
 
@@ -203,15 +203,27 @@ See the `20260213010000_chat_realtime` migration.
 
 #### Presence & Typing Architecture
 
-The presence system uses a **hybrid approach** for reliability:
+Online status uses a **root-level, visibility-aware** presence provider:
 
-- **Supabase Presence** — tracks online/offline status (join/leave events)
-- **Supabase Broadcast** — delivers typing events (more reliable across
-  platforms than Presence `track()`)
+- **`AppPresenceProvider`** — wraps the app tree once the user is authenticated.
+  Manages a single Supabase presence channel scoped to the user's community
+  (`app-presence:{communityH3}`).
+- **Visibility-aware lifecycle:**
+  - **Native** — `AppState` listener: subscribes on `active`, unsubscribes on
+    `background`/`inactive`.
+  - **Web** — `visibilitychange` listener: subscribes when `visible`,
+    unsubscribes when `hidden`.
+  - This prevents idle WebSocket connections when the app is not in use.
+- **Consumer hooks:** `useIsOnline(userId)` returns whether a user is online;
+  `useOnlineUsers()` returns the full set of online user IDs.
 
-> **iOS Simulator Note:** The Supabase URL in the Expo `.env` uses `10.0.2.2`
-> (Android emulator loopback). `supabase.ts` automatically replaces this with
-> `127.0.0.1` on iOS so the Simulator can reach the local Supabase instance.
+Per-conversation channels (`createPresenceChannel`) now **only handle typing**
+via Supabase Broadcast events. Online/offline indicators in `ChatScreen` come
+from the root-level `useIsOnline` hook.
+
+**Points Balance Realtime** (`usePointsBalance`) also uses visibility-aware
+connect/disconnect for its `postgres_changes` channel, with a 5-second periodic
+poll (cross-platform) as a fallback.
 
 ### UI Components
 

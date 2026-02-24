@@ -790,15 +790,15 @@ export function subscribeToMessages(
 }
 
 /**
- * Create a presence channel for online/typing status.
- * Uses Presence for online/offline detection and Broadcast for typing events.
- * Broadcast is more reliable than Presence for ephemeral state like typing
- * across different platforms (web, iOS, Android).
+ * Create a chat channel for typing indicators.
+ * Uses Broadcast events for typing state — lightweight and reliable.
  *
- * ⚠️  DESIGN DECISION: Online presence is a KEEP feature — DO NOT REMOVE.
- *     A user is shown as "online" only when they are viewing THIS specific
- *     chat conversation (not app-wide). The channel is scoped per conversation
- *     and destroyed when the user navigates away from ChatScreen.
+ * ⚠️  DESIGN DECISION: Online presence is now handled by the root-level
+ *     AppPresenceProvider (useAppPresence.tsx). This channel only handles
+ *     typing indicators for this specific conversation.
+ *
+ *     The ChatScreen gets online status via useIsOnline(otherUserId)
+ *     from the root presence provider instead of this channel.
  */
 export function createPresenceChannel(
     conversationId: string,
@@ -809,109 +809,20 @@ export function createPresenceChannel(
     setTyping: (isTyping: boolean) => void;
     destroy: () => void;
 } {
-    const channelName = `presence:${conversationId}`;
-    const channel = supabase.channel(channelName, {
-        config: { presence: { key: userId } },
-    });
+    const channelName = `chat-typing:${conversationId}`;
+    const channel = supabase.channel(channelName);
 
-    // Track the latest known state so we can merge presence + broadcast
-    let otherOnline = false;
     let otherTyping = false;
-    let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
-    let heartbeatTimeout: ReturnType<typeof setTimeout> | null = null;
-    let presenceRetryCount = 0;
     let isSubscribed = false;
-    const HEARTBEAT_INTERVAL_MS = 10_000; // Send heartbeat every 10s
-    const HEARTBEAT_TIMEOUT_MS = 25_000; // Consider offline after 25s without heartbeat
+    let retryCount = 0;
 
     const emitState = () => {
-        onPresenceChange({ online: otherOnline, typing: otherTyping });
-    };
-
-    // Reset the offline timeout — called every time we receive a heartbeat
-    const resetHeartbeatTimeout = () => {
-        if (heartbeatTimeout) clearTimeout(heartbeatTimeout);
-        heartbeatTimeout = setTimeout(() => {
-            if (otherOnline) {
-                otherOnline = false;
-                otherTyping = false;
-                emitState();
-            }
-        }, HEARTBEAT_TIMEOUT_MS);
-    };
-
-    // Send a heartbeat only if channel is subscribed
-    const sendHeartbeat = () => {
-        if (!isSubscribed) {
-            console.warn(
-                "[Presence] Skipping heartbeat — channel not subscribed",
-            );
-            return;
-        }
-        channel.send({
-            type: "broadcast",
-            event: "heartbeat",
-            payload: { user_id: userId },
-        });
-    };
-
-    // Start sending heartbeats
-    const startHeartbeat = () => {
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
-        // Send one immediately
-        sendHeartbeat();
-        // Then send periodically
-        heartbeatInterval = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
+        // Online status comes from root provider — always pass true here
+        // so ChatScreen can overlay typing on the root online indicator
+        onPresenceChange({ online: true, typing: otherTyping });
     };
 
     channel
-        // ── Presence: online/offline (secondary signal) ──
-        .on("presence", { event: "sync" }, () => {
-            const state = channel.presenceState();
-
-            let found = false;
-            for (const key of Object.keys(state)) {
-                if (key !== userId) {
-                    const presences = state[key] as Record<string, unknown>[];
-
-                    if (presences && presences.length > 0) {
-                        otherOnline = true;
-                        found = true;
-                        resetHeartbeatTimeout();
-                        break;
-                    }
-                }
-            }
-            if (!found && !otherOnline) {
-                // Don't override heartbeat-based online — only set offline if heartbeat also timed out
-            }
-            emitState();
-        })
-        .on("presence", { event: "join" }, ({ key }) => {
-            if (key !== userId) {
-                otherOnline = true;
-                resetHeartbeatTimeout();
-                emitState();
-            }
-        })
-        .on("presence", { event: "leave" }, ({ key }) => {
-            if (key !== userId) {
-                // Don't immediately mark offline — wait for heartbeat timeout
-                // This prevents flicker when presence reconnects
-            }
-        })
-        // ── Broadcast: heartbeat events (primary online signal) ──
-        .on("broadcast", { event: "heartbeat" }, (payload) => {
-            const msg = payload.payload as Record<string, unknown>;
-
-            if (msg?.user_id !== userId) {
-                if (!otherOnline) {
-                    otherOnline = true;
-                    emitState();
-                }
-                resetHeartbeatTimeout();
-            }
-        })
         // ── Broadcast: typing events (reliable across all platforms) ──
         .on("broadcast", { event: "typing" }, (payload) => {
             const msg = payload.payload as Record<string, unknown>;
@@ -920,20 +831,16 @@ export function createPresenceChannel(
                 emitState();
             }
         })
-        .subscribe(async (status) => {
-            console.log(`[Presence] Channel status: ${status}`);
+        .subscribe((status) => {
             if (status === "SUBSCRIBED") {
                 isSubscribed = true;
-                presenceRetryCount = 0;
-                await channel.track({ online: true });
-                startHeartbeat();
+                retryCount = 0;
             } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
                 isSubscribed = false;
-                // Retry with exponential backoff (1s, 2s, 4s… max 30s)
-                const delay = Math.min(1000 * 2 ** presenceRetryCount, 30_000);
-                presenceRetryCount++;
+                const delay = Math.min(1000 * 2 ** retryCount, 30_000);
+                retryCount++;
                 console.warn(
-                    `[Presence] ${status}, retrying in ${delay}ms (attempt ${presenceRetryCount})`,
+                    `[ChatTyping] ${status}, retrying in ${delay}ms (attempt ${retryCount})`,
                 );
                 setTimeout(() => {
                     channel.subscribe();
@@ -945,7 +852,6 @@ export function createPresenceChannel(
 
     const setTyping = (isTyping: boolean) => {
         if (!isSubscribed) return;
-        // Use broadcast for typing — more reliable than presence.track()
         channel.send({
             type: "broadcast",
             event: "typing",
@@ -954,9 +860,6 @@ export function createPresenceChannel(
     };
 
     const destroy = () => {
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
-        if (heartbeatTimeout) clearTimeout(heartbeatTimeout);
-        channel.untrack();
         supabase.removeChannel(channel);
     };
 

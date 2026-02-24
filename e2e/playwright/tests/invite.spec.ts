@@ -61,10 +61,15 @@ test.describe("Invite Modal", () => {
     test("invite modal shows QR code section", async ({ page }) => {
         await openInviteModal(page);
 
+        // Wait for modal content to fully render
+        await page.locator("text=/Invite Friends|Invite.*Neighbors/i").first()
+            .waitFor({ timeout: 10_000 });
+        await page.waitForTimeout(1000);
+
         const hasQR = await page
             .locator("text=/Scan to Join|QR/i")
             .first()
-            .isVisible()
+            .isVisible({ timeout: 5_000 })
             .catch(() => false);
 
         expect(hasQR).toBeTruthy();
@@ -73,15 +78,20 @@ test.describe("Invite Modal", () => {
     test("invite modal shows share link section", async ({ page }) => {
         await openInviteModal(page);
 
+        // Wait for modal content to fully render (animation + data load)
+        await page.locator("text=/Invite Friends|Invite.*Neighbors/i").first()
+            .waitFor({ timeout: 10_000 });
+        await page.waitForTimeout(1000);
+
         const hasCopy = await page
             .locator("text=Copy")
             .first()
-            .isVisible()
+            .isVisible({ timeout: 5_000 })
             .catch(() => false);
         const hasShare = await page
             .locator("text=/Share.*Invite|Share.*Link/i")
             .first()
-            .isVisible()
+            .isVisible({ timeout: 5_000 })
             .catch(() => false);
 
         expect(hasCopy || hasShare).toBeTruthy();
@@ -90,10 +100,15 @@ test.describe("Invite Modal", () => {
     test("invite modal shows benefits section", async ({ page }) => {
         await openInviteModal(page);
 
+        // Wait for modal content to fully render
+        await page.locator("text=/Invite Friends|Invite.*Neighbors/i").first()
+            .waitFor({ timeout: 10_000 });
+        await page.waitForTimeout(1000);
+
         const hasWhy = await page
             .locator("text=/Why Invite/i")
             .first()
-            .isVisible()
+            .isVisible({ timeout: 5_000 })
             .catch(() => false);
         const hasBenefit = await page
             .locator("text=/Build Community|More Options|Reduce Waste/i")

@@ -6,42 +6,42 @@ appId: dev.casagrown.community
 - launchApp
 
 - extendedWaitUntil:
-      visible: "Continue|.*Join the Movement.*|.*Feed.*|.*Search.*|.*pts.*"
-      timeout: 30000
+          visible: "Continue|.*Join the Movement.*|.*Feed.*|.*Search.*|.*pts.*"
+          timeout: 30000
 
 # Dismiss Expo dev menu if showing
 - runFlow:
-      when:
-          visible: "Continue"
-      commands:
-          - tapOn: "Continue"
+          when:
+                  visible: "Continue"
+          commands:
+                  - tapOn: "Continue"
 - runFlow:
-      when:
-          visible: ".*Connected to.*"
-      commands:
-          - pressKey: back
+          when:
+                  visible: ".*Connected to.*"
+          commands:
+                  - pressKey: back
 
 - extendedWaitUntil:
-      visible: ".*Join the Movement.*|.*Feed.*|.*Search.*|.*pts.*"
-      timeout: 30000
+          visible: ".*Join the Movement.*|.*Feed.*|.*Search.*|.*pts.*"
+          timeout: 30000
 
 # If logged in, sign out first via Menu tab
 - runFlow:
-      when:
-          visible: ".*Feed.*"
-      commands:
-          - tapOn: ".*Menu.*"
-          - extendedWaitUntil:
-                visible: ".*Sign Out.*"
-                timeout: 10000
-          - tapOn: ".*Sign Out.*"
-          - extendedWaitUntil:
-                visible: ".*Sign Out.*"
-                timeout: 5000
-          - tapOn: ".*Sign Out.*"
-          - extendedWaitUntil:
-                visible: ".*Join the Movement.*"
-                timeout: 15000
+          when:
+                  visible: ".*Feed.*"
+          commands:
+                  - tapOn: ".*Menu.*"
+                  - extendedWaitUntil:
+                            visible: ".*Sign Out.*"
+                            timeout: 10000
+                  - tapOn: ".*Sign Out.*"
+                  - extendedWaitUntil:
+                            visible: ".*Sign Out.*"
+                            timeout: 5000
+                  - tapOn: ".*Sign Out.*"
+                  - extendedWaitUntil:
+                            visible: ".*Join the Movement.*"
+                            timeout: 15000
 
 # Now on Home Screen — navigate to Login
 - tapOn: ".*Join the Movement.*"
@@ -54,10 +54,10 @@ appId: dev.casagrown.community
 # Test Email OTP Flow
 - tapOn: "Continue with Email"
 - extendedWaitUntil:
-      visible: ".*Email Address.*"
-      timeout: 10000
+          visible: ".*Email Address.*"
+          timeout: 10000
 - tapOn:
-      id: "email_input"
+          id: "email_input"
 - eraseText: 50
 - inputText: "buyer@test.local"
 - pressKey: enter
@@ -65,8 +65,8 @@ appId: dev.casagrown.community
 
 # Verify OTP screen is displayed
 - extendedWaitUntil:
-      visible: ".*verification code.*|.*Verification Code.*"
-      timeout: 60000
+          visible: ".*verification code.*|.*Verification Code.*"
+          timeout: 60000
 - assertVisible: ".*buyer@test.local.*"
 - assertVisible: ".*Verification Code.*"
 - assertVisible: ".*Verify.*Continue.*"

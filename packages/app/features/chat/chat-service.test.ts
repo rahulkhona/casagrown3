@@ -889,25 +889,17 @@ describe("createPresenceChannel", () => {
         expect(typeof result.destroy).toBe("function");
     });
 
-    it("tracks online status on subscribe", () => {
+    it("registers only broadcast typing listener (no presence/heartbeat)", () => {
         const onPresenceChange = jest.fn();
         createAndTrack(conversationId, userId, onPresenceChange);
 
-        // subscribe callback fires automatically with "SUBSCRIBED"
-        expect(mockChannelTrack).toHaveBeenCalledWith({ online: true });
-    });
-
-    it("registers presence and broadcast listeners", () => {
-        const onPresenceChange = jest.fn();
-        createAndTrack(conversationId, userId, onPresenceChange);
-
-        // Should register: presence:sync, presence:join, presence:leave, broadcast:heartbeat, broadcast:typing
-        expect(mockChannel.on).toHaveBeenCalledTimes(5);
-        expect(mockChannelListeners.has("presence:sync")).toBe(true);
-        expect(mockChannelListeners.has("presence:join")).toBe(true);
-        expect(mockChannelListeners.has("presence:leave")).toBe(true);
-        expect(mockChannelListeners.has("broadcast:heartbeat")).toBe(true);
+        // Should register only: broadcast:typing (online handled by root AppPresenceProvider)
+        expect(mockChannel.on).toHaveBeenCalledTimes(1);
         expect(mockChannelListeners.has("broadcast:typing")).toBe(true);
+        // No presence or heartbeat listeners
+        expect(mockChannelListeners.has("presence:sync")).toBe(false);
+        expect(mockChannelListeners.has("presence:join")).toBe(false);
+        expect(mockChannelListeners.has("broadcast:heartbeat")).toBe(false);
     });
 
     it("sends typing broadcast via channel.send()", () => {
@@ -968,12 +960,10 @@ describe("createPresenceChannel", () => {
         expect(mockChannelSend).not.toHaveBeenCalled();
     });
 
-    it("skips heartbeat when channel is not subscribed", async () => {
+    it("setTyping is guarded when channel errors", () => {
         // Override subscribe to fire CHANNEL_ERROR so isSubscribed stays false
-        // but the channel still attempts to start heartbeat on retry
         mockChannel.subscribe.mockImplementation((callback?: Function) => {
             mockChannelSubscribeCallback = callback || null;
-            // Fire with error status — isSubscribed remains false
             if (callback) callback("CHANNEL_ERROR");
             return mockChannel;
         });
@@ -989,10 +979,8 @@ describe("createPresenceChannel", () => {
             onPresenceChange,
         );
 
-        // Clear any sends from channel setup
         mockChannelSend.mockClear();
 
-        // setTyping should also be guarded
         setTyping(true);
         expect(mockChannelSend).not.toHaveBeenCalled();
 
@@ -1009,8 +997,9 @@ describe("createPresenceChannel", () => {
             payload: { user_id: otherUserId, is_typing: true },
         });
 
+        // Online is always true now (root provider handles it)
         expect(onPresenceChange).toHaveBeenCalledWith({
-            online: false, // not tracked via presence yet
+            online: true,
             typing: true,
         });
     });
@@ -1032,33 +1021,6 @@ describe("createPresenceChannel", () => {
         expect(onPresenceChange).not.toHaveBeenCalled();
     });
 
-    it("reports other user as online on presence join", () => {
-        const onPresenceChange = jest.fn();
-        createAndTrack(conversationId, userId, onPresenceChange);
-        onPresenceChange.mockClear();
-
-        const joinHandler = mockChannelListeners.get("presence:join");
-        joinHandler!({ key: otherUserId });
-
-        expect(onPresenceChange).toHaveBeenCalledWith({
-            online: true,
-            typing: false,
-        });
-    });
-
-    it("does NOT immediately mark offline on presence leave (defers to heartbeat timeout)", () => {
-        const onPresenceChange = jest.fn();
-        createAndTrack(conversationId, userId, onPresenceChange);
-        onPresenceChange.mockClear();
-
-        const leaveHandler = mockChannelListeners.get("presence:leave");
-        leaveHandler!({ key: otherUserId });
-
-        // With the heartbeat system, leave no longer immediately sets offline
-        // It defers to the heartbeat timeout to prevent flicker
-        expect(onPresenceChange).not.toHaveBeenCalled();
-    });
-
     it("cleans up channel on destroy", () => {
         const onPresenceChange = jest.fn();
         const { destroy } = createAndTrack(
@@ -1069,58 +1031,7 @@ describe("createPresenceChannel", () => {
 
         destroy();
 
-        expect(mockChannelUntrack).toHaveBeenCalled();
+        // No untrack needed — typing-only channel doesn't use presence CRDT
         expect(mockRemoveChannel).toHaveBeenCalledWith(mockChannel);
-    });
-
-    // ── Heartbeat tests ──
-
-    it("sends heartbeat broadcast immediately on subscribe", async () => {
-        const onPresenceChange = jest.fn();
-        createAndTrack(conversationId, userId, onPresenceChange);
-
-        // startHeartbeat() runs after `await channel.track()` in the async subscribe callback
-        // Need to flush microtasks so the resolved promise completes
-        await new Promise((r) => setTimeout(r, 0));
-
-        expect(mockChannelSend).toHaveBeenCalledWith({
-            type: "broadcast",
-            event: "heartbeat",
-            payload: { user_id: userId },
-        });
-    });
-
-    it("marks other user online on heartbeat reception", () => {
-        const onPresenceChange = jest.fn();
-        createAndTrack(conversationId, userId, onPresenceChange);
-        onPresenceChange.mockClear();
-
-        const heartbeatHandler = mockChannelListeners.get(
-            "broadcast:heartbeat",
-        );
-        heartbeatHandler!({
-            payload: { user_id: otherUserId },
-        });
-
-        expect(onPresenceChange).toHaveBeenCalledWith({
-            online: true,
-            typing: false,
-        });
-    });
-
-    it("ignores own heartbeat broadcasts", () => {
-        const onPresenceChange = jest.fn();
-        createAndTrack(conversationId, userId, onPresenceChange);
-        onPresenceChange.mockClear();
-
-        const heartbeatHandler = mockChannelListeners.get(
-            "broadcast:heartbeat",
-        );
-        heartbeatHandler!({
-            payload: { user_id: userId },
-        });
-
-        // Should NOT update presence for own heartbeat
-        expect(onPresenceChange).not.toHaveBeenCalled();
     });
 });

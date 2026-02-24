@@ -9,8 +9,9 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import { supabase } from "../features/auth/auth-hook";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 interface UsePointsBalanceReturn {
     /** Current points balance (0 if no history) */
@@ -92,61 +93,119 @@ export function usePointsBalance(userId?: string): UsePointsBalanceReturn {
     // event fires, so we poll a few times with increasing delays.
     // IMPORTANT: We use balanceRef (not state) to avoid re-creating the channel
     // on every balance change, which would kill in-flight polling timers.
+    //
+    // ── Visibility-aware: disconnect when backgrounded, reconnect when foregrounded ──
     useEffect(() => {
         if (!userId) return;
 
-        const channel = supabase
-            .channel(`points-balance:${userId}`)
-            .on(
-                "postgres_changes",
-                {
-                    event: "INSERT",
-                    schema: "public",
-                    table: "point_ledger",
-                    filter: `user_id=eq.${userId}`,
-                },
-                () => {
-                    // Snapshot the current balance via ref (stable, no closure issue)
-                    const previousBalance = balanceRef.current;
-                    const delays = [100, 300, 600, 1200, 2500];
-                    let attempt = 0;
+        let channel: RealtimeChannel | null = null;
+        let isChannelActive = false;
 
-                    const poll = async () => {
-                        if (!mountedRef.current || attempt >= delays.length) {
-                            return;
-                        }
+        const createChannel = () => {
+            if (isChannelActive) return;
+            channel = supabase
+                .channel(`points-balance:${userId}`)
+                .on(
+                    "postgres_changes",
+                    {
+                        event: "INSERT",
+                        schema: "public",
+                        table: "point_ledger",
+                        filter: `user_id=eq.${userId}`,
+                    },
+                    () => {
+                        // Snapshot the current balance via ref (stable, no closure issue)
+                        const previousBalance = balanceRef.current;
+                        const delays = [100, 300, 600, 1200, 2500];
+                        let attempt = 0;
 
-                        const { data } = await supabase
-                            .from("point_ledger")
-                            .select("balance_after")
-                            .eq("user_id", userId)
-                            .order("created_at", { ascending: false })
-                            .limit(1)
-                            .maybeSingle();
-
-                        const newBalance = data?.balance_after ?? 0;
-
-                        if (newBalance !== previousBalance) {
-                            if (mountedRef.current) setBalance(newBalance);
-                        } else {
-                            attempt++;
-                            if (attempt < delays.length) {
-                                setTimeout(poll, delays[attempt]!);
+                        const poll = async () => {
+                            if (
+                                !mountedRef.current || attempt >= delays.length
+                            ) {
+                                return;
                             }
-                        }
-                    };
 
-                    setTimeout(poll, delays[0]!);
-                },
-            )
-            .subscribe();
+                            const { data } = await supabase
+                                .from("point_ledger")
+                                .select("balance_after")
+                                .eq("user_id", userId)
+                                .order("created_at", { ascending: false })
+                                .limit(1)
+                                .maybeSingle();
+
+                            const newBalance = data?.balance_after ?? 0;
+
+                            if (newBalance !== previousBalance) {
+                                if (mountedRef.current) setBalance(newBalance);
+                            } else {
+                                attempt++;
+                                if (attempt < delays.length) {
+                                    setTimeout(poll, delays[attempt]!);
+                                }
+                            }
+                        };
+
+                        setTimeout(poll, delays[0]!);
+                    },
+                )
+                .subscribe();
+            isChannelActive = true;
+        };
+
+        const destroyChannel = () => {
+            if (channel) {
+                supabase.removeChannel(channel);
+                channel = null;
+                isChannelActive = false;
+            }
+        };
+
+        // Start immediately
+        createChannel();
+
+        // Native: visibility-aware via AppState
+        let appStateSub: ReturnType<typeof AppState.addEventListener> | null =
+            null;
+        if (Platform.OS !== "web") {
+            appStateSub = AppState.addEventListener("change", (state) => {
+                if (state === "active") {
+                    createChannel();
+                    // Refetch on foreground to catch changes while backgrounded
+                    if (mountedRef.current) fetchBalance();
+                } else if (state === "background" || state === "inactive") {
+                    destroyChannel();
+                }
+            });
+        }
+
+        // Web: visibility-aware via visibilitychange
+        let handleVisibility: (() => void) | null = null;
+        if (Platform.OS === "web" && typeof document !== "undefined") {
+            handleVisibility = () => {
+                if (document.visibilityState === "visible") {
+                    createChannel();
+                    if (mountedRef.current) fetchBalance();
+                } else {
+                    destroyChannel();
+                }
+            };
+            document.addEventListener("visibilitychange", handleVisibility);
+        }
 
         return () => {
-            supabase.removeChannel(channel);
+            destroyChannel();
+            appStateSub?.remove();
+            if (handleVisibility && typeof document !== "undefined") {
+                document.removeEventListener(
+                    "visibilitychange",
+                    handleVisibility,
+                );
+            }
         };
         // NOTE: Only depend on userId — NOT balance. Using balanceRef avoids
         // tearing down the channel on every optimistic balance update.
-    }, [userId]);
+    }, [userId, fetchBalance]);
 
     // ── Web: refetch when tab regains focus ──
     useEffect(() => {
@@ -178,9 +237,9 @@ export function usePointsBalance(userId?: string): UsePointsBalanceReturn {
         };
     }, [fetchBalance]);
 
-    // ── Web: periodic poll every 5 seconds as safety net ──
+    // ── All platforms: periodic poll every 5 seconds as safety net ──
     useEffect(() => {
-        if (typeof window === "undefined" || !userId) return;
+        if (!userId) return;
         const interval = setInterval(() => {
             if (mountedRef.current) fetchBalance();
         }, 5000);

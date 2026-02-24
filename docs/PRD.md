@@ -294,16 +294,22 @@ Displayed at the top of each conversation to show the post context:
 
 #### 3.6.7 Presence & Typing Indicators
 
-Hybrid architecture for reliability:
+**Root-level presence** with visibility-aware lifecycle:
 
-| Feature              | Technology         | Behavior                                              |
-| :------------------- | :----------------- | :---------------------------------------------------- |
-| **Online status**    | Supabase Presence  | Green dot on avatar when user is in the chat          |
-| **Typing indicator** | Supabase Broadcast | Animated dots ("..." pulse) when other user is typing |
+| Feature              | Technology         | Scope            | Behavior                                              |
+| :------------------- | :----------------- | :--------------- | :---------------------------------------------------- |
+| **Online status**    | Supabase Presence  | App-wide (root)  | Green dot whenever the user has the app/tab active    |
+| **Typing indicator** | Supabase Broadcast | Per-conversation | Animated dots ("..." pulse) when other user is typing |
 
-- `createPresenceChannel` manages both via a single Supabase Realtime channel
-- Own typing events are filtered out client-side
-- Leave events immediately clear both online and typing state
+**Architecture:**
+
+- `AppPresenceProvider` (root-level) manages a single Supabase presence channel
+  scoped to the user's community (`app-presence:{communityH3}`)
+- **Visibility-aware**: connects when foregrounded/visible, disconnects when
+  backgrounded/hidden (native via `AppState`, web via `visibilitychange`)
+- Hooks: `useIsOnline(userId)` and `useOnlineUsers()` for querying status
+- Per-conversation channels only handle **typing indicators** via Broadcast
+- Leave events immediately clear typing state
 
 #### 3.6.8 Media in Chat
 
