@@ -184,13 +184,6 @@ export function MenuScreen() {
           <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
           <MenuItem 
             icon={HandCoins} 
-            title={t('header.transferPoints', 'Transfer Points')} 
-            subtitle="Send points to another user"
-            onPress={() => navigateTo('/transfer-points')} 
-          />
-          <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
-          <MenuItem 
-            icon={HandCoins} 
             title={t('header.buyPoints', 'Buy Points')} 
             subtitle="Purchase more points for the market"
             onPress={() => navigateTo('/buy-points')} 

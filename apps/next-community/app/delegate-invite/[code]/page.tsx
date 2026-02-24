@@ -12,6 +12,7 @@ import {
   ArrowRight,
   Copy,
   CheckCircle,
+  XCircle,
 } from '@tamagui/lucide-icons'
 import { colors, borderRadius } from '@casagrown/app/design-tokens'
 import { supabase } from '@casagrown/app/features/auth/auth-hook'
@@ -29,6 +30,7 @@ interface DelegationInfo {
   pairingCode: string | null
   expiresAt: string | null
   delegationCode: string
+  delegatePct: number | null
 }
 
 // Detect device type for app store buttons
@@ -177,7 +179,8 @@ export default function DelegateInvitePage() {
   const [notFound, setNotFound] = useState(false)
   const [accepted, setAccepted] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [autoAccepting, setAutoAccepting] = useState(false)
+  const [accepting, setAccepting] = useState(false)
+  const [rejecting, setRejecting] = useState(false)
 
   // Check auth state & auto-accept if logged in
   useEffect(() => {
@@ -221,31 +224,6 @@ export default function DelegateInvitePage() {
         setDelegator(data.delegator)
         setDelegation(data.delegation)
         setLoading(false)
-
-        // Auto-accept if user is logged in
-        if (loggedIn) {
-          setAutoAccepting(true)
-          try {
-            const acceptResponse = await supabase.functions.invoke('pair-delegation', {
-              body: { action: 'accept-link', code },
-            })
-            if (acceptResponse.error || acceptResponse.data?.error) {
-              const errMsg = acceptResponse.data?.error || acceptResponse.error?.message
-              if (errMsg === 'already_accepted') {
-                setAlreadyAccepted(true)
-              }
-              // Silently handle other errors — page shows normally with CTA
-              setAutoAccepting(false)
-            } else {
-              setAccepted(true)
-              setAutoAccepting(false)
-              setTimeout(() => router.push('/delegate?tab=for'), 1500)
-            }
-          } catch {
-            // Silently handle — page shows normally with CTA
-            setAutoAccepting(false)
-          }
-        }
       } catch (err) {
         setNotFound(true)
         setLoading(false)
@@ -257,10 +235,8 @@ export default function DelegateInvitePage() {
 
   const handleDownload = async (store: 'ios' | 'android') => {
     if (store === 'ios') {
-      // iOS: Direct to App Store — attribution will use Branch.io (deferred deep links) pre-launch
       window.open('https://apps.apple.com/app/casagrown/id6504857758', '_blank')
     } else {
-      // Android: Include delegation code in Install Referrer via Play Store URL
       const referrer = encodeURIComponent(`delegate=${code}`)
       window.open(`https://play.google.com/store/apps/details?id=com.casagrown.community&referrer=${referrer}`, '_blank')
     }
@@ -268,6 +244,33 @@ export default function DelegateInvitePage() {
 
   const handleLoginToAccept = () => {
     router.push(`/login?delegate=${code}`)
+  }
+
+  const handleAccept = async () => {
+    setAccepting(true)
+    try {
+      const acceptResponse = await supabase.functions.invoke('pair-delegation', {
+        body: { action: 'accept-link', code },
+      })
+      if (acceptResponse.error || acceptResponse.data?.error) {
+        const errMsg = acceptResponse.data?.error || acceptResponse.error?.message
+        if (errMsg === 'already_accepted') {
+          setAlreadyAccepted(true)
+        }
+        setAccepting(false)
+      } else {
+        setAccepted(true)
+        setAccepting(false)
+        setTimeout(() => router.push('/delegate?tab=for'), 1500)
+      }
+    } catch {
+      setAccepting(false)
+    }
+  }
+
+  const handleReject = () => {
+    setRejecting(true)
+    setTimeout(() => router.push('/feed'), 500)
   }
 
   const delegatorName = delegator?.full_name || t('delegateInvite.defaultDelegator')
@@ -440,8 +443,78 @@ export default function DelegateInvitePage() {
                   </Text>
                 </YStack>
 
-                {/* Auto-accepting banner for logged-in users */}
-                {autoAccepting && (
+                {/* Split proposal card */}
+                {delegation && (
+                  <YStack
+                    backgroundColor="rgba(255,255,255,0.15)"
+                    borderRadius={borderRadius.lg}
+                    padding="$4"
+                    gap="$3"
+                  >
+                    <Text fontWeight="600" color="white" fontSize={14}>
+                      Proposed Profit Split
+                    </Text>
+                    <XStack gap="$4" alignItems="center">
+                      <YStack alignItems="center" gap="$1">
+                        <Text fontSize={28} fontWeight="700" color="white">
+                          {delegation.delegatePct ?? 50}%
+                        </Text>
+                        <Text fontSize={12} color={colors.green[200]} fontWeight="600">You get</Text>
+                      </YStack>
+                      <YStack height={36} width={1} backgroundColor="rgba(255,255,255,0.3)" />
+                      <YStack alignItems="center" gap="$1">
+                        <Text fontSize={28} fontWeight="700" color="white">
+                          {100 - (delegation.delegatePct ?? 50)}%
+                        </Text>
+                        <Text fontSize={12} color={colors.green[200]} fontWeight="600">{delegatorName} keeps</Text>
+                      </YStack>
+                    </XStack>
+                    <Text fontSize={11} color={colors.green[200]}>
+                      Applied after a 10% platform fee on each sale.
+                    </Text>
+                  </YStack>
+                )}
+
+                {/* Accept / Reject CTAs for logged-in users */}
+                {isLoggedIn && !accepting && (
+                  <XStack gap="$3" alignSelf="flex-start">
+                    <Button
+                      backgroundColor="white"
+                      borderRadius={borderRadius.lg}
+                      paddingVertical="$3"
+                      paddingHorizontal="$6"
+                      gap="$2"
+                      hoverStyle={{ backgroundColor: colors.green[50] }}
+                      onPress={handleAccept}
+                      disabled={accepting}
+                    >
+                      <CheckCircle size={20} color={colors.green[700]} />
+                      <Text fontWeight="700" fontSize={16} color={colors.green[700]}>
+                        Accept
+                      </Text>
+                    </Button>
+                    <Button
+                      backgroundColor="transparent"
+                      borderWidth={2}
+                      borderColor="rgba(255,255,255,0.5)"
+                      borderRadius={borderRadius.lg}
+                      paddingVertical="$3"
+                      paddingHorizontal="$6"
+                      gap="$2"
+                      hoverStyle={{ borderColor: 'white' }}
+                      onPress={handleReject}
+                      disabled={rejecting}
+                    >
+                      <XCircle size={20} color="white" />
+                      <Text fontWeight="700" fontSize={16} color="white">
+                        Decline
+                      </Text>
+                    </Button>
+                  </XStack>
+                )}
+
+                {/* Accepting spinner */}
+                {accepting && (
                   <XStack
                     backgroundColor="rgba(255,255,255,0.15)"
                     borderRadius={borderRadius.lg}
@@ -452,13 +525,13 @@ export default function DelegateInvitePage() {
                   >
                     <Spinner size="small" color="white" />
                     <Text fontWeight="600" color="white" fontSize={15}>
-                      {t('delegateInvite.autoAccepting')}
+                      Accepting delegation...
                     </Text>
                   </XStack>
                 )}
 
-                {/* Primary CTA — shown for everyone who hasn't accepted yet */}
-                {!autoAccepting && (
+                {/* Login CTA for non-logged-in users */}
+                {!isLoggedIn && (
                   <Button
                     backgroundColor="white"
                     borderRadius={borderRadius.lg}
@@ -471,7 +544,7 @@ export default function DelegateInvitePage() {
                   >
                     <Users size={20} color={colors.green[700]} />
                     <Text fontWeight="700" fontSize={16} color={colors.green[700]}>
-                      {isLoggedIn ? t('delegateInvite.acceptButton') : t('delegateInvite.signupToAccept')}
+                      {t('delegateInvite.signupToAccept')}
                     </Text>
                     <ArrowRight size={18} color={colors.green[700]} />
                   </Button>

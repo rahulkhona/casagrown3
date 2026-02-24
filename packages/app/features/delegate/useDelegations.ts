@@ -22,6 +22,8 @@ export interface DelegationRecord {
     delegatee_profile?: { full_name: string | null; avatar_url: string | null };
     /** True when the delegation is revoked/inactive but the delegate still has active posts for this delegator */
     hasActivePosts?: boolean;
+    /** Percentage of after-fee proceeds that goes to the delegate */
+    delegate_pct: number | null;
 }
 
 export interface UserSearchResult {
@@ -88,8 +90,6 @@ export function useDelegations() {
             if (err2) throw err2;
 
             // For revoked/inactive delegations, check if there are still active posts
-            // (posts where on_behalf_of = delegator_id, meaning the delegation has
-            // outstanding work). We query once for all delegator IDs to avoid N+1.
             const endedDelegations = [
                 ...(myDelegatesData || []),
                 ...(delegatingForData || []),
@@ -158,12 +158,11 @@ export function useDelegations() {
         return () => clearInterval(interval);
     }, [currentUserId, fetchDelegations]);
 
-    // Generate delegation link (new link-based flow)
-    // Note: does NOT refetch delegations — generating a link creates a pending_pairing
-    // row which shouldn't count as a delegate until someone accepts.
+    // Generate delegation link — delegator proposes delegate_pct
     const generateDelegationLink = useCallback(
         async (
             message?: string,
+            delegatePct?: number,
         ): Promise<GeneratedLink | { error: string }> => {
             const {
                 data: { session },
@@ -173,7 +172,11 @@ export function useDelegations() {
             const response = await supabase.functions.invoke(
                 "pair-delegation",
                 {
-                    body: { action: "generate-link", message: message || null },
+                    body: {
+                        action: "generate-link",
+                        message: message || null,
+                        delegatePct: delegatePct ?? 50,
+                    },
                 },
             );
 
@@ -189,7 +192,7 @@ export function useDelegations() {
         [],
     );
 
-    // Accept delegation by code (from link or clipboard)
+    // Accept delegation by code (from link)
     const acceptDelegationByCode = useCallback(
         async (
             code: string,

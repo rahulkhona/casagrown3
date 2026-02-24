@@ -66,21 +66,21 @@ verifying end-to-end user flows.
 
 ```
 e2e/maestro/
-├── config.yaml           # appId, env vars, ordered flow list
+├── config.yaml           # appId, env vars, ordered flow list (13 flows)
 ├── flows/
 │   ├── login.yaml            # Full login + OTP verification
-│   ├── feed-navigation.yaml  # Feed → Profile → Back
-│   ├── create-post.yaml      # Create Post → Sell form → Back
-│   ├── profile-management.yaml  # Avatar → Profile Settings → Back
-│   ├── chat.yaml             # Menu → Chats → Back
-│   ├── delegation.yaml       # Menu → Delegate Sales → Back
-│   ├── post-management.yaml  # Menu → My Posts → Back
-│   ├── orders.yaml           # Orders screen: tabs, cards, click-to-chat
+│   ├── feed-navigation.yaml  # Feed content, scroll, Menu tab items
+│   ├── hamburger-menu.yaml   # Menu items, Profile nav, Transfer Points absence
+│   ├── buy-points.yaml       # Menu → Buy Points → Stripe form
+│   ├── create-post.yaml      # Create Post → Sell form
 │   ├── order-flow.yaml       # Conditional: tap Order if visible
-│   ├── profile-wizard.yaml   # Conditional: wizard if visible
-│   ├── offers.yaml           # Offer submission and lifecycle on buy posts
-│   ├── chat-buy-post.yaml    # Chat flow from buy post with offer actions
-│   └── chat-order-sale-post.yaml  # Order flow from sale post in chat
+│   ├── orders.yaml           # Orders tab: tabs, filters, order cards
+│   ├── offers.yaml           # Offers tab: tabs, filters
+│   ├── chat.yaml             # Chats tab
+│   ├── post-management.yaml  # Menu → My Posts
+│   ├── delegation.yaml       # Menu → Delegate Sales
+│   ├── profile-management.yaml  # Menu → Profile & Settings
+│   └── profile-wizard.yaml   # Conditional: wizard if visible
 └── utils/
     └── login.yaml            # Reusable login utility (used by all flows)
 ```
@@ -94,11 +94,18 @@ e2e/maestro/
 
 #### Navigation Patterns
 
-- **Avatar tap** → Profile screen (e.g., `tapOn: { text: "T", index: 0 }`)
-- **Hamburger menu** → `tapOn: "Menu"` opens navigation drawer (Chats, My Posts,
-  Delegate Sales)
-- **Back navigation** → `tapOn: "Back"` (all screens have
-  `accessibilityLabel="Back"` on their back buttons)
+- **Tab bar** — iOS accessibility labels are `"Feed, tab, 1 of 5"`, etc. Always
+  use regex: `tapOn: text: ".*Menu.*"`, `".*Chats.*"`, `".*Orders.*"`,
+  `".*Offers.*"`, `".*Feed.*"`
+- **Tab bar items**: Feed, Chats, Orders, Offers, Menu
+- **Menu tab items** (hamburger): Profile & Settings, Redeem Points, Buy Points,
+  Transaction History, Delegate Sales, Accept Delegation, Invite Friends, My
+  Posts, Sign Out
+- **Sub-screen navigation** — after navigating to a sub-screen via Menu, the tab
+  bar may be hidden. Do NOT try to tap tab labels to go back. End the flow or
+  use `tapOn: "Back"` if available.
+- **scrollUntilVisible** — menu items below the fold (e.g., Delegate Sales on
+  Android) need `scrollUntilVisible` before tapping.
 
 #### To Run
 
@@ -112,14 +119,14 @@ curl -Ls "https://get.maestro.mobile.dev" | bash
 # Start the app
 cd apps/expo-community && npx expo run:ios
 
-# Run all 12 flows
-maestro test e2e/maestro/
+# Run all 13 flows (iOS)
+maestro test --udid <SIMULATOR_UDID> e2e/maestro/
+
+# Run all 13 flows (Android)
+maestro test --device emulator-5554 e2e/maestro/
 
 # Run a single flow
 maestro test e2e/maestro/flows/login.yaml
-
-# Run on a specific device
-maestro --device <DEVICE_UDID> test e2e/maestro/
 ```
 
 ### 2.4 Web E2E Tests (Playwright)
@@ -152,7 +159,11 @@ e2e/playwright/
 │   ├── my-posts.spec.ts       # My Posts filters
 │   ├── delegate.spec.ts       # Delegation
 │   ├── orders.spec.ts         # Orders screen (seller + buyer perspectives)
-│   └── order-flow.spec.ts     # Order/Offer button visibility
+│   ├── order-flow.spec.ts     # Order/Offer button visibility
+│   ├── invite.spec.ts         # Invite modal and share links
+│   ├── login.spec.ts          # Login flow (OTP, errors)
+│   ├── hamburger-menu.spec.ts # Hamburger menu: items, Profile→/profile, no Transfer Points
+│   └── points.spec.ts         # Points (buy/redeem) flow
 └── .auth/
     ├── seller.json            # Seller storage state (auto-generated)
     └── buyer.json             # Buyer storage state (auto-generated)
@@ -174,7 +185,7 @@ skip for the buyer project).
 # Start dev server
 yarn web
 
-# Run all 206 tests (190 pass, 16 role-based skips)
+# Run all 212 tests (184 pass, 28 role-based skips)
 npx playwright test --config=e2e/playwright/playwright.config.ts
 
 # Run a single file
@@ -195,7 +206,7 @@ npx playwright test --config=e2e/playwright/playwright.config.ts --last-failed
 ### Pre-Push (Husky)
 
 - **Trigger**: `git push`
-- **Action**: Runs full Jest test suite (37 suites, 549 tests) with `--bail`.
+- **Action**: Runs full Jest test suite (41 suites, 575 tests) with `--bail`.
 - **Goal**: Prevent regressions in all app features.
 - **Note**: Edge function tests run separately via `deno test`.
 

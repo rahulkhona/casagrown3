@@ -339,10 +339,11 @@ deno test --allow-net --allow-env supabase/functions/*/test.ts
 # Web integration tests (Playwright)
 cd apps/next-community && npx playwright test
 
-# Mobile E2E tests (Maestro — 9 flows)
+# Mobile E2E tests (Maestro — 13 flows, iOS + Android)
 # Requires: app running on iOS Simulator or Android Emulator
 ./e2e/seed-test-data.sh            # Reset DB + clear Mailpit
-maestro test e2e/maestro/          # Run all 9 flows
+maestro test --udid <UDID> e2e/maestro/   # iOS (use xcrun simctl list)
+maestro test --device emulator-5554 e2e/maestro/  # Android
 maestro test e2e/maestro/flows/login.yaml  # Run a single flow
 
 # Root-level tests (Vitest)
@@ -465,3 +466,31 @@ npx supabase functions deploy  # Deploy edge functions
 | Stale snapshots after UI changes     | Run `jest -u` to update snapshots                                           |
 | Supabase containers not starting     | Run `docker system prune` then `npx supabase start`                         |
 | Migration conflicts                  | Run `npx supabase db reset` to reapply from scratch                         |
+| Edge functions returning non-2xx     | Run `./scripts/db-start.sh` — edge runtime may have stopped                 |
+| StorageAPI errors on profile setup   | Run `supabase stop && supabase start` — imgproxy service may be stopped     |
+
+---
+
+## Quick Start Script
+
+Use the all-in-one startup script to start Supabase, edge functions, and verify
+all services are healthy:
+
+```bash
+./scripts/db-start.sh
+```
+
+This script:
+
+1. Starts Supabase (or restarts if any services like imgproxy/edge runtime are
+   stopped)
+2. Starts edge functions in the background (`supabase functions serve`)
+3. Runs health checks on: REST API, Auth, Storage, Buckets, Edge Functions,
+   Database, Studio, Mailpit
+4. Reports a green/red summary
+
+Edge function logs are written to `/tmp/supabase-functions.log`.
+
+> [!IMPORTANT]
+> After applying new migrations (`supabase db reset`), always run
+> `./scripts/db-start.sh` to restart edge functions and verify everything is up.

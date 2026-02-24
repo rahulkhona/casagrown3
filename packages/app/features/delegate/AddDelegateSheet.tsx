@@ -28,7 +28,7 @@ import {
   Smartphone,
   RefreshCw,
 } from '@tamagui/lucide-icons'
-import { Platform, Share } from 'react-native'
+import { Platform, Share, TextInput } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { colors, borderRadius } from '../../design-tokens'
 import { QRCodeDisplay } from '../feed/QRCodeDisplay'
@@ -44,7 +44,7 @@ const BASE_URL = isWeb
 interface AddDelegateSheetProps {
   visible: boolean
   onClose: () => void
-  onGenerateLink: (message?: string) => Promise<GeneratedLink | { error: string }>
+  onGenerateLink: (message?: string, delegatePct?: number) => Promise<GeneratedLink | { error: string }>
 }
 
 function formatTime(seconds: number): string {
@@ -63,6 +63,7 @@ export default function AddDelegateSheet({
 }: AddDelegateSheetProps) {
   const { t } = useTranslation()
   const [message, setMessage] = useState('')
+  const [delegatePct, setDelegatePct] = useState(50)
   const [generating, setGenerating] = useState(false)
   const [generatedLink, setGeneratedLink] = useState<GeneratedLink | null>(null)
   const [copied, setCopied] = useState(false)
@@ -79,7 +80,7 @@ export default function AddDelegateSheet({
         setGenerating(true)
         setError(null)
         try {
-          const result = await onGenerateLink()
+          const result = await onGenerateLink(undefined, delegatePct)
           if ('error' in result) {
             setError(result.error)
           } else {
@@ -122,6 +123,7 @@ export default function AddDelegateSheet({
   useEffect(() => {
     if (!visible) {
       setMessage('')
+      setDelegatePct(50)
       setGeneratedLink(null)
       setCopied(false)
       setError(null)
@@ -139,7 +141,7 @@ export default function AddDelegateSheet({
     setGenerating(true)
     setError(null)
     try {
-      const result = await onGenerateLink()
+      const result = await onGenerateLink(undefined, delegatePct)
       if ('error' in result) {
         setError(result.error)
       } else {
@@ -150,7 +152,7 @@ export default function AddDelegateSheet({
     } finally {
       setGenerating(false)
     }
-  }, [onGenerateLink])
+  }, [onGenerateLink, delegatePct])
 
   const handleCopy = useCallback(async () => {
     try {
@@ -313,6 +315,168 @@ export default function AddDelegateSheet({
                     {t('delegate.addDelegate.shareOnceWarning')}
                   </Text>
                 </XStack>
+
+                {/* Profit Split */}
+                <YStack gap="$2">
+                  <Text fontWeight="600" color={colors.gray[700]} fontSize={13}>
+                    Profit Split
+                  </Text>
+                  <Text fontSize={12} color={colors.gray[500]}>
+                    Set how proceeds are split after the 10% platform fee.
+                  </Text>
+                  <XStack
+                    backgroundColor={colors.gray[50]}
+                    borderWidth={1}
+                    borderColor={colors.gray[200]}
+                    borderRadius={borderRadius.lg}
+                    padding="$3"
+                    gap="$2"
+                    alignItems="center"
+                    justifyContent="center"
+                  >
+                    {/* Delegate gets */}
+                    <YStack alignItems="center" gap="$1.5" flex={1}>
+                      <Text fontSize={12} fontWeight="600" color={colors.green[700]}>
+                        Delegate gets
+                      </Text>
+                      <XStack alignItems="center" gap="$2">
+                        <Button
+                          unstyled
+                          width={30}
+                          height={30}
+                          borderRadius={15}
+                          backgroundColor={delegatePct <= 0 ? colors.gray[100] : colors.red[50]}
+                          alignItems="center"
+                          justifyContent="center"
+                          disabled={delegatePct <= 0}
+                          onPress={() => setDelegatePct(Math.max(0, delegatePct - 5))}
+                        >
+                          <Text fontSize={18} fontWeight="700" color={delegatePct <= 0 ? colors.gray[300] : colors.red[500]}>−</Text>
+                        </Button>
+                        <XStack
+                          backgroundColor="white"
+                          borderWidth={2}
+                          borderColor={colors.green[300]}
+                          borderRadius={borderRadius.default}
+                          paddingHorizontal="$2"
+                          paddingVertical="$1"
+                          alignItems="center"
+                          justifyContent="center"
+                          width={75}
+                        >
+                          <TextInput
+                            value={String(delegatePct)}
+                            onChangeText={(val) => {
+                              const n = parseInt(val, 10)
+                              if (val === '') setDelegatePct(0)
+                              else if (!isNaN(n)) setDelegatePct(Math.max(0, Math.min(100, n)))
+                            }}
+                            keyboardType="number-pad"
+                            maxLength={3}
+                            style={{
+                              fontSize: 20,
+                              fontWeight: '700',
+                              color: colors.green[700],
+                              width: 35,
+                              textAlign: 'right',
+                              padding: 0,
+                              ...(isWeb ? { outlineStyle: 'none' } as any : {}),
+                            }}
+                            selectTextOnFocus
+                          />
+                          <Text fontSize={20} fontWeight="700" color={colors.green[700]}>%</Text>
+                        </XStack>
+                        <Button
+                          unstyled
+                          width={30}
+                          height={30}
+                          borderRadius={15}
+                          backgroundColor={delegatePct >= 100 ? colors.gray[100] : colors.green[50]}
+                          alignItems="center"
+                          justifyContent="center"
+                          disabled={delegatePct >= 100}
+                          onPress={() => setDelegatePct(Math.min(100, delegatePct + 5))}
+                        >
+                          <Text fontSize={18} fontWeight="700" color={delegatePct >= 100 ? colors.gray[300] : colors.green[600]}>+</Text>
+                        </Button>
+                      </XStack>
+                    </YStack>
+
+                    {/* Divider */}
+                    <YStack height={40} width={1} backgroundColor={colors.gray[300]} />
+
+                    {/* You (delegator) keep */}
+                    <YStack alignItems="center" gap="$1.5" flex={1}>
+                      <Text fontSize={12} fontWeight="600" color={colors.blue[700]}>
+                        You keep
+                      </Text>
+                      <XStack alignItems="center" gap="$2">
+                        <Button
+                          unstyled
+                          width={30}
+                          height={30}
+                          borderRadius={15}
+                          backgroundColor={delegatePct >= 100 ? colors.gray[100] : colors.red[50]}
+                          alignItems="center"
+                          justifyContent="center"
+                          disabled={delegatePct >= 100}
+                          onPress={() => setDelegatePct(Math.min(100, delegatePct + 5))}
+                        >
+                          <Text fontSize={18} fontWeight="700" color={delegatePct >= 100 ? colors.gray[300] : colors.red[500]}>−</Text>
+                        </Button>
+                        <XStack
+                          backgroundColor="white"
+                          borderWidth={2}
+                          borderColor={colors.blue[300]}
+                          borderRadius={borderRadius.default}
+                          paddingHorizontal="$2"
+                          paddingVertical="$1"
+                          alignItems="center"
+                          justifyContent="center"
+                          width={75}
+                        >
+                          <TextInput
+                            value={String(100 - delegatePct)}
+                            onChangeText={(val) => {
+                              const n = parseInt(val, 10)
+                              if (val === '') setDelegatePct(100)
+                              else if (!isNaN(n)) setDelegatePct(Math.max(0, Math.min(100, 100 - n)))
+                            }}
+                            keyboardType="number-pad"
+                            maxLength={3}
+                            style={{
+                              fontSize: 20,
+                              fontWeight: '700',
+                              color: '#1d4ed8',
+                              width: 35,
+                              textAlign: 'right',
+                              padding: 0,
+                              ...(isWeb ? { outlineStyle: 'none' } as any : {}),
+                            }}
+                            selectTextOnFocus
+                          />
+                          <Text fontSize={20} fontWeight="700" color={colors.blue[700]}>%</Text>
+                        </XStack>
+                        <Button
+                          unstyled
+                          width={30}
+                          height={30}
+                          borderRadius={15}
+                          backgroundColor={delegatePct <= 0 ? colors.gray[100] : colors.green[50]}
+                          alignItems="center"
+                          justifyContent="center"
+                          disabled={delegatePct <= 0}
+                          onPress={() => setDelegatePct(Math.max(0, delegatePct - 5))}
+                        >
+                          <Text fontSize={18} fontWeight="700" color={delegatePct <= 0 ? colors.gray[300] : colors.green[600]}>+</Text>
+                        </Button>
+                      </XStack>
+                    </YStack>
+                  </XStack>
+                  <Text fontSize={11} color={colors.gray[400]} textAlign="center">
+                    Must total 100%.
+                  </Text>
+                </YStack>
 
                 {/* Shareable link with copy */}
                 <YStack gap="$2">

@@ -103,42 +103,77 @@ function DelegatingForCard({
         <StatusBadge status={delegation.status} hasActivePosts={delegation.hasActivePosts} t={t} />
       </XStack>
 
+      {/* Split info for active delegations */}
+      {delegation.status === 'active' && delegation.delegate_pct != null && (
+        <XStack
+          backgroundColor={colors.green[50]}
+          borderWidth={1}
+          borderColor={colors.green[200]}
+          borderRadius={borderRadius.default}
+          padding="$2"
+          gap="$2"
+          alignItems="center"
+        >
+          <Text fontSize={12} color={colors.green[700]}>
+            Your share: {delegation.delegate_pct}% · {100 - delegation.delegate_pct}% goes to delegator
+          </Text>
+        </XStack>
+      )}
+
       {/* Pending: Accept / Decline */}
       {delegation.status === 'pending' && (
-        <XStack gap="$3">
-          <Button
-            flex={1}
-            backgroundColor="white"
-            borderWidth={2}
-            borderColor={colors.red[300]}
-            borderRadius={borderRadius.lg}
-            paddingVertical="$2"
-            onPress={() => onReject(delegation.id)}
-            hoverStyle={{ backgroundColor: colors.red[50] }}
-          >
-            <XStack gap="$2" alignItems="center" justifyContent="center">
-              <XCircle size={16} color={colors.red[600]} />
-              <Text fontWeight="600" color={colors.red[600]} fontSize={13}>
-                {t('delegate.actions.decline')}
+        <>
+          {/* Show proposed split if available */}
+          {delegation.delegate_pct != null && (
+            <XStack
+              backgroundColor="#eff6ff"
+              borderWidth={1}
+              borderColor="#bfdbfe"
+              borderRadius={borderRadius.default}
+              padding="$2"
+              gap="$2"
+              alignItems="center"
+            >
+              <Text fontSize={12} color="#1e40af">
+                Proposed split: {delegation.delegate_pct}% of points go to you · {100 - delegation.delegate_pct}% to delegator
               </Text>
             </XStack>
-          </Button>
-          <Button
-            flex={1}
-            backgroundColor={colors.green[600]}
-            borderRadius={borderRadius.lg}
-            paddingVertical="$2"
-            onPress={() => onAccept(delegation.id)}
-            hoverStyle={{ backgroundColor: colors.green[700] }}
-          >
-            <XStack gap="$2" alignItems="center" justifyContent="center">
-              <CheckCircle size={16} color="white" />
-              <Text fontWeight="600" color="white" fontSize={13}>
-                {t('delegate.actions.accept')}
-              </Text>
-            </XStack>
-          </Button>
-        </XStack>
+          )}
+          <XStack gap="$3">
+            <Button
+              flex={1}
+              backgroundColor="white"
+              borderWidth={2}
+              borderColor={colors.red[300]}
+              borderRadius={borderRadius.lg}
+              paddingVertical="$2"
+              onPress={() => onReject(delegation.id)}
+              hoverStyle={{ backgroundColor: colors.red[50] }}
+            >
+              <XStack gap="$2" alignItems="center" justifyContent="center">
+                <XCircle size={16} color={colors.red[600]} />
+                <Text fontWeight="600" color={colors.red[600]} fontSize={13}>
+                  {t('delegate.actions.decline')}
+                </Text>
+              </XStack>
+            </Button>
+            <Button
+              flex={1}
+              backgroundColor={colors.green[600]}
+              borderRadius={borderRadius.lg}
+              paddingVertical="$2"
+              onPress={() => onAccept(delegation.id)}
+              hoverStyle={{ backgroundColor: colors.green[700] }}
+            >
+              <XStack gap="$2" alignItems="center" justifyContent="center">
+                <CheckCircle size={16} color="white" />
+                <Text fontWeight="600" color="white" fontSize={13}>
+                  {t('delegate.actions.accept')}
+                </Text>
+              </XStack>
+            </Button>
+          </XStack>
+        </>
       )}
 
       {/* Active: Inactivate */}
@@ -259,7 +294,7 @@ export default function AcceptDelegationScreen() {
         <XStack gap="$2" alignItems="center">
           <ShieldCheck size={16} color="#2563eb" />
           <Text fontSize={13} color="#1e40af" flex={1}>
-            {t('delegate.acceptDelegationInfo', 'All points earned go to the delegate. It is up to the delegate to transfer points to the delegator.')}
+            Points earned from each sale are automatically split — your share goes directly to your account based on the agreed percentage.
           </Text>
         </XStack>
       </YStack>

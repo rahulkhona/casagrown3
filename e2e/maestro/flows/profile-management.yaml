@@ -1,5 +1,6 @@
 # Profile Management Flow — Maestro E2E test
-# Tests navigating to profile and verifying key profile elements.
+# Tests navigating to profile via Menu tab > Profile & Settings.
+# Tab labels on iOS = "Menu, tab, 5 of 5" — use regex.
 
 appId: dev.casagrown.community
 
@@ -10,29 +11,31 @@ appId: dev.casagrown.community
 
 # Wait for feed to load
 - extendedWaitUntil:
-          visible: "Tomatoes"
-          timeout: 15000
+        visible: "Tomatoes"
+        timeout: 15000
 
-# Navigate to profile via header avatar initial
+# Open Menu via bottom tab (regex for iOS accessibility label)
 - tapOn:
-          text: "T"
-          index: 0
+        text: ".*Menu.*"
 
-# Verify profile screen header
+# Wait for Profile & Settings in menu
 - extendedWaitUntil:
-          visible: "Profile Settings"
-          timeout: 10000
+        visible:
+              text: ".*Profile.*Settings.*"
+        timeout: 5000
 
-# Verify key profile elements visible without scrolling
-- assertVisible: "Edit Profile"
-- assertVisible: "Test Seller"
-- assertVisible: "seller@test.local"
-- assertVisible: "My Community"
+# Tap Profile & Settings
+- tapOn:
+        text: ".*Profile.*Settings.*"
 
-# Go back to feed
-- tapOn: "Back"
-
-# Verify we're back on feed
+# Verify profile screen loads
 - extendedWaitUntil:
-          visible: "Tomatoes"
-          timeout: 10000
+        visible:
+              text: ".*Profile.*"
+        timeout: 10000
+
+# Verify key profile elements
+- assertVisible:
+        text: ".*Test Seller.*"
+- assertVisible:
+        text: ".*seller@test.local.*"

@@ -2,9 +2,9 @@
  * pair-delegation — Supabase Edge Function
  *
  * Multi-action router for delegated sales:
- *   - generate-link: Create delegation with shareable link + passcode
- *   - lookup: Public — fetch delegator info for landing page
- *   - accept-link: Accept delegation by delegation_code
+ *   - generate-link: Create delegation with shareable link + passcode + delegate_pct
+ *   - lookup: Public — fetch delegator info + proposed split for landing page
+ *   - accept-link: Accept delegation by delegation_code (delegate accepts or rejects)
  *   - accept: Accept by 6-digit pairing code (manual entry)
  *   - generate: Legacy generate (backward compat)
  */
@@ -15,7 +15,6 @@ import {
     requireAuth,
     serveWithCors,
 } from "../_shared/serve-with-cors.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -55,7 +54,7 @@ serveWithCors(async (req, { supabase: supabaseAdmin, corsHeaders }) => {
         const { data: delegation, error: lookupError } = await supabaseAdmin
             .from("delegations")
             .select(
-                "id, delegator_id, status, message, pairing_code, pairing_expires_at, delegation_code",
+                "id, delegator_id, status, message, pairing_code, pairing_expires_at, delegation_code, delegate_pct",
             )
             .eq("delegation_code", code)
             .single();
@@ -95,6 +94,7 @@ serveWithCors(async (req, { supabase: supabaseAdmin, corsHeaders }) => {
                     pairingCode: delegation.pairing_code,
                     expiresAt: delegation.pairing_expires_at,
                     delegationCode: delegation.delegation_code,
+                    delegatePct: delegation.delegate_pct,
                 },
                 delegator: profile || {
                     id: delegation.delegator_id,
@@ -111,9 +111,79 @@ serveWithCors(async (req, { supabase: supabaseAdmin, corsHeaders }) => {
     if (auth instanceof Response) return auth; // 401
     const userId = auth;
 
+    // ── LOOKUP-PAIRING: Look up delegation by 6-digit pairing code ──────
+    // Returns delegation details + delegator profile WITHOUT accepting.
+    // Used by JoinByCodeSheet to show split preview before accept/reject.
+    if (action === "lookup-pairing") {
+        const { code } = payload;
+        if (!code || typeof code !== "string" || code.length !== 6) {
+            return jsonError(
+                "Invalid pairing code format",
+                corsHeaders,
+                400,
+            );
+        }
+
+        const { data: delegation, error: lookupError } = await supabaseAdmin
+            .from("delegations")
+            .select(
+                "id, delegator_id, status, message, delegate_pct, pairing_expires_at",
+            )
+            .eq("pairing_code", code)
+            .eq("status", "pending_pairing")
+            .gt("pairing_expires_at", new Date().toISOString())
+            .single();
+
+        if (lookupError || !delegation) {
+            return jsonError(
+                "Invalid or expired pairing code",
+                corsHeaders,
+                404,
+            );
+        }
+
+        if (delegation.delegator_id === userId) {
+            return jsonError(
+                "Cannot delegate to yourself",
+                corsHeaders,
+                400,
+            );
+        }
+
+        const { data: profile } = await supabaseAdmin
+            .from("profiles")
+            .select("id, full_name, avatar_url")
+            .eq("id", delegation.delegator_id)
+            .single();
+
+        return jsonOk(
+            {
+                delegation: {
+                    id: delegation.id,
+                    delegatePct: delegation.delegate_pct,
+                    message: delegation.message,
+                },
+                delegator: profile || {
+                    id: delegation.delegator_id,
+                    full_name: null,
+                    avatar_url: null,
+                },
+            },
+            corsHeaders,
+        );
+    }
+
     // ── GENERATE-LINK: Create delegation with shareable link + passcode ──
     if (action === "generate-link") {
         const message = payload.message || null;
+        const delegatePct = payload.delegatePct ?? 50;
+
+        if (
+            typeof delegatePct !== "number" || delegatePct < 0 ||
+            delegatePct > 100
+        ) {
+            return jsonError("delegatePct must be 0-100", corsHeaders, 400);
+        }
 
         // Check for an existing unexpired pending_pairing link from this delegator
         const { data: existing } = await supabaseAdmin
@@ -127,11 +197,14 @@ serveWithCors(async (req, { supabase: supabaseAdmin, corsHeaders }) => {
             .maybeSingle();
 
         if (existing) {
-            // Reuse the existing pending link — update message if provided
-            if (message && message !== existing.message) {
+            // Reuse the existing pending link — update message and split if provided
+            if (
+                (message && message !== existing.message) ||
+                delegatePct !== existing.delegate_pct
+            ) {
                 await supabaseAdmin
                     .from("delegations")
-                    .update({ message })
+                    .update({ message, delegate_pct: delegatePct })
                     .eq("id", existing.id);
             }
             return jsonOk(
@@ -142,6 +215,7 @@ serveWithCors(async (req, { supabase: supabaseAdmin, corsHeaders }) => {
                     delegation: {
                         ...existing,
                         message: message || existing.message,
+                        delegate_pct: delegatePct,
                     },
                 },
                 corsHeaders,
@@ -163,6 +237,7 @@ serveWithCors(async (req, { supabase: supabaseAdmin, corsHeaders }) => {
                 pairing_code: pairingCode,
                 pairing_expires_at: expiresAt,
                 message,
+                delegate_pct: delegatePct,
             })
             .select()
             .single();
@@ -183,6 +258,7 @@ serveWithCors(async (req, { supabase: supabaseAdmin, corsHeaders }) => {
                             pairing_code: retryPairing,
                             pairing_expires_at: expiresAt,
                             message,
+                            delegate_pct: delegatePct,
                         })
                         .select()
                         .single();

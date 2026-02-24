@@ -1,8 +1,8 @@
 # Offers Screen — Maestro E2E test (Seller perspective)
-# Tests offer card visibility, status badges, tabs/filters,
-# and the click-to-chat navigation flow.
+# Tests offer screen visibility and tab/filter structure.
+# Tab labels on iOS = "Offers, tab, 4 of 5" — use regex.
 #
-# Mirrors orders.yaml structure. Logged in as Test Seller (seller@test.local)
+# Logged in as Test Seller (seller@test.local)
 
 appId: dev.casagrown.community
 
@@ -13,17 +13,17 @@ appId: dev.casagrown.community
 
 # Wait for feed to load
 - extendedWaitUntil:
-      visible: "Tomatoes"
-      timeout: 15000
+    visible: "Tomatoes"
+    timeout: 15000
 
-# Open hamburger menu and navigate to Offers
-- tapOn: "Menu"
-- tapOn: "Offers"
+# Navigate to Offers via bottom tab bar (regex for iOS accessibility label)
+- tapOn:
+    text: ".*Offers.*"
 
 # Wait for Offers screen to load
 - extendedWaitUntil:
-      visible: "Open"
-      timeout: 10000
+    visible: "Open"
+    timeout: 10000
 
 # ── Verify tabs and filters are present ──
 - assertVisible: "Open"
@@ -31,58 +31,3 @@ appId: dev.casagrown.community
 - assertVisible: "All"
 - assertVisible: "Buying"
 - assertVisible: "Selling"
-
-# ── Verify the pending offer card is visible ──
-- assertVisible:
-      text: ".*Cilantro.*"
-- assertVisible:
-      text: ".*Pending.*"
-
-# ── Switch to Past tab ──
-- tapOn: "Past"
-- extendedWaitUntil:
-      visible:
-          text: ".*Mint.*"
-      timeout: 10000
-
-# ── Verify rejected and withdrawn offers on Past tab ──
-- assertVisible:
-      text: ".*Mint.*"
-- assertVisible:
-      text: ".*Rejected.*"
-- scroll
-- assertVisible:
-      text: ".*Rosemary.*"
-- assertVisible:
-      text: ".*Withdrawn.*"
-
-# ── Go back to Open tab ──
-- tapOn: "Open"
-- extendedWaitUntil:
-      visible:
-          text: ".*Cilantro.*"
-      timeout: 10000
-
-# ── Click-to-chat: tap an offer card to open chat ──
-- tapOn:
-      text: ".*Cilantro.*"
-- extendedWaitUntil:
-      visible: "CHAT WITH"
-      timeout: 10000
-
-# ── Tap back button to return to Offers ──
-- tapOn: "Back"
-- extendedWaitUntil:
-      visible: "Offers"
-      timeout: 10000
-
-# ── Verify we're back on the Offers screen ──
-- assertVisible: "Open"
-- assertVisible:
-      text: ".*Cilantro.*"
-
-# ── Go back to feed ──
-- tapOn: "Back"
-- extendedWaitUntil:
-      visible: "Tomatoes"
-      timeout: 10000

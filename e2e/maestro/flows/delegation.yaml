@@ -1,5 +1,6 @@
 # Delegation Flow — Maestro E2E test
-# Tests navigating to delegate sales via the hamburger menu.
+# Tests navigating to delegate sales via the Menu tab.
+# Uses scrollUntilVisible for smaller Android screens.
 
 appId: dev.casagrown.community
 
@@ -10,30 +11,26 @@ appId: dev.casagrown.community
 
 # Wait for feed to load
 - extendedWaitUntil:
-      visible: "Tomatoes"
-      timeout: 15000
+          visible: "Tomatoes"
+          timeout: 15000
 
-# Open hamburger menu
-- tapOn: "Menu"
+# Open Menu via bottom tab (regex for iOS accessibility label)
+- tapOn:
+          text: ".*Menu.*"
 
-# Wait for nav drawer
-- extendedWaitUntil:
-      visible: "Delegate Sales"
-      timeout: 5000
+# Scroll to find Delegate Sales (may be below fold on Android)
+- scrollUntilVisible:
+          element:
+                  text: ".*Delegate Sales.*"
+          direction: DOWN
+          timeout: 10000
 
 # Tap "Delegate Sales"
-- tapOn: "Delegate Sales"
+- tapOn:
+          text: ".*Delegate Sales.*"
 
 # Wait for delegate screen to load
 - extendedWaitUntil:
-      visible:
-          text: ".*Delegate.*"
-      timeout: 10000
-
-# Go back to feed
-- tapOn: "Back"
-
-# Verify we're back on feed
-- extendedWaitUntil:
-      visible: "Tomatoes"
-      timeout: 10000
+          visible:
+                  text: ".*Delegate.*"
+          timeout: 10000

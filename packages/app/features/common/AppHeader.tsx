@@ -137,6 +137,7 @@ export function AppHeader({ activeKey = 'feed' }: { activeKey?: string }) {
 
   const handleNavPress = useCallback((key: string) => {
     if (key === 'feed') router.push('/feed')
+    else if (key === 'profile') router.push('/profile')
     else if (key === 'delegateSales') router.push('/delegate')
     else if (key === 'acceptDelegation') router.push('/accept-delegation')
     else if (key === 'myPosts') router.push('/my-posts')
@@ -314,13 +315,10 @@ export function AppHeader({ activeKey = 'feed' }: { activeKey?: string }) {
               {/* Account Section */}
               <YStack backgroundColor="white" borderBottomWidth={1} borderBottomColor={colors.gray[200]}>
                 <HamburgerItem icon={User} title="Profile & Settings" subtitle="Manage your location and details"
-                  onPress={() => { setMobileMenuOpen(false); handleNavPress('myPosts') }} />
+                  onPress={() => { setMobileMenuOpen(false); handleNavPress('profile') }} />
                 <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
                 <HamburgerItem icon={HandCoins} title="Redeem Points" subtitle="Cash out your earned points"
                   onPress={() => { setMobileMenuOpen(false); handleNavPress('redeem') }} />
-                <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
-                <HamburgerItem icon={HandCoins} title="Transfer Points" subtitle="Send points to another user"
-                  onPress={() => { setMobileMenuOpen(false); handleNavPress('transferPoints') }} />
                 <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
                 <HamburgerItem icon={HandCoins} title="Buy Points" subtitle="Purchase more points for the market"
                   onPress={() => { setMobileMenuOpen(false); handleNavPress('buyPoints') }} />

@@ -341,7 +341,28 @@ System pairs them → Delegator accepts → Delegate can post on their behalf
 | `rejected`        | Delegator rejected the request                 |
 | `revoked`         | Delegator revoked an active delegation         |
 
-#### 3.7.4 Delegate Screen
+#### 3.7.4 Delegation Profit Split
+
+When a delegated sale is completed, proceeds (after the 10% platform fee) are
+split between the delegator and delegate based on `delegate_pct`:
+
+- **delegate_pct** (0–100, default 50): Percentage the delegate receives
+- **Delegator gets**: `(100 - delegate_pct)%` of after-fee amount
+- **Set by**: Delegator when creating the delegation
+- **Ledger type**: `delegation_split` entries are created for both parties
+- **Notifications**: Delegator receives a notification with their earnings
+
+**Example** (100-point sale, delegate_pct = 50):
+
+| Item                  | Amount  |
+| --------------------- | ------- |
+| Total                 | 100 pts |
+| Platform fee (10%)    | –10 pts |
+| After-fee             | 90 pts  |
+| Delegate share (50%)  | 45 pts  |
+| Delegator share (50%) | 45 pts  |
+
+#### 3.7.5 Delegate Screen
 
 - **"My Delegates" tab**: List of people delegating for you (add via code,
   revoke)
@@ -349,6 +370,7 @@ System pairs them → Delegator accepts → Delegate can post on their behalf
   (accept/reject/inactivate)
 - Add delegate via bottom sheet: Enter referral code or share QR link
 - Status badges on each delegation card
+- Split percentage shown on delegation cards
 
 ---
 

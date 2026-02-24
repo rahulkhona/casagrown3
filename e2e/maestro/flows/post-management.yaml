@@ -1,5 +1,6 @@
 # Post Management Flow — Maestro E2E test
-# Tests navigating to "My Posts" via the hamburger menu.
+# Tests navigating to "My Posts" via the Menu tab.
+# Tab labels on iOS = "Menu, tab, 5 of 5" — use regex.
 
 appId: dev.casagrown.community
 
@@ -10,30 +11,25 @@ appId: dev.casagrown.community
 
 # Wait for feed to load
 - extendedWaitUntil:
-      visible: "Tomatoes"
-      timeout: 15000
+          visible: "Tomatoes"
+          timeout: 15000
 
-# Open hamburger menu
-- tapOn: "Menu"
+# Open Menu via bottom tab (regex for iOS accessibility label)
+- tapOn:
+          text: ".*Menu.*"
 
-# Wait for nav drawer
+# Wait for menu to show My Posts option
 - extendedWaitUntil:
-      visible: "My Posts"
-      timeout: 5000
+          visible:
+                  text: ".*My Posts.*"
+          timeout: 5000
 
 # Tap "My Posts"
-- tapOn: "My Posts"
+- tapOn:
+          text: ".*My Posts.*"
 
 # Wait for My Posts screen to load
 - extendedWaitUntil:
-      visible:
-          text: ".*"
-      timeout: 10000
-
-# Go back to feed
-- tapOn: "Back"
-
-# Verify we're back on feed
-- extendedWaitUntil:
-      visible: "Create Post"
-      timeout: 10000
+          visible:
+                  text: ".*"
+          timeout: 10000

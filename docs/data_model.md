@@ -50,7 +50,8 @@ and any associated triggers/functions/RLS policies.
 > `20260220200000_offer_delivery_dates` →
 > `20260220300000_accept_offer_buyer_qty` → `20260220400006_feedback_flags` →
 > `20260222100000_redemption_providers` → `20260223000000_feature_waitlist` →
-> `20260223020000_redemptions_rls_policies`
+> `20260223020000_redemptions_rls_policies` → `20260223100000_delegation_splits`
+> → `20260223100001_complete_order_with_split`
 
 ## Extensions
 
@@ -78,9 +79,10 @@ create type incentive_scope as enum ('global', 'country', 'state', 'city', 'zip'
 
 create type point_transaction_type as enum (
   'purchase', 'transfer', 'payment', 'platform_charge', 'redemption', 'reward',
-  'escrow',    -- buyer's points held until seller accepts (20260215090000)
-  'refund',    -- points returned to buyer if order is cancelled (20260215090000)
-  'donation'   -- points spent on charitable donations (20260222100000)
+  'escrow',            -- buyer's points held until seller accepts (20260215090000)
+  'refund',            -- points returned to buyer if order is cancelled (20260215090000)
+  'donation',          -- points spent on charitable donations (20260222100000)
+  'delegation_split'   -- delegate/delegator share of a delegated sale (20260223100000)
 );
 
 create type post_type as enum (
@@ -1238,6 +1240,8 @@ create table delegations (
   pairing_expires_at timestamptz,       -- When the pairing code expires
   delegation_code text unique,          -- 8-char slug for shareable link (e.g. 'd-abc12xyz')
   message text,                         -- Optional personal message from delegator
+  delegate_pct smallint default 50      -- Delegate's % of after-fee proceeds (20260223100000)
+    check (delegate_pct between 0 and 100),
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
   check (delegatee_id is null or delegator_id <> delegatee_id)
@@ -2417,27 +2421,35 @@ locking (`version` column) and escrow-based point flows. All RPCs use
 
 ### `confirm_delivery`
 
-**Migration**: `20260217000008_confirm_delivery_rpc`
+**Migration**: `20260217000008_confirm_delivery_rpc`, updated by
+`20260223100001_complete_order_with_split`
 
 **Signature**:
 `confirm_order_delivery(p_order_id uuid, p_buyer_id uuid) → jsonb`
 
-**Logic**:
+**Logic** (delegation-split-aware, `20260223100001`):
 
 1. Lock and fetch order, verify caller is buyer
 2. Verify status = `delivered`
-3. Calculate total, platform fee (10%), and seller payout
-4. Release escrow: insert `point_ledger` (type: `payment`, amount: +seller
-   payout)
-5. Insert `point_ledger` platform fee entry (type: `platform_fee`, amount: -fee)
-6. Set status → `completed` (terminal)
-7. Insert **role-specific system messages** (both `sender_id = null`,
+3. Calculate total, platform fee (10%), after-fee amount
+4. Insert `point_ledger` platform fee entry (type: `platform_fee`, amount: -fee)
+5. **If delegated sale** (`post.on_behalf_of IS NOT NULL`):
+   - Look up active delegation to get `delegate_pct` (default 50%)
+   - Split after-fee amount: delegate gets `delegate_pct%`, delegator gets
+     remainder
+   - Insert two `point_ledger` entries (type: `delegation_split`) — one for
+     delegate, one for delegator, with metadata including role, percentages, and
+     amounts
+   - Insert notification to delegator about the sale
+6. **If normal sale**: Insert single `point_ledger` (type: `payment`)
+7. Set status → `completed` (terminal)
+8. Insert **role-specific system messages** (both `sender_id = null`,
    `type = 'system'`):
    - _Buyer sees_: "✅ Order complete! X escrowed points released…"
      (`metadata.visible_to = buyer_id`)
    - _Seller sees_: "💰 Payment received: X points credited…"
      (`metadata.visible_to = seller_id`)
-8. Return `{ success: true }`
+9. Return `{ success: true, delegated: bool, ... share amounts }`
 
 ### `create_escalation`
 

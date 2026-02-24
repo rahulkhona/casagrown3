@@ -103,6 +103,11 @@ function DelegateCard({
             {t('delegate.windingDown.delegatorHint')}
           </Text>
         )}
+        {delegation.status === 'active' && delegation.delegate_pct != null && (
+          <Text fontSize={11} color={colors.green[700]} marginTop={2}>
+            Split: {delegation.delegate_pct}% to delegate · You keep {100 - delegation.delegate_pct}%
+          </Text>
+        )}
       </YStack>
 
       {/* Action — only show revoke for active delegations, not winding-down ones */}

@@ -252,7 +252,11 @@ describe("useDelegations", () => {
             });
 
             expect(mockInvoke).toHaveBeenCalledWith("pair-delegation", {
-                body: { action: "generate-link", message: "Hello!" },
+                body: {
+                    action: "generate-link",
+                    message: "Hello!",
+                    delegatePct: 50,
+                },
             });
             expect(linkResult).toEqual({
                 delegationCode: "d-abc12xyz",

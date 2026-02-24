@@ -1,6 +1,6 @@
 # Hamburger Menu Flow — Maestro E2E test
 # Tests the native Menu screen items and navigation.
-# Tab labels need regex: ".*Menu.*" etc.
+# Validates Profile link goes to Profile screen (not My Posts).
 
 appId: dev.casagrown.community
 
@@ -14,11 +14,11 @@ appId: dev.casagrown.community
           visible: "Tomatoes"
           timeout: 15000
 
-# Open Menu via bottom tab (regex for iOS accessibility label)
+# Open Menu via bottom tab
 - tapOn:
           text: ".*Menu.*"
 
-# Verify menu items are visible
+# ── Verify menu items are visible ──
 - extendedWaitUntil:
           visible:
                   text: ".*Profile.*Settings.*"
@@ -30,7 +30,38 @@ appId: dev.casagrown.community
 - assertVisible:
           text: ".*Transaction History.*"
 
-# Scroll down to see more items
+# ── Verify Transfer Points is NOT visible ──
+- assertNotVisible:
+          text: ".*Transfer Points.*"
+
+# ── Navigate to Profile (critical regression test) ──
+- tapOn:
+          text: ".*Profile.*Settings.*"
+
+# Verify we arrive at Profile screen (not My Posts)
+- extendedWaitUntil:
+          visible:
+                  text: ".*Profile.*"
+          timeout: 10000
+
+# Verify profile elements visible
+- assertVisible:
+          text: ".*Test Seller.*"
+- assertVisible:
+          text: ".*seller@test.local.*"
+
+# Go back to menu
+- tapOn: "Back"
+- extendedWaitUntil:
+          visible:
+                  text: ".*Menu.*"
+          timeout: 5000
+
+# Open menu again
+- tapOn:
+          text: ".*Menu.*"
+
+# ── Scroll to more items ──
 - scrollUntilVisible:
           element: "Invite Friends"
           direction: DOWN
@@ -45,7 +76,7 @@ appId: dev.casagrown.community
           timeout: 5000
 - assertVisible: "Sign Out"
 
-# Scroll back up to Buy Points and navigate to it
+# ── Navigate to Buy Points ──
 - scrollUntilVisible:
           element:
                   text: ".*Buy Points.*"
