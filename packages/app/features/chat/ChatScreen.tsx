@@ -1243,7 +1243,7 @@ export function ChatScreen({
   const isWeb = Platform.OS === 'web'
 
   return (
-    <YStack flex={1} backgroundColor={colors.gray[100]} alignItems="center">
+    <YStack flex={1} backgroundColor={colors.gray[100]} alignItems="center" overflow="hidden" height="100%">
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: colors.gray[50], width: '100%', maxWidth: isWeb ? 700 : undefined, alignSelf: 'center' } as Record<string, unknown>}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
