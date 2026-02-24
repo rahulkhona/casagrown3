@@ -204,7 +204,7 @@ else
 
     if [ -n "$IOS_UDID" ]; then
         echo "📱 [5/5] Maestro E2E tests (iOS: $IOS_UDID)..."
-        MAESTRO_DRIVER_STARTUP_TIMEOUT=120000 maestro test --udid "$IOS_UDID" .maestro/ 2>&1 || {
+        MAESTRO_DRIVER_STARTUP_TIMEOUT=120000 maestro test --udid "$IOS_UDID" e2e/maestro/flows/ 2>&1 || {
             echo "❌ Maestro E2E tests failed — push aborted."
             exit 1
         }
