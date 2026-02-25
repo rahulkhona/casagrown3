@@ -33,6 +33,8 @@ import { uploadPostMediaBatch } from '../create-post/media-upload'
 import { filterPosts, type PostTypeFilter } from './feed-filter'
 import { FeedNavigation } from './FeedNavigation'
 import { PointsMenu } from '../points/PointsMenu'
+import { useNotificationPrompt } from '../notifications/useNotificationPrompt'
+import { NotificationPromptModal } from '../notifications/NotificationPromptModal'
 
 // Types for invite rewards
 interface InviteRewards {
@@ -144,6 +146,9 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
 
   // User data — load real balance from point_ledger
   const { balance: userPoints, refetch: refetchBalance } = usePointsBalance(userId)
+
+  // Notification permission prompt
+  const { showPrompt: showNotifPrompt, modalProps: notifModalProps } = useNotificationPrompt(userId)
 
   const unreadNotificationsCount = 0
   const userInitial = userDisplayName ? userDisplayName.charAt(0).toUpperCase() : 'A'
@@ -327,14 +332,21 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
   postsRef.current = filteredPosts
 
   const handleOpenOrder = useCallback((postId: string) => {
+    showNotifPrompt() // Check & show notification prompt if needed
     const post = postsRef.current.find(p => p.id === postId)
     if (post) setOrderPost(post)
-  }, [])
+  }, [showNotifPrompt])
 
   const handleOpenOffer = useCallback((postId: string) => {
+    showNotifPrompt() // Check & show notification prompt if needed
     const post = postsRef.current.find(p => p.id === postId)
     if (post) setOfferPost(post)
-  }, [])
+  }, [showNotifPrompt])
+
+  const handleNavigateToChat = useCallback((postId: string, authorId: string) => {
+    showNotifPrompt() // Check & show notification prompt if needed
+    onNavigateToChat?.(postId, authorId)
+  }, [showNotifPrompt, onNavigateToChat])
 
   const handleOrderSubmit = useCallback(async (data: OrderFormData) => {
     if (!userId || !orderPost) return
@@ -420,13 +432,13 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
           onLikeToggle={handleLikeToggle}
           onOrder={handleOpenOrder}
           onOffer={handleOpenOffer}
-          onChat={onNavigateToChat}
+          onChat={handleNavigateToChat}
           onFlag={handleOpenFlag}
           t={t}
         />
       </YStack>
     </YStack>
-  ), [highlightPostId, userId, userDisplayName, handleLikeToggle, handleOpenOrder, handleOpenOffer, onNavigateToChat, handleOpenFlag, t, isDesktop])
+  ), [highlightPostId, userId, userDisplayName, handleLikeToggle, handleOpenOrder, handleOpenOffer, handleNavigateToChat, handleOpenFlag, t, isDesktop])
 
   const keyExtractor = useCallback((item: FeedPost) => item.id, [])
 
@@ -873,6 +885,9 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
         }}
         t={t}
       />
+
+      {/* Notification Permission Prompt */}
+      <NotificationPromptModal {...notifModalProps} />
     </YStack>
   )
 }

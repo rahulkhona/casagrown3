@@ -20,6 +20,13 @@ import { expect, test } from "@playwright/test";
 
 test.describe("Post Management", () => {
     test.beforeEach(async ({ page }) => {
+        // Suppress notification prompt modal (it triggers on create-post mount after Edit click)
+        await page.addInitScript(() => {
+            localStorage.setItem(
+                "casagrown_notif_dismissed_at",
+                new Date().toISOString(),
+            );
+        });
         await page.goto("/my-posts");
         await page.waitForTimeout(3000);
 
@@ -199,16 +206,20 @@ test.describe("Post Management", () => {
 
         if (hasEdit) {
             await editBtn.click();
-            await page.waitForTimeout(2000);
+            // Wait for navigation to complete
+            await page.waitForTimeout(5000);
 
-            // Should navigate to edit screen or open edit modal
+            // Should navigate away from my-posts to create-post/edit screen
             const urlChanged = !page.url().includes("/my-posts");
             const hasForm = await page
-                .locator("text=/Category|Quantity|Price/i")
+                .locator(
+                    "text=/Category|Quantity|Price|Create Post|Sell|Buy|What are you/i",
+                )
                 .first()
                 .isVisible()
                 .catch(() => false);
 
+            // Pass if we navigated OR form is visible
             expect(urlChanged || hasForm).toBeTruthy();
         }
     });

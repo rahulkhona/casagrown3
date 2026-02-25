@@ -1076,5 +1076,46 @@
       "confirmWithdrawMessage": "Your offer will be withdrawn. You can make a new offer.",
       "confirmWithdraw": "Withdraw"
     }
+  },
+  "notifications": {
+    "stayInTheLoop": "Stay in the Loop!",
+    "firstTimeBody": "Get notified when someone responds to your posts, sends you a message, or places an order.",
+    "enableButton": "Enable Notifications",
+    "notNow": "Not now",
+    "maybeLater": "Maybe Later",
+    "remindLater": "Remind me later",
+    "gotIt": "Got it!",
+    "noThanks": "No thanks, I don't need notifications",
+    "benefits": {
+      "orders": "New orders & offers on your posts",
+      "chats": "Chat messages from buyers & sellers",
+      "status": "Order status updates & reminders"
+    },
+    "denied": {
+      "title": "Notifications Blocked",
+      "body": "You previously declined notifications. Enable them in Settings to stay updated on orders, messages, and offers.",
+      "step1Title": "Open Settings",
+      "step1Desc": "Go to your browser/device settings",
+      "step2Title": "Find CasaGrown",
+      "step2Desc": "Look for CasaGrown in site/app settings",
+      "step3Title": "Enable Notifications",
+      "step3Desc": "Toggle Allow Notifications ON",
+      "openSettings": "Open Settings"
+    },
+    "pwa": {
+      "infoBox": "📱 <bold>One quick step first:</bold> Save CasaGrown to your Home Screen to unlock notifications. You're already here — it takes 30 seconds and works just like a native app!",
+      "safari": {
+        "step1": "Tap the Share button (⬆️ icon) at the bottom of Safari",
+        "step2": "Scroll down and tap \"Add to Home Screen\"",
+        "step3": "Tap \"Add\" in the top-right corner to confirm"
+      },
+      "chrome": {
+        "step1": "Tap the Share button (📤 icon) in Chrome's top-right menu",
+        "step2": "Tap \"Add to Home Screen\" in the share menu",
+        "step3": "Tap \"Add\" to confirm the installation"
+      },
+      "step4": "Open CasaGrown from your Home Screen",
+      "step5": "Tap \"Enable Notifications\" on the prompt, then tap \"Allow\" on the iOS popup"
+    }
   }
 }

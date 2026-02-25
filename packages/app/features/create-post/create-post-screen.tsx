@@ -6,7 +6,7 @@
  * 2. Type-specific form based on selection
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { YStack, XStack, Text, Button, ScrollView } from 'tamagui'
 import { Pressable } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -24,6 +24,9 @@ import {
 import { SellForm } from './sell-form'
 import { BuyForm } from './buy-form'
 import { GeneralForm } from './general-form'
+import { useNotificationPrompt } from '../notifications/useNotificationPrompt'
+import { NotificationPromptModal } from '../notifications/NotificationPromptModal'
+import { useAuth } from '../auth/auth-hook'
 
 export type PostTypeKey =
   | 'want_to_sell'
@@ -108,6 +111,13 @@ export function CreatePostScreen({ onBack, onSuccess, initialType, editId, clone
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
   const [selectedType, setSelectedType] = useState<PostTypeKey | null>(initialType ?? null)
+  const { user } = useAuth()
+  const { showPrompt: showNotifPrompt, modalProps: notifModalProps } = useNotificationPrompt(user?.id)
+
+  // Trigger notification prompt when entering create post screen
+  useEffect(() => {
+    showNotifPrompt()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleBack = () => {
     if (editId || cloneData) {
@@ -260,6 +270,9 @@ export function CreatePostScreen({ onBack, onSuccess, initialType, editId, clone
           })}
         </XStack>
       </ScrollView>
+
+      {/* Notification Permission Prompt */}
+      <NotificationPromptModal {...notifModalProps} />
     </YStack>
   )
 }

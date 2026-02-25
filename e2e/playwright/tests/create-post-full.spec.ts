@@ -13,6 +13,15 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("Create Post - Full Flow", () => {
+    test.beforeEach(async ({ page }) => {
+        // Suppress notification prompt by pre-setting dismiss timestamp in localStorage
+        await page.addInitScript(() => {
+            localStorage.setItem(
+                "casagrown_notif_dismissed_at",
+                new Date().toISOString(),
+            );
+        });
+    });
     test("shows all 6 post type cards", async ({ page }) => {
         await page.goto("/create-post");
         await page.waitForTimeout(3000);

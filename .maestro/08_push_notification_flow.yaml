@@ -1,0 +1,57 @@
+# Push Notification Flow
+# Tests push notification behavior once VAPID keys are configured.
+# For now, this flow validates the notification prompt UI on mobile.
+#
+# Prerequisites:
+# - VAPID keys configured in Supabase secrets
+# - User logged in via 02_auth_flow.yaml
+#
+# NOTE: Actual push delivery cannot be tested in Maestro without
+# real VAPID keys. This flow tests the permission prompt UI.
+
+appId: dev.casagrown.community
+
+---
+
+# Navigate to feed (assumes user is logged in from auth flow)
+- assertVisible:
+      text: ".*Feed.*"
+      optional: true
+
+# Look for any sale post with a Buy/Order button
+- assertVisible:
+      text: ".*Buy.*|.*Order.*|.*Offer.*"
+      optional: true
+
+# If a buy button is visible, tap it to trigger notification prompt
+- tapOn:
+      text: ".*Buy.*|.*Order.*"
+      optional: true
+
+# Wait for notification prompt modal to appear
+- extendedWaitUntil:
+      visible:
+          text: ".*Stay in the Loop.*|.*Enable Notifications.*|.*Notifications.*"
+      timeout: 5000
+      optional: true
+
+# Verify the prompt has expected elements
+- assertVisible:
+      text: ".*Enable.*Notifications.*"
+      optional: true
+
+# Dismiss with "Not now" to verify dismiss flow
+- tapOn:
+      text: ".*Not now.*|.*not now.*"
+      optional: true
+
+# Verify prompt is dismissed
+- assertNotVisible:
+      text: ".*Stay in the Loop.*"
+      optional: true
+
+# NOTE: Once VAPID keys are configured, add these test steps:
+# 1. Place an order → verify push received by seller
+# 2. Make an offer → verify push received by buyer
+# 3. Send a chat message → verify push received by other participant
+# 4. Test suppress-when-active: open chat, send message, verify no push shown

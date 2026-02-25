@@ -824,5 +824,46 @@
       "confirmWithdrawMessage": "Tu oferta será retirada. Puedes hacer una nueva oferta.",
       "confirmWithdraw": "Retirar"
     }
+  },
+  "notifications": {
+    "stayInTheLoop": "¡Mantente al Día!",
+    "firstTimeBody": "Recibe notificaciones cuando alguien responda a tus publicaciones, te envíe un mensaje o haga un pedido.",
+    "enableButton": "Activar Notificaciones",
+    "notNow": "Ahora no",
+    "maybeLater": "Quizás después",
+    "remindLater": "Recuérdame después",
+    "gotIt": "¡Entendido!",
+    "noThanks": "No gracias, no necesito notificaciones",
+    "benefits": {
+      "orders": "Nuevos pedidos y ofertas en tus publicaciones",
+      "chats": "Mensajes de chat de compradores y vendedores",
+      "status": "Actualizaciones de estado de pedidos y recordatorios"
+    },
+    "denied": {
+      "title": "Notificaciones Bloqueadas",
+      "body": "Anteriormente rechazaste las notificaciones. Actívalas en Configuración para mantenerte actualizado sobre pedidos, mensajes y ofertas.",
+      "step1Title": "Abrir Configuración",
+      "step1Desc": "Ve a la configuración de tu navegador/dispositivo",
+      "step2Title": "Buscar CasaGrown",
+      "step2Desc": "Busca CasaGrown en la configuración del sitio/app",
+      "step3Title": "Activar Notificaciones",
+      "step3Desc": "Activa Permitir Notificaciones",
+      "openSettings": "Abrir Configuración"
+    },
+    "pwa": {
+      "infoBox": "📱 <bold>Un paso rápido primero:</bold> Guarda CasaGrown en tu Pantalla de Inicio para desbloquear notificaciones. Ya estás aquí — toma 30 segundos y funciona como una app nativa.",
+      "safari": {
+        "step1": "Toca el botón Compartir (⬆️) en la parte inferior de Safari",
+        "step2": "Desplázate y toca \"Agregar a Pantalla de Inicio\"",
+        "step3": "Toca \"Agregar\" en la esquina superior derecha para confirmar"
+      },
+      "chrome": {
+        "step1": "Toca el botón Compartir (📤) en el menú superior derecho de Chrome",
+        "step2": "Toca \"Agregar a Pantalla de Inicio\" en el menú",
+        "step3": "Toca \"Agregar\" para confirmar la instalación"
+      },
+      "step4": "Abre CasaGrown desde tu Pantalla de Inicio",
+      "step5": "Toca \"Activar Notificaciones\" en el aviso, luego toca \"Permitir\" en la ventana de iOS"
+    }
   }
 }

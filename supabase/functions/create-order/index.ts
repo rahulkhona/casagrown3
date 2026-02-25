@@ -4,6 +4,10 @@ import {
     requireAuth,
     serveWithCors,
 } from "../_shared/serve-with-cors.ts";
+import {
+    getUserDisplayName,
+    sendPushNotification,
+} from "../_shared/push-notify.ts";
 
 /**
  * create-order — Supabase Edge Function
@@ -109,6 +113,17 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
         `✅ Order created: ${data.orderId}, buyer=${buyerId}, seller=${sellerId}, ` +
             `product=${product}, qty=${quantity}, total=${totalPrice}pts, newBalance=${data.newBalance}`,
     );
+
+    // Fire-and-forget push notification to seller
+    getUserDisplayName(supabase, buyerId).then((buyerName: string) => {
+        sendPushNotification(supabase, {
+            userIds: [sellerId],
+            title: "New Order! 🛒",
+            body: `${buyerName} ordered ${quantity} ${product}`,
+            url: "/orders",
+            tag: `order-${data.orderId}`,
+        });
+    });
 
     return jsonOk(
         {

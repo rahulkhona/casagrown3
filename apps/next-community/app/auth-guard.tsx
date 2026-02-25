@@ -61,7 +61,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   // Public route or authorized → render children
   if (isPublicRoute(pathname) || authorized) {
-    const showHeader = authorized && !['/login', '/login-success', '/logout', '/profile-wizard'].includes(pathname)
+    const showHeader = !!user && authorized && !['/login', '/login-success', '/logout', '/profile-wizard'].includes(pathname)
     let activeKey = 'feed'
     if (pathname.startsWith('/offers')) activeKey = 'offers'
     else if (pathname.startsWith('/orders')) activeKey = 'orders'

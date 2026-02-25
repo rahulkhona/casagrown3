@@ -284,5 +284,46 @@
     "feature3Title": "Điểm & Phần Thưởng",
     "feature3Desc": "Kiếm và đổi cho giao dịch",
     "createFirstPost": "Tạo Bài Đăng Đầu Tiên"
+  },
+  "notifications": {
+    "stayInTheLoop": "Luôn Cập Nhật!",
+    "firstTimeBody": "Nhận thông báo khi ai đó phản hồi bài đăng của bạn, gửi tin nhắn hoặc đặt hàng.",
+    "enableButton": "Bật Thông Báo",
+    "notNow": "Để sau",
+    "maybeLater": "Có thể sau",
+    "remindLater": "Nhắc tôi sau",
+    "gotIt": "Đã hiểu!",
+    "noThanks": "Không, cảm ơn. Tôi không cần thông báo",
+    "benefits": {
+      "orders": "Đơn hàng & ưu đãi mới trên bài đăng của bạn",
+      "chats": "Tin nhắn trò chuyện từ người mua & người bán",
+      "status": "Cập nhật trạng thái đơn hàng & nhắc nhở"
+    },
+    "denied": {
+      "title": "Thông Báo Bị Chặn",
+      "body": "Bạn đã từ chối thông báo trước đó. Bật chúng trong Cài đặt để cập nhật về đơn hàng, tin nhắn và ưu đãi.",
+      "step1Title": "Mở Cài Đặt",
+      "step1Desc": "Đi đến cài đặt trình duyệt/thiết bị",
+      "step2Title": "Tìm CasaGrown",
+      "step2Desc": "Tìm CasaGrown trong cài đặt trang/ứng dụng",
+      "step3Title": "Bật Thông Báo",
+      "step3Desc": "Bật Cho phép Thông Báo",
+      "openSettings": "Mở Cài Đặt"
+    },
+    "pwa": {
+      "infoBox": "📱 <bold>Một bước nhanh đầu tiên:</bold> Lưu CasaGrown vào Màn hình chính để mở khóa thông báo. Bạn đã ở đây — chỉ mất 30 giây và hoạt động giống như ứng dụng gốc!",
+      "safari": {
+        "step1": "Nhấn nút Chia sẻ (⬆️) ở cuối Safari",
+        "step2": "Cuộn xuống và nhấn \"Thêm vào Màn hình chính\"",
+        "step3": "Nhấn \"Thêm\" ở góc trên bên phải để xác nhận"
+      },
+      "chrome": {
+        "step1": "Nhấn nút Chia sẻ (📤) trong menu góc trên bên phải của Chrome",
+        "step2": "Nhấn \"Thêm vào Màn hình chính\" trong menu chia sẻ",
+        "step3": "Nhấn \"Thêm\" để xác nhận cài đặt"
+      },
+      "step4": "Mở CasaGrown từ Màn hình chính của bạn",
+      "step5": "Nhấn \"Bật Thông Báo\" trên lời nhắc, sau đó nhấn \"Cho phép\" trên cửa sổ iOS"
+    }
   }
 }

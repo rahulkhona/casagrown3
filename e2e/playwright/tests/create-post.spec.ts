@@ -7,6 +7,15 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("Create Post", () => {
+    test.beforeEach(async ({ page }) => {
+        // Suppress notification prompt by pre-setting dismiss timestamp in localStorage
+        await page.addInitScript(() => {
+            localStorage.setItem(
+                "casagrown_notif_dismissed_at",
+                new Date().toISOString(),
+            );
+        });
+    });
     test("can navigate to create post form", async ({ page }) => {
         await page.goto("/feed");
         await page.waitForTimeout(3000);

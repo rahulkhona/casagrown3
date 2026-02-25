@@ -1,0 +1,23 @@
+{
+  "name": "CasaGrown",
+  "short_name": "CasaGrown",
+  "description": "Fresh from Neighbors' Backyard — Buy and sell locally-grown produce",
+  "start_url": "/feed",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#16a34a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ]
+}

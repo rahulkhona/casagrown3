@@ -16,6 +16,11 @@ appId: dev.casagrown.community
 # Tap create post button
 - tapOn: "Create Post"
 
+# Optional: Dismiss the push notification prompt if it appears
+- tapOn:
+          text: "Not now"
+          optional: true
+
 # Should show post type selection
 - extendedWaitUntil:
           visible: "What would you like to share with your community?"
@@ -73,13 +78,7 @@ appId: dev.casagrown.community
 # Scroll to see date fields (below the fold on mobile)
 - scrollUntilVisible:
           element:
-                  text: ".*Latest Drop-off Date.*"
-          direction: DOWN
-          timeout: 10000
-
-- scrollUntilVisible:
-          element:
-                  text: ".*Accept Drop-off Dates.*"
+                  text: ".*Drop-[Oo]ff Date.*"
           direction: DOWN
           timeout: 10000
 

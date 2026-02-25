@@ -29,6 +29,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             window.__DEV__ = true;
           }
         ` }} />
+        {/* PWA manifest for iOS Home Screen app + push notifications */}
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="CasaGrown" />
+        {/* Service Worker registration for Web Push */}
+        <script dangerouslySetInnerHTML={{ __html: `
+          if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+              navigator.serviceWorker.register('/sw.js').catch(function(err) {
+                console.log('[SW] Registration failed:', err);
+              });
+            });
+          }
+        ` }} />
       </head>
       <body suppressHydrationWarning>
         <NextTamaguiProvider>

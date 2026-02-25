@@ -279,6 +279,8 @@ client initialization, and error wrapping. Functions requiring auth use
 | `resolve-pending-payments` | Yes  | Recovers stuck payments on app open                 |
 | `create-order`             | Yes  | Atomic order: conversation + offer + order + ledger |
 | `create-offer`             | Yes  | Atomic offer creation on buy posts (wraps RPC)      |
+| `register-push-token`      | Yes  | Upsert push notification tokens/subscriptions       |
+| `send-push-notification`   | Yes  | Send push to users via Web Push, APNs, or FCM       |
 | `donate-points`            | Yes  | Donate points to GlobalGiving charitable projects   |
 | `fetch-donation-projects`  | No   | Fetch/search GlobalGiving project catalog           |
 | `fetch-gift-cards`         | No   | Merged Reloadly + Tremendous gift card catalog      |
@@ -325,8 +327,118 @@ supabase secrets set GLOBALGIVING_SANDBOX=true      # Set to "false" for product
 > [!NOTE]
 > All edge function secrets are injected at runtime via `Deno.env.get()`. The
 > shared `serveWithCors` wrapper provides an `env()` helper that reads from
-> `Deno.env`. For local development, set these in `supabase/.env` or pass them
-> via `supabase functions serve --env-file supabase/.env`.
+> `Deno.env`. For local development, set these in `supabase/.env.local` or pass
+> them via `supabase functions serve --env-file supabase/.env.local`.
+
+---
+
+## 5.7 Push Notification Architecture
+
+Push notifications use a **credential-gated feature flag** pattern — all code is
+in place, but each platform only activates when its credentials are provided.
+
+### How It Works
+
+```mermaid
+flowchart LR
+    A[User taps Buy/Offer/Chat/Post] --> B{shouldShowPrompt?}
+    B -->|Session guard / cooldown / opt-out| C[Skip]
+    B -->|Yes| D[Show Modal Variant]
+    D -->|Desktop/PWA| E[Browser Notification.requestPermission]
+    D -->|iOS Safari/Chrome| F[PWA Install Guide]
+    D -->|Permission denied| G[Settings Guide]
+    E -->|Granted| H[Subscribe → register-push-token]
+```
+
+### Key Files
+
+| File                                                        | Purpose                                                                      |
+| :---------------------------------------------------------- | :--------------------------------------------------------------------------- |
+| `features/notifications/notification-storage.ts`            | Prompt state persistence (session guard, 7-day cooldown, permanent opt-out)  |
+| `features/notifications/notification-service.ts`            | Platform detection, permission APIs, token registration                      |
+| `features/notifications/NotificationPromptModal.tsx`        | 4-variant Tamagui modal (first-time, denied, iOS Safari PWA, iOS Chrome PWA) |
+| `features/notifications/useNotificationPrompt.ts`           | Hook: `showPrompt()` + `modalProps`                                          |
+| `apps/next-community/public/manifest.json`                  | PWA manifest for iOS Home Screen install                                     |
+| `apps/next-community/public/sw.js`                          | Service worker for push event handling                                       |
+| `supabase/migrations/20260225000000_push_subscriptions.sql` | Push token storage table                                                     |
+| `supabase/functions/register-push-token/index.ts`           | Token upsert edge function                                                   |
+| `supabase/functions/send-push-notification/index.ts`        | Send notifications (Web Push + APNs + FCM)                                   |
+
+### Feature Flags (Credential-Gated)
+
+Each platform activates automatically when its credentials are set. **No code
+changes required** — just provide the keys.
+
+| Platform          | Feature Flag (Credential)                                       | Status                 |
+| :---------------- | :-------------------------------------------------------------- | :--------------------- |
+| **Web Push**      | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` in `.env.local`                  | ✅ Active              |
+| **iOS (APNs)**    | `APNS_KEY_ID` + `APNS_TEAM_ID` + `APNS_KEY` in Supabase secrets | ⏭️ Waiting for keys    |
+| **Android (FCM)** | `FCM_SERVER_KEY` in Supabase secrets                            | ⏭️ Waiting for keys    |
+| **Native client** | `expo-notifications` package installed                          | ⏭️ Waiting for install |
+
+### Enabling Web Push (Already Done)
+
+VAPID keys have been generated and saved:
+
+- `apps/next-community/.env.local` → `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
+- `supabase/.env.local` → `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
+  `VAPID_SUBJECT`
+
+### Enabling iOS Push
+
+1. **Get APNs key** from
+   [Apple Developer Portal → Keys](https://developer.apple.com/account/resources/authkeys/list)
+   - Click **+** → name it "CasaGrown Push Key"
+   - Enable **Apple Push Notifications service (APNs)**
+   - Download the `.p8` file (Apple only lets you download once!)
+   - Note the **Key ID** and your **Team ID** (top-right of portal)
+2. **Set credentials** (local dev):
+   ```bash
+   # Add to supabase/.env.local
+   APNS_KEY_ID=<your-key-id>
+   APNS_TEAM_ID=<your-team-id>
+   APNS_KEY=<paste-contents-of-.p8-file>
+   ```
+3. **Install expo-notifications**:
+   ```bash
+   cd apps/expo-community
+   npx expo install expo-notifications
+   npx expo prebuild --clean
+   npx expo run:ios
+   ```
+4. The code in `notification-service.ts` → `enableIOSPush()` and
+   `send-push-notification` → `sendAPNs()` will activate automatically.
+
+### Enabling Android Push
+
+1. **Create Firebase project** at
+   [console.firebase.google.com](https://console.firebase.google.com/)
+   - Project Settings → **Add Android app** → package: `dev.casagrown.community`
+   - Download `google-services.json` → place in `apps/expo-community/`
+   - Project Settings → **Cloud Messaging** → copy **Server Key**
+2. **Set credentials** (local dev):
+   ```bash
+   # Add to supabase/.env.local
+   FCM_SERVER_KEY=<your-server-key>
+   ```
+3. **Install expo-notifications** (same as iOS if not done):
+   ```bash
+   cd apps/expo-community
+   npx expo install expo-notifications
+   npx expo prebuild --clean
+   npx expo run:android
+   ```
+4. The code in `notification-service.ts` → `enableAndroidPush()` and
+   `send-push-notification` → `sendFCM()` will activate automatically.
+
+### Prompt Dismissal Behavior
+
+| User Action                                  | Behavior                                            |
+| :------------------------------------------- | :-------------------------------------------------- |
+| Taps "Enable Notifications"                  | Requests browser/native permission, registers token |
+| Taps "Not now"                               | Dismisses for this session + 7-day cooldown         |
+| Taps "No thanks, I don't need notifications" | Permanent opt-out (never shows again)               |
+| Closes modal                                 | Same as "Not now"                                   |
 
 ---
 
@@ -383,6 +495,9 @@ yarn test
 | Edge: assign-experiment     | `supabase/functions/assign-experiment/test.ts`          |      3 |
 | Edge: enrich-communities    | `supabase/functions/enrich-communities/test.ts`         |      3 |
 | Edge: sync-locations        | `supabase/functions/sync-locations/test.ts`             |      2 |
+| Notification storage        | `notification-storage.test.ts`                          |     13 |
+| Notification service        | `notification-service.test.ts`                          |     19 |
+| Notification hook           | `useNotificationPrompt.test.ts`                         |      9 |
 
 ### Git Hooks (Husky)
 
@@ -444,6 +559,7 @@ npx supabase functions deploy  # Deploy edge functions
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY`      | Web      | Yes         | Supabase anonymous JWT       |
 | `NEXT_PUBLIC_PAYMENT_MODE`           | Web      | No          | `mock` (default) or `stripe` |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Web      | Stripe only | Stripe publishable key       |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY`       | Web      | Push only   | Web Push VAPID public key    |
 | `EXPO_PUBLIC_SUPABASE_URL`           | Native   | Yes         | Supabase API endpoint        |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY`      | Native   | Yes         | Supabase anonymous JWT       |
 | `EXPO_PUBLIC_PAYMENT_MODE`           | Native   | No          | `mock` (default) or `stripe` |
@@ -451,19 +567,26 @@ npx supabase functions deploy  # Deploy edge functions
 
 #### Server-Side (Supabase Secrets — `supabase secrets set`)
 
-| Secret                      | Required    | Purpose                              |
-| :-------------------------- | :---------- | :----------------------------------- |
-| `SUPABASE_URL`              | Auto        | Injected automatically by Supabase   |
-| `SUPABASE_ANON_KEY`         | Auto        | Injected automatically by Supabase   |
-| `SUPABASE_SERVICE_ROLE_KEY` | Auto        | Injected automatically by Supabase   |
-| `STRIPE_SECRET_KEY`         | Stripe mode | Stripe API secret key                |
-| `STRIPE_WEBHOOK_SECRET`     | Stripe mode | Stripe webhook signing secret        |
-| `TREMENDOUS_API_KEY`        | Redemptions | Gift card provider (preferred: free) |
-| `RELOADLY_CLIENT_ID`        | Redemptions | Gift card provider (fallback)        |
-| `RELOADLY_CLIENT_SECRET`    | Redemptions | Gift card provider (fallback)        |
-| `RELOADLY_SANDBOX`          | Redemptions | `true` for sandbox, `false` for prod |
-| `GLOBALGIVING_API_KEY`      | Donations   | Charitable donation API              |
-| `GLOBALGIVING_SANDBOX`      | Donations   | `true` for sandbox, `false` for prod |
+| Secret                      | Required     | Purpose                              |
+| :-------------------------- | :----------- | :----------------------------------- |
+| `SUPABASE_URL`              | Auto         | Injected automatically by Supabase   |
+| `SUPABASE_ANON_KEY`         | Auto         | Injected automatically by Supabase   |
+| `SUPABASE_SERVICE_ROLE_KEY` | Auto         | Injected automatically by Supabase   |
+| `STRIPE_SECRET_KEY`         | Stripe mode  | Stripe API secret key                |
+| `STRIPE_WEBHOOK_SECRET`     | Stripe mode  | Stripe webhook signing secret        |
+| `TREMENDOUS_API_KEY`        | Redemptions  | Gift card provider (preferred: free) |
+| `RELOADLY_CLIENT_ID`        | Redemptions  | Gift card provider (fallback)        |
+| `RELOADLY_CLIENT_SECRET`    | Redemptions  | Gift card provider (fallback)        |
+| `RELOADLY_SANDBOX`          | Redemptions  | `true` for sandbox, `false` for prod |
+| `GLOBALGIVING_API_KEY`      | Donations    | Charitable donation API              |
+| `GLOBALGIVING_SANDBOX`      | Donations    | `true` for sandbox, `false` for prod |
+| `VAPID_PUBLIC_KEY`          | Push notifs  | Web Push VAPID public key            |
+| `VAPID_PRIVATE_KEY`         | Push notifs  | Web Push VAPID private key           |
+| `VAPID_SUBJECT`             | Push notifs  | VAPID contact (mailto: URL)          |
+| `APNS_KEY_ID`               | Push (iOS)   | APNs key ID from Apple portal        |
+| `APNS_TEAM_ID`              | Push (iOS)   | Apple Developer Team ID              |
+| `APNS_KEY`                  | Push (iOS)   | Contents of .p8 file from Apple      |
+| `FCM_SERVER_KEY`            | Push (Droid) | Firebase Cloud Messaging server key  |
 
 ---
 

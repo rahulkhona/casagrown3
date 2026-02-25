@@ -657,6 +657,28 @@ export function ChatScreen({
     }
   }, [postId, otherUserId, currentUserId])
 
+  // ── Tell service worker which conversation is active (suppress push for this chat) ──
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !conversation?.id) return
+
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type: 'SET_ACTIVE_CHAT',
+        conversationId: conversation.id,
+      })
+    }
+
+    return () => {
+      // Clear active chat when leaving
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'SET_ACTIVE_CHAT',
+          conversationId: null,
+        })
+      }
+    }
+  }, [conversation?.id])
+
   // ── Scroll to bottom when typing indicator appears (only if already at bottom) ──
   useEffect(() => {
     if (otherPresence.typing && isAtBottomRef.current) {

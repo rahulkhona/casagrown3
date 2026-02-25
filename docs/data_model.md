@@ -2856,3 +2856,88 @@ operations) and makes `item_id` nullable for API-based redemptions.
 - Users can UPDATE own redemptions
 
 **Schema change**: `ALTER TABLE redemptions ALTER COLUMN item_id DROP NOT NULL`
+
+---
+
+## Push Notifications
+
+### `push_subscriptions`
+
+Stores push tokens for Web Push, APNs, and FCM to enable push notifications across all platforms.
+Used to deliver notifications when orders, offers, or chat messages are created.
+
+**Migration**: `20260225000000_push_subscriptions.sql`
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `id` | `uuid` | Primary Key. |
+| `user_id` | `uuid` | FK to `auth.users(id)` on delete cascade. |
+| `token` | `text` | The push subscription token or device identifier. |
+| `platform` | `text` | Enum-like: 'web', 'ios', 'android'. |
+| `endpoint` | `text` | Web Push endpoint URL (null for native platforms). |
+| `created_at` | `timestamptz` | Default `now()`. |
+| `updated_at` | `timestamptz` | Default `now()`. |
+
+**Unique Constraints**: `(user_id, token)`
+**Indexes**: `idx_push_subscriptions_user_id`
+
+```sql
+CREATE TABLE IF NOT EXISTS public.push_subscriptions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  token text NOT NULL,
+  platform text NOT NULL CHECK (platform IN ('web', 'ios', 'android')),
+  endpoint text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(user_id, token)
+);
+
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id
+  ON public.push_subscriptions(user_id);
+```
+
+**RLS Policies**:
+
+| Policy | Operation | Role | Rule |
+| :--- | :--- | :--- | :--- |
+| Users can read their own subscriptions | `SELECT` | `authenticated` | `using (auth.uid() = user_id)` |
+| Users can insert their own subscriptions | `INSERT` | `authenticated` | `with check (auth.uid() = user_id)` |
+| Users can update their own subscriptions | `UPDATE` | `authenticated` | `using (auth.uid() = user_id)` |
+| Users can delete their own subscriptions | `DELETE` | `authenticated` | `using (auth.uid() = user_id)` |
+| Service role can bypass for edge functions | `ALL` | `service_role` | `using (auth.role() = 'service_role')` |
+
+### `notify_on_message` Trigger
+
+A PostgreSQL trigger attached to the `chat_messages` table that automatically sends an HTTP POST request via `pg_net` to the `notify-on-message` Supabase Edge Function whenever a new message is inserted.
+
+**Migration**: `20260225000001_notify_on_message_trigger.sql`
+
+```sql
+CREATE OR REPLACE FUNCTION notify_new_message()
+RETURNS trigger AS $$
+BEGIN
+    -- Fire-and-forget HTTP call to the notify-on-message edge function
+    PERFORM net.http_post(
+        url := 'http://api.localhost:54321/functions/v1/notify-on-message',
+        headers := jsonb_build_object(
+            'Content-Type', 'application/json',
+            'Authorization', 'Bearer <service_role_key>'
+        ),
+        body := jsonb_build_object(
+            'messageId', NEW.id,
+            'conversationId', NEW.conversation_id,
+            'senderId', NEW.sender_id,
+            'messageType', NEW.type::text
+        )
+    );
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_notify_new_message
+    AFTER INSERT ON chat_messages
+    FOR EACH ROW
+    EXECUTE FUNCTION notify_new_message();
+```

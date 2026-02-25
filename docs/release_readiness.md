@@ -105,6 +105,24 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-production-anon-key
 
 ---
 
+## 🟡 Push Notifications — Credential-Gated
+
+All push notification code is implemented and activated by providing
+credentials. See
+[push-notification-release-readiness.md](push-notification-release-readiness.md)
+and [developer_guide.md § 5.7](developer_guide.md) for full setup instructions.
+
+| Item                          | Status     | How to Enable                                                                  |
+| ----------------------------- | ---------- | ------------------------------------------------------------------------------ |
+| **Web Push (VAPID)**          | ✅ Active  | Keys in `.env.local` + `supabase/.env.local`                                   |
+| **iOS Push (APNs)**           | ⏭️ Pending | Set `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_KEY` + install expo-notifications     |
+| **Android Push (FCM)**        | ⏭️ Pending | Set `FCM_SERVER_KEY` + add `google-services.json` + install expo-notifications |
+| **push_subscriptions table**  | ✅ Created | Migration applied locally                                                      |
+| **register-push-token fn**    | ✅ Done    | Edge function deployed                                                         |
+| **send-push-notification fn** | ✅ Done    | Web Push active, APNs/FCM gated on keys                                        |
+
+---
+
 ## 🔴 Integration Providers — Pending
 
 > [!IMPORTANT]
@@ -120,4 +138,4 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-production-anon-key
 
 ---
 
-_Last Updated: 2026-02-23_
+_Last Updated: 2026-02-24_
