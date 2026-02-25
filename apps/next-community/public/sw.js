@@ -46,20 +46,26 @@ self.addEventListener('push', (event) => {
           }
         }
 
-        // If user has a focused CasaGrown tab, still show the notification
-        // but make it less intrusive (no vibration, auto-dismiss quickly)
+        // If user has a focused CasaGrown tab, postMessage to trigger an in-app toast
+        if (hasFocusedClient) {
+          windowClients.forEach(client => {
+            if (client.url.includes(self.location.origin) && client.visibilityState === 'visible' && client.focused) {
+              client.postMessage({
+                type: 'PUSH_NOTIFICATION',
+                data: { title, body: data.body, url: data.url }
+              })
+            }
+          })
+          return // Skip OS notification since we sent it in-app
+        }
+
+        // Keep OS notification for background/inactive states
         const options = {
           body: data.body || 'You have a new update',
           icon: '/logo.png',
           badge: '/favicon.ico',
           tag,
-          data: {
-            url: data.url || '/feed',
-          },
-          // Only vibrate if user is NOT on the app
-          vibrate: hasFocusedClient ? [] : [200, 100, 200],
-          // Auto-dismiss if user is on the app
-          requireInteraction: false,
+          data: { url: data.url || '/feed' },
         }
 
         return self.registration.showNotification(title, options)

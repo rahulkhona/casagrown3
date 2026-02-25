@@ -9,6 +9,9 @@ import { config } from '@casagrown/config'
 import { SupabaseProvider } from './supabase'
 import { I18nextProvider } from 'react-i18next'
 import i18n from '../i18n'
+import { ToastProvider, ToastViewport } from '@casagrown/ui'
+import { CustomToast } from '@casagrown/ui'
+import { WebPushListener } from '../features/notifications/WebPushListener'
 
 // Only import Stripe on native — the package contains RN-only code that breaks Next.js
 let StripeProvider: any = null
@@ -32,9 +35,14 @@ export function Provider({
     ''
 
   const wrappedChildren = (
-    <SupabaseProvider>
-      {children}
-    </SupabaseProvider>
+    <ToastProvider swipeDirection="horizontal" duration={4000} burstLimit={2}>
+      <SupabaseProvider>
+        {children}
+        <CustomToast />
+        <ToastViewport left={0} right={0} top={10} />
+        {Platform.OS === 'web' && <WebPushListener />}
+      </SupabaseProvider>
+    </ToastProvider>
   )
 
   return (
