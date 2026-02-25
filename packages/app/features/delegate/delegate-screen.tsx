@@ -21,6 +21,9 @@ import { useTranslation } from 'react-i18next'
 import { colors, borderRadius, tc } from '../../design-tokens'
 import { useDelegations, type DelegationRecord } from './useDelegations'
 import AddDelegateSheet from './AddDelegateSheet'
+import { useNotificationPrompt } from '../notifications/useNotificationPrompt'
+import { NotificationPromptModal } from '../notifications/NotificationPromptModal'
+import { useAuth } from '../auth/auth-hook'
 
 // ─── Status Badge ──────────────────────────────────────────────
 function StatusBadge({ status, hasActivePosts, t }: { status: string; hasActivePosts?: boolean; t: (k: string) => string }) {
@@ -141,7 +144,11 @@ export default function DelegateScreen() {
   const { t } = useTranslation()
   const router = useRouter()
   const isWeb = Platform.OS === 'web'
+  const { user } = useAuth()
   const [showAddDelegate, setShowAddDelegate] = useState(false)
+
+  // Request notifications when delegating so they get notified on accept/deny
+  const { showPrompt: showNotifPrompt, modalProps: notifModalProps } = useNotificationPrompt(user?.id)
 
   const {
     myDelegates,
@@ -236,7 +243,10 @@ export default function DelegateScreen() {
               paddingVertical="$3"
               gap="$2"
               hoverStyle={{ backgroundColor: colors.green[700] }}
-              onPress={() => setShowAddDelegate(true)}
+              onPress={() => {
+                setShowAddDelegate(true)
+                showNotifPrompt()
+              }}
             >
               <UserPlus size={18} color="white" />
               <Text fontWeight="600" color="white" fontSize={15}>
@@ -308,12 +318,13 @@ export default function DelegateScreen() {
         </ScrollView>
       )}
 
-      {/* Sheets */}
+      {/* Sheets & Modals */}
       <AddDelegateSheet
         visible={showAddDelegate}
         onClose={() => setShowAddDelegate(false)}
         onGenerateLink={generateDelegationLink}
       />
+      <NotificationPromptModal {...notifModalProps} />
     </YStack>
   )
 }

@@ -12,6 +12,7 @@ import i18n from '../i18n'
 import { ToastProvider, ToastViewport } from '@casagrown/ui'
 import { CustomToast } from '@casagrown/ui'
 import { WebPushListener } from '../features/notifications/WebPushListener'
+import { RealtimeNotificationListener } from '../features/notifications/RealtimeNotificationListener'
 
 // Only import Stripe on native — the package contains RN-only code that breaks Next.js
 let StripeProvider: any = null
@@ -41,6 +42,7 @@ export function Provider({
         <CustomToast />
         <ToastViewport left={0} right={0} top={10} />
         {Platform.OS === 'web' && <WebPushListener />}
+        <RealtimeNotificationListener />
       </SupabaseProvider>
     </ToastProvider>
   )

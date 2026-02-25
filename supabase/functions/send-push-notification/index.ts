@@ -3,6 +3,7 @@ import {
     requireAuth,
     serveWithCors,
 } from "../_shared/serve-with-cors.ts";
+import webpush from "npm:web-push@^3.6.7";
 
 /**
  * send-push-notification — Supabase Edge Function
@@ -64,6 +65,9 @@ serveWithCors(async (req, { supabase, corsHeaders, env }) => {
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
     const isServiceRole = token === env("SUPABASE_SERVICE_ROLE_KEY");
 
+    // Feature Flags
+    const enableMobilePush = env("ENABLE_MOBILE_PUSH") !== "false";
+
     if (!isServiceRole) {
         const auth = await requireAuth(req, supabase, corsHeaders);
         if (auth instanceof Response) return auth;
@@ -106,6 +110,13 @@ serveWithCors(async (req, { supabase, corsHeaders, env }) => {
                 await sendWebPush(sub, { title, body, url, tag });
                 sent++;
             } else if (sub.platform === "ios") {
+                if (!enableMobilePush) {
+                    console.log(
+                        `⏭️ iOS push skipped — ENABLE_MOBILE_PUSH is false (subscription ${sub.id})`,
+                    );
+                    skipped++;
+                    continue;
+                }
                 if (!APNS_KEY || !APNS_KEY_ID || !APNS_TEAM_ID) {
                     console.warn(
                         `⏭️ iOS push skipped — APNs credentials not configured (subscription ${sub.id})`,
@@ -116,6 +127,13 @@ serveWithCors(async (req, { supabase, corsHeaders, env }) => {
                 await sendAPNs(sub, { title, body, url, tag });
                 sent++;
             } else if (sub.platform === "android") {
+                if (!enableMobilePush) {
+                    console.log(
+                        `⏭️ Android push skipped — ENABLE_MOBILE_PUSH is false (subscription ${sub.id})`,
+                    );
+                    skipped++;
+                    continue;
+                }
                 if (!FCM_SERVER_KEY) {
                     console.warn(
                         `⏭️ Android push skipped — FCM credentials not configured (subscription ${sub.id})`,
@@ -162,7 +180,7 @@ class PushError extends Error {
 type PushPayload = { title: string; body: string; url?: string; tag?: string };
 
 // =============================================================================
-// Web Push
+// Web Push — Requires VAPID keys correctly set in env
 // =============================================================================
 
 async function sendWebPush(
@@ -178,39 +196,39 @@ async function sendWebPush(
         throw new Error("Invalid web push subscription data");
     }
 
-    const payloadStr = JSON.stringify(payload);
-    const vapidHeaders = await createVapidHeaders(endpoint);
+    // Configure VAPID details globally on the webpush instance
+    webpush.setVapidDetails(
+        VAPID_SUBJECT,
+        VAPID_PUBLIC_KEY,
+        VAPID_PRIVATE_KEY,
+    );
 
-    const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-            ...vapidHeaders,
-            "Content-Type": "application/json",
-            "Content-Length": String(
-                new TextEncoder().encode(payloadStr).length,
-            ),
-            "TTL": "86400",
+    const pushSubscription = {
+        endpoint: endpoint,
+        keys: {
+            p256dh: p256dh,
+            auth: authKey,
         },
-        body: payloadStr,
-    });
+    };
 
-    if (!response.ok) {
+    const payloadStr = JSON.stringify(payload);
+
+    try {
+        await webpush.sendNotification(pushSubscription, payloadStr);
+    } catch (err: unknown) {
+        // web-push throws an error if status !== 201
+        const wpErr = err as {
+            statusCode?: number;
+            body?: string;
+            message?: string;
+        };
         throw new PushError(
-            `Web push failed: ${response.status} ${response.statusText}`,
-            response.status,
+            `Web push failed: ${wpErr.statusCode || 500} ${
+                wpErr.body || wpErr.message
+            }`,
+            wpErr.statusCode || 500,
         );
     }
-}
-
-async function createVapidHeaders(
-    endpoint: string,
-): Promise<Record<string, string>> {
-    // Simplified VAPID headers — for full RFC 8292 compliance,
-    // use a web-push library with proper JWT + ECDSA signing
-    const _audience = new URL(endpoint).origin;
-    return {
-        "Authorization": `vapid t=${VAPID_PUBLIC_KEY}, k=${VAPID_PUBLIC_KEY}`,
-    };
 }
 
 // =============================================================================
