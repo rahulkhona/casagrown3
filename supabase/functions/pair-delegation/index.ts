@@ -15,6 +15,7 @@ import {
     requireAuth,
     serveWithCors,
 } from "../_shared/serve-with-cors.ts";
+import { sendPushNotification } from "../_shared/push-notify.ts";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -355,6 +356,15 @@ serveWithCors(async (req, { supabase: supabaseAdmin, corsHeaders }) => {
             );
         }
 
+        // Notify delegator
+        await sendPushNotification(supabaseAdmin, {
+            userIds: [delegation.delegator_id],
+            title: "Delegation Accepted",
+            body:
+                "Your designated delegate has accepted the delegation request.",
+            url: "/delegate",
+        }).catch((err) => console.error("Push failed:", err));
+
         return jsonOk({ delegation: updated }, corsHeaders);
     }
 
@@ -412,6 +422,15 @@ serveWithCors(async (req, { supabase: supabaseAdmin, corsHeaders }) => {
                 500,
             );
         }
+
+        // Notify delegator
+        await sendPushNotification(supabaseAdmin, {
+            userIds: [delegation.delegator_id],
+            title: "Delegation Accepted",
+            body:
+                "Your designated delegate has accepted the delegation request.",
+            url: "/delegate",
+        }).catch((err) => console.error("Push failed:", err));
 
         return jsonOk({ delegation: updated }, corsHeaders);
     }

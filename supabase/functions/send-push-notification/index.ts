@@ -59,9 +59,15 @@ const FCM_SERVER_KEY = Deno.env.get("FCM_SERVER_KEY") ?? "";
 // Handler
 // =============================================================================
 
-serveWithCors(async (req, { supabase, corsHeaders }) => {
-    const auth = await requireAuth(req, supabase, corsHeaders);
-    if (auth instanceof Response) return auth;
+serveWithCors(async (req, { supabase, corsHeaders, env }) => {
+    // Treat service_role key as authorized (needed for DB triggers via pg_net)
+    const token = req.headers.get("authorization")?.replace("Bearer ", "");
+    const isServiceRole = token === env("SUPABASE_SERVICE_ROLE_KEY");
+
+    if (!isServiceRole) {
+        const auth = await requireAuth(req, supabase, corsHeaders);
+        if (auth instanceof Response) return auth;
+    }
 
     const { userIds, title, body, url, tag } = await req.json();
 

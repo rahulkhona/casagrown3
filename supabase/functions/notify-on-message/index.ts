@@ -33,7 +33,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     // 1. Fetch the message content
     const { data: message, error: msgError } = await supabase
         .from("chat_messages")
-        .select("type, content, media_id")
+        .select("type, content, media_id, metadata")
         .eq("id", messageId)
         .single();
 
@@ -48,7 +48,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     // 2. Look up the conversation to find buyer & seller
     const { data: conversation, error: convError } = await supabase
         .from("conversations")
-        .select("buyer_id, seller_id")
+        .select("buyer_id, seller_id, post_id")
         .eq("id", conversationId)
         .single();
 
@@ -64,9 +64,13 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
 
     // 3. Determine recipients (exclude the sender if present)
     const allParticipants = [conversation.buyer_id, conversation.seller_id];
-    const recipientIds = senderId
+    let recipientIds = senderId
         ? allParticipants.filter((id: string) => id !== senderId)
         : allParticipants; // System messages → notify both
+
+    if (message.metadata?.visible_to) {
+        recipientIds = [message.metadata.visible_to];
+    }
 
     if (recipientIds.length === 0) {
         console.warn(
@@ -87,7 +91,12 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     if (isSystemMessage) {
         // System message — order/offer state change
         title = "CasaGrown";
-        const content = message.content || "";
+        let content = message.content || "";
+        content = content.replace(
+            /escrowed points released/g,
+            "points debited",
+        );
+
         body = content.length > 120
             ? content.substring(0, 117) + "..."
             : content || "Order update";
@@ -108,13 +117,20 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     }
 
     // 5. Send push — tag collapses per conversation
-    await sendPushNotification(supabase, {
-        userIds: recipientIds,
-        title,
-        body,
-        url: `/chats/${conversationId}`,
-        tag: `chat-${conversationId}`,
-    });
+    // Send separate push payloads so each recipient gets the correct otherUserId route
+    for (const recipientId of recipientIds) {
+        const otherUserId = conversation.buyer_id === recipientId
+            ? conversation.seller_id
+            : conversation.buyer_id;
+
+        await sendPushNotification(supabase, {
+            userIds: [recipientId],
+            title,
+            body,
+            url: `/chat?postId=${conversation.post_id}&otherUserId=${otherUserId}`,
+            tag: `chat-${conversationId}`,
+        });
+    }
 
     console.log(
         `📬 Chat notification: ${title} → ${recipientIds.length} recipient(s) in ${conversationId}`,
