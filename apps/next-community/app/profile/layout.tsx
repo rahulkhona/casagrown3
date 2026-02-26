@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Provider } from '@casagrown/app/provider'
 import { useAuth } from '@casagrown/app/features/auth/auth-hook'
-import { AppPresenceProvider } from '@casagrown/app/hooks/useAppPresence'
 import { colors } from '@casagrown/app/design-tokens'
 
 export default function ProfileLayout({
@@ -25,7 +24,7 @@ export default function ProfileLayout({
 function ProfilePresenceWrapper({ children, pathname }: { children: React.ReactNode; pathname: string | null }) {
   const { user } = useAuth()
   return (
-    <AppPresenceProvider userId={user?.id}>
+    <>
       <div style={{ 
         display: 'flex', 
         flexDirection: 'column', 
@@ -111,6 +110,6 @@ function ProfilePresenceWrapper({ children, pathname }: { children: React.ReactN
           </Link>
         </nav>
       </div>
-    </AppPresenceProvider>
+    </>
   )
 }

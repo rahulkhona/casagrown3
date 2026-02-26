@@ -195,7 +195,7 @@ export function DonationReceiptSheet({
                 cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               }}
             >
-              <Share2 size={16} color={accentColor} />
+              <Share2 size={16} color={accentColor as any} />
               Share
             </button>
           </>

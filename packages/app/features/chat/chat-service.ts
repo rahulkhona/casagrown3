@@ -790,15 +790,21 @@ export function subscribeToMessages(
 }
 
 /**
- * Create a chat channel for typing indicators.
- * Uses Broadcast events for typing state — lightweight and reliable.
+ * Safely tear down and completely unbind a Realtime channel from the socket memory map.
+ */
+export function destroyChatChannel(channel: RealtimeChannel | null) {
+    if (channel) {
+        supabase.removeChannel(channel);
+    }
+}
+
+/**
+ * Create a chat channel for presence & typing indicators.
  *
- * ⚠️  DESIGN DECISION: Online presence is now handled by the root-level
- *     AppPresenceProvider (useAppPresence.tsx). This channel only handles
- *     typing indicators for this specific conversation.
- *
- *     The ChatScreen gets online status via useIsOnline(otherUserId)
- *     from the root presence provider instead of this channel.
+ * ⚠️  SCALABLE DESIGN: Online presence is entirely restricted to this per-room hook.
+ *     We DO NOT use a global app-presence channel because Supabase has a hard
+ *     limit of 500 concurrent connections per channel. Scaling requires channels
+ *     scoped to the explicit Chat Room.
  */
 export function createPresenceChannel(
     conversationId: string,
@@ -809,21 +815,39 @@ export function createPresenceChannel(
     setTyping: (isTyping: boolean) => void;
     destroy: () => void;
 } {
-    const channelName = `chat-typing:${conversationId}`;
-    const channel = supabase.channel(channelName);
+    const channelName = `chat-room:${conversationId}`;
+    const channel = supabase.channel(channelName, {
+        config: {
+            presence: { key: userId },
+        },
+    });
 
+    let isOtherOnline = false;
     let otherTyping = false;
     let isSubscribed = false;
-    let retryCount = 0;
 
     const emitState = () => {
-        // Online status comes from root provider — always pass true here
-        // so ChatScreen can overlay typing on the root online indicator
-        onPresenceChange({ online: true, typing: otherTyping });
+        onPresenceChange({ online: isOtherOnline, typing: otherTyping });
     };
 
     channel
-        // ── Broadcast: typing events (reliable across all platforms) ──
+        // ── Presence: Online/Offline (Green Dot) ──
+        .on("presence", { event: "sync" }, () => {
+            const state = channel.presenceState();
+
+            // Check if any key OTHER than our own userId exists in the presence state
+            const otherUserKeys = Object.keys(state).filter((k) =>
+                k !== userId
+            );
+
+            isOtherOnline = otherUserKeys.length > 0;
+
+            // If they are offline, they definitely aren't typing
+            if (!isOtherOnline) otherTyping = false;
+
+            emitState();
+        })
+        // ── Broadcast: High-frequency typing events ──
         .on("broadcast", { event: "typing" }, (payload) => {
             const msg = payload.payload as Record<string, unknown>;
             if (msg?.user_id !== userId) {
@@ -831,39 +855,33 @@ export function createPresenceChannel(
                 emitState();
             }
         })
-        .subscribe((status) => {
+        .subscribe(async (status) => {
             if (status === "SUBSCRIBED") {
                 isSubscribed = true;
-                retryCount = 0;
-            } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-                isSubscribed = false;
-                const delay = Math.min(1000 * 2 ** retryCount, 30_000);
-                retryCount++;
-                console.warn(
-                    `[ChatTyping] ${status}, retrying in ${delay}ms (attempt ${retryCount})`,
-                );
-                setTimeout(() => {
-                    channel.subscribe();
-                }, delay);
-            } else if (status === "CLOSED") {
+                await channel.track({ online: true });
+            } else if (
+                status === "CLOSED" || status === "CHANNEL_ERROR" ||
+                status === "TIMED_OUT"
+            ) {
                 isSubscribed = false;
             }
         });
 
-    const setTyping = (isTyping: boolean) => {
-        if (!isSubscribed) return;
-        channel.send({
-            type: "broadcast",
-            event: "typing",
-            payload: { user_id: userId, is_typing: isTyping },
-        });
+    return {
+        channel,
+        setTyping: (isTyping: boolean) => {
+            if (!isSubscribed) return;
+            channel.send({
+                type: "broadcast",
+                event: "typing",
+                payload: { user_id: userId, is_typing: isTyping },
+            });
+        },
+        destroy: () => {
+            channel.untrack();
+            supabase.removeChannel(channel);
+        },
     };
-
-    const destroy = () => {
-        supabase.removeChannel(channel);
-    };
-
-    return { channel, setTyping, destroy };
 }
 
 // =============================================================================

@@ -145,6 +145,12 @@ export async function requestWebPushPermission(): Promise<
         return subscription;
     } catch (err) {
         console.error("[NotificationService] Push subscription failed:", err);
+        if (Platform.OS === "web") {
+            window.alert(
+                "[NotificationService] Push subscription failed:\n\n" +
+                    String(err),
+            );
+        }
         return null;
     }
 }
@@ -214,7 +220,7 @@ export async function enableIOSPush(userId: string): Promise<boolean> {
     if (Platform.OS === "web") return false;
     try {
         // eslint-disable-next-line no-eval -- eval() hides module from Turbopack/webpack static analysis
-        const Notifications = eval('require')("expo-notifications");
+        const Notifications = eval("require")("expo-notifications");
 
         const { status: existingStatus } = await Notifications
             .getPermissionsAsync();
@@ -264,7 +270,7 @@ export async function enableAndroidPush(userId: string): Promise<boolean> {
     if (Platform.OS === "web") return false;
     try {
         // eslint-disable-next-line no-eval -- eval() hides module from Turbopack/webpack static analysis
-        const Notifications = eval('require')("expo-notifications");
+        const Notifications = eval("require")("expo-notifications");
 
         // Android requires a notification channel
         await Notifications.setNotificationChannelAsync("default", {

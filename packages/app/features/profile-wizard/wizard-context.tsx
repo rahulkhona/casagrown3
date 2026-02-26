@@ -237,6 +237,23 @@ export const WizardProvider = ({ children }: { children: ReactNode }) => {
              }
         }
 
+        // 1.5 Ensue Community exists in DB before linking Profile
+        if (d.community?.h3Index) {
+            const { error: communityError } = await supabase
+                .from('communities')
+                .upsert({
+                    h3_index: d.community.h3Index,
+                    name: d.community.name,
+                }, { onConflict: 'h3_index' })
+            
+            if (communityError) {
+                console.warn('⚠️ Could not upsert community:', communityError)
+                // Proceed anyway, the profile update might fail if FK is strictly enforced
+            } else {
+                console.log('✅ Community upserted:', d.community.h3Index)
+            }
+        }
+
         // 2. Update Profile (including invited_by_id if present)
         const profileUpdate: Record<string, unknown> = {
             full_name: d.name,

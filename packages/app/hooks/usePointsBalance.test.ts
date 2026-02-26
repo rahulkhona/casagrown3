@@ -8,7 +8,10 @@
 // Supabase mock
 // ---------------------------------------------------------------------------
 
-let mockQueryResult = { data: null, error: null };
+let mockQueryResult: { data: any | null; error: any | null } = {
+    data: null,
+    error: null,
+};
 const mockRemoveChannel = jest.fn();
 const mockSubscribe = jest.fn().mockReturnThis();
 let mockChannelOnListeners: Array<{ filter: any; callback: Function }> = [];
@@ -43,11 +46,11 @@ function createChain(terminal?: any) {
     return new Proxy({}, handler);
 }
 
-const mockFrom = jest.fn(() => createChain(mockQueryResult));
+const mockFrom = jest.fn((_table?: string) => createChain(mockQueryResult));
 
 jest.mock("../features/auth/auth-hook", () => ({
     supabase: {
-        from: (...args: any[]) => mockFrom(...args),
+        from: (table: string) => mockFrom(table),
         channel: (...args: any[]) => mockChannel,
         removeChannel: (...args: any[]) => mockRemoveChannel(...args),
     },

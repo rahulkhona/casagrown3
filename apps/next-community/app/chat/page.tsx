@@ -38,7 +38,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ height: 'calc(100dvh - 65px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <ChatScreen
         postId={postId}
         otherUserId={otherUserId}

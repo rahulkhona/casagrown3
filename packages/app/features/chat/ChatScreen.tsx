@@ -33,6 +33,7 @@ import {
   createPresenceChannel,
   markMessagesAsRead,
   subscribeToMessageUpdates,
+  destroyChatChannel,
 } from './chat-service'
 import { uploadChatMedia } from './chat-media-upload'
 import type {
@@ -65,7 +66,6 @@ import type { OfferFormData } from '../feed/OfferSheet'
 import { AcceptOfferSheet } from '../feed/AcceptOfferSheet'
 import type { FeedPost } from '../feed/feed-service'
 import { usePointsBalance } from '../../hooks/usePointsBalance'
-import { useIsOnline } from '../../hooks/useAppPresence'
 import { supabase } from '../auth/auth-hook'
 
 // =============================================================================
@@ -436,9 +436,6 @@ export function ChatScreen({
   const [sending, setSending] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [otherPresence, setOtherPresence] = useState<PresenceState>({ online: false, typing: false })
-
-  // Online status from root-level presence provider (app-wide, not per-chat)
-  const isOtherUserOnline = useIsOnline(otherUserId)
   const [attachMenuOpen, setAttachMenuOpen] = useState(false)
   const [cameraMode, setCameraMode] = useState<'photo' | 'video' | null>(null)
   
@@ -479,8 +476,8 @@ export function ChatScreen({
   const flatListRef = useRef<FlatList>(null)
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const presenceRef = useRef<ReturnType<typeof createPresenceChannel> | null>(null)
-  const msgChannelRef = useRef<{ unsubscribe: () => void } | null>(null)
-  const statusChannelRef = useRef<{ unsubscribe: () => void } | null>(null)
+  const msgChannelRef = useRef<any>(null)
+  const statusChannelRef = useRef<any>(null)
   const inputRef = useRef<TextInput>(null)
   const isAtBottomRef = useRef(true)
 
@@ -526,7 +523,7 @@ export function ChatScreen({
       community_h3_index: null,
       community_name: p.community_name,
       sell_details: p.sell_details ? { ...p.sell_details } : null,
-      buy_details: p.buy_details ? { desired_quantity: null, desired_unit: null, delivery_dates: [], ...p.buy_details } : null,
+      buy_details: p.buy_details ? { ...p.buy_details, desired_quantity: (p.buy_details as any).desired_quantity ?? null, desired_unit: (p.buy_details as any).desired_unit ?? null, delivery_dates: (p.buy_details as any).delivery_dates ?? [], delivery_address: (p.buy_details as any).delivery_address ?? null } : null,
       media: p.media,
       like_count: 0,
       comment_count: 0,
@@ -551,7 +548,7 @@ export function ChatScreen({
       community_h3_index: null,
       community_name: p.community_name,
       sell_details: p.sell_details ? { ...p.sell_details } : null,
-      buy_details: p.buy_details ? { desired_quantity: null, desired_unit: null, delivery_dates: [], ...p.buy_details } : null,
+      buy_details: p.buy_details ? { ...p.buy_details, desired_quantity: (p.buy_details as any).desired_quantity ?? null, desired_unit: (p.buy_details as any).desired_unit ?? null, delivery_dates: (p.buy_details as any).delivery_dates ?? [], delivery_address: (p.buy_details as any).delivery_address ?? null } : null,
       media: p.media,
       like_count: 0,
       comment_count: 0,
@@ -587,9 +584,9 @@ export function ChatScreen({
           buyerId = postData.author_id
           sellerId = postData.author_id === currentUserId ? otherUserId : currentUserId
         } else {
-          // Sell/other posts: post author is the seller, current user is the buyer
-          sellerId = otherUserId
-          buyerId = currentUserId
+          // Sell/other posts: post author is the seller, the other user is the buyer
+          sellerId = postData?.author_id || otherUserId
+          buyerId = postData?.author_id === currentUserId ? otherUserId : currentUserId
         }
 
         // Get or create conversation
@@ -650,9 +647,9 @@ export function ChatScreen({
     init()
     return () => {
       cancelled = true
-      // Clean up all realtime subscriptions
-      msgChannelRef.current?.unsubscribe()
-      statusChannelRef.current?.unsubscribe()
+      // Clean up all realtime subscriptions completely from the socket memory map
+      if (msgChannelRef.current) destroyChatChannel(msgChannelRef.current)
+      if (statusChannelRef.current) destroyChatChannel(statusChannelRef.current)
       presenceRef.current?.destroy()
     }
   }, [postId, otherUserId, currentUserId])
@@ -1265,7 +1262,7 @@ export function ChatScreen({
   const isWeb = Platform.OS === 'web'
 
   return (
-    <YStack flex={1} backgroundColor={colors.gray[100]} alignItems="center" overflow="hidden" height="100%">
+    <YStack flex={1} backgroundColor={colors.gray[100]} alignItems="center" overflow="hidden">
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: colors.gray[50], width: '100%', maxWidth: isWeb ? 700 : undefined, alignSelf: 'center' } as Record<string, unknown>}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -1333,7 +1330,7 @@ export function ChatScreen({
                 width={12}
                 height={12}
                 borderRadius={6}
-                backgroundColor={isOtherUserOnline ? '#22c55e' : colors.gray[400]}
+                backgroundColor={otherPresence.online ? '#22c55e' : colors.gray[400]}
                 borderWidth={2}
                 borderColor="white"
               />
@@ -1351,8 +1348,8 @@ export function ChatScreen({
                   {t('chat.typing')}
                 </Text>
               ) : (
-                <Text fontSize={11} color={isOtherUserOnline ? colors.green[600] : colors.gray[400]}>
-                  {isOtherUserOnline ? t('chat.online', 'Online') : t('chat.offline', 'Offline')}
+                <Text fontSize={11} color={otherPresence.online ? colors.green[600] : colors.gray[400]}>
+                  {otherPresence.online ? t('chat.online', 'Online') : t('chat.offline', 'Offline')}
                 </Text>
               )}
             </YStack>

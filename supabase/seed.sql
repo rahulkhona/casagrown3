@@ -592,3 +592,20 @@ BEGIN
   EXCEPTION WHEN duplicate_object THEN NULL; END;
 END $$;
 
+-- =============================================================================
+-- 17. Test Delegations (pending so you can click Accept to test Toast!)
+-- =============================================================================
+
+INSERT INTO public.delegations (
+  id,
+  delegator_id,
+  delegatee_id,
+  status,
+  delegate_pct
+) VALUES (
+  '12345678-1234-1234-1234-123456789012',
+  'b2222222-2222-2222-2222-222222222222', -- Test Buyer (delegating their account)
+  'a1111111-1111-1111-1111-111111111111', -- Test Seller (the designated delegate)
+  'pending_pairing',
+  15
+) ON CONFLICT (id) DO NOTHING;

@@ -30,6 +30,9 @@ module.exports = {
   experimental: {
     scrollRestoration: true,
   },
+  env: {
+    NEXT_PUBLIC_VAPID_PUBLIC_KEY: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BLRqq0KvgLwposLV83xYSlEfzySJdFfqNs1H0HwQvcVGAjCl4YB1Qc3b02YrEy9mE4tu347GlMmAq0CNC-NSAg8",
+  },
   turbopack: {
     resolveAlias: {
       'react-native': 'react-native-web',

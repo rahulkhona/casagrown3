@@ -64,9 +64,10 @@ function DelegateCard({
   t,
 }: {
   delegation: DelegationRecord
-  onRevoke: (id: string) => void
+  onRevoke: (id: string) => Promise<{ error: string | null }>
   t: (k: string) => string
 }) {
+  const [isRevoking, setIsRevoking] = useState(false)
   const profile = delegation.delegatee_profile
   const name = profile?.full_name || t('delegate.unknownUser')
 
@@ -122,7 +123,21 @@ function DelegateCard({
           backgroundColor="white"
           borderRadius={borderRadius.default}
           hoverStyle={{ backgroundColor: colors.red[50] }}
-          onPress={() => onRevoke(delegation.id)}
+          disabled={isRevoking}
+          opacity={isRevoking ? 0.5 : 1}
+          onPress={async () => {
+            setIsRevoking(true)
+            const res = await onRevoke(delegation.id)
+            if (res?.error) {
+              if (Platform.OS === 'web') {
+                window.alert('Failed to revoke: ' + res.error)
+              } else {
+                // simple fallback if Alert not imported
+                console.error('Failed to revoke', res.error)
+              }
+            }
+            setIsRevoking(false)
+          }}
         >
           <Text fontSize={12} fontWeight="500" color={colors.red[600]}>
             {t('delegate.actions.revoke')}

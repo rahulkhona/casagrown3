@@ -13,8 +13,10 @@ import {
     canTransition,
     getAvailableActions,
     isOpenOrder,
+    type Order,
     ORDER_STATUS_CONFIG,
     ORDER_TRANSITIONS,
+    type OrderStatus,
 } from "./order-types";
 
 // =============================================================================
@@ -36,11 +38,14 @@ function makeOrder(overrides: Partial<Order> = {}): Order {
         points_per_unit: 10,
         total_price: 50,
         delivery_date: "2026-03-01",
-        delivery_time: null,
         delivery_instructions: null,
         delivery_address: null,
         delivery_proof_media_id: null,
         delivery_proof_url: null,
+        delivery_proof_location: null,
+        delivery_proof_timestamp: null,
+        dispute_proof_media_id: null,
+        dispute_proof_url: null,
         status: "pending" as OrderStatus,
         buyer_rating: null,
         buyer_feedback: null,

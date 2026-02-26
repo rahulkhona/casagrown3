@@ -10,8 +10,14 @@
 // ---------------------------------------------------------------------------
 
 // Holds the last resolved value for select/update chains
-let mockQueryResult = { data: null, error: null };
-let mockRpcResult = { data: null, error: null };
+let mockQueryResult: { data: any | null; error: any | null } = {
+    data: null,
+    error: null,
+};
+let mockRpcResult: { data: any | null; error: any | null } = {
+    data: null,
+    error: null,
+};
 
 /** Creates a chainable object that returns itself for any method except terminal ones. */
 function createChain(terminal) {
@@ -167,7 +173,7 @@ describe("getOrders", () => {
         mockFrom.mockImplementation(() => createChain(mockQueryResult));
 
         const result = await getOrders("buyer-1", {
-            tab: "closed",
+            tab: "closed" as any,
             role: "all",
         });
         expect(result).toHaveLength(1);
@@ -191,8 +197,8 @@ describe("getOrderById", () => {
 
         const result = await getOrderById("order-1");
         expect(result).not.toBeNull();
-        expect(result.id).toBe("order-1");
-        expect(result.product).toBe("Tomatoes");
+        expect(result!.id).toBe("order-1");
+        expect(result!.product).toBe("Tomatoes");
     });
 
     it("returns null when not found", async () => {
@@ -220,7 +226,7 @@ describe("getOrderByConversation", () => {
 
         const result = await getOrderByConversation("conv-1");
         expect(result).not.toBeNull();
-        expect(result.conversation_id).toBe("conv-1");
+        expect(result!.conversation_id).toBe("conv-1");
         expect(mockFrom).toHaveBeenCalledWith("orders");
     });
 
@@ -254,9 +260,9 @@ describe("getEscalation", () => {
 
         const result = await getEscalation("order-1");
         expect(result).not.toBeNull();
-        expect(result.id).toBe("esc-1");
-        expect(result.reason).toBe("Wrong item");
-        expect(result.dispute_proof_url).toBeNull();
+        expect(result!.id).toBe("esc-1");
+        expect(result!.reason).toBe("Wrong item");
+        expect(result!.dispute_proof_url).toBeNull();
         expect(mockFrom).toHaveBeenCalledWith("escalations");
     });
 

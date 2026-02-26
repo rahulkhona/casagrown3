@@ -181,7 +181,7 @@ export function OfferSheet({
       setSelectedPostId(existingOffer.seller_post_id ?? null)
 
       // Pre-fill delivery dates (prefer array, fall back to single)
-      const offerRow = existingOffer as Record<string, unknown>
+      const offerRow = existingOffer as any
       const dates = offerRow.delivery_dates as string[] | null
       if (dates && dates.length > 0) {
         setDropoffDates(dates)
@@ -214,8 +214,8 @@ export function OfferSheet({
     const q = postSearchQuery.toLowerCase()
     return sellerPosts.filter(
       (p) =>
-        p.sell_details?.produce_name?.toLowerCase().includes(q) ||
-        p.sell_details?.category?.toLowerCase().includes(q) ||
+        (p.sell_details as any)?.produce_name?.toLowerCase().includes(q) ||
+        (p.sell_details as any)?.category?.toLowerCase().includes(q) ||
         p.content?.toLowerCase().includes(q),
     )
   }, [sellerPosts, postSearchQuery])
@@ -325,8 +325,8 @@ export function OfferSheet({
           if (content.description) setDescription(content.description)
         } catch {}
         // Auto-fill delivery dates from the post
-        if (Array.isArray(post.delivery_dates) && post.delivery_dates.length > 0) {
-          setDropoffDates(post.delivery_dates)
+        if (Array.isArray((post as any).delivery_dates) && (post as any).delivery_dates.length > 0) {
+          setDropoffDates((post as any).delivery_dates)
         }
       }
       setShowPostSearch(false)

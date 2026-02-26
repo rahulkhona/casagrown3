@@ -24,7 +24,9 @@ import type { Offer, OfferStatus } from "./offer-types";
 
 const t = (key: string) => key;
 
-function makeOffer(overrides: Partial<Offer> = {}): Offer {
+function makeOffer(
+    overrides: Partial<Offer> = {},
+): Offer {
     return {
         id: "offer-1",
         conversation_id: "conv-1",
@@ -39,6 +41,7 @@ function makeOffer(overrides: Partial<Offer> = {}): Offer {
         delivery_dates: ["2026-03-01"],
         message: null,
         seller_post_id: null,
+        media: [],
         status: "pending" as OfferStatus,
         version: 1,
         created_at: "2026-02-19T00:00:00Z",
@@ -50,7 +53,7 @@ function makeOffer(overrides: Partial<Offer> = {}): Offer {
         buyer_id: "buyer-1",
         seller_id: "seller-1",
         ...overrides,
-    };
+    } as Offer;
 }
 
 // =============================================================================

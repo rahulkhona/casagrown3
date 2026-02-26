@@ -889,17 +889,14 @@ describe("createPresenceChannel", () => {
         expect(typeof result.destroy).toBe("function");
     });
 
-    it("registers only broadcast typing listener (no presence/heartbeat)", () => {
+    it("registers broadcast typing and presence sync listeners", () => {
         const onPresenceChange = jest.fn();
         createAndTrack(conversationId, userId, onPresenceChange);
 
-        // Should register only: broadcast:typing (online handled by root AppPresenceProvider)
-        expect(mockChannel.on).toHaveBeenCalledTimes(1);
+        // Should register both presence sync and broadcast typing
+        expect(mockChannel.on).toHaveBeenCalledTimes(2);
         expect(mockChannelListeners.has("broadcast:typing")).toBe(true);
-        // No presence or heartbeat listeners
-        expect(mockChannelListeners.has("presence:sync")).toBe(false);
-        expect(mockChannelListeners.has("presence:join")).toBe(false);
-        expect(mockChannelListeners.has("broadcast:heartbeat")).toBe(false);
+        expect(mockChannelListeners.has("presence:sync")).toBe(true);
     });
 
     it("sends typing broadcast via channel.send()", () => {
@@ -997,10 +994,27 @@ describe("createPresenceChannel", () => {
             payload: { user_id: otherUserId, is_typing: true },
         });
 
-        // Online is always true now (root provider handles it)
+        // Online relies on presence state, not broadcast
+        expect(onPresenceChange).toHaveBeenCalledWith({
+            online: false,
+            typing: true,
+        });
+    });
+
+    it("evaluates online state from presence sync payload", () => {
+        const onPresenceChange = jest.fn();
+        createAndTrack(conversationId, userId, onPresenceChange);
+
+        mockChannel.presenceState.mockReturnValue({
+            "user-other": [{ online: true }],
+        });
+
+        const syncHandler = mockChannelListeners.get("presence:sync");
+        syncHandler!({});
+
         expect(onPresenceChange).toHaveBeenCalledWith({
             online: true,
-            typing: true,
+            typing: false,
         });
     });
 
@@ -1031,7 +1045,8 @@ describe("createPresenceChannel", () => {
 
         destroy();
 
-        // No untrack needed — typing-only channel doesn't use presence CRDT
+        // Should untrack before removing
+        expect(mockChannel.untrack).toHaveBeenCalled();
         expect(mockRemoveChannel).toHaveBeenCalledWith(mockChannel);
     });
 });

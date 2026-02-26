@@ -4,95 +4,104 @@
  * Spread modalProps onto the NotificationPromptModal component.
  */
 
-import { useState, useCallback, useRef } from 'react'
+import { useCallback, useRef, useState } from "react";
 import {
-  shouldShowPrompt,
   setDismissed,
   setPermanentOptOut,
   setPromptedThisSession,
-} from './notification-storage'
+  shouldShowPrompt,
+} from "./notification-storage";
 import {
-  getPromptVariant,
-  enableWebPush,
-  enableIOSPush,
-  enableAndroidPush,
   detectPlatform,
+  enableAndroidPush,
+  enableIOSPush,
+  enableWebPush,
+  getPromptVariant,
   type NotifPlatform,
-} from './notification-service'
-import type { PromptVariant } from './NotificationPromptModal'
-import { Platform } from 'react-native'
+} from "./notification-service";
+import type { PromptVariant } from "./NotificationPromptModal";
+import { Platform } from "react-native";
 
 interface UseNotificationPromptReturn {
   /** Call at trigger points (Buy, Offer, Chat, Create Post) */
-  showPrompt: () => void
+  showPrompt: () => void;
   /** Spread onto NotificationPromptModal */
   modalProps: {
-    visible: boolean
-    variant: PromptVariant
-    onEnable: () => void
-    onDismiss: () => void
-    onPermanentDismiss: () => void
-  }
+    visible: boolean;
+    variant: PromptVariant;
+    onEnable: () => void;
+    onDismiss: () => void;
+    onPermanentDismiss: () => void;
+  };
 }
 
-export function useNotificationPrompt(userId?: string): UseNotificationPromptReturn {
-  const [visible, setVisible] = useState(false)
-  const [variant, setVariant] = useState<PromptVariant>('first-time')
-  const checkingRef = useRef(false)
+export function useNotificationPrompt(
+  userId?: string,
+): UseNotificationPromptReturn {
+  const [visible, setVisible] = useState(false);
+  const [variant, setVariant] = useState<PromptVariant>("first-time");
+  const checkingRef = useRef(false);
+
+  const onEnable = useCallback(async () => {
+    if (!userId) return;
+
+    const platform = detectPlatform();
+
+    let success = false;
+    if (platform === "native-ios") {
+      success = await enableIOSPush(userId);
+    } else if (platform === "native-android") {
+      success = await enableAndroidPush(userId);
+    } else {
+      // Web (desktop, PWA, android-web)
+      success = await enableWebPush(userId);
+    }
+
+    setVisible(false);
+
+    if (!success) {
+      console.warn("[useNotificationPrompt] Permission was not granted");
+    }
+  }, [userId]);
 
   const showPrompt = useCallback(async () => {
     // Prevent concurrent checks
-    if (checkingRef.current) return
-    checkingRef.current = true
+    if (checkingRef.current) return;
+    checkingRef.current = true;
 
     try {
-      const shouldShow = await shouldShowPrompt()
-      if (!shouldShow) return
+      const shouldShow = await shouldShowPrompt();
+      if (!shouldShow) return;
 
-      const promptVariant = getPromptVariant()
-      if (promptVariant === 'none') return
+      const promptVariant = getPromptVariant();
+      if (promptVariant === "none") {
+        // Permissions are already granted. The backend database might be out of sync
+        // (e.g. after a db reset or logging in on a new device with stored preferences).
+        // Silently re-register the token with Supabase to ensure delivery.
+        setPromptedThisSession();
+        void onEnable();
+        return;
+      }
 
       // Mark as prompted this session (prevent re-showing)
-      setPromptedThisSession()
+      setPromptedThisSession();
 
-      setVariant(promptVariant)
-      setVisible(true)
+      setVariant(promptVariant);
+      setVisible(true);
     } finally {
-      checkingRef.current = false
+      checkingRef.current = false;
     }
-  }, [])
-
-  const onEnable = useCallback(async () => {
-    if (!userId) return
-
-    const platform = detectPlatform()
-
-    let success = false
-    if (platform === 'native-ios') {
-      success = await enableIOSPush(userId)
-    } else if (platform === 'native-android') {
-      success = await enableAndroidPush(userId)
-    } else {
-      // Web (desktop, PWA, android-web)
-      success = await enableWebPush(userId)
-    }
-
-    setVisible(false)
-
-    if (!success) {
-      console.warn('[useNotificationPrompt] Permission was not granted')
-    }
-  }, [userId])
+  }, [onEnable]);
 
   const onDismiss = useCallback(async () => {
-    setVisible(false)
-    await setDismissed()
-  }, [])
+    setVisible(false);
+    await setDismissed();
+  }, []);
 
   const onPermanentDismiss = useCallback(async () => {
-    setVisible(false)
-    await setPermanentOptOut()
-  }, [])
+    setVisible(false);
+    await setPermanentOptOut();
+  }, []);
 
   return {
     showPrompt,
@@ -103,5 +112,5 @@ export function useNotificationPrompt(userId?: string): UseNotificationPromptRet
       onDismiss,
       onPermanentDismiss,
     },
-  }
+  };
 }

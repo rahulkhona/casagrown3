@@ -114,10 +114,13 @@ export function CreatePostScreen({ onBack, onSuccess, initialType, editId, clone
   const { user } = useAuth()
   const { showPrompt: showNotifPrompt, modalProps: notifModalProps } = useNotificationPrompt(user?.id)
 
-  // Trigger notification prompt when entering create post screen
+  // Trigger notification prompt when entering create post screen, once user is loaded
   useEffect(() => {
-    showNotifPrompt()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    if (user?.id) {
+      console.log("VAPID KEY LOCALLY IS", process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY);
+      void showNotifPrompt()
+    }
+  }, [user?.id, showNotifPrompt])
 
   const handleBack = () => {
     if (editId || cloneData) {

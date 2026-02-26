@@ -467,3 +467,18 @@ entrypoint = "./functions/redeem-gift-card/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/donate-points/index.ts"
+
+[functions.register-push-token]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/register-push-token/index.ts"
+
+[functions.send-push-notification]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/send-push-notification/index.ts"
+
+[functions.notify-on-message]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/notify-on-message/index.ts"

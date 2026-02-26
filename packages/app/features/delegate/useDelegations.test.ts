@@ -19,7 +19,10 @@ const mockOrder = jest.fn();
 const mockUpdate = jest.fn();
 
 // Default successful query result
-const defaultQueryResult = { data: [] as any[], error: null };
+const defaultQueryResult: { data: any | null; error: any | null } = {
+    data: [] as any[],
+    error: null,
+};
 
 // Chain builder — each method returns the chain object
 const buildChain = (result = defaultQueryResult) => {
@@ -470,20 +473,6 @@ describe("useDelegations", () => {
             });
 
             expect(mockUpdate).toHaveBeenCalledWith({ status: "rejected" });
-        });
-
-        it("inactivateDelegation updates status to inactive", async () => {
-            const { result } = renderHook(() => useDelegations());
-
-            await waitFor(() => {
-                expect(result.current.loading).toBe(false);
-            });
-
-            await act(async () => {
-                await result.current.inactivateDelegation("del-3");
-            });
-
-            expect(mockUpdate).toHaveBeenCalledWith({ status: "inactive" });
         });
     });
 });

@@ -289,21 +289,6 @@ export function useDelegations() {
         [fetchDelegations],
     );
 
-    // Inactivate delegation (delegatee action)
-    const inactivateDelegation = useCallback(
-        async (delegationId: string) => {
-            const { error } = await supabase
-                .from("delegations")
-                .update({ status: "inactive" })
-                .eq("id", delegationId);
-
-            if (error) return { error: error.message };
-            await fetchDelegations();
-            return { error: null };
-        },
-        [fetchDelegations],
-    );
-
     return {
         myDelegates,
         delegatingFor,
@@ -315,7 +300,6 @@ export function useDelegations() {
         acceptRequest,
         rejectRequest,
         revokeDelegation,
-        inactivateDelegation,
         refresh: fetchDelegations,
     };
 }

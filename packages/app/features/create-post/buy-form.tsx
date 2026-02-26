@@ -105,8 +105,8 @@ export function BuyForm({ onBack, onSuccess, editId, cloneData }: BuyFormProps) 
                 setLookingFor(parsed.buy_details.produce_names.join(', '))
               }
               if (parsed.buy_details.need_by_date) setNeedByDate(parsed.buy_details.need_by_date)
-              if (parsed.buy_details.desired_quantity != null) setDesiredQuantity(String(parsed.buy_details.desired_quantity))
-              if (parsed.buy_details.desired_unit) setDesiredUnit(parsed.buy_details.desired_unit)
+              if (parsed.buy_details.desired_quantity != null) setDesiredQuantity(parsed.buy_details.desired_quantity ? String(parsed.buy_details.desired_quantity) : '')
+              if (parsed.buy_details.desired_unit) setDesiredUnit(parsed.buy_details.desired_unit || null)
             }
             // Copy accept drop-off dates
             if (Array.isArray(parsed.delivery_dates) && parsed.delivery_dates.length > 0) {
@@ -140,8 +140,8 @@ export function BuyForm({ onBack, onSuccess, editId, cloneData }: BuyFormProps) 
             setLookingFor(post.buy_details.produce_names.join(', '))
           }
           if (post.buy_details.need_by_date) setNeedByDate(post.buy_details.need_by_date)
-          if (post.buy_details.desired_quantity != null) setDesiredQuantity(String(post.buy_details.desired_quantity))
-          if (post.buy_details.desired_unit) setDesiredUnit(post.buy_details.desired_unit)
+          if ((post.buy_details as any).desired_quantity != null) setDesiredQuantity((post.buy_details as any).desired_quantity ? String((post.buy_details as any).desired_quantity) : '')
+          if ((post.buy_details as any).desired_unit) setDesiredUnit((post.buy_details as any).desired_unit || null)
         }
         // Pre-fill accept drop-off dates
         if (Array.isArray(post.delivery_dates) && post.delivery_dates.length > 0) {

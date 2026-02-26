@@ -57,15 +57,16 @@ function DelegatingForCard({
   delegation,
   onAccept,
   onReject,
-  onInactivate,
+  onRevoke,
   t,
 }: {
   delegation: DelegationRecord
   onAccept: (id: string) => void
   onReject: (id: string) => void
-  onInactivate: (id: string) => void
+  onRevoke: (id: string) => Promise<{ error: string | null }>
   t: (k: string) => string
 }) {
+  const [isRevoking, setIsRevoking] = useState(false)
   const profile = delegation.delegator_profile
   const name = profile?.full_name || t('delegate.unknownUser')
 
@@ -176,19 +177,32 @@ function DelegatingForCard({
         </>
       )}
 
-      {/* Active: Inactivate */}
+      {/* Active: Revoke */}
       {delegation.status === 'active' && (
         <Button
           borderWidth={1}
-          borderColor={colors.gray[300]}
+          borderColor={colors.red[300]}
           backgroundColor="white"
           borderRadius={borderRadius.lg}
           paddingVertical="$2"
-          onPress={() => onInactivate(delegation.id)}
-          hoverStyle={{ backgroundColor: colors.gray[50] }}
+          disabled={isRevoking}
+          opacity={isRevoking ? 0.5 : 1}
+          onPress={async () => {
+            setIsRevoking(true)
+            const res = await onRevoke(delegation.id)
+            if (res?.error) {
+              if (Platform.OS === 'web') {
+                window.alert('Failed to revoke: ' + res.error)
+              } else {
+                console.error('Failed to revoke', res.error)
+              }
+            }
+            setIsRevoking(false)
+          }}
+          hoverStyle={{ backgroundColor: colors.red[50] }}
         >
-          <Text fontWeight="500" color={colors.gray[700]} fontSize={13}>
-            {t('delegate.actions.inactivate')}
+          <Text fontWeight="500" color={colors.red[600]} fontSize={13}>
+            {t('delegate.actions.revoke')}
           </Text>
         </Button>
       )}
@@ -225,7 +239,7 @@ export default function AcceptDelegationScreen() {
     loading,
     acceptRequest,
     rejectRequest,
-    inactivateDelegation,
+    revokeDelegation,
     acceptPairingCode,
   } = useDelegations()
 
@@ -353,7 +367,7 @@ export default function AcceptDelegationScreen() {
                     delegation={d}
                     onAccept={acceptRequest}
                     onReject={rejectRequest}
-                    onInactivate={inactivateDelegation}
+                    onRevoke={revokeDelegation}
                     t={t}
                   />
                 ))}
@@ -372,7 +386,7 @@ export default function AcceptDelegationScreen() {
                     delegation={d}
                     onAccept={acceptRequest}
                     onReject={rejectRequest}
-                    onInactivate={inactivateDelegation}
+                    onRevoke={revokeDelegation}
                     t={t}
                   />
                 ))}
@@ -394,7 +408,7 @@ export default function AcceptDelegationScreen() {
                     delegation={d}
                     onAccept={acceptRequest}
                     onReject={rejectRequest}
-                    onInactivate={inactivateDelegation}
+                    onRevoke={revokeDelegation}
                     t={t}
                   />
                 ))}

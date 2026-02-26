@@ -36,30 +36,32 @@ export function Provider({
     ''
 
   const wrappedChildren = (
-    <ToastProvider swipeDirection="horizontal" duration={4000} burstLimit={2}>
-      <SupabaseProvider>
-        {children}
-        <CustomToast />
-        <ToastViewport left={0} right={0} top={10} />
-        {Platform.OS === 'web' && <WebPushListener />}
-        <RealtimeNotificationListener />
-      </SupabaseProvider>
-    </ToastProvider>
+    <TamaguiProvider config={config} defaultTheme={theme} {...rest}>
+      <ToastProvider swipeDirection="horizontal" duration={5000}>
+        <SupabaseProvider>
+          {children}
+          <CustomToast />
+          <ToastViewport 
+            left={0} 
+            right={0} 
+            top={Platform.OS === 'ios' ? 55 : Platform.OS === 'web' ? 75 : 10} 
+            zIndex={99999} 
+            alignItems="center" 
+          />
+          {Platform.OS === 'web' && <WebPushListener />}
+          <RealtimeNotificationListener />
+        </SupabaseProvider>
+      </ToastProvider>
+    </TamaguiProvider>
   )
 
   return (
-    <TamaguiProvider
-      config={config}
-      defaultTheme={theme}
-      {...rest}
-    >
-      <I18nextProvider i18n={i18n}>
-        {StripeProvider ? (
-          <StripeProvider publishableKey={stripePublishableKey}>
-            {wrappedChildren}
-          </StripeProvider>
-        ) : wrappedChildren}
-      </I18nextProvider>
-    </TamaguiProvider>
+    <I18nextProvider i18n={i18n}>
+      {StripeProvider ? (
+        <StripeProvider publishableKey={stripePublishableKey}>
+          {wrappedChildren}
+        </StripeProvider>
+      ) : wrappedChildren}
+    </I18nextProvider>
   )
 }

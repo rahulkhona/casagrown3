@@ -12,7 +12,10 @@ DECLARE
     push_payload jsonb;
     request_id bigint;
 BEGIN
-    service_role_key := current_setting('app.settings.service_role_key', true);
+    service_role_key := COALESCE(
+        current_setting('app.settings.service_role_key', true),
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
+    );
     
     -- Only trigger when the status transitions to 'revoked'
     IF NEW.status = 'revoked' AND OLD.status != 'revoked' THEN
@@ -31,11 +34,11 @@ BEGIN
 
         push_payload := jsonb_build_object(
             'userIds', (
-                SELECT jsonb_agg(user_id) 
+                SELECT jsonb_agg(id) 
                 FROM (
-                    SELECT NEW.delegator_id AS user_id
+                    SELECT NEW.delegator_id AS id
                     UNION 
-                    SELECT NEW.delegatee_id AS user_id WHERE NEW.delegatee_id IS NOT NULL
+                    SELECT NEW.delegatee_id AS id WHERE NEW.delegatee_id IS NOT NULL
                 ) AS users
             ),
             'title', push_title,
@@ -45,8 +48,8 @@ BEGIN
 
         -- Don't send if payload has no userIds (this shouldn't happen)
         IF jsonb_array_length(push_payload->'userIds') > 0 THEN
-            SELECT pg_net.http_post(
-                url := current_setting('app.settings.edge_functions_base_url', true) || '/send-push-notification',
+            SELECT net.http_post(
+                url := COALESCE(current_setting('app.settings.edge_functions_base_url', true), 'http://host.docker.internal:54321/functions/v1') || '/send-push-notification',
                 headers := jsonb_build_object(
                     'Content-Type', 'application/json',
                     'Authorization', 'Bearer ' || service_role_key

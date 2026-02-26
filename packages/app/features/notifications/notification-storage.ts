@@ -97,12 +97,7 @@ export async function shouldShowPrompt(): Promise<boolean> {
     const optedOut = await storageGet(OPTED_OUT_KEY);
     if (optedOut === "true") return false;
 
-    // 3. Check if permission is already granted (web)
-    if (Platform.OS === "web" && typeof Notification !== "undefined") {
-        if (Notification.permission === "granted") return false;
-    }
-
-    // 4. 7-day cooldown from last dismissal
+    // 3. 7-day cooldown from last dismissal
     const dismissedAt = await storageGet(DISMISSED_AT_KEY);
     if (dismissedAt) {
         const dismissDate = new Date(dismissedAt);
