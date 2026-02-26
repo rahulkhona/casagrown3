@@ -156,29 +156,37 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
             }
 
             const data = await res.json();
-            const rawProjects = data.search?.response?.projects?.project ||
-                [];
-
-            const projects: DonationProject[] = rawProjects.slice(0, 30).map(
-                (p: any) => ({
-                    id: p.id,
-                    title: p.title || p.projectLink,
-                    organization: p.organization?.name || "Unknown",
-                    theme: mapGlobalGivingTheme(
-                        p.themes?.theme?.map((t: any) => t.name) || [],
-                    ),
-                    imageUrl: p.imageLink ||
-                        p.image?.imagelink?.find((img: any) =>
-                            img.size === "medium"
-                        )?.url || "",
-                    goal: Math.round(p.goal || 0),
-                    raised: Math.round(p.funding || 0),
-                    summary: (p.summary || p.activities || "").substring(
-                        0,
-                        200,
-                    ),
-                }),
-            );
+            const projects: DonationProject[] =
+                (data.search.response.projects.project || []).map(
+                    (p: Record<string, unknown>) => ({
+                        id: Number(p.id),
+                        title: p.title as string || p.projectLink as string,
+                        organization:
+                            (p.organization as Record<string, unknown>)
+                                ?.name as string ||
+                            p.organizationName as string || "Unknown",
+                        theme: mapGlobalGivingTheme(
+                            ((p.themes as Record<string, unknown>)
+                                ?.theme as Record<string, unknown>[])?.map(
+                                    (t: Record<string, unknown>) =>
+                                        t.name as string,
+                                ) || [],
+                        ),
+                        imageUrl: ((p.image as Record<string, unknown>)
+                            ?.imagelink as Record<string, unknown>[])?.find(
+                                (img: Record<string, unknown>) =>
+                                    img.size === "medium",
+                            )?.url as string || p.imageLink as string || "",
+                        goal: Math.round(Number(p.goal || 0)),
+                        raised: Math.round(Number(p.funding || 0)),
+                        summary:
+                            (p.summary as string || p.activities as string ||
+                                "").substring(
+                                    0,
+                                    200,
+                                ),
+                    }),
+                );
 
             console.log(
                 `[DONATIONS] Search "${searchQuery}" returned ${projects.length} results`,
@@ -244,7 +252,7 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
 
     try {
         const MAX_PROJECTS = 100;
-        const allRawProjects: any[] = [];
+        const allRawProjects: Record<string, unknown>[] = [];
         let nextProjectId = 0;
 
         // Paginate through GlobalGiving API (each page returns ~10 projects)
@@ -282,20 +290,30 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
 
         const projects: DonationProject[] = allRawProjects
             .slice(0, MAX_PROJECTS)
-            .map((p: any) => ({
-                id: p.id,
-                title: p.title || p.projectLink,
-                organization: p.organization?.name || "Unknown",
+            .map((p: Record<string, unknown>) => ({
+                id: Number(p.id),
+                title: p.title as string || p.projectLink as string,
+                organization: (p.organization as Record<string, unknown>)
+                    ?.name as string || "Unknown",
                 theme: mapGlobalGivingTheme(
-                    p.themes?.theme?.map((t: any) => t.name) || [],
+                    ((p.themes as Record<string, unknown>)?.theme as Record<
+                        string,
+                        unknown
+                    >[])?.map(
+                        (t: Record<string, unknown>) => t.name as string,
+                    ) || [],
                 ),
-                imageUrl: p.imageLink ||
-                    p.image?.imagelink?.find((img: any) =>
-                        img.size === "medium"
-                    )?.url || "",
-                goal: Math.round(p.goal || 0),
-                raised: Math.round(p.funding || 0),
-                summary: (p.summary || p.activities || "").substring(0, 200),
+                imageUrl:
+                    ((p.image as Record<string, unknown>)?.imagelink as Record<
+                        string,
+                        unknown
+                    >[])?.find(
+                        (img: Record<string, unknown>) => img.size === "medium",
+                    )?.url as string || p.imageLink as string || "",
+                goal: Math.round(Number(p.goal || 0)),
+                raised: Math.round(Number(p.funding || 0)),
+                summary: (p.summary as string || p.activities as string || "")
+                    .substring(0, 200),
             }));
 
         console.log(

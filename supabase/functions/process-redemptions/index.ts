@@ -14,8 +14,14 @@ import {
     serveWithCors,
 } from "../_shared/serve-with-cors.ts";
 import { sendPushNotification } from "../_shared/push-notify.ts";
-import { orderFromTremendous } from "../_shared/tremendous.ts";
-import { orderFromReloadly } from "../_shared/reloadly.ts";
+import {
+    fetchTremendousBalance,
+    orderFromTremendous,
+} from "../_shared/tremendous.ts";
+import {
+    fetchReloadlyBalance,
+    orderFromReloadly,
+} from "../_shared/reloadly.ts";
 
 // Note: To be secure, this endpoint should require a service_role key or an internal secret
 // For now, we will just use a simple static API token check since it's an internal cron job.
@@ -27,13 +33,47 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         return jsonError("Unauthorized", corsHeaders, 401);
     }
 
-    // 1. Fetch redemptions that need retry
+    // 1. Fetch live queue states
+    const { data: _queueProviders } = await supabase
+        .from("provider_queue_status")
+        .select("provider, is_active");
+
+    let tremendousBalance = 0;
+    let reloadlyBalance = 0;
+
+    try {
+        if (env("TREMENDOUS_API_KEY")) {
+            tremendousBalance = await fetchTremendousBalance(
+                env("TREMENDOUS_API_KEY")!,
+            );
+        }
+        if (env("RELOADLY_CLIENT_ID") && env("RELOADLY_CLIENT_SECRET")) {
+            reloadlyBalance = await fetchReloadlyBalance(
+                env("RELOADLY_CLIENT_ID")!,
+                env("RELOADLY_CLIENT_SECRET")!,
+                env("RELOADLY_SANDBOX") !== "false",
+            );
+        }
+    } catch (balanceError) {
+        console.warn(
+            `[RETRY] Failed verifying provider balances: ${balanceError}`,
+        );
+        // We do not short circuit; we let the provider calls fail individually if balance check API flakes
+    }
+
+    console.log(
+        `[RETRY] Provider Balances -> Tremendous: $${
+            (tremendousBalance / 100).toFixed(2)
+        }, Reloadly: $${(reloadlyBalance / 100).toFixed(2)}`,
+    );
+
+    // 2. Fetch all redemptions in FIFO order (oldest pending FIRST) per provider
     const { data: queuedRedemptions, error: fetchError } = await supabase
         .from("redemptions")
         .select("*")
-        .or("status.eq.failed,and(status.eq.pending,provider.eq.globalgiving)")
+        .or("status.eq.failed,status.eq.pending")
         .order("created_at", { ascending: true })
-        .limit(20); // Process in batches to avoid edge function timeout
+        .limit(50);
 
     if (fetchError) {
         return jsonError(
@@ -51,11 +91,17 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     }
 
     let processedCount = 0;
-    const failures: { id: string; reason: string }[] = [];
+    const failures: { id: string; provider: string; reason: string }[] = [];
+    const providersAttempted = new Set<string>();
 
-    // Process each redemption
+    // Process each redemption strict FIFO, checking available remaining balance for each
     for (const redemption of queuedRedemptions) {
         const { provider, metadata, user_id, point_cost } = redemption;
+
+        providersAttempted.add(provider);
+
+        const faceValueCents = metadata.face_value_cents ||
+            Math.round((point_cost / 100) * 100);
 
         try {
             if (provider === "globalgiving") {
@@ -68,9 +114,39 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                     metadata,
                 );
             } else if (provider === "tremendous") {
+                if (
+                    faceValueCents > tremendousBalance && tremendousBalance > 0
+                ) {
+                    console.log(
+                        `[RETRY] Insufficient Tremendous balance ($${
+                            (tremendousBalance / 100).toFixed(2)
+                        }) for redemption ${redemption.id} ($${
+                            (faceValueCents / 100).toFixed(2)
+                        }). Waiting.`,
+                    );
+                    continue;
+                }
+
                 await processGiftCard(supabase, env, redemption, "tremendous");
+                tremendousBalance -= faceValueCents;
             } else if (provider === "reloadly") {
+                // Note: Reloadly often has sender fees, so the actual cost is lightly higher than face value.
+                const estimatedCost = faceValueCents +
+                    (metadata.net_fee_cents || 50);
+
+                if (estimatedCost > reloadlyBalance && reloadlyBalance > 0) {
+                    console.log(
+                        `[RETRY] Insufficient Reloadly balance ($${
+                            (reloadlyBalance / 100).toFixed(2)
+                        }) for redemption ${redemption.id} ($${
+                            (estimatedCost / 100).toFixed(2)
+                        }). Waiting.`,
+                    );
+                    continue;
+                }
+
                 await processGiftCard(supabase, env, redemption, "reloadly");
+                reloadlyBalance -= estimatedCost;
             } else {
                 throw new Error(`Unknown provider for retry: ${provider}`);
             }
@@ -78,11 +154,46 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             processedCount++;
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
-            console.error(`[RETRY] Failed processing ${redemption.id}: ${msg}`);
-            failures.push({ id: redemption.id, reason: msg });
-            // We intentionally do NOT update the status here.
-            // It remains failed/pending to be picked up next time.
+            console.error(
+                `[RETRY] Failed processing ${redemption.id} via ${provider}: ${msg}`,
+            );
+            failures.push({
+                id: redemption.id,
+                provider: provider,
+                reason: msg,
+            });
+
+            // Mark provider status failing to 'failed' from 'pending' if this is its first loop
+            if (redemption.status === "pending") {
+                await supabase
+                    .from("redemptions")
+                    .update({ status: "failed", failed_reason: msg })
+                    .eq("id", redemption.id);
+            } else {
+                // Backoff existing failures slightly to avoid log spam, simply update failed_reason timestamp
+                await supabase
+                    .from("redemptions")
+                    .update({
+                        failed_reason: `${msg} at ${new Date().toISOString()}`,
+                    })
+                    .eq("id", redemption.id);
+            }
         }
+    }
+
+    // 3. Reset Circuit Breaker for Successes
+    // For any provider we attempted to process, if it has 0 failures in this run, we can mark is_queuing = false
+    const failedProvidersList = failures.map((f) => f.provider);
+    const successfullyClearedProviders = Array.from(providersAttempted).filter(
+        (p) => !failedProvidersList.includes(p),
+    );
+
+    for (const clearedProvider of successfullyClearedProviders) {
+        console.log(`[RETRY] Clearing Circuit Breaker for ${clearedProvider}`);
+        await supabase
+            .from("provider_queue_status")
+            .update({ is_queuing: false })
+            .eq("provider", clearedProvider);
     }
 
     return jsonOk({
@@ -90,6 +201,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         processed: processedCount,
         failed: failures.length,
         failures,
+        cleared_circuit_breakers: successfullyClearedProviders,
     }, corsHeaders);
 });
 
@@ -97,13 +209,16 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 // Gift Card Processing (Tremendous / Reloadly)
 // ============================================================================
 async function processGiftCard(
+    // deno-lint-ignore no-explicit-any
     supabase: any,
-    env: any,
-    redemption: any,
+    env: (key: string) => string | undefined,
+    redemption: Record<string, unknown>,
     provider: "tremendous" | "reloadly",
 ) {
-    const { metadata } = redemption;
-    const { brand_name, product_id, face_value_cents } = metadata;
+    const metadata = redemption.metadata as Record<string, unknown>;
+    const brand_name = metadata.brand_name as string;
+    const product_id = metadata.product_id as string;
+    const face_value_cents = metadata.face_value_cents as number;
 
     let providerResult;
 
@@ -169,7 +284,7 @@ async function processGiftCard(
         .from("redemptions")
         .update({
             status: "completed",
-            provider_order_id: providerResult.externalOrderId,
+            provider_order_id: providerResult.externalOrderId as string,
             completed_at: new Date().toISOString(),
         })
         .eq("id", redemption.id);
@@ -197,15 +312,19 @@ async function processGiftCard(
 // GlobalGiving Processing
 // ============================================================================
 async function processGlobalGiving(
+    // deno-lint-ignore no-explicit-any
     supabase: any,
-    env: any,
-    redemption: any,
+    env: (key: string) => string | undefined,
+    redemption: Record<string, unknown>,
     userId: string,
     pointsAmount: number,
-    metadata: any,
+    metadata: Record<string, unknown>,
 ) {
-    const { organization, project_title, theme } = metadata;
-    const projectId = redemption.item_id;
+    const organization = metadata.organization as string;
+    const project_title = metadata.project_title as string;
+    const theme = metadata.theme as string;
+
+    const projectId = redemption.item_id as string;
 
     const POINTS_PER_DOLLAR = 100;
     const dollarAmount = pointsAmount / POINTS_PER_DOLLAR;
@@ -245,7 +364,7 @@ async function processGlobalGiving(
     await supabase.from("provider_transactions").insert({
         provider_name: "globalgiving",
         redemption_id: redemption.id,
-        user_id: userId,
+        user_id: userId as string,
         external_order_id: externalOrderId,
         item_type: "donation",
         item_name: `Donation to ${organization}`,

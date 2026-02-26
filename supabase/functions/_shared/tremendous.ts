@@ -1,4 +1,5 @@
 import {
+    isOpenLoopCard,
     mapCategory,
     ProviderOrderResult,
     UnifiedGiftCard,
@@ -20,39 +21,39 @@ export async function fetchTremendousCatalog(
         throw new Error(`Tremendous API ${res.status}: ${await res.text()}`);
     }
 
-    const data = await res.json();
+    const data = await res.json() as Record<string, unknown>;
+    const products = (data.products as Record<string, unknown>[]) || [];
+
     const cards: UnifiedGiftCard[] = [];
 
-    for (const product of data.products || []) {
-        if (product.category !== "merchant_card") continue;
-        if (!product.currency_codes?.includes("USD")) continue;
+    for (const product of products) {
+        // filter out open-loop cards if needed
+        const brandName = (product.name as string) || "";
+        if (isOpenLoopCard(brandName)) continue;
+        if ((product.category as string) !== "merchant_card") continue;
+        if (!(product.currency_codes as string[])?.includes("USD")) continue;
 
-        const skus = product.skus || [];
-        const minValue = skus.length > 0
-            ? Math.min(...skus.map((s: any) => s.min ?? s.value ?? 5))
-            : 5;
-        const maxValue = skus.length > 0
-            ? Math.max(...skus.map((s: any) => s.max ?? s.value ?? 500))
-            : 500;
-        const fixedDenoms = skus.filter((s: any) => s.value != null).map((
-            s: any,
-        ) => s.value);
-
+        const isFixed = (product.currency_format as string) === "fixed";
         cards.push({
-            id: "",
-            brandName: product.name,
-            brandKey: "",
-            logoUrl: product.images?.[0]?.src || "",
-            cardImageUrl: product.images?.[0]?.src || "",
-            category: mapCategory(product.category),
-            denominationType: fixedDenoms.length > 0 ? "fixed" : "range",
-            fixedDenominations: fixedDenoms,
-            minDenomination: minValue,
-            maxDenomination: maxValue,
-            currencyCode: "USD",
+            id: String(product.id),
+            brandName: brandName,
+            brandKey: brandName,
+            logoUrl: (product.images as { url?: string }[])?.[0]?.url || "",
+            cardImageUrl: (product.images as { url?: string }[])?.[0]?.url ||
+                "",
+            category: mapCategory(String(product.category), undefined),
+            denominationType: isFixed ? "fixed" : "range",
+            fixedDenominations: isFixed
+                ? (product.skus as { face_value?: number }[])?.map((s) =>
+                    s.face_value || 0
+                ) || []
+                : [],
+            minDenomination: Number(product.min_face_value || 5),
+            maxDenomination: Number(product.max_face_value || 2000),
+            currencyCode: String(product.currency_code || "USD"),
             availableProviders: [{
                 provider: "tremendous",
-                productId: product.id,
+                productId: String(product.id),
                 discountPercentage: 0,
                 feePerTransaction: 0,
                 feePercentage: 0,
@@ -83,12 +84,13 @@ export async function orderFromTremendous(
         );
 
         if (searchRes.ok) {
-            const data = await searchRes.json();
+            const data = await searchRes.json() as Record<string, unknown>;
+            const products = (data.products as Record<string, unknown>[]) || [];
             const searchName = brandName.toLowerCase();
 
             // Look for exact match or special US mappings (Amazon -> Amazon.com)
-            const exactMatch = (data.products || []).find((p: any) => {
-                const pName = p.name?.toLowerCase() || "";
+            const exactMatch = products.find((p: Record<string, unknown>) => {
+                const pName = (p.name as string)?.toLowerCase() || "";
                 if (pName === searchName) return true;
                 if (searchName === "amazon" && pName === "amazon.com") {
                     return true;
@@ -97,12 +99,12 @@ export async function orderFromTremendous(
             });
 
             // Fallback to substring matching if no exact match (less safe but works for variants like AMC Theatres)
-            const fallbackMatch = (data.products || []).find((p: any) =>
-                (p.name?.toLowerCase() || "").includes(searchName)
+            const fallbackMatch = products.find((p: Record<string, unknown>) =>
+                ((p.name as string)?.toLowerCase() || "").includes(searchName)
             );
 
             const match = exactMatch || fallbackMatch;
-            if (match) catalogId = match.id;
+            if (match) catalogId = match.id as string;
         }
     }
 
@@ -139,14 +141,49 @@ export async function orderFromTremendous(
         throw new Error(`Tremendous API error: ${await response.text()}`);
     }
 
-    const data = await response.json();
-    const reward = data.order?.rewards?.[0];
+    const data = await response.json() as Record<string, unknown>;
+    const order = data.order as Record<string, unknown>;
+    const reward = (order?.rewards as Record<string, unknown>[])?.[0];
 
     return {
         provider: "tremendous",
-        externalOrderId: data.order?.id || "unknown",
-        cardCode: reward?.credential?.code,
-        cardUrl: reward?.credential?.link,
+        externalOrderId: (order?.id as string) || "unknown",
+        cardCode: (reward?.credential as Record<string, unknown>)
+            ?.code as string,
+        cardUrl: (reward?.credential as Record<string, unknown>)
+            ?.link as string,
         actualCostCents: faceValueCents,
     };
+}
+
+export async function fetchTremendousBalance(apiKey: string): Promise<number> {
+    const res = await fetch(
+        "https://testflight.tremendous.com/api/v2/funding_sources",
+        {
+            headers: { Authorization: `Bearer ${apiKey}` },
+        },
+    );
+
+    if (!res.ok) {
+        throw new Error(
+            `Tremendous Balance API error: ${await res.text()}`,
+        );
+    }
+
+    const data = (await res.json()) as Record<string, unknown>;
+    // Assuming 'balance' is the funding source type we care about
+    const balanceSource =
+        ((data.funding_sources as Record<string, unknown>[]) || []).find((s) =>
+            s.method === "balance"
+        );
+
+    if (!balanceSource) return 0;
+
+    // Convert to cents
+    return Math.round(
+        Number(
+            (balanceSource.meta as Record<string, number>)?.available_cents ||
+                0,
+        ),
+    );
 }

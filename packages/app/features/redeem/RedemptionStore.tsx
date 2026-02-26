@@ -39,12 +39,6 @@ export interface RedemptionStoreProps {
 
 type Tab = 'giftCards' | 'donate' | '529'
 
-const TAB_CONFIG: { key: Tab; icon: any; label: string }[] = [
-  { key: 'giftCards', icon: Gift, label: 'Gift Cards' },
-  { key: 'donate', icon: Heart, label: 'Donate' },
-  { key: '529', icon: GraduationCap, label: '529 Savings' },
-]
-
 // =============================================================================
 // Component
 // =============================================================================
@@ -59,33 +53,29 @@ export function RedemptionStore({ onNavigateToFeed }: RedemptionStoreProps) {
   const { balance: userPoints, refetch: refetchBalance, adjustBalance } = usePointsBalance(user?.id)
 
   // Tab state — persisted to localStorage on web, AsyncStorage on native
-  const [activeTab, setActiveTab] = useState<Tab>(() => {
-    if (Platform.OS === 'web') {
-      try {
-        const saved = localStorage.getItem('redeem_active_tab')
-        if (saved === 'giftCards' || saved === 'donate' || saved === '529') return saved as Tab
-      } catch (e) {}
-    }
-    return 'giftCards'
-  })
+  const [activeTab, setActiveTab] = useState<Tab | null>(null)
 
   // Load saved tab from AsyncStorage on native
   useEffect(() => {
-    if (Platform.OS !== 'web') {
-      const AsyncStorage = require('@react-native-async-storage/async-storage').default
-      AsyncStorage.getItem('redeem_active_tab').then((saved: string | null) => {
-        if (saved === 'giftCards' || saved === 'donate' || saved === '529') {
-          setActiveTab(saved as Tab)
-        }
-      }).catch(() => {})
+    const loadSavedTab = async () => {
+      let saved: string | null = null
+      if (Platform.OS === 'web') {
+        try { saved = localStorage.getItem('redeem_active_tab') } catch (e) {}
+      } else {
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default
+        try { saved = await AsyncStorage.getItem('redeem_active_tab') } catch (e) {}
+      }
+      if (saved === 'giftCards' || saved === 'donate' || saved === '529') {
+        setActiveTab(saved as Tab)
+      }
     }
+    loadSavedTab()
   }, [])
 
   useEffect(() => {
+    if (!activeTab) return
     if (Platform.OS === 'web') {
-      try {
-        localStorage.setItem('redeem_active_tab', activeTab)
-      } catch (e) {}
+      try { localStorage.setItem('redeem_active_tab', activeTab) } catch (e) {}
     } else {
       const AsyncStorage = require('@react-native-async-storage/async-storage').default
       AsyncStorage.setItem('redeem_active_tab', activeTab).catch(() => {})
@@ -103,6 +93,7 @@ export function RedemptionStore({ onNavigateToFeed }: RedemptionStoreProps) {
   const [redemptionResult, setRedemptionResult] = useState<{
     brandName: string; amount: number; pointsCost: number;
     code?: string; url?: string; provider?: string; redeemedAt: string;
+    status?: string;
   } | null>(null)
 
   // Donate state
@@ -112,8 +103,63 @@ export function RedemptionStore({ onNavigateToFeed }: RedemptionStoreProps) {
   const [donationProjects, setDonationProjects] = useState<CharityProject[]>(MOCK_CHARITIES)
   const [completedDonation, setCompletedDonation] = useState<{
     organizationName: string; projectTitle: string; theme: string;
-    amount: number; donatedAt: string; receiptId?: string;
+    amount: number; donatedAt: string; receiptId?: string; status?: string;
   } | null>(null)
+
+  // Active Providers State
+  const [activeProviders, setActiveProviders] = useState<{ provider: string, is_queuing: boolean }[]>([])
+
+  useEffect(() => {
+    const fetchProviders = () => {
+      supabase.rpc('get_active_redemption_providers').then(({ data }) => {
+        if (data) setActiveProviders(data)
+      })
+    }
+
+    fetchProviders()
+
+    const channel = supabase
+      .channel('provider-status-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'provider_queue_status' },
+        () => fetchProviders()
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
+
+  // Generate Available Tabs
+  const availableTabs = useMemo(() => {
+    const tabs: { key: Tab; icon: any; label: string }[] = []
+    
+    // Gift Cards: Needs either Tremendous or Reloadly
+    if (activeProviders.some(p => p.provider === 'tremendous' || p.provider === 'reloadly')) {
+      tabs.push({ key: 'giftCards', icon: Gift, label: 'Gift Cards' })
+    }
+    
+    // Donate: Needs GlobalGiving
+    if (activeProviders.some(p => p.provider === 'globalgiving')) {
+      tabs.push({ key: 'donate', icon: Heart, label: 'Donate' })
+    }
+    
+    // 529: Always available (Waitlist)
+    tabs.push({ key: '529', icon: GraduationCap, label: '529 Savings' })
+    
+    return tabs
+  }, [activeProviders])
+
+  // Fix active tab logic ensuring a hidden tab defaults gracefully
+  useEffect(() => {
+    if (availableTabs.length > 0) {
+      if (!activeTab || !availableTabs.find(t => t.key === activeTab)) {
+        setActiveTab(availableTabs[0]!.key)
+      }
+    }
+  }, [availableTabs, activeTab])
 
   // 529 state — persisted to feature_waitlist table
   const [waitlistJoined, setWaitlistJoined] = useState(false)
@@ -274,6 +320,7 @@ export function RedemptionStore({ onNavigateToFeed }: RedemptionStoreProps) {
         url: data?.cardUrl || undefined,
         provider: data?.provider,
         redeemedAt: new Date().toISOString(),
+        status: data?.status || 'pending',
       })
       setTimeout(() => refetchBalance(), 2000)
     } catch (err) {
@@ -332,6 +379,7 @@ export function RedemptionStore({ onNavigateToFeed }: RedemptionStoreProps) {
         amount: pointsAmount,
         donatedAt: new Date().toISOString(),
         receiptId: data.receiptNumber,
+        status: data.status || 'queued',
       })
     } catch (err: any) {
       Alert.alert('Donation Failed', err?.message || 'Something went wrong. Please try again.')
@@ -400,7 +448,7 @@ export function RedemptionStore({ onNavigateToFeed }: RedemptionStoreProps) {
             borderColor={colors.gray[200]}
             overflow="hidden"
           >
-            {TAB_CONFIG.map(({ key, icon: Icon, label }) => (
+          {availableTabs.map(({ key, icon: Icon, label }) => (
               <Button key={key} unstyled flex={1} paddingVertical="$3" alignItems="center" justifyContent="center"
                 backgroundColor={activeTab === key ? colors.green[600] : 'white'}
                 onPress={() => setActiveTab(key)}
@@ -492,7 +540,7 @@ export function RedemptionStore({ onNavigateToFeed }: RedemptionStoreProps) {
           pointsCost={redemptionResult.pointsCost}
           code={redemptionResult.code}
           url={redemptionResult.url}
-          status="completed"
+          status={redemptionResult.status as any}
           redeemedAt={redemptionResult.redeemedAt}
           provider={redemptionResult.provider}
         />

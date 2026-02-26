@@ -23,6 +23,7 @@ interface DonationReceiptSheetProps {
   donatedAt: string       // ISO date
   receiptUrl?: string     // link to receipt
   receiptId?: string      // receipt reference number
+  status?: string         // 'queued', 'completed', 'failed', 'pending'
 }
 
 const THEME_ICONS: Record<string, string> = {
@@ -41,7 +42,7 @@ const THEME_COLORS: Record<string, { bg: string; text: string; accent: string }>
 
 export function DonationReceiptSheet({
   visible, onClose, organizationName, projectTitle, theme,
-  amount, donatedAt, receiptUrl, receiptId,
+  amount, donatedAt, receiptUrl, receiptId, status,
 }: DonationReceiptSheetProps) {
 
   const dollarAmount = amount / POINTS_PER_DOLLAR
@@ -141,7 +142,11 @@ export function DonationReceiptSheet({
           backgroundColor="rgba(255,255,255,0.2)" paddingHorizontal="$3" paddingVertical="$1.5"
           borderRadius={20} marginTop="$1"
         >
-          <Text fontSize={12} fontWeight="600" color="white">✅ Donation Complete</Text>
+          <Text fontSize={12} fontWeight="600" color="white">
+            {status === 'completed' ? '✅ Donation Complete' : 
+             status === 'failed' ? '❌ Donation Failed' :
+             '⏳ Donation Queued'}
+          </Text>
         </XStack>
       </YStack>
 

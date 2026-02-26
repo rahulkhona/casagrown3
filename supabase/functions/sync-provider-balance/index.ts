@@ -7,11 +7,7 @@
  * If balance drops below threshold, logs a warning (future: send admin notification).
  */
 
-import {
-    jsonError,
-    jsonOk,
-    serveWithCors,
-} from "../_shared/serve-with-cors.ts";
+import { jsonOk, serveWithCors } from "../_shared/serve-with-cors.ts";
 
 serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
     const results: Record<string, { balance_cents: number; status: string }> =
@@ -31,11 +27,16 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
             if (res.ok) {
                 const data = await res.json();
                 // Find the balance funding source
-                const balanceSource = data.funding_sources?.find(
-                    (s: any) => s.method === "balance",
+                const balanceSource = (
+                    (data.funding_sources as Record<string, unknown>[]) || []
+                ).find(
+                    (s: Record<string, unknown>) => s.method === "balance",
                 );
                 const balanceCents = Math.round(
-                    balanceSource?.meta?.available_cents || 0,
+                    Number(
+                        (balanceSource?.meta as Record<string, number>)
+                            ?.available_cents || 0,
+                    ),
                 );
 
                 await supabase

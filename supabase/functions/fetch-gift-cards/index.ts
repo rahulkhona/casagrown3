@@ -42,13 +42,21 @@ function computeNetFee(
 ): number {
     const discountSavings = faceValue * (discount / 100);
     const totalFee = flatFee + faceValue * (pctFee / 100);
-    return Math.max(0, totalFee - discountSavings);
+    return totalFee - discountSavings;
 }
 
 // ── Main Handler ───────────────────────────────────────────────────
 
 serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
-    // ── Check cache first ──
+    // ── 1. Fetch live active providers ──
+    const { data: activeProviders } = await supabase
+        .from("provider_queue_status")
+        .select("provider")
+        .eq("is_active", true);
+
+    const activeList = (activeProviders || []).map((p) => p.provider);
+
+    // ── 2. Check cache first ──
     const { data: cached } = await supabase
         .from("platform_config")
         .select("value, updated_at")
@@ -60,7 +68,16 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
         const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
         if (cacheAge < CACHE_TTL) {
-            const cards = JSON.parse(cached.value) as UnifiedGiftCard[];
+            const rawCards = JSON.parse(cached.value) as UnifiedGiftCard[];
+
+            // Filter cached providers by activeList
+            const cards = rawCards.map((card) => {
+                card.availableProviders = card.availableProviders.filter((p) =>
+                    activeList.includes(p.provider)
+                );
+                return card;
+            }).filter((card) => card.availableProviders.length > 0);
+
             return jsonOk(
                 { cards, cached: true, count: cards.length },
                 corsHeaders,
@@ -68,7 +85,6 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
         }
     }
 
-    // ── Fetch from both providers in parallel ──
     const brandMap = new Map<string, UnifiedGiftCard>();
 
     const tremendousKey = env("TREMENDOUS_API_KEY") || "";
@@ -76,10 +92,36 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
     const reloadlySecret = env("RELOADLY_CLIENT_SECRET") || "";
     const isSandbox = env("RELOADLY_SANDBOX") !== "false";
 
-    const [tremendousCards, reloadlyCards] = await Promise.allSettled([
-        fetchTremendousCatalog(tremendousKey),
-        fetchReloadlyCatalog(reloadlyClient, reloadlySecret, isSandbox),
-    ]);
+    const fetchPromises: Promise<UnifiedGiftCard[]>[] = [];
+    let tremendousPromiseIndex = -1;
+    let reloadlyPromiseIndex = -1;
+
+    if (activeList.includes("tremendous") && tremendousKey) {
+        fetchPromises.push(fetchTremendousCatalog(tremendousKey));
+        tremendousPromiseIndex = fetchPromises.length - 1;
+    }
+
+    if (activeList.includes("reloadly") && reloadlyClient && reloadlySecret) {
+        fetchPromises.push(
+            fetchReloadlyCatalog(reloadlyClient, reloadlySecret, isSandbox),
+        );
+        reloadlyPromiseIndex = fetchPromises.length - 1;
+    }
+
+    const results = await Promise.allSettled(fetchPromises);
+
+    const tremendousCards = tremendousPromiseIndex >= 0
+        ? results[tremendousPromiseIndex]
+        : {
+            status: "rejected",
+            reason: "provider disabled",
+        } as PromiseRejectedResult;
+    const reloadlyCards = reloadlyPromiseIndex >= 0
+        ? results[reloadlyPromiseIndex]
+        : {
+            status: "rejected",
+            reason: "provider disabled",
+        } as PromiseRejectedResult;
 
     // Process Tremendous first (preferred: free)
     if (tremendousCards.status === "fulfilled") {
@@ -178,7 +220,7 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
             cheapest.feePercentage,
         );
         card.hasProcessingFee = typicalFee > 0;
-        card.processingFeeUsd = Math.round(typicalFee * 100) / 100;
+        card.processingFeeUsd = Math.max(0, Math.round(typicalFee * 100) / 100);
 
         cards.push(card);
     }

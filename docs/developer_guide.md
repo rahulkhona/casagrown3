@@ -369,6 +369,32 @@ platforms must have funds available:
 
 ---
 
+## 5.6 Redemption Circuit Breakers and Toggles
+
+Redemption requests (GlobalGiving donations and Tremendous / Reloadly gift
+cards) feature an administrative toggle and queueing architecture to prevent
+system failures when APIs run out of funds or experience downtime.
+
+### Circuit Breaker & Queueing
+
+If an API provider runs out of pre-funded wallet balance, the edge function
+handles the error resiliently: it persists the redemption record with a
+`status = 'queued'` and sends a push notification to the user letting them know
+their transaction is pending. Once provider funds are restored, the
+`retry-redemptions` cron job automatically sweeps through the queue and fulfills
+these pending requests.
+
+### Administrative Toggles & Grace Periods
+
+Admin staff can disable specific providers from the UI via the
+`provider_queue_status` table. Setting `is_active = false` stops new requests.
+When disabled, the `disabled_at` timestamp is populated automatically via a
+database trigger (`trg_set_provider_disabled_at`). This enables a "grace period"
+(e.g., 24 hours) where the UI can display a banner indicating the provider is
+temporarily offline before gracefully hiding that tab completely from users.
+
+---
+
 ## 5.7 Push Notification Architecture
 
 Push notifications use a **credential-gated feature flag** pattern — all code is

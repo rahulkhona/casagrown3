@@ -12,7 +12,7 @@ import { YStack, XStack, Text, Button, ScrollView } from 'tamagui'
 import { Copy, Share2, ExternalLink, X, Gift, CheckCircle, Clock, AlertTriangle } from '@tamagui/lucide-icons'
 import { colors, borderRadius } from '../../design-tokens'
 
-type DeliveryStatus = 'queued' | 'processing' | 'completed' | 'failed'
+type DeliveryStatus = 'pending' | 'queued' | 'processing' | 'completed' | 'failed'
 
 interface GiftCardDetailSheetProps {
   visible: boolean
@@ -30,6 +30,7 @@ interface GiftCardDetailSheetProps {
 }
 
 const STATUS_CONFIG: Record<DeliveryStatus, { label: string; color: string; bgColor: string; icon: any }> = {
+  pending:    { label: 'Pending',    color: colors.amber[700],  bgColor: colors.amber[100], icon: Clock },
   queued:     { label: 'Queued',     color: colors.amber[700],  bgColor: colors.amber[100], icon: Clock },
   processing: { label: 'Processing', color: colors.blue[700],   bgColor: colors.blue[100],  icon: Clock },
   completed:  { label: 'Delivered',  color: colors.green[700],  bgColor: colors.green[100], icon: CheckCircle },
@@ -166,7 +167,7 @@ export function GiftCardDetailSheet({
       )}
 
       {/* Status Messages */}
-      {status === 'queued' && (
+      {(status === 'queued' || status === 'pending') && (
         <YStack backgroundColor={colors.amber[50]} borderRadius={borderRadius.lg} padding="$3">
           <XStack gap="$2" alignItems="flex-start">
             <Clock size={16} color={colors.amber[600]} />

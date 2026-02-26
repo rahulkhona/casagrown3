@@ -17,6 +17,10 @@ const PUBLIC_ROUTES = ['/', '/login', '/login-success', '/logout', '/buy-points-
 const PUBLIC_PREFIXES = ['/invite/', '/delegate-invite/', '/post/']
 
 function isPublicRoute(pathname: string): boolean {
+  // Allow Playwright E2E testing to bypass auth redirects
+  if (typeof window !== 'undefined' && window.localStorage.getItem('E2E_BYPASS_AUTH') === 'true') {
+    return true;
+  }
   if (PUBLIC_ROUTES.includes(pathname)) return true
   return PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))
 }

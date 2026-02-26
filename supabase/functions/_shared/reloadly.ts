@@ -171,3 +171,41 @@ export async function orderFromReloadly(
         ),
     };
 }
+
+export async function fetchReloadlyBalance(
+    clientId: string,
+    clientSecret: string,
+    isSandbox: boolean,
+): Promise<number> {
+    const audience = isSandbox
+        ? "https://giftcards-sandbox.reloadly.com"
+        : "https://giftcards.reloadly.com";
+
+    const tokenRes = await fetch("https://auth.reloadly.com/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            client_id: clientId,
+            client_secret: clientSecret,
+            grant_type: "client_credentials",
+            audience,
+        }),
+    });
+
+    if (!tokenRes.ok) throw new Error("Reloadly auth failed");
+    const { access_token } = await tokenRes.json();
+
+    const balanceRes = await fetch(`${audience}/accounts/balance`, {
+        headers: { Authorization: `Bearer ${access_token}` },
+    });
+
+    if (!balanceRes.ok) {
+        throw new Error(
+            `Reloadly balance API error: ${await balanceRes.text()}`,
+        );
+    }
+
+    const data = await balanceRes.json();
+    // Convert to cents (balance is typically in USD)
+    return Math.round((data.balance || 0) * 100);
+}

@@ -51,7 +51,18 @@ and any associated triggers/functions/RLS policies.
 > `20260220300000_accept_offer_buyer_qty` → `20260220400006_feedback_flags` →
 > `20260222100000_redemption_providers` → `20260223000000_feature_waitlist` →
 > `20260223020000_redemptions_rls_policies` → `20260223100000_delegation_splits`
-> → `20260223100001_complete_order_with_split`
+> → `20260223100001_complete_order_with_split` →
+> `20260224000000_communities_upsert_rls` →
+> `20260224000001_delegations_realtime` → `20260224000002_realtime_identities` →
+> `20260225000000_push_subscriptions` →
+> `20260225000001_notify_on_message_trigger` →
+> `20260225000002_notify_delegator_on_post` →
+> `20260225000003_notify_delegator_on_order` →
+> `20260225000004_notify_user_on_redemption` →
+> `20260225000005_notify_delegator_on_reject` →
+> `20260225000006_snapshot_delegation_split` →
+> `20260225000007_notify_on_revocation` → `20260225000008_provider_queue_status`
+> → `20260226000001_provider_disabled_grace_period`
 
 ## Extensions
 
@@ -1189,6 +1200,48 @@ escalation → order parties.
 ---
 
 ## Redemption System
+
+### `provider_queue_status`
+
+Tracks circuit-breaker queueing states and administrative toggles for redemption
+providers.
+
+**Migrations**: `20260225000008_provider_queue_status.sql`,
+`20260226000001_provider_disabled_grace_period.sql`
+
+| Column        | Type          | Description                                               |
+| :------------ | :------------ | :-------------------------------------------------------- |
+| `id`          | `uuid`        | Primary Key.                                              |
+| `provider`    | `text`        | Provider name (`globalgiving`, `tremendous`, `reloadly`). |
+| `is_queuing`  | `boolean`     | If true, redemptions are queued instead of processed.     |
+| `is_active`   | `boolean`     | If false, the provider is completely disabled from UI.    |
+| `disabled_at` | `timestamptz` | When the provider was disabled (used for grace periods).  |
+| `updated_at`  | `timestamptz` | Default `now()`.                                          |
+
+**Triggers**: `trg_set_provider_disabled_at` automatically updates the
+`disabled_at` timestamp when `is_active` is toggled.
+
+```sql
+create table provider_queue_status (
+    id uuid primary key default gen_random_uuid(),
+    provider text not null unique check (provider in ('globalgiving', 'tremendous', 'reloadly')),
+    is_queuing boolean not null default false,
+    is_active boolean not null default true,
+    disabled_at timestamptz,
+    updated_at timestamptz default now()
+);
+```
+
+**RLS Policies** (`20260225000008`): Admin-only access.
+
+| Policy                                  | Operation | Rule                                         |
+| :-------------------------------------- | :-------- | :------------------------------------------- |
+| Admins can view provider queue status   | `SELECT`  | `public.has_staff_role(auth.uid(), 'admin')` |
+| Admins can update provider queue status | `UPDATE`  | `public.has_staff_role(auth.uid(), 'admin')` |
+
+**RPC `get_active_redemption_providers()`** Returns available redemption methods
+(`provider`, `is_queuing`) where `is_active = true`. Security definer (bypasses
+RLS so guests can read).
 
 ### `redemption_merchandize`
 

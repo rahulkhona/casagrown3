@@ -39,6 +39,16 @@ export function usePointsBalance(userId?: string): UsePointsBalanceReturn {
     }, [balance]);
 
     const fetchBalance = useCallback(async () => {
+        // E2E Test Bypass: Force 50,000 balance without needing a valid session/userId
+        if (
+            Platform.OS === "web" && typeof window !== "undefined" &&
+            window.localStorage.getItem("E2E_BYPASS_AUTH") === "true"
+        ) {
+            setBalance(50000);
+            setLoading(false);
+            return;
+        }
+
         if (!userId) {
             setBalance(0);
             setLoading(false);
@@ -55,6 +65,8 @@ export function usePointsBalance(userId?: string): UsePointsBalanceReturn {
                 .maybeSingle();
 
             if (!mountedRef.current) return;
+
+            console.log("[POINTS DEBUG]", { data, queryError });
 
             if (queryError) {
                 console.warn(

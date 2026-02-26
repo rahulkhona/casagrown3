@@ -20,6 +20,7 @@ import {
 } from "../_shared/serve-with-cors.ts";
 import { sendPushNotification } from "../_shared/push-notify.ts";
 import { ProviderOrderResult } from "../_shared/gift-card-types.ts";
+import { getProviderGracePeriodMs } from "../_shared/grace-period.ts";
 import { orderFromTremendous } from "../_shared/tremendous.ts";
 import { orderFromReloadly } from "../_shared/reloadly.ts";
 
@@ -71,21 +72,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         );
     }
 
-    // ── 1. Check user balance ──
-    const { data: ledgerEntry } = await supabase
-        .from("point_ledger")
-        .select("balance_after")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-    const balance = ledgerEntry?.balance_after ?? 0;
-    if (balance < pointsCost) {
-        return jsonError("Insufficient points balance", corsHeaders);
-    }
-
-    // ── 2. Look up brand in cached catalog ──
+    // ── 1. Look up brand in cached catalog ──
     let selectedProvider: ProviderOption | null = null;
     let netFeeCents = 0;
 
@@ -161,7 +148,55 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             `Points cost: ${totalPointsCost}`,
     );
 
-    // ── 3. Create pending redemption ──
+    // ── 2. Check Provider Queue Status ──
+    const providerName = selectedProvider.provider;
+
+    const { data: queueStatus } = await supabase
+        .from("provider_queue_status")
+        .select("is_queuing, is_active, disabled_at")
+        .eq("provider", providerName)
+        .single();
+
+    if (queueStatus && !queueStatus.is_active) {
+        let isGracePeriod = false;
+
+        if (queueStatus.disabled_at) {
+            const disabledTime = new Date(queueStatus.disabled_at).getTime();
+            const now = Date.now();
+            const gracePeriodMs = await getProviderGracePeriodMs(supabase);
+
+            if (now - disabledTime < gracePeriodMs) {
+                isGracePeriod = true;
+                console.log(
+                    `[REDEEM] Provider is disabled, but transaction permitted within ${gracePeriodMs}ms grace window.`,
+                );
+            }
+        }
+
+        if (!isGracePeriod) {
+            return jsonError(
+                `Redemptions via ${providerName} are temporarily offline. Please try again later.`,
+                corsHeaders,
+                400,
+            );
+        }
+    }
+
+    // ── 3. Check user balance ──
+    const { data: ledgerEntry } = await supabase
+        .from("point_ledger")
+        .select("balance_after")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    const balance = ledgerEntry?.balance_after ?? 0;
+    if (balance < pointsCost) {
+        return jsonError("Insufficient points balance", corsHeaders);
+    }
+
+    // ── 4. Create pending redemption ──
     const { data: redemption, error: redemptionError } = await supabase
         .from("redemptions")
         .insert({
@@ -183,7 +218,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
     if (redemptionError || !redemption) {
         console.error(
-            "[REDEEM] Step 3 failed (create redemption):",
+            "[REDEEM] Step 4 failed (create redemption):",
             redemptionError,
         );
         return jsonError(
@@ -193,9 +228,9 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             corsHeaders,
         );
     }
-    console.log(`[REDEEM] Step 3 OK: redemption ${redemption.id}`);
+    console.log(`[REDEEM] Step 4 OK: redemption ${redemption.id}`);
 
-    // ── 4. Debit points ──
+    // ── 5. Debit points ──
     const { error: debitError } = await supabase
         .from("point_ledger")
         .insert({
@@ -217,7 +252,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         return jsonError("Failed to debit points", corsHeaders);
     }
 
-    // ── 5. Place order with selected provider ──
+    // ── 6. Place order with selected provider ──
     let providerResult: ProviderOrderResult | null = null;
 
     try {
@@ -275,7 +310,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         }, corsHeaders);
     }
 
-    // ── 6. Log provider transaction ──
+    // ── 8. Log provider transaction ──
     await supabase.from("provider_transactions").insert({
         provider_name: providerResult!.provider,
         redemption_id: redemption.id,

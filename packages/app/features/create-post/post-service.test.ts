@@ -45,29 +45,28 @@ const buildChain = (table: string) => {
         }),
         select: jest.fn().mockImplementation(() => {
             const resp = mockResponses[`${table}.select`];
-            return {
-                eq: jest.fn().mockImplementation(() => ({
-                    single: jest.fn().mockResolvedValue(
-                        resp || { data: null, error: null },
-                    ),
-                    maybeSingle: jest.fn().mockResolvedValue(
-                        resp || { data: null, error: null },
-                    ),
-                    order: jest.fn().mockReturnValue({
-                        limit: jest.fn().mockReturnValue({
-                            maybeSingle: jest.fn().mockResolvedValue(
-                                resp || { data: null, error: null },
-                            ),
-                        }),
-                    }),
-                })),
+            const chain: any = {
+                single: jest.fn().mockResolvedValue(
+                    resp || { data: null, error: null },
+                ),
+                maybeSingle: jest.fn().mockResolvedValue(
+                    resp || { data: null, error: null },
+                ),
                 in: jest.fn().mockResolvedValue(
                     resp || { data: [], error: null },
                 ),
                 or: jest.fn().mockResolvedValue(
                     resp || { data: [], error: null },
                 ),
+                then: (resolve: any) =>
+                    Promise.resolve(resp || { data: [], error: null }).then(
+                        resolve,
+                    ),
             };
+            chain.eq = jest.fn().mockReturnValue(chain);
+            chain.order = jest.fn().mockReturnValue(chain);
+            chain.limit = jest.fn().mockReturnValue(chain);
+            return chain;
         }),
         update: jest.fn().mockImplementation(() => ({
             eq: jest.fn().mockResolvedValue({ error: null }),
