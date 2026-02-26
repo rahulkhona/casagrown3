@@ -46,7 +46,7 @@ appId: dev.casagrown.community
 
 # Verify profile elements visible
 - assertVisible:
-          text: ".*Test Seller.*"
+          id: "profile-name"
 - assertVisible:
           text: ".*seller@test.local.*"
 

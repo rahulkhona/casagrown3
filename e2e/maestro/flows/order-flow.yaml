@@ -24,15 +24,22 @@ appId: dev.casagrown.community
 # Use conditional flow to avoid failure.
 - runFlow:
           when:
-                  visible: "Order"
+                  visible:
+                          id: "order-button"
           commands:
-                  - tapOn: "Order"
+                  - tapOn:
+                            id: "order-button"
                   # Wait for order sheet
                   - extendedWaitUntil:
-                            visible: "Quantity"
+                            visible:
+                                    text: ".*Quantity.*"
                             timeout: 10000
-                  # Verify order sheet fields
-                  - assertVisible: "Cancel"
+                  # Scroll to Cancel button and verify it
+                  - scrollUntilVisible:
+                            element:
+                                    text: "Cancel"
+                            direction: DOWN
+                            timeout: 10000
                   # Close the order sheet
                   - tapOn: "Cancel"
                   - extendedWaitUntil:

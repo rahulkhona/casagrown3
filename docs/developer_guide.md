@@ -337,6 +337,9 @@ supabase secrets set GLOBALGIVING_SANDBOX=true      # Set to "false" for product
 Push notifications use a **credential-gated feature flag** pattern — all code is
 in place, but each platform only activates when its credentials are provided.
 
+> **Read the full architectural design decisions and payloads in
+> [`docs/notifications_design.md`](notifications_design.md).**
+
 ### How It Works
 
 ```mermaid

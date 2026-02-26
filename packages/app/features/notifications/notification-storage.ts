@@ -107,5 +107,13 @@ export async function shouldShowPrompt(): Promise<boolean> {
         if (daysSince < RE_PROMPT_DAYS) return false;
     }
 
+    // 4. Permission already granted
+    if (
+        Platform.OS === "web" && typeof globalThis !== "undefined" &&
+        (globalThis as any).Notification?.permission === "granted"
+    ) {
+        return false;
+    }
+
     return true;
 }

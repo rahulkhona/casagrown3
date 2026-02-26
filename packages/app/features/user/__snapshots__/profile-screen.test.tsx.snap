@@ -183,6 +183,7 @@ exports[`ProfileScreen matches snapshot 1`] = `
                 color="#171717"
                 fontSize="$6"
                 fontWeight="700"
+                testID="profile-name"
               >
                 John Doe
               </Text>

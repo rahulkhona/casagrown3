@@ -733,6 +733,64 @@ create table sales_category_restrictions (
 
 ---
 
+## Push Notifications
+
+### `push_subscriptions`
+
+Stores push tokens for Web Push, APNs, and FCM delivery engines.
+
+| Column       | Type          | Description                                      |
+| :----------- | :------------ | :----------------------------------------------- |
+| `id`         | `uuid`        | Primary Key.                                     |
+| `user_id`    | `uuid`        | FK to `auth.users(id)` on delete cascade.        |
+| `token`      | `text`        | Exact device token or URL endpoint JSON.         |
+| `platform`   | `text`        | enum equivalent: `web`, `ios`, or `android`.     |
+| `endpoint`   | `text`        | Required exclusively for VAPID Web Push routing. |
+| `created_at` | `timestamptz` | Default `now()`.                                 |
+| `updated_at` | `timestamptz` | Default `now()`.                                 |
+
+**Unique Constraints**: `(user_id, token)` **Indexes**:
+`idx_push_subscriptions_user_id`
+
+```sql
+create table push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  token text not null,
+  platform text not null check (platform in ('web', 'ios', 'android')),
+  endpoint text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique(user_id, token)
+);
+
+create index idx_push_subscriptions_user_id on push_subscriptions(user_id);
+```
+
+**RLS Policies** (`20260225000000_push_subscriptions`):
+
+| Policy                                   | Operation | Role            | Rule                                   |
+| :--------------------------------------- | :-------- | :-------------- | :------------------------------------- |
+| Users can read their own subscriptions   | `SELECT`  | `authenticated` | `using (auth.uid() = user_id)`         |
+| Users can insert their own subscriptions | `INSERT`  | `authenticated` | `with check (auth.uid() = user_id)`    |
+| Users can update their own subscriptions | `UPDATE`  | `authenticated` | `using (auth.uid() = user_id)`         |
+| Users can delete their own subscriptions | `DELETE`  | `authenticated` | `using (auth.uid() = user_id)`         |
+| Edge functions can read all under bypass | `ALL`     | `service_role`  | `using (auth.role() = 'service_role')` |
+
+### Associated Database Triggers
+
+Push notifications employ asynchronous database triggers invoking `pg_net` to
+fire HTTPS `POST` deliveries dynamically:
+
+1. **`notify_delegator_on_post`**: Triggers `AFTER INSERT ON posts` for rows
+   bound `on_behalf_of`.
+2. **`notify_delegator_on_order`**: Triggers `AFTER UPDATE ON orders` when
+   status becomes `completed` filtering posts `on_behalf_of`.
+3. **`notify_user_on_redemption`**: Triggers `AFTER UPDATE ON redemptions` when
+   status becomes `completed`.
+
+---
+
 ## Platform Configuration
 
 ### `platform_config`
@@ -2863,23 +2921,24 @@ operations) and makes `item_id` nullable for API-based redemptions.
 
 ### `push_subscriptions`
 
-Stores push tokens for Web Push, APNs, and FCM to enable push notifications across all platforms.
-Used to deliver notifications when orders, offers, or chat messages are created.
+Stores push tokens for Web Push, APNs, and FCM to enable push notifications
+across all platforms. Used to deliver notifications when orders, offers, or chat
+messages are created.
 
 **Migration**: `20260225000000_push_subscriptions.sql`
 
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| `id` | `uuid` | Primary Key. |
-| `user_id` | `uuid` | FK to `auth.users(id)` on delete cascade. |
-| `token` | `text` | The push subscription token or device identifier. |
-| `platform` | `text` | Enum-like: 'web', 'ios', 'android'. |
-| `endpoint` | `text` | Web Push endpoint URL (null for native platforms). |
-| `created_at` | `timestamptz` | Default `now()`. |
-| `updated_at` | `timestamptz` | Default `now()`. |
+| Column       | Type          | Description                                        |
+| :----------- | :------------ | :------------------------------------------------- |
+| `id`         | `uuid`        | Primary Key.                                       |
+| `user_id`    | `uuid`        | FK to `auth.users(id)` on delete cascade.          |
+| `token`      | `text`        | The push subscription token or device identifier.  |
+| `platform`   | `text`        | Enum-like: 'web', 'ios', 'android'.                |
+| `endpoint`   | `text`        | Web Push endpoint URL (null for native platforms). |
+| `created_at` | `timestamptz` | Default `now()`.                                   |
+| `updated_at` | `timestamptz` | Default `now()`.                                   |
 
-**Unique Constraints**: `(user_id, token)`
-**Indexes**: `idx_push_subscriptions_user_id`
+**Unique Constraints**: `(user_id, token)` **Indexes**:
+`idx_push_subscriptions_user_id`
 
 ```sql
 CREATE TABLE IF NOT EXISTS public.push_subscriptions (
@@ -2899,17 +2958,19 @@ CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id
 
 **RLS Policies**:
 
-| Policy | Operation | Role | Rule |
-| :--- | :--- | :--- | :--- |
-| Users can read their own subscriptions | `SELECT` | `authenticated` | `using (auth.uid() = user_id)` |
-| Users can insert their own subscriptions | `INSERT` | `authenticated` | `with check (auth.uid() = user_id)` |
-| Users can update their own subscriptions | `UPDATE` | `authenticated` | `using (auth.uid() = user_id)` |
-| Users can delete their own subscriptions | `DELETE` | `authenticated` | `using (auth.uid() = user_id)` |
-| Service role can bypass for edge functions | `ALL` | `service_role` | `using (auth.role() = 'service_role')` |
+| Policy                                     | Operation | Role            | Rule                                   |
+| :----------------------------------------- | :-------- | :-------------- | :------------------------------------- |
+| Users can read their own subscriptions     | `SELECT`  | `authenticated` | `using (auth.uid() = user_id)`         |
+| Users can insert their own subscriptions   | `INSERT`  | `authenticated` | `with check (auth.uid() = user_id)`    |
+| Users can update their own subscriptions   | `UPDATE`  | `authenticated` | `using (auth.uid() = user_id)`         |
+| Users can delete their own subscriptions   | `DELETE`  | `authenticated` | `using (auth.uid() = user_id)`         |
+| Service role can bypass for edge functions | `ALL`     | `service_role`  | `using (auth.role() = 'service_role')` |
 
 ### `notify_on_message` Trigger
 
-A PostgreSQL trigger attached to the `chat_messages` table that automatically sends an HTTP POST request via `pg_net` to the `notify-on-message` Supabase Edge Function whenever a new message is inserted.
+A PostgreSQL trigger attached to the `chat_messages` table that automatically
+sends an HTTP POST request via `pg_net` to the `notify-on-message` Supabase Edge
+Function whenever a new message is inserted.
 
 **Migration**: `20260225000001_notify_on_message_trigger.sql`
 

@@ -589,7 +589,7 @@ export function ProfileScreen() {
                   fontWeight="400"
                 />
               ) : (
-                <Text fontSize="$6" fontWeight="700" color={colors.neutral[900]}>
+                <Text testID="profile-name" fontSize="$6" fontWeight="700" color={colors.neutral[900]}>
                   {profile.full_name || t('profile.noName')}
                 </Text>
               )}

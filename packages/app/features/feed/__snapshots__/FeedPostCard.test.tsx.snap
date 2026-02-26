@@ -275,6 +275,7 @@ exports[`FeedPostCard matches snapshot 1`] = `
             "opacity": 1,
           }
         }
+        testID="order-button"
       >
         <Text
           color="white"

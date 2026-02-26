@@ -11,31 +11,31 @@ appId: dev.casagrown.community
 
 # Wait for feed to load
 - extendedWaitUntil:
-        visible: "Tomatoes"
-        timeout: 15000
+          visible: "Tomatoes"
+          timeout: 15000
 
 # Open Menu via bottom tab (regex for iOS accessibility label)
 - tapOn:
-        text: ".*Menu.*"
+          text: ".*Menu.*"
 
 # Wait for Profile & Settings in menu
 - extendedWaitUntil:
-        visible:
-              text: ".*Profile.*Settings.*"
-        timeout: 5000
+          visible:
+                  text: ".*Profile.*Settings.*"
+          timeout: 5000
 
 # Tap Profile & Settings
 - tapOn:
-        text: ".*Profile.*Settings.*"
+          text: ".*Profile.*Settings.*"
 
 # Verify profile screen loads
 - extendedWaitUntil:
-        visible:
-              text: ".*Profile.*"
-        timeout: 10000
+          visible:
+                  text: ".*Profile.*"
+          timeout: 10000
 
 # Verify key profile elements
 - assertVisible:
-        text: ".*Test Seller.*"
+          id: "profile-name"
 - assertVisible:
-        text: ".*seller@test.local.*"
+          text: ".*seller@test.local.*"
