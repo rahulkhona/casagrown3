@@ -502,16 +502,35 @@ export async function createSellPost(data: SellPostData) {
     if (!post) throw new Error("Failed to create post");
 
     // 2. Insert sell details
+    const detailPayload: Record<string, unknown> = {
+        post_id: post.id,
+        category: data.category,
+        produce_name: data.produceName,
+        unit: data.unit,
+        total_quantity_available: data.quantity,
+        points_per_unit: data.pointsPerUnit,
+    };
+
+    if (onBehalfOf) {
+        // Snapshot the active delegate_pct so that future revocations don't break payouts
+        const { data: delegation } = await supabase
+            .from("delegations")
+            .select("delegate_pct")
+            .eq("delegator_id", onBehalfOf)
+            .eq("delegatee_id", data.authorId)
+            .eq("status", "active")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (delegation) {
+            detailPayload.delegate_pct = delegation.delegate_pct ?? 50;
+        }
+    }
+
     const { error: detailError } = await supabase
         .from("want_to_sell_details")
-        .insert({
-            post_id: post.id,
-            category: data.category,
-            produce_name: data.produceName,
-            unit: data.unit,
-            total_quantity_available: data.quantity,
-            points_per_unit: data.pointsPerUnit,
-        });
+        .insert(detailPayload);
 
     if (detailError) throw detailError;
 

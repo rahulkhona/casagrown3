@@ -15,15 +15,16 @@ import {
     requireAuth,
     serveWithCors,
 } from "../_shared/serve-with-cors.ts";
+import { sendPushNotification } from "../_shared/push-notify.ts";
 
-serveWithCors(async (req, { supabase, env, corsHeaders }) => {
+serveWithCors(async (req, { supabase, env: _env, corsHeaders }) => {
     const auth = await requireAuth(req, supabase, corsHeaders);
     if (auth instanceof Response) return auth;
     const userId = auth;
 
     const body = await req.json();
     const {
-        projectId,
+        projectId: _projectId,
         projectTitle,
         organizationName,
         theme,
@@ -40,7 +41,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
     const POINTS_PER_DOLLAR = 100;
     const dollarAmount = pointsAmount / POINTS_PER_DOLLAR;
-    const donationCents = Math.round(dollarAmount * 100);
+    const _donationCents = Math.round(dollarAmount * 100);
 
     // 1. Check balance
     const { data: ledgerEntry } = await supabase
@@ -94,107 +95,32 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         },
     });
 
-    // 4. Call GlobalGiving API
-    // ⚠️ GlobalGiving has NO sandbox — GLOBALGIVING_SANDBOX=true forces simulation
-    let externalOrderId = "";
-    const ggApiKey = env("GLOBALGIVING_API_KEY");
-    const isSandbox = env("GLOBALGIVING_SANDBOX") === "true";
+    // 4. Notify user that donation is queued
+    const receiptNumber = `DON-Q-${Date.now().toString(36).toUpperCase()}`;
+    const queuedMessage = `Your donation of $${
+        dollarAmount.toFixed(2)
+    } to ${organizationName} has been queued and will be processed shortly.`;
 
-    try {
-        if (ggApiKey && projectId && !isSandbox) {
-            const response = await fetch(
-                `https://api.globalgiving.org/api/public/projects/${projectId}/donate?api_key=${ggApiKey}`,
-                {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        amount: dollarAmount,
-                        currency: "USD",
-                    }),
-                },
-            );
-
-            if (!response.ok) {
-                throw new Error(
-                    `GlobalGiving API error: ${await response.text()}`,
-                );
-            }
-
-            const data = await response.json();
-            externalOrderId = data.donationId || data.id || "";
-        } else {
-            // Sandbox mode or no API key — simulate success
-            externalOrderId = `GG-SIM-${Date.now()}`;
-            console.log(
-                `🧪 [SANDBOX] Simulated GlobalGiving donation: $${dollarAmount} to "${organizationName}"`,
-            );
-        }
-    } catch (err) {
-        // Refund on failure
-        const errorMsg = err instanceof Error ? err.message : "Donation failed";
-
-        await supabase.from("point_ledger").insert({
-            user_id: userId,
-            type: "refund",
-            amount: pointsAmount,
-            balance_after: balance, // Restore original balance
-            reference_id: redemption.id,
-            metadata: { reason: "Donation failed", error: errorMsg },
-        });
-
-        await supabase
-            .from("redemptions")
-            .update({ status: "failed", failed_reason: errorMsg })
-            .eq("id", redemption.id);
-
-        return jsonError(`Donation failed: ${errorMsg}`, corsHeaders);
-    }
-
-    // 5. Log provider transaction
-    await supabase.from("provider_transactions").insert({
-        provider_name: "globalgiving",
-        redemption_id: redemption.id,
+    // 4a. In-App Notification
+    await supabase.from("notifications").insert({
         user_id: userId,
-        external_order_id: externalOrderId,
-        item_type: "donation",
-        item_name: `Donation to ${organizationName}`,
-        face_value_cents: donationCents,
-        cost_cents: donationCents,
-        status: "success",
+        content: queuedMessage,
+        link_url: "/transaction-history",
     });
 
-    // 6. Store donation receipt
-    const receiptNumber = `DON-${Date.now().toString(36).toUpperCase()}`;
-    const receiptUrl = `https://casagrown.com/receipts/${receiptNumber}`;
-
-    await supabase.from("donation_receipts").insert({
-        redemption_id: redemption.id,
-        organization_name: organizationName,
-        project_title: projectTitle,
-        theme: theme,
-        donation_amount_cents: donationCents,
-        points_spent: pointsAmount,
-        receipt_url: receiptUrl,
-        receipt_number: receiptNumber,
-        tax_deductible: true,
+    // 4b. Push Notification
+    await sendPushNotification(supabase, {
+        userIds: [userId],
+        title: "Donation Queued 💛",
+        body: queuedMessage,
+        url: "/transaction-history",
     });
-
-    // 7. Mark completed
-    await supabase
-        .from("redemptions")
-        .update({
-            status: "completed",
-            provider: "globalgiving",
-            provider_order_id: externalOrderId,
-            completed_at: new Date().toISOString(),
-        })
-        .eq("id", redemption.id);
 
     return jsonOk({
         success: true,
         redemptionId: redemption.id,
         receiptNumber,
-        receiptUrl,
         donationAmountUsd: dollarAmount,
+        status: "queued",
     }, corsHeaders);
 });

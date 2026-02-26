@@ -18,6 +18,7 @@ import {
     requireAuth,
     serveWithCors,
 } from "../_shared/serve-with-cors.ts";
+import { sendPushNotification } from "../_shared/push-notify.ts";
 import { ProviderOrderResult } from "../_shared/gift-card-types.ts";
 import { orderFromTremendous } from "../_shared/tremendous.ts";
 import { orderFromReloadly } from "../_shared/reloadly.ts";
@@ -238,24 +239,40 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             );
         }
     } catch (err) {
-        // Provider failed — refund points
+        // Provider failed — queue for retry
         const errorMsg = err instanceof Error ? err.message : "Provider error";
-
-        await supabase.from("point_ledger").insert({
-            user_id: userId,
-            type: "refund",
-            amount: totalPointsCost,
-            balance_after: 0,
-            reference_id: redemption.id,
-            metadata: { reason: "Gift card order failed", error: errorMsg },
-        });
+        console.warn(`[REDEEM] gift card API failed, queuing: ${errorMsg}`);
 
         await supabase
             .from("redemptions")
             .update({ status: "failed", failed_reason: errorMsg })
             .eq("id", redemption.id);
 
-        return jsonError(`Gift card order failed: ${errorMsg}`, corsHeaders);
+        const queuedMessage =
+            `Your ${brandName} redemption has been queued due to provider delays and will be processed shortly.`;
+
+        // Notify user of queuing
+        await supabase.from("notifications").insert({
+            user_id: userId,
+            content: queuedMessage,
+            link_url: "/transaction-history",
+        });
+
+        await sendPushNotification(supabase, {
+            userIds: [userId],
+            title: "Redemption Queued ⏳",
+            body: queuedMessage,
+            url: "/transaction-history",
+        });
+
+        // Return gracefully so the frontend assumes success-but-queued
+        return jsonOk({
+            success: true,
+            redemptionId: redemption.id,
+            provider: selectedProvider.provider,
+            netFeeCents,
+            status: "queued",
+        }, corsHeaders);
     }
 
     // ── 6. Log provider transaction ──

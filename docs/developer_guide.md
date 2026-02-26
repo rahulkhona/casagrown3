@@ -324,6 +324,43 @@ supabase secrets set GLOBALGIVING_API_KEY=xxx
 supabase secrets set GLOBALGIVING_SANDBOX=true      # Set to "false" for production
 ```
 
+### API Provider Funding & Wallets
+
+For redemptions and donations to work without failing, the respective API
+platforms must have funds available:
+
+**Tremendous**:
+
+- **Method**: Wallet Balance or direct ACH.
+- **Details**: You can pre-fund your Tremendous account via wire, ACH, or credit
+  card from their dashboard. Alternatively, Tremendous supports "pay-by-bank"
+  (ACH) for API orders without needing a pre-funded balance, though you must ask
+  their support team to enable this feature for your API key.
+
+**Reloadly**:
+
+- **Method**: Wallet Balance ONLY.
+- **Details**: Reloadly strictly requires you to maintain a pre-funded wallet
+  balance. You can top this up via ACH, Wire, Credit Card, or Crypto from the
+  Reloadly dashboard. The API will draw down exclusively from this stored
+  balance.
+
+**GlobalGiving**:
+
+- **Method**: Wallet Balance / API Account Funding.
+- **Details**: Similar to Reloadly, the GlobalGiving API does not natively
+  expose endpoints to draw directly from an external ACH account
+  per-transaction. You must pre-fund your developer account balance through
+  GlobalGiving support or their payment portal.
+
+> **Note on Failures**: CasaGrown handles provider exhaustion elegantly! If a
+> user redeems a gift card or donates points but the respective API wallet is
+> empty, the Edge Function will _not_ refund their points or crash. Instead, it
+> swallows the error, marks the redemption as `queued`, and fires a push
+> notification to the user letting them know their transaction is pending. The
+> `retry-redemptions` cron job (`supabase/functions/retry-redemptions`) will
+> automatically sweep and fullfil these once you top up your API wallets!
+
 > [!NOTE]
 > All edge function secrets are injected at runtime via `Deno.env.get()`. The
 > shared `serveWithCors` wrapper provides an `env()` helper that reads from

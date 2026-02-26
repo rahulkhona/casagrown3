@@ -240,11 +240,17 @@ describe("post-service", () => {
             expect(deliveryCalls).toHaveLength(0);
         });
 
-        it("sets on_behalf_of when selling on behalf of delegator", async () => {
+        it("sets on_behalf_of and snapshots delegate_pct when selling on behalf of delegator", async () => {
             const delegatedData = {
                 ...baseSellData,
                 onBehalfOfId: "delegator-456",
             };
+
+            mockResponses["delegations.select"] = {
+                data: { delegate_pct: 75 },
+                error: null,
+            };
+
             await createSellPost(delegatedData);
 
             // The posts insert should keep user-123 as author_id and set on_behalf_of
@@ -256,6 +262,16 @@ describe("post-service", () => {
                 const insertArg = postsChain.insert.mock.calls[0]?.[0];
                 expect(insertArg?.author_id).toBe("user-123");
                 expect(insertArg?.on_behalf_of).toBe("delegator-456");
+            }
+
+            // Verify want_to_sell_details gets the delegate_pct
+            const detailsCallIndex = mockFrom.mock.calls.findIndex((c: any) =>
+                c[0] === "want_to_sell_details"
+            );
+            const detailsChain = mockFrom.mock.results[detailsCallIndex]?.value;
+            if (detailsChain?.insert) {
+                const insertArg = detailsChain.insert.mock.calls[0]?.[0];
+                expect(insertArg?.delegate_pct).toBe(75);
             }
         });
 
