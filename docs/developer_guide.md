@@ -322,6 +322,10 @@ supabase secrets set RELOADLY_SANDBOX=true         # Set to "false" for producti
 # Charitable donations — GlobalGiving
 supabase secrets set GLOBALGIVING_API_KEY=xxx
 supabase secrets set GLOBALGIVING_SANDBOX=true      # Set to "false" for production
+
+# Cashouts — PayPal Payouts
+supabase secrets set PAYPAL_CLIENT_ID=xxx
+supabase secrets set PAYPAL_SECRET=xxx
 ```
 
 ### API Provider Funding & Wallets
@@ -352,6 +356,13 @@ platforms must have funds available:
   expose endpoints to draw directly from an external ACH account
   per-transaction. You must pre-fund your developer account balance through
   GlobalGiving support or their payment portal.
+
+**PayPal Payouts**:
+
+- **Method**: PayPal Business Balance.
+- **Details**: Requires a pre-funded PayPal business account balance to cover
+  cashouts. The API does not natively pull from linked bank accounts on the fly
+  for payouts.
 
 > **Note on Failures**: CasaGrown handles provider exhaustion elegantly! If a
 > user redeems a gift card or donates points but the respective API wallet is

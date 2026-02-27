@@ -147,6 +147,15 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
                 await processGiftCard(supabase, env, redemption, "reloadly");
                 reloadlyBalance -= estimatedCost;
+            } else if (provider === "paypal") {
+                await processPayPalCashout(
+                    supabase,
+                    env,
+                    redemption,
+                    user_id,
+                    point_cost,
+                    metadata,
+                );
             } else {
                 throw new Error(`Unknown provider for retry: ${provider}`);
             }
@@ -301,7 +310,7 @@ async function processGiftCard(
     });
 
     await sendPushNotification(supabase, {
-        userIds: [redemption.user_id],
+        userIds: [redemption.user_id as string],
         title: "Redemption Complete 🎉",
         body: msg,
         url: "/transaction-history",
@@ -426,6 +435,137 @@ async function processGlobalGiving(
     await sendPushNotification(supabase, {
         userIds: [userId],
         title: "Donation Complete 💛",
+        body: msg,
+        url: "/transaction-history",
+    });
+}
+
+// ============================================================================
+// PayPal Cashout Processing
+// ============================================================================
+async function processPayPalCashout(
+    // deno-lint-ignore no-explicit-any
+    supabase: any,
+    env: (key: string) => string | undefined,
+    redemption: Record<string, unknown>,
+    userId: string,
+    pointsAmount: number,
+    metadata: Record<string, unknown>,
+) {
+    const usdAmount = metadata.usd_amount as number;
+    const payoutTarget = metadata.payout_target as string;
+
+    const PAYPAL_CLIENT_ID = env("PAYPAL_CLIENT_ID");
+    const PAYPAL_SECRET = env("PAYPAL_SECRET");
+
+    const IS_PROD = env("SUPABASE_URL")?.includes("casagrown") &&
+        !env("SUPABASE_URL")?.includes("localhost");
+    const PAYPAL_BASE_URL = IS_PROD
+        ? "https://api-m.paypal.com"
+        : "https://api-m.sandbox.paypal.com";
+
+    if (!PAYPAL_CLIENT_ID || !PAYPAL_SECRET) {
+        throw new Error("PayPal API keys are missing in Cron");
+    }
+
+    // A. Get OAuth Token
+    const credentials = btoa(`${PAYPAL_CLIENT_ID}:${PAYPAL_SECRET}`);
+    const authRes = await fetch(`${PAYPAL_BASE_URL}/v1/oauth2/token`, {
+        method: "POST",
+        headers: {
+            "Authorization": `Basic ${credentials}`,
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: "grant_type=client_credentials",
+    });
+
+    if (!authRes.ok) {
+        throw new Error("Failed to authenticate with PayPal processor.");
+    }
+    const { access_token } = await authRes.json();
+
+    // B. Send Payout
+    const isPhone = /^\+?[1-9]\d{1,14}$/.test(payoutTarget);
+    const receiverType = isPhone ? "PHONE" : "EMAIL";
+
+    const payoutPayload = {
+        sender_batch_header: {
+            sender_batch_id: `retry_${Date.now()}_${userId.substring(0, 8)}`,
+            email_subject: "Here is your CasaGrown Reward!",
+            email_message:
+                `You earned $${usdAmount} by redeeming ${pointsAmount} points on CasaGrown! Keep up the great work.`,
+        },
+        items: [
+            {
+                recipient_type: receiverType,
+                amount: {
+                    value: usdAmount.toFixed(2),
+                    currency: "USD",
+                },
+                note: "CasaGrown Points Redemption",
+                sender_item_id: `retry_item_${Date.now()}`,
+                receiver: payoutTarget,
+            },
+        ],
+    };
+
+    const payoutRes = await fetch(`${PAYPAL_BASE_URL}/v1/payments/payouts`, {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${access_token}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payoutPayload),
+    });
+
+    const payoutData = await payoutRes.json();
+
+    if (!payoutRes.ok || payoutData.name === "INSUFFICIENT_FUNDS") {
+        throw new Error(
+            payoutData.message || "PayPal rejected retry transfer.",
+        );
+    }
+
+    const txId = payoutData.batch_header?.payout_batch_id ||
+        `paypal_retry_id_${Date.now()}`;
+
+    // Mark completion
+    await supabase
+        .from("redemptions")
+        .update({
+            status: "completed",
+            provider_order_id: txId,
+            completed_at: new Date().toISOString(),
+        })
+        .eq("id", redemption.id);
+
+    // Update ledger metadata to completed
+    await supabase
+        .from("point_ledger")
+        .update({
+            metadata: {
+                ...metadata,
+                status: "completed",
+                batch_id: txId,
+            },
+        })
+        .eq("reference_id", redemption.id)
+        .eq("type", "redemption");
+
+    // Fire Push
+    const msg = `Your queued cashout of $${
+        usdAmount.toFixed(2)
+    } to ${payoutTarget} has been successfully processed!`;
+
+    await supabase.from("notifications").insert({
+        user_id: userId,
+        content: msg,
+        link_url: "/transaction-history",
+    });
+
+    await sendPushNotification(supabase, {
+        userIds: [userId],
+        title: "Cashout Complete 💸",
         body: msg,
         url: "/transaction-history",
     });

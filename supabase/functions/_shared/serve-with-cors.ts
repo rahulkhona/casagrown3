@@ -139,7 +139,11 @@ export async function requireAuth(
     }
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: { user } } = await supabase.auth.getUser(token);
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+
+    if (error) {
+        console.error("Auth Error (getUser failed):", error.message);
+    }
 
     if (!user?.id) {
         return new Response(

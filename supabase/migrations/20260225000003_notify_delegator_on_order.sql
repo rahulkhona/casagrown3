@@ -9,8 +9,9 @@ DECLARE
 BEGIN
     -- Check if the order's post was made on behalf of someone
     SELECT p.on_behalf_of INTO v_on_behalf_of
-    FROM posts p
-    WHERE p.id = NEW.post_id;
+    FROM conversations c
+    JOIN posts p ON p.id = c.post_id
+    WHERE c.id = NEW.conversation_id;
 
     IF v_on_behalf_of IS NOT NULL THEN
         -- Fire-and-forget HTTP call to the send-push-notification edge function

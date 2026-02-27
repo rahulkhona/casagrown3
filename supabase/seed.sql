@@ -188,10 +188,10 @@ ON CONFLICT (id) DO UPDATE SET
   referral_code = EXCLUDED.referral_code;
 
 -- Seed points for both users (enough for test transactions)
-INSERT INTO public.point_ledger (user_id, type, amount, balance_after, metadata)
+INSERT INTO public.point_ledger (user_id, type, amount, balance_after, created_at, metadata)
 VALUES
-  ('a1111111-1111-1111-1111-111111111111', 'reward', 500, 500, '{"reason":"E2E test seed"}'),
-  ('b2222222-2222-2222-2222-222222222222', 'reward', 500, 500, '{"reason":"E2E test seed"}');
+  ('a1111111-1111-1111-1111-111111111111', 'reward', 1500, 1500, now() + interval '1 second', '{"reason":"E2E test seed"}'),
+  ('b2222222-2222-2222-2222-222222222222', 'reward', 1500, 1500, now() + interval '1 second', '{"reason":"E2E test seed"}');
 
 -- =============================================================================
 -- 12. Test Posts (with complete detail rows)
@@ -320,11 +320,12 @@ VALUES (
 );
 
 -- Escrow: debit buyer (seller account) 45 points for the order
-INSERT INTO public.point_ledger (user_id, type, amount, balance_after, reference_id, metadata)
+INSERT INTO public.point_ledger (user_id, type, amount, balance_after, reference_id, created_at, metadata)
 VALUES (
   'a1111111-1111-1111-1111-111111111111',
   'escrow', -45, 455,
   'd0000000-0000-0000-0000-000000000001',
+  now() + interval '2 seconds',
   '{"reason":"Order escrow for Peppers","order_id":"d0000000-0000-0000-0000-000000000001"}'
 );
 

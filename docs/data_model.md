@@ -311,6 +311,7 @@ Linked to Supabase Auth `auth.users` table. Auto-created on signup via
 | `sms_enabled`                 | `boolean`               | SMS enabled. Default: `false`.                               |
 | `referral_code`               | `text`                  | Unique 8-char alphanumeric code. Auto-generated via trigger. |
 | `invited_by_id`               | `uuid`                  | FK to `profiles(id)`. Who referred this user.                |
+| `paypal_payout_id`            | `text`                  | PayPal email or Venmo phone number for cashouts.             |
 | `created_at`                  | `timestamptz`           | Default `now()`.                                             |
 | `updated_at`                  | `timestamptz`           | Default `now()`.                                             |
 
@@ -339,12 +340,41 @@ create table profiles (
   sms_enabled boolean not null default false,
   referral_code text unique,
   invited_by_id uuid references profiles(id),
+  paypal_payout_id text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
 
 create index profiles_home_location_idx on profiles using gist (home_location);
 create index profiles_nearby_communities_idx on profiles using gin (nearby_community_h3_indices);
+```
+
+### `stripe_connect_accounts`
+
+Stores the mapping between users and their Stripe Hosted Onboarding/Express
+Connect accounts for cash redemptions.
+
+| Column                | Type          | Description                                 |
+| :-------------------- | :------------ | :------------------------------------------ |
+| `user_id`             | `uuid`        | **Primary Key**, FK to `auth.users(id)`.    |
+| `stripe_account_id`   | `text`        | Unique. The `acct_` Stripe Connect account. |
+| `onboarding_complete` | `boolean`     | True when they can receive payouts.         |
+| `created_at`          | `timestamptz` | Default `now()`.                            |
+| `updated_at`          | `timestamptz` | Default `now()`.                            |
+
+**RLS Policies**: Users can read their own. Only Service Role can insert/update
+(via Edge Functions). **Indexes**: `stripe_connect_accounts_stripe_id_idx`
+
+```sql
+create table stripe_connect_accounts (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  stripe_account_id text unique not null,
+  onboarding_complete boolean not null default false,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index stripe_connect_accounts_stripe_id_idx on stripe_connect_accounts(stripe_account_id);
 ```
 
 ### `user_garden`
@@ -1209,14 +1239,14 @@ providers.
 **Migrations**: `20260225000008_provider_queue_status.sql`,
 `20260226000001_provider_disabled_grace_period.sql`
 
-| Column        | Type          | Description                                               |
-| :------------ | :------------ | :-------------------------------------------------------- |
-| `id`          | `uuid`        | Primary Key.                                              |
-| `provider`    | `text`        | Provider name (`globalgiving`, `tremendous`, `reloadly`). |
-| `is_queuing`  | `boolean`     | If true, redemptions are queued instead of processed.     |
-| `is_active`   | `boolean`     | If false, the provider is completely disabled from UI.    |
-| `disabled_at` | `timestamptz` | When the provider was disabled (used for grace periods).  |
-| `updated_at`  | `timestamptz` | Default `now()`.                                          |
+| Column        | Type          | Description                                                         |
+| :------------ | :------------ | :------------------------------------------------------------------ |
+| `id`          | `uuid`        | Primary Key.                                                        |
+| `provider`    | `text`        | Provider name (`globalgiving`, `tremendous`, `reloadly`, `stripe`). |
+| `is_queuing`  | `boolean`     | If true, redemptions are queued instead of processed.               |
+| `is_active`   | `boolean`     | If false, the provider is completely disabled from UI.              |
+| `disabled_at` | `timestamptz` | When the provider was disabled (used for grace periods).            |
+| `updated_at`  | `timestamptz` | Default `now()`.                                                    |
 
 **Triggers**: `trg_set_provider_disabled_at` automatically updates the
 `disabled_at` timestamp when `is_active` is toggled.
@@ -1224,7 +1254,7 @@ providers.
 ```sql
 create table provider_queue_status (
     id uuid primary key default gen_random_uuid(),
-    provider text not null unique check (provider in ('globalgiving', 'tremendous', 'reloadly')),
+    provider text not null unique check (provider in ('globalgiving', 'tremendous', 'reloadly', 'stripe')),
     is_queuing boolean not null default false,
     is_active boolean not null default true,
     disabled_at timestamptz,

@@ -138,6 +138,10 @@ function buildDescription(type: TransactionType, amount: number, meta: any): str
       return `Purchase: ${product}`
     }
     case 'redemption': {
+      if (meta.provider === 'paypal') {
+          return meta.description || 'Cashout to PayPal/Venmo'
+      }
+
       const brand = meta.brand_name || meta.gift_card_brand || 'Gift Card'
       const value = meta.face_value_cents
         ? `$${(meta.face_value_cents / 100).toFixed(0)}`
@@ -740,7 +744,7 @@ function TransactionCard({ tx, onOpenChat, onCopyCode, onShare, onViewDetail }: 
           )}
 
           {/* Redemption → View Card Details */}
-          {tx.type === 'redemption' && (
+          {tx.type === 'redemption' && tx.provider !== 'paypal' && (
             <ActionButton icon={Gift} label="View Details"
               color={colors.purple[600]}
               onPress={() => onViewDetail?.(tx)}

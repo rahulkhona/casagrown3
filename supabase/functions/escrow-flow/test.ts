@@ -431,6 +431,7 @@ Deno.test("escrow-flow — 3: confirm delivery credits seller with platform fee 
         p_order_id: orderId,
         p_buyer_id: buyer.userId,
     });
+    console.log("CONFIRM RESULT:", result);
     assert(
         !(result as Record<string, unknown>).error,
         `Confirm failed: ${JSON.stringify(result)}`,

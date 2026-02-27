@@ -209,7 +209,7 @@ export function AppHeader({ activeKey = 'feed' }: { activeKey?: string }) {
           </ScrollView>
         </XStack>
 
-        <XStack alignItems="center" gap={isDesktop ? '$3' : '$2'}>
+        <XStack alignItems="center" gap={isDesktop ? '$3' : '$2'} flexShrink={0}>
           <PointsMenu
             userPoints={userPoints}
             isDesktop={isDesktop}
@@ -218,7 +218,7 @@ export function AppHeader({ activeKey = 'feed' }: { activeKey?: string }) {
             onNavigateToTransactionHistory={() => handleNavPress('transactionHistory')}
           />
 
-          <XStack position="relative">
+          <XStack position="relative" flexShrink={0}>
             <TouchableOpacity
               style={{ padding: 8, borderRadius: 999, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
               activeOpacity={0.6}
