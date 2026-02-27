@@ -45,7 +45,8 @@ jest.mock('tamagui', () => {
         XStack: ({ children, ...props }: any) => <View {...props}>{children}</View>,
         Spinner: (props: any) => <ActivityIndicator {...props} />,
         Sheet: SheetMock,
-        Input: (props: any) => <TextInput {...props} />
+        Input: (props: any) => <TextInput {...props} />,
+        ScrollView: ({ children, ...props }: any) => <View {...props}>{children}</View>
     };
 });
 
