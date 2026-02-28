@@ -38,8 +38,8 @@ export async function fetchTremendousCatalog(
             id: String(product.id),
             brandName: brandName,
             brandKey: brandName,
-            logoUrl: (product.images as { url?: string }[])?.[0]?.url || "",
-            cardImageUrl: (product.images as { url?: string }[])?.[0]?.url ||
+            logoUrl: (product.images as { src?: string }[])?.[0]?.src || "",
+            cardImageUrl: (product.images as { src?: string }[])?.[0]?.src ||
                 "",
             category: mapCategory(String(product.category), undefined),
             denominationType: isFixed ? "fixed" : "range",

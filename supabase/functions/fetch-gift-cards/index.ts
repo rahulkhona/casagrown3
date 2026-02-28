@@ -47,20 +47,26 @@ function computeNetFee(
 
 // ── Main Handler ───────────────────────────────────────────────────
 
-serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
-    // ── 1. Fetch live active providers ──
-    const { data: activeProviders } = await supabase
-        .from("provider_queue_status")
-        .select("provider")
+export async function fetchAndCacheGiftCards(
+    // deno-lint-ignore no-explicit-any
+    supabase: any,
+    env: (key: string) => string | undefined,
+) {
+    // ── 1. Fetch live active instruments ──
+    const { data: activeInstruments } = await supabase
+        .from("available_redemption_method_instruments")
+        .select("instrument")
         .eq("is_active", true);
 
-    const activeList = (activeProviders || []).map((p) => p.provider);
+    const activeList = (activeInstruments || []).map((
+        i: { instrument: string },
+    ) => i.instrument);
 
     // ── 2. Check cache first ──
     const { data: cached } = await supabase
-        .from("platform_config")
-        .select("value, updated_at")
-        .eq("key", "gift_card_catalog_v4")
+        .from("giftcards_cache")
+        .select("data, updated_at")
+        .eq("provider", "unified")
         .maybeSingle();
 
     if (cached) {
@@ -68,7 +74,7 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
         const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
         if (cacheAge < CACHE_TTL) {
-            const rawCards = JSON.parse(cached.value) as UnifiedGiftCard[];
+            const rawCards = cached.data as UnifiedGiftCard[];
 
             // Filter cached providers by activeList
             const cards = rawCards.map((card) => {
@@ -78,10 +84,7 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
                 return card;
             }).filter((card) => card.availableProviders.length > 0);
 
-            return jsonOk(
-                { cards, cached: true, count: cards.length },
-                corsHeaders,
-            );
+            return { cards, cached: true, count: cards.length };
         }
     }
 
@@ -124,7 +127,7 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
         } as PromiseRejectedResult;
 
     // Process Tremendous first (preferred: free)
-    if (tremendousCards.status === "fulfilled") {
+    if (tremendousCards && tremendousCards.status === "fulfilled") {
         for (const card of tremendousCards.value) {
             const key = normalizeBrand(card.brandName);
             brandMap.set(key, {
@@ -139,12 +142,14 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
     } else {
         console.error(
             "[CATALOG] Tremendous fetch failed:",
-            tremendousCards.reason,
+            tremendousCards && tremendousCards.status === "rejected"
+                ? tremendousCards.reason
+                : "unknown",
         );
     }
 
     // Process Reloadly — merge into existing brands or add new ones
-    if (reloadlyCards.status === "fulfilled") {
+    if (reloadlyCards && reloadlyCards.status === "fulfilled") {
         for (const card of reloadlyCards.value) {
             const key = normalizeBrand(card.brandName);
             const existing = brandMap.get(key);
@@ -189,7 +194,12 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
             `[CATALOG] Reloadly: ${reloadlyCards.value.length} products`,
         );
     } else {
-        console.error("[CATALOG] Reloadly fetch failed:", reloadlyCards.reason);
+        console.error(
+            "[CATALOG] Reloadly fetch failed:",
+            reloadlyCards && reloadlyCards.status === "rejected"
+                ? reloadlyCards.reason
+                : "unknown",
+        );
     }
 
     // ── Compute display fields ──
@@ -225,52 +235,64 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
         cards.push(card);
     }
 
-    // Sort by brand popularity (curated top brands first, then alphabetical)
+    // Sort by brand popularity and assign natural brand colors
     const POPULAR_BRANDS = new Map([
-        ["amazon", 1],
-        ["target", 2],
-        ["walmart", 3],
-        ["starbucks", 4],
-        ["apple", 5],
-        ["google play", 6],
-        ["nike", 7],
-        ["uber", 8],
-        ["doordash", 9],
-        ["grubhub", 10],
-        ["netflix", 11],
-        ["spotify", 12],
-        ["home depot", 13],
-        ["lowes", 14],
-        ["best buy", 15],
-        ["costco", 16],
-        ["whole foods", 17],
-        ["chipotle", 18],
-        ["panera", 19],
-        ["dunkin", 20],
-        ["gap", 21],
-        ["old navy", 22],
-        ["nordstrom", 23],
-        ["macys", 24],
-        ["sephora", 25],
-        ["ulta", 26],
-        ["adidas", 27],
-        ["under armour", 28],
-        ["airbnb", 29],
-        ["southwest", 30],
-        ["delta", 31],
-        ["lyft", 32],
-        ["instacart", 33],
-        ["gamestop", 34],
-        ["playstation", 35],
-        ["xbox", 36],
-        ["steam", 37],
-        ["roblox", 38],
-        ["nintendo", 39],
-        ["hulu", 40],
+        ["amazon", { priority: 1, color: "#FF9900", icon: "📦" }],
+        ["amazoncom", { priority: 1, color: "#FF9900", icon: "📦" }],
+        ["target", { priority: 2, color: "#CC0000", icon: "🎯" }],
+        ["walmart", { priority: 3, color: "#0071CE", icon: "🛒" }],
+        ["starbucks", { priority: 4, color: "#00704A", icon: "☕" }],
+        ["starbucksus", { priority: 4, color: "#00704A", icon: "☕" }],
+        ["apple", { priority: 5, color: "#555555", icon: "🍎" }],
+        ["googleplay", { priority: 6, color: "#06C167", icon: "▶️" }],
+        ["nike", { priority: 7, color: "#111111", icon: "👟" }],
+        ["uber", { priority: 8, color: "#000000", icon: "🚗" }],
+        ["doordash", { priority: 9, color: "#FF3008", icon: "🍔" }],
+        ["grubhub", { priority: 10, color: "#FF6200", icon: "🍔" }],
+        ["netflix", { priority: 11, color: "#E50914", icon: "🍿" }],
+        ["spotify", { priority: 12, color: "#1DB954", icon: "🎵" }],
+        ["homedepot", { priority: 13, color: "#F96302", icon: "🛠️" }],
+        ["lowes", { priority: 14, color: "#004890", icon: "🛠️" }],
+        ["bestbuy", { priority: 15, color: "#003791", icon: "🛍️" }],
+        ["costco", { priority: 16, color: "#005DAA", icon: "🛒" }],
+        ["wholefoods", { priority: 17, color: "#00674B", icon: "🛒" }],
+        ["chipotle", { priority: 18, color: "#451400", icon: "🌯" }],
+        ["panera", { priority: 19, color: "#4D6B21", icon: "🥖" }],
+        ["dunkin", { priority: 20, color: "#FF671F", icon: "🍩" }],
+        ["gap", { priority: 21, color: "#000000", icon: "👕" }],
+        ["oldnavy", { priority: 22, color: "#000000", icon: "👕" }],
+        ["nordstrom", { priority: 23, color: "#000000", icon: "🛍️" }],
+        ["macys", { priority: 24, color: "#E11A2B", icon: "🛍️" }],
+        ["sephora", { priority: 25, color: "#000000", icon: "💄" }],
+        ["ulta", { priority: 26, color: "#F26E21", icon: "💄" }],
+        ["adidas", { priority: 27, color: "#000000", icon: "👟" }],
+        ["underarmour", { priority: 28, color: "#000000", icon: "👟" }],
+        ["airbnb", { priority: 29, color: "#FF5A5F", icon: "🏠" }],
+        ["southwest", { priority: 30, color: "#111B4D", icon: "✈️" }],
+        ["delta", { priority: 31, color: "#E01931", icon: "✈️" }],
+        ["lyft", { priority: 32, color: "#FF00BF", icon: "🚗" }],
+        ["instacart", { priority: 33, color: "#003D29", icon: "🛒" }],
+        ["gamestop", { priority: 34, color: "#E31837", icon: "🎮" }],
+        ["playstation", { priority: 35, color: "#003791", icon: "🎮" }],
+        ["xbox", { priority: 36, color: "#107C10", icon: "🎮" }],
+        ["steam", { priority: 37, color: "#171A21", icon: "🎮" }],
+        ["roblox", { priority: 38, color: "#FFFFFF", icon: "🎮" }],
+        ["nintendo", { priority: 39, color: "#E60012", icon: "🎮" }],
+        ["hulu", { priority: 40, color: "#1CE783", icon: "📺" }],
     ]);
+    for (const card of cards) {
+        const meta = POPULAR_BRANDS.get(card.brandKey);
+        if (meta) {
+            card.brandColor = meta.color;
+            if (meta.icon) card.brandIcon = meta.icon;
+        }
+    }
+
     cards.sort((a, b) => {
-        const aPriority = POPULAR_BRANDS.get(a.brandKey) ?? 999;
-        const bPriority = POPULAR_BRANDS.get(b.brandKey) ?? 999;
+        const aMeta = POPULAR_BRANDS.get(a.brandKey);
+        const bMeta = POPULAR_BRANDS.get(b.brandKey);
+        const aPriority = aMeta?.priority ?? 999;
+        const bPriority = bMeta?.priority ?? 999;
         if (aPriority !== bPriority) return aPriority - bPriority;
         return a.brandName.localeCompare(b.brandName);
     });
@@ -281,18 +303,19 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
 
     // ── Cache results ──
     if (cards.length > 0) {
-        await supabase
-            .from("platform_config")
-            .upsert({
-                // Note: Keep cache key sync'd when model changes!
-                key: "gift_card_catalog_v4",
-                value: JSON.stringify(cards),
-                updated_at: new Date().toISOString(),
-            }, { onConflict: "key" });
+        await supabase.from("giftcards_cache").upsert({
+            provider: "unified",
+            data: cards,
+            updated_at: new Date().toISOString(),
+        }, { onConflict: "provider" });
     }
 
-    return jsonOk(
-        { cards, cached: false, count: cards.length },
-        corsHeaders,
-    );
-});
+    return { cards, cached: false, count: cards.length };
+}
+
+if (import.meta.main) {
+    serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
+        const result = await fetchAndCacheGiftCards(supabase, env);
+        return jsonOk(result, corsHeaders);
+    });
+}

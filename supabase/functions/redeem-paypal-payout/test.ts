@@ -43,15 +43,16 @@ async function supabaseRest(
 }
 
 async function setProviderActiveStatus(provider: string, isActive: boolean) {
-  await supabaseRest("provider_queue_status", "PATCH", {
+  await supabaseRest("available_redemption_method_instruments", "PATCH", {
     is_active: isActive,
-  }, `provider=eq.${provider}`);
+    disabled_at: null,
+  }, `instrument=eq.${provider}`);
 }
 
 async function setProviderDisabledAt(provider: string, dateIso: string | null) {
-  await supabaseRest("provider_queue_status", "PATCH", {
+  await supabaseRest("available_redemption_method_instruments", "PATCH", {
     disabled_at: dateIso,
-  }, `provider=eq.${provider}`);
+  }, `instrument=eq.${provider}`);
 }
 
 Deno.test("redeem-paypal-payout — rejects invalid points amount", async () => {

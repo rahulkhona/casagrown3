@@ -22,57 +22,7 @@ interface DonationProject {
     summary: string;
 }
 
-// ── Mock fallback data ─────────────────────────────────────────────
-
-const FALLBACK_PROJECTS: DonationProject[] = [
-    {
-        id: 1001,
-        title: "Feed Families in Rural Communities",
-        organization: "Food For All Foundation",
-        theme: "Hunger",
-        imageUrl:
-            "https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=400",
-        goal: 20000,
-        raised: 13400,
-        summary:
-            "Providing fresh meals and produce to underserved rural families.",
-    },
-    {
-        id: 1002,
-        title: "Community Garden Reforestation",
-        organization: "Green Earth Initiative",
-        theme: "Environment",
-        imageUrl:
-            "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400",
-        goal: 15000,
-        raised: 6750,
-        summary:
-            "Planting trees and restoring community garden spaces across the region.",
-    },
-    {
-        id: 1003,
-        title: "After-School Garden Program",
-        organization: "Future Leaders Co.",
-        theme: "Education",
-        imageUrl:
-            "https://images.unsplash.com/photo-1509062522246-3755977927d7?w=400",
-        goal: 10000,
-        raised: 8800,
-        summary:
-            "Teaching kids sustainable gardening and nutrition after school.",
-    },
-    {
-        id: 1004,
-        title: "Nutritious School Lunches",
-        organization: "Healthy Kids Now",
-        theme: "Health",
-        imageUrl:
-            "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400",
-        goal: 25000,
-        raised: 6250,
-        summary: "Supplying fresh, locally-grown lunches to schools in need.",
-    },
-];
+// Removed FALLBACK_PROJECTS per user request to ensure strict API usage
 
 // ── Theme mapping ──────────────────────────────────────────────────
 
@@ -114,79 +64,90 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
     // ── SEARCH MODE: call GlobalGiving search API ──
     if (searchQuery && searchQuery.length >= 2) {
         if (!apiKey) {
-            // Fallback: filter mock data locally
-            const filtered = FALLBACK_PROJECTS.filter((p) =>
-                p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                p.organization.toLowerCase().includes(searchQuery.toLowerCase())
-            );
-            return jsonOk(
-                {
-                    projects: filtered,
-                    cached: false,
-                    search: true,
-                    query: searchQuery,
-                },
-                corsHeaders,
-            );
+            return jsonOk({
+                error: "Missing GLOBALGIVING_API_KEY",
+                projects: [],
+            }, corsHeaders);
         }
 
         try {
-            const searchUrl =
-                `https://api.globalgiving.org/api/public/services/search/projects?api_key=${apiKey}&q=${
-                    encodeURIComponent(searchQuery)
-                }`;
-            const res = await fetch(searchUrl, {
-                headers: { "Accept": "application/json" },
-            });
+            const MAX_SEARCH_PROJECTS = 100;
+            // deno-lint-ignore no-explicit-any
+            const allRawSearchProjects: any[] = [];
+            let nextProjectId = 0;
 
-            if (!res.ok) {
-                console.error(
-                    `[DONATIONS] Search API error: ${res.status}`,
-                );
-                return jsonOk(
-                    {
-                        projects: [],
-                        cached: false,
-                        search: true,
-                        query: searchQuery,
-                        error: `API ${res.status}`,
-                    },
-                    corsHeaders,
-                );
+            for (
+                let page = 0;
+                page < 10 && allRawSearchProjects.length < MAX_SEARCH_PROJECTS;
+                page++
+            ) {
+                const searchUrl = nextProjectId
+                    ? `https://api.globalgiving.org/api/public/services/search/projects?api_key=${apiKey}&q=${
+                        encodeURIComponent(searchQuery)
+                    }&nextProjectId=${nextProjectId}`
+                    : `https://api.globalgiving.org/api/public/services/search/projects?api_key=${apiKey}&q=${
+                        encodeURIComponent(searchQuery)
+                    }`;
+
+                const res = await fetch(searchUrl, {
+                    headers: { "Accept": "application/json" },
+                });
+
+                if (!res.ok) {
+                    console.error(
+                        `[DONATIONS] Search API error: ${res.status}`,
+                    );
+                    return jsonOk(
+                        {
+                            projects: [],
+                            cached: false,
+                            search: true,
+                            query: searchQuery,
+                            error: `API ${res.status}`,
+                        },
+                        corsHeaders,
+                    );
+                }
+
+                const data = await res.json();
+                const projectsObj = data.search?.response?.projects;
+                const pageProjects = Array.isArray(projectsObj?.project)
+                    ? projectsObj.project
+                    : (projectsObj?.project ? [projectsObj.project] : []);
+
+                if (pageProjects.length === 0) break;
+
+                allRawSearchProjects.push(...pageProjects);
+
+                nextProjectId = data.search?.response?.projects?.nextProjectId;
+                if (!nextProjectId) break;
             }
 
-            const data = await res.json();
-            const projects: DonationProject[] =
-                (data.search.response.projects.project || []).map(
-                    (p: Record<string, unknown>) => ({
-                        id: Number(p.id),
-                        title: p.title as string || p.projectLink as string,
-                        organization:
-                            (p.organization as Record<string, unknown>)
-                                ?.name as string ||
-                            p.organizationName as string || "Unknown",
-                        theme: mapGlobalGivingTheme(
-                            ((p.themes as Record<string, unknown>)
-                                ?.theme as Record<string, unknown>[])?.map(
-                                    (t: Record<string, unknown>) =>
-                                        t.name as string,
-                                ) || [],
-                        ),
-                        imageUrl: ((p.image as Record<string, unknown>)
-                            ?.imagelink as Record<string, unknown>[])?.find(
-                                (img: Record<string, unknown>) =>
-                                    img.size === "medium",
-                            )?.url as string || p.imageLink as string || "",
-                        goal: Math.round(Number(p.goal || 0)),
-                        raised: Math.round(Number(p.funding || 0)),
-                        summary:
-                            (p.summary as string || p.activities as string ||
-                                "").substring(
-                                    0,
-                                    200,
-                                ),
-                    }),
-                );
+            const projects: DonationProject[] = allRawSearchProjects.slice(
+                0,
+                100,
+            ).map(
+                // deno-lint-ignore no-explicit-any
+                (p: any) => ({
+                    id: Number(p.id),
+                    title: p.title || p.projectLink,
+                    organization: p.organization?.name || p.organizationName ||
+                        "Unknown",
+                    theme: mapGlobalGivingTheme(
+                        p.themes?.theme?.map((t: any) => t.name) || [],
+                    ),
+                    imageUrl: p.imageLink ||
+                        p.image?.imagelink?.find((img: any) =>
+                            img.size === "medium"
+                        )?.url || "",
+                    goal: Math.round(Number(p.goal || 0)),
+                    raised: Math.round(Number(p.funding || 0)),
+                    summary: (p.summary || p.activities || "").substring(
+                        0,
+                        200,
+                    ),
+                }),
+            );
 
             console.log(
                 `[DONATIONS] Search "${searchQuery}" returned ${projects.length} results`,
@@ -221,9 +182,9 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
 
     // Check cache
     const { data: cached } = await supabase
-        .from("platform_config")
-        .select("value, updated_at")
-        .eq("key", "donation_projects_v1")
+        .from("charity_projects_cache")
+        .select("data, updated_at")
+        .limit(1)
         .maybeSingle();
 
     if (cached) {
@@ -231,7 +192,7 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
         const CACHE_TTL = 24 * 60 * 60 * 1000;
 
         if (cacheAge < CACHE_TTL) {
-            const projects = JSON.parse(cached.value) as DonationProject[];
+            const projects = cached.data as DonationProject[];
             return jsonOk(
                 { projects, cached: true, count: projects.length },
                 corsHeaders,
@@ -239,20 +200,17 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
         }
     }
 
-    // Fetch from GlobalGiving
     if (!apiKey) {
-        console.warn(
-            "[DONATIONS] No GLOBALGIVING_API_KEY — returning fallback data",
-        );
         return jsonOk(
-            { projects: FALLBACK_PROJECTS, cached: false, fallback: true },
+            { error: "Missing GLOBALGIVING_API_KEY", projects: [] },
             corsHeaders,
         );
     }
 
     try {
         const MAX_PROJECTS = 100;
-        const allRawProjects: Record<string, unknown>[] = [];
+        // deno-lint-ignore no-explicit-any
+        const allRawProjects: any[] = [];
         let nextProjectId = 0;
 
         // Paginate through GlobalGiving API (each page returns ~10 projects)
@@ -290,30 +248,21 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
 
         const projects: DonationProject[] = allRawProjects
             .slice(0, MAX_PROJECTS)
-            .map((p: Record<string, unknown>) => ({
+            // deno-lint-ignore no-explicit-any
+            .map((p: any) => ({
                 id: Number(p.id),
-                title: p.title as string || p.projectLink as string,
-                organization: (p.organization as Record<string, unknown>)
-                    ?.name as string || "Unknown",
+                title: p.title || p.projectLink,
+                organization: p.organization?.name || "Unknown",
                 theme: mapGlobalGivingTheme(
-                    ((p.themes as Record<string, unknown>)?.theme as Record<
-                        string,
-                        unknown
-                    >[])?.map(
-                        (t: Record<string, unknown>) => t.name as string,
-                    ) || [],
+                    p.themes?.theme?.map((t: any) => t.name) || [],
                 ),
-                imageUrl:
-                    ((p.image as Record<string, unknown>)?.imagelink as Record<
-                        string,
-                        unknown
-                    >[])?.find(
-                        (img: Record<string, unknown>) => img.size === "medium",
-                    )?.url as string || p.imageLink as string || "",
+                imageUrl: p.imageLink ||
+                    p.image?.imagelink?.find((img: any) =>
+                        img.size === "medium"
+                    )?.url || "",
                 goal: Math.round(Number(p.goal || 0)),
                 raised: Math.round(Number(p.funding || 0)),
-                summary: (p.summary as string || p.activities as string || "")
-                    .substring(0, 200),
+                summary: (p.summary || p.activities || "").substring(0, 200),
             }));
 
         console.log(
@@ -322,13 +271,29 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
 
         // Cache results
         if (projects.length > 0) {
-            await supabase
-                .from("platform_config")
-                .upsert({
-                    key: "donation_projects_v1",
-                    value: JSON.stringify(projects),
-                    updated_at: new Date().toISOString(),
-                }, { onConflict: "key" });
+            // Upsert the single cache row (or insert if empty)
+            const { data: existingCache } = await supabase
+                .from("charity_projects_cache")
+                .select("id")
+                .limit(1)
+                .maybeSingle();
+
+            if (existingCache?.id) {
+                await supabase
+                    .from("charity_projects_cache")
+                    .update({
+                        data: projects,
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq("id", existingCache.id);
+            } else {
+                await supabase
+                    .from("charity_projects_cache")
+                    .insert({
+                        data: projects,
+                        updated_at: new Date().toISOString(),
+                    });
+            }
         }
 
         return jsonOk(
@@ -339,9 +304,9 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
         console.error("[DONATIONS] GlobalGiving fetch failed:", err);
         return jsonOk(
             {
-                projects: FALLBACK_PROJECTS,
+                projects: [],
                 cached: false,
-                fallback: true,
+                fallback: false,
                 error: err instanceof Error ? err.message : "Unknown error",
             },
             corsHeaders,

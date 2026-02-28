@@ -116,61 +116,90 @@ export function RedemptionStore({ onNavigateToFeed }: RedemptionStoreProps) {
   const [charitySearch, setCharitySearch] = useState('')
   const [charityTheme, setCharityTheme] = useState('All')
   const [selectedCharity, setSelectedCharity] = useState<CharityProject | null>(null)
-  const [donationProjects, setDonationProjects] = useState<CharityProject[]>(MOCK_CHARITIES)
+  const [donationProjects, setDonationProjects] = useState<CharityProject[]>([])
   const [completedDonation, setCompletedDonation] = useState<{
     organizationName: string; projectTitle: string; theme: string;
     amount: number; donatedAt: string; receiptId?: string; status?: string;
   } | null>(null)
 
-  // Active Providers State
-  const [activeProviders, setActiveProviders] = useState<{ provider: string, is_queuing: boolean }[]>([])
+  // Active Methods State
+  const [activeMethods, setActiveMethods] = useState<{
+    method: string;
+    is_active: boolean;
+    instruments: { instrument: string; is_active: boolean }[];
+  }[]>([])
 
   useEffect(() => {
-    const fetchProviders = () => {
+    const fetchMethods = () => {
       supabase.rpc('get_active_redemption_providers').then(({ data }) => {
-        if (data) setActiveProviders(data)
+        if (data) setActiveMethods(data)
       })
     }
 
-    fetchProviders()
+    fetchMethods()
 
-    const channel = supabase
-      .channel('provider-status-changes')
+    const channel1 = supabase
+      .channel('methods-changes')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'provider_queue_status' },
-        () => fetchProviders()
+        { event: '*', schema: 'public', table: 'available_redemption_methods' },
+        () => fetchMethods()
+      )
+      .subscribe()
+
+    const channel2 = supabase
+      .channel('instruments-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'available_redemption_method_instruments' },
+        () => fetchMethods()
       )
       .subscribe()
 
     return () => {
-      supabase.removeChannel(channel)
+      supabase.removeChannel(channel1)
+      supabase.removeChannel(channel2)
     }
   }, [])
 
   // Generate Available Tabs
   const availableTabs = useMemo(() => {
     const tabs: { key: Tab; icon: any; label: string }[] = []
+
+    const isMethodAvailable = (methodName: string) => {
+      const methodObj = activeMethods.find(m => m.method === methodName)
+      if (!methodObj?.is_active) return false
+      
+      // Secondary check: if it has instruments, at least one MUST be active
+      if (methodObj.instruments && methodObj.instruments.length > 0) {
+        return methodObj.instruments.some(inst => inst.is_active)
+      }
+      
+      return true
+    }
     
-    // Gift Cards: Needs either Tremendous or Reloadly
-    if (activeProviders.some(p => p.provider === 'tremendous' || p.provider === 'reloadly')) {
+    // Gift Cards
+    if (isMethodAvailable('giftcards')) {
       tabs.push({ key: 'giftCards', icon: Gift, label: 'Gift Cards' })
     }
     
-    // Donate: Needs GlobalGiving
-    if (activeProviders.some(p => p.provider === 'globalgiving')) {
+    // Donate
+    if (isMethodAvailable('charity')) {
       tabs.push({ key: 'donate', icon: Heart, label: 'Donate' })
-    }    // Cashout: Needs PayPal
-    if (activeProviders.some(p => p.provider === 'paypal')) {
+    }    
+    
+    // Cashout
+    if (isMethodAvailable('cashout')) {
       tabs.push({ key: 'cashout', icon: Banknote, label: 'Cashout' })
     }
     
-
-    // 529: Always available (Waitlist)
-    tabs.push({ key: '529', icon: GraduationCap, label: '529 Savings' })
+    // 529
+    if (isMethodAvailable('529c')) {
+      tabs.push({ key: '529', icon: GraduationCap, label: '529 Savings' })
+    }
     
     return tabs
-  }, [activeProviders])
+  }, [activeMethods])
 
   // Fix active tab logic ensuring a hidden tab defaults gracefully
   useEffect(() => {
@@ -263,8 +292,7 @@ export function RedemptionStore({ onNavigateToFeed }: RedemptionStoreProps) {
   const [searchResults, setSearchResults] = useState<CharityProject[] | null>(null)
   const [isSearching, setIsSearching] = useState(false)
 
-  useEffect(() => {
-    // If search is too short, clear search results (show browse mode)
+  const handleCharitySearchSubmit = useCallback(async () => {
     if (!charitySearch || charitySearch.length < 2) {
       setSearchResults(null)
       setIsSearching(false)
@@ -272,23 +300,26 @@ export function RedemptionStore({ onNavigateToFeed }: RedemptionStoreProps) {
     }
 
     setIsSearching(true)
-    const timer = setTimeout(async () => {
-      try {
-        const { data, error } = await supabase.functions.invoke('fetch-donation-projects', {
-          body: { q: charitySearch },
-        })
-        if (error) throw error
-        if (data?.projects) {
-          setSearchResults(data.projects)
-        }
-      } catch (err) {
-        console.warn('[DONATE] Search failed:', err)
-      } finally {
-        setIsSearching(false)
+    try {
+      const { data, error } = await supabase.functions.invoke('fetch-donation-projects', {
+        body: { q: charitySearch },
+      })
+      if (error) throw error
+      if (data?.projects) {
+        setSearchResults(data.projects)
       }
-    }, 400) // 400ms debounce
+    } catch (err) {
+      console.warn('[DONATE] Search failed:', err)
+    } finally {
+      setIsSearching(false)
+    }
+  }, [charitySearch])
 
-    return () => clearTimeout(timer)
+  // Clear search results immediately if the user clears the search box
+  useEffect(() => {
+    if (!charitySearch) {
+      setSearchResults(null)
+    }
   }, [charitySearch])
 
   const filteredCharities = useMemo(() => {
@@ -510,6 +541,7 @@ export function RedemptionStore({ onNavigateToFeed }: RedemptionStoreProps) {
               theme={charityTheme} setTheme={setCharityTheme}
               charities={filteredCharities} onSelect={setSelectedCharity}
               isSearching={isSearching}
+              onSubmit={handleCharitySearchSubmit}
             />
           )}
 
@@ -652,20 +684,16 @@ function GiftCardsTab({
           <Text color={colors.gray[400]}>No gift cards found</Text>
         </YStack>
       ) : Platform.OS === 'web' ? (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: isDesktop ? 'repeat(4, 1fr)' : 'repeat(2, 1fr)',
-          gap: 12,
-        }}>
-          {cards.map((card) => (
-            <GiftCardTile key={card.id} card={card} onSelect={onSelect} userPoints={userPoints} />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
+          {cards.map((card, index) => (
+            <GiftCard key={card.id} card={card} onSelect={onSelect} canAfford={userPoints >= card.minDenomination * POINTS_PER_DOLLAR} index={index} />
           ))}
-        </div>
+        </ScrollView>
       ) : (
         <XStack flexWrap="wrap" gap="$3" justifyContent="space-between">
-          {cards.map((card) => (
+          {cards.map((card, index) => (
             <YStack key={card.id} width="48%">
-              <GiftCardTile card={card} onSelect={onSelect} userPoints={userPoints} />
+              <GiftCard card={card} onSelect={onSelect} canAfford={userPoints >= card.minDenomination * POINTS_PER_DOLLAR} index={index} />
             </YStack>
           ))}
         </XStack>
@@ -678,15 +706,14 @@ function GiftCardsTab({
 // Gift Card Tile (used by both web grid and native flex)
 // =============================================================================
 
-function GiftCardTile({ card, onSelect, userPoints }: { card: GiftCardProduct; onSelect: (c: GiftCardProduct) => void; userPoints: number }) {
+function GiftCard({ card, onSelect, canAfford, index }: { card: GiftCardProduct; onSelect: (c: GiftCardProduct) => void; canAfford: boolean; index?: number }) {
   // Derive a lighter shade for gradient
   const hex = card.brandColor || '#4B5563'
   const lighterHex = hex + '99'
 
   // Affordability check
   const minPointsNeeded = card.minDenomination * POINTS_PER_DOLLAR
-  const canAfford = userPoints >= minPointsNeeded
-  const pointsShort = minPointsNeeded - userPoints
+  const pointsShort = minPointsNeeded - (canAfford ? minPointsNeeded : 0) // Only show if not affordable
 
   const inner = (
     <YStack
@@ -701,14 +728,14 @@ function GiftCardTile({ card, onSelect, userPoints }: { card: GiftCardProduct; o
         <div style={{
           position: 'absolute', inset: 0,
           background: card.cardImageUrl
-            ? `url(${card.cardImageUrl}) center/cover no-repeat`
+            ? `url(${card.cardImageUrl}) center/contain no-repeat, linear-gradient(135deg, ${hex} 0%, ${lighterHex} 60%, ${hex}DD 100%)`
             : `linear-gradient(135deg, ${hex} 0%, ${lighterHex} 60%, ${hex}DD 100%)`,
         }} />
       ) : card.cardImageUrl ? (
         <Image 
           source={{ uri: card.cardImageUrl }}
-          style={{ width: '100%', height: '100%', position: 'absolute' }}
-          resizeMode="cover"
+          style={{ width: '100%', height: '100%', position: 'absolute', backgroundColor: hex }}
+          resizeMode="contain"
         />
       ) : (
         <YStack position="absolute" top={0} left={0} right={0} bottom={0}
@@ -785,6 +812,7 @@ function GiftCardTile({ card, onSelect, userPoints }: { card: GiftCardProduct; o
     return (
       <div
         onClick={() => onSelect(card)}
+        data-testid={`giftcard-item-${index}`}
         style={{
           cursor: 'pointer',
           borderRadius: borderRadius.lg,
@@ -801,12 +829,12 @@ function GiftCardTile({ card, onSelect, userPoints }: { card: GiftCardProduct; o
   }
 
   return (
-    <Button unstyled
-      borderRadius={borderRadius.lg} overflow="hidden"
+    <Button unstyled backgroundColor="transparent" borderRadius={borderRadius.lg} overflow="hidden"
       hoverStyle={{ opacity: 0.92 }}
       pressStyle={{ opacity: 0.85 }}
       onPress={() => onSelect(card)}
       opacity={canAfford ? 1 : 0.55}
+      testID={`giftcard-item-${index}`}
     >
       {inner}
     </Button>
@@ -818,12 +846,13 @@ function GiftCardTile({ card, onSelect, userPoints }: { card: GiftCardProduct; o
 // =============================================================================
 
 function DonateTab({
-  search, setSearch, theme, setTheme, charities, onSelect, isSearching,
+  search, setSearch, theme, setTheme, charities, onSelect, isSearching, onSubmit
 }: {
   search: string; setSearch: (v: string) => void
   theme: string; setTheme: (v: string) => void
   charities: CharityProject[]; onSelect: (c: CharityProject) => void
   isSearching?: boolean
+  onSubmit?: () => void
 }) {
   return (
     <YStack gap="$3">
@@ -833,8 +862,15 @@ function DonateTab({
         borderColor={colors.gray[200]} paddingHorizontal="$3" alignItems="center" height={44}
       >
         <Search size={16} color={colors.gray[400]} />
-        <Input flex={1} unstyled placeholder="Search charities..." placeholderTextColor={colors.gray[400] as any}
+        <Input flex={1} unstyled placeholder="Search charities (press Enter)..." placeholderTextColor={colors.gray[400] as any}
           value={search} onChangeText={setSearch} fontSize={14} marginLeft="$2" color={colors.gray[800]}
+          returnKeyType="search"
+          onSubmitEditing={onSubmit}
+          onKeyPress={(e: any) => {
+            if (e.nativeEvent.key === 'Enter' && Platform.OS === 'web') {
+              onSubmit?.()
+            }
+          }}
         />
         {isSearching && <Spinner size="small" color={colors.green[500]} />}
       </XStack>
@@ -882,12 +918,13 @@ function DonateTab({
         </YStack>
       ) : (
         <YStack gap="$3">
-          {charities.map((charity) => {
+          {charities.map((charity, index) => {
             const progress = Math.min(charity.raised / charity.goal, 1)
             if (Platform.OS === 'web') {
               return (
                 <div key={charity.id}
                   onClick={() => onSelect(charity)}
+                  data-testid={`donate-button-${index}`}
                   style={{
                     backgroundColor: 'white', borderRadius: borderRadius.lg,
                     border: `1px solid ${colors.gray[200]}`, overflow: 'hidden',
@@ -914,6 +951,7 @@ function DonateTab({
                 borderWidth={1} borderColor={colors.gray[200]} overflow="hidden"
                 pressStyle={{ backgroundColor: colors.gray[50] }}
                 onPress={() => onSelect(charity)}
+                testID={`donate-button-${index}`}
               >
                 <XStack>
                   <Image source={{ uri: charity.imageUrl }} style={{ width: 120, height: 120 }} resizeMode="cover" />
@@ -1023,7 +1061,7 @@ function CashoutTab({ balance, userId, adjustBalance }: { balance: number, userI
         </YStack>
 
         <YStack gap="$2" marginTop="$2">
-          {['Fast instant deposits', 'Just enter your phone #', 'No hidden processing fees'].map((f) => (
+          {['Fast instant deposits', 'Just enter your phone #', 'Secure and reliable transfers'].map((f) => (
             <XStack key={f} gap="$2" alignItems="center">
               <CheckCircle size={16} color={colors.green[600]} />
               <Text fontSize="$3" color={colors.gray[600]}>{f}</Text>

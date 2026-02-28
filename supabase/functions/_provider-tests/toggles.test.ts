@@ -47,9 +47,10 @@ async function supabaseRest(
 }
 
 async function setProviderActiveStatus(provider: string, isActive: boolean) {
-    await supabaseRest("provider_queue_status", "PATCH", {
+    await supabaseRest("available_redemption_method_instruments", "PATCH", {
         is_active: isActive,
-    }, `provider=eq.${provider}`);
+        disabled_at: null,
+    }, `instrument=eq.${provider}`);
 }
 
 async function getActiveProvidersRPC(): Promise<{ provider: string }[]> {
@@ -72,8 +73,10 @@ async function getActiveProvidersRPC(): Promise<{ provider: string }[]> {
  *  3. Pending transactions complete (process-redemptions processes them).
  */
 Deno.test("Scenario A: Disable GlobalGiving blocks new but processes pending", async () => {
-    // Disable GG
+    // Disable GG and backdate past the 30-minute grace period
     await setProviderActiveStatus("globalgiving", false);
+    const past = new Date(Date.now() - 40 * 60 * 1000).toISOString();
+    await setProviderDisabledAt("globalgiving", past);
 
     // 1. App UI (RPC) omits it
     const active = await getActiveProvidersRPC();
@@ -93,6 +96,7 @@ Deno.test("Scenario A: Disable GlobalGiving blocks new but processes pending", a
 
     // Reset
     await setProviderActiveStatus("globalgiving", true);
+    await setProviderDisabledAt("globalgiving", null);
 });
 
 /**
@@ -103,6 +107,10 @@ Deno.test("Scenario A: Disable GlobalGiving blocks new but processes pending", a
 Deno.test("Scenario E: Disable Both Gift Card Providers completely blocks them", async () => {
     await setProviderActiveStatus("tremendous", false);
     await setProviderActiveStatus("reloadly", false);
+
+    const past = new Date(Date.now() - 40 * 60 * 1000).toISOString();
+    await setProviderDisabledAt("tremendous", past);
+    await setProviderDisabledAt("reloadly", past);
 
     // 1. App UI (RPC) omits both, hiding the tab
     const active = await getActiveProvidersRPC();
@@ -118,7 +126,8 @@ Deno.test("Scenario E: Disable Both Gift Card Providers completely blocks them",
         {
             brandName: "Apple",
             brandId: "OKM",
-            amountCents: 500,
+            faceValueCents: 500,
+            pointsCost: 500,
             provider: "tremendous",
         }, // even if they bypass UI
         {
@@ -127,6 +136,12 @@ Deno.test("Scenario E: Disable Both Gift Card Providers completely blocks them",
         },
     );
     assertEquals(status, 400);
+
+    // Reset
+    await setProviderActiveStatus("tremendous", true);
+    await setProviderActiveStatus("reloadly", true);
+    await setProviderDisabledAt("tremendous", null);
+    await setProviderDisabledAt("reloadly", null);
 });
 
 /**
@@ -212,36 +227,21 @@ Deno.test("Scenario J: Enable both Gift Card Providers merges catalog", async ()
 
 async function setGracePeriodMs(ms: number | null) {
     if (ms === null) {
-        await supabaseRest(
-            "platform_config",
-            "DELETE",
-            undefined,
-            "key=eq.provider_grace_period_ms",
-        );
+        // Just reset to 30 mins
+        await supabaseRest("platform_settings", "PATCH", {
+            provider_grace_period_ms: 30 * 60 * 1000,
+        });
     } else {
-        const existing = await supabaseRest(
-            "platform_config",
-            "GET",
-            undefined,
-            "key=eq.provider_grace_period_ms",
-        );
-        if (existing.length > 0) {
-            await supabaseRest("platform_config", "PATCH", {
-                value: ms.toString(),
-            }, "key=eq.provider_grace_period_ms");
-        } else {
-            await supabaseRest("platform_config", "POST", {
-                key: "provider_grace_period_ms",
-                value: ms.toString(),
-            });
-        }
+        await supabaseRest("platform_settings", "PATCH", {
+            provider_grace_period_ms: ms,
+        });
     }
 }
 
 async function setProviderDisabledAt(provider: string, dateIso: string | null) {
-    await supabaseRest("provider_queue_status", "PATCH", {
+    await supabaseRest("available_redemption_method_instruments", "PATCH", {
         disabled_at: dateIso,
-    }, `provider=eq.${provider}`);
+    }, `instrument=eq.${provider}`);
 }
 
 /**

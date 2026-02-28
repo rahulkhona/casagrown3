@@ -173,7 +173,7 @@ npx playwright test --config=e2e/playwright/playwright.config.ts --reporter=dot 
 }
 
 # ═══════════════════════════════════════════════════════════════════
-# PHASE 3: Maestro Mobile E2E (iOS simulator)
+# PHASE 3: Maestro Mobile E2E (Android Emulator)
 # ═══════════════════════════════════════════════════════════════════
 
 echo ""
@@ -183,33 +183,53 @@ echo "━━━ Phase 3: Maestro Mobile E2E ━━━━━━━━━━━━
 if ! command -v maestro > /dev/null 2>&1; then
     echo "   ⚠️  Maestro CLI not found — skipping mobile E2E tests."
 else
-    # Kill stale XCTest/Maestro processes that can block the iOS driver
-    pkill -f "XCTRunner" 2>/dev/null || true
+    # Kill stale Maestro processes that can block the driver
     pkill -f "maestro" 2>/dev/null || true
     sleep 1
 
-    # Find a booted iOS simulator, or boot one if available
-    IOS_UDID=$(xcrun simctl list devices | grep "Booted" | head -1 | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' || true)
+    # Find a running Android emulator, or boot one if available
+    ANDROID_DEVICE=$(adb devices | grep -w "device" | awk '{print $1}' | head -1 || true)
 
-    if [ -z "$IOS_UDID" ]; then
-        # Try to find an available iPhone simulator and boot it
-        IOS_UDID=$(xcrun simctl list devices available | grep "iPhone" | head -1 | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' || true)
-        if [ -n "$IOS_UDID" ]; then
-            echo "   Booting iOS simulator ($IOS_UDID)..."
-            xcrun simctl boot "$IOS_UDID" 2>/dev/null || true
+    if [ -z "$ANDROID_DEVICE" ]; then
+        # Try to use the emulator we shut down earlier, or the first available
+        AVD_TO_BOOT=${ANDROID_EMU_NAME:-$(emulator -list-avds | head -1 || true)}
+        
+        if [ -n "$AVD_TO_BOOT" ]; then
+            echo "   Booting Android emulator ($AVD_TO_BOOT)..."
+            emulator -avd "$AVD_TO_BOOT" -no-snapshot-load > /dev/null 2>&1 &
+            # Add to PIDS_TO_KILL so cleanup catches it if script aborts early
+            PIDS_TO_KILL="$PIDS_TO_KILL $!"
+            
+            echo "   Waiting for emulator to complete boot..."
+            adb wait-for-device
+            
+            max_retries=60
+            retry=0
+            while [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" != "1" ]; do
+                sleep 2
+                retry=$((retry + 1))
+                if [ $retry -ge $max_retries ]; then
+                   echo "❌ Timeout waiting for Android emulator."
+                   exit 1
+                fi
+            done
             sleep 5
-            echo "   ✓ iOS simulator booted"
+            ANDROID_DEVICE=$(adb devices | grep -w "device" | awk '{print $1}' | head -1 || true)
+            echo "   ✓ Android emulator booted"
+            
+            # Since we started it for the test, we prevent cleanup from blindly restarting a second copy later
+            ANDROID_WAS_RUNNING=false
         fi
     fi
 
-    if [ -n "$IOS_UDID" ]; then
-        echo "📱 [5/5] Maestro E2E tests (iOS: $IOS_UDID)..."
-        MAESTRO_DRIVER_STARTUP_TIMEOUT=120000 maestro test --udid "$IOS_UDID" e2e/maestro/flows/ 2>&1 || {
+    if [ -n "$ANDROID_DEVICE" ]; then
+        echo "📱 [5/5] Maestro E2E tests (Android: $ANDROID_DEVICE)..."
+        MAESTRO_DRIVER_STARTUP_TIMEOUT=120000 maestro test e2e/maestro/flows/ 2>&1 || {
             echo "❌ Maestro E2E tests failed — push aborted."
             exit 1
         }
     else
-        echo "   ⚠️  No iOS simulator found — skipping Maestro tests."
+        echo "   ⚠️  No Android emulator found — skipping Maestro tests."
     fi
 fi
 

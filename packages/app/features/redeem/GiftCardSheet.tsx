@@ -198,6 +198,7 @@ export function GiftCardSheet({ visible, card, balance, onClose, onConfirm, t }:
         <button
           onClick={() => { if (isValidAmount && canAfford) onConfirm(card, activeAmount, totalPoints) }}
           disabled={!isValidAmount || !canAfford}
+          data-testid="giftcard-sheet-confirm"
           style={{
             padding: '14px 0', borderRadius: 24, border: 'none', cursor: isValidAmount && canAfford ? 'pointer' : 'default',
             backgroundColor: isValidAmount && canAfford ? colors.green[600] : colors.gray[300],
@@ -212,6 +213,7 @@ export function GiftCardSheet({ visible, card, balance, onClose, onConfirm, t }:
           alignItems="center" justifyContent="center"
           onPress={() => { if (isValidAmount && canAfford) onConfirm(card, activeAmount, totalPoints) }}
           disabled={!isValidAmount || !canAfford}
+          testID="giftcard-sheet-confirm"
         >
           <Text fontSize="$4" fontWeight="600" color="white">
             {!isValidAmount ? 'Select an amount' : !canAfford ? 'Insufficient points' : 'Confirm Redemption'}

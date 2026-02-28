@@ -97,11 +97,6 @@ BEGIN
   EXCEPTION WHEN duplicate_object THEN NULL; END;
 END $$;
 
--- 9. Platform Config
-INSERT INTO public.platform_config (key, value, description)
-VALUES ('platform_fee_percent', '10', 'Platform fee percentage charged on completed sales')
-ON CONFLICT (key) DO NOTHING;
-
 -- =============================================================================
 -- 10. Test Users (for E2E / Playwright / Maestro)
 -- =============================================================================

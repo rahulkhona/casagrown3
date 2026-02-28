@@ -29,7 +29,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     : "https://api-m.sandbox.paypal.com";
 
   if (!PAYPAL_CLIENT_ID || !PAYPAL_SECRET) {
-    throw new Error("PayPal API keys are missing");
+    return jsonError("PayPal API keys are missing", corsHeaders);
   }
 
   // 1. Authenticate user
@@ -44,8 +44,10 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
   // Validate points amount (must be positive, min 1)
   if (!pointsToRedeem || isNaN(pointsToRedeem) || pointsToRedeem < 1) {
-    throw new Error(
+    return jsonError(
       "Invalid points amount. Must redeem at least 1 point.",
+      corsHeaders,
+      400,
     );
   }
 
@@ -58,7 +60,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
   if (profileError) {
     console.error("Profile fetch error:", profileError);
-    throw new Error("Could not fetch user profile");
+    return jsonError("Could not fetch user profile", corsHeaders, 400);
   }
 
   let finalPayoutId = profile?.paypal_payout_id;
@@ -71,40 +73,54 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   }
 
   if (!finalPayoutId) {
-    throw new Error("No PayPal email or Venmo phone number provided.");
+    return jsonError(
+      "No PayPal email or Venmo phone number provided.",
+      corsHeaders,
+      400,
+    );
   }
 
-  // 2.5 Check Provider Queue Status
-  const { data: queueStatus } = await supabase
-    .from("provider_queue_status")
-    .select("is_queuing, is_active, disabled_at")
-    .eq("provider", "paypal")
-    .single();
+  // 2.5 Check Instrument Active & Queue Status
+  const instrumentName = "paypal";
 
-  if (queueStatus && !queueStatus.is_active) {
+  const { data: instrumentState } = await supabase
+    .from("available_redemption_method_instruments")
+    .select("is_active, disabled_at")
+    .eq("instrument", instrumentName)
+    .maybeSingle();
+
+  if (instrumentState && !instrumentState.is_active) {
     let isGracePeriod = false;
 
-    if (queueStatus.disabled_at) {
-      const disabledTime = new Date(queueStatus.disabled_at).getTime();
+    if (instrumentState.disabled_at) {
+      const disabledTime = new Date(instrumentState.disabled_at).getTime();
       const now = Date.now();
       const gracePeriodMs = await getProviderGracePeriodMs(supabase);
 
       if (now - disabledTime < gracePeriodMs) {
         isGracePeriod = true;
         console.log(
-          `[CASHOUT] Provider is disabled, but transaction permitted within ${gracePeriodMs}ms grace window.`,
+          `[CASHOUT] Instrument is disabled, but transaction permitted within ${gracePeriodMs}ms grace window.`,
         );
       }
     }
 
     if (!isGracePeriod) {
       return jsonError(
-        `Cashouts are temporarily offline. Please try again later.`,
+        "Cashouts are temporarily offline. Please try again later.",
         corsHeaders,
         400,
       );
     }
   }
+
+  const { data: queueRow } = await supabase
+    .from("instrument_queuing_status")
+    .select("is_queuing")
+    .eq("instrument", instrumentName)
+    .maybeSingle();
+
+  const isQueuing = queueRow?.is_queuing ?? false;
 
   // 3. Verify Points Balance
   const conversionRate = 100; // 100 points = $1
@@ -118,36 +134,24 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     .limit(1)
     .maybeSingle();
 
-  if (balanceError) throw balanceError;
-
-  const currentBalance = balanceData?.balance_after ?? 0;
-  if (currentBalance < pointsToRedeem) {
-    throw new Error(
-      `Insufficient points. You have ${currentBalance} but tried to redeem ${pointsToRedeem}.`,
+  if (balanceError) {
+    return jsonError(
+      "Failed to verify user point balance.",
+      corsHeaders,
+      400,
     );
   }
 
-  // 4. Fallible external step: PayPal API
-  // Step A: Get OAuth Token
-  const credentials = btoa(`${PAYPAL_CLIENT_ID}:${PAYPAL_SECRET}`);
-  const authRes = await fetch(`${PAYPAL_BASE_URL}/v1/oauth2/token`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Basic ${credentials}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: "grant_type=client_credentials",
-  });
-
-  if (!authRes.ok) {
-    const errText = await authRes.text();
-    console.error("PayPal Auth Failed:", errText);
-    throw new Error("Failed to authenticate with payment processor.");
+  const currentBalance = balanceData?.balance_after ?? 0;
+  if (currentBalance < pointsToRedeem) {
+    return jsonError(
+      `Insufficient points. You have ${currentBalance} but tried to redeem ${pointsToRedeem}.`,
+      corsHeaders,
+      400,
+    );
   }
 
-  const { access_token } = await authRes.json();
-
-  // 5. Create pending redemption record FIRST so we can reference it
+  // 4. Create pending redemption record FIRST so we can reference it
   const { data: redemption, error: redemptionError } = await supabase
     .from("redemptions")
     .insert({
@@ -166,69 +170,98 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
   if (redemptionError || !redemption) {
     console.error("Failed to create redemption record:", redemptionError);
-    return jsonError("Failed to initialize cashout redemption.", corsHeaders);
+    return jsonOk({
+      success: false,
+      error: "Failed to initialize cashout redemption.",
+    }, corsHeaders);
   }
 
+  // 5. Fallible external step: PayPal API
   let payoutData: any = null;
   let txId: string = "";
+  let externalErrorMsg: string | null = null;
 
-  try {
-    // Step B: Send Payout
-    // receiver_type can be EMAIL or PHONE depending on what they typed
-    const isPhone = /^\+?[1-9]\d{1,14}$/.test(finalPayoutId);
-    const receiverType = isPhone ? "PHONE" : "EMAIL";
+  if (!isQueuing) {
+    try {
+      // Step A: Get OAuth Token
+      const credentials = btoa(`${PAYPAL_CLIENT_ID}:${PAYPAL_SECRET}`);
+      const authRes = await fetch(`${PAYPAL_BASE_URL}/v1/oauth2/token`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Basic ${credentials}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: "grant_type=client_credentials",
+      });
 
-    const payoutPayload = {
-      sender_batch_header: {
-        sender_batch_id: `casagrown_payout_${Date.now()}_${
-          userId.substring(0, 8)
-        }`,
-        email_subject: "Here is your CasaGrown Reward!",
-        email_message:
-          `You earned $${usdAmount} by redeeming ${pointsToRedeem} points on CasaGrown! Keep up the great work.`,
-      },
-      items: [
-        {
+      if (!authRes.ok) {
+        const errText = await authRes.text();
+        console.error("PayPal Auth Failed:", errText);
+        throw new Error("Failed to authenticate with payment processor.");
+      }
+
+      const { access_token } = await authRes.json();
+      // Step B: Send Payout
+      const isPhone = /^\+?[1-9]\d{1,14}$/.test(finalPayoutId);
+      const receiverType = isPhone ? "PHONE" : "EMAIL";
+
+      const payoutPayload = {
+        sender_batch_header: {
+          sender_batch_id: `casagrown_payout_${Date.now()}_${
+            userId.substring(0, 8)
+          }`,
+          email_subject: "Here is your CasaGrown Reward!",
+          email_message:
+            `You earned $${usdAmount} by redeeming ${pointsToRedeem} points on CasaGrown! Keep up the great work.`,
+        },
+        items: [{
           recipient_type: receiverType,
-          amount: {
-            value: usdAmount.toFixed(2),
-            currency: "USD",
-          },
+          amount: { value: usdAmount.toFixed(2), currency: "USD" },
           note: "CasaGrown Points Redemption",
           sender_item_id: `item_${Date.now()}`,
           receiver: finalPayoutId,
+        }],
+      };
+
+      const payoutRes = await fetch(`${PAYPAL_BASE_URL}/v1/payments/payouts`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${access_token}`,
+          "Content-Type": "application/json",
         },
-      ],
-    };
+        body: JSON.stringify(payoutPayload),
+      });
 
-    const payoutRes = await fetch(`${PAYPAL_BASE_URL}/v1/payments/payouts`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${access_token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payoutPayload),
-    });
+      payoutData = await payoutRes.json();
 
-    payoutData = await payoutRes.json();
+      if (!payoutRes.ok || payoutData.name === "INSUFFICIENT_FUNDS") {
+        throw new Error(payoutData.message || "PayPal rejected transfer.");
+      }
 
-    if (!payoutRes.ok || payoutData.name === "INSUFFICIENT_FUNDS") {
-      throw new Error(payoutData.message || "PayPal rejected transfer.");
+      txId = payoutData.batch_header?.payout_batch_id ||
+        `paypal_fallback_id_${Date.now()}`;
+    } catch (err) {
+      externalErrorMsg = err instanceof Error
+        ? err.message
+        : "PayPal API error";
+      console.warn(`[CASHOUT] PayPal API failed, queuing: ${externalErrorMsg}`);
     }
+  } else {
+    console.log(
+      `[CASHOUT] is_queuing is TRUE for paypal. Dropping directly into queue.`,
+    );
+  }
 
-    txId = payoutData.batch_header?.payout_batch_id ||
-      `paypal_fallback_id_${Date.now()}`;
-  } catch (err: any) {
-    // Provider failed — queue for retry
-    const errorMsg = err instanceof Error ? err.message : "PayPal API error";
-    console.warn(`[CASHOUT] PayPal API failed, queuing: ${errorMsg}`);
+  if (isQueuing || externalErrorMsg) {
+    const finalReason = externalErrorMsg ||
+      "Queue is currently enabled for paypal";
 
     // Update the pending redemption so the admin knows what happened
     await supabase
       .from("redemptions")
       .update({
         status: "failed",
-        failed_reason: errorMsg,
+        failed_reason: finalReason,
       })
       .eq("id", redemption.id);
 
@@ -249,6 +282,14 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
       body: queuedMessage,
       url: "/transaction-history",
     });
+
+    // Option to trip the breaker immediately if API failed
+    if (externalErrorMsg) {
+      await supabase
+        .from("instrument_queuing_status")
+        .update({ is_queuing: true })
+        .eq("instrument", "paypal");
+    }
 
     // Return gracefully so the frontend assumes success-but-queued
     return jsonOk({
@@ -278,7 +319,10 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   if (logError) {
     console.error("Failed to log transaction. User got free money!", logError);
     await supabase.from("redemptions").delete().eq("id", redemption.id);
-    return jsonError("Failed to deduct points.", corsHeaders);
+    return jsonOk(
+      { success: false, error: "Failed to deduct points." },
+      corsHeaders,
+    );
   }
 
   // 7. Mark redemption as completed

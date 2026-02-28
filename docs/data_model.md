@@ -892,6 +892,31 @@ create table platform_fees (
 create index idx_platform_fees_country on platform_fees(country_code, creation_date desc);
 ```
 
+### `giftcards_cache`
+
+Stores deduplicated, unified catalog data from multiple gift card providers to
+reduce load on external APIs and decouple from `platform_config`.
+
+**Migration**: `20260228042110_giftcards_cache.sql`
+
+| Column       | Type                | Description                                                   |
+| :----------- | :------------------ | :------------------------------------------------------------ |
+| `id`         | `uuid`              | **Primary Key**. Auto-generated.                              |
+| `provider`   | `giftcard_provider` | Enum (`'unified'`, `'tremendous'`, `'reloadly'`). **UNIQUE**. |
+| `data`       | `jsonb`             | The actual cached JSON payload of unified gift cards.         |
+| `updated_at` | `timestamptz`       | Default `now()`.                                              |
+
+```sql
+create type giftcard_provider as enum ('unified', 'tremendous', 'reloadly');
+
+create table giftcards_cache (
+  id uuid primary key default gen_random_uuid(),
+  provider giftcard_provider unique not null,
+  data jsonb not null,
+  updated_at timestamptz not null default now()
+);
+```
+
 ### `post_type_policies`
 
 Configurable expiration days per post type. Used by the "My Posts" screen to

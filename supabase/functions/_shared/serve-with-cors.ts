@@ -95,9 +95,9 @@ export function serveWithCors(
                 : "Unknown error";
             console.error("Edge function error:", error);
             return new Response(
-                JSON.stringify({ error: message }),
+                JSON.stringify({ success: false, error: message }),
                 {
-                    status: options?.errorStatus ?? 400,
+                    status: options?.errorStatus ?? 200,
                     headers: {
                         ...corsHeaders,
                         "Content-Type": "application/json",
@@ -176,9 +176,9 @@ export function jsonOk(
 export function jsonError(
     message: string,
     corsHeaders: Record<string, string>,
-    status = 400,
+    status = 200,
 ): Response {
-    return new Response(JSON.stringify({ error: message }), {
+    return new Response(JSON.stringify({ success: false, error: message }), {
         status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

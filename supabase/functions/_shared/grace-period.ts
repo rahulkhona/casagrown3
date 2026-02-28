@@ -11,15 +11,13 @@ export async function getProviderGracePeriodMs(
     supabase: SupabaseClient,
 ): Promise<number> {
     const { data } = await supabase
-        .from("platform_config")
-        .select("value")
-        .eq("key", "provider_grace_period_ms")
+        .from("platform_settings")
+        .select("provider_grace_period_ms")
+        .limit(1)
         .maybeSingle();
 
-    if (data?.value) {
-        // Can be a string or number depending on DB storage formatting
-        const parsed = parseInt(String(data.value), 10);
-        if (!isNaN(parsed)) return parsed;
+    if (data?.provider_grace_period_ms != null) {
+        return data.provider_grace_period_ms;
     }
 
     // Default: 30 minutes in milliseconds

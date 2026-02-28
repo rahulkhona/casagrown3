@@ -11,6 +11,7 @@ export default defineConfig({
       "**/e2e/**", // Playwright tests - run via playwright, not vitest
       "packages/app/**/*.test.tsx", // App tests use Jest with react-native preset
       "packages/app/**/*.test.ts", // App tests (including ts) use Jest
+      "**/supabase/**", // Deno Edge Functions run via Deno test
     ],
   },
 });

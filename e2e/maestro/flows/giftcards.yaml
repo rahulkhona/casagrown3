@@ -1,0 +1,52 @@
+appId: dev.casagrown.community
+---
+# Login first
+- runFlow: ../utils/login.yaml
+
+# Wait for feed to load
+- extendedWaitUntil:
+      visible: "Tomatoes|Feed"
+      timeout: 15000
+
+# Open Menu via bottom tab
+- tapOn:
+      text: ".*Menu.*"
+
+# Navigate to Redeem Points
+- extendedWaitUntil:
+      visible: ".*Redeem Points.*"
+      timeout: 5000
+- tapOn: ".*Redeem Points.*"
+
+# Wait for Screen and generic tabs
+- extendedWaitUntil:
+      visible: "Cashout|Donate|Gift Cards"
+      timeout: 20000
+
+# Tap the Gift Cards tab
+- tapOn: "Gift Cards"
+
+# Wait for the catalog to load
+- extendedWaitUntil:
+      visible: ".*Amazon.*|.*Visa.*|.*Walmart.*"
+      timeout: 15000
+
+# Tap the first available card
+- tapOn:
+      id: "giftcard-item-0"
+
+# Enter amount if required
+- extendedWaitUntil:
+      visible: ".*Enter Amount.*|.*Select Amount.*"
+      timeout: 5000
+- tapOn: ".*Enter Amount.*"
+- inputText: "10"
+
+# Submit the purchase via bottom sheet
+- tapOn:
+      id: "giftcard-sheet-confirm"
+
+# Wait for Success State
+- extendedWaitUntil:
+      visible: ".*queued.*|.*processing.*|.*Points Cost.*"
+      timeout: 15000

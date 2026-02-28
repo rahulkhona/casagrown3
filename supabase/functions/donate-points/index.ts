@@ -44,25 +44,28 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     const dollarAmount = pointsAmount / POINTS_PER_DOLLAR;
     const _donationCents = Math.round(dollarAmount * 100);
 
-    // 1. Check Provider Queue Status
-    const { data: queueStatus } = await supabase
-        .from("provider_queue_status")
-        .select("is_queuing, is_active, disabled_at")
-        .eq("provider", "globalgiving")
-        .single();
+    // 1. Check Instrument Active & Queue Status
+    const instrumentName = "globalgiving";
 
-    if (queueStatus && !queueStatus.is_active) {
+    const { data: instrumentState } = await supabase
+        .from("available_redemption_method_instruments")
+        .select("is_active, disabled_at")
+        .eq("instrument", instrumentName)
+        .maybeSingle();
+
+    if (instrumentState && !instrumentState.is_active) {
         let isGracePeriod = false;
 
-        if (queueStatus.disabled_at) {
-            const disabledTime = new Date(queueStatus.disabled_at).getTime();
+        if (instrumentState.disabled_at) {
+            const disabledTime = new Date(instrumentState.disabled_at)
+                .getTime();
             const now = Date.now();
             const gracePeriodMs = await getProviderGracePeriodMs(supabase);
 
             if (now - disabledTime < gracePeriodMs) {
                 isGracePeriod = true;
                 console.log(
-                    `[DONATE] Provider is disabled, but transaction permitted within ${gracePeriodMs}ms grace window.`,
+                    `[DONATE] Instrument is disabled, but transaction permitted within ${gracePeriodMs}ms grace window.`,
                 );
             }
         }
@@ -76,7 +79,13 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         }
     }
 
-    const isQueuing = queueStatus?.is_queuing ?? false;
+    const { data: queueRow } = await supabase
+        .from("instrument_queuing_status")
+        .select("is_queuing")
+        .eq("instrument", instrumentName)
+        .maybeSingle();
+
+    const isQueuing = queueRow?.is_queuing ?? false;
     const isSandbox = env("GLOBALGIVING_SANDBOX") === "true";
 
     // 2. Check balance
@@ -134,9 +143,9 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
             // Trip the breaker
             await supabase
-                .from("provider_queue_status")
+                .from("instrument_queuing_status")
                 .update({ is_queuing: true })
-                .eq("provider", "globalgiving");
+                .eq("instrument", "globalgiving");
         }
     }
 

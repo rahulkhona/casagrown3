@@ -35,8 +35,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
     // 1. Fetch live queue states
     const { data: _queueProviders } = await supabase
-        .from("provider_queue_status")
-        .select("provider, is_active");
+        .from("instrument_queuing_status")
+        .select("instrument, is_queuing");
 
     let tremendousBalance = 0;
     let reloadlyBalance = 0;
@@ -200,9 +200,18 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     for (const clearedProvider of successfullyClearedProviders) {
         console.log(`[RETRY] Clearing Circuit Breaker for ${clearedProvider}`);
         await supabase
-            .from("provider_queue_status")
+            .from("instrument_queuing_status")
             .update({ is_queuing: false })
-            .eq("provider", clearedProvider);
+            .eq("instrument", clearedProvider);
+    }
+
+    // For any provider that failed, ensure circuit breaker is ON so future immediate redemptions are queued
+    for (const failedProvider of failedProvidersList) {
+        console.log(`[RETRY] Setting Circuit Breaker ON for ${failedProvider}`);
+        await supabase
+            .from("instrument_queuing_status")
+            .update({ is_queuing: true })
+            .eq("instrument", failedProvider);
     }
 
     return jsonOk({

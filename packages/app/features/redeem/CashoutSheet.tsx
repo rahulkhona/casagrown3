@@ -94,21 +94,14 @@ export function CashoutSheet({
       })
 
       if (error) {
-        // Expose the EXACT object supabase-js returned
-        let rawStr = "";
-        try {
-            rawStr = JSON.stringify(error, Object.getOwnPropertyNames(error), 2);
-        } catch (e) {
-            rawStr = String(error);
-        }
-        
-        setErrorText("Supabase Error Data:\n" + rawStr);
+        console.error("Supabase function error:", error);
+        setErrorText("Network or server error. Please try again.");
         setIsProcessing(false)
         return
       }
 
       if (!data?.success) {
-          throw new Error("Payout API rejected the transfer.")
+          throw new Error(data?.error || "Payout API rejected the transfer.")
       }
 
       // Success! Deduct points explicitly on the frontend so UI feels fast
@@ -154,7 +147,15 @@ export function CashoutSheet({
     >
       <Sheet.Overlay backgroundColor="rgba(0,0,0,0.5)" />
       <Sheet.Handle />
-      <Sheet.Frame backgroundColor="white" padding="$0" borderTopLeftRadius={24} borderTopRightRadius={24}>
+      <Sheet.Frame 
+        backgroundColor="white" 
+        padding="$0" 
+        borderTopLeftRadius={24} 
+        borderTopRightRadius={24}
+        maxWidth={500}
+        width="100%"
+        alignSelf="center"
+      >
         
         {/* Header */}
         <XStack padding="$4" borderBottomWidth={1} borderBottomColor={colors.gray[200]} alignItems="center" justifyContent="center" position="relative">

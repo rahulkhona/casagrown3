@@ -78,14 +78,14 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
     const brandKey = normalizeBrand(brandName);
     const { data: catalogRow } = await supabase
-        .from("platform_config")
-        .select("value")
-        .eq("key", "gift_card_catalog_v4")
+        .from("giftcards_cache")
+        .select("data")
+        .eq("provider", "unified")
         .maybeSingle();
 
-    if (catalogRow?.value) {
+    if (catalogRow?.data) {
         try {
-            const catalog = JSON.parse(catalogRow.value);
+            const catalog = catalogRow.data as any[];
             const brand = catalog.find(
                 (c: any) => normalizeBrand(c.brandName) === brandKey,
             );
@@ -148,39 +148,48 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             `Points cost: ${totalPointsCost}`,
     );
 
-    // ── 2. Check Provider Queue Status ──
-    const providerName = selectedProvider.provider;
+    // ── 2. Check Instrument Active & Queue Status ──
+    const instrumentName = selectedProvider.provider;
 
-    const { data: queueStatus } = await supabase
-        .from("provider_queue_status")
-        .select("is_queuing, is_active, disabled_at")
-        .eq("provider", providerName)
-        .single();
+    const { data: instrumentState } = await supabase
+        .from("available_redemption_method_instruments")
+        .select("is_active, disabled_at")
+        .eq("instrument", instrumentName)
+        .maybeSingle();
 
-    if (queueStatus && !queueStatus.is_active) {
+    if (instrumentState && !instrumentState.is_active) {
         let isGracePeriod = false;
 
-        if (queueStatus.disabled_at) {
-            const disabledTime = new Date(queueStatus.disabled_at).getTime();
+        if (instrumentState.disabled_at) {
+            const disabledTime = new Date(instrumentState.disabled_at)
+                .getTime();
             const now = Date.now();
             const gracePeriodMs = await getProviderGracePeriodMs(supabase);
 
             if (now - disabledTime < gracePeriodMs) {
                 isGracePeriod = true;
                 console.log(
-                    `[REDEEM] Provider is disabled, but transaction permitted within ${gracePeriodMs}ms grace window.`,
+                    `[REDEEM] Instrument is disabled, but transaction permitted within ${gracePeriodMs}ms grace window.`,
                 );
             }
         }
 
         if (!isGracePeriod) {
             return jsonError(
-                `Redemptions via ${providerName} are temporarily offline. Please try again later.`,
+                `Redemptions via ${instrumentName} are temporarily offline. Please try again later.`,
                 corsHeaders,
                 400,
             );
         }
     }
+
+    const { data: queueRow } = await supabase
+        .from("instrument_queuing_status")
+        .select("is_queuing")
+        .eq("instrument", instrumentName)
+        .maybeSingle();
+
+    const isQueuing = queueRow?.is_queuing ?? false;
 
     // ── 3. Check user balance ──
     const { data: ledgerEntry } = await supabase
@@ -254,33 +263,49 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
     // ── 6. Place order with selected provider ──
     let providerResult: ProviderOrderResult | null = null;
+    let externalErrorMsg: string | null = null;
 
-    try {
-        if (selectedProvider.provider === "tremendous") {
-            providerResult = await orderFromTremendous(
-                env("TREMENDOUS_API_KEY") || "",
-                selectedProvider.productId,
-                brandName,
-                faceValueCents,
-            );
-        } else {
-            providerResult = await orderFromReloadly(
-                env("RELOADLY_CLIENT_ID") || "",
-                env("RELOADLY_CLIENT_SECRET") || "",
-                selectedProvider.productId,
-                brandName,
-                faceValueCents,
-                env("RELOADLY_SANDBOX") !== "false",
+    if (!isQueuing) {
+        try {
+            if (selectedProvider.provider === "tremendous") {
+                providerResult = await orderFromTremendous(
+                    env("TREMENDOUS_API_KEY") || "",
+                    selectedProvider.productId,
+                    brandName,
+                    faceValueCents,
+                );
+            } else {
+                providerResult = await orderFromReloadly(
+                    env("RELOADLY_CLIENT_ID") || "",
+                    env("RELOADLY_CLIENT_SECRET") || "",
+                    selectedProvider.productId,
+                    brandName,
+                    faceValueCents,
+                    env("RELOADLY_SANDBOX") !== "false",
+                );
+            }
+        } catch (err) {
+            externalErrorMsg = err instanceof Error
+                ? err.message
+                : "Provider error";
+            console.warn(
+                `[REDEEM] gift card API failed, queuing: ${externalErrorMsg}`,
             );
         }
-    } catch (err) {
-        // Provider failed — queue for retry
-        const errorMsg = err instanceof Error ? err.message : "Provider error";
-        console.warn(`[REDEEM] gift card API failed, queuing: ${errorMsg}`);
+    } else {
+        console.log(
+            `[REDEEM] is_queuing is TRUE for ${instrumentName}. Dropping directly into queue.`,
+        );
+    }
+
+    if (isQueuing || externalErrorMsg) {
+        // Provider failed or queue is explicitly on — queue for retry
+        const finalReason = externalErrorMsg ||
+            "Queue is currently enabled for this instrument";
 
         await supabase
             .from("redemptions")
-            .update({ status: "failed", failed_reason: errorMsg })
+            .update({ status: "failed", failed_reason: finalReason })
             .eq("id", redemption.id);
 
         const queuedMessage =
@@ -379,5 +404,6 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         cardCode: providerResult!.cardCode,
         cardUrl: providerResult!.cardUrl,
         netFeeCents,
+        status: "completed",
     }, corsHeaders);
 });

@@ -163,6 +163,7 @@ export function DonationSheet({ visible, project, balance, onClose, onConfirm, t
           <button
             onClick={() => { if (canAfford) onConfirm(project, pointsAmount) }}
             disabled={!canAfford}
+            data-testid="donation-sheet-confirm"
             style={{
               padding: '14px 0', borderRadius: 24, border: 'none',
               cursor: canAfford ? 'pointer' : 'default',
@@ -183,6 +184,7 @@ export function DonationSheet({ visible, project, balance, onClose, onConfirm, t
             alignItems="center" justifyContent="center"
             onPress={() => { if (canAfford) onConfirm(project, pointsAmount) }}
             disabled={!canAfford}
+            testID="donation-sheet-confirm"
           >
             <Text fontSize="$4" fontWeight="600" color="white">
               {!canAfford && pointsAmount > balance
