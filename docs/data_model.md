@@ -867,6 +867,31 @@ create table platform_config (
 | :------------------------------------------- | :-------- | :------------- |
 | Authenticated users can read platform config | `SELECT`  | `using (true)` |
 
+### `platform_fees`
+
+Stores dynamic fee percentages by country. Used to compute platform fees during
+order resolution. The system looks for the most recent entry for a user's
+country code, falling back to 10% if none exists.
+
+| Column          | Type          | Description                        |
+| :-------------- | :------------ | :--------------------------------- |
+| `id`            | `uuid`        | **Primary Key**. Auto-generated.   |
+| `country_code`  | `varchar(3)`  | ISO 3166-1 alpha-3 (e.g., 'USA').  |
+| `fees`          | `numeric`     | Fee percentage (e.g., 10 for 10%). |
+| `creation_date` | `timestamptz` | Default `now()`.                   |
+
+**Indexes**: `idx_platform_fees_country` on `(country_code, creation_date DESC)`
+
+```sql
+create table platform_fees (
+  id uuid primary key default gen_random_uuid(),
+  creation_date timestamptz default now(),
+  country_code varchar(3) not null,
+  fees numeric not null
+);
+create index idx_platform_fees_country on platform_fees(country_code, creation_date desc);
+```
+
 ### `post_type_policies`
 
 Configurable expiration days per post type. Used by the "My Posts" screen to
@@ -3085,3 +3110,81 @@ CREATE TRIGGER trg_notify_new_message
     FOR EACH ROW
     EXECUTE FUNCTION notify_new_message();
 ```
+
+### `process-redemptions`
+
+Cron-scheduled edge function that processes queued point redemptions.
+
+**Endpoint**: `POST /functions/v1/process-redemptions`
+
+**Logic**:
+
+1. Fetches all redemptions where status is `'failed'` (for Tremendous/Reloadly)
+   or `'pending'` (for GlobalGiving/PayPal) in FIFO order.
+2. In parallel, checks Tremendous and Reloadly balance APIs.
+3. Re-attempts processing the redemption against the requested provider
+   (Reloadly, Tremendous, GlobalGiving, or PayPal).
+4. Adjusts provider circuit breaker statuses (`provider_queue_status`) upon
+   sustained success.
+
+**Env vars**: `TREMENDOUS_API_KEY`, `RELOADLY_CLIENT_ID`,
+`RELOADLY_CLIENT_SECRET`, `GLOBALGIVING_API_KEY`, `PAYPAL_CLIENT_ID`,
+`PAYPAL_SECRET`, `CRON_SECRET`
+
+**Source**:
+[process-redemptions/index.ts](file:///Users/rkhona/development/casagrown3/supabase/functions/process-redemptions/index.ts)
+
+### `redeem-paypal-payout`
+
+Allows users to redeem points directly into their PayPal or Venmo accounts.
+
+**Endpoint**: `POST /functions/v1/redeem-paypal-payout`
+
+**Logic**:
+
+1. Validates the requested points and user's current point balance.
+2. Verifies the user's `paypal_payout_id` (email or phone number).
+3. Verifies `provider_queue_status` for `paypal` is active or in a grace period.
+4. Connects to PayPal Payouts API using client credentials.
+5. Creates a `'pending'` redemption record, then attempts the Payout transfer.
+6. On success: Updates redemption to `'completed'`, deducts points via
+   `point_ledger`, and sends a Push Notification.
+7. On failure: Queues the transaction by marking it `'failed'` so the
+   `process-redemptions` cron job can retry it later.
+
+**Source**:
+[redeem-paypal-payout/index.ts](file:///Users/rkhona/development/casagrown3/supabase/functions/redeem-paypal-payout/index.ts)
+
+### `register-push-token`
+
+Stores a push notification token/subscription for the authenticated user.
+
+**Endpoint**: `POST /functions/v1/register-push-token`
+
+**Logic**: Upserts on `(user_id, token)` into the `push_subscriptions` table to
+handle duplicates gracefully while updating the `updated_at` timestamp.
+
+**Source**:
+[register-push-token/index.ts](file:///Users/rkhona/development/casagrown3/supabase/functions/register-push-token/index.ts)
+
+### `send-push-notification`
+
+Internal edge function that unifies push deployments across Web Push, APNs
+(iOS), and FCM (Android).
+
+**Endpoint**: `POST /functions/v1/send-push-notification`
+
+**Logic**:
+
+1. Accepts internal requests (usually from `pg_net` or other edge functions
+   using `service_role` keys).
+2. Fetches all active `push_subscriptions` for the designated `userIds`.
+3. Routes payloads appropriately via Web Push protocol (`webpush`), APNs
+   (`jsonwebtoken` + fetch), or FCM.
+4. Cleans up any expired subscriptions (HTTP 410) dynamically.
+
+**Env vars**: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `APNS_KEY_ID`,
+`APNS_TEAM_ID`, `APNS_KEY`, `FCM_SERVER_KEY`
+
+**Source**:
+[send-push-notification/index.ts](file:///Users/rkhona/development/casagrown3/supabase/functions/send-push-notification/index.ts)

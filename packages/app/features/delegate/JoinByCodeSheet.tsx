@@ -23,11 +23,7 @@ interface LookupResult {
   delegation: { id: string; delegatePct: number | null; message: string | null }
 }
 
-export default function JoinByCodeSheet({
-  visible,
-  onClose,
-  onAcceptCode,
-}: JoinByCodeSheetProps) {
+export default function JoinByCodeSheet({ visible, onClose, onAcceptCode }: JoinByCodeSheetProps) {
   const { t } = useTranslation()
   const [digits, setDigits] = useState(['', '', '', '', '', ''])
   const [lookingUp, setLookingUp] = useState(false)
@@ -182,7 +178,9 @@ export default function JoinByCodeSheet({
               {digits.map((digit, i) => (
                 <YStack key={i} width={48} height={60}>
                   <TextInput
-                    ref={(ref) => { inputRefs.current[i] = ref }}
+                    ref={(ref) => {
+                      inputRefs.current[i] = ref
+                    }}
                     value={digit}
                     onChangeText={(val) => handleDigitChange(i, val)}
                     onKeyPress={({ nativeEvent }) => handleKeyPress(i, nativeEvent.key)}
@@ -241,7 +239,9 @@ export default function JoinByCodeSheet({
                 <Users size={22} color={colors.green[700]} />
               </YStack>
               <YStack flex={1}>
-                <Text fontSize={12} color={colors.green[600]}>Delegator</Text>
+                <Text fontSize={12} color={colors.green[600]}>
+                  Delegator
+                </Text>
                 <Text fontWeight="700" fontSize={16} color={colors.gray[900]}>
                   {delegatorName}
                 </Text>
@@ -265,18 +265,22 @@ export default function JoinByCodeSheet({
                   <Text fontSize={28} fontWeight="700" color={colors.green[700]}>
                     {delegatePct}%
                   </Text>
-                  <Text fontSize={12} color={colors.green[600]} fontWeight="600">You get</Text>
+                  <Text fontSize={12} color={colors.green[600]} fontWeight="600">
+                    You get
+                  </Text>
                 </YStack>
                 <YStack height={40} width={1} backgroundColor={colors.gray[300]} />
                 <YStack alignItems="center" gap="$1">
                   <Text fontSize={28} fontWeight="700" color={colors.blue[700]}>
                     {100 - delegatePct}%
                   </Text>
-                  <Text fontSize={12} color={colors.blue[600]} fontWeight="600">Delegator keeps</Text>
+                  <Text fontSize={12} color={colors.blue[600]} fontWeight="600">
+                    Delegator keeps
+                  </Text>
                 </YStack>
               </XStack>
               <Text fontSize={11} color={colors.gray[400]} textAlign="center">
-                Split is applied after a 10% platform fee on each sale.
+                Split is applied after platform fees on each sale.
               </Text>
             </YStack>
 
@@ -289,7 +293,9 @@ export default function JoinByCodeSheet({
                 borderRadius={borderRadius.lg}
                 padding="$3"
               >
-                <Text fontSize={11} color="#1e40af" fontWeight="600">Personal message:</Text>
+                <Text fontSize={11} color="#1e40af" fontWeight="600">
+                  Personal message:
+                </Text>
                 <Text fontSize={13} color="#1e40af" fontStyle="italic" marginTop="$1">
                   "{lookupResult.delegation.message}"
                 </Text>

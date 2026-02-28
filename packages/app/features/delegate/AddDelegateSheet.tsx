@@ -7,15 +7,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react'
-import {
-  YStack,
-  XStack,
-  Text,
-  Button,
-  Spinner,
-  ScrollView,
-  TextArea,
-} from 'tamagui'
+import { YStack, XStack, Text, Button, Spinner, ScrollView, TextArea } from 'tamagui'
 import {
   X,
   Link2,
@@ -38,13 +30,18 @@ const isWeb = Platform.OS === 'web'
 
 // Base URL for delegation links
 const BASE_URL = isWeb
-  ? (typeof window !== 'undefined' ? window.location.origin : 'https://casagrown.com')
+  ? typeof window !== 'undefined'
+    ? window.location.origin
+    : 'https://casagrown.com'
   : 'https://casagrown.com'
 
 interface AddDelegateSheetProps {
   visible: boolean
   onClose: () => void
-  onGenerateLink: (message?: string, delegatePct?: number) => Promise<GeneratedLink | { error: string }>
+  onGenerateLink: (
+    message?: string,
+    delegatePct?: number
+  ) => Promise<GeneratedLink | { error: string }>
 }
 
 function formatTime(seconds: number): string {
@@ -102,9 +99,7 @@ export default function AddDelegateSheet({
       const updateTimer = () => {
         const remaining = Math.max(
           0,
-          Math.floor(
-            (new Date(generatedLink.expiresAt).getTime() - Date.now()) / 1000,
-          ),
+          Math.floor((new Date(generatedLink.expiresAt).getTime() - Date.now()) / 1000)
         )
         setTimeLeft(remaining)
         if (remaining <= 0 && timerRef.current) {
@@ -258,14 +253,9 @@ export default function AddDelegateSheet({
 
         <ScrollView flex={1} showsVerticalScrollIndicator={false}>
           <YStack padding="$5" gap="$4">
-
             {/* Loading state */}
             {generating && (
-              <YStack
-                padding="$8"
-                alignItems="center"
-                gap="$3"
-              >
+              <YStack padding="$8" alignItems="center" gap="$3">
                 <Spinner size="large" color={colors.green[600]} />
                 <Text color={colors.gray[600]} fontSize={14}>
                   {t('delegate.addDelegate.generatingLink')}
@@ -322,7 +312,7 @@ export default function AddDelegateSheet({
                     Profit Split
                   </Text>
                   <Text fontSize={12} color={colors.gray[500]}>
-                    Set how proceeds are split after the 10% platform fee.
+                    Set how proceeds are split after platform fees.
                   </Text>
                   <XStack
                     backgroundColor={colors.gray[50]}
@@ -351,7 +341,13 @@ export default function AddDelegateSheet({
                           disabled={delegatePct <= 0}
                           onPress={() => setDelegatePct(Math.max(0, delegatePct - 5))}
                         >
-                          <Text fontSize={18} fontWeight="700" color={delegatePct <= 0 ? colors.gray[300] : colors.red[500]}>−</Text>
+                          <Text
+                            fontSize={18}
+                            fontWeight="700"
+                            color={delegatePct <= 0 ? colors.gray[300] : colors.red[500]}
+                          >
+                            −
+                          </Text>
                         </Button>
                         <XStack
                           backgroundColor="white"
@@ -380,11 +376,13 @@ export default function AddDelegateSheet({
                               width: 35,
                               textAlign: 'right',
                               padding: 0,
-                              ...(isWeb ? { outlineStyle: 'none' } as any : {}),
+                              ...(isWeb ? ({ outlineStyle: 'none' } as any) : {}),
                             }}
                             selectTextOnFocus
                           />
-                          <Text fontSize={20} fontWeight="700" color={colors.green[700]}>%</Text>
+                          <Text fontSize={20} fontWeight="700" color={colors.green[700]}>
+                            %
+                          </Text>
                         </XStack>
                         <Button
                           unstyled
@@ -397,7 +395,13 @@ export default function AddDelegateSheet({
                           disabled={delegatePct >= 100}
                           onPress={() => setDelegatePct(Math.min(100, delegatePct + 5))}
                         >
-                          <Text fontSize={18} fontWeight="700" color={delegatePct >= 100 ? colors.gray[300] : colors.green[600]}>+</Text>
+                          <Text
+                            fontSize={18}
+                            fontWeight="700"
+                            color={delegatePct >= 100 ? colors.gray[300] : colors.green[600]}
+                          >
+                            +
+                          </Text>
                         </Button>
                       </XStack>
                     </YStack>
@@ -422,7 +426,13 @@ export default function AddDelegateSheet({
                           disabled={delegatePct >= 100}
                           onPress={() => setDelegatePct(Math.min(100, delegatePct + 5))}
                         >
-                          <Text fontSize={18} fontWeight="700" color={delegatePct >= 100 ? colors.gray[300] : colors.red[500]}>−</Text>
+                          <Text
+                            fontSize={18}
+                            fontWeight="700"
+                            color={delegatePct >= 100 ? colors.gray[300] : colors.red[500]}
+                          >
+                            −
+                          </Text>
                         </Button>
                         <XStack
                           backgroundColor="white"
@@ -440,7 +450,8 @@ export default function AddDelegateSheet({
                             onChangeText={(val) => {
                               const n = parseInt(val, 10)
                               if (val === '') setDelegatePct(100)
-                              else if (!isNaN(n)) setDelegatePct(Math.max(0, Math.min(100, 100 - n)))
+                              else if (!isNaN(n))
+                                setDelegatePct(Math.max(0, Math.min(100, 100 - n)))
                             }}
                             keyboardType="number-pad"
                             maxLength={3}
@@ -451,11 +462,13 @@ export default function AddDelegateSheet({
                               width: 35,
                               textAlign: 'right',
                               padding: 0,
-                              ...(isWeb ? { outlineStyle: 'none' } as any : {}),
+                              ...(isWeb ? ({ outlineStyle: 'none' } as any) : {}),
                             }}
                             selectTextOnFocus
                           />
-                          <Text fontSize={20} fontWeight="700" color={colors.blue[700]}>%</Text>
+                          <Text fontSize={20} fontWeight="700" color={colors.blue[700]}>
+                            %
+                          </Text>
                         </XStack>
                         <Button
                           unstyled
@@ -468,7 +481,13 @@ export default function AddDelegateSheet({
                           disabled={delegatePct <= 0}
                           onPress={() => setDelegatePct(Math.max(0, delegatePct - 5))}
                         >
-                          <Text fontSize={18} fontWeight="700" color={delegatePct <= 0 ? colors.gray[300] : colors.green[600]}>+</Text>
+                          <Text
+                            fontSize={18}
+                            fontWeight="700"
+                            color={delegatePct <= 0 ? colors.gray[300] : colors.green[600]}
+                          >
+                            +
+                          </Text>
                         </Button>
                       </XStack>
                     </YStack>
@@ -493,12 +512,7 @@ export default function AddDelegateSheet({
                     alignItems="center"
                   >
                     <Link2 size={16} color={colors.gray[500]} />
-                    <Text
-                      flex={1}
-                      fontSize={13}
-                      color={colors.gray[700]}
-                      numberOfLines={1}
-                    >
+                    <Text flex={1} fontSize={13} color={colors.gray[700]} numberOfLines={1}>
                       {delegationUrl}
                     </Text>
                     <Button
@@ -540,10 +554,7 @@ export default function AddDelegateSheet({
                     borderWidth={1}
                     borderColor={colors.gray[200]}
                   >
-                    <QRCodeDisplay
-                      value={delegationUrl}
-                      size={150}
-                    />
+                    <QRCodeDisplay value={delegationUrl} size={150} />
                   </YStack>
                   <Text fontSize={11} color={colors.gray[500]} textAlign="center">
                     {t('delegate.addDelegate.qrHint')}
@@ -588,10 +599,7 @@ export default function AddDelegateSheet({
                   alignItems="center"
                   justifyContent="center"
                 >
-                  <Clock
-                    size={16}
-                    color={timeLeft < 3600 ? colors.red[600] : '#2563eb'}
-                  />
+                  <Clock size={16} color={timeLeft < 3600 ? colors.red[600] : '#2563eb'} />
                   <Text
                     fontSize={13}
                     fontWeight="500"

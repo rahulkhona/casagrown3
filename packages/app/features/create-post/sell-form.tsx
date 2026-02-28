@@ -4,23 +4,8 @@
  */
 
 import { useState, useEffect, useRef } from 'react'
-import {
-  YStack,
-  XStack,
-  Input,
-  Button,
-  Text,
-  Label,
-  Spinner,
-  Avatar,
-  TextArea,
-} from 'tamagui'
-import {
-  Plus,
-  Trash2,
-  Info,
-  MapPin,
-} from '@tamagui/lucide-icons'
+import { YStack, XStack, Input, Button, Text, Label, Spinner, Avatar, TextArea } from 'tamagui'
+import { Plus, Trash2, Info, MapPin } from '@tamagui/lucide-icons'
 import { Platform, Pressable } from 'react-native'
 import { CalendarPicker } from './CalendarPicker'
 import { loadMediaFromStorage } from './load-media-helper'
@@ -204,7 +189,9 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
         console.error('Error loading edit data:', err)
       }
     })()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [editId])
 
   async function loadDelegators() {
@@ -242,7 +229,11 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
       } else {
         // No community found — show error instead of signing out
         console.warn('[SELL FORM] No community found for user')
-        setFormError(t('createPost.error.noCommunity', { defaultValue: 'Could not load your community. Please try again.' }))
+        setFormError(
+          t('createPost.error.noCommunity', {
+            defaultValue: 'Could not load your community. Please try again.',
+          })
+        )
       }
       setLoadingCommunity(false)
 
@@ -255,12 +246,14 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
       }
 
       // Load platform fee
-      const fee = await getPlatformFeePercent()
+      const fee = await getPlatformFeePercent(userId)
       setPlatformFeePercent(fee)
     } catch (err) {
       console.error('Error loading community/categories:', err)
       // Show error instead of signing out
-      setFormError(t('createPost.error.loadFailed', { defaultValue: 'Failed to load data. Please try again.' }))
+      setFormError(
+        t('createPost.error.loadFailed', { defaultValue: 'Failed to load data. Please try again.' })
+      )
     } finally {
       setLoadingCommunity(false)
       setLoadingCategories(false)
@@ -287,8 +280,10 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
         setCategory('')
       }
 
-      const fee = await getPlatformFeePercent()
-      setPlatformFeePercent(fee)
+      if (user?.id) {
+        const fee = await getPlatformFeePercent(user.id)
+        setPlatformFeePercent(fee)
+      }
     } catch (err) {
       console.error('Error loading community by H3:', err)
     } finally {
@@ -335,7 +330,7 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
       setFormError(t('createPost.validation.requiredFields'))
       return
     }
-    const validDates = dropoffDates.filter(d => d.trim() !== '')
+    const validDates = dropoffDates.filter((d) => d.trim() !== '')
     if (validDates.length === 0) {
       setFormError(t('createPost.validation.dropoffRequired'))
       return
@@ -348,7 +343,8 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
         authorId: user.id,
         onBehalfOfId: selectedSellerId || undefined,
         communityH3Index: communityH3Index || undefined,
-        additionalCommunityH3Indices: selectedNeighborH3Indices.length > 0 ? selectedNeighborH3Indices : undefined,
+        additionalCommunityH3Indices:
+          selectedNeighborH3Indices.length > 0 ? selectedNeighborH3Indices : undefined,
         description,
         category,
         produceName: productName,
@@ -356,7 +352,10 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
         quantity: parseFloat(quantity) || 1,
         pointsPerUnit: parseFloat(price) || 0,
         dropoffDates: validDates,
-        mediaAssets: media.mediaAssets.length > 0 ? media.mediaAssets.map(a => ({ uri: a.uri, type: a.type ?? undefined })) : undefined,
+        mediaAssets:
+          media.mediaAssets.length > 0
+            ? media.mediaAssets.map((a) => ({ uri: a.uri, type: a.type ?? undefined }))
+            : undefined,
       }
       if (editId) {
         await updateSellPost(editId, postData)
@@ -394,7 +393,7 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
       })
     }
     // Add each delegator's community (deduplicate by h3Index)
-    const seen = new Set(allCommunities.map(c => c.h3Index))
+    const seen = new Set(allCommunities.map((c) => c.h3Index))
     for (const d of delegators) {
       if (d.communityH3Index && !seen.has(d.communityH3Index)) {
         seen.add(d.communityH3Index)
@@ -445,18 +444,24 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
             borderRadius={borderRadius.md}
             paddingVertical="$3"
             paddingHorizontal="$3"
-            onPress={() => { if (!editId) setSelectedSellerId(null) }}
+            onPress={() => {
+              if (!editId) setSelectedSellerId(null)
+            }}
             justifyContent="flex-start"
             disabled={!!editId}
           >
             <XStack alignItems="center" gap="$3" flex={1}>
               <Avatar circular size="$3">
                 <Avatar.Fallback backgroundColor={colors.primary[600]}>
-                  <Text color="white" fontWeight="700" fontSize="$1">{t('createPost.delegator.meInitial')}</Text>
+                  <Text color="white" fontWeight="700" fontSize="$1">
+                    {t('createPost.delegator.meInitial')}
+                  </Text>
                 </Avatar.Fallback>
               </Avatar>
               <YStack flex={1}>
-                <Text fontWeight="600" color={colors.neutral[900]}>{t('createPost.delegator.myself')}</Text>
+                <Text fontWeight="600" color={colors.neutral[900]}>
+                  {t('createPost.delegator.myself')}
+                </Text>
                 <Text fontSize="$2" color={colors.neutral[500]}>
                   {t('createPost.delegator.sellOwnProduce')}
                 </Text>
@@ -470,7 +475,9 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
                   alignItems="center"
                   justifyContent="center"
                 >
-                  <Text color="white" fontSize={12} fontWeight="700">✓</Text>
+                  <Text color="white" fontSize={12} fontWeight="700">
+                    ✓
+                  </Text>
                 </YStack>
               )}
             </XStack>
@@ -482,11 +489,15 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
               key={d.delegationId}
               backgroundColor={selectedSellerId === d.delegatorId ? colors.primary[50] : 'white'}
               borderWidth={2}
-              borderColor={selectedSellerId === d.delegatorId ? colors.primary[500] : colors.neutral[200]}
+              borderColor={
+                selectedSellerId === d.delegatorId ? colors.primary[500] : colors.neutral[200]
+              }
               borderRadius={borderRadius.md}
               paddingVertical="$3"
               paddingHorizontal="$3"
-              onPress={() => { if (!editId) setSelectedSellerId(d.delegatorId) }}
+              onPress={() => {
+                if (!editId) setSelectedSellerId(d.delegatorId)
+              }}
               justifyContent="flex-start"
               disabled={!!editId}
             >
@@ -521,7 +532,9 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
                     alignItems="center"
                     justifyContent="center"
                   >
-                    <Text color="white" fontSize={12} fontWeight="700">✓</Text>
+                    <Text color="white" fontSize={12} fontWeight="700">
+                      ✓
+                    </Text>
                   </YStack>
                 )}
               </XStack>
@@ -552,15 +565,19 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
           {allCommunities.map((comm) => (
             <Button
               key={comm.h3Index}
-              backgroundColor={(
+              backgroundColor={
                 selectedCommunityH3 === comm.h3Index ||
                 (!selectedCommunityH3 && communityH3Index === comm.h3Index)
-              ) ? colors.primary[50] : 'white'}
+                  ? colors.primary[50]
+                  : 'white'
+              }
               borderWidth={2}
-              borderColor={(
+              borderColor={
                 selectedCommunityH3 === comm.h3Index ||
                 (!selectedCommunityH3 && communityH3Index === comm.h3Index)
-              ) ? colors.primary[500] : colors.neutral[200]}
+                  ? colors.primary[500]
+                  : colors.neutral[200]
+              }
               borderRadius={borderRadius.md}
               paddingVertical="$3"
               paddingHorizontal="$3"
@@ -571,18 +588,25 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
               justifyContent="flex-start"
             >
               <XStack alignItems="center" gap="$3" flex={1}>
-                <MapPin size={18} color={(
-                  selectedCommunityH3 === comm.h3Index ||
-                  (!selectedCommunityH3 && communityH3Index === comm.h3Index)
-                ) ? colors.primary[600] : colors.neutral[400]} />
+                <MapPin
+                  size={18}
+                  color={
+                    selectedCommunityH3 === comm.h3Index ||
+                    (!selectedCommunityH3 && communityH3Index === comm.h3Index)
+                      ? colors.primary[600]
+                      : colors.neutral[400]
+                  }
+                />
                 <YStack flex={1}>
-                  <Text fontWeight="600" color={colors.neutral[900]}>{comm.name}</Text>
-                  <Text fontSize="$2" color={colors.neutral[500]}>{comm.ownerLabel}</Text>
+                  <Text fontWeight="600" color={colors.neutral[900]}>
+                    {comm.name}
+                  </Text>
+                  <Text fontSize="$2" color={colors.neutral[500]}>
+                    {comm.ownerLabel}
+                  </Text>
                 </YStack>
-                {(
-                  selectedCommunityH3 === comm.h3Index ||
-                  (!selectedCommunityH3 && communityH3Index === comm.h3Index)
-                ) && (
+                {(selectedCommunityH3 === comm.h3Index ||
+                  (!selectedCommunityH3 && communityH3Index === comm.h3Index)) && (
                   <YStack
                     width={20}
                     height={20}
@@ -591,7 +615,9 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
                     alignItems="center"
                     justifyContent="center"
                   >
-                    <Text color="white" fontSize={12} fontWeight="700">✓</Text>
+                    <Text color="white" fontSize={12} fontWeight="700">
+                      ✓
+                    </Text>
                   </YStack>
                 )}
               </XStack>
@@ -629,7 +655,9 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
               </Text>
               {selectedDelegator && (
                 <Text fontSize="$2" color={colors.neutral[400]}>
-                  {t('createPost.delegator.delegatorCommunity', { name: selectedDelegator.fullName })}
+                  {t('createPost.delegator.delegatorCommunity', {
+                    name: selectedDelegator.fullName,
+                  })}
                 </Text>
               )}
             </XStack>
@@ -665,7 +693,11 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
                           paddingVertical="$1.5"
                         >
                           <MapPin size={12} color={isSelected ? 'white' : colors.neutral[500]} />
-                          <Text fontSize="$2" color={isSelected ? 'white' : colors.neutral[700]} fontWeight="500">
+                          <Text
+                            fontSize="$2"
+                            color={isSelected ? 'white' : colors.neutral[700]}
+                            fontWeight="500"
+                          >
                             {n.name}
                           </Text>
                         </XStack>
@@ -675,7 +707,9 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
                 </XStack>
                 {selectedNeighborH3Indices.length > 0 && (
                   <Text fontSize="$1" color={colors.green[600]}>
-                    {t('createPost.neighbors.additionalCount', { count: selectedNeighborH3Indices.length })}
+                    {t('createPost.neighbors.additionalCount', {
+                      count: selectedNeighborH3Indices.length,
+                    })}
                   </Text>
                 )}
               </YStack>
@@ -948,15 +982,13 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
                   >
                     {date || 'Select date'}
                   </Text>
-                  <Text fontSize="$3" color={colors.neutral[400]}>📅</Text>
+                  <Text fontSize="$3" color={colors.neutral[400]}>
+                    📅
+                  </Text>
                 </XStack>
               </Pressable>
             )}
-            <Button
-              unstyled
-              padding="$2"
-              onPress={() => removeDate(index)}
-            >
+            <Button unstyled padding="$2" onPress={() => removeDate(index)}>
               <Trash2 size={20} color={colors.red[500]} />
             </Button>
           </XStack>
@@ -983,7 +1015,7 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
             style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
               if (e.target.value) {
-                setDropoffDates(prev => [...prev, e.target.value])
+                setDropoffDates((prev) => [...prev, e.target.value])
                 e.target.value = ''
               }
             }}
@@ -991,32 +1023,32 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
         )}
 
         {/* Calendar Picker modal (native only — web uses <input type="date">) */}
-        {Platform.OS !== 'web' && datePickerVisible && (editingDateIndex !== null || isAddingNewDate) && (
-          <CalendarPicker
-            visible={datePickerVisible}
-            initialDate={
-              isAddingNewDate
-                ? undefined
-                : dropoffDates[editingDateIndex!] || undefined
-            }
-            minimumDate={new Date()}
-            onSelect={(dateStr) => {
-              if (isAddingNewDate) {
-                setDropoffDates(prev => [...prev, dateStr])
-                setIsAddingNewDate(false)
-              } else if (editingDateIndex !== null) {
-                updateDate(editingDateIndex, dateStr)
+        {Platform.OS !== 'web' &&
+          datePickerVisible &&
+          (editingDateIndex !== null || isAddingNewDate) && (
+            <CalendarPicker
+              visible={datePickerVisible}
+              initialDate={
+                isAddingNewDate ? undefined : dropoffDates[editingDateIndex!] || undefined
               }
-              setDatePickerVisible(false)
-              setEditingDateIndex(null)
-            }}
-            onCancel={() => {
-              setIsAddingNewDate(false)
-              setDatePickerVisible(false)
-              setEditingDateIndex(null)
-            }}
-          />
-        )}
+              minimumDate={new Date()}
+              onSelect={(dateStr) => {
+                if (isAddingNewDate) {
+                  setDropoffDates((prev) => [...prev, dateStr])
+                  setIsAddingNewDate(false)
+                } else if (editingDateIndex !== null) {
+                  updateDate(editingDateIndex, dateStr)
+                }
+                setDatePickerVisible(false)
+                setEditingDateIndex(null)
+              }}
+              onCancel={() => {
+                setIsAddingNewDate(false)
+                setDatePickerVisible(false)
+                setEditingDateIndex(null)
+              }}
+            />
+          )}
       </YStack>
     </PostFormShell>
   )

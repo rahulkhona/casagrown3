@@ -102,16 +102,18 @@ Deno.test("redeem-paypal-payout — honors provider disabled status", async () =
 
   const headers = await authHeaders();
 
-  // 2. Expect specific "temporarily offline" rejection before balance checks
-  const { status, data } = await invokeFunction(
-    "redeem-paypal-payout",
-    { pointsToRedeem: 100, payoutId: "test@example.com" },
-    headers,
-  );
-  assertEquals(status, 400);
-  assertEquals((data.error as string).includes("temporarily offline"), true);
-
-  // Cleanup
-  await setProviderActiveStatus("paypal", true);
-  await setProviderDisabledAt("paypal", null);
+  try {
+    // 2. Expect specific "temporarily offline" rejection before balance checks
+    const { status, data } = await invokeFunction(
+      "redeem-paypal-payout",
+      { pointsToRedeem: 100, payoutId: "test@example.com" },
+      headers,
+    );
+    assertEquals(status, 400);
+    assertEquals((data.error as string).includes("temporarily offline"), true);
+  } finally {
+    // Cleanup
+    await setProviderActiveStatus("paypal", true);
+    await setProviderDisabledAt("paypal", null);
+  }
 });

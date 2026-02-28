@@ -68,6 +68,10 @@ const buildChain = (table: string) => {
             chain.limit = jest.fn().mockReturnValue(chain);
             return chain;
         }),
+        rpc: jest.fn().mockImplementation((fn: string, args: any) => {
+            const resp = mockResponses[`rpc.${fn}`];
+            return Promise.resolve(resp || { data: null, error: null });
+        }),
         update: jest.fn().mockImplementation(() => ({
             eq: jest.fn().mockResolvedValue({ error: null }),
         })),
@@ -82,6 +86,7 @@ const mockFrom = jest.fn().mockImplementation((table: string) =>
 jest.mock("../auth/auth-hook", () => ({
     supabase: {
         from: (...args: any[]) => mockFrom(...args),
+        rpc: (...args: any[]) => mockFrom("mock").rpc(...args),
     },
 }));
 
@@ -700,44 +705,22 @@ describe("post-service", () => {
 
     describe("getPlatformFeePercent", () => {
         it("returns configured fee percentage", async () => {
-            mockFrom.mockImplementation((table: string) => {
-                if (table === "platform_config") {
-                    return {
-                        select: jest.fn().mockReturnValue({
-                            eq: jest.fn().mockReturnValue({
-                                single: jest.fn().mockResolvedValue({
-                                    data: { value: "15" },
-                                    error: null,
-                                }),
-                            }),
-                        }),
-                    };
-                }
-                return buildChain(table);
-            });
+            mockResponses["rpc.get_platform_fee_for_user"] = {
+                data: 0.15,
+                error: null,
+            };
 
-            const fee = await getPlatformFeePercent();
+            const fee = await getPlatformFeePercent("user-123");
             expect(fee).toBe(15);
         });
 
-        it("falls back to 10% when config is missing", async () => {
-            mockFrom.mockImplementation((table: string) => {
-                if (table === "platform_config") {
-                    return {
-                        select: jest.fn().mockReturnValue({
-                            eq: jest.fn().mockReturnValue({
-                                single: jest.fn().mockResolvedValue({
-                                    data: null,
-                                    error: { message: "Not found" },
-                                }),
-                            }),
-                        }),
-                    };
-                }
-                return buildChain(table);
-            });
+        it("falls back to 10% when RPC fails", async () => {
+            mockResponses["rpc.get_platform_fee_for_user"] = {
+                data: null,
+                error: { message: "RPC failed" },
+            };
 
-            const fee = await getPlatformFeePercent();
+            const fee = await getPlatformFeePercent("user-123");
             expect(fee).toBe(10);
         });
     });
