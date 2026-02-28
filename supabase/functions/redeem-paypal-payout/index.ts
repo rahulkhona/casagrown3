@@ -122,19 +122,15 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
   const isQueuing = queueRow?.is_queuing ?? false;
 
-  // 3. Verify Points Balance
+  // 3. Verify Points Balance (Closed-Loop: Earned only)
   const conversionRate = 100; // 100 points = $1
   const usdAmount = Number((pointsToRedeem / conversionRate).toFixed(2));
 
-  const { data: balanceData, error: balanceError } = await supabase
-    .from("point_ledger")
-    .select("balance_after")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(1)
+  const { data: balances, error: balanceError } = await supabase
+    .rpc("get_user_balances", { p_user_id: userId })
     .maybeSingle();
 
-  if (balanceError) {
+  if (balanceError || !balances) {
     return jsonError(
       "Failed to verify user point balance.",
       corsHeaders,
@@ -142,10 +138,10 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     );
   }
 
-  const currentBalance = balanceData?.balance_after ?? 0;
-  if (currentBalance < pointsToRedeem) {
+  const earnedBalance = (balances as any).earned_balance ?? 0;
+  if (earnedBalance < pointsToRedeem) {
     return jsonError(
-      `Insufficient points. You have ${currentBalance} but tried to redeem ${pointsToRedeem}.`,
+      `Insufficient earned points. You have ${earnedBalance} but tried to redeem ${pointsToRedeem}. Purchased points cannot be cashed out via PayPal.`,
       corsHeaders,
       400,
     );

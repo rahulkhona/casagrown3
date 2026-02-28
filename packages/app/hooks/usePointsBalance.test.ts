@@ -51,6 +51,7 @@ const mockFrom = jest.fn((_table?: string) => createChain(mockQueryResult));
 jest.mock("../features/auth/auth-hook", () => ({
     supabase: {
         from: (table: string) => mockFrom(table),
+        rpc: (fn: string) => mockFrom(fn),
         channel: (...args: any[]) => mockChannel,
         removeChannel: (...args: any[]) => mockRemoveChannel(...args),
     },
@@ -81,7 +82,14 @@ beforeEach(() => {
 
 describe("usePointsBalance", () => {
     it("fetches balance on mount", async () => {
-        mockQueryResult = { data: { balance_after: 500 }, error: null };
+        mockQueryResult = {
+            data: {
+                total_balance: 500,
+                earned_balance: 500,
+                purchased_balance: 0,
+            },
+            error: null,
+        };
         mockFrom.mockImplementation(() => createChain(mockQueryResult));
 
         const { result } = renderHook(() => usePointsBalance("user-1"));
@@ -89,7 +97,7 @@ describe("usePointsBalance", () => {
         await waitFor(() => expect(result.current.loading).toBe(false));
         expect(result.current.balance).toBe(500);
         expect(result.current.error).toBeNull();
-        expect(mockFrom).toHaveBeenCalledWith("point_ledger");
+        expect(mockFrom).toHaveBeenCalledWith("get_user_balances");
     });
 
     it("returns 0 when no entries exist", async () => {
@@ -122,7 +130,14 @@ describe("usePointsBalance", () => {
     });
 
     it("subscribes to realtime updates", async () => {
-        mockQueryResult = { data: { balance_after: 100 }, error: null };
+        mockQueryResult = {
+            data: {
+                total_balance: 100,
+                earned_balance: 100,
+                purchased_balance: 0,
+            },
+            error: null,
+        };
         mockFrom.mockImplementation(() => createChain(mockQueryResult));
 
         renderHook(() => usePointsBalance("user-1"));
@@ -139,7 +154,14 @@ describe("usePointsBalance", () => {
 
     it("updates balance via realtime INSERT event", async () => {
         jest.useFakeTimers();
-        mockQueryResult = { data: { balance_after: 100 }, error: null };
+        mockQueryResult = {
+            data: {
+                total_balance: 100,
+                earned_balance: 100,
+                purchased_balance: 0,
+            },
+            error: null,
+        };
         mockFrom.mockImplementation(() => createChain(mockQueryResult));
 
         const { result } = renderHook(() => usePointsBalance("user-1"));
@@ -155,7 +177,14 @@ describe("usePointsBalance", () => {
         );
 
         // Update mock to return new balance for the poll refetch
-        mockQueryResult = { data: { balance_after: 250 }, error: null };
+        mockQueryResult = {
+            data: {
+                total_balance: 250,
+                earned_balance: 250,
+                purchased_balance: 0,
+            },
+            error: null,
+        };
         mockFrom.mockImplementation(() => createChain(mockQueryResult));
 
         if (insertListener) {
@@ -176,7 +205,14 @@ describe("usePointsBalance", () => {
     });
 
     it("cleans up channel on unmount", async () => {
-        mockQueryResult = { data: { balance_after: 100 }, error: null };
+        mockQueryResult = {
+            data: {
+                total_balance: 100,
+                earned_balance: 100,
+                purchased_balance: 0,
+            },
+            error: null,
+        };
         mockFrom.mockImplementation(() => createChain(mockQueryResult));
 
         const { unmount } = renderHook(() => usePointsBalance("user-1"));
@@ -187,7 +223,14 @@ describe("usePointsBalance", () => {
     });
 
     it("refetch updates balance", async () => {
-        mockQueryResult = { data: { balance_after: 100 }, error: null };
+        mockQueryResult = {
+            data: {
+                total_balance: 100,
+                earned_balance: 100,
+                purchased_balance: 0,
+            },
+            error: null,
+        };
         mockFrom.mockImplementation(() => createChain(mockQueryResult));
 
         const { result } = renderHook(() => usePointsBalance("user-1"));
@@ -196,7 +239,14 @@ describe("usePointsBalance", () => {
         expect(result.current.balance).toBe(100);
 
         // Update mock for refetch
-        mockQueryResult = { data: { balance_after: 200 }, error: null };
+        mockQueryResult = {
+            data: {
+                total_balance: 200,
+                earned_balance: 200,
+                purchased_balance: 0,
+            },
+            error: null,
+        };
         mockFrom.mockImplementation(() => createChain(mockQueryResult));
 
         await act(async () => {
@@ -207,7 +257,14 @@ describe("usePointsBalance", () => {
     });
 
     it("adjustBalance optimistically updates and clamps to 0", async () => {
-        mockQueryResult = { data: { balance_after: 100 }, error: null };
+        mockQueryResult = {
+            data: {
+                total_balance: 100,
+                earned_balance: 100,
+                purchased_balance: 0,
+            },
+            error: null,
+        };
         mockFrom.mockImplementation(() => createChain(mockQueryResult));
 
         const { result } = renderHook(() => usePointsBalance("user-1"));
@@ -229,7 +286,14 @@ describe("usePointsBalance", () => {
     });
 
     it("adjustBalance does not go below zero", async () => {
-        mockQueryResult = { data: { balance_after: 30 }, error: null };
+        mockQueryResult = {
+            data: {
+                total_balance: 30,
+                earned_balance: 30,
+                purchased_balance: 0,
+            },
+            error: null,
+        };
         mockFrom.mockImplementation(() => createChain(mockQueryResult));
 
         const { result } = renderHook(() => usePointsBalance("user-1"));
@@ -246,7 +310,14 @@ describe("usePointsBalance", () => {
 
     it("starts periodic poll (cross-platform, not web-only)", async () => {
         jest.useFakeTimers();
-        mockQueryResult = { data: { balance_after: 100 }, error: null };
+        mockQueryResult = {
+            data: {
+                total_balance: 100,
+                earned_balance: 100,
+                purchased_balance: 0,
+            },
+            error: null,
+        };
         mockFrom.mockImplementation(() => createChain(mockQueryResult));
 
         renderHook(() => usePointsBalance("user-1"));
@@ -267,7 +338,14 @@ describe("usePointsBalance", () => {
     });
 
     it("subscribes to realtime channel with visibility-aware lifecycle", async () => {
-        mockQueryResult = { data: { balance_after: 100 }, error: null };
+        mockQueryResult = {
+            data: {
+                total_balance: 100,
+                earned_balance: 100,
+                purchased_balance: 0,
+            },
+            error: null,
+        };
         mockFrom.mockImplementation(() => createChain(mockQueryResult));
 
         renderHook(() => usePointsBalance("user-1"));
@@ -279,7 +357,14 @@ describe("usePointsBalance", () => {
     });
 
     it("removes channel on unmount (visibility cleanup)", async () => {
-        mockQueryResult = { data: { balance_after: 100 }, error: null };
+        mockQueryResult = {
+            data: {
+                total_balance: 100,
+                earned_balance: 100,
+                purchased_balance: 0,
+            },
+            error: null,
+        };
         mockFrom.mockImplementation(() => createChain(mockQueryResult));
 
         const { unmount } = renderHook(() => usePointsBalance("user-1"));

@@ -88,22 +88,22 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     const isQueuing = queueRow?.is_queuing ?? false;
     const isSandbox = env("GLOBALGIVING_SANDBOX") === "true";
 
-    // 2. Check balance
-    const { data: ledgerEntry } = await supabase
-        .from("point_ledger")
-        .select("balance_after")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(1)
+    // 2. Check balance (Closed-Loop: Earned only)
+    const { data: balances, error: balanceError } = await supabase
+        .rpc("get_user_balances", { p_user_id: userId })
         .maybeSingle();
 
-    const balance = ledgerEntry?.balance_after ?? 0;
-    if (balance < pointsAmount) {
-        return jsonError("Insufficient points balance", corsHeaders);
+    if (balanceError || !balances) {
+        return jsonError("Failed to fetch user balances", corsHeaders);
+    }
+
+    const earnedBalance = (balances as any).earned_balance ?? 0;
+    if (earnedBalance < pointsAmount) {
+        return jsonError("Insufficient earned points balance", corsHeaders);
     }
 
     // 3. Deduction
-    const newBalance = balance - pointsAmount;
+    const newBalance = earnedBalance - pointsAmount;
 
     let externalOrderId = "";
     let finalStatus = "pending";

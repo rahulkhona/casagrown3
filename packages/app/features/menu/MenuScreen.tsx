@@ -195,6 +195,13 @@ export function MenuScreen() {
             subtitle="View all point activity"
             onPress={() => navigateTo('/transaction-history')} 
           />
+          <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+          <MenuItem 
+            icon={HandCoins} 
+            title={t('header.refundPoints', 'Refund Points')} 
+            subtitle="Return unspent points to your card"
+            onPress={() => navigateTo('/points/refund')} 
+          />
         </YStack>
 
         {/* Community Activity */}

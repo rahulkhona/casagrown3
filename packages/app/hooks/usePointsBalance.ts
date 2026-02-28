@@ -16,6 +16,8 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 interface UsePointsBalanceReturn {
     /** Current points balance (0 if no history) */
     balance: number;
+    earnedBalance: number;
+    purchasedBalance: number;
     /** Whether the initial load is in progress */
     loading: boolean;
     /** Error message if fetch failed */
@@ -28,6 +30,9 @@ interface UsePointsBalanceReturn {
 
 export function usePointsBalance(userId?: string): UsePointsBalanceReturn {
     const [balance, setBalance] = useState(0);
+    const [earnedBalance, setEarnedBalance] = useState(0);
+    const [purchasedBalance, setPurchasedBalance] = useState(0);
+
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const mountedRef = useRef(true);
@@ -45,23 +50,23 @@ export function usePointsBalance(userId?: string): UsePointsBalanceReturn {
             window.localStorage.getItem("E2E_BYPASS_AUTH") === "true"
         ) {
             setBalance(50000);
+            setEarnedBalance(50000);
+            setPurchasedBalance(0);
             setLoading(false);
             return;
         }
 
         if (!userId) {
             setBalance(0);
+            setEarnedBalance(0);
+            setPurchasedBalance(0);
             setLoading(false);
             return;
         }
 
         try {
             const { data, error: queryError } = await supabase
-                .from("point_ledger")
-                .select("balance_after")
-                .eq("user_id", userId)
-                .order("created_at", { ascending: false })
-                .limit(1)
+                .rpc("get_user_balances", { p_user_id: userId })
                 .maybeSingle();
 
             if (!mountedRef.current) return;
@@ -75,7 +80,9 @@ export function usePointsBalance(userId?: string): UsePointsBalanceReturn {
                 );
                 setError(queryError.message);
             } else {
-                setBalance(data?.balance_after ?? 0);
+                setBalance((data as any)?.total_balance ?? 0);
+                setEarnedBalance((data as any)?.earned_balance ?? 0);
+                setPurchasedBalance((data as any)?.purchased_balance ?? 0);
                 setError(null);
             }
         } catch (err) {
@@ -139,17 +146,22 @@ export function usePointsBalance(userId?: string): UsePointsBalanceReturn {
                             }
 
                             const { data } = await supabase
-                                .from("point_ledger")
-                                .select("balance_after")
-                                .eq("user_id", userId)
-                                .order("created_at", { ascending: false })
-                                .limit(1)
+                                .rpc("get_user_balances", { p_user_id: userId })
                                 .maybeSingle();
 
-                            const newBalance = data?.balance_after ?? 0;
+                            const newBalance = (data as any)?.total_balance ??
+                                0;
+                            const newEarned = (data as any)?.earned_balance ??
+                                0;
+                            const newPurchased =
+                                (data as any)?.purchased_balance ?? 0;
 
                             if (newBalance !== previousBalance) {
-                                if (mountedRef.current) setBalance(newBalance);
+                                if (mountedRef.current) {
+                                    setBalance(newBalance);
+                                    setEarnedBalance(newEarned);
+                                    setPurchasedBalance(newPurchased);
+                                }
                             } else {
                                 attempt++;
                                 if (attempt < delays.length) {
@@ -236,6 +248,7 @@ export function usePointsBalance(userId?: string): UsePointsBalanceReturn {
             const delta = (e as CustomEvent).detail?.delta;
             if (typeof delta === "number" && mountedRef.current) {
                 setBalance((prev) => Math.max(0, prev + delta));
+                setEarnedBalance((prev) => Math.max(0, prev + delta));
             }
         };
         const handleRefetch = () => {
@@ -260,6 +273,7 @@ export function usePointsBalance(userId?: string): UsePointsBalanceReturn {
 
     const adjustBalance = useCallback((delta: number) => {
         setBalance((prev) => Math.max(0, prev + delta));
+        setEarnedBalance((prev) => Math.max(0, prev + delta));
         // Notify all other hook instances (header, other pages) to apply the same delta
         if (Platform.OS === "web" && typeof window !== "undefined") {
             window.dispatchEvent(
@@ -278,6 +292,8 @@ export function usePointsBalance(userId?: string): UsePointsBalanceReturn {
 
     return {
         balance,
+        earnedBalance,
+        purchasedBalance,
         loading,
         error,
         refetch: triggerRefetch,

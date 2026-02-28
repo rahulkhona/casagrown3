@@ -197,7 +197,7 @@ export function BuyPointsSheet({
         }
 
         // Confirm with Stripe Elements
-        const result = await stripeFormRef.current.confirmPayment(data.clientSecret)
+        const result = await stripeFormRef.current.confirmPayment(data.clientSecret, cardName)
 
         if (!result.success) {
           throw new Error(result.error || 'Payment failed')
@@ -689,6 +689,34 @@ export function BuyPointsSheet({
               </Text>
             </XStack>
 
+            {/* Name on Card (Applies to both Web Elements and Native CardField) */}
+            <XStack
+              flex={1}
+              borderWidth={1}
+              borderColor={colors.gray[300]}
+              borderRadius={borderRadius.md}
+              alignItems="center"
+              paddingHorizontal="$3"
+              backgroundColor="white"
+              height={52}
+            >
+              <TextInput
+                style={{
+                  flex: 1,
+                  width: '100%',
+                  fontSize: 16,
+                  paddingVertical: Platform.OS === 'android' ? 8 : 14,
+                  paddingHorizontal: 4,
+                  color: colors.gray[900],
+                }}
+                placeholder={t('feed.buyPoints.cardNamePlaceholder')}
+                placeholderTextColor={colors.gray[400]}
+                value={cardName}
+                onChangeText={setCardName}
+                autoCapitalize="words"
+              />
+            </XStack>
+
             {isStripeWebMode ? (
               /* ── Stripe Elements (web) ── */
               <YStack gap="$2">
@@ -744,34 +772,6 @@ export function BuyPointsSheet({
                     }}
                   />
                 </View>
-
-                {/* Name on Card (optional for Stripe, but good for UI) */}
-                <XStack
-                  borderWidth={1}
-                  borderColor={colors.gray[300]}
-                  borderRadius={borderRadius.md}
-                  alignItems="center"
-                  paddingHorizontal="$3"
-                  backgroundColor="white"
-                  height={52}
-                >
-                  <TextInput
-                    style={{
-                      flex: 1,
-                      fontSize: 16,
-                      paddingVertical: 14,
-                      paddingHorizontal: 4,
-                      color: colors.gray[900],
-                      fontFamily:
-                        Platform.OS === 'ios' ? 'Inter-Regular' : 'Inter',
-                    }}
-                    placeholder={t('feed.buyPoints.cardNamePlaceholder')}
-                    placeholderTextColor={colors.gray[400]}
-                    value={cardName}
-                    onChangeText={setCardName}
-                    autoCapitalize="words"
-                  />
-                </XStack>
 
                 {stripePaymentError && (
                   <Text fontSize={12} color="#dc2626">{stripePaymentError}</Text>

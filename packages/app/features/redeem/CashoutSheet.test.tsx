@@ -153,7 +153,7 @@ describe('CashoutSheet', () => {
 
         await waitFor(() => {
             // It parses and JSON stringifies the raw object
-            expect(screen.getByText(/Supabase edge function crashed/)).toBeTruthy();
+            expect(screen.getByText(/Network or server error/)).toBeTruthy();
         });
 
         expect(mockInvoke).toHaveBeenCalledWith('redeem-paypal-payout', {

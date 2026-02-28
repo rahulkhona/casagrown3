@@ -16,8 +16,7 @@ import { colors, borderRadius, shadows } from '../../design-tokens'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'solito/navigation'
 import {
-  MOCK_GIFT_CARDS,
-  MOCK_CHARITIES, CHARITY_THEMES,
+  CHARITY_THEMES,
   POINTS_PER_DOLLAR,
   type GiftCardProduct, type CharityProject,
 } from './mock-data'
@@ -29,6 +28,7 @@ import { DonationReceiptSheet } from './DonationReceiptSheet'
 import { useAuth } from '../auth/auth-hook'
 import { usePointsBalance } from '../../hooks/usePointsBalance'
 import { CashoutSheet } from './CashoutSheet'
+import { GiftCardsTab } from './GiftCardsGrid'
 
 // =============================================================================
 // Props
@@ -66,7 +66,7 @@ export function RedemptionStore({ onNavigateToFeed }: RedemptionStoreProps) {
 
   const user = bypassE2E ? { id: '00000000-0000-0000-0000-000000000000', email: 'test@example.com' } as any : realUser
 
-  const { balance: userPoints, refetch: refetchBalance, adjustBalance } = usePointsBalance(user?.id)
+  const { earnedBalance: userPoints, refetch: refetchBalance, adjustBalance } = usePointsBalance(user?.id)
 
   // Tab state — persisted to localStorage on web, AsyncStorage on native
   const [activeTab, setActiveTab] = useState<Tab | null>(null)
@@ -485,7 +485,7 @@ export function RedemptionStore({ onNavigateToFeed }: RedemptionStoreProps) {
                 backgroundColor={colors.green[600]} paddingHorizontal="$3" paddingVertical="$2"
                 borderRadius={borderRadius.lg} alignItems="center"
               >
-                <Text fontSize={11} fontWeight="500" color="rgba(255,255,255,0.8)">Balance</Text>
+                <Text fontSize={11} fontWeight="500" color="rgba(255,255,255,0.8)">Earned Redeemable Pts</Text>
                 <Text fontSize="$4" fontWeight="700" color="white">{userPoints.toLocaleString()} pts</Text>
               </YStack>
             )}
@@ -629,218 +629,6 @@ export function RedemptionStore({ onNavigateToFeed }: RedemptionStoreProps) {
 }
 
 // =============================================================================
-// Gift Cards Tab
-// =============================================================================
-
-function GiftCardsTab({
-  search, setSearch, category, setCategory, cards, onSelect, isDesktop, categories, userPoints, loading,
-}: {
-  search: string; setSearch: (v: string) => void
-  category: string; setCategory: (v: string) => void
-  cards: GiftCardProduct[]; onSelect: (c: GiftCardProduct) => void
-  isDesktop: boolean
-  categories: string[]
-  userPoints: number
-  loading: boolean
-}) {
-  return (
-    <YStack gap="$3">
-      {/* Search */}
-      <XStack
-        backgroundColor="white" borderRadius={borderRadius.lg} borderWidth={1}
-        borderColor={colors.gray[200]} paddingHorizontal="$3" alignItems="center" height={44}
-      >
-        <Search size={16} color={colors.gray[400]} />
-        <Input flex={1} unstyled placeholder="Search gift cards..." placeholderTextColor={colors.gray[400] as any}
-          value={search} onChangeText={setSearch} fontSize={14} marginLeft="$2" color={colors.gray[800]}
-        />
-      </XStack>
-
-      {/* Category filter */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <XStack gap="$2">
-          {categories.map((cat) => (
-            <Button key={cat} unstyled paddingHorizontal="$3" paddingVertical="$1.5" borderRadius={20}
-              borderWidth={1} borderColor={category === cat ? colors.green[600] : colors.gray[200]}
-              backgroundColor={category === cat ? colors.green[50] : 'white'}
-              onPress={() => setCategory(cat)}
-            >
-              <Text fontSize="$2" fontWeight="500" color={category === cat ? colors.green[700] : colors.gray[600]}>
-                {cat}
-              </Text>
-            </Button>
-          ))}
-        </XStack>
-      </ScrollView>
-
-      {/* Grid */}
-      {loading ? (
-        <YStack padding="$6" alignItems="center" gap="$3">
-          <Spinner size="large" color={colors.green[600]} />
-          <Text color={colors.gray[400]}>Loading gift cards...</Text>
-        </YStack>
-      ) : cards.length === 0 ? (
-        <YStack padding="$6" alignItems="center">
-          <Text color={colors.gray[400]}>No gift cards found</Text>
-        </YStack>
-      ) : Platform.OS === 'web' ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
-          {cards.map((card, index) => (
-            <GiftCard key={card.id} card={card} onSelect={onSelect} canAfford={userPoints >= card.minDenomination * POINTS_PER_DOLLAR} index={index} />
-          ))}
-        </ScrollView>
-      ) : (
-        <XStack flexWrap="wrap" gap="$3" justifyContent="space-between">
-          {cards.map((card, index) => (
-            <YStack key={card.id} width="48%">
-              <GiftCard card={card} onSelect={onSelect} canAfford={userPoints >= card.minDenomination * POINTS_PER_DOLLAR} index={index} />
-            </YStack>
-          ))}
-        </XStack>
-      )}
-    </YStack>
-  )
-}
-
-// =============================================================================
-// Gift Card Tile (used by both web grid and native flex)
-// =============================================================================
-
-function GiftCard({ card, onSelect, canAfford, index }: { card: GiftCardProduct; onSelect: (c: GiftCardProduct) => void; canAfford: boolean; index?: number }) {
-  // Derive a lighter shade for gradient
-  const hex = card.brandColor || '#4B5563'
-  const lighterHex = hex + '99'
-
-  // Affordability check
-  const minPointsNeeded = card.minDenomination * POINTS_PER_DOLLAR
-  const pointsShort = minPointsNeeded - (canAfford ? minPointsNeeded : 0) // Only show if not affordable
-
-  const inner = (
-    <YStack
-      borderRadius={borderRadius.lg}
-      overflow="hidden"
-      height={180}
-      position="relative"
-      pointerEvents="none"
-    >
-      {/* ── Background: card image or brand gradient ── */}
-      {Platform.OS === 'web' ? (
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: card.cardImageUrl
-            ? `url(${card.cardImageUrl}) center/contain no-repeat, linear-gradient(135deg, ${hex} 0%, ${lighterHex} 60%, ${hex}DD 100%)`
-            : `linear-gradient(135deg, ${hex} 0%, ${lighterHex} 60%, ${hex}DD 100%)`,
-        }} />
-      ) : card.cardImageUrl ? (
-        <Image 
-          source={{ uri: card.cardImageUrl }}
-          style={{ width: '100%', height: '100%', position: 'absolute', backgroundColor: hex }}
-          resizeMode="contain"
-        />
-      ) : (
-        <YStack position="absolute" top={0} left={0} right={0} bottom={0}
-          backgroundColor={hex as any} />
-      )}
-
-      {/* ── Subtle overlay for text readability ── */}
-      {(Platform.OS === 'web' || card.cardImageUrl) && (
-        <YStack position="absolute" top={0} left={0} right={0} bottom={0} backgroundColor="rgba(0,0,0,0.3)" />
-      )}
-
-      {/* ── "Need more points" badge (top-right) ── */}
-      {!canAfford && (
-        <YStack
-          position="absolute" top={8} right={8} zIndex={3}
-          backgroundColor="rgba(220,38,38,0.85)" paddingHorizontal={6} paddingVertical={2}
-          borderRadius={6}
-        >
-          <Text fontSize={9} fontWeight="700" color="white">
-            Need {pointsShort.toLocaleString()} more pts
-          </Text>
-        </YStack>
-      )}
-
-      {/* ── Brand logo (only when no card design image) ── */}
-      {!card.cardImageUrl && (
-        <YStack flex={1} alignItems="center" justifyContent="center" paddingTop="$2" zIndex={1}>
-          {card.logoUrl ? (
-            <Image
-              source={{ uri: card.logoUrl }}
-              style={{
-                width: 64, height: 64, borderRadius: 14,
-                backgroundColor: 'rgba(255,255,255,0.92)',
-              }}
-              resizeMode="contain"
-            />
-          ) : (
-            <YStack
-              width={64} height={64} borderRadius={14}
-              backgroundColor="rgba(255,255,255,0.92)"
-              alignItems="center" justifyContent="center"
-            >
-              <Text fontSize={32}>{card.brandIcon}</Text>
-            </YStack>
-          )}
-        </YStack>
-      )}
-
-      {/* ── Bottom info: name, range, fee ── */}
-      <YStack position="absolute" bottom={0} left={0} right={0} padding="$2.5" zIndex={2}>
-        <Text fontSize="$3" fontWeight="700" color="white" numberOfLines={1}
-          style={{ textShadowColor: 'rgba(0,0,0,0.4)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}
-        >
-          {card.brandName}
-        </Text>
-        <XStack alignItems="center" gap="$2" marginTop={2}>
-          <Text fontSize={11} fontWeight="500" color="rgba(255,255,255,0.85)">
-            ${card.minDenomination}–${card.maxDenomination}
-          </Text>
-          {card.hasProcessingFee && (
-            <YStack backgroundColor="rgba(255,255,255,0.2)" paddingHorizontal={6} paddingVertical={1} borderRadius={6}>
-              <Text fontSize={9} fontWeight="600" color="rgba(255,255,255,0.9)">
-                +${card.processingFeeUsd.toFixed(2)} fee
-              </Text>
-            </YStack>
-          )}
-        </XStack>
-      </YStack>
-    </YStack>
-  )
-
-  // On web, use a plain div with onClick to avoid Tamagui Button stacking issues
-  if (Platform.OS === 'web') {
-    return (
-      <div
-        onClick={() => onSelect(card)}
-        data-testid={`giftcard-item-${index}`}
-        style={{
-          cursor: 'pointer',
-          borderRadius: borderRadius.lg,
-          overflow: 'hidden',
-          opacity: canAfford ? 1 : 0.55,
-          transition: 'opacity 0.15s',
-        }}
-        onMouseEnter={(e) => { e.currentTarget.style.opacity = String(canAfford ? 0.92 : 0.5) }}
-        onMouseLeave={(e) => { e.currentTarget.style.opacity = String(canAfford ? 1 : 0.55) }}
-      >
-        {inner}
-      </div>
-    )
-  }
-
-  return (
-    <Button unstyled backgroundColor="transparent" borderRadius={borderRadius.lg} overflow="hidden"
-      hoverStyle={{ opacity: 0.92 }}
-      pressStyle={{ opacity: 0.85 }}
-      onPress={() => onSelect(card)}
-      opacity={canAfford ? 1 : 0.55}
-      testID={`giftcard-item-${index}`}
-    >
-      {inner}
-    </Button>
-  )
-}
-
 // =============================================================================
 // Donate Tab
 // =============================================================================

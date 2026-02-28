@@ -92,7 +92,10 @@ Deno.test("redeem-paypal-payout — rejects insufficient points", async () => {
   );
   assertEquals(status, 400);
   console.log("ACTUAL ERROR:", data.error);
-  assertEquals((data.error as string).includes("Insufficient points"), true);
+  assertEquals(
+    (data.error as string).includes("Insufficient earned points"),
+    true,
+  );
 });
 
 Deno.test("redeem-paypal-payout — honors provider disabled status", async () => {

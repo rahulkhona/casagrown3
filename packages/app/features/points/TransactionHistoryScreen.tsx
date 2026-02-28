@@ -49,6 +49,11 @@ interface Transaction {
   detail?: string          // e.g. order id, gift card brand
   counterparty?: string    // e.g. buyer/seller name
 
+  refundMethod?: string
+  purchaseCardInfo?: string
+  purchaseUsdAmount?: number
+  purchaseStripeFee?: number
+
   // Buy/sell specific
   postId?: string          // link to associated chat via post
   otherUserId?: string     // the other party's user ID
@@ -119,6 +124,12 @@ function mapLedgerToTransaction(row: any): Transaction {
     donationTheme: meta.theme,
     status: meta.status || (row.type === 'redemption' || row.type === 'donation' ? 'completed' : undefined),
     provider: meta.provider,
+    
+    // New injected tracking formats
+    refundMethod: meta.refund_method || (meta.targetPhoneNumber ? `Venmo to ${meta.targetPhoneNumber}` : undefined),
+    purchaseCardInfo: meta.card_last4 ? `${(meta.card_brand || 'Card')} ending in ${meta.card_last4}` : undefined,
+    purchaseUsdAmount: meta.amount_cents ? meta.amount_cents / 100 : undefined,
+    purchaseStripeFee: meta.service_fee_cents ? meta.service_fee_cents / 100 : undefined,
   }
 
   return tx
@@ -155,8 +166,12 @@ function buildDescription(type: TransactionType, amount: number, meta: any): str
     case 'referral':
       return meta.description || 'Referral bonus'
     case 'refund': {
-      const reason = meta.reason || 'Order cancelled'
-      return `Refund: ${reason}`
+      if (meta.brand_name || meta.gift_card_brand) {
+         const brand = meta.brand_name || meta.gift_card_brand
+         const value = meta.face_value_cents ? `$${(meta.face_value_cents / 100).toFixed(0)}` : ''
+         return `Refunded to: ${brand}${value ? ` ${value}` : ''} Gift Card`
+      }
+      return `Refund for returned points`
     }
     default:
       return meta.description || `${amount > 0 ? 'Credit' : 'Debit'}: ${Math.abs(amount)} points`
@@ -202,7 +217,7 @@ export function TransactionHistoryScreen({ onNavigateToFeed, onNavigateToChat }:
   const isDesktop = media.lg || media.xl || media.xxl
 
   const { user } = useAuth()
-  const { balance: userPoints } = usePointsBalance(user?.id)
+  const { balance: userPoints, earnedBalance, purchasedBalance } = usePointsBalance(user?.id)
 
   const [filter, setFilter] = useState<FilterType>('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -410,12 +425,9 @@ export function TransactionHistoryScreen({ onNavigateToFeed, onNavigateToChat }:
 
           {/* Summary Cards */}
           <XStack gap="$3" flexWrap="wrap">
-            <SummaryCard label="Current Balance" value={`${userPoints.toLocaleString()} pts`} color={colors.green[600]} />
-            <SummaryCard label="Total Bought" value={`${totalBought.toLocaleString()} pts`} color={colors.blue[600]} />
-            <SummaryCard label="Total Earned" value={`${totalEarned.toLocaleString()} pts`} color={colors.amber[600]} />
-            <SummaryCard label="Total Spent" value={`${totalSpent.toLocaleString()} pts`} color={colors.red[600]}
-              subtitle={totalPlatformCharges > 0 ? `(incl. ${totalPlatformCharges.toLocaleString()} platform fees)` : undefined}
-            />
+            <SummaryCard label="Total Balance" value={`${userPoints.toLocaleString()} pts`} color={colors.gray[800]} subtitle="Combined Wallet" />
+            <SummaryCard label="Earned Balance" value={`${earnedBalance.toLocaleString()} pts`} color={colors.green[600]} subtitle="Cashout Available" />
+            <SummaryCard label="Purchased Balance" value={`${purchasedBalance.toLocaleString()} pts`} color={colors.blue[600]} subtitle="Platform Use Only" />
           </XStack>
 
           {/* Search */}
@@ -569,12 +581,12 @@ export function TransactionHistoryScreen({ onNavigateToFeed, onNavigateToChat }:
     </YStack>
 
       {/* Gift Card Detail Sheet */}
-      {selectedTx?.type === 'redemption' && (
+      {(selectedTx?.type === 'redemption' || selectedTx?.type === 'refund') && selectedTx?.giftCardCode && (
         <GiftCardDetailSheet
           key={selectedTx.id}
           visible
           onClose={() => setSelectedTx(null)}
-          brandName={selectedTx.description.replace('Redeemed: ', '')}
+          brandName={selectedTx.description.replace('Redeemed: ', '').replace('Refunded to: ', '')}
           amount={Math.abs(selectedTx.amount) / POINTS_PER_DOLLAR}
           pointsCost={Math.abs(selectedTx.amount)}
           code={selectedTx.giftCardCode}
@@ -691,11 +703,47 @@ function TransactionCard({ tx, onOpenChat, onCopyCode, onShare, onViewDetail }: 
       )}
 
       {/* Purchase details */}
-      {tx.type === 'purchase' && tx.detail && (
+      {tx.type === 'purchase' && (tx.detail || tx.purchaseCardInfo) && (
         <YStack backgroundColor={colors.gray[50]} paddingHorizontal="$3" paddingVertical="$2"
-          borderTopWidth={1} borderTopColor={colors.gray[100]}
+          borderTopWidth={1} borderTopColor={colors.gray[100]} gap={2}
         >
-          <Text fontSize={11} color={colors.gray[500]}>{tx.detail}</Text>
+          {tx.detail && <Text fontSize={11} color={colors.gray[500]}>{tx.detail}</Text>}
+          {tx.purchaseCardInfo && (
+             <XStack justifyContent="space-between" mt={tx.detail ? "$2" : "$0"}>
+                <Text fontSize={11} color={colors.gray[500]}>Original payment method</Text>
+                <Text fontSize={11} color={colors.gray[600]}>{tx.purchaseCardInfo}</Text>
+             </XStack>
+          )}
+          {tx.purchaseUsdAmount != null && (
+             <>
+               <XStack justifyContent="space-between">
+                  <Text fontSize={11} color={colors.gray[500]}>Points cost</Text>
+                  <Text fontSize={11} color={colors.gray[600]}>${((tx.purchaseUsdAmount) - (tx.purchaseStripeFee || 0)).toFixed(2)} USD</Text>
+               </XStack>
+               {tx.purchaseStripeFee != null && tx.purchaseStripeFee > 0 && (
+                 <XStack justifyContent="space-between">
+                    <Text fontSize={11} color={colors.gray[500]}>Stripe base fee</Text>
+                    <Text fontSize={11} color={colors.gray[600]}>${((tx.purchaseStripeFee || 0)).toFixed(2)} USD</Text>
+                 </XStack>
+               )}
+               <XStack justifyContent="space-between" mt="$1" borderTopWidth={1} borderTopColor={colors.gray[200]} pt="$1">
+                  <Text fontSize={11} fontWeight="600" color={colors.gray[700]}>Total charged</Text>
+                  <Text fontSize={11} fontWeight="600" color={colors.gray[800]}>${(tx.purchaseUsdAmount).toFixed(2)} USD</Text>
+               </XStack>
+             </>
+          )}
+        </YStack>
+      )}
+
+      {/* Refund details */}
+      {tx.type === 'refund' && tx.refundMethod && !tx.giftCardCode && (
+        <YStack backgroundColor={colors.gray[50]} paddingHorizontal="$3" paddingVertical="$2"
+          borderTopWidth={1} borderTopColor={colors.gray[100]} gap={2}
+        >
+          <XStack justifyContent="space-between">
+            <Text fontSize={11} color={colors.gray[500]}>Sent via</Text>
+            <Text fontSize={11} color={colors.gray[600]}>{tx.refundMethod}</Text>
+          </XStack>
         </YStack>
       )}
 
@@ -743,8 +791,8 @@ function TransactionCard({ tx, onOpenChat, onCopyCode, onShare, onViewDetail }: 
             />
           )}
 
-          {/* Redemption → View Card Details */}
-          {tx.type === 'redemption' && tx.provider !== 'paypal' && (
+          {/* Redemption/Refund → View Card Details */}
+          {(tx.type === 'redemption' || tx.type === 'refund') && tx.giftCardCode && tx.provider !== 'paypal' && (
             <ActionButton icon={Gift} label="View Details"
               color={colors.purple[600]}
               onPress={() => onViewDetail?.(tx)}

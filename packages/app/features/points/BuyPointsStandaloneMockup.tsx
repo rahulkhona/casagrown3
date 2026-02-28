@@ -141,10 +141,11 @@ function BuyPointsForm({ t, useStripePayment }: { t: (key: string, opts?: any) =
 
   const canSubmit = useMemo(() => {
     if (numericPoints <= 0 || isProcessing || isSuccess) return false
+    if (!cardName.trim()) return false
     if (useStripePayment && Platform.OS === 'web') return cardComplete
     if (useStripePayment && Platform.OS !== 'web') return nativeCardReady
     return false // Mock deprecated
-  }, [numericPoints, isProcessing, isSuccess, useStripePayment, cardComplete, nativeCardReady])
+  }, [numericPoints, isProcessing, isSuccess, useStripePayment, cardComplete, nativeCardReady, cardName])
 
   const handlePurchase = async () => {
     if (numericPoints <= 0) return
@@ -181,7 +182,12 @@ function BuyPointsForm({ t, useStripePayment }: { t: (key: string, opts?: any) =
 
         const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(
           clientSecret,
-          { payment_method: { card: cardElement } }
+          { 
+            payment_method: { 
+              card: cardElement,
+              billing_details: { name: cardName.trim() }
+            } 
+          }
         )
 
         if (stripeError) {
@@ -229,7 +235,7 @@ function BuyPointsForm({ t, useStripePayment }: { t: (key: string, opts?: any) =
           paymentMethodType: 'Card',
           paymentMethodData: {
             billingDetails: {
-              name: cardName || undefined,
+              name: cardName.trim(),
             }
           }
         })
@@ -475,6 +481,24 @@ function BuyPointsForm({ t, useStripePayment }: { t: (key: string, opts?: any) =
             )}
           </XStack>
 
+          {/* Name Field (Shared) */}
+          <XStack borderWidth={1} borderColor={colors.gray[200]} borderRadius={borderRadius.lg} alignItems="center" paddingHorizontal="$3" backgroundColor="white" height={52} opacity={numericPoints > 0 ? 1 : 0.5}>
+            <TextInput
+              style={{
+                flex: 1, fontSize: 16, paddingVertical: 14, paddingHorizontal: 8,
+                color: colors.gray[900],
+                backgroundColor: 'transparent',
+                ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
+              } as any}
+              placeholder="Name on Card (Required)"
+              placeholderTextColor={colors.gray[400]}
+              value={cardName}
+              onChangeText={setCardName}
+              autoCapitalize="words"
+              editable={numericPoints > 0 && !isProcessing}
+            />
+          </XStack>
+
           {/* Stripe CardElement or Mock fields */}
           {useStripePayment && Platform.OS === 'web' ? (
             <YStack gap="$2">
@@ -545,21 +569,6 @@ function BuyPointsForm({ t, useStripePayment }: { t: (key: string, opts?: any) =
                   }}
                 />
               </View>
-
-              <XStack borderWidth={1} borderColor={colors.gray[200]} borderRadius={borderRadius.lg} alignItems="center" paddingHorizontal="$3" backgroundColor="white" height={52}>
-                <TextInput
-                  style={{
-                    flex: 1, fontSize: 16, paddingVertical: 14, paddingHorizontal: 8,
-                    color: colors.gray[900],
-                  }}
-                  placeholder="Name on Card (optional)"
-                  placeholderTextColor={colors.gray[400]}
-                  value={cardName}
-                  onChangeText={setCardName}
-                  autoCapitalize="words"
-                  editable={numericPoints > 0 && !isProcessing}
-                />
-              </XStack>
             </YStack>
           ) : null}
 

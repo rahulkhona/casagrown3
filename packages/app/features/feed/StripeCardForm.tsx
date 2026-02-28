@@ -26,7 +26,7 @@ const stripePromise = loadStripe(
 )
 
 export interface StripeCardFormHandle {
-  confirmPayment: (clientSecret: string) => Promise<{
+  confirmPayment: (clientSecret: string, cardName?: string) => Promise<{
     success: boolean
     error?: string
   }>
@@ -45,7 +45,7 @@ const StripeCardInner = forwardRef<StripeCardFormHandle, StripeCardFormProps>(
     const [cardComplete, setCardComplete] = useState(false)
 
     useImperativeHandle(ref, () => ({
-      async confirmPayment(clientSecret: string) {
+      async confirmPayment(clientSecret: string, cardName?: string) {
         if (!stripe || !elements) {
           return { success: false, error: 'Stripe not loaded' }
         }
@@ -55,9 +55,14 @@ const StripeCardInner = forwardRef<StripeCardFormHandle, StripeCardFormProps>(
           return { success: false, error: 'Card element not found' }
         }
 
+        const paymentMethodObj: any = { card: cardElement }
+        if (cardName) {
+          paymentMethodObj.billing_details = { name: cardName }
+        }
+
         const { error, paymentIntent } = await stripe.confirmCardPayment(
           clientSecret,
-          { payment_method: { card: cardElement } }
+          { payment_method: paymentMethodObj }
         )
 
         if (error) {

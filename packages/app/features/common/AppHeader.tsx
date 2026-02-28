@@ -6,7 +6,7 @@ import { usePointsBalance } from '../../hooks/usePointsBalance'
 import { getUnreadChatCount } from '../chat/chat-service'
 import { getOpenOrderCount } from '../orders/order-service'
 import { getOpenOfferCount } from '../offers/offer-service'
-import { Bell, Menu, X, HandCoins, User, Share2, Users, LogOut, ChevronRight, PackageCheck, ShieldCheck, History } from '@tamagui/lucide-icons'
+import { Bell, Menu, X, HandCoins, User, Share2, Users, LogOut, ChevronRight } from '@tamagui/lucide-icons'
 import { useRouter } from 'solito/navigation'
 import { FeedNavigation } from '../feed/FeedNavigation'
 import { PointsMenu } from '../points/PointsMenu'
@@ -148,6 +148,7 @@ export function AppHeader({ activeKey = 'feed' }: { activeKey?: string }) {
     else if (key === 'redeem') router.push('/redeem')
     else if (key === 'invite') router.push('/invite')
     else if (key === 'transactionHistory') router.push('/transaction-history')
+    else if (key === 'refundPoints') router.push('/points/refund')
   }, [router])
 
   const userInitial = userDisplayName ? userDisplayName.charAt(0).toUpperCase() : 'A'
@@ -323,8 +324,11 @@ export function AppHeader({ activeKey = 'feed' }: { activeKey?: string }) {
                 <HamburgerItem icon={HandCoins} title="Buy Points" subtitle="Purchase more points for the market"
                   onPress={() => { setMobileMenuOpen(false); handleNavPress('buyPoints') }} />
                 <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
-                <HamburgerItem icon={History} title="Transaction History" subtitle="View all point activity"
+                <HamburgerItem icon={ChevronRight} title="Transaction History" subtitle="View all point activity"
                   onPress={() => { setMobileMenuOpen(false); handleNavPress('transactionHistory') }} />
+                <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+                <HamburgerItem icon={HandCoins} title="Refund Points" subtitle="Return unspent points to your card"
+                  onPress={() => { setMobileMenuOpen(false); handleNavPress('refundPoints') }} />
               </YStack>
 
               {/* Community Section */}
@@ -332,10 +336,10 @@ export function AppHeader({ activeKey = 'feed' }: { activeKey?: string }) {
                 <Text fontSize={12} fontWeight="700" color={colors.gray[500]} marginHorizontal="$4" marginTop="$3" marginBottom="$1" textTransform="uppercase">
                   Community
                 </Text>
-                <HamburgerItem icon={PackageCheck} title="Delegate Sales"
+                <HamburgerItem icon={ChevronRight} title="Delegate Sales"
                   onPress={() => { setMobileMenuOpen(false); handleNavPress('delegateSales') }} />
                 <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
-                <HamburgerItem icon={ShieldCheck} title="Accept Delegation"
+                <HamburgerItem icon={ChevronRight} title="Accept Delegation"
                   onPress={() => { setMobileMenuOpen(false); handleNavPress('acceptDelegation') }} />
                 <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
                 <HamburgerItem icon={Share2} title="Invite Friends"

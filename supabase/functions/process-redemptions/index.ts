@@ -285,7 +285,7 @@ async function processGiftCard(
             },
         })
         .eq("reference_id", redemption.id)
-        .eq("type", "redemption");
+        .in("type", ["redemption", "refund"]);
 
     // Store delivery
     await supabase.from("gift_card_deliveries").insert({
@@ -418,7 +418,7 @@ async function processGlobalGiving(
             },
         })
         .eq("reference_id", redemption.id)
-        .eq("type", "donation");
+        .in("type", ["donation", "refund"]);
 
     // Mark completion
     await supabase
@@ -559,7 +559,7 @@ async function processPayPalCashout(
             },
         })
         .eq("reference_id", redemption.id)
-        .eq("type", "redemption");
+        .in("type", ["redemption", "refund"]);
 
     // Fire Push
     const msg = `Your queued cashout of $${

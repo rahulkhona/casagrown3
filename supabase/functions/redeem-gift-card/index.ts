@@ -191,18 +191,18 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
     const isQueuing = queueRow?.is_queuing ?? false;
 
-    // ── 3. Check user balance ──
-    const { data: ledgerEntry } = await supabase
-        .from("point_ledger")
-        .select("balance_after")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(1)
+    // ── 3. Check user balance (Closed-Loop: Earned only) ──
+    const { data: balances, error: balanceError } = await supabase
+        .rpc("get_user_balances", { p_user_id: userId })
         .maybeSingle();
 
-    const balance = ledgerEntry?.balance_after ?? 0;
-    if (balance < pointsCost) {
-        return jsonError("Insufficient points balance", corsHeaders);
+    if (balanceError || !balances) {
+        return jsonError("Failed to fetch user balances", corsHeaders);
+    }
+
+    const earnedBalance = (balances as any).earned_balance ?? 0;
+    if (earnedBalance < pointsCost) {
+        return jsonError("Insufficient earned points balance", corsHeaders);
     }
 
     // ── 4. Create pending redemption ──
@@ -365,7 +365,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             },
         })
         .eq("reference_id", redemption.id)
-        .eq("type", "redemption");
+        .in("type", ["redemption", "refund"]);
 
     // ── 7. Store gift card delivery ──
     await supabase.from("gift_card_deliveries").insert({
