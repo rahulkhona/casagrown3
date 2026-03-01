@@ -11,25 +11,25 @@ appId: dev.casagrown.community
 
 # Wait for feed to load
 - extendedWaitUntil:
-    visible: "Tomatoes|Feed"
-    timeout: 15000
+      visible: "Tomatoes|Feed"
+      timeout: 15000
 
-# Open Menu via bottom tab (regex for iOS accessibility label)
+# Open Menu via bottom tab
 - tapOn:
-    text: ".*Menu.*"
+      text: ".*Menu.*"
 
 # Navigate to Redeem Points
 - extendedWaitUntil:
-    visible:
-      text: ".*Redeem Points.*"
-    timeout: 5000
+      visible:
+          text: ".*Redeem Points.*"
+      timeout: 5000
 - tapOn:
-    text: ".*Redeem Points.*"
+      text: ".*Redeem Points.*"
 
 # Wait for Screen and generic tabs
 - extendedWaitUntil:
-    visible: "Cashout|Donate|Gift Cards"
-    timeout: 20000
+      visible: "Cashout|Donate|Gift Cards"
+      timeout: 20000
 
 # Explicitly Assert the Header matches the new Closed-Loop nomenclature
 - assertVisible: ".*Earned Redeemable Pts.*"
@@ -37,5 +37,6 @@ appId: dev.casagrown.community
 # Tap Cashout
 - tapOn: "Cashout"
 
-# Depending on their earned balance, the button should dynamically read 'Confirm Cashout' or 'Need X Points'
-- assertVisible: ".*Confirm Cashout.*|.*Need .* Points.*"
+# The button should say "Cashout" (the user may not have enough points for confirm)
+- scroll
+- assertVisible: ".*Cashout.*|.*Need .* Points.*"

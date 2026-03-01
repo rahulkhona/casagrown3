@@ -25,5 +25,8 @@ executionOrder:
   - flows/delegation.yaml
   - flows/profile-management.yaml
   - flows/profile-wizard.yaml
-  - flows/wallet-refund.yaml
+  - flows/transaction-history.yaml
+  - flows/refund-points.yaml
+  - flows/venmo-refund.yaml
+  - flows/refund-options.yaml
   - flows/redemption-block.yaml

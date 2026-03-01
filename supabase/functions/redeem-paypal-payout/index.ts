@@ -131,11 +131,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     .maybeSingle();
 
   if (balanceError || !balances) {
-    return jsonError(
-      "Failed to verify user point balance.",
-      corsHeaders,
-      400,
-    );
+    return jsonError("Failed to verify user point balance.", corsHeaders, 400);
   }
 
   const earnedBalance = (balances as any).earned_balance ?? 0;
@@ -159,6 +155,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         type: "paypal_cashout",
         usd_amount: usdAmount,
         payout_target: finalPayoutId,
+        refund_usd_cents: usdAmount * 100,
+        fee_deducted_cents: 0,
       },
     })
     .select()
@@ -166,10 +164,13 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
   if (redemptionError || !redemption) {
     console.error("Failed to create redemption record:", redemptionError);
-    return jsonOk({
-      success: false,
-      error: "Failed to initialize cashout redemption.",
-    }, corsHeaders);
+    return jsonOk(
+      {
+        success: false,
+        error: "Failed to initialize cashout redemption.",
+      },
+      corsHeaders,
+    );
   }
 
   // 5. Fallible external step: PayPal API
@@ -184,7 +185,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
       const authRes = await fetch(`${PAYPAL_BASE_URL}/v1/oauth2/token`, {
         method: "POST",
         headers: {
-          "Authorization": `Basic ${credentials}`,
+          Authorization: `Basic ${credentials}`,
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: "grant_type=client_credentials",
@@ -210,19 +211,21 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           email_message:
             `You earned $${usdAmount} by redeeming ${pointsToRedeem} points on CasaGrown! Keep up the great work.`,
         },
-        items: [{
-          recipient_type: receiverType,
-          amount: { value: usdAmount.toFixed(2), currency: "USD" },
-          note: "CasaGrown Points Redemption",
-          sender_item_id: `item_${Date.now()}`,
-          receiver: finalPayoutId,
-        }],
+        items: [
+          {
+            recipient_type: receiverType,
+            amount: { value: usdAmount.toFixed(2), currency: "USD" },
+            note: "CasaGrown Points Redemption",
+            sender_item_id: `item_${Date.now()}`,
+            receiver: finalPayoutId,
+          },
+        ],
       };
 
       const payoutRes = await fetch(`${PAYPAL_BASE_URL}/v1/payments/payouts`, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${access_token}`,
+          Authorization: `Bearer ${access_token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payoutPayload),
@@ -262,7 +265,9 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
       .eq("id", redemption.id);
 
     const queuedMessage = `Your cashout of $${
-      usdAmount.toFixed(2)
+      usdAmount.toFixed(
+        2,
+      )
     } to ${finalPayoutId} has been queued due to provider delays and will be processed shortly.`;
 
     // Notify user of queuing
@@ -288,17 +293,34 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     }
 
     // Return gracefully so the frontend assumes success-but-queued
-    return jsonOk({
-      success: true,
-      batch_id: null,
-      usd_amount: usdAmount,
-      payout_target: finalPayoutId,
-      status: "queued",
-      redemptionId: redemption?.id,
-    }, corsHeaders);
+    return jsonOk(
+      {
+        success: true,
+        batch_id: null,
+        usd_amount: usdAmount,
+        payout_target: finalPayoutId,
+        status: "queued",
+        redemptionId: redemption?.id,
+      },
+      corsHeaders,
+    );
   }
 
-  // 6. Deduct points and log transaction to ledger
+  // 6. Unified ACID Transaction for Redemptions
+  const { error: finalizeError } = await supabase.rpc("finalize_redemption", {
+    p_payload: {
+      redemption_id: redemption.id,
+      redemption_type: "paypal",
+      provider_name: "paypal",
+      external_order_id: txId,
+      actual_cost_cents: Math.round(usdAmount * 100),
+      batch_id: txId, // will be merged into metadata
+      payout_target: finalPayoutId,
+    },
+  });
+
+  // Because this endpoint creates the point_ledger entry dynamically, the universal RPC handles the metadata
+  // update. But we must still manually deduct the points BEFORE the RPC seals it. (The RPC only UPDATES existing ledger rows).
   const { error: logError } = await supabase.from("point_ledger").insert({
     user_id: userId,
     amount: -pointsToRedeem,
@@ -309,32 +331,31 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
       payout_target: finalPayoutId,
       provider: "paypal",
       batch_id: txId,
+      refund_usd_cents: usdAmount * 100,
+      fee_deducted_cents: 0,
+      status: "completed",
     },
   });
 
-  if (logError) {
-    console.error("Failed to log transaction. User got free money!", logError);
-    await supabase.from("redemptions").delete().eq("id", redemption.id);
-    return jsonOk(
-      { success: false, error: "Failed to deduct points." },
-      corsHeaders,
+  if (logError || finalizeError) {
+    console.error(
+      "Failed to log transaction. User got free money!",
+      logError || finalizeError,
     );
+    await supabase.from("redemptions").delete().eq("id", redemption.id);
+    return jsonOk({
+      success: false,
+      error: "Failed to deduct points or lock receipt.",
+    }, corsHeaders);
   }
 
-  // 7. Mark redemption as completed
-  await supabase
-    .from("redemptions")
-    .update({
-      status: "completed",
-      provider: "paypal",
-      provider_order_id: txId,
-      completed_at: new Date().toISOString(),
-    })
-    .eq("id", redemption.id);
+  // The RPC handles the redemption 'completed' status update.
 
   // 8. Send push notification and in-app notification
   const successMessage = `Your cashout of $${
-    usdAmount.toFixed(2)
+    usdAmount.toFixed(
+      2,
+    )
   } to ${finalPayoutId} was successful!`;
 
   await supabase.from("notifications").insert({
@@ -350,10 +371,13 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     url: "/transaction-history",
   });
 
-  return jsonOk({
-    success: true,
-    batch_id: txId,
-    usd_amount: usdAmount,
-    payout_target: finalPayoutId,
-  }, corsHeaders);
+  return jsonOk(
+    {
+      success: true,
+      batch_id: txId,
+      usd_amount: usdAmount,
+      payout_target: finalPayoutId,
+    },
+    corsHeaders,
+  );
 });

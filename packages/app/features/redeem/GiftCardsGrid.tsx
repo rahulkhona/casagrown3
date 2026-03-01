@@ -57,13 +57,18 @@ export function GiftCardsTab({
           <Text color={colors.gray[400]}>No gift cards found</Text>
         </YStack>
       ) : Platform.OS === 'web' ? (
-        <XStack flexWrap="wrap" gap="$4" justifyContent="flex-start" paddingHorizontal="$2">
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: isDesktop ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)',
+          gap: 12,
+          width: '100%',
+          boxSizing: 'border-box',
+          overflow: 'hidden',
+        }}>
           {cards.map((card, index) => (
-            <YStack key={card.id} width={200}>
-              <GiftCard card={card} onSelect={onSelect} canAfford={userPoints >= card.minDenomination * POINTS_PER_DOLLAR} index={index} />
-            </YStack>
+            <GiftCard key={card.id} card={card} onSelect={onSelect} canAfford={userPoints >= card.minDenomination * POINTS_PER_DOLLAR} index={index} />
           ))}
-        </XStack>
+        </div>
       ) : (
         <XStack flexWrap="wrap" gap="$3" justifyContent="space-between">
           {cards.map((card, index) => (
@@ -98,15 +103,16 @@ export function GiftCard({ card, onSelect, canAfford, index }: { card: GiftCardP
       {Platform.OS === 'web' ? (
         <div style={{
           position: 'absolute', inset: 0,
-          background: card.cardImageUrl
-            ? `url(${card.cardImageUrl}) center/contain no-repeat, linear-gradient(135deg, ${hex} 0%, ${lighterHex} 60%, ${hex}DD 100%)`
+          background: (card.cardImageUrl || card.logoUrl)
+            ? `url(${card.cardImageUrl || card.logoUrl}) center/cover no-repeat`
             : `linear-gradient(135deg, ${hex} 0%, ${lighterHex} 60%, ${hex}DD 100%)`,
+          backgroundColor: hex,
         }} />
-      ) : card.cardImageUrl ? (
+      ) : (card.cardImageUrl || card.logoUrl) ? (
         <Image 
-          source={{ uri: card.cardImageUrl }}
-          style={{ width: '100%', height: '100%', position: 'absolute', backgroundColor: hex }}
-          resizeMode="contain"
+          source={{ uri: (card.cardImageUrl || card.logoUrl)! }}
+          style={{ width: '100%', height: '100%', position: 'absolute' }}
+          resizeMode="cover"
         />
       ) : (
         <YStack position="absolute" top={0} left={0} right={0} bottom={0}
@@ -114,7 +120,7 @@ export function GiftCard({ card, onSelect, canAfford, index }: { card: GiftCardP
       )}
 
       {/* ── Subtle overlay for text readability ── */}
-      {(Platform.OS === 'web' || card.cardImageUrl) && (
+      {(Platform.OS === 'web' || card.cardImageUrl || card.logoUrl) && (
         <YStack position="absolute" top={0} left={0} right={0} bottom={0} backgroundColor="rgba(0,0,0,0.3)" />
       )}
 

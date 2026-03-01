@@ -42,7 +42,7 @@ test("capture wallet UI screenshots", async ({ page }) => {
     await refundOption.click();
 
     // 6. Wait for Dedicated Screen (Bucket List)
-    await expect(page.getByText(/Select an active purchase/i).first())
+    await expect(page.getByText(/Select a point purchase/i).first())
         .toBeVisible({ timeout: 10000 });
     await page.waitForTimeout(2000); // Wait for animation and buckets to load
 
@@ -52,43 +52,8 @@ test("capture wallet UI screenshots", async ({ page }) => {
             "/Users/rkhona/.gemini/antigravity/brain/d999f481-52ed-4948-9af6-bdb5a52195d6/refund_bucket_list.png",
     });
 
-    // 7. Trigger the Refund Evaluation
-    const selectActionButton = page.getByRole("button", { name: "Select" })
-        .first();
-    if (await selectActionButton.isVisible()) {
-        await selectActionButton.click();
-
-        // Wait for Fallback choices (Matrix Evaluation)
-        await expect(page.getByText(/Points Balance Available/i).first())
-            .toBeVisible({ timeout: 10000 });
-        await page.waitForTimeout(1000);
-
-        // Capture Fallback Options Screen
-        await page.screenshot({
-            path:
-                "/Users/rkhona/.gemini/antigravity/brain/d999f481-52ed-4948-9af6-bdb5a52195d6/refund_fallback_options.png",
-        });
-
-        // 8. Intercept the Edge Function call to mock a Stripe `charge_expired` error
-        await page.route(
-            "**/functions/v1/refund-purchased-points*",
-            async (route) => {
-                await route.fulfill({
-                    status: 400,
-                    json: { error: "Stripe refund window expired" },
-                });
-            },
-        );
-
-        // Click Return to Card
-        const returnCardButton = page.getByRole("button", {
-            name: /Return To Original Card/i,
-        }).first();
-        if (await returnCardButton.isVisible()) {
-            await returnCardButton.click();
-            await page.waitForTimeout(1000);
-        }
-    }
+    // The UI now shows inline buttons, so we no longer have a fallback choices separate screen.
+    // The bucket list screenshot above correctly captures these scenarios.
 
     // Navigate to Reedeem Points to show the Earned Balance relabeling
     await page.goto("/redeem");

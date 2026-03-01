@@ -28,7 +28,58 @@ jest.mock('expo-secure-store', () => ({
   deleteItemAsync: jest.fn(),
 }))
 
-const mockSupabase = {
+// Mock expo-file-system (native module, required by load-media-helper.native.ts)
+jest.mock('expo-file-system', () => ({
+  documentDirectory: '/mock/documents/',
+  cacheDirectory: '/mock/cache/',
+  readAsStringAsync: jest.fn().mockResolvedValue(''),
+  writeAsStringAsync: jest.fn().mockResolvedValue(undefined),
+  deleteAsync: jest.fn().mockResolvedValue(undefined),
+  getInfoAsync: jest.fn().mockResolvedValue({ exists: false, size: 0 }),
+  makeDirectoryAsync: jest.fn().mockResolvedValue(undefined),
+  copyAsync: jest.fn().mockResolvedValue(undefined),
+  moveAsync: jest.fn().mockResolvedValue(undefined),
+  EncodingType: { UTF8: 'utf8', Base64: 'base64' },
+  FileSystemUploadType: { BINARY_CONTENT: 0, MULTIPART: 1 },
+}))
+
+// Mock expo-media-library (native module)
+jest.mock('expo-media-library', () => ({
+  requestPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
+  getAssetsAsync: jest.fn().mockResolvedValue({ assets: [] }),
+  MediaType: { photo: 'photo', video: 'video' },
+}))
+
+// Mock expo-image-picker (native module)
+jest.mock('expo-image-picker', () => ({
+  launchImageLibraryAsync: jest.fn().mockResolvedValue({ canceled: true, assets: [] }),
+  launchCameraAsync: jest.fn().mockResolvedValue({ canceled: true, assets: [] }),
+  requestCameraPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
+  requestMediaLibraryPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
+  MediaTypeOptions: { All: 'All', Images: 'Images', Videos: 'Videos' },
+}))
+
+// Mock load-media-helper (bridges to expo-file-system which is a native-only module)
+jest.mock('../create-post/load-media-helper.native', () => ({
+  loadMediaToSupabase: jest.fn().mockResolvedValue([]),
+  pickImage: jest.fn().mockResolvedValue(null),
+}))
+jest.mock('../create-post/load-media-helper', () => ({
+  loadMediaToSupabase: jest.fn().mockResolvedValue([]),
+  pickImage: jest.fn().mockResolvedValue(null),
+}))
+
+// Mock media-upload.native (bridges to expo-file-system)
+jest.mock('../create-post/media-upload.native', () => ({
+  uploadMedia: jest.fn().mockResolvedValue([]),
+  compressImage: jest.fn().mockResolvedValue(null),
+}))
+jest.mock('../create-post/media-upload', () => ({
+  uploadMedia: jest.fn().mockResolvedValue([]),
+  compressImage: jest.fn().mockResolvedValue(null),
+}))
+
+var mockSupabase = {
   from: jest.fn(() => ({
     select: jest.fn().mockReturnThis(),
     eq: jest.fn().mockReturnThis(),

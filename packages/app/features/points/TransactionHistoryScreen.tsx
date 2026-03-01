@@ -17,9 +17,24 @@ import { YStack, XStack, Text, Button, ScrollView, Input, useMedia } from 'tamag
 import { Platform, Alert, Share, Pressable } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import {
-  ArrowDownLeft, ArrowUpRight, Coins, Gift, Heart,
-  MessageSquare, ExternalLink, Copy, Share2, FileText, Receipt,
-  Search, ArrowDown, ArrowUp, Clock, CheckCircle, AlertTriangle, ArrowLeft
+  ArrowDownLeft,
+  ArrowUpRight,
+  Coins,
+  Gift,
+  Heart,
+  MessageSquare,
+  ExternalLink,
+  Copy,
+  Share2,
+  FileText,
+  Receipt,
+  Search,
+  ArrowDown,
+  ArrowUp,
+  Clock,
+  CheckCircle,
+  AlertTriangle,
+  ArrowLeft,
 } from '@tamagui/lucide-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'solito/navigation'
@@ -35,7 +50,14 @@ import { POINTS_PER_DOLLAR } from '../redeem/mock-data'
 // Types
 // =============================================================================
 
-type TransactionType = 'purchase' | 'sale_credit' | 'order_debit' | 'redemption' | 'donation' | 'referral' | 'refund'
+type TransactionType =
+  | 'purchase'
+  | 'sale_credit'
+  | 'order_debit'
+  | 'redemption'
+  | 'donation'
+  | 'referral'
+  | 'refund'
 type FilterType = 'all' | 'credits' | 'debits'
 type TransactionStatus = 'queued' | 'processing' | 'completed' | 'failed'
 type DatePeriod = 'all' | '7d' | '90d' | 'custom'
@@ -43,37 +65,39 @@ type DatePeriod = 'all' | '7d' | '90d' | 'custom'
 interface Transaction {
   id: string
   type: TransactionType
-  amount: number           // positive = credit, negative = debit
-  date: string             // ISO string
+  amount: number // positive = credit, negative = debit
+  date: string // ISO string
   description: string
-  detail?: string          // e.g. order id, gift card brand
-  counterparty?: string    // e.g. buyer/seller name
+  detail?: string // e.g. order id, gift card brand
+  counterparty?: string // e.g. buyer/seller name
 
   refundMethod?: string
   purchaseCardInfo?: string
   purchaseUsdAmount?: number
   purchaseStripeFee?: number
+  refundUsdAmount?: number
+  refundFeeAmount?: number
 
   // Buy/sell specific
-  postId?: string          // link to associated chat via post
-  otherUserId?: string     // the other party's user ID
-  orderId?: string         // order reference
-  platformFee?: number     // points deducted as platform fee (for sales)
-  grossAmount?: number     // total before fee (for sales)
+  postId?: string // link to associated chat via post
+  otherUserId?: string // the other party's user ID
+  orderId?: string // order reference
+  platformFee?: number // points deducted as platform fee (for sales)
+  grossAmount?: number // total before fee (for sales)
 
   // Redemption specific
-  giftCardCode?: string    // redeemed gift card code/link
-  giftCardUrl?: string     // url to the gift card
+  giftCardCode?: string // redeemed gift card code/link
+  giftCardUrl?: string // url to the gift card
 
   // Donation specific
   donationReceiptUrl?: string // link to donation receipt
-  donationOrg?: string       // organization name
-  donationProject?: string   // project title
-  donationTheme?: string     // theme category
+  donationOrg?: string // organization name
+  donationProject?: string // project title
+  donationTheme?: string // theme category
 
   // Status tracking
-  status?: TransactionStatus  // queued, processing, completed, failed
-  provider?: string           // 'tremendous' | 'reloadly' | 'globalgiving'
+  status?: TransactionStatus // queued, processing, completed, failed
+  provider?: string // 'tremendous' | 'reloadly' | 'globalgiving'
 }
 
 // =============================================================================
@@ -83,23 +107,33 @@ interface Transaction {
 const PLATFORM_FEE_PERCENT = 10
 
 /** Map point_ledger DB type to UI TransactionType */
-function mapLedgerType(dbType: string, amount: number): TransactionType {
+export function mapLedgerType(dbType: string, amount: number): TransactionType {
   switch (dbType) {
-    case 'purchase': return 'purchase'
-    case 'payment': return amount > 0 ? 'sale_credit' : 'order_debit'
-    case 'transfer': return amount > 0 ? 'sale_credit' : 'order_debit'
-    case 'platform_fee': return 'sale_credit' // shown as part of sale
-    case 'platform_charge': return 'order_debit'
-    case 'redemption': return 'redemption'
-    case 'donation': return 'donation'
-    case 'reward': return 'referral'
-    case 'refund': return 'refund'
-    default: return amount > 0 ? 'purchase' : 'order_debit'
+    case 'purchase':
+      return 'purchase'
+    case 'payment':
+      return amount > 0 ? 'sale_credit' : 'order_debit'
+    case 'transfer':
+      return amount > 0 ? 'sale_credit' : 'order_debit'
+    case 'platform_fee':
+      return 'sale_credit' // shown as part of sale
+    case 'platform_charge':
+      return 'order_debit'
+    case 'redemption':
+      return 'redemption'
+    case 'donation':
+      return 'donation'
+    case 'reward':
+      return 'referral'
+    case 'refund':
+      return 'refund'
+    default:
+      return amount > 0 ? 'purchase' : 'order_debit'
   }
 }
 
 /** Convert a point_ledger row + metadata into a UI Transaction */
-function mapLedgerToTransaction(row: any): Transaction {
+export function mapLedgerToTransaction(row: any): Transaction {
   const meta = row.metadata || {}
   const uiType = mapLedgerType(row.type, row.amount)
 
@@ -122,21 +156,29 @@ function mapLedgerToTransaction(row: any): Transaction {
     donationOrg: meta.organization || meta.donation_org,
     donationProject: meta.project_title,
     donationTheme: meta.theme,
-    status: meta.status || (row.type === 'redemption' || row.type === 'donation' ? 'completed' : undefined),
+    status:
+      meta.status ||
+      (row.type === 'redemption' || row.type === 'donation' ? 'completed' : undefined),
     provider: meta.provider,
-    
+
     // New injected tracking formats
-    refundMethod: meta.refund_method || (meta.targetPhoneNumber ? `Venmo to ${meta.targetPhoneNumber}` : undefined),
-    purchaseCardInfo: meta.card_last4 ? `${(meta.card_brand || 'Card')} ending in ${meta.card_last4}` : undefined,
+    refundMethod:
+      meta.refund_method ||
+      (meta.targetPhoneNumber ? `Venmo to ${meta.targetPhoneNumber}` : undefined),
+    purchaseCardInfo: meta.card_last4
+      ? `${meta.card_brand || 'Card'} ending in ${meta.card_last4}`
+      : undefined,
     purchaseUsdAmount: meta.amount_cents ? meta.amount_cents / 100 : undefined,
     purchaseStripeFee: meta.service_fee_cents ? meta.service_fee_cents / 100 : undefined,
+    refundUsdAmount: meta.refund_usd_cents ? meta.refund_usd_cents / 100 : undefined,
+    refundFeeAmount: meta.fee_deducted_cents ? meta.fee_deducted_cents / 100 : undefined,
   }
 
   return tx
 }
 
 /** Build a human-readable description from type + metadata */
-function buildDescription(type: TransactionType, amount: number, meta: any): string {
+export function buildDescription(type: TransactionType, amount: number, meta: any): string {
   switch (type) {
     case 'purchase':
       return `Purchased ${Math.abs(amount).toLocaleString()} points`
@@ -150,13 +192,11 @@ function buildDescription(type: TransactionType, amount: number, meta: any): str
     }
     case 'redemption': {
       if (meta.provider === 'paypal') {
-          return meta.description || 'Cashout to PayPal/Venmo'
+        return meta.description || 'Cashout to PayPal/Venmo'
       }
 
       const brand = meta.brand_name || meta.gift_card_brand || 'Gift Card'
-      const value = meta.face_value_cents
-        ? `$${(meta.face_value_cents / 100).toFixed(0)}`
-        : ''
+      const value = meta.face_value_cents ? `$${(meta.face_value_cents / 100).toFixed(0)}` : ''
       return `Redeemed: ${brand}${value ? ` ${value}` : ''} Gift Card`
     }
     case 'donation': {
@@ -166,10 +206,19 @@ function buildDescription(type: TransactionType, amount: number, meta: any): str
     case 'referral':
       return meta.description || 'Referral bonus'
     case 'refund': {
-      if (meta.brand_name || meta.gift_card_brand) {
-         const brand = meta.brand_name || meta.gift_card_brand
-         const value = meta.face_value_cents ? `$${(meta.face_value_cents / 100).toFixed(0)}` : ''
-         return `Refunded to: ${brand}${value ? ` ${value}` : ''} Gift Card`
+      // Gift card refund — detected via brand_name OR provider/refund_method
+      const isGiftCardRefund = meta.brand_name || meta.gift_card_brand ||
+        meta.provider === 'tremendous' || meta.provider === 'reloadly' ||
+        (meta.refund_method && meta.refund_method.includes('Gift Card'))
+      if (isGiftCardRefund) {
+        const brand = meta.brand_name || meta.gift_card_brand || 'Gift Card'
+        const valueCents = meta.face_value_cents || Math.abs(amount)
+        const value = `$${(valueCents / 100).toFixed(0)}`
+        return `Refunded: ${brand} ${value} Gift Card`
+      }
+      // Card refund
+      if (meta.card_last4) {
+        return `Refund to card ending in ${meta.card_last4}`
       }
       return `Refund for returned points`
     }
@@ -182,23 +231,63 @@ function buildDescription(type: TransactionType, amount: number, meta: any): str
 // Helpers
 // =============================================================================
 
-const TYPE_CONFIG: Record<TransactionType, { icon: any; label: string; color: string; bgColor: string }> = {
-  purchase:     { icon: Coins,        label: 'Points Purchase',  color: colors.green[600], bgColor: colors.green[100] },
-  sale_credit:  { icon: ArrowDownLeft, label: 'Sale Credit',     color: colors.green[600], bgColor: colors.green[100] },
-  order_debit:  { icon: ArrowUpRight, label: 'Purchase',         color: colors.red[600],   bgColor: colors.red[100] },
-  redemption:   { icon: Gift,         label: 'Redemption',       color: colors.purple[600], bgColor: colors.purple[100] },
-  donation:     { icon: Heart,        label: 'Donation',         color: colors.pink[600],  bgColor: colors.pink[100] },
-  referral:     { icon: Coins,        label: 'Referral Bonus',   color: colors.blue[600],  bgColor: colors.blue[100] },
-  refund:       { icon: ArrowDownLeft, label: 'Refund',          color: colors.amber[600],  bgColor: colors.amber[100] },
+const TYPE_CONFIG: Record<
+  TransactionType,
+  { icon: any; label: string; color: string; bgColor: string }
+> = {
+  purchase: {
+    icon: Coins,
+    label: 'Points Purchase',
+    color: colors.green[600],
+    bgColor: colors.green[100],
+  },
+  sale_credit: {
+    icon: ArrowDownLeft,
+    label: 'Sale Credit',
+    color: colors.green[600],
+    bgColor: colors.green[100],
+  },
+  order_debit: {
+    icon: ArrowUpRight,
+    label: 'Purchase',
+    color: colors.red[600],
+    bgColor: colors.red[100],
+  },
+  redemption: {
+    icon: Gift,
+    label: 'Redemption',
+    color: colors.purple[600],
+    bgColor: colors.purple[100],
+  },
+  donation: { icon: Heart, label: 'Donation', color: colors.pink[600], bgColor: colors.pink[100] },
+  referral: {
+    icon: Coins,
+    label: 'Referral Bonus',
+    color: colors.blue[600],
+    bgColor: colors.blue[100],
+  },
+  refund: {
+    icon: ArrowDownLeft,
+    label: 'Refund',
+    color: colors.amber[600],
+    bgColor: colors.amber[100],
+  },
 }
 
 function formatDateTime(iso: string): string {
   const d = new Date(iso)
-  return d.toLocaleDateString('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric',
-  }) + ' at ' + d.toLocaleTimeString('en-US', {
-    hour: 'numeric', minute: '2-digit',
-  })
+  return (
+    d.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }) +
+    ' at ' +
+    d.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+    })
+  )
 }
 
 // =============================================================================
@@ -210,7 +299,10 @@ export interface TransactionHistoryScreenProps {
   onNavigateToChat?: (postId: string, otherUserId: string) => void
 }
 
-export function TransactionHistoryScreen({ onNavigateToFeed, onNavigateToChat }: TransactionHistoryScreenProps) {
+export function TransactionHistoryScreen({
+  onNavigateToFeed,
+  onNavigateToChat,
+}: TransactionHistoryScreenProps) {
   const { t } = useTranslation()
   const media = useMedia()
   // @ts-ignore
@@ -223,8 +315,8 @@ export function TransactionHistoryScreen({ onNavigateToFeed, onNavigateToChat }:
   const [searchQuery, setSearchQuery] = useState('')
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest')
   const [datePeriod, setDatePeriod] = useState<DatePeriod>('all')
-  const [customFrom, setCustomFrom] = useState('')  // YYYY-MM-DD
-  const [customTo, setCustomTo] = useState('')      // YYYY-MM-DD
+  const [customFrom, setCustomFrom] = useState('') // YYYY-MM-DD
+  const [customTo, setCustomTo] = useState('') // YYYY-MM-DD
 
   // Fetch real transactions from point_ledger
   const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -270,10 +362,15 @@ export function TransactionHistoryScreen({ onNavigateToFeed, onNavigateToChat }:
       .channel(`txn-history:${user.id}`)
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'point_ledger', filter: `user_id=eq.${user.id}` },
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'point_ledger',
+          filter: `user_id=eq.${user.id}`,
+        },
         (payload) => {
           if (payload.new && payload.new.type !== 'platform_fee') {
-            setTransactions(prev => [mapLedgerToTransaction(payload.new), ...prev])
+            setTransactions((prev) => [mapLedgerToTransaction(payload.new), ...prev])
           }
         }
       )
@@ -294,35 +391,36 @@ export function TransactionHistoryScreen({ onNavigateToFeed, onNavigateToChat }:
       if (customFrom) {
         const [y, m, d] = customFrom.split('-').map(Number)
         const from = new Date(y, m - 1, d, 0, 0, 0, 0)
-        result = result.filter(tx => new Date(tx.date) >= from)
+        result = result.filter((tx) => new Date(tx.date) >= from)
       }
       if (customTo) {
         const [y, m, d] = customTo.split('-').map(Number)
         const to = new Date(y, m - 1, d, 23, 59, 59, 999)
-        result = result.filter(tx => new Date(tx.date) <= to)
+        result = result.filter((tx) => new Date(tx.date) <= to)
       }
     } else if (datePeriod !== 'all') {
       const daysMap: Record<string, number> = { '7d': 7, '90d': 90 }
       const days = daysMap[datePeriod] ?? 0
       const cutoff = new Date(now)
       cutoff.setDate(cutoff.getDate() - days)
-      result = result.filter(tx => new Date(tx.date) >= cutoff)
+      result = result.filter((tx) => new Date(tx.date) >= cutoff)
     }
 
     // Filter by type
-    if (filter === 'credits') result = result.filter(tx => tx.amount > 0)
-    else if (filter === 'debits') result = result.filter(tx => tx.amount < 0)
+    if (filter === 'credits') result = result.filter((tx) => tx.amount > 0)
+    else if (filter === 'debits') result = result.filter((tx) => tx.amount < 0)
 
     // Search across relevant fields
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase()
-      result = result.filter(tx =>
-        tx.description.toLowerCase().includes(q) ||
-        tx.counterparty?.toLowerCase().includes(q) ||
-        tx.donationOrg?.toLowerCase().includes(q) ||
-        tx.giftCardCode?.toLowerCase().includes(q) ||
-        tx.orderId?.toLowerCase().includes(q) ||
-        tx.detail?.toLowerCase().includes(q)
+      result = result.filter(
+        (tx) =>
+          tx.description.toLowerCase().includes(q) ||
+          tx.counterparty?.toLowerCase().includes(q) ||
+          tx.donationOrg?.toLowerCase().includes(q) ||
+          tx.giftCardCode?.toLowerCase().includes(q) ||
+          tx.orderId?.toLowerCase().includes(q) ||
+          tx.detail?.toLowerCase().includes(q)
       )
     }
 
@@ -337,20 +435,23 @@ export function TransactionHistoryScreen({ onNavigateToFeed, onNavigateToChat }:
 
   // Summary calculations
   const totalBought = transactions
-    .filter(tx => tx.type === 'purchase')
+    .filter((tx) => tx.type === 'purchase')
     .reduce((sum, tx) => sum + Math.abs(tx.amount), 0)
 
   const totalEarned = transactions
-    .filter(tx => ['sale_credit', 'referral', 'refund'].includes(tx.type))
+    .filter((tx) => ['sale_credit', 'referral', 'refund'].includes(tx.type))
     .reduce((sum, tx) => sum + Math.abs(tx.amount), 0)
 
   const totalPlatformCharges = transactions
-    .filter(tx => tx.platformFee != null)
+    .filter((tx) => tx.platformFee != null)
     .reduce((sum, tx) => sum + (tx.platformFee || 0), 0)
 
-  const totalSpent = Math.abs(transactions
-    .filter(tx => ['order_debit', 'redemption', 'donation'].includes(tx.type))
-    .reduce((sum, tx) => sum + tx.amount, 0)) + totalPlatformCharges
+  const totalSpent =
+    Math.abs(
+      transactions
+        .filter((tx) => ['order_debit', 'redemption', 'donation'].includes(tx.type))
+        .reduce((sum, tx) => sum + tx.amount, 0)
+    ) + totalPlatformCharges
 
   const handleCopyCode = useCallback((code: string) => {
     if (Platform.OS === 'web') {
@@ -375,228 +476,319 @@ export function TransactionHistoryScreen({ onNavigateToFeed, onNavigateToChat }:
     } catch {
       // user cancelled
     }
-   }, [])
+  }, [])
 
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null)
-  
+
   const router = useRouter()
   const { top, bottom } = useSafeAreaInsets()
 
   return (
     <>
-    <YStack flex={1} backgroundColor={colors.gray[50]} paddingTop={Platform.OS !== 'web' && !isDesktop ? top : 0}>
-      {/* ── Native Header ── */}
-      {Platform.OS !== 'web' && !isDesktop && (
-        <XStack
-          paddingTop="$2"
-          paddingBottom="$3"
-          paddingHorizontal="$4"
-          alignItems="center"
-          backgroundColor="white"
-          borderBottomWidth={1}
-          borderBottomColor={colors.gray[200]}
-          zIndex={50}
-        >
-          <Button
-            unstyled
-            icon={<ArrowLeft size={24} color={colors.gray[800]} />}
-            onPress={() => router.back()}
-            padding="$2"
-            marginLeft="$-2"
-          />
-          <Text fontSize={20} fontWeight="700" color={colors.gray[900]} marginLeft="$2">
-            Transaction History
-          </Text>
-        </XStack>
-      )}
-
-      <ScrollView flex={1} contentContainerStyle={{ flexGrow: 1, paddingBottom: (bottom || 20) + 60 }} keyboardShouldPersistTaps="handled">
-        <YStack maxWidth={896} width="100%" alignSelf="center" paddingHorizontal={isDesktop ? '$6' : '$4'} paddingVertical="$4" gap="$4">
-
-          {/* Page Title */}
-          <YStack gap="$1">
-            {(Platform.OS === 'web' || isDesktop) && (
-              <Text fontSize="$7" fontWeight="700" color={colors.gray[900]}>Transaction History</Text>
-            )}
-            <Text fontSize="$3" color={colors.gray[500]}>
-              All point transactions for your account
-            </Text>
-          </YStack>
-
-          {/* Summary Cards */}
-          <XStack gap="$3" flexWrap="wrap">
-            <SummaryCard label="Total Balance" value={`${userPoints.toLocaleString()} pts`} color={colors.gray[800]} subtitle="Combined Wallet" />
-            <SummaryCard label="Earned Balance" value={`${earnedBalance.toLocaleString()} pts`} color={colors.green[600]} subtitle="Cashout Available" />
-            <SummaryCard label="Purchased Balance" value={`${purchasedBalance.toLocaleString()} pts`} color={colors.blue[600]} subtitle="Platform Use Only" />
-          </XStack>
-
-          {/* Search */}
+      <YStack
+        flex={1}
+        backgroundColor={colors.gray[50]}
+        paddingTop={Platform.OS !== 'web' && !isDesktop ? top : 0}
+      >
+        {/* ── Native Header ── */}
+        {Platform.OS !== 'web' && !isDesktop && (
           <XStack
-            backgroundColor="white" borderRadius={borderRadius.lg} borderWidth={1}
-            borderColor={colors.gray[200]} paddingHorizontal="$3" alignItems="center" height={44} gap="$2"
+            paddingTop="$2"
+            paddingBottom="$3"
+            paddingHorizontal="$4"
+            alignItems="center"
+            backgroundColor="white"
+            borderBottomWidth={1}
+            borderBottomColor={colors.gray[200]}
+            zIndex={50}
           >
-            <Search size={16} color={colors.gray[400]} />
-            <Input flex={1} unstyled
-              placeholder="Search by name, brand, charity, order..."
-              placeholderTextColor={colors.gray[400] as any}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              fontSize={14} color={colors.gray[800]}
+            <Button
+              unstyled
+              icon={<ArrowLeft size={24} color={colors.gray[800]} />}
+              onPress={() => router.back()}
+              padding="$2"
+              marginLeft="$-2"
             />
+            <Text fontSize={20} fontWeight="700" color={colors.gray[900]} marginLeft="$2">
+              Transaction History
+            </Text>
           </XStack>
-
-          {/* Date Period Filters */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <XStack gap="$2" paddingVertical="$1">
-              {([
-                { key: 'all', label: 'All Time' },
-                { key: '7d', label: 'Last 7 Days' },
-                { key: '90d', label: 'Last 90 Days' },
-                { key: 'custom', label: 'Custom Range' },
-              ] as { key: DatePeriod; label: string }[]).map((p) => (
-                <Button key={p.key} unstyled paddingHorizontal="$3" paddingVertical="$1.5" borderRadius={20}
-                  borderWidth={1} borderColor={datePeriod === p.key ? colors.blue[600] : colors.gray[200]}
-                  backgroundColor={datePeriod === p.key ? colors.blue[50] as any : 'white'}
-                  onPress={() => {
-                    setDatePeriod(p.key)
-                    if (p.key !== 'custom') {
+        )}
+        <ScrollView
+          flex={1}
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: (bottom || 20) + 60 }}
+          keyboardShouldPersistTaps="handled"
+        >
+          <YStack
+            maxWidth={896}
+            width="100%"
+            alignSelf="center"
+            paddingHorizontal={isDesktop ? '$6' : '$4'}
+            paddingVertical="$4"
+            gap="$4"
+          >
+            {/* Page Title */}
+            <YStack gap="$1">
+              {(Platform.OS === 'web' || isDesktop) && (
+                <Text fontSize="$7" fontWeight="700" color={colors.gray[900]}>
+                  Transaction History
+                </Text>
+              )}
+              <Text fontSize="$3" color={colors.gray[500]}>
+                All point transactions for your account
+              </Text>
+            </YStack>
+            {/* Summary Cards */}
+            <XStack gap="$3" flexWrap="wrap">
+              <SummaryCard
+                label="Total Balance"
+                value={`${userPoints.toLocaleString()} pts`}
+                color={colors.gray[800]}
+                subtitle="Combined Wallet"
+              />
+              <SummaryCard
+                label="Earned Balance"
+                value={`${earnedBalance.toLocaleString()} pts`}
+                color={colors.green[600]}
+                subtitle="Cashout Available"
+              />
+              <SummaryCard
+                label="Purchased Balance"
+                value={`${purchasedBalance.toLocaleString()} pts`}
+                color={colors.blue[600]}
+                subtitle="Platform Use Only"
+              />
+            </XStack>
+            {/* Search */}
+            <XStack
+              backgroundColor="white"
+              borderRadius={borderRadius.lg}
+              borderWidth={1}
+              borderColor={colors.gray[200]}
+              paddingHorizontal="$3"
+              alignItems="center"
+              height={44}
+              gap="$2"
+            >
+              <Search size={16} color={colors.gray[400]} />
+              <Input
+                flex={1}
+                unstyled
+                placeholder="Search by name, brand, charity, order..."
+                placeholderTextColor={colors.gray[400] as any}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                fontSize={14}
+                color={colors.gray[800]}
+              />
+            </XStack>
+            {/* Date Period Filters */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <XStack gap="$2" paddingVertical="$1">
+                {(
+                  [
+                    { key: 'all', label: 'All Time' },
+                    { key: '7d', label: 'Last 7 Days' },
+                    { key: '90d', label: 'Last 90 Days' },
+                    { key: 'custom', label: 'Custom Range' },
+                  ] as { key: DatePeriod; label: string }[]
+                ).map((p) => (
+                  <Button
+                    key={p.key}
+                    unstyled
+                    paddingHorizontal="$3"
+                    paddingVertical="$1.5"
+                    borderRadius={20}
+                    borderWidth={1}
+                    borderColor={datePeriod === p.key ? colors.blue[600] : colors.gray[200]}
+                    backgroundColor={datePeriod === p.key ? (colors.blue[50] as any) : 'white'}
+                    onPress={() => {
+                      setDatePeriod(p.key)
+                      if (p.key !== 'custom') {
+                        setCustomFrom('')
+                        setCustomTo('')
+                      }
+                    }}
+                  >
+                    <Text
+                      fontSize="$2"
+                      fontWeight="500"
+                      color={datePeriod === p.key ? (colors.blue[700] as any) : colors.gray[600]}
+                    >
+                      {p.label}
+                    </Text>
+                  </Button>
+                ))}
+              </XStack>
+            </ScrollView>
+            {/* Custom Date Range Picker */}
+            {datePeriod === 'custom' && Platform.OS === 'web' && (
+              <XStack gap="$3" alignItems="center" flexWrap="wrap">
+                <XStack gap="$2" alignItems="center">
+                  <Text fontSize={12} fontWeight="500" color={colors.gray[600]}>
+                    From
+                  </Text>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="date"
+                      value={customFrom}
+                      onChange={(e: any) => setCustomFrom(e.target.value)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: 8,
+                        border: `1px solid ${colors.gray[300]}`,
+                        fontSize: 13,
+                        color: colors.gray[800],
+                        backgroundColor: 'white',
+                        outline: 'none',
+                        cursor: 'pointer',
+                      }}
+                    />
+                  </div>
+                </XStack>
+                <XStack gap="$2" alignItems="center">
+                  <Text fontSize={12} fontWeight="500" color={colors.gray[600]}>
+                    To
+                  </Text>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="date"
+                      value={customTo}
+                      onChange={(e: any) => setCustomTo(e.target.value)}
+                      min={customFrom || undefined}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: 8,
+                        border: `1px solid ${colors.gray[300]}`,
+                        fontSize: 13,
+                        color: colors.gray[800],
+                        backgroundColor: 'white',
+                        outline: 'none',
+                        cursor: 'pointer',
+                      }}
+                    />
+                  </div>
+                </XStack>
+                {!!(customFrom || customTo) && (
+                  <Button
+                    unstyled
+                    paddingHorizontal="$2"
+                    paddingVertical="$1"
+                    borderRadius={6}
+                    hoverStyle={{ backgroundColor: colors.gray[100] }}
+                    onPress={() => {
                       setCustomFrom('')
                       setCustomTo('')
-                    }
-                  }}
-                >
-                  <Text fontSize="$2" fontWeight="500" color={datePeriod === p.key ? colors.blue[700] as any : colors.gray[600]}>
-                    {p.label}
-                  </Text>
-                </Button>
-              ))}
-            </XStack>
-          </ScrollView>
-
-          {/* Custom Date Range Picker */}
-          {datePeriod === 'custom' && Platform.OS === 'web' && (
-            <XStack gap="$3" alignItems="center" flexWrap="wrap">
-              <XStack gap="$2" alignItems="center">
-                <Text fontSize={12} fontWeight="500" color={colors.gray[600]}>From</Text>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type="date"
-                    value={customFrom}
-                    onChange={(e: any) => setCustomFrom(e.target.value)}
-                    style={{
-                      padding: '6px 12px', borderRadius: 8, border: `1px solid ${colors.gray[300]}`,
-                      fontSize: 13, color: colors.gray[800], backgroundColor: 'white', outline: 'none',
-                      cursor: 'pointer',
                     }}
-                  />
-                </div>
+                  >
+                    <Text fontSize={11} color={colors.gray[500]}>
+                      Clear
+                    </Text>
+                  </Button>
+                )}
               </XStack>
-              <XStack gap="$2" alignItems="center">
-                <Text fontSize={12} fontWeight="500" color={colors.gray[600]}>To</Text>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type="date"
-                    value={customTo}
-                    onChange={(e: any) => setCustomTo(e.target.value)}
-                    min={customFrom || undefined}
-                    style={{
-                      padding: '6px 12px', borderRadius: 8, border: `1px solid ${colors.gray[300]}`,
-                      fontSize: 13, color: colors.gray[800], backgroundColor: 'white', outline: 'none',
-                      cursor: 'pointer',
-                    }}
-                  />
-                </div>
-              </XStack>
-              {(customFrom || customTo) && (
-                <Button unstyled paddingHorizontal="$2" paddingVertical="$1" borderRadius={6}
-                  hoverStyle={{ backgroundColor: colors.gray[100] }}
-                  onPress={() => { setCustomFrom(''); setCustomTo('') }}
-                >
-                  <Text fontSize={11} color={colors.gray[500]}>Clear</Text>
-                </Button>
-              )}
-            </XStack>
-          )}
-
-          {/* Type Filters + Sort */}
-          <XStack justifyContent="space-between" alignItems="center">
-            <XStack gap="$2">
-              {([
-                { key: 'all', label: 'All' },
-                { key: 'credits', label: 'Credits' },
-                { key: 'debits', label: 'Debits' },
-              ] as { key: FilterType; label: string }[]).map((f) => (
-                <Button key={f.key} unstyled paddingHorizontal="$3" paddingVertical="$1.5" borderRadius={20}
-                  borderWidth={1} borderColor={filter === f.key ? colors.green[600] : colors.gray[200]}
-                  backgroundColor={filter === f.key ? colors.green[50] : 'white'}
-                  onPress={() => setFilter(f.key)}
-                >
-                  <Text fontSize="$2" fontWeight="500" color={filter === f.key ? colors.green[700] : colors.gray[600]}>
-                    {f.label}
-                  </Text>
-                </Button>
-              ))}
-            </XStack>
-
-            {/* Sort toggle */}
-            <Button unstyled flexDirection="row" gap="$1" alignItems="center"
-              paddingHorizontal="$2" paddingVertical="$1.5" borderRadius={8}
-              hoverStyle={{ backgroundColor: colors.gray[100] }}
-              onPress={() => setSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest')}
-            >
-              {sortOrder === 'newest'
-                ? <ArrowDown size={14} color={colors.gray[600]} />
-                : <ArrowUp size={14} color={colors.gray[600]} />
-              }
-              <Text fontSize={12} fontWeight="500" color={colors.gray[600]}>
-                {sortOrder === 'newest' ? 'Newest first' : 'Oldest first'}
-              </Text>
-            </Button>
-          </XStack>
-
-          {/* Transaction List */}
-          <YStack gap="$3">
-            {txLoading ? (
-              <YStack padding="$6" alignItems="center">
-                <Text color={colors.gray[400]}>Loading transactions…</Text>
-              </YStack>
-            ) : filteredTransactions.length === 0 ? (
-              <YStack padding="$6" alignItems="center">
-                <Text color={colors.gray[400]}>No transactions found</Text>
-              </YStack>
-            ) : (
-              filteredTransactions.map((tx) => (
-                <TransactionCard
-                  key={tx.id} tx={tx}
-                  onOpenChat={onNavigateToChat}
-                  onCopyCode={handleCopyCode}
-                  onShare={handleShare}
-                  onViewDetail={setSelectedTx}
-                />
-              ))
             )}
+            {/* Type Filters + Sort */}
+            <XStack justifyContent="space-between" alignItems="center">
+              <XStack gap="$2">
+                {(
+                  [
+                    { key: 'all', label: 'All' },
+                    { key: 'credits', label: 'Credits' },
+                    { key: 'debits', label: 'Debits' },
+                  ] as { key: FilterType; label: string }[]
+                ).map((f) => (
+                  <Button
+                    key={f.key}
+                    unstyled
+                    paddingHorizontal="$3"
+                    paddingVertical="$1.5"
+                    borderRadius={20}
+                    borderWidth={1}
+                    borderColor={filter === f.key ? colors.green[600] : colors.gray[200]}
+                    backgroundColor={filter === f.key ? colors.green[50] : 'white'}
+                    onPress={() => setFilter(f.key)}
+                  >
+                    <Text
+                      fontSize="$2"
+                      fontWeight="500"
+                      color={filter === f.key ? colors.green[700] : colors.gray[600]}
+                    >
+                      {f.label}
+                    </Text>
+                  </Button>
+                ))}
+              </XStack>
+              {/* Sort toggle */}
+              <Button
+                unstyled
+                flexDirection="row"
+                gap="$1"
+                alignItems="center"
+                paddingHorizontal="$2"
+                paddingVertical="$1.5"
+                borderRadius={8}
+                hoverStyle={{ backgroundColor: colors.gray[100] }}
+                onPress={() => setSortOrder((prev) => (prev === 'newest' ? 'oldest' : 'newest'))}
+              >
+                {sortOrder === 'newest' ? (
+                  <ArrowDown size={14} color={colors.gray[600]} />
+                ) : (
+                  <ArrowUp size={14} color={colors.gray[600]} />
+                )}
+                <Text fontSize={12} fontWeight="500" color={colors.gray[600]}>
+                  {sortOrder === 'newest' ? 'Newest first' : 'Oldest first'}
+                </Text>
+              </Button>
+            </XStack>
+            {/* Transaction List */}
+            <YStack gap="$3">
+              {txLoading ? (
+                <YStack padding="$6" alignItems="center">
+                  <Text color={colors.gray[400]}>Loading transactions…</Text>
+                </YStack>
+              ) : filteredTransactions.length === 0 ? (
+                <YStack padding="$6" alignItems="center">
+                  <Text color={colors.gray[400]}>No transactions found</Text>
+                </YStack>
+              ) : (
+                filteredTransactions.map((tx) => (
+                  <TransactionCard
+                    key={tx.id}
+                    tx={tx}
+                    onOpenChat={onNavigateToChat}
+                    onCopyCode={handleCopyCode}
+                    onShare={handleShare}
+                    onViewDetail={setSelectedTx}
+                  />
+                ))
+              )}
+            </YStack>
           </YStack>
-        </YStack>
-      </ScrollView>
-    </YStack>
-
+        </ScrollView>
+      </YStack>
       {/* Gift Card Detail Sheet */}
-      {(selectedTx?.type === 'redemption' || selectedTx?.type === 'refund') && selectedTx?.giftCardCode && (
-        <GiftCardDetailSheet
-          key={selectedTx.id}
-          visible
-          onClose={() => setSelectedTx(null)}
-          brandName={selectedTx.description.replace('Redeemed: ', '').replace('Refunded to: ', '')}
-          amount={Math.abs(selectedTx.amount) / POINTS_PER_DOLLAR}
-          pointsCost={Math.abs(selectedTx.amount)}
-          code={selectedTx.giftCardCode}
-          url={selectedTx.giftCardUrl}
-          status={(selectedTx.status || 'completed') as any}
-          redeemedAt={selectedTx.date}
-          provider={selectedTx.provider}
-        />
-      )}
-
+      {(selectedTx?.type === 'redemption' || selectedTx?.type === 'refund') &&
+        (selectedTx?.giftCardCode || selectedTx?.giftCardUrl || selectedTx?.description?.toLowerCase().includes('gift card')) &&
+        selectedTx?.provider !== 'paypal' && (
+          <GiftCardDetailSheet
+            key={selectedTx.id}
+            visible
+            onClose={() => setSelectedTx(null)}
+            brandName={selectedTx.description
+              .replace('Redeemed: ', '')
+              .replace('Refunded to: ', '')
+              .split(' $')[0]
+              .replace(' Gift Card', '')}
+            amount={Math.abs(selectedTx.amount) / POINTS_PER_DOLLAR}
+            pointsCost={Math.abs(selectedTx.amount)}
+            code={selectedTx.giftCardCode}
+            url={selectedTx.giftCardUrl}
+            status={(selectedTx.status || 'completed') as any}
+            redeemedAt={selectedTx.date}
+            provider={selectedTx.provider}
+          />
+        )}
       {/* Donation Receipt Sheet */}
       {selectedTx?.type === 'donation' && selectedTx.donationOrg && (
         <DonationReceiptSheet
@@ -618,43 +810,106 @@ export function TransactionHistoryScreen({ onNavigateToFeed, onNavigateToChat }:
 // Sub-components
 // =============================================================================
 
-function SummaryCard({ label, value, color, subtitle }: { label: string; value: string; color: string; subtitle?: string }) {
+function SummaryCard({
+  label,
+  value,
+  color,
+  subtitle,
+}: {
+  label: string
+  value: string
+  color: string
+  subtitle?: string
+}) {
   return (
-    <YStack flex={1} minWidth={140} backgroundColor="white" borderRadius={borderRadius.lg}
-      borderWidth={1} borderColor={colors.gray[200]} padding="$3" gap="$1"
+    <YStack
+      flex={1}
+      minWidth={140}
+      backgroundColor="white"
+      borderRadius={borderRadius.lg}
+      borderWidth={1}
+      borderColor={colors.gray[200]}
+      padding="$3"
+      gap="$1"
     >
-      <Text fontSize={12} color={colors.gray[500]}>{label}</Text>
-      <Text fontSize="$5" fontWeight="700" color={color as any}>{value}</Text>
-      {subtitle && <Text fontSize={10} color={colors.gray[400]}>{subtitle}</Text>}
+      <Text fontSize={12} color={colors.gray[500]}>
+        {label}
+      </Text>
+      <Text fontSize="$5" fontWeight="700" color={color as any}>
+        {value}
+      </Text>
+      {subtitle && (
+        <Text fontSize={10} color={colors.gray[400]}>
+          {subtitle}
+        </Text>
+      )}
     </YStack>
   )
 }
 
-function TransactionCard({ tx, onOpenChat, onCopyCode, onShare, onViewDetail }: {
+function TransactionCard({
+  tx,
+  onOpenChat,
+  onCopyCode,
+  onShare,
+  onViewDetail,
+}: {
   tx: Transaction
   onOpenChat?: (postId: string, otherUserId: string) => void
   onCopyCode: (code: string) => void
   onShare: (url: string, title: string) => void
   onViewDetail?: (tx: Transaction) => void
 }) {
-  const config = TYPE_CONFIG[tx.type]
-  const Icon = config.icon
+  const baseConfig = TYPE_CONFIG[tx.type]
+  let Icon = baseConfig.icon
+  let bgColor = baseConfig.bgColor
+  let color = baseConfig.color
+
+  if (tx.type === 'refund') {
+    if (tx.giftCardCode || tx.provider === 'tremendous' || tx.provider === 'reloadly' || tx.description?.toLowerCase().includes('gift card')) {
+      Icon = Gift
+      bgColor = colors.purple[100]
+      color = colors.purple[600]
+    } else if (tx.refundMethod?.toLowerCase().includes('venmo') || tx.description?.toLowerCase().includes('venmo')) {
+      Icon = Coins // Re-use coins for venmo since there's no native Venmo logo
+      bgColor = colors.blue[100]
+      color = colors.blue[600]
+    }
+  } else if (tx.type === 'redemption') {
+    if (tx.description?.toLowerCase().includes('venmo') || tx.description?.toLowerCase().includes('paypal')) {
+      Icon = Coins
+      bgColor = colors.blue[100]
+      color = colors.blue[600]
+    } else if (tx.giftCardCode || tx.description?.toLowerCase().includes('gift card')) {
+      Icon = Gift
+      bgColor = colors.purple[100]
+      color = colors.purple[600]
+    }
+  }
+
   const isCredit = tx.amount > 0
 
   return (
     <YStack
-      backgroundColor="white" borderRadius={borderRadius.lg} borderWidth={1}
-      borderColor={colors.gray[200]} overflow="hidden"
+      backgroundColor="white"
+      borderRadius={borderRadius.lg}
+      borderWidth={1}
+      borderColor={colors.gray[200]}
+      overflow="hidden"
     >
-      {/* Main Row */}
+      <NoTextNodes>
       <XStack padding="$3" gap="$3" alignItems="center">
         {/* Icon */}
         <YStack
-          width={40} height={40} borderRadius={20}
-          backgroundColor={config.bgColor as any} alignItems="center" justifyContent="center"
+          width={40}
+          height={40}
+          borderRadius={20}
+          backgroundColor={bgColor as any}
+          alignItems="center"
+          justifyContent="center"
           flexShrink={0}
         >
-          <Icon size={18} color={config.color} />
+          <Icon size={18} color={color} />
         </YStack>
 
         {/* Details */}
@@ -667,101 +922,278 @@ function TransactionCard({ tx, onOpenChat, onCopyCode, onShare, onViewDetail }: 
             {formatDateTime(tx.date)}
           </Text>
           {tx.counterparty && (
-            <Text fontSize={11} color={colors.gray[500]}>with {tx.counterparty}</Text>
+            <Text fontSize={11} color={colors.gray[500]}>
+              with {tx.counterparty}
+            </Text>
           )}
         </YStack>
 
         {/* Amount */}
         <YStack alignItems="flex-end" gap={2} flexShrink={0}>
-          <Text fontSize="$4" fontWeight="700" color={isCredit ? colors.green[600] : colors.red[600]}>
-            {isCredit ? '+' : ''}{tx.amount.toLocaleString()} pts
+          <Text
+            fontSize="$4"
+            fontWeight="700"
+            color={isCredit ? colors.green[600] : colors.red[600]}
+          >
+            {isCredit ? '+' : ''}
+            {tx.amount.toLocaleString()} pts
           </Text>
           {tx.orderId && (
-            <Text fontSize={10} color={colors.gray[400]}>#{tx.orderId}</Text>
+            <Text fontSize={10} color={colors.gray[400]}>
+              #{tx.orderId}
+            </Text>
           )}
         </YStack>
       </XStack>
-
       {/* Sale: platform fee breakdown */}
       {tx.type === 'sale_credit' && tx.platformFee != null && tx.grossAmount != null && (
-        <YStack backgroundColor={colors.gray[50]} paddingHorizontal="$3" paddingVertical="$2"
-          borderTopWidth={1} borderTopColor={colors.gray[100]} gap={2}
+        <YStack
+          backgroundColor={colors.gray[50]}
+          paddingHorizontal="$3"
+          paddingVertical="$2"
+          borderTopWidth={1}
+          borderTopColor={colors.gray[100]}
+          gap={2}
         >
           <XStack justifyContent="space-between">
-            <Text fontSize={11} color={colors.gray[500]}>Sale total</Text>
-            <Text fontSize={11} color={colors.gray[600]}>{tx.grossAmount.toLocaleString()} pts</Text>
+            <Text fontSize={11} color={colors.gray[500]}>
+              Sale total
+            </Text>
+            <Text fontSize={11} color={colors.gray[600]}>
+              {tx.grossAmount.toLocaleString()} pts
+            </Text>
           </XStack>
           <XStack justifyContent="space-between">
-            <Text fontSize={11} color={colors.amber[700]}>Platform fee ({PLATFORM_FEE_PERCENT}%)</Text>
-            <Text fontSize={11} color={colors.amber[700]}>-{tx.platformFee.toLocaleString()} pts</Text>
+            <Text fontSize={11} color={colors.amber[700]}>
+              Platform fee ({PLATFORM_FEE_PERCENT}%)
+            </Text>
+            <Text fontSize={11} color={colors.amber[700]}>
+              -{tx.platformFee.toLocaleString()} pts
+            </Text>
           </XStack>
           <XStack justifyContent="space-between">
-            <Text fontSize={11} fontWeight="600" color={colors.green[700]}>You received</Text>
-            <Text fontSize={11} fontWeight="600" color={colors.green[700]}>{tx.amount.toLocaleString()} pts</Text>
+            <Text fontSize={11} fontWeight="600" color={colors.green[700]}>
+              You received
+            </Text>
+            <Text fontSize={11} fontWeight="600" color={colors.green[700]}>
+              {tx.amount.toLocaleString()} pts
+            </Text>
           </XStack>
         </YStack>
       )}
-
       {/* Purchase details */}
       {tx.type === 'purchase' && (tx.detail || tx.purchaseCardInfo) && (
-        <YStack backgroundColor={colors.gray[50]} paddingHorizontal="$3" paddingVertical="$2"
-          borderTopWidth={1} borderTopColor={colors.gray[100]} gap={2}
+        <YStack
+          backgroundColor={colors.gray[50]}
+          paddingHorizontal="$3"
+          paddingVertical="$2"
+          borderTopWidth={1}
+          borderTopColor={colors.gray[100]}
+          gap={2}
         >
-          {tx.detail && <Text fontSize={11} color={colors.gray[500]}>{tx.detail}</Text>}
+          {tx.detail && (
+            <Text fontSize={11} color={colors.gray[500]}>
+              {tx.detail}
+            </Text>
+          )}
           {tx.purchaseCardInfo && (
-             <XStack justifyContent="space-between" mt={tx.detail ? "$2" : "$0"}>
-                <Text fontSize={11} color={colors.gray[500]}>Original payment method</Text>
-                <Text fontSize={11} color={colors.gray[600]}>{tx.purchaseCardInfo}</Text>
-             </XStack>
+            <XStack justifyContent="space-between" mt={tx.detail ? '$2' : '$0'}>
+              <Text fontSize={11} color={colors.gray[500]}>
+                Original payment method
+              </Text>
+              <Text fontSize={11} color={colors.gray[600]}>
+                {tx.purchaseCardInfo}
+              </Text>
+            </XStack>
           )}
           {tx.purchaseUsdAmount != null && (
-             <>
-               <XStack justifyContent="space-between">
-                  <Text fontSize={11} color={colors.gray[500]}>Points cost</Text>
-                  <Text fontSize={11} color={colors.gray[600]}>${((tx.purchaseUsdAmount) - (tx.purchaseStripeFee || 0)).toFixed(2)} USD</Text>
-               </XStack>
-               {tx.purchaseStripeFee != null && tx.purchaseStripeFee > 0 && (
-                 <XStack justifyContent="space-between">
-                    <Text fontSize={11} color={colors.gray[500]}>Stripe base fee</Text>
-                    <Text fontSize={11} color={colors.gray[600]}>${((tx.purchaseStripeFee || 0)).toFixed(2)} USD</Text>
-                 </XStack>
-               )}
-               <XStack justifyContent="space-between" mt="$1" borderTopWidth={1} borderTopColor={colors.gray[200]} pt="$1">
-                  <Text fontSize={11} fontWeight="600" color={colors.gray[700]}>Total charged</Text>
-                  <Text fontSize={11} fontWeight="600" color={colors.gray[800]}>${(tx.purchaseUsdAmount).toFixed(2)} USD</Text>
-               </XStack>
-             </>
+            <>
+              <XStack justifyContent="space-between">
+                <Text fontSize={11} color={colors.gray[500]}>
+                  Points cost
+                </Text>
+                <Text fontSize={11} color={colors.gray[600]}>
+                  ${(tx.purchaseUsdAmount - (tx.purchaseStripeFee || 0)).toFixed(2)} USD
+                </Text>
+              </XStack>
+              {tx.purchaseStripeFee != null && tx.purchaseStripeFee > 0 && (
+                <XStack justifyContent="space-between">
+                  <Text fontSize={11} color={colors.gray[500]}>
+                    Stripe base fee
+                  </Text>
+                  <Text fontSize={11} color={colors.gray[600]}>
+                    ${(tx.purchaseStripeFee || 0).toFixed(2)} USD
+                  </Text>
+                </XStack>
+              )}
+              <XStack
+                justifyContent="space-between"
+                mt="$1"
+                borderTopWidth={1}
+                borderTopColor={colors.gray[200]}
+                pt="$1"
+              >
+                <Text fontSize={11} fontWeight="600" color={colors.gray[700]}>
+                  Total charged
+                </Text>
+                <Text fontSize={11} fontWeight="600" color={colors.gray[800]}>
+                  ${tx.purchaseUsdAmount.toFixed(2)} USD
+                </Text>
+              </XStack>
+            </>
           )}
         </YStack>
       )}
-
-      {/* Refund details */}
-      {tx.type === 'refund' && tx.refundMethod && !tx.giftCardCode && (
-        <YStack backgroundColor={colors.gray[50]} paddingHorizontal="$3" paddingVertical="$2"
-          borderTopWidth={1} borderTopColor={colors.gray[100]} gap={2}
+      {/* Redemption detail (Venmo / Gift Cards / Refunds) */}
+      {(tx.type === 'redemption' || tx.type === 'refund') &&
+        (tx.giftCardCode || tx.giftCardUrl || tx.detail || tx.refundUsdAmount != null) && (
+          <YStack
+            backgroundColor={colors.purple[50] as any}
+            paddingHorizontal="$3"
+            paddingVertical="$2"
+            borderTopWidth={1}
+            borderTopColor={colors.gray[100]}
+            gap={2}
+          >
+            {tx.detail && (
+              <Text fontSize={11} color={colors.purple[700] as any}>
+                {tx.detail}
+              </Text>
+            )}
+            {tx.refundUsdAmount != null && (
+              <XStack justifyContent="space-between" mt={tx.detail ? '$1' : '$0'}>
+                <Text fontSize={11} color={colors.gray[500]}>
+                  Cashout value
+                </Text>
+                <Text fontSize={11} color={colors.gray[600]}>
+                  ${tx.refundUsdAmount.toFixed(2)} USD
+                </Text>
+              </XStack>
+            )}
+          </YStack>
+        )}
+      {/* Fulfillment Details (Redemptions & Refunds) */}
+      {(tx.type === 'redemption' || tx.type === 'refund') && (
+        <YStack
+          backgroundColor={colors.gray[50]}
+          paddingHorizontal="$3"
+          paddingVertical="$2"
+          borderTopWidth={1}
+          borderTopColor={colors.gray[100]}
+          gap={2}
         >
-          <XStack justifyContent="space-between">
-            <Text fontSize={11} color={colors.gray[500]}>Sent via</Text>
-            <Text fontSize={11} color={colors.gray[600]}>{tx.refundMethod}</Text>
-          </XStack>
+          {/* Venmo / Target Phone or Email routing (for Cashouts and Refunds alike) */}
+          {(tx.refundMethod || (tx.type === 'redemption' && tx.detail && tx.detail.includes('@'))) && !tx.giftCardCode && (
+             <XStack justifyContent="space-between">
+               <Text fontSize={11} color={colors.gray[500]}>Sent to</Text>
+               <Text fontSize={11} color={colors.gray[800]} fontWeight="500">
+                 {tx.refundMethod ? tx.refundMethod.replace('Refunded to ', '') : tx.detail}
+               </Text>
+             </XStack>
+          )}
+          {/* Gift Card Explicit Code Display */}
+          {tx.giftCardCode && (
+             <XStack justifyContent="space-between" mt={tx.refundMethod ? '$1' : '$0'}>
+               <Text fontSize={11} color={colors.gray[500]}>Gift Card Code</Text>
+               <Text fontSize={11} color={colors.purple[700]} fontWeight="600">{tx.giftCardCode}</Text>
+             </XStack>
+          )}
+          {/* Financials specific to refunds */}
+          {tx.type === 'refund' && tx.refundUsdAmount != null && (
+            <>
+              <XStack justifyContent="space-between" mt="$1">
+                <Text fontSize={11} color={colors.gray[500]}>Refund amount</Text>
+                <Text fontSize={11} color={colors.gray[600]}>${(tx.refundUsdAmount || 0).toFixed(2)} USD</Text>
+              </XStack>
+              {tx.refundFeeAmount != null && tx.refundFeeAmount > 0 && (
+                <XStack justifyContent="space-between">
+                  <Text fontSize={11} color={colors.gray[500]}>Restocking fee</Text>
+                  <Text fontSize={11} color={colors.gray[600]}>${(tx.refundFeeAmount || 0).toFixed(2)} USD</Text>
+                </XStack>
+              )}
+            </>
+          )}
         </YStack>
       )}
-
       {/* Referral detail */}
       {tx.type === 'referral' && tx.detail && (
-        <YStack backgroundColor={colors.blue[50] as any} paddingHorizontal="$3" paddingVertical="$2"
-          borderTopWidth={1} borderTopColor={colors.gray[100]}
+        <YStack
+          backgroundColor={colors.blue[50] as any}
+          paddingHorizontal="$3"
+          paddingVertical="$2"
+          borderTopWidth={1}
+          borderTopColor={colors.gray[100]}
         >
-          <Text fontSize={11} color={colors.blue[700] as any}>{tx.detail}</Text>
+          <Text fontSize={11} color={colors.blue[700] as any}>
+            {tx.detail}
+          </Text>
         </YStack>
       )}
-
+      {/* Donation details */}
+      {tx.type === 'donation' && (tx.donationOrg || tx.donationProject || tx.donationReceiptUrl) && (
+        <YStack
+          backgroundColor={colors.pink[50] as any}
+          paddingHorizontal="$3"
+          paddingVertical="$2"
+          borderTopWidth={1}
+          borderTopColor={colors.gray[100]}
+          gap={2}
+        >
+          {tx.donationOrg && (
+            <XStack justifyContent="space-between">
+              <Text fontSize={11} color={colors.gray[500]}>Organization</Text>
+              <Text fontSize={11} color={colors.pink[700] as any} fontWeight="500">{tx.donationOrg}</Text>
+            </XStack>
+          )}
+          {tx.donationProject && (
+            <XStack justifyContent="space-between">
+              <Text fontSize={11} color={colors.gray[500]}>Project</Text>
+              <Text fontSize={11} color={colors.gray[600]}>{tx.donationProject}</Text>
+            </XStack>
+          )}
+          {tx.donationTheme && (
+            <XStack justifyContent="space-between">
+              <Text fontSize={11} color={colors.gray[500]}>Theme</Text>
+              <Text fontSize={11} color={colors.gray[600]}>{tx.donationTheme}</Text>
+            </XStack>
+          )}
+          {tx.donationReceiptUrl && (
+            <XStack justifyContent="space-between" mt="$1">
+              <Text fontSize={11} color={colors.gray[500]}>Receipt</Text>
+              {Platform.OS === 'web' ? (
+                <a href={tx.donationReceiptUrl} target="_blank" rel="noopener noreferrer"
+                  style={{ fontSize: 11, color: colors.pink[600], fontWeight: 500, textDecoration: 'underline' }}>
+                  View Receipt
+                </a>
+              ) : (
+                <Text fontSize={11} color={colors.pink[600] as any} fontWeight="500">
+                  View Receipt
+                </Text>
+              )}
+            </XStack>
+          )}
+        </YStack>
+      )}
       {/* Action buttons row */}
-      {(tx.postId || tx.giftCardCode || tx.donationOrg || tx.type === 'redemption' || tx.type === 'donation') && (
-        <XStack borderTopWidth={1} borderTopColor={colors.gray[100]} paddingHorizontal="$2" paddingVertical="$1.5" gap="$1" flexWrap="wrap">
+      {(tx.postId ||
+        tx.giftCardCode ||
+        tx.donationOrg ||
+        tx.type === 'redemption' ||
+        tx.type === 'donation' ||
+        tx.type === 'refund') && (
+        <XStack
+          borderTopWidth={1}
+          borderTopColor={colors.gray[100]}
+          paddingHorizontal="$2"
+          paddingVertical="$1.5"
+          gap="$1"
+          flexWrap="wrap"
+        >
           {/* Buy/Sell/Refund → Open Chat */}
           {tx.postId && tx.otherUserId && (
-            <ActionButton icon={MessageSquare} label="Open Chat"
+            <ActionButton
+              icon={MessageSquare}
+              label="Open Chat"
               color={colors.blue[600]}
               onPress={() => onOpenChat?.(tx.postId!, tx.otherUserId!)}
             />
@@ -770,54 +1202,102 @@ function TransactionCard({ tx, onOpenChat, onCopyCode, onShare, onViewDetail }: 
           {/* Redemption → Copy Code + Share Link */}
           {tx.giftCardCode && (
             <>
-              <ActionButton icon={Copy} label={`Copy: ${tx.giftCardCode}`}
+              <ActionButton
+                icon={Copy}
+                label={`Copy: ${tx.giftCardCode}`}
                 color={colors.purple[600]}
                 onPress={() => onCopyCode(tx.giftCardCode!)}
               />
               {tx.giftCardUrl && (
-                <ActionButton icon={Share2} label="Share Card"
+                <ActionButton
+                  icon={Share2}
+                  label="Share Card"
                   color={colors.purple[600]}
                   onPress={() => onShare(tx.giftCardUrl!, tx.description)}
                 />
               )}
             </>
           )}
-
+          {/* View Gift Card link when URL exists but no code */}
+          {!tx.giftCardCode && tx.giftCardUrl && (
+            <ActionButton
+              icon={Gift}
+              label="View Gift Card"
+              color={colors.purple[600]}
+              onPress={() => {
+                if (Platform.OS === 'web') {
+                  window.open(tx.giftCardUrl!, '_blank')
+                }
+              }}
+            />
+          )}
           {/* Donation → View Receipt */}
           {tx.type === 'donation' && tx.donationOrg && (
-            <ActionButton icon={Receipt} label="View Receipt"
+            <ActionButton
+              icon={Receipt}
+              label="View Receipt"
               color={colors.pink[600]}
               onPress={() => onViewDetail?.(tx)}
             />
           )}
-
           {/* Redemption/Refund → View Card Details */}
-          {(tx.type === 'redemption' || tx.type === 'refund') && tx.giftCardCode && tx.provider !== 'paypal' && (
-            <ActionButton icon={Gift} label="View Details"
-              color={colors.purple[600]}
-              onPress={() => onViewDetail?.(tx)}
-            />
-          )}
+          {(tx.type === 'redemption' || tx.type === 'refund') &&
+            (tx.giftCardCode || tx.giftCardUrl || tx.description?.toLowerCase().includes('gift card')) &&
+            tx.provider !== 'paypal' && (
+              <ActionButton
+                icon={Gift}
+                label="View Details"
+                color={colors.purple[600]}
+                onPress={() => onViewDetail?.(tx)}
+              />
+            )}
         </XStack>
       )}
+      </NoTextNodes>
     </YStack>
   )
 }
 
-function ActionButton({ icon: Icon, label, color, onPress }: {
-  icon: any; label: string; color: string; onPress: () => void
+/** Filters out whitespace text nodes that React Native can't render inside Views */
+function NoTextNodes({ children }: { children: React.ReactNode }) {
+  return <>{React.Children.toArray(children)}</>
+}
+
+function ActionButton({
+  icon: Icon,
+  label,
+  color,
+  onPress,
+}: {
+  icon: any
+  label: string
+  color: string
+  onPress: () => void
 }) {
   if (Platform.OS === 'web') {
     return (
       <button
         onClick={onPress}
         style={{
-          display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6,
-          padding: '6px 8px', borderRadius: 8, border: 'none', background: 'transparent',
-          cursor: 'pointer', fontSize: 11, fontWeight: 500, color,
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 6,
+          padding: '6px 8px',
+          borderRadius: 8,
+          border: 'none',
+          background: 'transparent',
+          cursor: 'pointer',
+          fontSize: 11,
+          fontWeight: 500,
+          color,
         }}
-        onMouseEnter={(e) => { e.currentTarget.style.background = colors.gray[100] }}
-        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = colors.gray[100]
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'transparent'
+        }}
       >
         <Icon size={13} color={color} />
         <span style={{ whiteSpace: 'nowrap' }}>{label}</span>
@@ -825,15 +1305,22 @@ function ActionButton({ icon: Icon, label, color, onPress }: {
     )
   }
   return (
-    <Button unstyled
-      paddingHorizontal="$2" paddingVertical="$1.5" borderRadius={8}
-      flexDirection="row" gap="$1.5" alignItems="center"
+    <Button
+      unstyled
+      paddingHorizontal="$2"
+      paddingVertical="$1.5"
+      borderRadius={8}
+      flexDirection="row"
+      gap="$1.5"
+      alignItems="center"
       hoverStyle={{ backgroundColor: colors.gray[100] }}
       pressStyle={{ backgroundColor: colors.gray[200] }}
       onPress={onPress}
     >
       <Icon size={13} color={color} />
-      <Text fontSize={11} fontWeight="500" color={color as any} numberOfLines={1}>{label}</Text>
+      <Text fontSize={11} fontWeight="500" color={color as any} numberOfLines={1}>
+        {label}
+      </Text>
     </Button>
   )
 }

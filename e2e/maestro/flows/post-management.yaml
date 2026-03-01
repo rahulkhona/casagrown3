@@ -1,6 +1,7 @@
 # Post Management Flow — Maestro E2E test
-# Tests navigating to "My Posts" via the Menu tab.
-# Tab labels on iOS = "Menu, tab, 5 of 5" — use regex.
+# Tests navigating to post creation from the Feed screen.
+# (Note: "My Posts" has been removed from the Menu;
+# post management is now done via the Feed > Create Post button.)
 
 appId: dev.casagrown.community
 
@@ -14,22 +15,19 @@ appId: dev.casagrown.community
           visible: "Tomatoes"
           timeout: 15000
 
-# Open Menu via bottom tab (regex for iOS accessibility label)
-- tapOn:
-          text: ".*Menu.*"
+# Verify the Create Post button is visible on the feed
+- assertVisible:
+          text: ".*Create Post.*"
 
-# Wait for menu to show My Posts option
+# Tap Create Post to verify navigation works
+- tapOn:
+          text: ".*Create Post.*"
+
+# Verify we arrive at the post creation screen
 - extendedWaitUntil:
           visible:
-                  text: ".*My Posts.*"
-          timeout: 5000
-
-# Tap "My Posts"
-- tapOn:
-          text: ".*My Posts.*"
-
-# Wait for My Posts screen to load
-- extendedWaitUntil:
-          visible:
-                  text: ".*"
+                  text: ".*What are you posting.*|.*Create Post.*|.*Post.*"
           timeout: 10000
+
+# Go back to feed
+- back

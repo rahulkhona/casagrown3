@@ -1,0 +1,59 @@
+# Transaction History Flow — Maestro E2E test
+# Verifies: Transaction History screen loads, displays balance segments,
+# and transaction entries render with correct descriptions.
+
+appId: dev.casagrown.community
+
+---
+
+# Login first
+- runFlow: ../utils/login.yaml
+
+# Wait for feed to load
+- extendedWaitUntil:
+      visible: "Tomatoes|Feed"
+      timeout: 15000
+
+# Open Menu via bottom tab
+- tapOn:
+      text: ".*Menu.*"
+
+# Navigate to Transaction History (Wallet)
+- extendedWaitUntil:
+      visible:
+          text: ".*Points Balance.*|.*Transaction History.*"
+      timeout: 5000
+- tapOn:
+      text: ".*Points Balance.*|.*Transaction History.*"
+
+# Verify segmented balance header loaded
+- extendedWaitUntil:
+      visible: "Earned Balance.*|Purchased Balance.*"
+      timeout: 10000
+
+# Verify balance values are numeric (not empty/crashed)
+- assertVisible: ".*Total Balance.*"
+
+# Verify the transaction list renders with at least one entry
+# The seeded DB should have purchase/sale entries
+- extendedWaitUntil:
+      visible: ".*Purchased.*|.*Sale:.*|.*Redeemed.*|.*Donated.*"
+      timeout: 10000
+
+# Scroll down to see more entries
+- scroll
+
+# Verify transaction entries have dates
+- assertVisible:
+      text: ".*2026.*|.*Jan.*|.*Feb.*|.*Mar.*|.*Apr.*|.*May.*|.*Jun.*|.*Jul.*|.*Aug.*|.*Sep.*|.*Oct.*|.*Nov.*|.*Dec.*"
+
+# Scroll down further to look for Refund button
+- scroll
+- scroll
+
+# Refund button only appears when purchased balance > 0 — conditionally verify
+- runFlow:
+      when:
+          visible: ".*Refund Purchased Points.*"
+      commands:
+          - assertVisible: ".*Refund Purchased Points.*"

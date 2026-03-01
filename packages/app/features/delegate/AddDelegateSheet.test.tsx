@@ -109,9 +109,13 @@ jest.mock('react-native-qrcode-svg', () => {
 jest.mock('react-native', () => {
   const RN = jest.requireActual('react-native')
   RN.Image.resolveAssetSource = jest.fn((source) => source)
-  RN.Share = {
-    share: jest.fn().mockResolvedValue({ action: 'sharedAction' }),
-  }
+  Object.defineProperty(RN, 'Share', {
+    value: {
+      share: jest.fn().mockResolvedValue({ action: 'sharedAction' }),
+    },
+    writable: true,
+    configurable: true,
+  })
   return RN
 })
 

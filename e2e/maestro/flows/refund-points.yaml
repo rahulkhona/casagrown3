@@ -1,0 +1,47 @@
+# Refund Points Flow — Maestro E2E test
+# Verifies: User can navigate to Refund Points via Menu,
+# and the refund screen loads with appropriate options.
+# (Renamed from wallet-refund — "wallet" is not a concept in this app.)
+
+appId: dev.casagrown.community
+
+---
+
+# Login first
+- runFlow: ../utils/login.yaml
+
+# Wait for feed to load
+- extendedWaitUntil:
+    visible: "Tomatoes|Feed"
+    timeout: 15000
+
+# Open Menu via bottom tab
+- tapOn:
+    text: ".*Menu.*"
+
+# Navigate to Refund Points (a direct menu item)
+- extendedWaitUntil:
+    visible:
+      text: ".*Refund Points.*"
+    timeout: 5000
+- tapOn:
+    text: ".*Refund Points.*"
+
+# Verify the Refund screen loaded
+- extendedWaitUntil:
+    visible: ".*Refund Purchased Points.*|.*No active purchases.*"
+    timeout: 10000
+
+# If buckets exist, verify refund options are present
+- runFlow:
+    when:
+      visible: ".*Refund to Card.*"
+    commands:
+      - assertVisible: ".*Refund to Card.*"
+
+# If no purchased points, verify the empty state
+- runFlow:
+    when:
+      visible: ".*No active purchases.*"
+    commands:
+      - assertVisible: ".*No active purchases available for refund.*"

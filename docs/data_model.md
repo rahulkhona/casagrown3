@@ -62,7 +62,14 @@ and any associated triggers/functions/RLS policies.
 > `20260225000005_notify_delegator_on_reject` →
 > `20260225000006_snapshot_delegation_split` →
 > `20260225000007_notify_on_revocation` → `20260225000008_provider_queue_status`
-> → `20260226000001_provider_disabled_grace_period`
+> → `20260226000001_provider_disabled_grace_period` →
+> `20260228004000_closed_loop_buckets` → `20260228004500_fifo_rpc_updates` →
+> `20260228070000_country_refund_fees` → `20260228070500_add_venmo_enum` →
+> `20260228200440_backfill_refund_gift_cards` →
+> `20260228213340_finalize_gift_card_redemption_rpc` →
+> `20260228220038_universal_finalize_redemption_rpc` →
+> `20260228230000_deprecate_old_rpcs` →
+> `20260301000000_acid_donation_refund_fixes`
 
 ## Extensions
 
@@ -131,6 +138,17 @@ create type feedback_status as enum (
   'completed', 'rejected', 'duplicate'
 );
 create type scraping_status as enum ('success', 'failure', 'zero_results');
+
+-- Added by 20260228004000_closed_loop_buckets
+create type purchased_bucket_status as enum (
+  'active', 'depleted', 'refunded', 'partially_refunded', 'pending_fulfillment'
+);
+create type manual_refund_fulfillment_type as enum (
+  'physical_check', 'egift_card', 'venmo'  -- 'venmo' added by 20260228070500
+);
+create type manual_refund_status as enum (
+  'pending_verification', 'verification_failed', 'pending_fulfillment', 'fulfilled'
+);
 ```
 
 ---
@@ -3213,3 +3231,211 @@ Internal edge function that unifies push deployments across Web Push, APNs
 
 **Source**:
 [send-push-notification/index.ts](file:///Users/rkhona/development/casagrown3/supabase/functions/send-push-notification/index.ts)
+
+---
+
+## Closed-Loop FIFO Points Buckets
+
+**Migration**: `20260228004000_closed_loop_buckets`,
+`20260228004500_fifo_rpc_updates`
+
+Tracks purchased-point buckets to enforce FIFO consumption and enable precise
+refunds back to the original payment method. Purchased points are segregated
+from earned points to maintain closed-loop compliance.
+
+### `purchased_points_buckets`
+
+| Column                   | Type                      | Notes                                           |
+| :----------------------- | :------------------------ | :---------------------------------------------- |
+| `id`                     | `uuid` PK                 | Auto-generated                                  |
+| `user_id`                | `uuid` FK → `profiles`    | ON DELETE CASCADE                               |
+| `payment_transaction_id` | `uuid` FK                 | → `payment_transactions(id)`, ON DELETE CASCADE |
+| `point_ledger_id`        | `uuid` FK                 | → `point_ledger(id)`, nullable                  |
+| `original_amount`        | `integer`                 | Points originally purchased                     |
+| `remaining_amount`       | `integer`                 | Points not yet consumed/refunded                |
+| `status`                 | `purchased_bucket_status` | Default `'active'`                              |
+| `metadata`               | `jsonb`                   | Default `'{}'`                                  |
+| `created_at`             | `timestamptz`             | Auto-generated                                  |
+| `updated_at`             | `timestamptz`             | Auto-generated                                  |
+
+**Indexes**: `user_id`, `status`
+
+**RLS**: Users can SELECT their own buckets.
+
+### `point_bucket_consumptions`
+
+Maps FIFO consumption of purchased buckets when platform transactions occur.
+
+| Column            | Type          | Notes                                               |
+| :---------------- | :------------ | :-------------------------------------------------- |
+| `id`              | `uuid` PK     | Auto-generated                                      |
+| `bucket_id`       | `uuid` FK     | → `purchased_points_buckets(id)`, ON DELETE CASCADE |
+| `ledger_id`       | `uuid` FK     | → `point_ledger(id)`, ON DELETE CASCADE             |
+| `amount_consumed` | `integer`     | Points consumed from this bucket                    |
+| `created_at`      | `timestamptz` | Auto-generated                                      |
+
+**Indexes**: `bucket_id`, `ledger_id`
+
+**RLS**: Users can SELECT via bucket ownership.
+
+### `manual_refund_checks`
+
+Tracks manual refund requests requiring identity verification (for amounts above
+small-balance thresholds).
+
+| Column                           | Type                             | Notes                            |
+| :------------------------------- | :------------------------------- | :------------------------------- |
+| `id`                             | `uuid` PK                        | Auto-generated                   |
+| `user_id`                        | `uuid` FK → `profiles`           | ON DELETE CASCADE                |
+| `bucket_ids`                     | `uuid[]`                         | Array of bucket IDs              |
+| `fulfillment_type`               | `manual_refund_fulfillment_type` | Check, e-gift card, or Venmo     |
+| `stripe_verification_session_id` | `text`                           | Stripe Identity session          |
+| `amount_cents`                   | `integer`                        | Final amount after fees          |
+| `mailing_address`                | `jsonb`                          | For physical checks              |
+| `target_email`                   | `text`                           | For e-gift cards                 |
+| `status`                         | `manual_refund_status`           | Default `'pending_verification'` |
+| `tracking_number`                | `text`                           | Check tracking                   |
+| `fulfilled_at`                   | `timestamptz`                    | When fulfilled                   |
+| `created_at`                     | `timestamptz`                    | Auto-generated                   |
+| `updated_at`                     | `timestamptz`                    | Auto-generated                   |
+
+**Indexes**: `user_id`, `status`
+
+**RLS**: Users can SELECT their own rows.
+
+### `small_balance_refund_thresholds`
+
+Per-state thresholds below which alternative refund methods (Venmo, gift card)
+are offered instead of card refunds.
+
+| Column            | Type          | Notes                            |
+| :---------------- | :------------ | :------------------------------- |
+| `country_iso_3`   | `text` FK     | → `countries(iso_3)`             |
+| `state_code`      | `text`        | State/province code              |
+| `threshold_cents` | `integer`     | e.g., 1000 for $10 in California |
+| `created_at`      | `timestamptz` | Auto-generated                   |
+| `updated_at`      | `timestamptz` | Auto-generated                   |
+
+**PK**: `(country_iso_3, state_code)`
+
+**RLS**: Public read access.
+
+### `consume_fifo_buckets` Trigger
+
+**Migration**: `20260228004500_fifo_rpc_updates`
+
+Fired `AFTER INSERT` on `point_ledger`. When a debit row with
+`type IN ('payment', 'platform_charge')` is inserted, the trigger iterates
+through the user's active purchased buckets in FIFO order (`created_at ASC`),
+deducting from each bucket and logging `point_bucket_consumptions` rows.
+
+### `get_user_balances` RPC
+
+**Migration**: `20260228004500_fifo_rpc_updates`
+
+**Signature**:
+`get_user_balances(p_user_id uuid) → TABLE(total_balance, purchased_balance, earned_balance)`
+
+**Logic**:
+
+1. Sum all `point_ledger` amounts for total balance
+2. Sum `remaining_amount` from active/partially-refunded buckets for purchased
+   balance
+3. Earned = total − purchased (bounded by 0)
+
+---
+
+## Country Refund Fees
+
+**Migration**: `20260228070000_country_refund_fees`
+
+### `country_refund_fees`
+
+Fee matrix for calculating refund costs by country.
+
+| Column                        | Type          | Notes                     |
+| :---------------------------- | :------------ | :------------------------ |
+| `country_iso_3`               | `text` PK     | Country code              |
+| `stripe_identity_fee_cents`   | `integer`     | Identity verification fee |
+| `transaction_fee_percent`     | `numeric`     | e.g., 2.9 for 2.9%        |
+| `transaction_fee_fixed_cents` | `integer`     | e.g., 30 for $0.30        |
+| `created_at`                  | `timestamptz` | Auto-generated            |
+| `updated_at`                  | `timestamptz` | Auto-generated            |
+
+**RLS**: Public read; admin write (via `staff_members` check).
+
+**Seed data**: USA — 250¢ identity fee, 2.9% + 30¢ transaction fee.
+
+---
+
+## ACID Redemption & Refund RPCs
+
+**Migrations**: `20260228213340`, `20260228220038`, `20260301000000`
+
+These RPCs ensure atomicity for all external-provider operations. Edge functions
+make a single RPC call after the provider API succeeds, guaranteeing that ledger
+updates, delivery records, and queue status are never orphaned.
+
+### `finalize_redemption` RPC
+
+**Migration**: `20260228213340` (gift cards), `20260228220038` (universal),
+`20260301000000` (donations + paypal)
+
+**Signature**: `finalize_redemption(p_payload JSONB) → void`
+
+**Payload keys**: `redemption_id`, `redemption_type`, `provider_name`,
+`external_order_id`, `actual_cost_cents`, `card_code`, `card_url`,
+`receipt_number`
+
+**Logic** (branched by `redemption_type`):
+
+| Type             | Actions                                                                                               |
+| ---------------- | ----------------------------------------------------------------------------------------------------- |
+| `gift_card`      | Insert `gift_card_deliveries`, log `provider_transactions`, update ledger metadata with card code/URL |
+| `donation`       | Insert `donation_receipts`, log `provider_transactions`, update ledger metadata                       |
+| `paypal`/`venmo` | Log `provider_transactions`, update ledger metadata with batch ID                                     |
+
+All types: mark `redemptions.status = 'completed'`, update
+`point_ledger.metadata`.
+
+> [!NOTE]
+> `finalize_gift_card_redemption` was created in `20260228213340` and
+> deprecated/dropped in `20260228230000` in favor of the universal
+> `finalize_redemption`.
+
+### `finalize_point_refund` RPC
+
+**Migration**: `20260301000000_acid_donation_refund_fixes`
+
+**Signature**:
+`finalize_point_refund(p_user_id UUID, p_bucket_id UUID, p_amount_cents INT, p_reference_id UUID, p_metadata JSONB) → void`
+
+**Logic**:
+
+1. Lock bucket row (`FOR UPDATE`) to prevent concurrent refund races
+2. Validate `p_amount_cents ≤ remaining_amount`
+3. Insert `point_ledger` debit (type: `'refund'`, amount: `−p_amount_cents`)
+4. Update bucket: `remaining_amount -= p_amount_cents`, status → `'refunded'` or
+   `'partially_refunded'`
+
+---
+
+## Refund Purchased Points
+
+### `refund-purchased-points` Edge Function
+
+**Endpoint**: `POST /functions/v1/refund-purchased-points`
+
+Handles refunds for purchased point buckets with three methods:
+
+| Method        | Condition                | Flow                                                                                 |
+| ------------- | ------------------------ | ------------------------------------------------------------------------------------ |
+| Card refund   | Default (non-expired)    | Stripe Refund API → `finalize_point_refund` RPC                                      |
+| Venmo cashout | Fallback (small balance) | PayPal Payouts API → queue `redemptions` row → `finalize_point_refund` RPC           |
+| E-Gift Card   | Fallback (small balance) | Queue `redemptions` row for `process-redemptions` cron → `finalize_point_refund` RPC |
+
+**Input**:
+`{ "bucketId", "method": "card" | "venmo" | "egift_card", "targetPhoneNumber?" }`
+
+**Source**:
+[refund-purchased-points/index.ts](file:///Users/rkhona/development/casagrown3/supabase/functions/refund-purchased-points/index.ts)

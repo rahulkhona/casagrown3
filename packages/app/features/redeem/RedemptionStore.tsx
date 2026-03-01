@@ -480,15 +480,13 @@ export function RedemptionStore({ onNavigateToFeed }: RedemptionStoreProps) {
                 Turn your CasaGrown points into gift cards, donations, or college savings.
               </Text>
             </YStack>
-            {!isDesktop && (
-              <YStack
-                backgroundColor={colors.green[600]} paddingHorizontal="$3" paddingVertical="$2"
-                borderRadius={borderRadius.lg} alignItems="center"
-              >
-                <Text fontSize={11} fontWeight="500" color="rgba(255,255,255,0.8)">Earned Redeemable Pts</Text>
-                <Text fontSize="$4" fontWeight="700" color="white">{userPoints.toLocaleString()} pts</Text>
-              </YStack>
-            )}
+            <YStack
+              backgroundColor={colors.green[600]} paddingHorizontal="$3" paddingVertical="$2"
+              borderRadius={borderRadius.lg} alignItems="center"
+            >
+              <Text fontSize={11} fontWeight="500" color="rgba(255,255,255,0.8)">Earned Redeemable Pts</Text>
+              <Text fontSize="$4" fontWeight="700" color="white">{userPoints.toLocaleString()} pts</Text>
+            </YStack>
           </XStack>
 
           {/* Tabs */}

@@ -332,32 +332,31 @@ export function RefundPointsScreen() {
                      </XStack>
                   )}
 
-                  {/* Scenario 4: Old */}
                   {isExpired ? (
                       <XStack gap="$2">
-                          <Button flex={1} size="$4" backgroundColor={venmoActive ? colors.blue[500] : colors.gray[400]} onPress={() => handleRefundAction(b, 'venmo')} disabled={isProcessing || !venmoActive}>
-                              <XStack alignItems="center" gap="$2"><DollarSign size={16} /><Text color="white" fontWeight="600">{venmoActive ? 'Venmo' : 'Offline'}</Text></XStack>
+                          <Button flex={1} size="$4" backgroundColor={venmoActive ? '#008CFF' as any : colors.gray[400]} onPress={() => handleRefundAction(b, 'venmo')} disabled={isProcessing || !venmoActive}>
+                              <XStack alignItems="center" gap="$2"><DollarSign size={16} color="white" /><Text color="white" fontWeight="600">{venmoActive ? 'Venmo' : 'Offline'}</Text></XStack>
                           </Button>
                           <Button flex={1} size="$4" backgroundColor={giftCardsActive ? colors.green[600] : colors.gray[400]} onPress={() => handleRefundAction(b, 'egift_card')} disabled={isProcessing || !giftCardsActive}>
-                              <XStack alignItems="center" gap="$2"><Gift size={16} /><Text color="white" fontWeight="600">{giftCardsActive ? 'Gift Card' : 'Offline'}</Text></XStack>
+                              <XStack alignItems="center" gap="$2"><Gift size={16} color="white" /><Text color="white" fontWeight="600">{giftCardsActive ? 'Gift Card' : 'Offline'}</Text></XStack>
                           </Button>
                       </XStack>
                   ) : (
                       <YStack gap="$2">
                           <XStack gap="$2">
                               {/* Always show Refund To Card if not expired */}
-                              <Button flex={1} size="$4" backgroundColor={colors.blue[600]} disabled={isProcessing} onPress={() => handleRefundAction(b, 'card')}>
+                              <Button flex={1} size="$4" backgroundColor={colors.blue[700]} disabled={isProcessing} onPress={() => handleRefundAction(b, 'card')}>
                                   {isProcessing ? <Spinner color="white" /> : <Text color="white" fontWeight="600">Refund to Card</Text>}
                               </Button>
 
                               {/* Scenario 3: Under state minimum - offer Venmo and Gift Card inline */}
                               {isSmallBalance && (
                                   <>
-                                      <Button flex={1} size="$4" backgroundColor={venmoActive ? colors.blue[500] : colors.gray[400]} disabled={isProcessing || !venmoActive} onPress={() => handleRefundAction(b, 'venmo')}>
-                                          <XStack alignItems="center" gap="$2"><DollarSign size={16} /><Text color="white" fontWeight="600">{venmoActive ? 'Venmo' : 'Offline'}</Text></XStack>
+                                      <Button flex={1} size="$4" backgroundColor={venmoActive ? '#008CFF' as any : colors.gray[400]} disabled={isProcessing || !venmoActive} onPress={() => handleRefundAction(b, 'venmo')}>
+                                          <XStack alignItems="center" gap="$2"><DollarSign size={16} color="white" /><Text color="white" fontWeight="600">{venmoActive ? 'Venmo' : 'Offline'}</Text></XStack>
                                       </Button>
                                       <Button flex={1} size="$4" backgroundColor={giftCardsActive ? colors.green[600] : colors.gray[400]} disabled={isProcessing || !giftCardsActive} onPress={() => handleRefundAction(b, 'egift_card')}>
-                                          <XStack alignItems="center" gap="$2"><Gift size={16} /><Text color="white" fontWeight="600">{giftCardsActive ? 'Gift Card' : 'Offline'}</Text></XStack>
+                                          <XStack alignItems="center" gap="$2"><Gift size={16} color="white" /><Text color="white" fontWeight="600">{giftCardsActive ? 'Gift Card' : 'Offline'}</Text></XStack>
                                       </Button>
                                   </>
                               )}
@@ -370,18 +369,29 @@ export function RefundPointsScreen() {
       )
   }
 
+  // Auto-redirect off the Success Display without requiring user clicks
+  useEffect(() => {
+    if (successData) {
+      const timer = setTimeout(() => {
+        router.back()
+      }, 3500)
+      return () => clearTimeout(timer)
+    }
+  }, [successData, router])
+
   if (successData) {
       return (
         <YStack flex={1} backgroundColor={colors.gray[50]}>
           <YStack flex={1} padding="$4" justifyContent="center" alignItems="center">
              <YStack backgroundColor="white" padding="$6" borderRadius={16} alignItems="center" gap="$4" shadowColor="#000" shadowOpacity={0.05} shadowRadius={10} shadowOffset={{ width: 0, height: 4 }} width="100%" maxWidth={400}>
                  <CheckCircle size={56} color={colors.green[500]} />
-                 <Text fontSize="$6" fontWeight="700" color={colors.gray[900]}>Refund Processing</Text>
+                 <Text fontSize="$6" fontWeight="700" color={colors.gray[900]}>Transaction Successful</Text>
                  <Text fontSize="$4" color={colors.gray[600]} textAlign="center">
                    {successData.amount.toLocaleString()} PTS has been successfully burned and applied to your chosen refund method ({successData.method}).
                  </Text>
-                 <Button size="$5" mt="$4" backgroundColor={colors.blue[600]} onPress={() => router.push('/feed')} width="100%">
-                   <Text color="white" fontWeight="600">Return to Feed</Text>
+                 <Text fontSize="$3" color={colors.gray[500]} mt="$2" fontStyle="italic">Redirecting you to the wallet...</Text>
+                 <Button variant="outlined" size="$4" mt="$4" borderColor={colors.gray[300]} onPress={() => router.back()} width="100%">
+                   <Text color={colors.gray[700]} fontWeight="600">Return Now</Text>
                  </Button>
              </YStack>
           </YStack>

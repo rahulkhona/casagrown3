@@ -1,0 +1,85 @@
+# Venmo Refund Flow — Maestro E2E test
+# Verifies: User can navigate to the refund screen, tap the Venmo button,
+# and interact with the VenmoSheet (phone input + confirmation).
+# NOTE: Conditionally tests refund actions only when purchased balance > 0.
+
+appId: dev.casagrown.community
+
+---
+
+# Login first
+- runFlow: ../utils/login.yaml
+
+# Wait for feed to load
+- extendedWaitUntil:
+      visible: "Tomatoes|Feed"
+      timeout: 15000
+
+# Open Menu via bottom tab
+- tapOn:
+      text: ".*Menu.*"
+
+# Navigate to Transaction History (Wallet)
+- extendedWaitUntil:
+      visible:
+          text: ".*Points Balance.*|.*Transaction History.*"
+      timeout: 5000
+- tapOn:
+      text: ".*Points Balance.*|.*Transaction History.*"
+
+# Verify Wallet loaded
+- extendedWaitUntil:
+      visible: "Earned Balance.*|Purchased Balance.*"
+      timeout: 10000
+
+# Scroll to find the Refund button
+- scroll
+- scroll
+- scroll
+
+# Only continue if the Refund button exists (requires purchased balance > 0)
+- runFlow:
+      when:
+          visible: ".*Refund Purchased Points.*"
+      commands:
+          - tapOn: ".*Refund Purchased Points.*"
+
+          # Wait for the Refund Sheet to open and show bucket details
+          - extendedWaitUntil:
+                visible: ".*Refund Purchased Points.*"
+                timeout: 5000
+
+          # It either shows active buckets or "No active purchases"
+          - extendedWaitUntil:
+                visible: ".*Venmo.*|.*Gift Card.*|.*Refund to Card.*|.*No active purchases.*"
+                timeout: 10000
+
+          # If Venmo button is visible, test the VenmoSheet flow
+          - runFlow:
+                when:
+                    visible: "Venmo"
+                commands:
+                    - tapOn:
+                          text: ".*Venmo.*"
+
+                    # Wait for VenmoSheet to open
+                    - extendedWaitUntil:
+                          visible: ".*Venmo Cashout.*"
+                          timeout: 5000
+
+                    # Verify the sheet shows expected elements
+                    - assertVisible: ".*Venmo Phone Number.*"
+                    - assertVisible: ".*small-balance cashout.*"
+
+                    # Enter phone number
+                    - tapOn: ".*Venmo Phone Number.*"
+                    - inputText: "+15554443333"
+
+                    # Hide keyboard
+                    - pressKey: Enter
+
+                    # Verify Confirm button is visible
+                    - assertVisible: ".*Confirm.*"
+
+                    # Close the sheet — don't actually submit
+                    - tapOn: ".*Cancel.*"

@@ -241,7 +241,7 @@ export function CashoutSheet({
                     )}
                     <Button
                         unstyled paddingVertical="$3" borderRadius={24}
-                        backgroundColor={!payoutId.trim() || isProcessing || balance < pointsToRedeem || pointsToRedeem < 1 ? colors.gray[300] : colors.green[600]}
+                        backgroundColor={colors.green[600]}
                         alignItems="center" justifyContent="center" shadowColor="rgba(0,0,0,0.1)" shadowRadius={4} shadowOffset={{width:0, height:2}}
                         opacity={!payoutId.trim() || isProcessing || balance < pointsToRedeem || pointsToRedeem < 1 ? 0.7 : 1}
                         onPress={handleCashout}
@@ -250,7 +250,7 @@ export function CashoutSheet({
                         {isProcessing ? (
                             <Spinner color="white" />
                         ) : (
-                            <Text fontSize="$4" fontWeight="600" color={!payoutId.trim() || balance < pointsToRedeem || pointsToRedeem < 1 ? colors.gray[500] : 'white'}>
+                            <Text fontSize="$4" fontWeight="600" color="white">
                                 {pointsToRedeem < 1 ? 'Enter Amount' : balance < pointsToRedeem ? `Need ${pointsToRedeem} Points` : 'Confirm Cashout'}
                             </Text>
                         )}

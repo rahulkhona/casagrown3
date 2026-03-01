@@ -258,54 +258,30 @@ async function processGiftCard(
         );
     }
 
-    // Log provider transaction
-    await supabase.from("provider_transactions").insert({
-        provider_name: providerResult.provider,
-        redemption_id: redemption.id,
-        user_id: redemption.user_id,
-        external_order_id: providerResult.externalOrderId,
-        item_type: "gift_card",
-        item_name: `${brand_name} $${
-            (face_value_cents / 100).toFixed(2)
-        } Gift Card`,
-        face_value_cents: face_value_cents,
-        cost_cents: providerResult.actualCostCents,
-        status: "success",
-    });
-
-    // Update point ledger
-    await supabase
-        .from("point_ledger")
-        .update({
-            metadata: {
-                ...metadata,
-                card_code: providerResult.cardCode,
-                card_url: providerResult.cardUrl,
-                status: "completed",
+    // Unified ACID Transaction for Redemptions
+    const { error: finalizeError } = await supabase.rpc(
+        "finalize_redemption",
+        {
+            p_payload: {
+                redemption_id: redemption.id,
+                redemption_type: "gift_card",
+                provider_name: providerResult.provider,
+                external_order_id: providerResult.externalOrderId || "N/A",
+                card_code: providerResult.cardCode || "",
+                card_url: providerResult.cardUrl || "",
+                actual_cost_cents: providerResult.actualCostCents ||
+                    face_value_cents,
             },
-        })
-        .eq("reference_id", redemption.id)
-        .in("type", ["redemption", "refund"]);
+        },
+    );
 
-    // Store delivery
-    await supabase.from("gift_card_deliveries").insert({
-        redemption_id: redemption.id,
-        brand_name: brand_name,
-        face_value_cents: face_value_cents,
-        card_code: providerResult.cardCode,
-        card_url: providerResult.cardUrl,
-        delivered_at: new Date().toISOString(),
-    });
-
-    // Mark redemption complete
-    await supabase
-        .from("redemptions")
-        .update({
-            status: "completed",
-            provider_order_id: providerResult.externalOrderId as string,
-            completed_at: new Date().toISOString(),
-        })
-        .eq("id", redemption.id);
+    if (finalizeError) {
+        console.error(
+            `[RETRY] Critical Error finalizing Gift Card to Database:`,
+            finalizeError,
+        );
+        // Do not crash the entire function loop, let the next queued orders attempt
+    }
 
     // Fire Push Notification
     const msg = `Good news! Your $${
@@ -339,9 +315,6 @@ async function processGlobalGiving(
     metadata: Record<string, unknown>,
 ) {
     const organization = metadata.organization as string;
-    const project_title = metadata.project_title as string;
-    const theme = metadata.theme as string;
-
     const projectId = redemption.item_id as string;
 
     const POINTS_PER_DOLLAR = 100;
@@ -378,57 +351,30 @@ async function processGlobalGiving(
         );
     }
 
-    // Log provider transaction
-    await supabase.from("provider_transactions").insert({
-        provider_name: "globalgiving",
-        redemption_id: redemption.id,
-        user_id: userId as string,
-        external_order_id: externalOrderId,
-        item_type: "donation",
-        item_name: `Donation to ${organization}`,
-        face_value_cents: donationCents,
-        cost_cents: donationCents,
-        status: "success",
-    });
-
-    // Store donation receipt
     const receiptNumber = `DON-${Date.now().toString(36).toUpperCase()}`;
-    const receiptUrl = `https://casagrown.com/receipts/${receiptNumber}`;
 
-    await supabase.from("donation_receipts").insert({
-        redemption_id: redemption.id,
-        organization_name: organization,
-        project_title: project_title,
-        theme: theme,
-        donation_amount_cents: donationCents,
-        points_spent: pointsAmount,
-        receipt_url: receiptUrl,
-        receipt_number: receiptNumber,
-        tax_deductible: true,
-    });
-
-    // Update ledger metadata with tracking
-    await supabase
-        .from("point_ledger")
-        .update({
-            metadata: {
-                ...metadata,
+    // Unified ACID Transaction for Redemptions
+    const { error: finalizeError } = await supabase.rpc(
+        "finalize_redemption",
+        {
+            p_payload: {
+                redemption_id: redemption.id,
+                redemption_type: "donation",
+                provider_name: "globalgiving",
+                external_order_id: externalOrderId,
+                actual_cost_cents: donationCents,
                 receipt_number: receiptNumber,
-                status: "completed",
             },
-        })
-        .eq("reference_id", redemption.id)
-        .in("type", ["donation", "refund"]);
+        },
+    );
 
-    // Mark completion
-    await supabase
-        .from("redemptions")
-        .update({
-            status: "completed",
-            provider_order_id: externalOrderId,
-            completed_at: new Date().toISOString(),
-        })
-        .eq("id", redemption.id);
+    if (finalizeError) {
+        console.error(
+            `[RETRY] Critical Error finalizing GlobalGiving Donation to Database:`,
+            finalizeError,
+        );
+        // Do not crash the entire function loop, let the next queued orders attempt
+    }
 
     // Fire Push
     const msg = `Your queued donation of $${
@@ -538,28 +484,27 @@ async function processPayPalCashout(
     const txId = payoutData.batch_header?.payout_batch_id ||
         `paypal_retry_id_${Date.now()}`;
 
-    // Mark completion
-    await supabase
-        .from("redemptions")
-        .update({
-            status: "completed",
-            provider_order_id: txId,
-            completed_at: new Date().toISOString(),
-        })
-        .eq("id", redemption.id);
-
-    // Update ledger metadata to completed
-    await supabase
-        .from("point_ledger")
-        .update({
-            metadata: {
-                ...metadata,
-                status: "completed",
-                batch_id: txId,
+    // Unified ACID Transaction for Redemptions
+    const { error: finalizeError } = await supabase.rpc(
+        "finalize_redemption",
+        {
+            p_payload: {
+                redemption_id: redemption.id,
+                redemption_type: "paypal",
+                provider_name: "paypal",
+                external_order_id: txId,
+                actual_cost_cents: Math.round(usdAmount * 100),
             },
-        })
-        .eq("reference_id", redemption.id)
-        .in("type", ["redemption", "refund"]);
+        },
+    );
+
+    if (finalizeError) {
+        console.error(
+            `[RETRY] Critical Error finalizing PayPal Cashout to Database:`,
+            finalizeError,
+        );
+        // Do not crash the entire function loop, let the next queued orders attempt
+    }
 
     // Fire Push
     const msg = `Your queued cashout of $${

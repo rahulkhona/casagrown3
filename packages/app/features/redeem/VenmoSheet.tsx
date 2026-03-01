@@ -89,22 +89,25 @@ export function VenmoSheet({
             disabled={!isValid}
             onClick={() => onConfirm(phoneNumber)}
             style={{
+              display: 'block',
               width: '100%',
+              minHeight: 48,
               padding: '14px',
-              backgroundColor: isValid ? '#008CFF' : colors.gray[300], // Venmo Blue
+              backgroundColor: isValid ? '#3B82F6' : '#93C5FD',
               color: 'white',
               border: 'none',
               borderRadius: 8,
               fontSize: 16,
               fontWeight: 600,
               cursor: isValid ? 'pointer' : 'not-allowed',
+              opacity: isValid ? 1 : 0.6,
             }}
           >
             Confirm {refundFormatted} Cashout
           </button>
         ) : (
           <Button
-            backgroundColor={isValid ? '#008CFF' : colors.gray[300]}
+            backgroundColor={colors.blue[500]}
             size="$4"
             borderRadius={8}
             disabled={!isValid}
@@ -173,7 +176,8 @@ export function VenmoSheet({
             borderRadius: 16,
             width: '90%',
             maxWidth: 400,
-            overflow: 'hidden',
+            maxHeight: '90vh',
+            overflow: 'auto',
             boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
           }}
         >

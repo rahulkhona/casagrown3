@@ -1,0 +1,83 @@
+# Refund Options Flow — Maestro E2E test
+# Verifies: Refund screen shows all three refund options (Venmo, Gift Card, Refund to Card)
+# with correct visibility based on bucket state.
+# NOTE: Conditionally tests refund actions only when purchased balance > 0.
+
+appId: dev.casagrown.community
+
+---
+
+# Login first
+- runFlow: ../utils/login.yaml
+
+# Wait for feed to load
+- extendedWaitUntil:
+    visible: "Tomatoes|Feed"
+    timeout: 15000
+
+# Open Menu via bottom tab
+- tapOn:
+    text: ".*Menu.*"
+
+# Navigate to Transaction History (Wallet)
+- extendedWaitUntil:
+    visible:
+      text: ".*Points Balance.*|.*Transaction History.*"
+    timeout: 5000
+- tapOn:
+    text: ".*Points Balance.*|.*Transaction History.*"
+
+# Verify Wallet loaded
+- extendedWaitUntil:
+    visible: "Earned Balance.*|Purchased Balance.*"
+    timeout: 10000
+
+# Scroll to find the Refund button
+- scroll
+- scroll
+- scroll
+
+# Only test refund options if the Refund button exists
+- runFlow:
+    when:
+      visible: ".*Refund Purchased Points.*"
+    commands:
+      - tapOn: ".*Refund Purchased Points.*"
+
+      # Wait for the Refund Sheet to open
+      - extendedWaitUntil:
+          visible: ".*Refund Purchased Points.*"
+          timeout: 5000
+
+      # Verify refund options appear
+      # For small-balance, all 3 buttons appear
+      - runFlow:
+          when:
+            visible: ".*Venmo.*"
+          commands:
+            - assertVisible: ".*Venmo.*"
+            - assertVisible: ".*Gift Card.*"
+            - assertVisible: ".*Refund to Card.*"
+
+      # For above-threshold, only Refund to Card
+      - runFlow:
+          when:
+            notVisible: ".*Venmo.*"
+          commands:
+            - assertVisible: ".*Refund to Card.*|.*No active purchases.*"
+
+      # Test Gift Card button if available
+      - runFlow:
+          when:
+            visible: ".*Gift Card.*"
+          commands:
+            - tapOn:
+                text: ".*Gift Card.*"
+
+            # Verify Gift Card selector opens
+            - extendedWaitUntil:
+                visible: ".*Choose a Gift Card.*"
+                timeout: 5000
+
+            # Go back
+            - back

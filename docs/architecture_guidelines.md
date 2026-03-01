@@ -226,3 +226,46 @@ Edge functions remain ideal for **specific operations** (e.g.,
 `resolve-community`, `confirm-payment`, `create-order`), but are unsuitable as a
 complete API layer due to cold starts (~200-500ms), per-function connection
 pooling, limited shared middleware, and vendor lock-in to Deno runtime.
+
+---
+
+## ACID Transaction Patterns
+
+Edge functions that interact with external provider APIs (Stripe, PayPal,
+Tremendous, Reloadly, GlobalGiving) use a **single-RPC atomicity** pattern to
+guarantee data consistency:
+
+### Pattern: Edge Function → Single ACID RPC
+
+```text
+Edge Function (Deno)
+  1. Validate request + auth
+  2. Call external provider API (Stripe Refund, PayPal Payout, etc.)
+  3. On success: call ONE Postgres RPC that atomically:
+     - Updates point_ledger
+     - Inserts delivery/receipt record
+     - Logs provider_transactions
+     - Marks redemption complete
+  4. On failure: mark redemption failed, refund points
+```
+
+This avoids partial updates — if the edge function crashes between step 2 and
+step 3, the **entire database state change** is either fully applied or not
+applied at all.
+
+### Available ACID RPCs
+
+| RPC                          | Purpose                                                               | Used By                                                                            |
+| ---------------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `finalize_redemption(JSONB)` | Atomic completion of gift card, donation, or PayPal/Venmo redemptions | `redeem-gift-card`, `donate-points`, `redeem-paypal-payout`, `process-redemptions` |
+| `finalize_point_refund(...)` | Atomic ledger debit + bucket update for purchased-point refunds       | `refund-purchased-points`                                                          |
+
+### When to Use
+
+- **Always** use `finalize_redemption` when completing any provider-side
+  operation that must update `point_ledger`, `provider_transactions`, and
+  `redemptions`
+- **Always** use `finalize_point_refund` when refunding purchased-point buckets
+  to prevent concurrent refund races via `FOR UPDATE` row locking
+- **Never** issue multiple separate INSERT/UPDATE calls from an edge function
+  for operations that must be atomic
