@@ -50,6 +50,8 @@ interface ChatOfferActionsProps {
   currentUserId: string
   buyerId: string
   sellerId: string
+  /** Whether the post's category or product is restricted */
+  restricted?: boolean
   onOfferUpdated: () => void
   onModify: () => void
   onAccept: () => void
@@ -65,6 +67,7 @@ export function ChatOfferActions({
   currentUserId,
   buyerId,
   sellerId,
+  restricted,
   onOfferUpdated,
   onModify,
   onAccept,
@@ -307,6 +310,8 @@ export function ChatOfferActions({
           {!loading &&
             actions.map((action) => {
               const IconComp = ICON_MAP[action.icon] ?? CheckCircle
+              // Disable accept/modify when restricted (reject/withdraw still allowed)
+              const isDisabled = restricted && (action.type === 'accept' || action.type === 'modify')
               return (
                 <Button
                   key={action.type}
@@ -316,6 +321,8 @@ export function ChatOfferActions({
                   paddingHorizontal="$3"
                   paddingVertical="$1.5"
                   gap="$1.5"
+                  opacity={isDisabled ? 0.4 : 1}
+                  disabled={isDisabled}
                   pressStyle={{ opacity: 0.8 }}
                   onPress={() => handleAction(action.type)}
                   icon={<IconComp size={14} color={action.color} />}

@@ -1,28 +1,25 @@
-appId: ${APP_ID}
+appId: dev.casagrown.community
 name: "Redemption Tabs Visibility Testing"
 ---
-- runFlow:
-      file: "../runner.yaml"
-      env:
+- launchApp:
           clearState: true
           clearKeychain: true
-          mockLocation: true
 
 # The flow requires user to be logged in
 - runFlow:
-      file: "login.yaml"
+          file: "../utils/login.yaml"
 
 # Click Points Badge to reveal menu
 - tapOn:
-      id: "points-badge"
+          id: "points-badge"
 
 - assertVisible: "Redeem"
 - tapOn: "Redeem"
 
 # Wait for Screen and RPC payload
 - extendedWaitUntil:
-      visible: "Available Redemptions"
-      timeout: 10000
+          visible: "Available Redemptions"
+          timeout: 10000
 
 # Validate all default tabs render properly with the healthy DB seeded state
 - assertVisible: "Gift Cards"

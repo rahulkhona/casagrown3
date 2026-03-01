@@ -19,6 +19,7 @@ import {
   getUserCommunitiesWithNeighbors,
   getCommunityWithNeighborsByH3,
   getAvailableCategories,
+  isProductBlocked,
   getPlatformFeePercent,
   type DelegatorInfo,
   type UserCommunitiesResult,
@@ -339,6 +340,13 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
     setFormError('')
     setSubmitting(true)
     try {
+      // Check if the product name is blocked
+      const blockCheck = await isProductBlocked(productName.trim(), communityH3Index || undefined)
+      if (blockCheck.blocked) {
+        setFormError(blockCheck.reason || 'This product is restricted in your area')
+        setSubmitting(false)
+        return
+      }
       const postData = {
         authorId: user.id,
         onBehalfOfId: selectedSellerId || undefined,

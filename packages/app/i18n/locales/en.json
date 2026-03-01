@@ -712,7 +712,7 @@
       "communityPlaceholder": "Your community",
       "category": "Category",
       "categoryPlaceholder": "Select a category",
-      "productName": "Product / Service Name",
+      "productName": "Product Name",
       "productNamePlaceholder": "e.g. Meyer Lemons, Fresh Basil",
       "description": "Description",
       "descriptionPlaceholder": "Describe what you're offering or looking for...",
@@ -853,7 +853,13 @@
     "inboxRetry": "Try Again",
     "locationDeniedTitle": "Location Permission",
     "locationDeniedMessage": "Please enable location access in your device settings to share your location.",
-    "uploading": "Sending..."
+    "uploading": "Sending...",
+    "restriction": {
+      "bannerFallback": "This item is restricted in this area. Transaction actions are disabled.",
+      "archived": "This listing has been archived due to a restriction.",
+      "categoryRestricted": "The \"{{category}}\" category is restricted in this area.",
+      "productRestricted": "\"{{product}}\" is restricted in this area."
+    }
   },
   "orders": {
     "title": "Orders",

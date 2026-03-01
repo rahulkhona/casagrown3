@@ -29,6 +29,7 @@ import {
   updateBuyPost,
   getUserCommunitiesWithNeighbors,
   getAvailableCategories,
+  isProductBlocked,
   type UserCommunitiesResult,
   buildCommunityMapData,
 } from './post-service'
@@ -236,6 +237,17 @@ export function BuyForm({ onBack, onSuccess, editId, cloneData }: BuyFormProps) 
     setFormError('')
     setSubmitting(true)
     try {
+      // Check if any produce names are blocked
+      const produceNames = lookingFor.split(',').map((s) => s.trim()).filter(Boolean)
+      for (const name of produceNames) {
+        const blockCheck = await isProductBlocked(name, communityH3Index || undefined)
+        if (blockCheck.blocked) {
+          setFormError(`"${name}" is restricted: ${blockCheck.reason || 'This product is restricted in your area'}`)
+          setSubmitting(false)
+          return
+        }
+      }
+
       const postData = {
         authorId: user.id,
         communityH3Index: communityH3Index || undefined,

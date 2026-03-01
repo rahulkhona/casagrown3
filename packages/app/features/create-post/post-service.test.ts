@@ -109,6 +109,7 @@ import {
     getPlatformFeePercent,
     getUserCommunitiesWithNeighbors,
     getUserCommunity,
+    isProductBlocked,
     SellPostData,
     updateBuyPost,
     updateGeneralPost,
@@ -741,49 +742,56 @@ describe("post-service", () => {
             "soil",
         ];
 
-        it("returns all categories when no community provided", async () => {
-            const result = await getAvailableCategories();
-            expect(result).toEqual(allCategories);
-        });
-
-        it("filters out blocked categories", async () => {
+        it("returns all categories when no restrictions exist", async () => {
             mockFrom.mockImplementation((table: string) => {
-                if (table === "communities") {
+                if (table === "sales_categories") {
                     return {
                         select: jest.fn().mockReturnValue({
-                            eq: jest.fn().mockReturnValue({
-                                single: jest.fn().mockResolvedValue({
-                                    data: {
-                                        h3_index: "872834461ffffff",
-                                        city: "San Jose",
-                                        state: "CA",
-                                        country: "USA",
-                                    },
-                                    error: null,
-                                }),
+                            order: jest.fn().mockResolvedValue({
+                                data: allCategories.map((c) => ({ name: c })),
+                                error: null,
                             }),
                         }),
                     };
                 }
-                if (table === "sales_category_restrictions") {
+                if (table === "category_restrictions") {
                     return {
                         select: jest.fn().mockReturnValue({
-                            eq: jest.fn().mockReturnValue({
-                                or: jest.fn().mockResolvedValue({
-                                    data: [
-                                        {
-                                            category: "flowers",
-                                            scope: "global",
-                                            is_allowed: false,
-                                        },
-                                        {
-                                            category: "soil",
-                                            scope: "community",
-                                            is_allowed: false,
-                                        },
-                                    ],
-                                    error: null,
-                                }),
+                            is: jest.fn().mockResolvedValue({
+                                data: [],
+                                error: null,
+                            }),
+                        }),
+                    };
+                }
+                return buildChain(table);
+            });
+
+            const result = await getAvailableCategories();
+            expect(result).toEqual(allCategories);
+        });
+
+        it("filters out categories with restrictions", async () => {
+            mockFrom.mockImplementation((table: string) => {
+                if (table === "sales_categories") {
+                    return {
+                        select: jest.fn().mockReturnValue({
+                            order: jest.fn().mockResolvedValue({
+                                data: allCategories.map((c) => ({ name: c })),
+                                error: null,
+                            }),
+                        }),
+                    };
+                }
+                if (table === "category_restrictions") {
+                    return {
+                        select: jest.fn().mockReturnValue({
+                            or: jest.fn().mockResolvedValue({
+                                data: [
+                                    { category_name: "flowers" },
+                                    { category_name: "soil" },
+                                ],
+                                error: null,
                             }),
                         }),
                     };
@@ -798,28 +806,24 @@ describe("post-service", () => {
             expect(result).toContain("vegetables");
         });
 
-        it("returns all categories on DB error (fail open)", async () => {
+        it("returns all categories on restriction query error (fail open)", async () => {
             mockFrom.mockImplementation((table: string) => {
-                if (table === "communities") {
+                if (table === "sales_categories") {
                     return {
                         select: jest.fn().mockReturnValue({
-                            eq: jest.fn().mockReturnValue({
-                                single: jest.fn().mockResolvedValue({
-                                    data: null,
-                                    error: null,
-                                }),
+                            order: jest.fn().mockResolvedValue({
+                                data: allCategories.map((c) => ({ name: c })),
+                                error: null,
                             }),
                         }),
                     };
                 }
-                if (table === "sales_category_restrictions") {
+                if (table === "category_restrictions") {
                     return {
                         select: jest.fn().mockReturnValue({
-                            eq: jest.fn().mockReturnValue({
-                                or: jest.fn().mockResolvedValue({
-                                    data: null,
-                                    error: { message: "Connection failed" },
-                                }),
+                            or: jest.fn().mockResolvedValue({
+                                data: null,
+                                error: { message: "Connection failed" },
                             }),
                         }),
                     };
@@ -829,6 +833,107 @@ describe("post-service", () => {
 
             const result = await getAvailableCategories("872834461ffffff");
             expect(result).toEqual(allCategories);
+        });
+
+        it("returns empty array when categories table errors", async () => {
+            mockFrom.mockImplementation((table: string) => {
+                if (table === "sales_categories") {
+                    return {
+                        select: jest.fn().mockReturnValue({
+                            order: jest.fn().mockResolvedValue({
+                                data: null,
+                                error: { message: "Table not found" },
+                            }),
+                        }),
+                    };
+                }
+                return buildChain(table);
+            });
+
+            const result = await getAvailableCategories();
+            expect(result).toEqual([]);
+        });
+    });
+
+    // =========================================================================
+    // isProductBlocked
+    // =========================================================================
+
+    describe("isProductBlocked", () => {
+        it("returns blocked=false when product is not blocked", async () => {
+            mockFrom.mockImplementation((table: string) => {
+                if (table === "blocked_products") {
+                    return {
+                        select: jest.fn().mockReturnValue({
+                            ilike: jest.fn().mockReturnValue({
+                                is: jest.fn().mockReturnValue({
+                                    limit: jest.fn().mockResolvedValue({
+                                        data: [],
+                                        error: null,
+                                    }),
+                                }),
+                            }),
+                        }),
+                    };
+                }
+                return buildChain(table);
+            });
+
+            const result = await isProductBlocked("Tomatoes");
+            expect(result.blocked).toBe(false);
+        });
+
+        it("returns blocked=true with reason when product is blocked", async () => {
+            mockFrom.mockImplementation((table: string) => {
+                if (table === "blocked_products") {
+                    return {
+                        select: jest.fn().mockReturnValue({
+                            ilike: jest.fn().mockReturnValue({
+                                or: jest.fn().mockReturnValue({
+                                    limit: jest.fn().mockResolvedValue({
+                                        data: [{
+                                            product_name: "Cannabis",
+                                            reason: "Restricted substance",
+                                        }],
+                                        error: null,
+                                    }),
+                                }),
+                            }),
+                        }),
+                    };
+                }
+                return buildChain(table);
+            });
+
+            const result = await isProductBlocked(
+                "Cannabis",
+                "872834461ffffff",
+            );
+            expect(result.blocked).toBe(true);
+            expect(result.reason).toBe("Restricted substance");
+        });
+
+        it("returns blocked=false on error (fail open)", async () => {
+            mockFrom.mockImplementation((table: string) => {
+                if (table === "blocked_products") {
+                    return {
+                        select: jest.fn().mockReturnValue({
+                            ilike: jest.fn().mockReturnValue({
+                                is: jest.fn().mockReturnValue({
+                                    limit: jest.fn().mockResolvedValue({
+                                        data: null,
+                                        error: { message: "Query failed" },
+                                    }),
+                                }),
+                            }),
+                        }),
+                    };
+                }
+                return buildChain(table);
+            });
+
+            const result = await isProductBlocked("Anything");
+            expect(result.blocked).toBe(false);
         });
     });
 

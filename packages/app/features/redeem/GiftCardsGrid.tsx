@@ -188,7 +188,7 @@ export function GiftCard({ card, onSelect, canAfford, index }: { card: GiftCardP
           if (canAfford) e.currentTarget.style.transform = 'translateY(0) scale(1)'
         }}
         aria-label={`Select ${card.brandName} gift card`}
-        data-testid="giftcard-item"
+        data-testid={`giftcard-item-${index ?? 0}`}
       >
         {inner}
       </div>
@@ -203,7 +203,7 @@ export function GiftCard({ card, onSelect, canAfford, index }: { card: GiftCardP
        pressStyle={{ scale: canAfford ? 0.96 : 1, opacity: 0.8 }}
        animation="quick"
        opacity={canAfford ? 1 : 0.6}
-       testID="giftcard-item"
+       testID={`giftcard-item-${index ?? 0}`}
        shadowColor="#000" shadowOffset={{ width: 0, height: 2 }} shadowOpacity={0.1} shadowRadius={4} elevation={2}
     >
       {inner}

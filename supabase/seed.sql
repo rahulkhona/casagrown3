@@ -43,11 +43,13 @@ values
   ('invitee_signing_up', 'global', 50, now()),
   ('invitee_making_first_transaction', 'global', 100, now());
 
--- 7. Sales Category Restrictions (Allow common items globally for development)
-insert into public.sales_category_restrictions (category, scope, is_allowed, country_iso_3)
-values 
-  ('vegetables', 'global', true, 'USA'),
-  ('fruits', 'global', true, 'USA');
+-- 7. Category & Product Restrictions (for testing restriction enforcement)
+-- No restrictions by default — all categories and products are allowed.
+-- Uncomment below to test restriction behavior:
+-- insert into public.category_restrictions (category_name, community_h3_index, reason)
+-- values ('herbs', NULL, 'Controlled substance regulations');
+-- insert into public.blocked_products (product_name, community_h3_index, reason)
+-- values ('Cannabis', NULL, 'Federally restricted product');
 
 -- 8. Storage Buckets & Policies
 -- Everything in a single DO block to work with Supabase's prepared statement runner.

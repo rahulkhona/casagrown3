@@ -625,7 +625,7 @@
       "communityPlaceholder": "Tu comunidad",
       "category": "Categoría",
       "categoryPlaceholder": "Selecciona una categoría",
-      "productName": "Nombre del Producto / Servicio",
+      "productName": "Nombre del Producto",
       "productNamePlaceholder": "ej. Limones Meyer, Albahaca Fresca",
       "description": "Descripción",
       "descriptionPlaceholder": "Describe lo que ofreces o buscas...",
@@ -864,6 +864,14 @@
       },
       "step4": "Abre CasaGrown desde tu Pantalla de Inicio",
       "step5": "Toca \"Activar Notificaciones\" en el aviso, luego toca \"Permitir\" en la ventana de iOS"
+    }
+  },
+  "chat": {
+    "restriction": {
+      "bannerFallback": "Este artículo está restringido en esta área. Las acciones de transacción están deshabilitadas.",
+      "archived": "Este listado ha sido archivado debido a una restricción.",
+      "categoryRestricted": "La categoría \"{{category}}\" está restringida en esta área.",
+      "productRestricted": "\"{{product}}\" está restringido en esta área."
     }
   }
 }

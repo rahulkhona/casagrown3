@@ -61,6 +61,8 @@ interface ChatOrderActionsProps {
   currentUserId: string
   escalation: Escalation | null
   refundOffers: RefundOffer[]
+  /** Whether the post's category or product is restricted */
+  restricted?: boolean
   onOrderUpdated: () => void
   onDeliveryProof: () => void
   onDispute: () => void
@@ -81,6 +83,7 @@ export function ChatOrderActions({
   currentUserId,
   escalation,
   refundOffers,
+  restricted,
   onOrderUpdated,
   onDeliveryProof,
   onDispute,
@@ -416,11 +419,14 @@ export function ChatOrderActions({
 
         const renderButton = (action: OrderAction) => {
           const IconComp = ICON_MAP[action.icon] ?? Package
+          // Disable forward-moving actions when restricted (cancel/dispute/reject still allowed)
+          const restrictedActions = new Set(['accept', 'confirm_delivery', 'modify', 'suggest_date', 'suggest_qty', 'mark_delivered'])
+          const isDisabled = loading || (restricted && restrictedActions.has(action.type))
           return (
             <TouchableOpacity
               key={action.type}
               activeOpacity={0.7}
-              disabled={loading}
+              disabled={isDisabled}
               onPress={() => handleAction(action)}
               style={{
                 flexDirection: 'row',
@@ -430,7 +436,7 @@ export function ChatOrderActions({
                 paddingVertical: 4,
                 borderRadius: 6,
                 backgroundColor: action.bgColor,
-                opacity: loading ? 0.5 : 1,
+                opacity: isDisabled ? 0.4 : 1,
               }}
             >
               <IconComp size={13} color={action.color} />

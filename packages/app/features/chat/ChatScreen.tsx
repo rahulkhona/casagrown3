@@ -43,6 +43,7 @@ import type {
 } from './chat-service'
 import { ChatOrderActions } from './ChatOrderActions'
 import { ChatOfferActions } from './ChatOfferActions'
+import { useCategoryProductStatus } from './useCategoryProductStatus'
 import { useConversationOrder } from '../orders/useOrders'
 import { useConversationOffer, createOffer, modifyOffer, acceptOffer } from '../offers/offer-service'
 import { uploadPostMediaBatch } from '../create-post/media-upload'
@@ -472,6 +473,9 @@ export function ChatScreen({
 
   // Points balance for the current user (needed for ModifyOrderSheet)
   const { balance: userPoints, refetch: refetchBalance } = usePointsBalance(currentUserId)
+
+  // Category/product restriction status for this post
+  const restrictionStatus = useCategoryProductStatus(postId)
 
   const flatListRef = useRef<FlatList>(null)
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1510,6 +1514,7 @@ export function ChatScreen({
           currentUserId={currentUserId}
           escalation={orderData.escalation}
           refundOffers={orderData.refundOffers}
+          restricted={restrictionStatus.restricted}
           onOrderUpdated={orderData.refresh}
           onDeliveryProof={() => setDeliveryProofOpen(true)}
           onDispute={() => setDisputeOpen(true)}
@@ -1537,6 +1542,7 @@ export function ChatScreen({
           currentUserId={currentUserId}
           buyerId={conversation?.post?.author_id ?? ''}
           sellerId={conversation?.post?.author_id === currentUserId ? (conversation?.seller_id ?? '') : currentUserId}
+          restricted={restrictionStatus.restricted}
           onOfferUpdated={offerData.refetch}
           onModify={() => setNewOfferOpen(true)}
           onAccept={() => setAcceptOfferOpen(true)}
@@ -1544,8 +1550,27 @@ export function ChatScreen({
         />
       )}
 
+      {/* ============ RESTRICTION BANNER ============ */}
+      {restrictionStatus.restricted && !restrictionStatus.loading && (
+        <YStack
+          backgroundColor="#FEF2F2"
+          borderTopWidth={1}
+          borderBottomWidth={1}
+          borderColor="#FECACA"
+          paddingHorizontal="$3"
+          paddingVertical="$2"
+        >
+          <XStack alignItems="center" gap="$2">
+            <Text fontSize={14}>⚠️</Text>
+            <Text fontSize={12} color="#991B1B" flex={1}>
+              {restrictionStatus.reason || t('chat.restriction.bannerFallback')}
+            </Text>
+          </XStack>
+        </YStack>
+      )}
+
       {/* ============ PLACE ORDER BUTTON (buyer, no active order) ============ */}
-      {showPlaceOrderButton && (
+      {showPlaceOrderButton && !restrictionStatus.restricted && (
         <YStack
           backgroundColor="white"
           borderTopWidth={1}
@@ -1578,7 +1603,7 @@ export function ChatScreen({
       )}
 
       {/* ============ MAKE OFFER BUTTON (seller, buy post, no active offer) ============ */}
-      {showMakeOfferButton && (
+      {showMakeOfferButton && !restrictionStatus.restricted && (
         <YStack
           backgroundColor="white"
           borderTopWidth={1}

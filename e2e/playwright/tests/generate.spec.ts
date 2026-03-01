@@ -2,12 +2,25 @@ import { expect, test } from "@playwright/test";
 import path from "path";
 import fs from "fs";
 
-// Directory to save screenshots inside your persistent brain directory
-const outDir =
-    "/Users/rkhona/.gemini/antigravity/brain/d999f481-52ed-4948-9af6-bdb5a52195d6";
+// Directory to save screenshots — use temp dir to avoid depending on a specific brain path
+const outDir = "/tmp/playwright-screenshots";
+
+// Ensure the output directory exists
+if (!fs.existsSync(outDir)) {
+    fs.mkdirSync(outDir, { recursive: true });
+}
 
 test.describe("UI Combinations Screenshots", () => {
+    // Increase timeout — full suite can overwhelm local Supabase
+    test.setTimeout(120_000);
+
     test("Mock States for Screenshots", async ({ page }) => {
+        // Use the E2E bypass flag already built into usePointsBalance (50,000 pts)
+        // This is more reliable than route interception for Supabase POST RPCs
+        await page.addInitScript(() => {
+            window.localStorage.setItem("E2E_BYPASS_AUTH", "true");
+        });
+
         // --- State 1: All Options Active ---
         await page.route(
             "**/rest/v1/rpc/get_active_redemption_providers*",
@@ -47,6 +60,10 @@ test.describe("UI Combinations Screenshots", () => {
         );
 
         await page.goto("/redeem");
+        // Wait for the Redeem page to fully load (handles slow starts in full suite)
+        await page.locator("text=Redeem Points").first().waitFor({
+            timeout: 30_000,
+        });
         await page.waitForTimeout(2000); // give time for animation and icons
         await page.screenshot({
             path: path.join(outDir, "state_1_all_active.png"),
