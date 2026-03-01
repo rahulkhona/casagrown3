@@ -33,9 +33,11 @@ and any associated triggers/functions/RLS policies.
 > `20260217000003_storage_buckets` → `20260217000004_storage_policies` →
 > `20260217000005_chat_media_bucket` → `20260217000006_cancel_order_rpc` →
 > `20260217000007_mark_delivered_rpc` → `20260217000008_confirm_delivery_rpc` →
-> `20260217000008_dispute_escalation_rpcs` → `20260217000009_fix_point_flow` →
-> `20260217000010_orders_realtime` → `20260217000011_order_messages_with_units`
-> → `20260217003100_add_unit_to_order_messages` →
+> `20260217000009_dispute_escalation_rpcs` → `20260217000010_fix_point_flow` →
+> `20260217000011_orders_realtime` → `20260217000012_order_messages_with_units`
+> → `20260217000013_modify_order_with_units` →
+> `20260217003100_add_unit_to_order_messages` →
+> `20260217003200_modify_order_unit_messages` →
 > `20260218000000_add_buy_quantity_unit` →
 > `20260218000001_order_conversation_param` →
 > `20260219000001_role_specific_messages` →
@@ -48,7 +50,10 @@ and any associated triggers/functions/RLS policies.
 > `20260220100000_offer_message_from_seller` →
 > `20260220100001_buy_details_unique_postid` →
 > `20260220200000_offer_delivery_dates` →
-> `20260220300000_accept_offer_buyer_qty` → `20260220400006_feedback_flags` →
+> `20260220300000_accept_offer_buyer_qty` → `20260220400000_staff_members` →
+> `20260220400001_feedback_enhancements` → `20260220400002_feedback_rls` →
+> `20260220400003_staff_email_lookup` → `20260220400004_feedback_storage` →
+> `20260220400005_document_media_type` → `20260220400006_feedback_flags` →
 > `20260222100000_redemption_providers` → `20260223000000_feature_waitlist` →
 > `20260223020000_redemptions_rls_policies` → `20260223100000_delegation_splits`
 > → `20260223100001_complete_order_with_split` →
@@ -63,13 +68,25 @@ and any associated triggers/functions/RLS policies.
 > `20260225000006_snapshot_delegation_split` →
 > `20260225000007_notify_on_revocation` → `20260225000008_provider_queue_status`
 > → `20260226000001_provider_disabled_grace_period` →
+> `20260227023104_add_paypal_payout_id_to_profiles` →
+> `20260227024500_add_paypal_provider` → `20260227195508_platform_fees` →
+> `20260227210144_redemption_architecture` →
+> `20260227210145_instrument_grace_period` →
 > `20260228004000_closed_loop_buckets` → `20260228004500_fifo_rpc_updates` →
+> `20260228042110_giftcards_cache` →
+> `20260228065500_platform_config_deprecation` →
 > `20260228070000_country_refund_fees` → `20260228070500_add_venmo_enum` →
 > `20260228200440_backfill_refund_gift_cards` →
 > `20260228213340_finalize_gift_card_redemption_rpc` →
 > `20260228220038_universal_finalize_redemption_rpc` →
 > `20260228230000_deprecate_old_rpcs` →
-> `20260301000000_acid_donation_refund_fixes`
+> `20260301000000_acid_donation_refund_fixes` →
+> `20260301079000_add_escrow_refund_type` → `20260301080000_dynamic_categories`
+> → `20260301080100_update_create_order_rpc` →
+> `20260301080200_update_accept_offer_rpc` → `20260301080300_ban_category_rpc` →
+> `20260301080400_add_category_restriction_rpc` →
+> `20260301080500_ban_product_rpc` → `20260301090000_incentive_campaigns` →
+> `20260301090100_sales_tax_rules`
 
 ## Extensions
 
@@ -148,6 +165,18 @@ create type manual_refund_fulfillment_type as enum (
 );
 create type manual_refund_status as enum (
   'pending_verification', 'verification_failed', 'pending_fulfillment', 'fulfilled'
+);
+
+-- Added by 20260301090000_incentive_campaigns
+create type campaign_behavior as enum (
+  'signup', 'first_post', 'first_purchase', 'first_sale',
+  'per_referral', 'first_purchase_by_referee', 'first_sale_by_referee'
+);
+
+-- Added by 20260301090100_sales_tax_rules
+create type tax_rule_type as enum (
+  'fixed',      -- rate_pct known (0 = exempt)
+  'evaluate'    -- must compute at runtime
 );
 ```
 
@@ -501,26 +530,36 @@ create table incentive_rules (
 
 ### `point_ledger`
 
-Tracks all point transactions — complete audit trail.
+Tracks all point transactions — complete audit trail. Campaign incentive claims
+are also tracked here via `campaign_id` and `campaign_behavior` columns (added
+by `20260301090000_incentive_campaigns`).
 
-| Column          | Type                     | Description                                        |
-| :-------------- | :----------------------- | :------------------------------------------------- |
-| `id`            | `uuid`                   | Primary Key.                                       |
-| `user_id`       | `uuid`                   | FK to `profiles(id)` on delete cascade.            |
-| `type`          | `point_transaction_type` | Transaction type.                                  |
-| `amount`        | `integer`                | Points (positive = earned, negative = spent).      |
-| `balance_after` | `integer`                | Running balance — **auto-computed by DB trigger**. |
-| `reference_id`  | `uuid`                   | Optional linked entity.                            |
-| `metadata`      | `jsonb`                  | (e.g., `{"action_type": "join_a_community"}`).     |
-| `created_at`    | `timestamptz`            | Default `now()`.                                   |
+| Column              | Type                     | Description                                        |
+| :------------------ | :----------------------- | :------------------------------------------------- |
+| `id`                | `uuid`                   | Primary Key.                                       |
+| `user_id`           | `uuid`                   | FK to `profiles(id)` on delete cascade.            |
+| `type`              | `point_transaction_type` | Transaction type.                                  |
+| `amount`            | `integer`                | Points (positive = earned, negative = spent).      |
+| `balance_after`     | `integer`                | Running balance — **auto-computed by DB trigger**. |
+| `reference_id`      | `uuid`                   | Optional linked entity.                            |
+| `metadata`          | `jsonb`                  | (e.g., `{"action_type": "join_a_community"}`).     |
+| `campaign_id`       | `uuid`                   | FK to `incentive_campaigns(id)`. Nullable.         |
+| `campaign_behavior` | `campaign_behavior`      | Which behavior earned this reward. Nullable.       |
+| `created_at`        | `timestamptz`            | Default `now()`.                                   |
 
 **Idempotency**: Reward grants check for existing entries with matching
-`action_type` in metadata.
+`action_type` in metadata. Campaign rewards are deduped by
+`idx_ledger_campaign_dedup`.
 
 **Trigger: `trg_compute_balance_after`** (`BEFORE INSERT`): Auto-computes
 `balance_after` as `SUM(existing amounts) + new amount`. Uses
 `pg_advisory_xact_lock` per user to prevent race conditions. Callers pass any
 value for `balance_after` (conventionally `0`) — the trigger overrides it.
+
+**Indexes**: `idx_ledger_campaign_dedup` — partial unique on
+`(campaign_id, user_id, campaign_behavior, COALESCE(reference_id, …))` WHERE
+`campaign_id IS NOT NULL`. Prevents double-claiming; `per_referral` earns once
+per referee via `reference_id`.
 
 ```sql
 create table point_ledger (
@@ -531,6 +570,8 @@ create table point_ledger (
   balance_after integer not null,
   reference_id uuid,
   metadata jsonb default '{}',
+  campaign_id uuid references incentive_campaigns(id),      -- 20260301090000
+  campaign_behavior campaign_behavior,                       -- 20260301090000
   created_at timestamptz default now()
 );
 ```
@@ -541,19 +582,21 @@ create table point_ledger (
 
 ### `posts`
 
-| Column               | Type          | Description                                                            |
-| :------------------- | :------------ | :--------------------------------------------------------------------- |
-| `id`                 | `uuid`        | Primary Key.                                                           |
-| `author_id`          | `uuid`        | FK to `profiles(id)`. The delegate (post manager).                     |
-| `on_behalf_of`       | `uuid`        | FK to `profiles(id)`. Nullable. Delegator whose produce is being sold. |
-| `community_h3_index` | `text`        | FK to `communities(h3_index)`.                                         |
-| `type`               | `post_type`   | Post type.                                                             |
-| `reach`              | `post_reach`  | Visibility scope. Default: `'community'`.                              |
-| `content`            | `text`        | Post body.                                                             |
-| `created_at`         | `timestamptz` | Default `now()`.                                                       |
-| `updated_at`         | `timestamptz` | Default `now()`.                                                       |
+| Column               | Type          | Description                                                               |
+| :------------------- | :------------ | :------------------------------------------------------------------------ |
+| `id`                 | `uuid`        | Primary Key.                                                              |
+| `author_id`          | `uuid`        | FK to `profiles(id)`. The delegate (post manager).                        |
+| `on_behalf_of`       | `uuid`        | FK to `profiles(id)`. Nullable. Delegator whose produce is being sold.    |
+| `community_h3_index` | `text`        | FK to `communities(h3_index)`.                                            |
+| `type`               | `post_type`   | Post type.                                                                |
+| `reach`              | `post_reach`  | Visibility scope. Default: `'community'`.                                 |
+| `content`            | `text`        | Post body.                                                                |
+| `is_archived`        | `boolean`     | Set `true` by ban cascade RPCs. Default: `false`. _(by `20260301080000`)_ |
+| `created_at`         | `timestamptz` | Default `now()`.                                                          |
+| `updated_at`         | `timestamptz` | Default `now()`.                                                          |
 
-**Indexes**: `posts_community_h3_idx`, `posts_on_behalf_of_idx`
+**Indexes**: `posts_community_h3_idx`, `posts_on_behalf_of_idx`,
+`idx_posts_is_archived` (partial, WHERE `is_archived = false`)
 
 ```sql
 create table posts (
@@ -564,12 +607,14 @@ create table posts (
   type post_type not null,
   reach post_reach not null default 'community',
   content text not null,
+  is_archived boolean not null default false,   -- 20260301080000
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
 
 create index posts_community_h3_idx on posts(community_h3_index);
 create index posts_on_behalf_of_idx on posts(on_behalf_of) where on_behalf_of is not null;
+create index idx_posts_is_archived on posts(is_archived) where is_archived = false;
 ```
 
 **RLS Policies** (`20260207060000_posts_content_rls`,
@@ -672,25 +717,25 @@ create table post_media (
 
 ### `want_to_sell_details`
 
-| Column                     | Type              | Description                                      |
-| :------------------------- | :---------------- | :----------------------------------------------- |
-| `id`                       | `uuid`            | Primary Key.                                     |
-| `post_id`                  | `uuid`            | FK to `posts(id)` on delete cascade.             |
-| `category`                 | `sales_category`  | Sales category.                                  |
-| `produce_name`             | `text`            | Name of the produce.                             |
-| `unit`                     | `unit_of_measure` | Unit of measure.                                 |
-| `total_quantity_available` | `numeric`         | Quantity available.                              |
-| `points_per_unit`          | `integer`         | Points per unit.                                 |
-| `delegator_id`             | `uuid`            | FK to `profiles(id)`. Optional delegator.        |
-| `need_by_date`             | `date`            | Latest drop-off date. Added by `20260210060000`. |
-| `created_at`               | `timestamptz`     | Default `now()`.                                 |
-| `updated_at`               | `timestamptz`     | Default `now()`.                                 |
+| Column                     | Type              | Description                                                                                 |
+| :------------------------- | :---------------- | :------------------------------------------------------------------------------------------ |
+| `id`                       | `uuid`            | Primary Key.                                                                                |
+| `post_id`                  | `uuid`            | FK to `posts(id)` on delete cascade.                                                        |
+| `category`                 | `text`            | FK to `sales_categories(name)`. (was `sales_category` enum, converted by `20260301080000`.) |
+| `produce_name`             | `text`            | Name of the produce.                                                                        |
+| `unit`                     | `unit_of_measure` | Unit of measure.                                                                            |
+| `total_quantity_available` | `numeric`         | Quantity available.                                                                         |
+| `points_per_unit`          | `integer`         | Points per unit.                                                                            |
+| `delegator_id`             | `uuid`            | FK to `profiles(id)`. Optional delegator.                                                   |
+| `need_by_date`             | `date`            | Latest drop-off date. Added by `20260210060000`.                                            |
+| `created_at`               | `timestamptz`     | Default `now()`.                                                                            |
+| `updated_at`               | `timestamptz`     | Default `now()`.                                                                            |
 
 ```sql
 create table want_to_sell_details (
   id uuid primary key default gen_random_uuid(),
   post_id uuid not null references posts(id) on delete cascade,
-  category sales_category not null,
+  category text not null references sales_categories(name),  -- 20260301080000 (was enum)
   produce_name text not null,
   unit unit_of_measure not null,
   total_quantity_available numeric not null,
@@ -763,32 +808,86 @@ create table want_to_buy_details (
 | :------------------------------------------ | :-------- | :----- | :------------- |
 | Buy details are viewable by anonymous users | `SELECT`  | `anon` | `using (true)` |
 
-### `sales_category_restrictions`
+### `sales_categories` _(added by `20260301080000`)_
 
-Controls which sales categories are allowed per geographic scope.
+Dynamic, table-driven categories replacing the old `sales_category` enum.
+
+| Column          | Type          | Description      |
+| :-------------- | :------------ | :--------------- |
+| `name`          | `text`        | **Primary Key**. |
+| `display_order` | `integer`     | Sorting order.   |
+| `created_at`    | `timestamptz` | Default `now()`. |
+| `updated_at`    | `timestamptz` | Default `now()`. |
 
 ```sql
-create table sales_category_restrictions (
-  id uuid primary key default gen_random_uuid(),
-  category sales_category not null,
-  scope restriction_scope not null default 'global',
-  country_iso_3 text references countries(iso_3),
-  state_id uuid references states(id),
-  city_id uuid references cities(id),
-  zip_code text,
-  community_h3_index text references communities(h3_index),  -- 20260201200000
-  is_allowed boolean not null default false,
-  created_at timestamptz default now(),
-  foreign key (zip_code, country_iso_3) references zip_codes(zip_code, country_iso_3),
-  unique(category, scope, country_iso_3, state_id, city_id, zip_code, community_h3_index)
+create table sales_categories (
+  name          text primary key,
+  display_order integer not null default 0,
+  created_at    timestamptz default now(),
+  updated_at    timestamptz default now()
 );
 ```
 
-**RLS Policies** (`20260210030000_category_restrictions_rls`):
+### `category_restrictions` _(added by `20260301080000`)_
 
-| Policy                                             | Operation | Rule           |
-| :------------------------------------------------- | :-------- | :------------- |
-| Authenticated users can read category restrictions | `SELECT`  | `using (true)` |
+Soft-blocks a category in a specific H3 zone (or globally when
+`community_h3_index` is NULL). Cascades: archives posts, cancels orders, refunds
+escrow, sends system messages.
+
+| Column               | Type          | Description                                       |
+| :------------------- | :------------ | :------------------------------------------------ |
+| `id`                 | `uuid`        | Primary Key.                                      |
+| `category_name`      | `text`        | FK to `sales_categories(name)` ON DELETE CASCADE. |
+| `community_h3_index` | `text`        | FK to `communities(h3_index)`. NULL = global.     |
+| `reason`             | `text`        | Human-readable reason.                            |
+| `created_at`         | `timestamptz` | Default `now()`.                                  |
+
+**Unique**: `(category_name, community_h3_index)`
+
+```sql
+create table category_restrictions (
+  id                  uuid primary key default gen_random_uuid(),
+  category_name       text not null references sales_categories(name) on delete cascade,
+  community_h3_index  text references communities(h3_index),
+  reason              text,
+  created_at          timestamptz default now(),
+  unique(category_name, community_h3_index)
+);
+```
+
+### `blocked_products` _(added by `20260301080000`)_
+
+Blocks a specific product name within a category/zone. Cascades same as category
+restrictions.
+
+| Column               | Type          | Description                                   |
+| :------------------- | :------------ | :-------------------------------------------- |
+| `id`                 | `uuid`        | Primary Key.                                  |
+| `product_name`       | `text`        | Product name to block (case-sensitive match). |
+| `community_h3_index` | `text`        | FK to `communities(h3_index)`. NULL = global. |
+| `reason`             | `text`        | Human-readable reason.                        |
+| `created_at`         | `timestamptz` | Default `now()`.                              |
+
+**Unique**: `(product_name, community_h3_index)`
+
+```sql
+create table blocked_products (
+  id                  uuid primary key default gen_random_uuid(),
+  product_name        text not null,
+  community_h3_index  text references communities(h3_index),
+  reason              text,
+  created_at          timestamptz default now(),
+  unique(product_name, community_h3_index)
+);
+```
+
+### Ban Cascade RPCs _(added by `20260301080300`–`20260301080500`)_
+
+| RPC                        | Input                               | Effect                                                                              |
+| :------------------------- | :---------------------------------- | :---------------------------------------------------------------------------------- |
+| `ban_category(p_name)`     | Category name                       | Hard-delete category → cascades FKs, archives posts, cancels orders, refunds escrow |
+| `add_category_restriction` | Name, H3 (optional), reason         | Soft-block: insert restriction row → archive + cancel + refund                      |
+| `ban_product`              | Product name, H3 (optional), reason | Block product → archive matching posts, cancel orders, refund                       |
 
 ---
 
@@ -852,38 +951,14 @@ fire HTTPS `POST` deliveries dynamically:
 
 ## Platform Configuration
 
-### `platform_config`
+### `platform_config` _(DROPPED by `20260228065500`)_
 
-Key-value store for platform settings (e.g., fee percentages). Introduced to
-make operational parameters database-driven instead of hardcoded.
+> [!WARNING]
+> This table was dropped by `20260228065500_platform_config_deprecation`.
+> Replaced by `platform_fees`, `giftcards_cache`, `charity_projects_cache`, and
+> `platform_settings`.
 
-| Column        | Type          | Description                                           |
-| :------------ | :------------ | :---------------------------------------------------- |
-| `key`         | `text`        | **Primary Key**. Config key name.                     |
-| `value`       | `text`        | Config value (stored as text, parsed by application). |
-| `description` | `text`        | Human-readable description of the setting.            |
-| `updated_at`  | `timestamptz` | Default `now()`.                                      |
-
-**Known keys**:
-
-| Key                    | Default | Description                                         |
-| :--------------------- | :------ | :-------------------------------------------------- |
-| `platform_fee_percent` | `10`    | Platform fee percentage charged on completed sales. |
-
-```sql
-create table platform_config (
-  key text primary key,
-  value text not null,
-  description text,
-  updated_at timestamptz default now()
-);
-```
-
-**RLS Policies** (`20260210040000_platform_config`):
-
-| Policy                                       | Operation | Rule           |
-| :------------------------------------------- | :-------- | :------------- |
-| Authenticated users can read platform config | `SELECT`  | `using (true)` |
+~~Key-value store for platform settings. No longer exists.~~
 
 ### `platform_fees`
 
@@ -935,7 +1010,37 @@ create table giftcards_cache (
 );
 ```
 
-### `post_type_policies`
+### `charity_projects_cache` _(added by `20260228065500`)_
+
+Caches charity project listings from GlobalGiving API. Single row, upserted by
+the Edge Function.
+
+```sql
+create table charity_projects_cache (
+  id         uuid primary key default gen_random_uuid(),
+  data       jsonb not null,
+  updated_at timestamptz not null default now()
+);
+```
+
+### `platform_settings` _(added by `20260228065500`)_
+
+Global platform settings (replaces legacy `platform_config` key-value store
+which was dropped in the same migration).
+
+| Column                     | Type          | Description                                    |
+| :------------------------- | :------------ | :--------------------------------------------- |
+| `id`                       | `uuid`        | Primary Key.                                   |
+| `provider_grace_period_ms` | `integer`     | Grace period in ms. Default: 1800000 (30 min). |
+| `updated_at`               | `timestamptz` | Default `now()`.                               |
+
+```sql
+create table platform_settings (
+  id uuid primary key default gen_random_uuid(),
+  provider_grace_period_ms integer not null default 1800000,
+  updated_at timestamptz not null default now()
+);
+```
 
 Configurable expiration days per post type. Used by the "My Posts" screen to
 determine active/expired status for each post based on its type.
@@ -1644,6 +1749,38 @@ create table feedback_comments (
   content text not null,
   is_official_response boolean default false,
   created_at timestamptz default now()
+);
+```
+
+### `feedback_status_history` _(added by `20260220400001`)_
+
+Audit trail for feedback status changes. Auto-populated via trigger.
+
+```sql
+create table feedback_status_history (
+  id          uuid primary key default gen_random_uuid(),
+  feedback_id uuid not null references user_feedback(id) on delete cascade,
+  old_status  feedback_status,
+  new_status  feedback_status not null,
+  changed_by  uuid not null references profiles(id),
+  note        text,
+  created_at  timestamptz default now()
+);
+```
+
+**Trigger**: `log_feedback_status_change` — auto-inserts a history row whenever
+`user_feedback.status` changes.
+
+### `feedback_comment_media` _(added by `20260220400001`)_
+
+Junction table linking feedback comments to media assets (attachments).
+
+```sql
+create table feedback_comment_media (
+  id         uuid primary key default gen_random_uuid(),
+  comment_id uuid not null references feedback_comments(id) on delete cascade,
+  media_id   uuid not null references media_assets(id) on delete cascade,
+  unique(comment_id, media_id)
 );
 ```
 
@@ -3439,3 +3576,203 @@ Handles refunds for purchased point buckets with three methods:
 
 **Source**:
 [refund-purchased-points/index.ts](file:///Users/rkhona/development/casagrown3/supabase/functions/refund-purchased-points/index.ts)
+
+---
+
+## Incentive Campaigns _(added by `20260301090000`)_
+
+Campaign-driven point incentives targeted to specific H3 zones with configurable
+behavior rewards. Claims are tracked directly in `point_ledger` (no separate
+claims table).
+
+### `incentive_campaigns`
+
+| Column        | Type          | Description                                 |
+| :------------ | :------------ | :------------------------------------------ |
+| `id`          | `uuid`        | **Primary Key**.                            |
+| `name`        | `text`        | Campaign name.                              |
+| `description` | `text`        | Optional description.                       |
+| `starts_at`   | `timestamptz` | When the campaign becomes active.           |
+| `ends_at`     | `timestamptz` | When it expires. Must be after `starts_at`. |
+| `is_active`   | `boolean`     | Manual on/off toggle. Default: `true`.      |
+| `created_at`  | `timestamptz` | Default `now()`.                            |
+| `updated_at`  | `timestamptz` | Default `now()`.                            |
+
+**Indexes**: `idx_campaigns_active` (partial on `is_active = true`)
+
+```sql
+create table incentive_campaigns (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null,
+  description text,
+  starts_at   timestamptz not null,
+  ends_at     timestamptz not null,
+  is_active   boolean not null default true,
+  created_at  timestamptz default now(),
+  updated_at  timestamptz default now(),
+  constraint chk_campaign_dates check (ends_at > starts_at)
+);
+```
+
+### `campaign_zones`
+
+Links campaigns to H3 zones they target.
+
+| Column               | Type   | Description                                        |
+| :------------------- | :----- | :------------------------------------------------- |
+| `id`                 | `uuid` | **Primary Key**.                                   |
+| `campaign_id`        | `uuid` | FK to `incentive_campaigns(id)` ON DELETE CASCADE. |
+| `community_h3_index` | `text` | FK to `communities(h3_index)`.                     |
+
+**Unique**: `(campaign_id, community_h3_index)` **Indexes**:
+`idx_campaign_zones_h3`
+
+```sql
+create table campaign_zones (
+  id                  uuid primary key default gen_random_uuid(),
+  campaign_id         uuid not null references incentive_campaigns(id) on delete cascade,
+  community_h3_index  text references communities(h3_index),
+  unique(campaign_id, community_h3_index)
+);
+```
+
+### `campaign_rewards`
+
+Point reward amount per behavior per campaign.
+
+| Column        | Type                | Description                                        |
+| :------------ | :------------------ | :------------------------------------------------- |
+| `id`          | `uuid`              | **Primary Key**.                                   |
+| `campaign_id` | `uuid`              | FK to `incentive_campaigns(id)` ON DELETE CASCADE. |
+| `behavior`    | `campaign_behavior` | Which user action earns points.                    |
+| `points`      | `integer`           | Points awarded. Must be > 0.                       |
+
+**Unique**: `(campaign_id, behavior)`
+
+```sql
+create table campaign_rewards (
+  id          uuid primary key default gen_random_uuid(),
+  campaign_id uuid not null references incentive_campaigns(id) on delete cascade,
+  behavior    campaign_behavior not null,
+  points      integer not null check (points > 0),
+  unique(campaign_id, behavior)
+);
+```
+
+### Claim Tracking via `point_ledger`
+
+Campaign incentive claims are recorded as normal `point_ledger` rows with
+`campaign_id` and `campaign_behavior` set. The partial unique index
+`idx_ledger_campaign_dedup` prevents double-claiming:
+
+- **One-time behaviors** (`signup`, `first_post`, etc.): one claim per
+  `(campaign, user, behavior)`
+- **`per_referral`**: one claim per `(campaign, user, behavior, reference_id)`
+  where `reference_id` is the referee's user ID
+
+---
+
+## Sales Tax Rules _(added by `20260301090100`)_
+
+State-level sales tax rules with category-level base rules and product-level
+overrides. Two rule types: `fixed` (rate known, 0 = exempt) and `evaluate` (must
+compute at runtime).
+
+### `category_tax_rules`
+
+Base tax rule per (state, category) combination.
+
+| Column            | Type            | Description                                            |
+| :---------------- | :-------------- | :----------------------------------------------------- |
+| `id`              | `uuid`          | **Primary Key**.                                       |
+| `state_code`      | `text`          | US state code (e.g., 'CA', 'TX').                      |
+| `category_name`   | `text`          | FK to `sales_categories(name)` ON DELETE CASCADE.      |
+| `rule_type`       | `tax_rule_type` | `'fixed'` (rate known) or `'evaluate'` (runtime calc). |
+| `rate_pct`        | `numeric(5,3)`  | Tax rate %. 0 = exempt. Required when `fixed`.         |
+| `notes`           | `text`          | Optional explanation.                                  |
+| `effective_from`  | `date`          | When rule takes effect. Default: today.                |
+| `effective_until` | `date`          | When rule expires. NULL = no expiry.                   |
+| `created_at`      | `timestamptz`   | Default `now()`.                                       |
+| `updated_at`      | `timestamptz`   | Default `now()`.                                       |
+
+**Indexes**: `idx_category_tax_unique` (partial unique on active rules),
+`idx_category_tax_state`
+
+```sql
+create table category_tax_rules (
+  id              uuid primary key default gen_random_uuid(),
+  state_code      text not null,
+  category_name   text not null references sales_categories(name) on delete cascade,
+  rule_type       tax_rule_type not null default 'evaluate',
+  rate_pct        numeric(5,3) default 0 check (rate_pct >= 0 and rate_pct <= 100),
+  notes           text,
+  effective_from  date not null default current_date,
+  effective_until date,
+  created_at      timestamptz default now(),
+  updated_at      timestamptz default now(),
+  constraint chk_fixed_has_rate check (rule_type != 'fixed' or rate_pct is not null)
+);
+
+create unique index idx_category_tax_unique
+  on category_tax_rules (state_code, category_name) where effective_until is null;
+```
+
+### `product_tax_overrides`
+
+Product-level exceptions to category rules. Only recorded when a product differs
+from its parent category rule.
+
+| Column             | Type            | Description                                       |
+| :----------------- | :-------------- | :------------------------------------------------ |
+| `id`               | `uuid`          | **Primary Key**.                                  |
+| `category_rule_id` | `uuid`          | FK to `category_tax_rules(id)` ON DELETE CASCADE. |
+| `product_name`     | `text`          | Product name (case-insensitive matching).         |
+| `rule_type`        | `tax_rule_type` | Override rule type.                               |
+| `rate_pct`         | `numeric(5,3)`  | Override rate. 0 = exempt.                        |
+| `notes`            | `text`          | Optional explanation.                             |
+| `effective_from`   | `date`          | Default: today.                                   |
+| `effective_until`  | `date`          | NULL = no expiry.                                 |
+| `created_at`       | `timestamptz`   | Default `now()`.                                  |
+| `updated_at`       | `timestamptz`   | Default `now()`.                                  |
+
+**Indexes**: `idx_product_tax_override_unique` (partial unique, case-insensitive
+via `LOWER(product_name)`)
+
+```sql
+create table product_tax_overrides (
+  id                uuid primary key default gen_random_uuid(),
+  category_rule_id  uuid not null references category_tax_rules(id) on delete cascade,
+  product_name      text not null,
+  rule_type         tax_rule_type not null,
+  rate_pct          numeric(5,3) default 0 check (rate_pct >= 0 and rate_pct <= 100),
+  notes             text,
+  effective_from    date not null default current_date,
+  effective_until   date,
+  created_at        timestamptz default now(),
+  updated_at        timestamptz default now(),
+  constraint chk_override_fixed_has_rate check (rule_type != 'fixed' or rate_pct is not null)
+);
+
+create unique index idx_product_tax_override_unique
+  on product_tax_overrides (category_rule_id, lower(product_name))
+  where effective_until is null;
+```
+
+### Tax Rule Query Pattern
+
+```sql
+-- Get applicable tax rule for a product (product override > category rule)
+SELECT
+  COALESCE(po.rule_type, cr.rule_type) AS rule_type,
+  COALESCE(po.rate_pct, cr.rate_pct)   AS rate_pct
+FROM category_tax_rules cr
+LEFT JOIN product_tax_overrides po
+  ON po.category_rule_id = cr.id
+  AND LOWER(po.product_name) = LOWER('Tomatoes')
+  AND (po.effective_until IS NULL OR po.effective_until > CURRENT_DATE)
+  AND po.effective_from <= CURRENT_DATE
+WHERE cr.state_code = 'CA'
+  AND cr.category_name = 'vegetables'
+  AND (cr.effective_until IS NULL OR cr.effective_until > CURRENT_DATE)
+  AND cr.effective_from <= CURRENT_DATE;
+```
