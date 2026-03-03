@@ -281,11 +281,16 @@ client initialization, and error wrapping. Functions requiring auth use
 | `create-offer`             | Yes  | Atomic offer creation on buy posts (wraps RPC)      |
 | `register-push-token`      | Yes  | Upsert push notification tokens/subscriptions       |
 | `send-push-notification`   | Yes  | Send push to users via Web Push, APNs, or FCM       |
+| `notify-on-message`        | No   | Push notification trigger for new chat messages     |
 | `donate-points`            | Yes  | Donate points to GlobalGiving charitable projects   |
 | `fetch-donation-projects`  | No   | Fetch/search GlobalGiving project catalog           |
 | `fetch-gift-cards`         | No   | Merged Reloadly + Tremendous gift card catalog      |
 | `redeem-gift-card`         | Yes  | Purchase gift card with points via provider APIs    |
+| `redeem-paypal-payout`     | Yes  | PayPal/Venmo cashout via PayPal Payouts API         |
+| `refund-purchased-points`  | Yes  | Refund purchased points (Stripe/Venmo/gift card)    |
+| `process-redemptions`      | No   | Queue-based redemption processor                    |
 | `sync-provider-balance`    | No   | Cron: monitor Reloadly/Tremendous balances          |
+| `get-tax-rate`             | No   | California sales tax lookup for food items          |
 | `assign-experiment`        | No   | Deterministic A/B experiment assignment             |
 | `resolve-community`        | No   | Resolves H3 community from lat/lng or address       |
 | `enrich-communities`       | No   | Background enrichment of community metadata         |
@@ -524,7 +529,7 @@ VAPID keys have been generated and saved:
 ### Running Tests
 
 ```bash
-# All app unit tests (28 suites, 368 tests)
+# All app unit tests
 yarn workspace @casagrown/app jest
 
 # Single file
@@ -533,19 +538,19 @@ yarn workspace @casagrown/app jest packages/app/features/chat/chat-service.test.
 # Watch mode
 yarn workspace @casagrown/app jest --watch
 
-# Edge function integration tests (8 suites, 29 tests)
+# Edge function integration tests (8 suites)
 # Requires: npx supabase functions serve (running in another terminal)
 deno test --allow-net --allow-env supabase/functions/*/test.ts
 
-# Web integration tests (Playwright)
-cd apps/next-community && npx playwright test
+# Web integration tests (Playwright — 228 pass, 40 skipped)
+npx playwright test --config=e2e/playwright/playwright.config.ts
 
-# Mobile E2E tests (Maestro — 13 flows, iOS + Android)
+# Mobile E2E tests (Maestro — 22 flows, iOS + Android)
 # Requires: app running on iOS Simulator or Android Emulator
-./e2e/seed-test-data.sh            # Reset DB + clear Mailpit
-maestro test --udid <UDID> e2e/maestro/   # iOS (use xcrun simctl list)
-maestro test --device emulator-5554 e2e/maestro/  # Android
-maestro test e2e/maestro/flows/login.yaml  # Run a single flow
+./e2e/seed-test-data.sh                              # Reset DB + clear Mailpit
+maestro test --udid <UDID> e2e/maestro/flows/        # iOS (use xcrun simctl list)
+maestro test e2e/maestro/flows/                      # Android
+maestro test e2e/maestro/flows/login.yaml            # Run a single flow
 
 # Root-level tests (Vitest)
 yarn test
@@ -657,6 +662,8 @@ npx supabase functions deploy  # Deploy edge functions
 | `RELOADLY_SANDBOX`          | Redemptions  | `true` for sandbox, `false` for prod |
 | `GLOBALGIVING_API_KEY`      | Donations    | Charitable donation API              |
 | `GLOBALGIVING_SANDBOX`      | Donations    | `true` for sandbox, `false` for prod |
+| `PAYPAL_CLIENT_ID`          | Cashouts     | PayPal Payouts API client ID         |
+| `PAYPAL_SECRET`             | Cashouts     | PayPal Payouts API secret            |
 | `VAPID_PUBLIC_KEY`          | Push notifs  | Web Push VAPID public key            |
 | `VAPID_PRIVATE_KEY`         | Push notifs  | Web Push VAPID private key           |
 | `VAPID_SUBJECT`             | Push notifs  | VAPID contact (mailto: URL)          |

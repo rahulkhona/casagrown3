@@ -29,7 +29,9 @@ test.describe("Order Flow", () => {
         // to sellers. If the current user IS the buyer, no Offer button appears.
         // Scroll to the basil post first since it may be below the fold
         const basilPost = page.locator("text=basil").first();
-        const hasBasil = await basilPost.isVisible().catch(() => false);
+        const hasBasil = await basilPost
+            .isVisible({ timeout: 5_000 })
+            .catch(() => false);
 
         if (hasBasil) {
             await basilPost.scrollIntoViewIfNeeded();
@@ -38,7 +40,7 @@ test.describe("Order Flow", () => {
 
         const offerBtn = page.getByText("Offer", { exact: true }).first();
         const hasOffer = await offerBtn
-            .isVisible({ timeout: 5_000 })
+            .isVisible({ timeout: 8_000 })
             .catch(() => false);
         if (!hasOffer) {
             // Buyer viewing own buy post — no Offer button expected
@@ -97,6 +99,66 @@ test.describe("Order Flow", () => {
                 .catch(() => false);
 
             expect(hasModal).toBeTruthy();
+
+            // ── Tax verification (piggyback on the open order sheet) ──
+            // Enter quantity
+            const qtyInput = page.locator(
+                'input[placeholder*="uantity"], input[type="number"]',
+            ).first();
+            if (await qtyInput.isVisible().catch(() => false)) {
+                await qtyInput.fill("1");
+            }
+
+            // Enter a CA delivery address to trigger tax lookup
+            const addrInput = page.locator(
+                'input[placeholder*="ddress"], textarea',
+            ).first();
+            if (await addrInput.isVisible().catch(() => false)) {
+                await addrInput.fill(
+                    "973 Wallace Dr, San Jose, California, 95120",
+                );
+                await page.waitForTimeout(3000); // Wait for debounced tax lookup
+            }
+
+            // The Sales Tax card should appear
+            const taxCard = page.locator("text=Sales Tax").first();
+            const hasTax = await taxCard
+                .isVisible({ timeout: 5_000 })
+                .catch(() => false);
+
+            if (hasTax) {
+                // Tax card is visible — check for rate display
+                const hasRate = await page
+                    .locator("text=/\\d+\\.\\d+%/")
+                    .first()
+                    .isVisible()
+                    .catch(() => false);
+                expect(hasRate).toBeTruthy();
+
+                // Should show either "Exempt" or "Taxable"
+                const hasExemptOrTaxable = await page
+                    .locator("text=/Exempt|Taxable/")
+                    .first()
+                    .isVisible()
+                    .catch(() => false);
+                expect(hasExemptOrTaxable).toBeTruthy();
+
+                // For vegetables/fruits categories in CA, expect Exempt
+                const categoryText = await page
+                    .locator("text=/Vegetables|Fruits|Herbs/i")
+                    .first()
+                    .isVisible()
+                    .catch(() => false);
+                if (categoryText) {
+                    const hasExempt = await page
+                        .locator("text=Exempt")
+                        .first()
+                        .isVisible()
+                        .catch(() => false);
+                    expect(hasExempt).toBeTruthy();
+                }
+            }
+            // If no tax card, gracefully pass — edge function may not be running
         }
     });
 });

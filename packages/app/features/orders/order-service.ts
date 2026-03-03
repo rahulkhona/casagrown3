@@ -89,6 +89,8 @@ function mapOrderRow(row: Record<string, unknown>): Order {
                 | null;
             return (wsd?.[0]?.unit as string) ?? null;
         })(),
+        tax_rate_pct: Number(row.tax_rate_pct ?? 0),
+        tax_amount: Number(row.tax_amount ?? 0),
     };
 }
 

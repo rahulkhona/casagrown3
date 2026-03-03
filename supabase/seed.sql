@@ -34,22 +34,41 @@ values (
 )
 on conflict (h3_index) do nothing;
 
--- 6. Incentive Rules
--- (Authentication/Signup rule is already handled by migration, adding others for manual testing)
-insert into public.incentive_rules (action_type, scope, points, start_date)
-values 
-  ('join_a_community', 'global', 100, now()),
-  ('make_first_post', 'global', 25, now()),
-  ('invitee_signing_up', 'global', 50, now()),
-  ('invitee_making_first_transaction', 'global', 100, now());
+-- 6. Launch Campaign (replaces legacy incentive_rules)
+INSERT INTO public.incentive_campaigns (id, name, description, starts_at, ends_at, is_active)
+VALUES (
+  'a0000000-0000-0000-0000-000000000001',
+  'Launch Campaign',
+  'Welcome campaign rewarding early adopters for key actions',
+  '2026-01-01T00:00:00Z',
+  '2027-12-31T23:59:59Z',
+  true
+);
+
+-- Campaign rewards for key behaviors
+INSERT INTO public.campaign_rewards (campaign_id, behavior, points) VALUES
+  ('a0000000-0000-0000-0000-000000000001', 'signup', 100),
+  ('a0000000-0000-0000-0000-000000000001', 'first_post', 75),
+  ('a0000000-0000-0000-0000-000000000001', 'first_purchase', 150),
+  ('a0000000-0000-0000-0000-000000000001', 'first_sale', 150),
+  ('a0000000-0000-0000-0000-000000000001', 'per_referral', 50);
+
+-- No zone restriction = global campaign (targets all communities)
 
 -- 7. Category & Product Restrictions (for testing restriction enforcement)
--- No restrictions by default — all categories and products are allowed.
--- Uncomment below to test restriction behavior:
+-- No category restrictions by default.
+-- Uncomment below to test category restriction behavior:
 -- insert into public.category_restrictions (category_name, community_h3_index, reason)
 -- values ('herbs', NULL, 'Controlled substance regulations');
--- insert into public.blocked_products (product_name, community_h3_index, reason)
--- values ('Cannabis', NULL, 'Federally restricted product');
+
+-- Globally blocked products (cannot be added as custom garden items)
+insert into public.blocked_products (product_name, community_h3_index, reason) values
+  ('Marijuana', NULL, 'Controlled substance - federally prohibited'),
+  ('Cannabis', NULL, 'Controlled substance - federally prohibited'),
+  ('Tobacco', NULL, 'Regulated product'),
+  ('Opium Poppy', NULL, 'Controlled substance'),
+  ('Coca', NULL, 'Controlled substance')
+on conflict do nothing;
 
 -- 8. Storage Buckets & Policies
 -- Everything in a single DO block to work with Supabase's prepared statement runner.

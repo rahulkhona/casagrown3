@@ -17,21 +17,20 @@ import {
 import { 
   Camera, 
   Upload, 
-  Bell, 
-  MessageSquare, 
-  Phone, 
-  Mail, 
-  MapPin, 
   LogOut, 
-  Pencil, 
-  Save, 
+  Settings, 
+  ChevronDown, 
+  ChevronLeft, 
+  Check, 
   X, 
-  Settings,
-  Check,
-  ShoppingBag,
-  Tag,
-  ChevronDown,
-  ChevronLeft
+  Phone, 
+  MapPin, 
+  ShoppingBag, 
+  Tag, 
+  Mail, 
+  Bell, 
+  MessageSquare,
+  Shield
 } from '@tamagui/lucide-icons'
 import { Alert, Image, Platform, TextInput, Keyboard, KeyboardAvoidingView } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -44,6 +43,7 @@ import { useResolveCommunity, ResolveResponse } from '../community/use-resolve-c
 import { buildResolveResponseFromIndex } from '../community/h3-utils'
 import { uploadProfileAvatar } from '../profile-wizard/utils/media-upload'
 import { normalizeStorageUrl } from '../../utils/normalize-storage-url'
+import { getProduceEmoji } from '../profile-wizard/utils/produce-emoji'
 
 // Platform-conditional import: React.lazy for web (avoids SSR crash from
 // Leaflet accessing `window` during module evaluation), require() for native
@@ -77,6 +77,12 @@ interface ProfileData {
   full_name: string
   avatar_url: string | null
   phone_number: string | null
+  street_address: string | null
+  city: string | null
+  state_code: string | null
+  zip_code: string | null
+  email_verified: boolean
+  phone_verified: boolean
   push_enabled: boolean
   sms_enabled: boolean
   notify_on_wanted: boolean
@@ -86,6 +92,8 @@ interface ProfileData {
   community_city?: string
   community_lat?: number
   community_lng?: number
+  garden_items: string[]
+  custom_garden_items: string[]
 }
 
 interface ActivityStats {
@@ -119,16 +127,48 @@ export function ProfileScreen() {
   const avatarFileInputRef = useRef<HTMLInputElement>(null)
   const [showAvatarCamera, setShowAvatarCamera] = useState(false)
   
+  // Garden management
+  const [customItemInput, setCustomItemInput] = useState('')
+  const [blockedProducts, setBlockedProducts] = useState<string[]>([])
+  const [blockedError, setBlockedError] = useState('')
+
+  // Phone re-verification
+  const [originalPhone, setOriginalPhone] = useState<string | null>(null)
+  const [otpSent, setOtpSent] = useState(false)
+  const [otpCode, setOtpCode] = useState('')
+  const [resendTimer, setResendTimer] = useState(0)
+  const [verifyError, setVerifyError] = useState('')
+
+  const DEV_OTP_CODE = '123456'
+
+  // Resend countdown timer
+  useEffect(() => {
+    if (resendTimer > 0) {
+      const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [resendTimer])
+
+
+
   // Profile data
   const [profile, setProfile] = useState<ProfileData>({
     full_name: '',
     avatar_url: null,
     phone_number: null,
+    street_address: null,
+    city: null,
+    state_code: null,
+    zip_code: null,
+    email_verified: false,
+    phone_verified: false,
     push_enabled: true,
     sms_enabled: false,
     notify_on_wanted: false,
     notify_on_available: false,
     home_community_h3_index: null,
+    garden_items: [],
+    custom_garden_items: [],
   })
   
   // Edit state (separate from saved profile)
@@ -178,6 +218,12 @@ export function ProfileScreen() {
           full_name,
           avatar_url,
           phone_number,
+          street_address,
+          city,
+          state_code,
+          zip_code,
+          email_verified,
+          phone_verified,
           push_enabled,
           sms_enabled,
           notify_on_wanted,
@@ -198,6 +244,12 @@ export function ProfileScreen() {
         full_name: data.full_name || '',
         avatar_url: normalizeStorageUrl(data.avatar_url) ?? null,
         phone_number: data.phone_number,
+        street_address: data.street_address || null,
+        city: data.city || null,
+        state_code: data.state_code || null,
+        zip_code: data.zip_code || null,
+        email_verified: data.email_verified ?? false,
+        phone_verified: data.phone_verified ?? false,
         push_enabled: data.push_enabled ?? true,
         sms_enabled: data.sms_enabled ?? false,
         notify_on_wanted: data.notify_on_wanted ?? false,
@@ -205,7 +257,30 @@ export function ProfileScreen() {
         home_community_h3_index: data.home_community_h3_index,
         community_name: (data.communities as CommunityJoinData | null)?.name,
         community_city: (data.communities as CommunityJoinData | null)?.city,
+        garden_items: [],
+        custom_garden_items: [],
       }
+
+      // Fetch garden items from user_garden
+      const { data: gardenRows } = await supabase
+        .from('user_garden')
+        .select('produce_name, is_custom')
+        .eq('user_id', user.id)
+      if (gardenRows) {
+        console.log('🌱 [Profile] Loaded garden items:', gardenRows)
+        profileData.garden_items = gardenRows.filter(r => !r.is_custom).map(r => r.produce_name)
+        profileData.custom_garden_items = gardenRows.filter(r => r.is_custom).map(r => r.produce_name)
+      } else {
+        console.log('🌱 [Profile] No garden items found')
+      }
+
+      // Fetch blocked products
+      const communityH3 = data.home_community_h3_index || null
+      let blockedQuery = supabase.from('blocked_products').select('product_name')
+      const { data: blocked } = communityH3
+        ? await blockedQuery.or(`community_h3_index.is.null,community_h3_index.eq.${communityH3}`)
+        : await blockedQuery.is('community_h3_index', null)
+      setBlockedProducts((blocked || []).map(b => b.product_name.toLowerCase()))
       
       // Fetch map data for CommunityMap
       if (data.home_community_h3_index) {
@@ -237,6 +312,7 @@ export function ProfileScreen() {
       
       setProfile(profileData)
       setEditData(profileData)
+      setOriginalPhone(profileData.phone_number)
     } catch (err: unknown) {
       const e = err instanceof Error ? err : { message: String(err), code: undefined, details: undefined }
       console.error('Error loading profile:', JSON.stringify(err), e.message, (e as Record<string, unknown>).code, (e as Record<string, unknown>).details)
@@ -292,6 +368,9 @@ export function ProfileScreen() {
           console.warn('Avatar upload failed, keeping original URL')
         }
       }
+
+      // Detect phone change → mark unverified
+      const phoneChanged = (editData.phone_number || '') !== (originalPhone || '')
       
       const { error } = await supabase
         .from('profiles')
@@ -299,6 +378,11 @@ export function ProfileScreen() {
           full_name: editData.full_name,
           avatar_url: avatarUrl,
           phone_number: editData.phone_number,
+          phone_verified: editData.phone_verified,
+          street_address: editData.street_address,
+          city: editData.city,
+          state_code: editData.state_code,
+          zip_code: editData.zip_code,
           push_enabled: editData.push_enabled,
           sms_enabled: editData.sms_enabled,
           notify_on_wanted: editData.notify_on_wanted,
@@ -307,11 +391,104 @@ export function ProfileScreen() {
         .eq('id', user.id)
       
       if (error) throw error
+
+      // Persist garden items: delete all then re-insert
+      const { error: delError } = await supabase.from('user_garden').delete().eq('user_id', user.id)
+      if (delError) console.error('🌱 [Profile] Garden delete error:', delError)
+      const gardenInserts = [
+        ...editData.garden_items.map(name => ({ user_id: user.id, produce_name: name, is_custom: false })),
+        ...editData.custom_garden_items.map(name => ({ user_id: user.id, produce_name: name, is_custom: true })),
+      ]
+      console.log('🌱 [Profile] Saving garden items:', gardenInserts)
+      if (gardenInserts.length > 0) {
+        const { error: insertError } = await supabase.from('user_garden').insert(gardenInserts)
+        if (insertError) console.error('🌱 [Profile] Garden insert error:', insertError)
+      }
       
-      setProfile({ ...editData, avatar_url: avatarUrl })
+      const updatedProfile = {
+        ...editData,
+        avatar_url: avatarUrl,
+        phone_verified: editData.phone_verified,
+      }
+      setProfile(updatedProfile)
+      setEditData(updatedProfile)
+      setOriginalPhone(editData.phone_number)
       setIsEditing(false)
+      setOtpSent(false)
+      setOtpCode('')
     } catch (err) {
       console.error('Error saving profile:', err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // ─── Garden management ───
+  const addGardenItem = (name: string) => {
+    if (!name.trim()) return
+    const normalized = name.trim()
+    setBlockedError('')
+    if (blockedProducts.includes(normalized.toLowerCase())) {
+      setBlockedError(t('profile.blockedProductError', `"${normalized}" is a restricted product and cannot be added.`))
+      return
+    }
+    // Check if already exists
+    const allItems = [...editData.garden_items, ...editData.custom_garden_items]
+    if (allItems.some(i => i.toLowerCase() === normalized.toLowerCase())) return
+    setEditData({
+      ...editData,
+      custom_garden_items: [...editData.custom_garden_items, normalized],
+    })
+    setCustomItemInput('')
+  }
+
+  const removeGardenItem = (name: string, isCustom: boolean) => {
+    if (isCustom) {
+      setEditData({
+        ...editData,
+        custom_garden_items: editData.custom_garden_items.filter(i => i !== name),
+      })
+    } else {
+      setEditData({
+        ...editData,
+        garden_items: editData.garden_items.filter(i => i !== name),
+      })
+    }
+  }
+
+  // ─── Simple community switch (direct update) ───
+  const handleSwitchCommunity = async () => {
+    if (!user?.id || !resolvedCommunity) return
+    try {
+      setSaving(true)
+      // Ensure community record exists
+      await supabase.from('communities').upsert({
+        h3_index: resolvedCommunity.primary.h3_index,
+        name: resolvedCommunity.primary.name,
+      }, { onConflict: 'h3_index' })
+
+      // Update user profile
+      const { error } = await supabase
+        .from('profiles')
+        .update({ home_community_h3_index: resolvedCommunity.primary.h3_index })
+        .eq('id', user.id)
+      if (error) throw error
+
+      // Update local state
+      const updatedCommunityData = {
+        home_community_h3_index: resolvedCommunity.primary.h3_index,
+        community_name: resolvedCommunity.primary.name,
+        community_city: resolvedCommunity.primary.city,
+      }
+      setProfile({ ...profile, ...updatedCommunityData })
+      setEditData({ ...editData, ...updatedCommunityData })
+      setCommunityMapData(resolvedCommunity)
+      setIsChangingCommunity(false)
+      setResolvedCommunity(null)
+      setAddressInput('')
+      setZipCodeInput('')
+    } catch (err) {
+      console.error('Error switching community:', err)
     } finally {
       setSaving(false)
     }
@@ -483,7 +660,7 @@ export function ProfileScreen() {
             <Button
               size="$3"
               backgroundColor={colors.primary[600]}
-              icon={Pencil}
+              icon={Settings}
               onPress={() => setIsEditing(true)}
             >
               <Text color="white">{t('profile.editProfile')}</Text>
@@ -612,6 +789,335 @@ export function ProfileScreen() {
 
           </XStack>
           
+          <Separator marginVertical="$3" />
+
+          {/* Address Section */}
+          <YStack gap="$3">
+            <XStack alignItems="center" gap="$2">
+              <MapPin size={16} color={colors.primary[600]} />
+              <Text fontWeight="600" color={colors.neutral[900]}>{t('profile.addressTitle')}</Text>
+            </XStack>
+            
+            {isEditing ? (
+              <YStack gap="$2" padding="$3" backgroundColor={colors.neutral[50]} borderRadius={borderRadius.lg}>
+                <YStack gap="$1">
+                  <Label fontSize="$2" color={colors.neutral[600]}>{t('profile.streetAddress')}</Label>
+                  <Input
+                    value={editData.street_address || ''}
+                    onChangeText={(text) => setEditData({ ...editData, street_address: text })}
+                    placeholder={t('profile.streetPlaceholder')}
+                    size="$4"
+                    borderWidth={1}
+                    borderColor={colors.neutral[300]}
+                    focusStyle={{ borderColor: colors.primary[500] }}
+                    backgroundColor="white"
+                    fontWeight="400"
+                  />
+                </YStack>
+                <XStack gap="$2">
+                  <YStack flex={2} gap="$1">
+                    <Label fontSize="$2" color={colors.neutral[600]}>{t('profile.cityLabel')}</Label>
+                    <Input
+                      value={editData.city || ''}
+                      onChangeText={(text) => setEditData({ ...editData, city: text })}
+                      placeholder={t('profile.cityPlaceholder')}
+                      size="$4"
+                      borderWidth={1}
+                      borderColor={colors.neutral[300]}
+                      focusStyle={{ borderColor: colors.primary[500] }}
+                      backgroundColor="white"
+                      fontWeight="400"
+                    />
+                  </YStack>
+                  <YStack flex={1} gap="$1">
+                    <Label fontSize="$2" color={colors.neutral[600]}>{t('profile.stateLabel')}</Label>
+                    <Input
+                      value={editData.state_code || ''}
+                      onChangeText={(text) => setEditData({ ...editData, state_code: text.toUpperCase().slice(0, 2) })}
+                      placeholder="CA"
+                      size="$4"
+                      borderWidth={1}
+                      borderColor={colors.neutral[300]}
+                      focusStyle={{ borderColor: colors.primary[500] }}
+                      backgroundColor="white"
+                      fontWeight="400"
+                      maxLength={2}
+                    />
+                  </YStack>
+                  <YStack flex={1} gap="$1">
+                    <Label fontSize="$2" color={colors.neutral[600]}>{t('profile.zipLabel')}</Label>
+                    <Input
+                      value={editData.zip_code || ''}
+                      onChangeText={(text) => setEditData({ ...editData, zip_code: text.replace(/\D/g, '').slice(0, 5) })}
+                      placeholder="00000"
+                      size="$4"
+                      borderWidth={1}
+                      borderColor={colors.neutral[300]}
+                      focusStyle={{ borderColor: colors.primary[500] }}
+                      backgroundColor="white"
+                      keyboardType="number-pad"
+                      fontWeight="400"
+                      maxLength={5}
+                    />
+                  </YStack>
+                </XStack>
+              </YStack>
+            ) : profile.street_address ? (
+              <YStack padding="$3" backgroundColor={colors.neutral[50]} borderRadius={borderRadius.lg}>
+                <Text color={colors.neutral[800]}>{profile.street_address}</Text>
+                <Text color={colors.neutral[600]}>
+                  {[profile.city, profile.state_code, profile.zip_code].filter(Boolean).join(', ')}
+                </Text>
+              </YStack>
+            ) : (
+              <Text color={colors.neutral[500]} fontStyle="italic">{t('profile.noAddress')}</Text>
+            )}
+          </YStack>
+
+          <Separator marginVertical="$3" />
+
+          {/* Phone & Verification */}
+          <YStack gap="$3">
+            <XStack alignItems="center" gap="$2">
+              <Phone size={16} color={colors.primary[600]} />
+              <Text fontWeight="600" color={colors.neutral[900]}>{t('profile.phoneTitle')}</Text>
+            </XStack>
+            
+            {isEditing ? (
+              <YStack gap="$2">
+                <Input
+                  value={editData.phone_number || ''}
+                  onChangeText={(text) => {
+                    setEditData({ ...editData, phone_number: text })
+                    // Reset verification state if phone changes
+                    if (otpSent) {
+                      setOtpSent(false)
+                      setOtpCode('')
+                      setVerifyError('')
+                    }
+                  }}
+                  placeholder={t('profile.phonePlaceholder')}
+                  size="$4"
+                  borderWidth={1}
+                  borderColor={(editData.phone_number || '') !== (originalPhone || '') ? '#f59e0b' : colors.neutral[300]}
+                  focusStyle={{ borderColor: colors.primary[500] }}
+                  backgroundColor="white"
+                  keyboardType="phone-pad"
+                  fontWeight="400"
+                />
+
+                {/* Show verification flow if phone is unverified */}
+                {!editData.phone_verified && editData.phone_number && editData.phone_number.replace(/\D/g, '').length >= 10 && (
+                  <YStack gap="$3">
+                    {/* Verified badge */}
+                    {editData.phone_verified ? (
+                      <XStack
+                        padding="$3"
+                        backgroundColor={colors.primary[50]}
+                        borderRadius={borderRadius.lg}
+                        borderWidth={1}
+                        borderColor={colors.primary[200]}
+                        alignItems="center"
+                        gap="$2"
+                      >
+                        <Shield size={16} color={colors.primary[600]} />
+                        <Text fontSize="$3" fontWeight="600" color={colors.primary[700]}>
+                          {t('profile.phoneVerifiedSuccess', 'Phone number verified!')}
+                        </Text>
+                      </XStack>
+
+                    /* Send code prompt */
+                    ) : !otpSent ? (
+                      <XStack
+                        padding="$3"
+                        backgroundColor="#eff6ff"
+                        borderRadius={borderRadius.lg}
+                        alignItems="center"
+                        gap="$3"
+                        onPress={async () => {
+                          console.log(`[Dev SMS] Verification code for ${editData.phone_number}: ${DEV_OTP_CODE}`)
+                          setOtpSent(true)
+                          setResendTimer(60)
+                        }}
+                        cursor="pointer"
+                        pressStyle={{ opacity: 0.8 }}
+                      >
+                        <YStack
+                          width={22}
+                          height={22}
+                          borderRadius={4}
+                          borderWidth={2}
+                          borderColor={colors.primary[500]}
+                          backgroundColor="white"
+                          alignItems="center"
+                          justifyContent="center"
+                        />
+                        <YStack flex={1} gap="$1">
+                          <Text fontSize="$3" fontWeight="600" color={colors.neutral[800]}>
+                            {t('profile.verifyCheckboxLabel', 'Verify this number')}
+                          </Text>
+                          <Text fontSize="$2" color={colors.neutral[500]}>
+                            {t('profile.verifyCheckboxHint', 'We\'ll send a 6-digit code to confirm')}
+                          </Text>
+                        </YStack>
+                      </XStack>
+
+                    /* Code entry after SMS sent */
+                    ) : (
+                      <YStack gap="$3">
+                        <XStack
+                          padding="$3"
+                          backgroundColor={colors.primary[50]}
+                          borderRadius={borderRadius.lg}
+                          alignItems="center"
+                          gap="$2"
+                        >
+                          <Check size={14} color={colors.primary[600]} />
+                          <Text fontSize="$3" color={colors.primary[700]}>
+                            {t('profile.verifyCodeSent', `Code sent to ${editData.phone_number}`)}
+                          </Text>
+                        </XStack>
+
+                        {/* Dev mode hint */}
+                        <XStack
+                          padding="$2"
+                          backgroundColor="#fef3c7"
+                          borderRadius={borderRadius.lg}
+                          borderWidth={1}
+                          borderColor="#fbbf24"
+                          alignItems="center"
+                          gap="$2"
+                        >
+                          <Text fontSize="$2" color="#92400e">
+                            🔧 Dev mode — use code: <Text fontWeight="700" fontSize="$2" color="#92400e">{DEV_OTP_CODE}</Text>
+                          </Text>
+                        </XStack>
+
+                        {/* OTP Input + Verify button */}
+                        <XStack gap="$2" alignItems="center">
+                          <Input
+                            flex={1}
+                            value={otpCode}
+                            onChangeText={(text) => setOtpCode(text.replace(/\D/g, '').slice(0, 6))}
+                            placeholder="000000"
+                            size="$4"
+                            borderWidth={1}
+                            borderColor={colors.neutral[300]}
+                            focusStyle={{ borderColor: colors.primary[500], borderWidth: 2 }}
+                            backgroundColor="white"
+                            fontWeight="400"
+                            keyboardType="number-pad"
+                            maxLength={6}
+                            textAlign="center"
+                            letterSpacing={8}
+                            fontSize="$5"
+                          />
+                          <Button
+                            backgroundColor={otpCode.length === 6 ? colors.primary[600] : colors.neutral[300]}
+                            height="$4"
+                            paddingHorizontal="$4"
+                            onPress={async () => {
+                              if (otpCode === DEV_OTP_CODE) {
+                                // Immediately persist to DB
+                                if (user?.id) {
+                                  const { error: verifyErr } = await supabase
+                                    .from('profiles')
+                                    .update({ phone_verified: true })
+                                    .eq('id', user.id)
+                                  if (verifyErr) {
+                                    console.error('Phone verify persist error:', verifyErr)
+                                  } else {
+                                    console.log('✅ Phone verified and saved to DB')
+                                  }
+                                }
+                                setEditData({ ...editData, phone_verified: true } as ProfileData)
+                                setProfile({ ...profile, phone_verified: true })
+                                setOtpSent(false)
+                                setOtpCode('')
+                                setVerifyError('')
+                              } else {
+                                setVerifyError(t('profile.verifyCodeInvalid', 'Invalid code. Please try again.'))
+                              }
+                            }}
+                            disabled={otpCode.length !== 6}
+                          >
+                            <Text color="white" fontWeight="600">
+                              {t('profile.verifyButton', 'Verify')}
+                            </Text>
+                          </Button>
+                        </XStack>
+
+                        {/* Resend link */}
+                        <XStack justifyContent="center">
+                          {resendTimer > 0 ? (
+                            <Text fontSize="$2" color={colors.neutral[400]}>
+                              {t('profile.verifyResendIn', `Resend in ${resendTimer}s`)}
+                            </Text>
+                          ) : (
+                            <Text
+                              fontSize="$2"
+                              color={colors.primary[600]}
+                              fontWeight="600"
+                              onPress={() => {
+                                console.log(`[Dev SMS] Resending code to ${editData.phone_number}: ${DEV_OTP_CODE}`)
+                                setResendTimer(60)
+                              }}
+                              cursor="pointer"
+                              textDecorationLine="underline"
+                            >
+                              {t('profile.verifyResend', 'Resend code')}
+                            </Text>
+                          )}
+                        </XStack>
+
+                        {/* Error display */}
+                        {verifyError ? (
+                          <Text fontSize="$2" color="#dc2626">{verifyError}</Text>
+                        ) : null}
+                      </YStack>
+                    )}
+                  </YStack>
+                )}
+              </YStack>
+            ) : (
+              <XStack alignItems="center" gap="$2" flexWrap="wrap">
+                <Text color={profile.phone_number ? colors.neutral[800] : colors.neutral[500]}>
+                  {profile.phone_number || t('profile.noPhone')}
+                </Text>
+                {profile.phone_number && (
+                  profile.phone_verified ? (
+                    <XStack
+                      backgroundColor={colors.primary[100]}
+                      paddingHorizontal="$2"
+                      paddingVertical="$1"
+                      borderRadius={4}
+                      alignItems="center"
+                      gap="$1"
+                    >
+                      <Shield size={12} color={colors.primary[700]} />
+                      <Text fontSize="$1" color={colors.primary[700]} fontWeight="600">
+                        {t('profile.phoneVerifiedBadge')}
+                      </Text>
+                    </XStack>
+                  ) : (
+                    <XStack
+                      backgroundColor="#fef3c7"
+                      paddingHorizontal="$2"
+                      paddingVertical="$1"
+                      borderRadius={4}
+                      alignItems="center"
+                      gap="$1"
+                    >
+                      <Text fontSize="$1" color="#92400e" fontWeight="600">
+                        {t('profile.phoneUnverified', 'Unverified')}
+                      </Text>
+                    </XStack>
+                  )
+                )}
+              </XStack>
+            )}
+          </YStack>
+
           <Separator marginVertical="$3" />
 
           {/* Community Section */}
@@ -884,11 +1390,11 @@ export function ProfileScreen() {
                     )}
                     <Button
                       backgroundColor={colors.primary[600]}
-                      onPress={handleJoinCommunity}
+                      onPress={handleSwitchCommunity}
                       disabled={saving}
                     >
                       <Text color="white" fontWeight="600">
-                        {saving ? t('profile.joining') : t('profile.joinCommunity')}
+                        {saving ? t('profile.joining') : t('profile.switchToThisCommunity', 'Switch to this Community')}
                       </Text>
                     </Button>
                   </YStack>
@@ -910,106 +1416,162 @@ export function ProfileScreen() {
           </YStack>
 
           {/* Notification Preferences */}
+
+          {/* ─── What I Grow ─── */}
+          <Separator marginVertical="$3" />
           <YStack gap="$3">
             <Text fontWeight="600" color={colors.neutral[900]}>
-              {t('profile.notifications')}
+              🌱 {t('profile.whatIGrow', 'What I Grow')}
             </Text>
             
-            {/* Notify Type Container - matches wizard step 1 pattern */}
+            {/* Produce chips */}
+            <XStack flexWrap="wrap" gap="$2">
+              {(isEditing ? editData : profile).garden_items.map(name => {
+                const emoji = getProduceEmoji(name)
+                return (
+                  <XStack
+                    key={name}
+                    backgroundColor={colors.primary[50]}
+                    borderWidth={1}
+                    borderColor={colors.primary[200]}
+                    borderRadius={20}
+                    paddingHorizontal="$3"
+                    paddingVertical="$1.5"
+                    alignItems="center"
+                    gap="$1"
+                  >
+                    <Text fontSize="$3" color={colors.primary[800]}>
+                      {emoji ? `${emoji} ` : ''}{name}
+                    </Text>
+                    {isEditing && (
+                      <Button
+                        size="$1"
+                        circular
+                        chromeless
+                        onPress={() => removeGardenItem(name, false)}
+                        padding="$0"
+                      >
+                        <X size={14} color={colors.error[500]} />
+                      </Button>
+                    )}
+                  </XStack>
+                )
+              })}
+              {(isEditing ? editData : profile).custom_garden_items.map(name => {
+                const emoji = getProduceEmoji(name)
+                return (
+                  <XStack
+                    key={`custom-${name}`}
+                    backgroundColor={colors.primary[50]}
+                    borderWidth={1}
+                    borderColor={colors.primary[300]}
+                    borderRadius={20}
+                    paddingHorizontal="$3"
+                    paddingVertical="$1.5"
+                    alignItems="center"
+                    gap="$1"
+                    borderStyle="dashed"
+                  >
+                    <Text fontSize="$3" color={colors.primary[800]}>
+                      {emoji ? `${emoji} ` : '🌿 '}{name}
+                    </Text>
+                    {isEditing && (
+                      <Button
+                        size="$1"
+                        circular
+                        chromeless
+                        onPress={() => removeGardenItem(name, true)}
+                        padding="$0"
+                      >
+                        <X size={14} color={colors.error[500]} />
+                      </Button>
+                    )}
+                  </XStack>
+                )
+              })}
+            </XStack>
+
+            {/* No items message */}
+            {(isEditing ? editData : profile).garden_items.length === 0 && (isEditing ? editData : profile).custom_garden_items.length === 0 && (
+              <Text color={colors.neutral[400]} fontStyle="italic" fontSize="$3">
+                {t('profile.noGardenItems', 'No produce added yet')}
+              </Text>
+            )}
+
+            {/* Add custom item */}
+            {isEditing && (
+              <>
+              <XStack gap="$2" alignItems="center">
+                <Input
+                  flex={1}
+                  value={customItemInput}
+                  onChangeText={setCustomItemInput}
+                  placeholder={t('profile.addCustomItem', 'Add custom item…')}
+                  size="$3"
+                  borderWidth={1}
+                  borderColor={colors.neutral[300]}
+                  focusStyle={{ borderColor: colors.primary[500] }}
+                  backgroundColor="white"
+                  fontWeight="400"
+                  onSubmitEditing={() => addGardenItem(customItemInput)}
+                />
+                <Button
+                  size="$3"
+                  backgroundColor={colors.primary[600]}
+                  onPress={() => addGardenItem(customItemInput)}
+                  disabled={!customItemInput.trim()}
+                >
+                  <Text color="white" fontWeight="600" fontSize="$4">+</Text>
+                </Button>
+              </XStack>
+              {blockedError ? (
+                <Text fontSize="$2" color="#dc2626" fontWeight="500">
+                  ⛔ {blockedError}
+                </Text>
+              ) : null}
+              </>
+            )}
+          </YStack>
+          {/* SMS Notifications */}
+          <Separator marginVertical="$3" />
+          <YStack gap="$3">
+            <Text fontWeight="600" color={colors.neutral[900]}>
+              💬 {t('profile.smsTitle', 'SMS Daily Digest')}
+            </Text>
             <YStack gap="$3" padding="$4" backgroundColor={colors.neutral[50]} borderRadius={borderRadius.lg} borderWidth={1} borderColor={colors.neutral[100]}>
-              <XStack alignItems="center" gap="$3">
-                <Checkbox
-                  checked={editData.notify_on_wanted}
-                  onCheckedChange={(checked) => 
-                    setEditData({ ...editData, notify_on_wanted: !!checked })
-                  }
-                  disabled={!isEditing}
-                  size="$4"
-                >
-                  <Checkbox.Indicator>
-                    <Check color={colors.primary[600]} />
-                  </Checkbox.Indicator>
-                </Checkbox>
-                <Text fontSize="$3" color={colors.neutral[800]}>{t('profile.notifyWanted')}</Text>
-              </XStack>
-              
-              <XStack alignItems="center" gap="$3">
-                <Checkbox
-                  checked={editData.notify_on_available}
-                  onCheckedChange={(checked) => 
-                    setEditData({ ...editData, notify_on_available: !!checked })
-                  }
-                  disabled={!isEditing}
-                  size="$4"
-                >
-                  <Checkbox.Indicator>
-                    <Check color={colors.primary[600]} />
-                  </Checkbox.Indicator>
-                </Checkbox>
-                <Text fontSize="$3" color={colors.neutral[800]}>{t('profile.notifyAvailable')}</Text>
-              </XStack>
-              
-              {/* Channel Selection - Only visible when a notification type is selected */}
-              {(editData.notify_on_wanted || editData.notify_on_available) && (
-                <YStack>
-                  <YStack height={1} backgroundColor={colors.neutral[200]} marginVertical="$4" />
-                  <Text color={colors.neutral[700]} fontWeight="600" fontSize="$3" marginBottom="$2">
-                    {t('profile.alertChannels') || 'Alert Channels'}
+              <XStack alignItems="center" justifyContent="space-between">
+                <YStack flex={1} gap="$1">
+                  <Text fontSize="$3" color={colors.neutral[800]} fontWeight="500">
+                    {t('profile.smsOptIn', 'Receive a daily SMS digest of community activity')}
                   </Text>
-                  
-                  <XStack alignItems="center" gap="$3" marginBottom="$2">
-                    <Checkbox
-                      checked={editData.push_enabled}
-                      onCheckedChange={(checked) => 
-                        setEditData({ ...editData, push_enabled: !!checked })
-                      }
-                      disabled={!isEditing}
-                      size="$4"
-                    >
-                      <Checkbox.Indicator>
-                        <Check color={colors.primary[600]} />
-                      </Checkbox.Indicator>
-                    </Checkbox>
-                    <Text fontSize="$3" color={colors.neutral[800]}>{t('profile.pushNotifications')}</Text>
-                  </XStack>
-                  
-                  <XStack alignItems="center" gap="$3">
-                    <Checkbox
-                      checked={editData.sms_enabled}
-                      onCheckedChange={(checked) => 
-                        setEditData({ ...editData, sms_enabled: !!checked })
-                      }
-                      disabled={!isEditing}
-                      size="$4"
-                    >
-                      <Checkbox.Indicator>
-                        <Check color={colors.primary[600]} />
-                      </Checkbox.Indicator>
-                    </Checkbox>
-                    <Text fontSize="$3" color={colors.neutral[800]}>{t('profile.smsNotifications')}</Text>
-                  </XStack>
-                  
-                  {/* Phone Number Input - appears below SMS checkbox when SMS is enabled */}
-                  {editData.sms_enabled && (
-                    <YStack gap="$2" marginTop="$3" paddingLeft="$7">
-                      <Label color={colors.neutral[600]} fontSize="$2">{t('profile.phoneLabel') || 'Phone Number'}</Label>
-                      <Input
-                        value={editData.phone_number || ''}
-                        onChangeText={(text) => setEditData({ ...editData, phone_number: text })}
-                        placeholder={t('profile.phonePlaceholder')}
-                        size="$3"
-                        borderWidth={1}
-                        borderColor={colors.neutral[300]}
-                        focusStyle={{ borderColor: colors.primary[500] }}
-                        backgroundColor="white"
-                        keyboardType="phone-pad"
-                        fontWeight="400"
-                        disabled={!isEditing}
-                      />
-                    </YStack>
-                  )}
+                  <Text fontSize="$2" color={colors.neutral[500]}>
+                    {t('profile.smsDescription', 'New listings, wanted posts, and offers in your community \u2014 delivered once daily')}
+                  </Text>
                 </YStack>
-              )}
+                <XStack
+                  width={50}
+                  height={28}
+                  borderRadius={14}
+                  backgroundColor={editData.sms_enabled ? colors.primary[600] : colors.neutral[300]}
+                  padding={2}
+                  justifyContent={editData.sms_enabled ? 'flex-end' : 'flex-start'}
+                  alignItems="center"
+                  opacity={!isEditing ? 0.6 : 1}
+                  onPress={() => isEditing && setEditData({ ...editData, sms_enabled: !editData.sms_enabled })}
+                  pressStyle={{ opacity: 0.8 }}
+                  cursor={isEditing ? 'pointer' : 'default'}
+                >
+                  <YStack
+                    width={24}
+                    height={24}
+                    borderRadius={12}
+                    backgroundColor="white"
+                    shadowColor="rgba(0,0,0,0.2)"
+                    shadowOffset={{ width: 0, height: 1 }}
+                    shadowRadius={2}
+                  />
+                </XStack>
+              </XStack>
             </YStack>
           </YStack>
         </YStack>
@@ -1102,58 +1664,10 @@ export function ProfileScreen() {
           </YStack>
         )}
 
-        {/* About CasaGrown Section */}
-        <YStack
-          backgroundColor="white"
-          borderRadius={borderRadius.xl}
-          padding="$5"
-          shadowColor={shadows.sm.color}
-          shadowOffset={shadows.sm.offset}
-          shadowOpacity={0.1}
-        >
-          <Text fontWeight="600" color={colors.neutral[900]} marginBottom="$3">
-            {t('profile.about.title', 'About CasaGrown')}
-          </Text>
-          <YStack gap="$2">
-            <Button
-              unstyled
-              flexDirection="row"
-              alignItems="center"
-              justifyContent="space-between"
-              paddingVertical="$2"
-              onPress={() => {/* TODO: Navigate to mission page */}}
-            >
-              <Text color={colors.neutral[700]}>{t('profile.about.ourMission', 'Our Mission')}</Text>
-              <ChevronLeft size={20} color={colors.neutral[400]} style={{ transform: [{ rotate: '180deg' }] }} />
-            </Button>
-            <Separator />
-            <Button
-              unstyled
-              flexDirection="row"
-              alignItems="center"
-              justifyContent="space-between"
-              paddingVertical="$2"
-              onPress={() => {/* TODO: Navigate to how it works page */}}
-            >
-              <Text color={colors.neutral[700]}>{t('profile.about.howItWorks', 'How It Works')}</Text>
-              <ChevronLeft size={20} color={colors.neutral[400]} style={{ transform: [{ rotate: '180deg' }] }} />
-            </Button>
-            <Separator />
-            <Button
-              unstyled
-              flexDirection="row"
-              alignItems="center"
-              justifyContent="space-between"
-              paddingVertical="$2"
-              onPress={() => {/* TODO: Navigate to points info page */}}
-            >
-              <Text color={colors.neutral[700]}>{t('profile.about.pointSystem', 'Point System')}</Text>
-              <ChevronLeft size={20} color={colors.neutral[400]} style={{ transform: [{ rotate: '180deg' }] }} />
-            </Button>
-          </YStack>
-        </YStack>
 
-        {/* Legal & Support Section */}
+
+        {/* Legal & Support Section — mobile only */}
+        {Platform.OS !== 'web' && (
         <YStack
           backgroundColor="white"
           borderRadius={borderRadius.xl}
@@ -1215,29 +1729,25 @@ export function ProfileScreen() {
             </Button>
           </YStack>
         </YStack>
+        )}
 
-        {/* Account Actions */}
-        <YStack
-          backgroundColor="white"
-          borderRadius={borderRadius.xl}
-          borderWidth={2}
-          borderColor={colors.error[200]}
-          padding="$5"
-        >
-          <Text fontWeight="600" color={colors.error[600]} marginBottom="$3">
-            {t('profile.accountActions')}
-          </Text>
-          <YStack gap="$3">
-            <Button
-              size="$4"
-              backgroundColor={colors.error[600]}
-              icon={<LogOut size={18} color="white" />}
-              onPress={handleLogout}
-            >
-              <Text color="white">{t('profile.logout')}</Text>
-            </Button>
-          </YStack>
+
+        {/* Logout Button */}
+        <YStack paddingTop="$4">
+          <Button
+            backgroundColor="$red3"
+            borderColor="$red7"
+            borderWidth={1}
+            borderRadius="$4"
+            height="$5"
+            pressStyle={{ backgroundColor: '$red4' }}
+            icon={<LogOut size={18} color={colors.red[600]} />}
+            onPress={handleLogout}
+          >
+            <Text color={colors.red[600]} fontWeight="600" fontSize="$4">{t('profile.logout', 'Logout')}</Text>
+          </Button>
         </YStack>
+
       </YStack>
     </ScrollView>
   )

@@ -25,7 +25,7 @@ interface InviteModalProps {
   onClose: () => void
   /** The user's unique referral code from their profile */
   referralCode?: string
-  /** Reward points for invites - from incentive_rules */
+  /** Reward points for invites - from campaign_rewards */
   inviteRewards?: InviteRewards
 }
 

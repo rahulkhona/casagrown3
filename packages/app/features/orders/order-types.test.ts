@@ -60,6 +60,8 @@ function makeOrder(overrides: Partial<Order> = {}): Order {
         seller_avatar_url: null,
         post_id: "post-1",
         unit: "box",
+        tax_rate_pct: 0,
+        tax_amount: 0,
         ...overrides,
     };
 }

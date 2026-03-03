@@ -8,23 +8,20 @@ This document tracks items that must be completed before production release.
 
 | Item                        | Status     | Description                                             |
 | --------------------------- | ---------- | ------------------------------------------------------- |
-| **Social Login Keys**       | ⏳ Pending | Configure OAuth keys for Google, Apple, and Facebook    |
-| **Remove Mock Mode**        | ⏳ Pending | Remove forced mock login in `auth-hook.ts`              |
 | **Supabase Production URL** | ⏳ Pending | Update `.env` with production Supabase URL and Anon Key |
 | **Remove Dev OTP Display**  | ⏳ Pending | Remove Inbucket OTP fetch code (dev-only)               |
+
+> [!NOTE]
+> Social login (Google/Apple/Facebook) has been **removed**. Authentication is
+> email + OTP only via Supabase Auth.
 
 ### Current Mock Behavior
 
 The following authentication behaviors are **mocked** for development:
 
-1. **Social Login (Google/Apple/Facebook)**
+1. **Email OTP Display**
    - File: `packages/app/features/auth/auth-hook.ts`
-   - Current: Falls back to password login with `mock@social.com`
-   - Required: Configure real OAuth with provider keys
-
-2. **Email OTP Display**
-   - File: `packages/app/features/auth/auth-hook.ts`
-   - Current: Fetches OTP from local Inbucket for dev testing
+   - Current: Fetches OTP from local Inbucket/Mailpit for dev testing
    - Required: Remove this block for production
 
 ### Required Environment Variables
@@ -33,11 +30,6 @@ The following authentication behaviors are **mocked** for development:
 # Production Supabase
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-production-anon-key
-
-# OAuth Providers (configure in Supabase Dashboard)
-# - Google: Client ID and Secret
-# - Apple: Service ID and Key
-# - Facebook: App ID and Secret
 ```
 
 ### Payment & Stripe Configuration
@@ -102,6 +94,10 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-production-anon-key
 | Points balance loaded from DB          | ✅ Works |
 | Pending payment recovery on app open   | ✅ Works |
 | Stripe web payment (Stripe.js)         | ✅ Works |
+| ACID redemptions (gift card/donation)  | ✅ Works |
+| Profile wizard (2-step onboarding)     | ✅ Works |
+| Social login removed (email+OTP only)  | ✅ Done  |
+| Campaign rewards system                | ✅ Works |
 
 ---
 
@@ -129,13 +125,14 @@ and [developer_guide.md § 5.7](developer_guide.md) for full setup instructions.
 > For the full integration checklist with env vars and deployment steps, see
 > [integrations_checklist.md](integrations_checklist.md).
 
-| Provider         | Status     | Description                                                              |
-| ---------------- | ---------- | ------------------------------------------------------------------------ |
-| Reloadly         | ⏳ Pending | Gift card catalog + ordering. `reloadly.ts` implemented, needs prod keys |
-| Tremendous       | ⏳ Pending | Gift card ordering. `tremendous.ts` implemented, needs prod URL + key    |
-| GlobalGiving     | ⏳ Pending | Charitable donations. No client implementation yet                       |
-| Feature Waitlist | ✅ Done    | `feature_waitlist` table + RLS live                                      |
+| Provider         | Status       | Description                                                                |
+| ---------------- | ------------ | -------------------------------------------------------------------------- |
+| Reloadly         | ⏳ Pending   | Gift card catalog + ordering. `reloadly.ts` implemented, needs prod keys   |
+| Tremendous       | ⏳ Pending   | Gift card ordering. `tremendous.ts` implemented, needs prod URL + key      |
+| GlobalGiving     | ✅ Code Done | Charitable donations. Edge function + UI implemented, needs prod API key   |
+| PayPal/Venmo     | ✅ Code Done | Cashout via PayPal Payouts API. Edge function implemented, needs prod keys |
+| Feature Waitlist | ✅ Done      | `feature_waitlist` table + RLS live                                        |
 
 ---
 
-_Last Updated: 2026-02-24_
+_Last Updated: 2026-03-03_

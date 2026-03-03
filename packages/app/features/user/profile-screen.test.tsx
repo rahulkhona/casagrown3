@@ -3,6 +3,28 @@ import { render, fireEvent, waitFor } from '@testing-library/react-native'
 import { ProfileScreen } from './profile-screen'
 
 // Mock auth-hook to avoid supabase/expo-secure-store initialization
+const mockUpdate = jest.fn(() => ({
+  eq: jest.fn(() => Promise.resolve({ error: null })),
+}))
+
+const mockProfileData = {
+  full_name: 'John Doe',
+  avatar_url: null,
+  phone_number: '5551234567',
+  street_address: '123 Oak St',
+  city: 'San Jose',
+  state_code: 'CA',
+  zip_code: '95125',
+  email_verified: true,
+  phone_verified: true,
+  push_enabled: true,
+  sms_enabled: false,
+  notify_on_wanted: false,
+  notify_on_available: false,
+  home_community_h3_index: 'abc123',
+  communities: { name: 'Willow Glen', city: 'San Jose, CA', location: { type: 'Point', coordinates: [-121.8863, 37.3382] } },
+}
+
 jest.mock('../auth/auth-hook', () => ({
   useAuth: () => ({
     user: {
@@ -13,28 +35,76 @@ jest.mock('../auth/auth-hook', () => ({
     signOut: jest.fn(),
   }),
   supabase: {
-    from: jest.fn(() => ({
-      select: jest.fn(() => ({
-        eq: jest.fn(() => ({
-          single: jest.fn(() => Promise.resolve({
-            data: {
-              full_name: 'John Doe',
-              avatar_url: null,
-              phone_number: '5551234567',
-              push_enabled: true,
-              sms_enabled: false,
-              notify_on_wanted: false,
-              notify_on_available: false,
-              home_community_h3_index: 'abc123',
-              communities: { name: 'Willow Glen', city: 'San Jose, CA', location: { type: 'Point', coordinates: [-121.8863, 37.3382] } },
-            },
-            error: null,
+    from: jest.fn((table: string) => {
+      if (table === 'profiles') {
+        return {
+          select: jest.fn(() => ({
+            eq: jest.fn(() => ({
+              single: jest.fn(() => Promise.resolve({
+                data: mockProfileData,
+                error: null,
+              })),
+            })),
           })),
+          update: mockUpdate,
+        }
+      }
+      if (table === 'user_garden') {
+        return {
+          select: jest.fn(() => ({
+            eq: jest.fn(() => Promise.resolve({
+              data: [
+                { produce_name: 'Tomatoes', is_custom: false },
+                { produce_name: 'Basil', is_custom: false },
+                { produce_name: 'Hot Peppers', is_custom: true },
+              ],
+              error: null,
+            })),
+          })),
+          delete: jest.fn(() => ({
+            eq: jest.fn(() => Promise.resolve({ error: null })),
+          })),
+          insert: jest.fn(() => Promise.resolve({ error: null })),
+        }
+      }
+      if (table === 'blocked_products') {
+        return {
+          select: jest.fn(() => ({
+            or: jest.fn(() => Promise.resolve({
+              data: [{ product_name: 'Cannabis' }, { product_name: 'Tobacco' }],
+              error: null,
+            })),
+            is: jest.fn(() => Promise.resolve({
+              data: [{ product_name: 'Cannabis' }, { product_name: 'Tobacco' }],
+              error: null,
+            })),
+          })),
+        }
+      }
+      if (table === 'posts' || table === 'orders') {
+        return {
+          select: jest.fn(() => ({
+            eq: jest.fn(() => ({
+              eq: jest.fn(() => ({
+                in: jest.fn(() => Promise.resolve({ data: [], error: null })),
+              })),
+            })),
+            or: jest.fn(() => ({
+              in: jest.fn(() => Promise.resolve({ data: [], error: null })),
+            })),
+          })),
+        }
+      }
+      // Fallback
+      return {
+        select: jest.fn(() => ({
+          eq: jest.fn(() => Promise.resolve({ data: [], error: null })),
         })),
-      })),
-      update: jest.fn(() => ({
-        eq: jest.fn(() => Promise.resolve({ error: null })),
-      })),
+      }
+    }),
+    rpc: jest.fn(() => Promise.resolve({
+      data: { archived_posts: 0, cancelled_orders: 0, old_community: 'Old', new_community: 'New' },
+      error: null,
     })),
     functions: {
       invoke: jest.fn(() => Promise.resolve({
@@ -47,6 +117,14 @@ jest.mock('../auth/auth-hook', () => ({
       })),
     },
   },
+}))
+
+// Mock produce-emoji
+jest.mock('../profile-wizard/utils/produce-emoji', () => ({
+  getProduceEmoji: jest.fn((name: string) => {
+    const map: Record<string, string> = { 'Tomatoes': '🍅', 'Basil': '🌿' }
+    return map[name] || null
+  }),
 }))
 
 // Mock CommunityMap (require'd at module level via platform-conditional import)
@@ -127,15 +205,23 @@ jest.mock('expo-image-picker', () => ({
 
 // Mock media upload utility
 jest.mock('../profile-wizard/utils/media-upload', () => ({
-  uploadMedia: jest.fn(() => Promise.resolve('https://storage.supabase.io/avatar.jpg')),
+  uploadProfileAvatar: jest.fn(() => Promise.resolve('https://storage.supabase.io/avatar.jpg')),
+}))
+
+// Mock normalize-storage-url
+jest.mock('../../utils/normalize-storage-url', () => ({
+  normalizeStorageUrl: jest.fn((url: string) => url),
 }))
 
 // Mock design tokens
 jest.mock('../../design-tokens', () => ({
   colors: {
     primary: { 50: '#f0f9ff', 100: '#e0f2fe', 500: '#0ea5e9', 600: '#0284c7', 700: '#0369a1' },
-    neutral: { 50: '#fafafa', 300: '#d4d4d4', 400: '#a3a3a3', 500: '#737373', 600: '#525252', 900: '#171717' },
+    neutral: { 50: '#fafafa', 100: '#f5f5f5', 300: '#d4d4d4', 400: '#a3a3a3', 500: '#737373', 600: '#525252', 700: '#404040', 800: '#262626', 900: '#171717' },
     error: { 200: '#fecaca', 600: '#dc2626' },
+    red: { 50: '#fef2f2', 100: '#fee2e2', 200: '#fecaca', 300: '#fca5a5', 400: '#f87171', 500: '#ef4444', 600: '#dc2626', 700: '#b91c1c', 800: '#991b1b', 900: '#7f1d1d' },
+    green: { 50: '#f0fdf4', 100: '#dcfce7', 200: '#bbf7d0', 300: '#86efac', 400: '#4ade80', 500: '#22c55e', 600: '#16a34a', 700: '#15803d', 800: '#166534', 900: '#14532d' },
+    gray: { 50: '#fafafa', 100: '#f5f5f5', 200: '#e5e5e5', 300: '#d4d4d4', 400: '#a3a3a3', 500: '#737373', 600: '#525252', 700: '#404040', 800: '#262626', 900: '#171717' },
   },
   shadows: {
     sm: { color: '#000', offset: { width: 0, height: 1 } },
@@ -205,6 +291,7 @@ jest.mock('@tamagui/lucide-icons', () => ({
   Tag: () => null,
   ChevronDown: () => null,
   ChevronLeft: () => null,
+  Shield: () => null,
 }))
 
 describe('ProfileScreen', () => {
@@ -216,6 +303,10 @@ describe('ProfileScreen', () => {
   afterEach(() => {
     jest.useRealTimers()
   })
+
+  // =========================================
+  // Basic Rendering
+  // =========================================
 
   it('renders profile title', async () => {
     const { getByText } = render(<ProfileScreen />)
@@ -251,37 +342,87 @@ describe('ProfileScreen', () => {
     })
   })
 
-  it('renders notification preferences section', async () => {
+  // =========================================
+  // Address Section
+  // =========================================
+
+  it('renders address section title', async () => {
     const { getByText } = render(<ProfileScreen />)
     
     await waitFor(() => {
-      expect(getByText('profile.notifications')).toBeTruthy()
-      // Note: pushNotifications/smsNotifications only render when notify type is selected
-      expect(getByText('profile.notifyWanted')).toBeTruthy()
-      expect(getByText('profile.notifyAvailable')).toBeTruthy()
+      expect(getByText('profile.addressTitle')).toBeTruthy()
     })
   })
 
-  it('renders activity stats section', async () => {
+  it('displays address in view mode', async () => {
     const { getByText } = render(<ProfileScreen />)
     
     await waitFor(() => {
-      expect(getByText('profile.activityStats')).toBeTruthy()
-      expect(getByText('profile.transactions')).toBeTruthy()
-      expect(getByText('profile.rating')).toBeTruthy()
-      expect(getByText('profile.posts')).toBeTruthy()
-      expect(getByText('profile.following')).toBeTruthy()
+      expect(getByText('123 Oak St')).toBeTruthy()
+      expect(getByText('San Jose, CA, 95125')).toBeTruthy()
     })
   })
 
-  it('renders account actions section', async () => {
+  it('shows address edit inputs when editing', async () => {
+    const { getByText, getByDisplayValue } = render(<ProfileScreen />)
+    
+    await waitFor(() => {
+      expect(getByText('profile.editProfile')).toBeTruthy()
+    })
+    
+    fireEvent.press(getByText('profile.editProfile'))
+    
+    await waitFor(() => {
+      expect(getByDisplayValue('123 Oak St')).toBeTruthy()
+      expect(getByDisplayValue('San Jose')).toBeTruthy()
+      expect(getByDisplayValue('CA')).toBeTruthy()
+      expect(getByDisplayValue('95125')).toBeTruthy()
+    })
+  })
+
+  // =========================================
+  // Phone Verification Section
+  // =========================================
+
+  it('renders phone section title', async () => {
     const { getByText } = render(<ProfileScreen />)
     
     await waitFor(() => {
-      expect(getByText('profile.accountActions')).toBeTruthy()
-      expect(getByText('profile.logout')).toBeTruthy()
+      expect(getByText('profile.phoneTitle')).toBeTruthy()
     })
   })
+
+  it('displays phone number in view mode', async () => {
+    const { getByText } = render(<ProfileScreen />)
+    
+    await waitFor(() => {
+      expect(getByText('5551234567')).toBeTruthy()
+    })
+  })
+
+  it('shows phone verified badge when phone is verified', async () => {
+    const { getByText } = render(<ProfileScreen />)
+    
+    await waitFor(() => {
+      expect(getByText('profile.phoneVerifiedBadge')).toBeTruthy()
+    })
+  })
+
+  // =========================================
+  // Community Section
+  // =========================================
+
+  it('renders community section with community name', async () => {
+    const { getByText } = render(<ProfileScreen />)
+    
+    await waitFor(() => {
+      expect(getByText('Willow Glen')).toBeTruthy()
+    })
+  })
+
+  // =========================================
+  // Edit Mode
+  // =========================================
 
   it('enters edit mode when edit button is pressed', async () => {
     const { getByText } = render(<ProfileScreen />)
@@ -318,11 +459,95 @@ describe('ProfileScreen', () => {
     })
   })
 
-  it('renders community section with community name', async () => {
+  it('shows phone input when editing', async () => {
+    const { getByText, getByDisplayValue } = render(<ProfileScreen />)
+    
+    await waitFor(() => {
+      expect(getByText('profile.editProfile')).toBeTruthy()
+    })
+    
+    fireEvent.press(getByText('profile.editProfile'))
+    
+    await waitFor(() => {
+      expect(getByDisplayValue('5551234567')).toBeTruthy()
+    })
+  })
+
+  // =========================================
+  // Activity Stats
+  // =========================================
+
+  it('renders activity stats section', async () => {
     const { getByText } = render(<ProfileScreen />)
     
     await waitFor(() => {
-      expect(getByText('Willow Glen')).toBeTruthy()
+      expect(getByText('profile.activityStats')).toBeTruthy()
+      expect(getByText('profile.transactions')).toBeTruthy()
+      expect(getByText('profile.rating')).toBeTruthy()
+      expect(getByText('profile.posts')).toBeTruthy()
+      expect(getByText('profile.following')).toBeTruthy()
+    })
+  })
+
+  // =========================================
+  // Notification Preferences
+  // =========================================
+
+  it('renders SMS notification toggle', async () => {
+    const { getByText } = render(<ProfileScreen />)
+    
+    await waitFor(() => {
+      expect(getByText(/profile\.smsTitle/)).toBeTruthy()
+      expect(getByText('profile.smsOptIn')).toBeTruthy()
+    })
+  })
+
+  // =========================================
+  // Account Actions
+  // =========================================
+
+  it('does not render legal section on web', async () => {
+    const { queryByText } = render(<ProfileScreen />)
+    
+    await waitFor(() => {
+      // Legal section is hidden on web (Platform.OS === 'web')
+      expect(queryByText('profile.legal.title')).toBeNull()
+    })
+  })
+
+  // =========================================
+  // Save Flow
+  // =========================================
+
+  it('saves address fields when save is pressed', async () => {
+    const { getByText, getByDisplayValue } = render(<ProfileScreen />)
+    
+    await waitFor(() => {
+      expect(getByText('profile.editProfile')).toBeTruthy()
+    })
+    
+    fireEvent.press(getByText('profile.editProfile'))
+    
+    await waitFor(() => {
+      expect(getByDisplayValue('123 Oak St')).toBeTruthy()
+    })
+    
+    // Change the street address
+    fireEvent.changeText(getByDisplayValue('123 Oak St'), '456 Maple Ave')
+    
+    // Press save
+    fireEvent.press(getByText('profile.save'))
+    
+    await waitFor(() => {
+      // Verify update was called with new address
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          street_address: '456 Maple Ave',
+          city: 'San Jose',
+          state_code: 'CA',
+          zip_code: '95125',
+        })
+      )
     })
   })
 })

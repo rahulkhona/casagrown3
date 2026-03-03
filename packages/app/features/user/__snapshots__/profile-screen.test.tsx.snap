@@ -218,6 +218,101 @@ exports[`ProfileScreen matches snapshot 1`] = `
           <View
             gap="$3"
           >
+            <View
+              alignItems="center"
+              gap="$2"
+              style={
+                {
+                  "flexDirection": "row",
+                }
+              }
+            >
+              <Text
+                color="#171717"
+                fontWeight="600"
+              >
+                profile.addressTitle
+              </Text>
+            </View>
+            <View
+              backgroundColor="#fafafa"
+              borderRadius={12}
+              padding="$3"
+            >
+              <Text
+                color="#262626"
+              >
+                123 Oak St
+              </Text>
+              <Text
+                color="#525252"
+              >
+                San Jose, CA, 95125
+              </Text>
+            </View>
+          </View>
+          <View />
+          <View
+            gap="$3"
+          >
+            <View
+              alignItems="center"
+              gap="$2"
+              style={
+                {
+                  "flexDirection": "row",
+                }
+              }
+            >
+              <Text
+                color="#171717"
+                fontWeight="600"
+              >
+                profile.phoneTitle
+              </Text>
+            </View>
+            <View
+              alignItems="center"
+              flexWrap="wrap"
+              gap="$2"
+              style={
+                {
+                  "flexDirection": "row",
+                }
+              }
+            >
+              <Text
+                color="#262626"
+              >
+                5551234567
+              </Text>
+              <View
+                alignItems="center"
+                backgroundColor="#e0f2fe"
+                borderRadius={4}
+                gap="$1"
+                paddingHorizontal="$2"
+                paddingVertical="$1"
+                style={
+                  {
+                    "flexDirection": "row",
+                  }
+                }
+              >
+                <Text
+                  color="#0369a1"
+                  fontSize="$1"
+                  fontWeight="600"
+                >
+                  profile.phoneVerifiedBadge
+                </Text>
+              </View>
+            </View>
+          </View>
+          <View />
+          <View
+            gap="$3"
+          >
             <Text
               color="#171717"
               fontWeight="600"
@@ -278,6 +373,7 @@ exports[`ProfileScreen matches snapshot 1`] = `
               </Text>
             </View>
           </View>
+          <View />
           <View
             gap="$3"
           >
@@ -285,10 +381,98 @@ exports[`ProfileScreen matches snapshot 1`] = `
               color="#171717"
               fontWeight="600"
             >
-              profile.notifications
+              🌱 
+              profile.whatIGrow
+            </Text>
+            <View
+              flexWrap="wrap"
+              gap="$2"
+              style={
+                {
+                  "flexDirection": "row",
+                }
+              }
+            >
+              <View
+                alignItems="center"
+                backgroundColor="#f0f9ff"
+                borderRadius={20}
+                borderWidth={1}
+                gap="$1"
+                paddingHorizontal="$3"
+                paddingVertical="$1.5"
+                style={
+                  {
+                    "flexDirection": "row",
+                  }
+                }
+              >
+                <Text
+                  fontSize="$3"
+                >
+                  🍅 
+                  Tomatoes
+                </Text>
+              </View>
+              <View
+                alignItems="center"
+                backgroundColor="#f0f9ff"
+                borderRadius={20}
+                borderWidth={1}
+                gap="$1"
+                paddingHorizontal="$3"
+                paddingVertical="$1.5"
+                style={
+                  {
+                    "flexDirection": "row",
+                  }
+                }
+              >
+                <Text
+                  fontSize="$3"
+                >
+                  🌿 
+                  Basil
+                </Text>
+              </View>
+              <View
+                alignItems="center"
+                backgroundColor="#f0f9ff"
+                borderRadius={20}
+                borderStyle="dashed"
+                borderWidth={1}
+                gap="$1"
+                paddingHorizontal="$3"
+                paddingVertical="$1.5"
+                style={
+                  {
+                    "flexDirection": "row",
+                  }
+                }
+              >
+                <Text
+                  fontSize="$3"
+                >
+                  🌿 
+                  Hot Peppers
+                </Text>
+              </View>
+            </View>
+          </View>
+          <View />
+          <View
+            gap="$3"
+          >
+            <Text
+              color="#171717"
+              fontWeight="600"
+            >
+              💬 
+              profile.smsTitle
             </Text>
             <View
               backgroundColor="#fafafa"
+              borderColor="#f5f5f5"
               borderRadius={12}
               borderWidth={1}
               gap="$3"
@@ -296,7 +480,7 @@ exports[`ProfileScreen matches snapshot 1`] = `
             >
               <View
                 alignItems="center"
-                gap="$3"
+                justifyContent="space-between"
                 style={
                   {
                     "flexDirection": "row",
@@ -304,103 +488,60 @@ exports[`ProfileScreen matches snapshot 1`] = `
                 }
               >
                 <View
-                  accessibilityState={
-                    {
-                      "busy": undefined,
-                      "checked": false,
-                      "disabled": true,
-                      "expanded": undefined,
-                      "selected": undefined,
-                    }
-                  }
-                  accessibilityValue={
-                    {
-                      "max": undefined,
-                      "min": undefined,
-                      "now": undefined,
-                      "text": undefined,
-                    }
-                  }
-                  accessible={true}
-                  collapsable={false}
-                  focusable={false}
-                  onClick={[Function]}
-                  onResponderGrant={[Function]}
-                  onResponderMove={[Function]}
-                  onResponderRelease={[Function]}
-                  onResponderTerminate={[Function]}
-                  onResponderTerminationRequest={[Function]}
-                  onStartShouldSetResponder={[Function]}
-                  style={
-                    {
-                      "opacity": 1,
-                    }
-                  }
+                  flex={1}
+                  gap="$1"
                 >
-                  <Text>
-                    ☐
+                  <Text
+                    color="#262626"
+                    fontSize="$3"
+                    fontWeight="500"
+                  >
+                    profile.smsOptIn
                   </Text>
-                  <View />
+                  <Text
+                    color="#737373"
+                    fontSize="$2"
+                  >
+                    profile.smsDescription
+                  </Text>
                 </View>
-                <Text
-                  fontSize="$3"
-                >
-                  profile.notifyWanted
-                </Text>
-              </View>
-              <View
-                alignItems="center"
-                gap="$3"
-                style={
-                  {
-                    "flexDirection": "row",
-                  }
-                }
-              >
                 <View
-                  accessibilityState={
+                  alignItems="center"
+                  backgroundColor="#d4d4d4"
+                  borderRadius={14}
+                  cursor="default"
+                  height={28}
+                  justifyContent="flex-start"
+                  onPress={[Function]}
+                  opacity={0.6}
+                  padding={2}
+                  pressStyle={
                     {
-                      "busy": undefined,
-                      "checked": false,
-                      "disabled": true,
-                      "expanded": undefined,
-                      "selected": undefined,
+                      "opacity": 0.8,
                     }
                   }
-                  accessibilityValue={
-                    {
-                      "max": undefined,
-                      "min": undefined,
-                      "now": undefined,
-                      "text": undefined,
-                    }
-                  }
-                  accessible={true}
-                  collapsable={false}
-                  focusable={false}
-                  onClick={[Function]}
-                  onResponderGrant={[Function]}
-                  onResponderMove={[Function]}
-                  onResponderRelease={[Function]}
-                  onResponderTerminate={[Function]}
-                  onResponderTerminationRequest={[Function]}
-                  onStartShouldSetResponder={[Function]}
                   style={
                     {
-                      "opacity": 1,
+                      "flexDirection": "row",
                     }
                   }
+                  width={50}
                 >
-                  <Text>
-                    ☐
-                  </Text>
-                  <View />
+                  <View
+                    backgroundColor="white"
+                    borderRadius={12}
+                    height={24}
+                    shadowColor="rgba(0,0,0,0.2)"
+                    shadowOffset={
+                      {
+                        "height": 1,
+                        "width": 0,
+                      }
+                    }
+                    shadowRadius={2}
+                    width={24}
+                  />
                 </View>
-                <Text
-                  fontSize="$3"
-                >
-                  profile.notifyAvailable
-                </Text>
               </View>
             </View>
           </View>
@@ -544,153 +685,6 @@ exports[`ProfileScreen matches snapshot 1`] = `
             fontWeight="600"
             marginBottom="$3"
           >
-            profile.about.title
-          </Text>
-          <View
-            gap="$2"
-          >
-            <View
-              accessibilityState={
-                {
-                  "busy": undefined,
-                  "checked": undefined,
-                  "disabled": undefined,
-                  "expanded": undefined,
-                  "selected": undefined,
-                }
-              }
-              accessibilityValue={
-                {
-                  "max": undefined,
-                  "min": undefined,
-                  "now": undefined,
-                  "text": undefined,
-                }
-              }
-              accessible={true}
-              collapsable={false}
-              focusable={true}
-              onClick={[Function]}
-              onResponderGrant={[Function]}
-              onResponderMove={[Function]}
-              onResponderRelease={[Function]}
-              onResponderTerminate={[Function]}
-              onResponderTerminationRequest={[Function]}
-              onStartShouldSetResponder={[Function]}
-              style={
-                {
-                  "opacity": 1,
-                }
-              }
-            >
-              <Text>
-                <Text>
-                  profile.about.ourMission
-                </Text>
-              </Text>
-            </View>
-            <View />
-            <View
-              accessibilityState={
-                {
-                  "busy": undefined,
-                  "checked": undefined,
-                  "disabled": undefined,
-                  "expanded": undefined,
-                  "selected": undefined,
-                }
-              }
-              accessibilityValue={
-                {
-                  "max": undefined,
-                  "min": undefined,
-                  "now": undefined,
-                  "text": undefined,
-                }
-              }
-              accessible={true}
-              collapsable={false}
-              focusable={true}
-              onClick={[Function]}
-              onResponderGrant={[Function]}
-              onResponderMove={[Function]}
-              onResponderRelease={[Function]}
-              onResponderTerminate={[Function]}
-              onResponderTerminationRequest={[Function]}
-              onStartShouldSetResponder={[Function]}
-              style={
-                {
-                  "opacity": 1,
-                }
-              }
-            >
-              <Text>
-                <Text>
-                  profile.about.howItWorks
-                </Text>
-              </Text>
-            </View>
-            <View />
-            <View
-              accessibilityState={
-                {
-                  "busy": undefined,
-                  "checked": undefined,
-                  "disabled": undefined,
-                  "expanded": undefined,
-                  "selected": undefined,
-                }
-              }
-              accessibilityValue={
-                {
-                  "max": undefined,
-                  "min": undefined,
-                  "now": undefined,
-                  "text": undefined,
-                }
-              }
-              accessible={true}
-              collapsable={false}
-              focusable={true}
-              onClick={[Function]}
-              onResponderGrant={[Function]}
-              onResponderMove={[Function]}
-              onResponderRelease={[Function]}
-              onResponderTerminate={[Function]}
-              onResponderTerminationRequest={[Function]}
-              onStartShouldSetResponder={[Function]}
-              style={
-                {
-                  "opacity": 1,
-                }
-              }
-            >
-              <Text>
-                <Text>
-                  profile.about.pointSystem
-                </Text>
-              </Text>
-            </View>
-          </View>
-        </View>
-        <View
-          backgroundColor="white"
-          borderRadius={16}
-          padding="$5"
-          shadowColor="#000"
-          shadowOffset={
-            {
-              "height": 1,
-              "width": 0,
-            }
-          }
-          shadowOpacity={0.1}
-        >
-          <Text
-            color="#171717"
-            fontWeight="600"
-            marginBottom="$3"
-          >
             profile.legal.title
           </Text>
           <View
@@ -731,7 +725,9 @@ exports[`ProfileScreen matches snapshot 1`] = `
               }
             >
               <Text>
-                <Text>
+                <Text
+                  color="#404040"
+                >
                   profile.legal.privacyPolicy
                 </Text>
               </Text>
@@ -772,7 +768,9 @@ exports[`ProfileScreen matches snapshot 1`] = `
               }
             >
               <Text>
-                <Text>
+                <Text
+                  color="#404040"
+                >
                   profile.legal.termsOfService
                 </Text>
               </Text>
@@ -813,7 +811,9 @@ exports[`ProfileScreen matches snapshot 1`] = `
               }
             >
               <Text>
-                <Text>
+                <Text
+                  color="#404040"
+                >
                   profile.legal.userAgreement
                 </Text>
               </Text>
@@ -865,64 +865,51 @@ exports[`ProfileScreen matches snapshot 1`] = `
           </View>
         </View>
         <View
-          backgroundColor="white"
-          borderColor="#fecaca"
-          borderRadius={16}
-          borderWidth={2}
-          padding="$5"
+          paddingTop="$4"
         >
-          <Text
-            color="#dc2626"
-            fontWeight="600"
-            marginBottom="$3"
-          >
-            profile.accountActions
-          </Text>
           <View
-            gap="$3"
+            accessibilityState={
+              {
+                "busy": undefined,
+                "checked": undefined,
+                "disabled": undefined,
+                "expanded": undefined,
+                "selected": undefined,
+              }
+            }
+            accessibilityValue={
+              {
+                "max": undefined,
+                "min": undefined,
+                "now": undefined,
+                "text": undefined,
+              }
+            }
+            accessible={true}
+            collapsable={false}
+            focusable={true}
+            onClick={[Function]}
+            onResponderGrant={[Function]}
+            onResponderMove={[Function]}
+            onResponderRelease={[Function]}
+            onResponderTerminate={[Function]}
+            onResponderTerminationRequest={[Function]}
+            onStartShouldSetResponder={[Function]}
+            style={
+              {
+                "opacity": 1,
+              }
+            }
           >
-            <View
-              accessibilityState={
-                {
-                  "busy": undefined,
-                  "checked": undefined,
-                  "disabled": undefined,
-                  "expanded": undefined,
-                  "selected": undefined,
-                }
-              }
-              accessibilityValue={
-                {
-                  "max": undefined,
-                  "min": undefined,
-                  "now": undefined,
-                  "text": undefined,
-                }
-              }
-              accessible={true}
-              collapsable={false}
-              focusable={true}
-              onClick={[Function]}
-              onResponderGrant={[Function]}
-              onResponderMove={[Function]}
-              onResponderRelease={[Function]}
-              onResponderTerminate={[Function]}
-              onResponderTerminationRequest={[Function]}
-              onStartShouldSetResponder={[Function]}
-              style={
-                {
-                  "opacity": 1,
-                }
-              }
-            >
-              <Text>
-                <Text
-                  color="white"
-                >
-                  profile.logout
-                </Text>
+            <Text>
+              <Text
+                color="#dc2626"
+                fontSize="$4"
+                fontWeight="600"
+              >
+                profile.logout
               </Text>
-            </View>
+            </Text>
           </View>
         </View>
       </View>

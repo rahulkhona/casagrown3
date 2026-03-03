@@ -170,7 +170,7 @@ export function PointsMenu({
 
   return (
     <YStack position="relative" zIndex={100} ref={menuRef as any}>
-      <TouchableOpacity onPress={handleMenuPress} activeOpacity={0.7}>
+      <TouchableOpacity onPress={handleMenuPress} activeOpacity={0.7} testID="points-badge">
         <XStack
           backgroundColor={colors.green[50]}
           paddingHorizontal={12}

@@ -32,6 +32,16 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     return jsonError("PayPal API keys are missing", corsHeaders);
   }
 
+  // Kill switch: set PAYPAL_ENABLED=false in .env.local to block ALL PayPal API calls
+  const paypalEnabled = env("PAYPAL_ENABLED");
+  if (paypalEnabled === "false") {
+    return jsonError(
+      "PayPal payouts are currently disabled. Set PAYPAL_ENABLED=true to re-enable.",
+      corsHeaders,
+      400,
+    );
+  }
+
   // 1. Authenticate user
   const auth = await requireAuth(req, supabase, corsHeaders);
   if (auth instanceof Response) return auth;

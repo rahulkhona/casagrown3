@@ -139,27 +139,53 @@ describe('WizardContext', () => {
     expect(result.current.data.country).toBe('USA')
   })
 
-  it('nextStep increments step (max 2)', () => {
+  it('nextStep increments step (max 1)', () => {
     const { result } = renderHook(() => useWizard(), { wrapper })
     expect(result.current.step).toBe(0)
     act(() => result.current.nextStep())
     expect(result.current.step).toBe(1)
     act(() => result.current.nextStep())
-    expect(result.current.step).toBe(2)
-    act(() => result.current.nextStep())
-    expect(result.current.step).toBe(2) // Capped
+    expect(result.current.step).toBe(1) // Capped at 1 (2-step wizard)
   })
 
   it('prevStep decrements step (min 0)', () => {
     const { result } = renderHook(() => useWizard(), { wrapper })
-    act(() => result.current.setStep(2))
-    expect(result.current.step).toBe(2)
-    act(() => result.current.prevStep())
+    act(() => result.current.setStep(1))
     expect(result.current.step).toBe(1)
     act(() => result.current.prevStep())
     expect(result.current.step).toBe(0)
     act(() => result.current.prevStep())
     expect(result.current.step).toBe(0) // Capped
+  })
+
+  // =========================================
+  // New Data Fields (Address, Garden, etc.)
+  // =========================================
+
+  it('updateData supports address fields', () => {
+    const { result } = renderHook(() => useWizard(), { wrapper })
+    act(() => {
+      result.current.updateData({
+        streetAddress: '456 Oak Lane',
+        city: 'Palo Alto',
+        stateCode: 'CA',
+        zipCode: '94301',
+      })
+    })
+    expect(result.current.data.streetAddress).toBe('456 Oak Lane')
+    expect(result.current.data.city).toBe('Palo Alto')
+    expect(result.current.data.stateCode).toBe('CA')
+    expect(result.current.data.zipCode).toBe('94301')
+  })
+
+  it('updateData supports garden items', () => {
+    const { result } = renderHook(() => useWizard(), { wrapper })
+    act(() => {
+      result.current.updateData({
+        gardenItems: ['Tomatoes', 'Basil'],
+      })
+    })
+    expect(result.current.data.gardenItems).toEqual(['Tomatoes', 'Basil'])
   })
 
   // =========================================

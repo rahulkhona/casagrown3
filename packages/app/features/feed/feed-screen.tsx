@@ -364,6 +364,8 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
           deliveryDate: data.latestDate,
           deliveryInstructions: data.instructions,
           deliveryAddress: data.address,
+          taxRatePct: data.taxRatePct,
+          taxAmount: data.taxAmount,
         },
       })
 

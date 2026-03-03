@@ -185,10 +185,26 @@ export function OrderSummary({
           />
           <DetailRow
             icon={DollarSign}
-            label={t('orders.summary.total')}
-            value={`${order.total_price} pts`}
+            label={order.tax_amount > 0 ? 'Subtotal' : t('orders.summary.total')}
+            value={`${order.tax_amount > 0 ? (order.total_price - order.tax_amount) : order.total_price} pts`}
             iconColor={colors.green[600]}
           />
+          {order.tax_amount > 0 && (
+            <>
+              <DetailRow
+                icon={DollarSign}
+                label={`Sales Tax (${order.tax_rate_pct?.toFixed(2) ?? '0'}%)`}
+                value={`${order.tax_amount} pts`}
+                iconColor={'#d97706'}
+              />
+              <DetailRow
+                icon={DollarSign}
+                label={t('orders.summary.total')}
+                value={`${order.total_price} pts`}
+                iconColor={colors.green[700]}
+              />
+            </>
+          )}
           {order.delivery_date && (
             <DetailRow
               icon={Calendar}

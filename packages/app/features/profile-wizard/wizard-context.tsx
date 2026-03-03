@@ -3,54 +3,63 @@ import { Platform } from 'react-native'
 import { useRouter } from 'solito/navigation'
 import { useAuth, supabase } from '../auth/auth-hook'
 import { uploadProfileAvatar } from './utils/media-upload'
-import { uploadPostMedia } from '../create-post/media-upload'
+
+// ────────────────────────────────────────────────────────────
+// Step 1: Account & Address (mandatory)
+// Step 2: Personalize (optional / skippable)
+// ────────────────────────────────────────────────────────────
 
 export type WizardData = {
-  // Step 1: Profile
+  // ─── Step 1: Account & Address ───
   avatar?: string
   avatarUri?: string
   name: string
-  notifySell: boolean
-  notifyBuy: boolean
-  notifyPush: boolean
-  notifySms: boolean
-  phone?: string
+  email: string
+  emailVerified: boolean
 
-  // Step 2: Community
-  country: string
+  streetAddress: string
+  city: string
+  stateCode: string
   zipCode: string
-  address: string
+  zipPlus4?: string               // inferred 9-digit ZIP
+
+  phone?: string
+  phoneVerified: boolean
+
+  // Auto-resolved from address
+  country: string                  // ISO 3166-1 alpha-3
   location?: { lat: number; lng: number }
   community?: {
     h3Index: string
     name: string
-    points: number
   }
-  nearbyCommunities: string[] // List of adjacent H3 indices
+  nearbyCommunities: string[]
 
-  // Step 3: Intro
-  introText: string
-  produceTags: string[]
-  customProduce: string[]
-  mediaUri?: string
-  mediaType?: 'image' | 'video'
-  isFirstPost: boolean
+  // ─── Step 2: Personalize ───
+  gardenItems: string[]            // selected from catalog
+  customGardenItems: string[]      // user-added
+  smsDigest: boolean               // daily SMS digest (only if phone verified)
+
+  // ─── Campaign points (read-only, fetched) ───
+  campaignPoints: Record<string, number>  // behavior → points
 }
 
 const defaultData: WizardData = {
   name: '',
-  notifySell: false,
-  notifyBuy: false,
-  notifyPush: true,
-  notifySms: false,
-  country: 'USA',
+  email: '',
+  emailVerified: false,
+  streetAddress: '',
+  city: '',
+  stateCode: '',
   zipCode: '',
-  address: '',
+  phone: '',
+  phoneVerified: false,
+  country: 'USA',
   nearbyCommunities: [],
-  introText: '',
-  produceTags: [],
-  customProduce: [],
-  isFirstPost: true,
+  gardenItems: [],
+  customGardenItems: [],
+  smsDigest: false,
+  campaignPoints: {},
 }
 
 type WizardContextType = {
@@ -74,7 +83,7 @@ export const WizardProvider = ({ children }: { children: ReactNode }) => {
   const [initializing, setInitializing] = useState(true)
   const { user } = useAuth()
 
-  // On mount: fetch existing profile to determine starting step and pre-fill data
+  // On mount: fetch existing profile data and campaign points
   useEffect(() => {
     const loadExistingProfile = async () => {
       if (!user) {
@@ -82,53 +91,66 @@ export const WizardProvider = ({ children }: { children: ReactNode }) => {
         return
       }
 
+      // Reset to defaults before loading — prevents stale data from previous user
+      setData(defaultData)
+      setStep(0)
+
       try {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('full_name, avatar_url, phone_number, notify_on_wanted, notify_on_available, push_enabled, sms_enabled, zip_code, country_code, home_community_h3_index, nearby_community_h3_indices')
+          .select(`
+            full_name, avatar_url, email, phone_number,
+            email_verified, phone_verified,
+            street_address, city, state_code, zip_code, zip_plus4,
+            country_code, home_community_h3_index,
+            nearby_community_h3_indices, sms_enabled,
+            profile_completed_at
+          `)
           .eq('id', user.id)
           .single()
 
         if (profile) {
-          // Pre-fill wizard data from existing profile
           const updates: Partial<WizardData> = {}
-          
+
           if (profile.full_name) updates.name = profile.full_name
           if (profile.avatar_url) updates.avatar = profile.avatar_url
+          if (profile.email) updates.email = profile.email
           if (profile.phone_number) updates.phone = profile.phone_number
+          updates.emailVerified = profile.email_verified ?? false
+          updates.phoneVerified = profile.phone_verified ?? false
+          if (profile.street_address) updates.streetAddress = profile.street_address
+          if (profile.city) updates.city = profile.city
+          if (profile.state_code) updates.stateCode = profile.state_code
           if (profile.zip_code) updates.zipCode = profile.zip_code
+          if (profile.zip_plus4) updates.zipPlus4 = profile.zip_plus4
           if (profile.country_code) updates.country = profile.country_code
-          if (profile.notify_on_wanted !== undefined) updates.notifyBuy = profile.notify_on_wanted
-          if (profile.notify_on_available !== undefined) updates.notifySell = profile.notify_on_available
-          if (profile.push_enabled !== undefined) updates.notifyPush = profile.push_enabled
-          if (profile.sms_enabled !== undefined) updates.notifySms = profile.sms_enabled
           if (profile.nearby_community_h3_indices) updates.nearbyCommunities = profile.nearby_community_h3_indices
+          updates.smsDigest = profile.sms_enabled ?? false
 
-          // If community is set, fetch its name for display
+          // If community is set, fetch its name
           if (profile.home_community_h3_index) {
             const { data: community } = await supabase
               .from('communities')
               .select('h3_index, name')
               .eq('h3_index', profile.home_community_h3_index)
               .single()
-            
+
             if (community) {
               updates.community = {
                 h3Index: community.h3_index,
                 name: community.name,
-                points: 0,
               }
             }
           }
 
           setData(prev => ({ ...prev, ...updates }))
 
-          // Determine starting step based on what's already completed
-          if (profile.full_name && profile.home_community_h3_index) {
-            // Both name and community set → start at intro post (step 2)
-            setStep(2)
-          } else if (profile.full_name) {
-            // Name set but no community → start at community (step 1)
+          // Determine starting step
+          if (profile.profile_completed_at) {
+            // Already completed wizard — go to step 1 (personalize)
+            setStep(1)
+          } else if (profile.full_name && profile.street_address) {
+            // Step 1 done → start at step 1 (personalize)
             setStep(1)
           }
           // else: start at step 0 (default)
@@ -137,13 +159,42 @@ export const WizardProvider = ({ children }: { children: ReactNode }) => {
         console.warn('⚠️ [Wizard] Could not load existing profile:', err)
       }
 
-      // Also pre-populate from auth metadata (social login) if name not in DB
+      // Pre-populate from auth metadata (social login)
       if (user.user_metadata?.full_name) {
         setData(prev => ({
           ...prev,
           name: prev.name || user.user_metadata.full_name || '',
           avatar: prev.avatar || user.user_metadata.avatar_url || undefined,
         }))
+      }
+      if (user.email) {
+        setData(prev => ({
+          ...prev,
+          email: prev.email || user.email || '',
+        }))
+      }
+
+      // Fetch campaign reward points for display
+      try {
+        const { data: rewards } = await supabase
+          .from('campaign_rewards')
+          .select('behavior, points, campaign_id, incentive_campaigns!inner(is_active, starts_at, ends_at)')
+          .eq('incentive_campaigns.is_active', true)
+          .lte('incentive_campaigns.starts_at', new Date().toISOString())
+          .gte('incentive_campaigns.ends_at', new Date().toISOString())
+
+        if (rewards && rewards.length > 0) {
+          // Group by behavior, pick latest campaign (highest points or first match)
+          const pointsMap: Record<string, number> = {}
+          for (const r of rewards) {
+            if (!pointsMap[r.behavior] || r.points > pointsMap[r.behavior]) {
+              pointsMap[r.behavior] = r.points
+            }
+          }
+          setData(prev => ({ ...prev, campaignPoints: pointsMap }))
+        }
+      } catch (err) {
+        console.warn('⚠️ [Wizard] Could not fetch campaign rewards:', err)
       }
 
       setInitializing(false)
@@ -156,374 +207,222 @@ export const WizardProvider = ({ children }: { children: ReactNode }) => {
     setData((prev) => ({ ...prev, ...updates }))
   }
 
-   const saveProfile = async (overrides?: Partial<WizardData>) => {
-     if (!user) return false
-     setLoading(true)
-     // Merge overrides into data to avoid React setState race condition
-     // (updateData is async via setState, but saveProfile may be called immediately after)
-     const d = overrides ? { ...data, ...overrides } : data
-     console.log('💾 [Wizard] Saving Profile to Supabase...', d)
-     
-     try {
-        // 0. Check for referral code and lookup inviter
-        let invitedById: string | null = null
-        try {
-          let storedReferralCode: string | null = null
+  const saveProfile = async (overrides?: Partial<WizardData>) => {
+    if (!user) return false
+    setLoading(true)
+    const d = overrides ? { ...data, ...overrides } : data
+    console.log('💾 [Wizard] Saving Profile...', d)
+
+    try {
+      // 0. Check for referral code
+      let invitedById: string | null = null
+      try {
+        let storedReferralCode: string | null = null
+        if (Platform.OS === 'web' && typeof window !== 'undefined') {
+          storedReferralCode = window.localStorage.getItem('casagrown_referral_code')
+        } else {
+          const AsyncStorage = require('@react-native-async-storage/async-storage').default
+          storedReferralCode = await AsyncStorage.getItem('casagrown_referral_code')
+        }
+
+        if (storedReferralCode) {
+          console.log('🔗 Found referral code:', storedReferralCode)
+          const { data: inviterProfile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('referral_code', storedReferralCode)
+            .single()
+
+          if (inviterProfile) {
+            invitedById = inviterProfile.id
+            console.log('✅ Found inviter:', invitedById)
+          }
+
+          // Clear after use
           if (Platform.OS === 'web' && typeof window !== 'undefined') {
-            storedReferralCode = window.localStorage.getItem('casagrown_referral_code')
+            window.localStorage.removeItem('casagrown_referral_code')
           } else {
             const AsyncStorage = require('@react-native-async-storage/async-storage').default
-            storedReferralCode = await AsyncStorage.getItem('casagrown_referral_code')
+            await AsyncStorage.removeItem('casagrown_referral_code')
           }
-          
-          if (storedReferralCode) {
-            console.log('🔗 Found referral code:', storedReferralCode)
-            const { data: inviterProfile } = await supabase
-              .from('profiles')
-              .select('id')
-              .eq('referral_code', storedReferralCode)
-              .single()
-            
-            if (inviterProfile) {
-              invitedById = inviterProfile.id
-              console.log('✅ Found inviter:', invitedById)
-            } else {
-              // Track invalid referral code for analytics
-              // This helps measure clipboard method effectiveness
-              console.warn('⚠️ Invalid referral code (no matching inviter):', storedReferralCode)
-              try {
-                await supabase
-                  .from('referral_analytics')
-                  .insert({
-                    referral_code: storedReferralCode,
-                    status: 'invalid_code',
-                    source: Platform.OS === 'web' ? 'web' : 'native_clipboard'
-                  })
-              } catch (analyticsErr) {
-                // Table might not exist yet - just log
-                console.log('📊 Would track invalid referral:', storedReferralCode)
-              }
-            }
-            
-            // Clear the referral code after use
-            if (Platform.OS === 'web' && typeof window !== 'undefined') {
-              window.localStorage.removeItem('casagrown_referral_code')
-            } else {
-              const AsyncStorage = require('@react-native-async-storage/async-storage').default
-              await AsyncStorage.removeItem('casagrown_referral_code')
-            }
-          }
-        } catch (refErr) {
-          console.warn('Could not process referral code:', refErr)
         }
+      } catch (refErr) {
+        console.warn('Could not process referral code:', refErr)
+      }
 
-        // 1. Upload Avatar if changed (local URI)
-        // - Native: file:///data/... or file:///var/...
-        // - Web: blob:http://... or data:...
-        let avatarUrl = d.avatar
-        const isLocalUri = d.avatar && (
-            d.avatar.startsWith('file') || 
-            d.avatar.startsWith('blob') || 
-            d.avatar.startsWith('data:')
-        )
-        if (isLocalUri && d.avatar) {
-             console.log('📤 Uploading avatar:', d.avatar.substring(0, 50) + '...')
-             const uploadedUrl = await uploadProfileAvatar(user.id, d.avatar)
-             if (uploadedUrl) {
-                 console.log('✅ Avatar uploaded:', uploadedUrl)
-                 avatarUrl = uploadedUrl
-             } else {
-                 console.warn('⚠️ Avatar upload returned null, keeping local URI')
-             }
+      // 1. Upload Avatar if local URI
+      let avatarUrl = d.avatar
+      const isLocalUri = d.avatar && (
+        d.avatar.startsWith('file') ||
+        d.avatar.startsWith('blob') ||
+        d.avatar.startsWith('data:')
+      )
+      if (isLocalUri && d.avatar) {
+        console.log('📤 Uploading avatar...')
+        const uploadedUrl = await uploadProfileAvatar(user.id, d.avatar)
+        if (uploadedUrl) {
+          avatarUrl = uploadedUrl
         }
+      }
 
-        // 1.5 Ensue Community exists in DB before linking Profile
-        if (d.community?.h3Index) {
-            const { error: communityError } = await supabase
-                .from('communities')
-                .upsert({
-                    h3_index: d.community.h3Index,
-                    name: d.community.name,
-                }, { onConflict: 'h3_index' })
-            
-            if (communityError) {
-                console.warn('⚠️ Could not upsert community:', communityError)
-                // Proceed anyway, the profile update might fail if FK is strictly enforced
-            } else {
-                console.log('✅ Community upserted:', d.community.h3Index)
-            }
+      // 1.5 Ensure Community exists in DB before FK link
+      if (d.community?.h3Index) {
+        const { error: communityError } = await supabase
+          .from('communities')
+          .upsert({
+            h3_index: d.community.h3Index,
+            name: d.community.name,
+          }, { onConflict: 'h3_index' })
+
+        if (communityError) {
+          console.warn('⚠️ Could not upsert community:', communityError)
         }
+      }
 
-        // 2. Update Profile (including invited_by_id if present)
-        const profileUpdate: Record<string, unknown> = {
-            full_name: d.name,
-            phone_number: d.phone,
-            notify_on_wanted: d.notifyBuy,
-            notify_on_available: d.notifySell,
-            push_enabled: d.notifyPush,
-            sms_enabled: d.notifySms,
-            zip_code: d.zipCode,
-            country_code: d.country, // ISO 3166-1 alpha-3 (e.g., 'USA')
-            home_community_h3_index: d.community?.h3Index,
-            nearby_community_h3_indices: d.nearbyCommunities,
-            avatar_url: avatarUrl
+      // 2. Update Profile
+      const profileUpdate: Record<string, unknown> = {
+        full_name: d.name,
+        phone_number: d.phone || null,
+        street_address: d.streetAddress || null,
+        city: d.city || null,
+        state_code: d.stateCode || null,
+        zip_code: d.zipCode || null,
+        zip_plus4: d.zipPlus4 || null,
+        country_code: d.country,
+        home_community_h3_index: d.community?.h3Index || null,
+        nearby_community_h3_indices: d.nearbyCommunities,
+        avatar_url: avatarUrl,
+        sms_enabled: d.smsDigest,
+        profile_completed_at: new Date().toISOString(),
+      }
+
+      if (invitedById) {
+        profileUpdate.invited_by_id = invitedById
+      }
+
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update(profileUpdate)
+        .eq('id', user.id)
+
+      if (profileError) {
+        console.error('Profile update failed:', profileError)
+        throw profileError
+      }
+      console.log('✅ Profile saved')
+
+      // 2.5 Auto-follow inviter
+      if (invitedById) {
+        try {
+          await supabase
+            .from('followers')
+            .insert({ follower_id: user.id, followed_id: invitedById })
+        } catch (followErr) {
+          console.warn('⚠️ Auto-follow failed:', followErr)
         }
-        
-        // Only set invited_by_id if we found an inviter and it's not already set
-        if (invitedById) {
-          profileUpdate.invited_by_id = invitedById
-        }
-        
-        const { error: profileError } = await supabase
-            .from('profiles')
-            .update(profileUpdate)
-            .eq('id', user.id)
+      }
 
-        console.log('🔄 Profile update response:', { profileError })
-
-        if (profileError) {
-            console.error('Profile update failed:', profileError)
-            throw profileError
+      // 3. Save Garden Items
+      const allGarden = [
+        ...d.gardenItems.map(name => ({ user_id: user.id, produce_name: name, is_custom: false })),
+        ...d.customGardenItems.map(name => ({ user_id: user.id, produce_name: name, is_custom: true })),
+      ]
+      if (allGarden.length > 0) {
+        const { error: gardenError } = await supabase
+          .from('user_garden')
+          .upsert(allGarden, { onConflict: 'user_id,produce_name' })
+        if (gardenError) {
+          console.warn('⚠️ Could not save garden items:', gardenError)
         } else {
-            console.log('✅ Profile saved to database for user:', user.id)
+          console.log(`✅ Saved ${allGarden.length} garden items`)
         }
+      }
 
-        // 2.5 Auto-follow inviter (non-blocking — won't fail signup)
-        if (invitedById) {
-          try {
-            const { error: followError } = await supabase
-              .from('followers')
-              .insert({ follower_id: user.id, followed_id: invitedById })
-            if (followError) {
-              console.warn('⚠️ Could not auto-follow inviter:', followError)
-            } else {
-              console.log('👥 Auto-followed inviter:', invitedById)
-            }
-          } catch (followErr) {
-            console.warn('⚠️ Auto-follow failed:', followErr)
+      // 4. Grant Campaign Rewards (idempotent)
+      const { data: latestLedger } = await supabase
+        .from('point_ledger')
+        .select('balance_after')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      let currentBalance = latestLedger?.balance_after ?? 0
+
+      // 4a. Grant join_a_community reward
+      if (d.community?.h3Index) {
+        const { data: existingJoinReward } = await supabase
+          .from('point_ledger')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('type', 'reward')
+          .contains('metadata', { action_type: 'join_a_community' })
+          .maybeSingle()
+
+        if (!existingJoinReward) {
+          const joinPoints = d.campaignPoints['signup'] || 50
+          const { error: rewardError } = await supabase
+            .from('point_ledger')
+            .insert({
+              user_id: user.id,
+              type: 'reward',
+              amount: joinPoints,
+              balance_after: 0, // trigger computes
+              metadata: {
+                action_type: 'join_a_community',
+                h3_index: d.community.h3Index,
+              }
+            })
+
+          if (!rewardError) {
+            console.log(`🎉 Granted ${joinPoints} points for joining community`)
+            currentBalance += joinPoints
           }
         }
+      }
 
-        // 3. Create Intro Post
-        let introPostCreated = false
-        if (d.introText) {
-            const { data: introPost, error: postError } = await supabase
-                .from('posts')
-                .insert({
-                    author_id: user.id,
-                    community_h3_index: d.community?.h3Index,
-                    content: JSON.stringify({ title: 'Hello Neighbors! 👋', description: d.introText }),
-                    type: 'general_info',
-                    reach: 'community',
-                })
-                .select('id')
-                .single()
-            
-            if (postError) {
-                console.error('Intro post failed:', JSON.stringify(postError), 'message:', postError.message, 'code:', postError.code, 'details:', postError.details, 'hint:', postError.hint)
-                // Non-blocking, proceed
-            } else {
-                introPostCreated = true
+      // 4b. Grant inviter referral reward
+      if (invitedById) {
+        const { data: existingInviteReward } = await supabase
+          .from('point_ledger')
+          .select('id')
+          .eq('user_id', invitedById)
+          .eq('type', 'reward')
+          .contains('metadata', { action_type: 'invitee_signing_up', invitee_id: user.id })
+          .maybeSingle()
 
-                // Upload intro post media if present
-                if (introPost && d.mediaUri) {
-                    try {
-                        const mediaType: 'image' | 'video' = d.mediaType === 'video' ? 'video' : 'image'
-                        const uploaded = await uploadPostMedia(user.id, d.mediaUri, mediaType)
-                        if (uploaded) {
-                            // Insert media_assets row
-                            const { data: mediaRow } = await supabase
-                                .from('media_assets')
-                                .insert({
-                                    owner_id: user.id,
-                                    storage_path: uploaded.storagePath,
-                                    media_type: uploaded.mediaType,
-                                    mime_type: uploaded.mediaType === 'video' ? 'video/mp4' : 'image/jpeg',
-                                })
-                                .select('id')
-                                .single()
+        if (!existingInviteReward) {
+          const referralPoints = d.campaignPoints['per_referral'] || 50
 
-                            if (mediaRow) {
-                                await supabase.from('post_media').insert({
-                                    post_id: introPost.id,
-                                    media_id: mediaRow.id,
-                                    position: 0,
-                                })
-                                console.log('✅ Intro post media uploaded and linked')
-                            }
-                        }
-                    } catch (mediaErr) {
-                        console.warn('⚠️ Intro post media upload failed:', mediaErr)
-                    }
-                }
-            }
-        }
-
-        // 3.5 Save Produce Interests
-        const allProduce = [
-            ...d.produceTags.map(tag => ({ user_id: user.id, produce_name: tag, is_custom: false })),
-            ...d.customProduce.map(tag => ({ user_id: user.id, produce_name: tag, is_custom: true })),
-        ]
-        if (allProduce.length > 0) {
-            const { error: produceError } = await supabase
-                .from('produce_interests')
-                .upsert(allProduce, { onConflict: 'user_id,produce_name' })
-            if (produceError) {
-                console.warn('⚠️ Could not save produce interests:', produceError)
-            } else {
-                console.log(`✅ Saved ${allProduce.length} produce interests`)
-            }
-        }
-
-        // 4. Grant Reward Points (Idempotent)
-        // Get current balance first
-        const { data: latestLedger } = await supabase
+          const { error: inviterRewardError } = await supabase
             .from('point_ledger')
-            .select('balance_after')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle()
-        
-        let currentBalance = latestLedger?.balance_after ?? 0
+            .insert({
+              user_id: invitedById,
+              type: 'reward',
+              amount: referralPoints,
+              balance_after: 0, // trigger computes
+              metadata: {
+                action_type: 'invitee_signing_up',
+                invitee_id: user.id,
+              }
+            })
 
-        // 4a. Grant join_a_community reward (if not already granted)
-        if (d.community?.h3Index) {
-            const { data: existingJoinReward } = await supabase
-                .from('point_ledger')
-                .select('id')
-                .eq('user_id', user.id)
-                .eq('type', 'reward')
-                .contains('metadata', { action_type: 'join_a_community' })
-                .maybeSingle()
-
-            if (!existingJoinReward) {
-                const joinPoints = d.community.points || 50
-                const newBalance = currentBalance + joinPoints
-                const { error: rewardError } = await supabase
-                    .from('point_ledger')
-                    .insert({
-                        user_id: user.id,
-                        type: 'reward',
-                        amount: joinPoints,
-                        balance_after: newBalance,
-                        metadata: { 
-                            action_type: 'join_a_community', 
-                            h3_index: d.community.h3Index 
-                        }
-                    })
-                
-                if (!rewardError) {
-                    console.log(`🎉 Granted ${joinPoints} points for joining community`)
-                    currentBalance = newBalance
-                } else {
-                    console.error('Failed to grant join reward:', rewardError)
-                }
-            } else {
-                console.log('⏭️ join_a_community reward already granted, skipping')
-            }
+          if (!inviterRewardError) {
+            console.log(`🎉 Granted ${referralPoints} points to inviter for referral`)
+          }
         }
+      }
 
-        // 4b. Grant inviter reward for signup (if we have an inviter)
-        if (invitedById) {
-            // Check if inviter already got a reward for this user signing up
-            const { data: existingInviteReward } = await supabase
-                .from('point_ledger')
-                .select('id')
-                .eq('user_id', invitedById)
-                .eq('type', 'reward')
-                .contains('metadata', { action_type: 'invitee_signing_up', invitee_id: user.id })
-                .maybeSingle()
-
-            if (!existingInviteReward) {
-                // Look up the reward amount from incentive_rules
-                const { data: inviteRule } = await supabase
-                    .from('incentive_rules')
-                    .select('points')
-                    .eq('action_type', 'invitee_signing_up')
-                    .eq('scope', 'global')
-                    .maybeSingle()
-                
-                const invitePoints = inviteRule?.points || 50
-                
-                // Get inviter's current balance
-                const { data: inviterLedger } = await supabase
-                    .from('point_ledger')
-                    .select('balance_after')
-                    .eq('user_id', invitedById)
-                    .order('created_at', { ascending: false })
-                    .limit(1)
-                    .maybeSingle()
-                
-                const inviterBalance = inviterLedger?.balance_after ?? 0
-                const inviterNewBalance = inviterBalance + invitePoints
-                
-                const { error: inviterRewardError } = await supabase
-                    .from('point_ledger')
-                    .insert({
-                        user_id: invitedById,
-                        type: 'reward',
-                        amount: invitePoints,
-                        balance_after: inviterNewBalance,
-                        metadata: { 
-                            action_type: 'invitee_signing_up', 
-                            invitee_id: user.id 
-                        }
-                    })
-                
-                if (!inviterRewardError) {
-                    console.log(`🎉 Granted ${invitePoints} points to inviter ${invitedById} for referral!`)
-                } else {
-                    console.error('Failed to grant inviter reward:', inviterRewardError)
-                }
-            } else {
-                console.log('⏭️ invitee_signing_up reward already granted to inviter, skipping')
-            }
-        }
-
-        // 4b. Grant make_first_post reward (if intro post was created and not already granted)
-        if (introPostCreated) {
-            const { data: existingPostReward } = await supabase
-                .from('point_ledger')
-                .select('id')
-                .eq('user_id', user.id)
-                .eq('type', 'reward')
-                .contains('metadata', { action_type: 'make_first_post' })
-                .maybeSingle()
-
-            if (!existingPostReward) {
-                const postPoints = 50 // Could also fetch from incentive_rules
-                const newBalance = currentBalance + postPoints
-                const { error: rewardError } = await supabase
-                    .from('point_ledger')
-                    .insert({
-                        user_id: user.id,
-                        type: 'reward',
-                        amount: postPoints,
-                        balance_after: newBalance,
-                        metadata: { action_type: 'make_first_post' }
-                    })
-                
-                if (!rewardError) {
-                    console.log(`🎉 Granted ${postPoints} points for first post`)
-                } else {
-                    console.error('Failed to grant first post reward:', rewardError)
-                }
-            } else {
-                console.log('⏭️ make_first_post reward already granted, skipping')
-            }
-        }
-        
-        return true
-     } catch (e) {
-         console.error('Save failed', e)
-         return false
-     } finally {
-         setLoading(false)
-     }
+      return true
+    } catch (e) {
+      console.error('Save failed', e)
+      return false
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const nextStep = () => setStep((s) => Math.min(s + 1, 2))
+  const nextStep = () => setStep((s) => Math.min(s + 1, 1))
   const prevStep = () => setStep((s) => Math.max(s - 1, 0))
 
   return (

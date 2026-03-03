@@ -5,7 +5,7 @@ import { FeedScreen } from '@casagrown/app/features/feed/feed-screen'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth, supabase } from '@casagrown/app/features/auth/auth-hook'
 
-// Types for incentive rules
+// Types for campaign rewards
 interface InviteRewards {
   signupPoints: number
   transactionPoints: number
@@ -55,22 +55,33 @@ export default function FeedPage() {
     }
   }, [user?.id])
 
-  // Fetch invite reward points from incentive rules
+  // Fetch invite reward points from campaign rewards
   useEffect(() => {
     const fetchInviteRewards = async () => {
       try {
+        const now = new Date().toISOString()
         const { data, error } = await supabase
-          .from('incentive_rules')
-          .select('action_type, points')
-          .in('action_type', ['invitee_signing_up', 'invitee_making_first_transaction'])
-          .eq('scope', 'global')
+          .from('campaign_rewards')
+          .select(`
+            behavior,
+            points,
+            incentive_campaigns!inner (
+              is_active,
+              starts_at,
+              ends_at
+            )
+          `)
+          .eq('incentive_campaigns.is_active', true)
+          .lte('incentive_campaigns.starts_at', now)
+          .gte('incentive_campaigns.ends_at', now)
+          .in('behavior', ['per_referral', 'first_purchase_by_referee'])
         
         if (!error && data) {
-          const signupRule = data.find(r => r.action_type === 'invitee_signing_up')
-          const transactionRule = data.find(r => r.action_type === 'invitee_making_first_transaction')
+          const referralRule = data.find((r: any) => r.behavior === 'per_referral')
+          const transactionRule = data.find((r: any) => r.behavior === 'first_purchase_by_referee')
           
           setInviteRewards({
-            signupPoints: signupRule?.points || 0,
+            signupPoints: referralRule?.points || 50,
             transactionPoints: transactionRule?.points || 0
           })
         }

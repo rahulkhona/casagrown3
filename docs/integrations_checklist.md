@@ -1,6 +1,6 @@
 # Integration Checklist — Pre-Launch
 
-Last Updated: 2026-02-23
+Last Updated: 2026-03-03
 
 ## Stripe (Payments)
 
@@ -18,14 +18,14 @@ Last Updated: 2026-02-23
 
 ## Reloadly (Gift Cards)
 
-| Item                                     | Status | Notes                                  |
-| :--------------------------------------- | :----- | :------------------------------------- |
-| Client ID (`RELOADLY_CLIENT_ID`)         | ⬜     | Set in Supabase Edge Function secrets  |
-| Client Secret (`RELOADLY_CLIENT_SECRET`) | ⬜     | Set in Supabase Edge Function secrets  |
-| Switch sandbox → production              | ⬜     | `isSandbox` param in `reloadly.ts`     |
-| Catalog caching strategy                 | ⬜     | Currently fetches live on each request |
-| Test gift card order end-to-end          | ⬜     | Verify card code delivered             |
-| Error handling for out-of-stock          | ⬜     | Graceful UI fallback needed            |
+| Item                                     | Status | Notes                                    |
+| :--------------------------------------- | :----- | :--------------------------------------- |
+| Client ID (`RELOADLY_CLIENT_ID`)         | ⬜     | Set in Supabase Edge Function secrets    |
+| Client Secret (`RELOADLY_CLIENT_SECRET`) | ⬜     | Set in Supabase Edge Function secrets    |
+| Switch sandbox → production              | ⬜     | `isSandbox` param in `reloadly.ts`       |
+| Catalog caching strategy                 | ✅     | Cached in `platform_config` (24h TTL)    |
+| Test gift card order end-to-end          | ⬜     | Verify card code delivered               |
+| Error handling for out-of-stock          | ✅     | Queued + retry via `process-redemptions` |
 
 ## Tremendous (Gift Cards)
 
@@ -38,32 +38,71 @@ Last Updated: 2026-02-23
 
 ## GlobalGiving (Donations)
 
-| Item                             | Status | Notes                                          |
-| :------------------------------- | :----- | :--------------------------------------------- |
-| API key (`GLOBALGIVING_API_KEY`) | ⬜     | Not yet implemented                            |
-| Client implementation            | ⬜     | No `globalgiving.ts` file exists yet           |
-| Donation flow edge function      | ⬜     | Needs `redeem-points` to call GlobalGiving API |
-| Test donation end-to-end         | ⬜     | Verify receipt created                         |
+| Item                              | Status | Notes                                                    |
+| :-------------------------------- | :----- | :------------------------------------------------------- |
+| API key (`GLOBALGIVING_API_KEY`)  | ⬜     | Set in Supabase Edge Function secrets                    |
+| `donate-points` edge function     | ✅     | Implemented with ACID `finalize_donation_redemption` RPC |
+| `fetch-donation-projects` edge fn | ✅     | Fetch/search project catalog with fallback               |
+| Switch sandbox → production       | ⬜     | `GLOBALGIVING_SANDBOX=false`                             |
+| Test donation end-to-end          | ⬜     | Verify receipt created + points debited                  |
+
+## PayPal / Venmo (Cashouts)
+
+| Item                              | Status | Notes                                           |
+| :-------------------------------- | :----- | :---------------------------------------------- |
+| Client ID (`PAYPAL_CLIENT_ID`)    | ⬜     | Set in Supabase Edge Function secrets           |
+| Secret (`PAYPAL_SECRET`)          | ⬜     | Set in Supabase Edge Function secrets           |
+| `redeem-paypal-payout` edge fn    | ✅     | PayPal Payouts API (email + Venmo phone)        |
+| `refund-purchased-points` edge fn | ✅     | Routes to Stripe/Venmo/gift card refund         |
+| Provider gating                   | ✅     | `available_redemption_method_instruments` table |
+| Switch sandbox → production       | ⬜     | PayPal sandbox URL → `api.paypal.com`           |
+| Fund PayPal business balance      | ⬜     | Required for live payouts                       |
+| Test cashout end-to-end           | ⬜     | Verify payout delivered + points debited        |
+
+> [!IMPORTANT]
+> **No tests hit live PayPal/Venmo APIs.** All payout tests validate input/error
+> paths before reaching the API call, or are statically skipped.
 
 ## Authentication
 
 | Item                              | Status | Notes                              |
 | :-------------------------------- | :----- | :--------------------------------- |
-| Google OAuth keys                 | ⬜     | Production Google Cloud project    |
-| Apple Sign-In key                 | ⬜     | App Store Connect config           |
+| Email + OTP authentication        | ✅     | Implemented via Supabase Auth      |
 | Supabase project URL (production) | ⬜     | Replace `localhost:54321` URLs     |
 | Remove dev OTP auto-fill          | ⬜     | `login-screen.tsx` dev mode bypass |
-| Remove mock auth mode             | ⬜     | `auth-hook.ts` mock user path      |
+
+> [!NOTE]
+> Social login (Google/Apple/Facebook) has been **removed**. Auth is email + OTP
+> only.
 
 ## Edge Functions — Deployment
 
-| Function                | Status | Notes                                              |
-| :---------------------- | :----- | :------------------------------------------------- |
-| `create-payment-intent` | ✅     | Handles mock + Stripe providers                    |
-| `confirm-payment`       | ✅     | Credits points via `point_ledger`                  |
-| `stripe-webhook`        | ⬜     | Needs production webhook URL                       |
-| `redeem-points`         | ⬜     | Needs Reloadly/Tremendous/GlobalGiving integration |
-| `gift-card-catalog`     | ⬜     | Fetches combined catalog from providers            |
+| Function                   | Status | Notes                                 |
+| :------------------------- | :----- | :------------------------------------ |
+| `create-payment-intent`    | ✅     | Handles mock + Stripe providers       |
+| `confirm-payment`          | ✅     | Credits points via `point_ledger`     |
+| `stripe-webhook`           | ⬜     | Needs production webhook URL          |
+| `create-order`             | ✅     | Atomic order + escrow                 |
+| `create-offer`             | ✅     | Atomic offer creation                 |
+| `redeem-gift-card`         | ✅     | Reloadly + Tremendous providers, ACID |
+| `redeem-paypal-payout`     | ✅     | PayPal/Venmo cashout, ACID            |
+| `refund-purchased-points`  | ✅     | Stripe/Venmo/gift card refund routes  |
+| `donate-points`            | ✅     | GlobalGiving donations, ACID          |
+| `fetch-gift-cards`         | ✅     | Merged catalog with caching           |
+| `fetch-donation-projects`  | ✅     | GlobalGiving project search           |
+| `process-redemptions`      | ✅     | Queue-based redemption processor      |
+| `sync-provider-balance`    | ✅     | Cron: monitor provider balances       |
+| `get-tax-rate`             | ✅     | California sales tax lookup           |
+| `register-push-token`      | ✅     | Device token upsert                   |
+| `send-push-notification`   | ✅     | Web Push + APNs + FCM                 |
+| `notify-on-message`        | ✅     | Push trigger for chat messages        |
+| `resolve-community`        | ✅     | H3 community resolution               |
+| `enrich-communities`       | ✅     | OSM-based community naming            |
+| `pair-delegation`          | ✅     | Delegation pairing                    |
+| `assign-experiment`        | ✅     | A/B test assignment                   |
+| `resolve-pending-payments` | ✅     | Stuck payment recovery                |
+| `sync-locations`           | ✅     | Country reference data                |
+| `update-zip-codes`         | ✅     | Zip code data processing              |
 
 ## Environment Variables Summary
 
@@ -84,6 +123,20 @@ TREMENDOUS_API_KEY=...
 
 # GlobalGiving
 GLOBALGIVING_API_KEY=...
+GLOBALGIVING_SANDBOX=false
+
+# PayPal / Venmo (Cashouts)
+PAYPAL_CLIENT_ID=...
+PAYPAL_SECRET=...
+
+# Push Notifications
+VAPID_PUBLIC_KEY=...
+VAPID_PRIVATE_KEY=...
+VAPID_SUBJECT=mailto:support@casagrown.dev
+APNS_KEY_ID=...          # iOS only
+APNS_TEAM_ID=...         # iOS only
+APNS_KEY=...             # iOS only (.p8 contents)
+FCM_SERVER_KEY=...       # Android only
 
 # Supabase (production)
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co

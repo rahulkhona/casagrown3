@@ -10,6 +10,9 @@ env:
 #
 # Flow: Landing page → Login page → Email OTP → Feed/Wizard
 #
+# After social logins were removed, the login page shows email input
+# and "Send Verification Code" directly (no "Continue with Email" step).
+#
 # Uses stopApp + launchApp to guarantee a fresh app start from the root
 # screen regardless of where the previous flow left the app.
 
@@ -36,10 +39,11 @@ env:
 #   - "Join the Movement!" → landing page, not logged in
 #   - "Welcome to CasaGrown" → login page
 #   - "Let's Get You Set Up" → profile wizard
+#   - "Send Verification Code" → login page (email input visible)
 #   - "Loading..." → auth check in progress (wait for it to resolve)
 - extendedWaitUntil:
           visible:
-                  text: ".*(?:Create Post|Join the Movement|Welcome to CasaGrown|Get You Set Up).*"
+                  text: ".*(?:Create Post|Join the Movement|Welcome to CasaGrown|Get You Set Up|Send Verification Code).*"
           timeout: 45000
 
 # If already logged in (feed shows "Create Post"), skip login
@@ -59,19 +63,11 @@ env:
                             visible: "Welcome to CasaGrown"
                             timeout: 15000
 
-# Now perform email OTP login
+# Now perform email OTP login (email input is shown directly, no social login step)
 - runFlow:
           when:
                   visible: "Welcome to CasaGrown"
           commands:
-                  # Tap "Continue with Email"
-                  - tapOn: "Continue with Email"
-
-                  # Wait for email input
-                  - extendedWaitUntil:
-                            visible: "Email Address"
-                            timeout: 5000
-
                   # Enter test seller email — long press to select all, clear, type, then submit via keyboard
                   - longPressOn:
                             id: "email_input"

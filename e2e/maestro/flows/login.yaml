@@ -2,9 +2,8 @@
 # Tests login UI elements when the app starts from a logged-out state.
 # If the user is already logged in, the flow still passes (verifies feed).
 #
-# NOTE: We do NOT attempt to log out via the native Alert.alert dialog
-# because iOS native alerts cannot be reliably tapped by Maestro.
-# The login utility (utils/login.yaml) handles all login state.
+# NOTE: After social logins were removed, the login screen shows the email
+# input and "Send Verification Code" button directly (no "Continue with Email").
 
 appId: dev.casagrown.community
 
@@ -17,7 +16,7 @@ appId: dev.casagrown.community
 # Wait for the app to fully load
 - extendedWaitUntil:
           visible:
-                  text: ".*(?:Create Post|Join the Movement|Welcome to CasaGrown|Get You Set Up).*"
+                  text: ".*(?:Create Post|Join the Movement|Welcome to CasaGrown|Get You Set Up|Send Verification Code).*"
           timeout: 45000
 
 # If already logged in, just verify feed and skip the rest
@@ -45,19 +44,18 @@ appId: dev.casagrown.community
           when:
                   visible: "Welcome to CasaGrown"
           commands:
-                  # Verify sign-in options
-                  - assertVisible: "Continue with Email"
-                  - assertVisible: "Continue with Google"
+                  # Verify email input is directly visible (no social login step)
+                  - assertVisible:
+                            id: "email_input"
+
+                  # Verify Send Verification Code button
+                  - assertVisible: "Send Verification Code"
 
                   # Verify footer
                   - assertVisible:
                             text: ".*Terms of Service.*Privacy Policy.*"
 
                   # Test email input flow
-                  - tapOn: "Continue with Email"
-                  - extendedWaitUntil:
-                            visible: "Email Address"
-                            timeout: 5000
                   - longPressOn:
                             id: "email_input"
                   - eraseText: 50

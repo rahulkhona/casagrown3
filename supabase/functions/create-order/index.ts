@@ -17,17 +17,22 @@ import {
  * execution: conversation, offer, order, escrow, and system message
  * are all committed or all rolled back.
  *
+ * When sales tax applies, a separate `sales_tax` ledger entry is
+ * inserted after the order for audit / tax-filing purposes.
+ *
  * Request body: {
  *   postId: string,
  *   sellerId: string,
  *   quantity: number,
  *   pointsPerUnit: number,
- *   totalPrice: number,
+ *   totalPrice: number,          // FULL total (subtotal + tax)
  *   category: string,
  *   product: string,
- *   deliveryDate: string,      // ISO date
+ *   deliveryDate: string,        // ISO date
  *   deliveryInstructions?: string,
- *   deliveryAddress: string
+ *   deliveryAddress: string,
+ *   taxRatePct?: number,         // Sales tax rate applied
+ *   taxAmount?: number           // Tax in points (rounded up)
  * }
  *
  * Response: { orderId: string, conversationId: string, newBalance: number }
@@ -51,6 +56,8 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
         deliveryDate,
         deliveryInstructions,
         deliveryAddress,
+        taxRatePct,
+        taxAmount,
     } = await req.json();
 
     // Validate required fields
@@ -78,7 +85,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
         [deliveryAddress, deliveryInstructions].filter(Boolean).join("\n") ||
         null;
 
-    // Call atomic RPC — all 6 steps in one transaction
+    // Call atomic RPC — escrows the FULL totalPrice (subtotal + tax)
     const { data, error } = await supabase.rpc("create_order_atomic", {
         p_buyer_id: buyerId,
         p_seller_id: sellerId,
@@ -109,10 +116,53 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
         );
     }
 
+    const effectiveTax = taxAmount ?? 0;
+    const effectiveRate = taxRatePct ?? 0;
+
     console.log(
         `✅ Order created: ${data.orderId}, buyer=${buyerId}, seller=${sellerId}, ` +
-            `product=${product}, qty=${quantity}, total=${totalPrice}pts, newBalance=${data.newBalance}`,
+            `product=${product}, qty=${quantity}, total=${totalPrice}pts` +
+            (effectiveTax > 0
+                ? `, tax=${effectiveTax}pts (${effectiveRate}%)`
+                : "") +
+            `, newBalance=${data.newBalance}`,
     );
+
+    // ── Tax ledger entry + order update ────────────────────────────────
+    if (effectiveTax > 0) {
+        // 1. Persist tax columns on the order row
+        await supabase
+            .from("orders")
+            .update({
+                tax_rate_pct: effectiveRate,
+                tax_amount: effectiveTax,
+            })
+            .eq("id", data.orderId);
+
+        // 2. Insert separate sales_tax ledger entry for audit/reporting.
+        //    The amount is 0 because the tax was already included in the
+        //    escrow deduction. This entry serves as an audit record with
+        //    tax-specific metadata for tax-filing purposes.
+        await supabase.from("point_ledger").insert({
+            user_id: buyerId,
+            type: "sales_tax",
+            amount: 0,
+            balance_after: data.newBalance,
+            reference_id: data.orderId,
+            metadata: {
+                order_id: data.orderId,
+                post_id: postId,
+                seller_id: sellerId,
+                product,
+                category,
+                quantity,
+                subtotal: totalPrice - effectiveTax,
+                tax_amount: effectiveTax,
+                tax_rate_pct: effectiveRate,
+                delivery_address: deliveryAddress || null,
+            },
+        });
+    }
 
     // Fire-and-forget push notification to seller
     getUserDisplayName(supabase, buyerId).then((buyerName: string) => {

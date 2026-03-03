@@ -327,4 +327,51 @@ describe("mapLedgerToTransaction", () => {
         expect(tx.purchaseUsdAmount).toBe(10);
         expect(tx.purchaseStripeFee).toBe(0.33);
     });
+
+    it("maps a sales_tax ledger entry", () => {
+        const row = {
+            id: "tax-001",
+            type: "sales_tax",
+            amount: -3,
+            created_at: "2026-03-02T12:00:00Z",
+            metadata: {
+                product: "Organic Flowers",
+                tax_rate_pct: 9.25,
+                tax_amount: 3,
+                delivery_address: "123 Main St, San Jose, CA 95120",
+            },
+        };
+        const tx = mapLedgerToTransaction(row);
+        expect(tx.type).toBe("sales_tax");
+        expect(tx.amount).toBe(-3);
+        expect(tx.description).toContain("Sales Tax");
+    });
+});
+
+// =============================================================================
+// Sales Tax specific tests
+// =============================================================================
+describe("sales_tax ledger type", () => {
+    it("mapLedgerType handles sales_tax", () => {
+        expect(mapLedgerType("sales_tax", -3)).toBe("sales_tax");
+    });
+
+    it("buildDescription formats sales tax with product and rate", () => {
+        const result = buildDescription("sales_tax", -3, {
+            product: "Organic Flowers",
+            tax_rate_pct: 9.25,
+            tax_amount: 3,
+        });
+        expect(result).toContain("Sales Tax");
+    });
+
+    it("buildDescription handles sales tax with delivery address", () => {
+        const result = buildDescription("sales_tax", -3, {
+            product: "Roses",
+            tax_rate_pct: 8.5,
+            tax_amount: 3,
+            delivery_address: "456 Oak Ave, Los Angeles, CA 90210",
+        });
+        expect(result).toContain("Sales Tax");
+    });
 });

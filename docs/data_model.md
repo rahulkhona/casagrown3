@@ -86,7 +86,11 @@ and any associated triggers/functions/RLS policies.
 > `20260301080200_update_accept_offer_rpc` → `20260301080300_ban_category_rpc` →
 > `20260301080400_add_category_restriction_rpc` →
 > `20260301080500_ban_product_rpc` → `20260301090000_incentive_campaigns` →
-> `20260301090100_sales_tax_rules`
+> `20260301090100_sales_tax_rules` → `20260301100000_profile_overhaul` →
+> `20260301100100_garden_categories` → `20260301100200_drop_incentive_rules` →
+> `20260301100300_zipcode_popular_produce` → `20260301100500_user_garden_rls` →
+> `20260301100600_tax_rate_cache` → `20260301100700_order_tax_columns` →
+> `20260301100800_sales_tax_ledger_type` → `20260301100900_seed_ca_tax_rules`
 
 ## Extensions
 
@@ -117,7 +121,8 @@ create type point_transaction_type as enum (
   'escrow',            -- buyer's points held until seller accepts (20260215090000)
   'refund',            -- points returned to buyer if order is cancelled (20260215090000)
   'donation',          -- points spent on charitable donations (20260222100000)
-  'delegation_split'   -- delegate/delegator share of a delegated sale (20260223100000)
+  'delegation_split',  -- delegate/delegator share of a delegated sale (20260223100000)
+  'sales_tax'          -- sales tax collected on an order (20260301100800)
 );
 
 create type post_type as enum (
@@ -340,30 +345,45 @@ create index communities_location_idx on communities using gist (location);
 Linked to Supabase Auth `auth.users` table. Auto-created on signup via
 `handle_new_user()` trigger.
 
-| Column                        | Type                    | Description                                                  |
-| :---------------------------- | :---------------------- | :----------------------------------------------------------- |
-| `id`                          | `uuid`                  | **Primary Key** (FK to `auth.users.id`).                     |
-| `email`                       | `text`                  | Unique. Copied from auth.users on signup.                    |
-| `full_name`                   | `text`                  | Display name.                                                |
-| `avatar_url`                  | `text`                  | URL to avatar image.                                         |
-| `phone_number`                | `text`                  | For SMS notifications.                                       |
-| `country_code`                | `varchar(3)`            | ISO 3166-1 alpha-3 (e.g., 'USA'). Default: 'USA'.            |
-| `zip_code`                    | `text`                  | Postal code.                                                 |
-| `home_community_h3_index`     | `text`                  | FK to `communities(h3_index)`.                               |
-| `home_location`               | `geometry(Point, 4326)` | Exact user location (optional).                              |
-| `nearby_community_h3_indices` | `text[]`                | Array of adjacent H3 indices.                                |
-| `notify_on_wanted`            | `boolean`               | Receive "wanted" notifications. Default: `true`.             |
-| `notify_on_available`         | `boolean`               | Receive "available" notifications. Default: `true`.          |
-| `push_enabled`                | `boolean`               | Push enabled. Default: `true`.                               |
-| `sms_enabled`                 | `boolean`               | SMS enabled. Default: `false`.                               |
-| `referral_code`               | `text`                  | Unique 8-char alphanumeric code. Auto-generated via trigger. |
-| `invited_by_id`               | `uuid`                  | FK to `profiles(id)`. Who referred this user.                |
-| `paypal_payout_id`            | `text`                  | PayPal email or Venmo phone number for cashouts.             |
-| `created_at`                  | `timestamptz`           | Default `now()`.                                             |
-| `updated_at`                  | `timestamptz`           | Default `now()`.                                             |
+| Column                          | Type                    | Description                                                    |
+| :------------------------------ | :---------------------- | :------------------------------------------------------------- |
+| `id`                            | `uuid`                  | **Primary Key** (FK to `auth.users.id`).                       |
+| `email`                         | `text`                  | Unique. Copied from auth.users on signup.                      |
+| `full_name`                     | `text`                  | Display name.                                                  |
+| `avatar_url`                    | `text`                  | URL to avatar image.                                           |
+| `phone_number`                  | `text`                  | For SMS notifications.                                         |
+| `country_code`                  | `varchar(3)`            | ISO 3166-1 alpha-3 (e.g., 'USA'). Default: 'USA'.              |
+| `zip_code`                      | `text`                  | Postal code.                                                   |
+| `home_community_h3_index`       | `text`                  | FK to `communities(h3_index)`.                                 |
+| `home_location`                 | `geometry(Point, 4326)` | Exact user location (optional).                                |
+| `nearby_community_h3_indices`   | `text[]`                | Array of adjacent H3 indices.                                  |
+| `notify_on_wanted`              | `boolean`               | Receive "wanted" notifications. Default: `true`.               |
+| `notify_on_available`           | `boolean`               | Receive "available" notifications. Default: `true`.            |
+| `push_enabled`                  | `boolean`               | Push enabled. Default: `true`.                                 |
+| `sms_enabled`                   | `boolean`               | SMS enabled. Default: `false`.                                 |
+| `referral_code`                 | `text`                  | Unique 8-char alphanumeric code. Auto-generated via trigger.   |
+| `invited_by_id`                 | `uuid`                  | FK to `profiles(id)`. Who referred this user.                  |
+| `paypal_payout_id`              | `text`                  | PayPal email or Venmo phone number for cashouts.               |
+| `street_address`                | `text`                  | User's street address. Added by `20260301100000`.              |
+| `city`                          | `text`                  | City name. Added by `20260301100000`.                          |
+| `state_code`                    | `text`                  | 2-letter state code (CA, NY). Added by `20260301100000`.       |
+| `zip_plus4`                     | `text`                  | 9-digit ZIP (inferred). Added by `20260301100000`.             |
+| `email_verified`                | `boolean`               | Whether email is verified. Default: `false`. `20260301100000`. |
+| `phone_verified`                | `boolean`               | Whether phone is verified. Default: `false`. `20260301100000`. |
+| `phone_verified_at`             | `timestamptz`           | When phone was last verified. `20260301100000`.                |
+| `phone_verification_code`       | `text`                  | Temp 6-digit OTP for phone verification. `20260301100000`.     |
+| `phone_verification_expires_at` | `timestamptz`           | OTP expiration timestamp. `20260301100000`.                    |
+| `profile_completed_at`          | `timestamptz`           | When wizard was completed. `20260301100000`.                   |
+| `created_at`                    | `timestamptz`           | Default `now()`.                                               |
+| `updated_at`                    | `timestamptz`           | Default `now()`.                                               |
 
 **Triggers**: `trigger_set_referral_code` (auto-generates referral code),
-`on_auth_user_created` (creates profile + awards signup points)
+`on_auth_user_created` (creates profile + awards signup points via
+`campaign_rewards`), `trg_clear_phone_verification` (auto-clears phone
+verification when phone_number changes)
+
+**RPCs**: `verify_phone(p_code TEXT)` — validates OTP code and sets
+`phone_verified = true`
 
 **Indexes**: `profiles_home_location_idx` (GiST),
 `profiles_nearby_communities_idx` (GIN)
@@ -388,6 +408,16 @@ create table profiles (
   referral_code text unique,
   invited_by_id uuid references profiles(id),
   paypal_payout_id text,
+  street_address text,                                            -- 20260301100000
+  city text,                                                       -- 20260301100000
+  state_code text,                                                 -- 20260301100000
+  zip_plus4 text,                                                  -- 20260301100000
+  email_verified boolean not null default false,                    -- 20260301100000
+  phone_verified boolean not null default false,                    -- 20260301100000
+  phone_verified_at timestamptz,                                   -- 20260301100000
+  phone_verification_code text,                                    -- 20260301100000
+  phone_verification_expires_at timestamptz,                       -- 20260301100000
+  profile_completed_at timestamptz,                                -- 20260301100000
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -1290,6 +1320,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.offers;
 | `buyer_feedback`           | `text`           | Buyer's feedback text.                                              |
 | `seller_rating`            | `rating_score`   | Seller's rating of the transaction.                                 |
 | `seller_feedback`          | `text`           | Seller's feedback text.                                             |
+| `tax_rate_pct`             | `numeric`        | Applied sales tax rate (%). Nullable. Added by `20260301100700`.    |
+| `tax_amount`               | `integer`        | Tax amount in points. Nullable. Added by `20260301100700`.          |
 | `created_at`               | `timestamptz`    | Default `now()`.                                                    |
 | `updated_at`               | `timestamptz`    | Default `now()`.                                                    |
 
@@ -1320,6 +1352,8 @@ create table orders (
   buyer_feedback text,
   seller_rating rating_score,
   seller_feedback text,
+  tax_rate_pct numeric,                                       -- 20260301100700
+  tax_amount integer,                                          -- 20260301100700
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -3776,3 +3810,41 @@ WHERE cr.state_code = 'CA'
   AND (cr.effective_until IS NULL OR cr.effective_until > CURRENT_DATE)
   AND cr.effective_from <= CURRENT_DATE;
 ```
+
+### `zip_tax_cache`
+
+Monthly cache of ZipTax API rates. Prevents redundant API calls.
+
+| Column       | Type          | Description                                       |
+| :----------- | :------------ | :------------------------------------------------ |
+| `id`         | `uuid`        | Primary Key.                                      |
+| `zip_code`   | `text`        | ZIP code.                                         |
+| `state_code` | `text`        | 2-letter state code.                              |
+| `rate_pct`   | `numeric`     | Combined sales tax rate (%).                      |
+| `fetched_at` | `timestamptz` | When rate was fetched. Default `now()`.           |
+| `expires_at` | `timestamptz` | Expiry time (monthly). Default `now() + 30 days`. |
+
+**Unique**: `(zip_code, state_code)` WHERE `expires_at > now()`
+
+```sql
+-- 20260301100600_tax_rate_cache.sql
+create table zip_tax_cache (
+  id uuid primary key default gen_random_uuid(),
+  zip_code text not null,
+  state_code text not null,
+  rate_pct numeric not null,
+  fetched_at timestamptz default now(),
+  expires_at timestamptz default (now() + interval '30 days')
+);
+
+create unique index idx_zip_tax_active
+  on zip_tax_cache (zip_code, state_code)
+  where expires_at > now();
+```
+
+### CA Tax Rule Seed Data
+
+Migration `20260301100900_seed_ca_tax_rules.sql` seeds California-specific tax
+rules. Food items (fruits, vegetables, herbs) are exempt (fixed 0%), while
+non-food categories (flowers, equipment, etc.) use the `evaluate` rule type for
+dynamic ZipTax API lookup.

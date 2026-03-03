@@ -66,7 +66,7 @@ verifying end-to-end user flows.
 
 ```
 e2e/maestro/
-├── config.yaml           # appId, env vars, ordered flow list (13 flows)
+├── runner.yaml           # appId, env vars, ordered flow list (22 flows)
 ├── flows/
 │   ├── login.yaml            # Full login + OTP verification
 │   ├── feed-navigation.yaml  # Feed content, scroll, Menu tab items
@@ -80,11 +80,27 @@ e2e/maestro/
 │   ├── post-management.yaml  # Menu → My Posts
 │   ├── delegation.yaml       # Menu → Delegate Sales
 │   ├── profile-management.yaml  # Menu → Profile & Settings
-│   └── profile-wizard.yaml   # Conditional: wizard if visible
+│   ├── profile-wizard.yaml   # Conditional: wizard if visible
+│   ├── giftcards.yaml        # Menu → Redeem Points → Gift Cards tab
+│   ├── charity.yaml          # Menu → Redeem Points → Donate tab
+│   ├── cashout.yaml          # Menu → Redeem Points → Cashout tab
+│   ├── redeem-tabs-visibility.yaml # Verify all 4 redemption tabs render
+│   ├── redemption-block.yaml # Verify blocked redemption methods
+│   ├── refund-points.yaml    # Menu → Redeem Points → refund flow
+│   ├── refund-options.yaml   # Verify refund method options (Venmo/Gift Card/Card)
+│   ├── venmo-refund.yaml     # Venmo refund UI flow (no live API)
+│   └── transaction-history.yaml  # Menu → Transaction History
 └── utils/
     └── login.yaml            # Reusable login utility (used by all flows)
 ```
 
+> [!IMPORTANT]
+> **No Maestro flows hit live Venmo or PayPal APIs.** The venmo-refund and
+> cashout flows only interact with the UI (tapping buttons, asserting text
+> visibility). They never trigger actual payouts because the test user has
+> insufficient points or the flow stops at the input form.
+
+````
 #### Test Users (from `seed.sql`)
 
 | Role   | Email               | Password           |
@@ -119,15 +135,19 @@ curl -Ls "https://get.maestro.mobile.dev" | bash
 # Start the app
 cd apps/expo-community && npx expo run:ios
 
-# Run all 13 flows (iOS)
-maestro test --udid <SIMULATOR_UDID> e2e/maestro/
+# Run all 22 flows (iOS)
+maestro test --udid <SIMULATOR_UDID> e2e/maestro/flows/
 
-# Run all 13 flows (Android)
-maestro test --device emulator-5554 e2e/maestro/
+# Run all 22 flows (Android)
+maestro test e2e/maestro/flows/
 
 # Run a single flow
 maestro test e2e/maestro/flows/login.yaml
-```
+````
+
+> [!NOTE]
+> Do NOT use `maestro test e2e/maestro/` — this picks up `runner.yaml` as a flow
+> file and errors. Always point to `e2e/maestro/flows/` instead.
 
 ### 2.4 Web E2E Tests (Playwright)
 
@@ -183,9 +203,9 @@ skip for the buyer project).
 ./e2e/seed-test-data.sh
 
 # Start dev server
-yarn web
+yarn workspace next-community dev
 
-# Run all 212 tests (184 pass, 28 role-based skips)
+# Run all 268 tests (228 pass, 40 skipped)
 npx playwright test --config=e2e/playwright/playwright.config.ts
 
 # Run a single file
@@ -194,6 +214,24 @@ npx playwright test --config=e2e/playwright/playwright.config.ts orders.spec.ts
 # Re-run only failed tests
 npx playwright test --config=e2e/playwright/playwright.config.ts --last-failed
 ```
+
+#### Skipped Tests (40)
+
+| Category                   | Count | Reason                                                                            |
+| :------------------------- | ----: | :-------------------------------------------------------------------------------- |
+| Role-gated (offers/orders) |    26 | `project.name !== "seller"` or `!== "buyer"` — tests run only in matching project |
+| Chat restrictions          |     4 | Skips in seller project to avoid DB race conditions                               |
+| Wallet/refund (static)     |     6 | `describe.skip` — Venmo payout tests intentionally disabled                       |
+| Login redirect guard       |     2 | Skips if auth session lost (notifications tests)                                  |
+| Offer button visibility    |     1 | Skips if Offer button not visible on seller's own post                            |
+| Offer card navigation      |     1 | Role-gated skip                                                                   |
+
+> [!IMPORTANT]
+> **No Playwright tests hit live Venmo or PayPal APIs.** The
+> `wallet-refund.spec.ts` suite is entirely disabled via `describe.skip`. The
+> `redeem-paypal-payout` edge function tests all fail before reaching the PayPal
+> API call (invalid amount, missing payout ID, insufficient points, or provider
+> disabled).
 
 ## 3. CI/CD Pipeline
 
@@ -206,9 +244,10 @@ npx playwright test --config=e2e/playwright/playwright.config.ts --last-failed
 ### Pre-Push (Husky)
 
 - **Trigger**: `git push`
-- **Action**: Runs full Jest test suite (41 suites, 575 tests) with `--bail`.
+- **Action**: Runs full Jest test suite with `--bail`.
 - **Goal**: Prevent regressions in all app features.
-- **Note**: Edge function tests run separately via `deno test`.
+- **Note**: Edge function tests (Deno) and E2E tests (Playwright, Maestro) run
+  separately — see commands above.
 
 ## 4. Configuration Details
 

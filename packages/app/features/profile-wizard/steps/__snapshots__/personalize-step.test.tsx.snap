@@ -1,0 +1,460 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`PersonalizeStep (Step 2) renders correctly (snapshot) 1`] = `
+<View
+  automaticallyAdjustKeyboardInsets={true}
+  contentContainerStyle={
+    {
+      "flexGrow": 1,
+    }
+  }
+  keyboardShouldPersistTaps="handled"
+  showsVerticalScrollIndicator={false}
+>
+  <View
+    alignItems="center"
+    flex={1}
+    paddingBottom="$8"
+    paddingHorizontal="$4"
+  >
+    <View
+      gap="$5"
+      maxWidth={500}
+      width="100%"
+    >
+      <View
+        alignItems="center"
+        gap="$1"
+      >
+        <Text
+          color="#111827"
+          fontSize="$7"
+          fontWeight="700"
+        >
+          profileWizard.personalize.title
+        </Text>
+        <Text
+          color="#6b7280"
+          fontSize="$4"
+        >
+          profileWizard.personalize.subtitle
+        </Text>
+      </View>
+      <View
+        alignItems="center"
+        backgroundColor="#f0fdf4"
+        borderColor="#86efac"
+        borderRadius={6}
+        borderWidth={1}
+        gap="$2"
+        padding="$3"
+      >
+        <Text
+          color="#111827"
+          flex={1}
+          fontSize="$4"
+          fontWeight="600"
+        >
+          📍 
+          Willow Glen
+        </Text>
+        <View
+          alignItems="center"
+          backgroundColor="#dcfce7"
+          borderRadius={6}
+          gap="$1"
+          paddingHorizontal="$2"
+          paddingVertical="$1"
+        >
+          <Text
+            color="#15803d"
+            fontSize="$1"
+          >
+            profileWizard.personalize.communityAutoDetected
+          </Text>
+        </View>
+      </View>
+      <View
+        backgroundColor="white"
+        borderRadius={16}
+        gap="$3"
+        padding="$5"
+        shadowColor="rgba(0, 0, 0, 0.1)"
+        shadowOffset={
+          {
+            "height": 4,
+            "width": 0,
+          }
+        }
+        shadowOpacity={0.08}
+        shadowRadius={6}
+      >
+        <Text
+          color="#374151"
+          fontWeight="600"
+        >
+          <View
+            alignItems="center"
+            gap="$2"
+          >
+            <Text>
+              profileWizard.personalize.phoneTitle
+            </Text>
+          </View>
+        </Text>
+        <TextInput
+          backgroundColor="white"
+          borderColor="#d1d5db"
+          borderWidth={1}
+          disabled={false}
+          focusStyle={
+            {
+              "borderColor": "#22c55e",
+              "borderWidth": 2,
+            }
+          }
+          fontWeight="400"
+          keyboardType="phone-pad"
+          onChangeText={[Function]}
+          placeholder="profileWizard.personalize.phonePlaceholder"
+          size="$4"
+          value="5551234567"
+        />
+        <View
+          alignItems="center"
+          borderRadius={6}
+          cursor="pointer"
+          gap="$3"
+          onPress={[Function]}
+          padding="$3"
+          pressStyle={
+            {
+              "opacity": 0.8,
+            }
+          }
+        >
+          <View
+            alignItems="center"
+            backgroundColor="white"
+            borderColor="#22c55e"
+            borderRadius={4}
+            borderWidth={2}
+            height={22}
+            justifyContent="center"
+            width={22}
+          />
+          <View
+            flex={1}
+            gap="$1"
+          >
+            <Text
+              color="#1f2937"
+              fontSize="$3"
+              fontWeight="600"
+            >
+              profileWizard.personalize.verifyCheckboxLabel
+            </Text>
+            <Text
+              color="#6b7280"
+              fontSize="$2"
+            >
+              profileWizard.personalize.verifyCheckboxHint
+            </Text>
+          </View>
+        </View>
+      </View>
+      <View
+        backgroundColor="white"
+        borderRadius={16}
+        gap="$4"
+        padding="$5"
+        shadowColor="rgba(0, 0, 0, 0.1)"
+        shadowOffset={
+          {
+            "height": 4,
+            "width": 0,
+          }
+        }
+        shadowOpacity={0.08}
+        shadowRadius={6}
+      >
+        <Text
+          color="#374151"
+          fontWeight="600"
+        >
+          <View
+            alignItems="center"
+            gap="$2"
+          >
+            <Text>
+              profileWizard.personalize.gardenTitle
+            </Text>
+          </View>
+        </Text>
+        <Text
+          color="#6b7280"
+          fontSize="$2"
+        >
+          profileWizard.personalize.gardenSubtitle
+        </Text>
+        <View
+          flexWrap="wrap"
+          gap="$2"
+        />
+        <View
+          gap="$2"
+        >
+          <TextInput
+            borderColor="#d1d5db"
+            borderWidth={1}
+            flex={1}
+            focusStyle={
+              {
+                "borderColor": "#22c55e",
+              }
+            }
+            fontWeight="400"
+            onChangeText={[Function]}
+            onSubmitEditing={[Function]}
+            placeholder="profileWizard.personalize.customPlaceholder"
+            size="$3"
+            value=""
+          />
+          <View
+            accessibilityState={
+              {
+                "busy": undefined,
+                "checked": undefined,
+                "disabled": true,
+                "expanded": undefined,
+                "selected": undefined,
+              }
+            }
+            accessibilityValue={
+              {
+                "max": undefined,
+                "min": undefined,
+                "now": undefined,
+                "text": undefined,
+              }
+            }
+            accessible={true}
+            collapsable={false}
+            focusable={false}
+            onClick={[Function]}
+            onResponderGrant={[Function]}
+            onResponderMove={[Function]}
+            onResponderRelease={[Function]}
+            onResponderTerminate={[Function]}
+            onResponderTerminationRequest={[Function]}
+            onStartShouldSetResponder={[Function]}
+            style={
+              {
+                "opacity": 1,
+              }
+            }
+          />
+        </View>
+      </View>
+      <View
+        backgroundColor="white"
+        borderRadius={16}
+        gap="$3"
+        padding="$5"
+        shadowColor="rgba(0, 0, 0, 0.1)"
+        shadowOffset={
+          {
+            "height": 4,
+            "width": 0,
+          }
+        }
+        shadowOpacity={0.08}
+        shadowRadius={6}
+      >
+        <View
+          alignItems="center"
+          justifyContent="space-between"
+        >
+          <View
+            flex={1}
+            gap="$1"
+          >
+            <Text
+              color="#374151"
+              fontWeight="600"
+            >
+              profileWizard.personalize.smsDigestLabel
+            </Text>
+            <Text
+              color="#6b7280"
+              fontSize="$2"
+            >
+              profileWizard.personalize.smsDigestDescription
+            </Text>
+          </View>
+          <View
+            alignItems="center"
+            backgroundColor="#d1d5db"
+            borderRadius={14}
+            cursor="pointer"
+            height={28}
+            justifyContent="flex-start"
+            onPress={[Function]}
+            opacity={1}
+            padding={2}
+            pressStyle={
+              {
+                "opacity": 0.8,
+              }
+            }
+            width={50}
+          >
+            <View
+              backgroundColor="white"
+              borderRadius={12}
+              height={24}
+              shadowColor="rgba(0,0,0,0.2)"
+              shadowOffset={
+                {
+                  "height": 1,
+                  "width": 0,
+                }
+              }
+              shadowRadius={2}
+              width={24}
+            />
+          </View>
+        </View>
+      </View>
+      <View
+        gap="$3"
+        paddingTop="$2"
+      >
+        <View
+          accessibilityState={
+            {
+              "busy": undefined,
+              "checked": undefined,
+              "disabled": false,
+              "expanded": undefined,
+              "selected": undefined,
+            }
+          }
+          accessibilityValue={
+            {
+              "max": undefined,
+              "min": undefined,
+              "now": undefined,
+              "text": undefined,
+            }
+          }
+          accessible={true}
+          collapsable={false}
+          focusable={true}
+          onClick={[Function]}
+          onResponderGrant={[Function]}
+          onResponderMove={[Function]}
+          onResponderRelease={[Function]}
+          onResponderTerminate={[Function]}
+          onResponderTerminationRequest={[Function]}
+          onStartShouldSetResponder={[Function]}
+          style={
+            {
+              "opacity": 1,
+            }
+          }
+        >
+          <Text
+            color="#374151"
+            fontWeight="600"
+          >
+            profileWizard.personalize.skip
+          </Text>
+        </View>
+        <View
+          accessibilityState={
+            {
+              "busy": undefined,
+              "checked": undefined,
+              "disabled": false,
+              "expanded": undefined,
+              "selected": undefined,
+            }
+          }
+          accessibilityValue={
+            {
+              "max": undefined,
+              "min": undefined,
+              "now": undefined,
+              "text": undefined,
+            }
+          }
+          accessible={true}
+          collapsable={false}
+          focusable={true}
+          onClick={[Function]}
+          onResponderGrant={[Function]}
+          onResponderMove={[Function]}
+          onResponderRelease={[Function]}
+          onResponderTerminate={[Function]}
+          onResponderTerminationRequest={[Function]}
+          onStartShouldSetResponder={[Function]}
+          style={
+            {
+              "opacity": 1,
+            }
+          }
+        >
+          <Text
+            color="white"
+            fontWeight="600"
+          >
+            profileWizard.personalize.finish
+          </Text>
+        </View>
+      </View>
+      <View
+        accessibilityState={
+          {
+            "busy": undefined,
+            "checked": undefined,
+            "disabled": undefined,
+            "expanded": undefined,
+            "selected": undefined,
+          }
+        }
+        accessibilityValue={
+          {
+            "max": undefined,
+            "min": undefined,
+            "now": undefined,
+            "text": undefined,
+          }
+        }
+        accessible={true}
+        collapsable={false}
+        focusable={true}
+        onClick={[Function]}
+        onResponderGrant={[Function]}
+        onResponderMove={[Function]}
+        onResponderRelease={[Function]}
+        onResponderTerminate={[Function]}
+        onResponderTerminationRequest={[Function]}
+        onStartShouldSetResponder={[Function]}
+        style={
+          {
+            "opacity": 1,
+          }
+        }
+      >
+        <Text
+          color="#6b7280"
+          fontSize="$3"
+        >
+          profileWizard.personalize.goBack
+        </Text>
+      </View>
+    </View>
+  </View>
+</View>
+`;

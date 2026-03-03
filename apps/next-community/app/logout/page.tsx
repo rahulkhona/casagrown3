@@ -32,9 +32,14 @@ export default function LogoutPage() {
         setStatus('Error signing out. Redirecting...')
       }
       
-      // Always redirect to login after a short delay
+      // Clear all localStorage to prevent stale auth state
+      if (typeof window !== 'undefined') {
+        window.localStorage.clear()
+      }
+
+      // Redirect to home page
       setTimeout(() => {
-        router.replace('/login')
+        router.replace('/')
       }, 1000)
     }
 

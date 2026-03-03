@@ -58,6 +58,7 @@ type TransactionType =
   | 'donation'
   | 'referral'
   | 'refund'
+  | 'sales_tax'
 type FilterType = 'all' | 'credits' | 'debits'
 type TransactionStatus = 'queued' | 'processing' | 'completed' | 'failed'
 type DatePeriod = 'all' | '7d' | '90d' | 'custom'
@@ -127,6 +128,8 @@ export function mapLedgerType(dbType: string, amount: number): TransactionType {
       return 'referral'
     case 'refund':
       return 'refund'
+    case 'sales_tax':
+      return 'sales_tax'
     default:
       return amount > 0 ? 'purchase' : 'order_debit'
   }
@@ -222,6 +225,12 @@ export function buildDescription(type: TransactionType, amount: number, meta: an
       }
       return `Refund for returned points`
     }
+    case 'sales_tax': {
+      const product = meta.product || 'item'
+      const rate = meta.tax_rate_pct ? `${Number(meta.tax_rate_pct).toFixed(2)}%` : ''
+      const taxAmt = meta.tax_amount || 0
+      return `Sales Tax: ${product}${rate ? ` @ ${rate}` : ''} — ${taxAmt} pts`
+    }
     default:
       return meta.description || `${amount > 0 ? 'Credit' : 'Debit'}: ${Math.abs(amount)} points`
   }
@@ -271,6 +280,12 @@ const TYPE_CONFIG: Record<
     label: 'Refund',
     color: colors.amber[600],
     bgColor: colors.amber[100],
+  },
+  sales_tax: {
+    icon: Receipt,
+    label: 'Sales Tax',
+    color: '#d97706',
+    bgColor: '#fffbeb',
   },
 }
 

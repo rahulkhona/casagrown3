@@ -115,49 +115,42 @@ exports[`LoginScreen renders correctly (initial state) 1`] = `
         </Text>
       </View>
       <View
-        gap="$3"
+        gap="$4"
       >
         <View
-          accessibilityState={
-            {
-              "busy": undefined,
-              "checked": undefined,
-              "disabled": false,
-              "expanded": undefined,
-              "selected": undefined,
-            }
-          }
-          accessibilityValue={
-            {
-              "max": undefined,
-              "min": undefined,
-              "now": undefined,
-              "text": undefined,
-            }
-          }
-          accessible={true}
-          collapsable={false}
-          focusable={true}
-          onClick={[Function]}
-          onResponderGrant={[Function]}
-          onResponderMove={[Function]}
-          onResponderRelease={[Function]}
-          onResponderTerminate={[Function]}
-          onResponderTerminationRequest={[Function]}
-          onStartShouldSetResponder={[Function]}
-          style={
-            {
-              "opacity": 1,
-            }
-          }
+          gap="$2"
         >
           <Text
             color="#374151"
-            fontSize="$3"
             fontWeight="500"
           >
-            auth.login.continueGoogle
+            auth.login.emailLabel
           </Text>
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            onChangeText={[Function]}
+            onSubmitEditing={[Function]}
+            placeholder="auth.login.emailPlaceholder"
+            placeholderTextColor="#9ca3af"
+            returnKeyType="send"
+            style={
+              {
+                "backgroundColor": "white",
+                "borderColor": "#d1d5db",
+                "borderRadius": 12,
+                "borderWidth": 1,
+                "color": "#111827",
+                "fontSize": 16,
+                "fontWeight": "400",
+                "height": 48,
+                "paddingHorizontal": 16,
+              }
+            }
+            testID="email_input"
+            value=""
+          />
         </View>
         <View
           accessibilityState={
@@ -165,104 +158,6 @@ exports[`LoginScreen renders correctly (initial state) 1`] = `
               "busy": undefined,
               "checked": undefined,
               "disabled": false,
-              "expanded": undefined,
-              "selected": undefined,
-            }
-          }
-          accessibilityValue={
-            {
-              "max": undefined,
-              "min": undefined,
-              "now": undefined,
-              "text": undefined,
-            }
-          }
-          accessible={true}
-          collapsable={false}
-          focusable={true}
-          onClick={[Function]}
-          onResponderGrant={[Function]}
-          onResponderMove={[Function]}
-          onResponderRelease={[Function]}
-          onResponderTerminate={[Function]}
-          onResponderTerminationRequest={[Function]}
-          onStartShouldSetResponder={[Function]}
-          style={
-            {
-              "opacity": 1,
-            }
-          }
-        >
-          <Text
-            color="#374151"
-            fontSize="$3"
-            fontWeight="500"
-          >
-            auth.login.continueFacebook
-          </Text>
-        </View>
-        <View
-          accessibilityState={
-            {
-              "busy": undefined,
-              "checked": undefined,
-              "disabled": false,
-              "expanded": undefined,
-              "selected": undefined,
-            }
-          }
-          accessibilityValue={
-            {
-              "max": undefined,
-              "min": undefined,
-              "now": undefined,
-              "text": undefined,
-            }
-          }
-          accessible={true}
-          collapsable={false}
-          focusable={true}
-          onClick={[Function]}
-          onResponderGrant={[Function]}
-          onResponderMove={[Function]}
-          onResponderRelease={[Function]}
-          onResponderTerminate={[Function]}
-          onResponderTerminationRequest={[Function]}
-          onStartShouldSetResponder={[Function]}
-          style={
-            {
-              "opacity": 1,
-            }
-          }
-        >
-          <Text
-            color="#374151"
-            fontSize="$3"
-            fontWeight="500"
-          >
-            auth.login.continueApple
-          </Text>
-        </View>
-        <View
-          alignItems="center"
-          marginVertical="$4"
-        >
-          <View />
-          <Text
-            color="#6b7280"
-            fontSize="$3"
-            marginHorizontal="$3"
-          >
-            auth.login.orEmail
-          </Text>
-          <View />
-        </View>
-        <View
-          accessibilityState={
-            {
-              "busy": undefined,
-              "checked": undefined,
-              "disabled": undefined,
               "expanded": undefined,
               "selected": undefined,
             }
@@ -296,7 +191,7 @@ exports[`LoginScreen renders correctly (initial state) 1`] = `
             fontSize="$4"
             fontWeight="600"
           >
-            auth.login.continueEmail
+            auth.login.sendCode
           </Text>
         </View>
       </View>

@@ -73,6 +73,9 @@ export interface Order {
     seller_avatar_url: string | null;
     post_id: string | null;
     unit: string | null;
+    // Tax fields
+    tax_rate_pct: number;
+    tax_amount: number;
 }
 
 export interface Offer {

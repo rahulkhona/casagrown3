@@ -1,7 +1,7 @@
 # CasaGrown — Product Requirements Document (PRD)
 
-**Version**: 1.2\
-**Last Updated**: February 23, 2026\
+**Version**: 1.3\
+**Last Updated**: March 3, 2026\
 **Platform**: Cross-platform (iOS, Android, Web)\
 **Tech Stack**: React Native (Expo) + Tamagui + Supabase + Next.js Admin
 
@@ -50,25 +50,29 @@ services.
 
 #### 3.1.1 Login / Signup
 
-- Email/password authentication via Supabase Auth
+- **Email + OTP authentication** via Supabase Auth (social login removed)
 - Auto-profile creation on signup via database trigger (`handle_new_user`)
 - Auto-generation of unique 8-character referral code
-- Signup points awarded automatically from `incentive_rules`
+- Signup points awarded automatically from `campaign_rewards` (linked to active
+  `incentive_campaigns`)
 
 #### 3.1.2 Profile Wizard (First-time Setup)
 
-Three-step onboarding flow:
+Two-step onboarding flow:
 
-| Step | Screen             | Purpose                                                                   |
-| :--- | :----------------- | :------------------------------------------------------------------------ |
-| 1    | **Profile Setup**  | Full name, avatar (camera or gallery), phone number                       |
-| 2    | **Join Community** | Zip code entry → H3 community resolution → interactive map preview → join |
-| 3    | **Intro Post**     | Optional first post to introduce yourself to the community                |
+| Step | Screen            | Purpose                                                                                                                                                                    |
+| :--- | :---------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | **Profile Setup** | Full name, avatar (camera or gallery), full address (street, city, state, ZIP), auto-detected community with hex map                                                       |
+| 2    | **Personalize**   | Phone number with SMS OTP verification, garden produce selection (fetched by ZIP/USDA zone from `get_popular_produce_for_zip` RPC), custom garden items, SMS digest opt-in |
 
-- Community resolution uses Supabase Edge Function (`resolve-community`) or
-  client-side H3 on web
-- Interactive map shows community boundary (Leaflet on web, MapView on native)
-- Skippable steps with progress indicator
+- Community auto-detected from address via `resolve-community` edge function
+- Interactive hex map shows community boundary (Leaflet on web, MapView on
+  native)
+- Step 2 is fully skippable
+- Wizard context persists progress and pre-populates from existing profile data
+- Referral codes stored in localStorage (web) / AsyncStorage (native) and
+  processed during profile save
+- Campaign reward points granted idempotently on profile completion
 
 ---
 
@@ -415,48 +419,60 @@ split between the delegator and delegate based on `delegate_pct`:
 
 ### 3.9 Points & Incentive System
 
-#### 3.9.1 Earning Points
+#### 3.9.1 Incentive Campaigns
 
-| Action                      | Points       | Scope         |
-| :-------------------------- | :----------- | :------------ |
-| Sign up                     | Configurable | Global        |
-| Complete basic profile      | Configurable | Global        |
-| Join a community            | Configurable | Global        |
-| Make first post             | Configurable | Global        |
-| Invite to community         | Configurable | Per community |
-| Invitee signs up            | Configurable | Global        |
-| Invitee's first transaction | Configurable | Global        |
-| First transaction           | Configurable | Global        |
+Point rewards are configured via **incentive campaigns** (`incentive_campaigns`
+table) with associated **campaign rewards** (`campaign_rewards` table):
 
-- Points are configurable per geographic scope (global → country → state → city
-  → zip → community)
-- Idempotent: duplicate reward attempts are prevented via metadata check
+- Campaigns have: name, start/end dates, `is_active` flag, optional geo scope
+- Each campaign defines rewards per behavior (e.g., `signup`, `per_referral`,
+  `first_post`)
+- Multiple campaigns can be active simultaneously; highest-point reward wins
+- Old `incentive_rules` table has been deprecated and dropped
 
-#### 3.9.2 Point Ledger
+#### 3.9.2 Earning Points
+
+| Behavior (action_type) | Points       | Scope  |
+| :--------------------- | :----------- | :----- |
+| `signup`               | Configurable | Global |
+| `join_a_community`     | Configurable | Global |
+| `first_post`           | Configurable | Global |
+| `per_referral`         | Configurable | Global |
+| `invitee_signing_up`   | Configurable | Global |
+
+- Idempotent: duplicate reward attempts prevented via `metadata` JSON check on
+  `point_ledger`
+- Campaign points fetched during profile wizard and displayed to motivate
+  completion
+
+#### 3.9.3 Point Ledger
 
 Full audit trail of all point transactions:
 
-- `reward` — Earned from incentive actions
+- `reward` — Earned from incentive campaign actions
 - `purchase` — Buying items
 - `payment` — Received from sales
 - `platform_charge` — Platform fee deduction
 - `transfer` — User-to-user point transfer
 - `redemption` — Spending points on rewards
+- `escrow` — Points held during pending orders
+- `refund` — Points returned on cancellation/dispute
+- `delegation_split` — Earnings split between delegator and delegate
 
-#### 3.9.3 Referral System
+#### 3.9.4 Referral System
 
 - Each user gets a unique 8-character referral code
 - Inviter ↔ invitee linked via `invited_by_id`
 - Auto-follow relationship created on referral signup
-- Points awarded to both parties at milestones
+- Points awarded to both parties via active campaign rewards
 
 ---
 
 ### 3.10 Redemption System
 
-The redemption system allows users to spend earned points on gift cards and
-charitable donations. Provider integrations handle fulfillment via external
-APIs.
+The redemption system allows users to spend earned points on gift cards,
+charitable donations, and cashouts. All redemption operations use **ACID
+transactions** via PostgreSQL RPC functions to ensure data consistency.
 
 #### 3.10.1 Gift Cards
 
@@ -473,6 +489,8 @@ APIs.
   have per-transaction fees displayed before purchase
 - **Caching**: Catalog cached in `platform_config` (24h TTL) via
   `fetch-gift-cards` edge function
+- **ACID**: `finalize_gift_card_redemption` RPC handles atomic point debit +
+  ledger entry + child record creation
 
 #### 3.10.2 Charitable Donations
 
@@ -484,8 +502,28 @@ APIs.
   3. Tax-deductible receipt generated with receipt number and URL
 - **Conversion**: 100 points = $1.00 USD
 - **Fallback**: Mock project data when GlobalGiving API key is not configured
+- **ACID**: `finalize_donation_redemption` RPC handles atomic operations
 
-#### 3.10.3 Provider Management
+#### 3.10.3 Cashout (PayPal / Venmo)
+
+- **PayPal cashout**: User enters PayPal email, redeems points for USD payout
+  via PayPal Payouts API
+- **Venmo cashout**: User enters Venmo phone number, payout sent via PayPal
+  Payouts API (PHONE recipient type)
+- **ACID**: `finalize_paypal_redemption` RPC ensures atomic point debit
+- **Provider gating**: `available_redemption_method_instruments` table controls
+  which payout providers are active, with grace window for in-flight payouts
+
+#### 3.10.4 Refund Purchased Points
+
+- Users can refund purchased (non-earned) points back to original payment method
+- **Refund methods**: Stripe card refund, Venmo cashout, or gift card conversion
+- **Purchase buckets**: `payment_transactions` track remaining refundable
+  amounts per purchase
+- **ACID**: `finalize_point_refund` RPC handles atomic balance adjustment
+- **Edge function**: `refund-purchased-points` routes to appropriate provider
+
+#### 3.10.5 Provider Management
 
 - **Provider accounts**: Tracked in `provider_accounts` table (Reloadly,
   Tremendous, GlobalGiving)
@@ -493,14 +531,23 @@ APIs.
   APIs and warns on low balances
 - **Audit trail**: Every provider API call logged in `provider_transactions`
   table
+- **Instrument control**: `available_redemption_method_instruments` table with
+  `is_active` flag and `disabled_at` timestamp for grace window logic
 
-#### 3.10.4 Redemption Lifecycle
+#### 3.10.6 Redemption Lifecycle
 
 | Status      | Description                                       |
 | :---------- | :------------------------------------------------ |
 | `pending`   | Redemption created, points debited, API in flight |
 | `completed` | Provider fulfilled, delivery details stored       |
 | `failed`    | Provider error, points automatically refunded     |
+
+#### 3.10.7 Transaction History
+
+- Unified transaction history screen showing all point movements
+- Filterable by type: All, Earned, Spent, Purchases, Transfers
+- Each entry shows: description, amount (+/-), running balance, timestamp
+- Metadata-driven descriptions (e.g., gift card brand, donation project name)
 
 ---
 
@@ -665,29 +712,29 @@ casagrown3/
 ├── packages/
 │   └── app/                # Shared app code (features, utils, design tokens)
 ├── supabase/
-│   ├── migrations/         # 27 database migrations
-│   ├── functions/          # 6 Edge Functions
+│   ├── migrations/         # 131 database migrations
+│   ├── functions/          # 24 Edge Functions
 │   └── seed.sql            # Development seed data
 └── docs/                   # Documentation
 ```
 
 ### 4.2 Backend (Supabase)
 
-| Service            | Usage                                               |
-| :----------------- | :-------------------------------------------------- |
-| **Postgres**       | Primary database with 30+ tables, RLS, triggers     |
-| **Auth**           | Email/password authentication                       |
-| **Storage**        | Media files (images, videos, avatars)               |
-| **Realtime**       | Live chat messages, delivery receipts, presence     |
-| **Edge Functions** | Community, delegation, payments, orders, enrichment |
-| **PostGIS**        | Spatial queries for community proximity             |
-| **pg_cron**        | Scheduled community enrichment jobs                 |
+| Service            | Usage                                                 |
+| :----------------- | :---------------------------------------------------- |
+| **Postgres**       | Primary database with 50+ tables, RLS, triggers       |
+| **Auth**           | Email + OTP authentication                            |
+| **Storage**        | Media files (images, videos, avatars)                 |
+| **Realtime**       | Live chat messages, delivery receipts, presence       |
+| **Edge Functions** | Community, delegation, payments, orders, redemptions  |
+| **PostGIS**        | Spatial queries for community proximity               |
+| **pg_cron**        | Scheduled community enrichment and provider sync jobs |
 
-### 4.3 Edge Functions
+### 4.3 Edge Functions (24)
 
 | Function                   | Purpose                                             |
 | :------------------------- | :-------------------------------------------------- |
-| `resolve-community`        | Resolve H3 index from coordinates/zip code          |
+| `resolve-community`        | Resolve H3 index from coordinates/zip/address       |
 | `enrich-communities`       | Auto-name communities from OSM data                 |
 | `pair-delegation`          | Match delegates with delegators via code            |
 | `assign-experiment`        | A/B test experiment assignment                      |
@@ -703,14 +750,22 @@ casagrown3/
 | `fetch-donation-projects`  | Fetch/search GlobalGiving project catalog           |
 | `fetch-gift-cards`         | Merged Reloadly + Tremendous gift card catalog      |
 | `redeem-gift-card`         | Purchase gift card with points via provider APIs    |
+| `redeem-paypal-payout`     | PayPal/Venmo cashout via PayPal Payouts API         |
+| `refund-purchased-points`  | Refund purchased points (Stripe/Venmo/gift card)    |
+| `process-redemptions`      | Queue-based redemption processor                    |
 | `sync-provider-balance`    | Cron: monitor Reloadly/Tremendous account balances  |
+| `get-tax-rate`             | California sales tax lookup for food items          |
+| `notify-on-message`        | Push notification trigger for new chat messages     |
+| `register-push-token`      | Register device push notification tokens            |
+| `send-push-notification`   | Deliver push notifications to registered devices    |
 
 ### 4.4 Database Migrations
 
-82 sequential migrations covering: schema, RLS policies, triggers, indexes,
+131 sequential migrations covering: schema, RLS policies, triggers, indexes,
 enums, realtime configuration, payment transactions, offer lifecycle, order
-management, redemption providers, and feature waitlist. Full migration list
-documented in `data_model.md`.
+management, redemption providers, incentive campaigns, sales tax rules, garden
+catalog, blocked products, push notifications, and feature waitlist. Full
+migration list documented in `data_model.md`.
 
 ### 4.5 Row-Level Security (RLS)
 
@@ -728,12 +783,19 @@ Comprehensive RLS policies on all tables ensuring:
 
 ### 5.1 Test Suite
 
-| Layer              | Suites/Flows |   Tests | Status      |
-| :----------------- | -----------: | ------: | :---------- |
-| **Jest (Unit)**    |           37 |     549 | ✅ All pass |
-| **Playwright E2E** |           14 |     206 | ✅ All pass |
-| **Maestro E2E**    |           12 |      12 | ✅ All pass |
-| **Total**          |       **63** | **767** | ✅ All pass |
+| Layer              | Suites/Flows |   Tests | Status                  |
+| :----------------- | -----------: | ------: | :---------------------- |
+| **Jest (Unit)**    |           37 |     549 | ✅ All pass             |
+| **Playwright E2E** |           14 |     268 | ✅ 228 pass, 40 skipped |
+| **Maestro E2E**    |           22 |      22 | ✅ All pass             |
+| **Deno (Edge)**    |            8 |      30 | ✅ All pass             |
+| **Total**          |       **81** | **869** | ✅ All pass             |
+
+> [!NOTE]
+> Playwright skipped tests include 6 disabled Venmo payout tests and 26
+> role-gated tests that skip based on which project (buyer/seller) is running.
+> **No tests hit live Venmo or PayPal APIs** — all payout tests either validate
+> input/error paths before the API call or are statically skipped.
 
 ### 5.2 Git Hooks
 
@@ -1001,10 +1063,11 @@ admin features are not yet ported.\
 
 ### 7.12 Other Pending Work
 
-| Feature                | Notes                                                                                |
-| :--------------------- | :----------------------------------------------------------------------------------- |
-| **A/B Testing**        | `experiments` + `experiment_assignments` tables + Edge Function exist                |
-| **Push Notifications** | Profile preferences ready, delivery mechanism TBD                                    |
-| **Feedback System**    | `feedback` table with `feature_request`/`bug_report` types, admin review UI needed   |
-| **User Posts Page**    | Public-facing page showing all posts by a specific user (Figma: `UserPostsPage.tsx`) |
-| **Address Input**      | Autocomplete address component for delivery addresses (Figma: `AddressInput.tsx`)    |
+| Feature                | Notes                                                                                                                                                                  |
+| :--------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A/B Testing**        | `experiments` + `experiment_assignments` tables + Edge Function exist                                                                                                  |
+| **Push Notifications** | ✅ Implemented — `register-push-token`, `send-push-notification`, `notify-on-message` edge functions; device token registration; permission prompt with 7-day cooldown |
+| **Feedback System**    | `feedback` table with `feature_request`/`bug_report` types, admin review UI needed                                                                                     |
+| **User Posts Page**    | Public-facing page showing all posts by a specific user (Figma: `UserPostsPage.tsx`)                                                                                   |
+| **Address Input**      | Autocomplete address component for delivery addresses (Figma: `AddressInput.tsx`)                                                                                      |
+| **Sales Tax**          | ✅ Implemented — California food item exemptions via `sales_tax_rules` + `tax_rate_cache` tables + `get-tax-rate` edge function                                        |

@@ -216,6 +216,9 @@ test.describe("Chat Restrictions", () => {
     // ── Restriction removal: banner disappears ──
 
     test("banner disappears after restriction is removed and page reloaded", async ({ page }) => {
+        // This test navigates to the chat page TWICE (verify banner → remove → reload → verify gone)
+        // which exceeds the default 30s timeout with all the explicit waits
+        test.setTimeout(60_000);
         // Insert restriction
         await supabaseInsert("category_restrictions", {
             category_name: "vegetables",

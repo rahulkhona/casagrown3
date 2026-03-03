@@ -53,6 +53,7 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
   const [dropoffDates, setDropoffDates] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState('')
+  const [productBlockedError, setProductBlockedError] = useState('')
 
   // Native date picker state
   const [datePickerVisible, setDatePickerVisible] = useState(false)
@@ -102,6 +103,23 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
       loadCommunityAndCategories(targetUserId)
     }
   }, [user?.id, selectedSellerId, selectedCommunityH3])
+
+  // ── Inline product blocked check (debounced) ───────────────
+  useEffect(() => {
+    if (!productName.trim()) {
+      setProductBlockedError('')
+      return
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const result = await isProductBlocked(productName.trim(), communityH3Index || undefined)
+        setProductBlockedError(result.blocked ? `"${productName}" is restricted: ${result.reason || 'This product is restricted in your area'}` : '')
+      } catch {
+        // Non-critical — submit-time check is the fallback
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [productName, communityH3Index])
 
   // ── Load edit data ─────────────────────────────────────────
   useEffect(() => {
@@ -822,6 +840,11 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
             backgroundColor="white"
             fontWeight="400"
           />
+          {productBlockedError ? (
+            <Text fontSize={12} color="#dc2626" fontWeight="500">
+              {productBlockedError}
+            </Text>
+          ) : null}
         </YStack>
 
         {/* Description */}

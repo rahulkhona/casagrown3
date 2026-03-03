@@ -1099,6 +1099,8 @@ export function ChatScreen({
           deliveryDate: data.latestDate,
           deliveryInstructions: data.instructions,
           deliveryAddress: data.address,
+          taxRatePct: data.taxRatePct,
+          taxAmount: data.taxAmount,
         },
       })
       if (error) {

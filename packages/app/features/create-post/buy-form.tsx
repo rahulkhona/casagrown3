@@ -65,6 +65,7 @@ export function BuyForm({ onBack, onSuccess, editId, cloneData }: BuyFormProps) 
   const [editingDateIndex, setEditingDateIndex] = useState<number | null>(null)
   const [isAddingNewDate, setIsAddingNewDate] = useState(false)
   const [formError, setFormError] = useState('')
+  const [productBlockedError, setProductBlockedError] = useState('')
 
   // ── Units ───────────────────────────────────────────────────
   const UNITS = ['piece', 'dozen', 'box', 'bag']
@@ -86,6 +87,30 @@ export function BuyForm({ onBack, onSuccess, editId, cloneData }: BuyFormProps) 
     if (!user?.id) return
     loadData()
   }, [user?.id])
+
+  // ── Inline product blocked check (debounced) ───────────────
+  useEffect(() => {
+    const names = lookingFor.split(',').map(s => s.trim()).filter(Boolean)
+    if (names.length === 0) {
+      setProductBlockedError('')
+      return
+    }
+    const timer = setTimeout(async () => {
+      try {
+        for (const name of names) {
+          const result = await isProductBlocked(name, communityH3Index || undefined)
+          if (result.blocked) {
+            setProductBlockedError(`"${name}" is restricted: ${result.reason || 'This product is restricted in your area'}`)
+            return
+          }
+        }
+        setProductBlockedError('')
+      } catch {
+        // Non-critical — submit-time check is the fallback
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [lookingFor, communityH3Index])
 
   // ── Load edit data ─────────────────────────────────────────
   useEffect(() => {
@@ -407,6 +432,11 @@ export function BuyForm({ onBack, onSuccess, editId, cloneData }: BuyFormProps) 
           <Text fontSize="$1" color={colors.neutral[400]}>
             {t('createPost.fields.lookingForHint')}
           </Text>
+          {productBlockedError ? (
+            <Text fontSize={12} color="#dc2626" fontWeight="500">
+              {productBlockedError}
+            </Text>
+          ) : null}
         </YStack>
 
         {/* Desired Quantity + Unit */}

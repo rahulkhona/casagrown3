@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Platform, Image, TextInput } from 'react-native'
 import { YStack, XStack, Text, Button, Input, ScrollView, Separator, useMedia, Spinner } from 'tamagui'
-import { ArrowLeft, Mail, Chrome } from '@tamagui/lucide-icons'
+import { ArrowLeft, Mail } from '@tamagui/lucide-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { colors } from '../../design-tokens'
 import { useTranslation } from 'react-i18next'
@@ -24,9 +24,9 @@ export function LoginScreen({ logoSrc, onLogin, onBack, referralCode, delegation
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
   const router = useRouter()
-  const { signInWithOtp, verifyOtp, signInWithOAuth, user, loading: authLoading } = useAuth()
+  const { signInWithOtp, verifyOtp, user, loading: authLoading } = useAuth()
   
-  const [loginMethod, setLoginMethod] = useState<'select' | 'email' | 'otp'>('select')
+  const [loginMethod, setLoginMethod] = useState<'email' | 'otp'>('email')
   const [email, setEmail] = useState('')
   const [otp, setOtp] = useState('')
   const [errors, setErrors] = useState<{ email?: string; otp?: string; general?: string }>({})
@@ -202,16 +202,7 @@ export function LoginScreen({ logoSrc, onLogin, onBack, referralCode, delegation
     )
   }
 
-  const handleSocialLogin = async (provider: 'google' | 'apple' | 'facebook') => {
-    setIsSubmitting(true)
-    try {
-        await signInWithOAuth(provider)
-    } catch (e: any) {
-        setErrors({ ...errors, general: e.message })
-    } finally {
-        setIsSubmitting(false)
-    }
-  }
+
 
   const handleEmailSubmit = async () => {
     const result = EmailSchema.safeParse(email)
@@ -358,47 +349,7 @@ export function LoginScreen({ logoSrc, onLogin, onBack, referralCode, delegation
                 </Text>
             </YStack>
 
-            {/* ... (Login Methods) ... keep existing logic manually or just replace the wrapper */}
-            {loginMethod === 'select' && (
-                <YStack gap="$3">
-                    <SocialButton 
-                        icon={<Chrome size={20} color={colors.gray[700]} />} 
-                        label={t('auth.login.continueGoogle')}
-                        onPress={() => handleSocialLogin('google')} 
-                        isLoading={isSubmitting}
-                    />
-                    <SocialButton 
-                        icon={<Text fontSize={20} fontWeight="900" color="#1877F2">f</Text>}
-                        label={t('auth.login.continueFacebook')} 
-                        onPress={() => handleSocialLogin('facebook')} 
-                        isLoading={isSubmitting}
-                    />
-                    <SocialButton 
-                        icon={<Text fontSize={20} fontWeight="900" color={colors.gray[900]}></Text>}
-                        label={t('auth.login.continueApple')} 
-                        onPress={() => handleSocialLogin('apple')} 
-                        isLoading={isSubmitting}
-                    />
 
-                    <XStack alignItems="center" marginVertical="$4">
-                        <Separator flex={1} borderColor={colors.gray[300]} />
-                        <Text color={colors.gray[500]} fontSize="$3" marginHorizontal="$3">{t('auth.login.orEmail')}</Text>
-                        <Separator flex={1} borderColor={colors.gray[300]} />
-                    </XStack>
-
-                    <Button 
-                        backgroundColor={colors.green[600]} 
-                        height="$5"
-                        borderRadius="$4"
-                        icon={<Mail size={20} color="white" />}
-                        onPress={() => setLoginMethod('email')}
-                        pressStyle={{ backgroundColor: colors.green[700] }}
-                        hoverStyle={{ backgroundColor: colors.green[700] }}
-                    >
-                        <Text color="white" fontWeight="600" fontSize="$4">{t('auth.login.continueEmail')}</Text>
-                    </Button>
-                </YStack>
-            )}
 
             {loginMethod === 'email' && (
                 <YStack gap="$4">
@@ -449,9 +400,7 @@ export function LoginScreen({ logoSrc, onLogin, onBack, referralCode, delegation
                         {!isSubmitting && <Text color="white" fontWeight="600" fontSize="$4">{t('auth.login.sendCode')}</Text>}
                     </Button>
 
-                    <Button unstyled onPress={() => setLoginMethod('select')} alignItems="center" marginTop="$2">
-                        <Text color={colors.gray[600]} fontSize="$3">{t('auth.login.backLogin')}</Text>
-                    </Button>
+
                 </YStack>
             )}
 
@@ -528,25 +477,4 @@ export function LoginScreen({ logoSrc, onLogin, onBack, referralCode, delegation
       </YStack>
     </ScrollView>
   )
-}
-
-// Helper Component for Social Buttons
-function SocialButton({ icon, label, onPress, isLoading }: { icon: any, label: string, onPress: () => void, isLoading?: boolean }) {
-    return (
-        <Button 
-            backgroundColor="white"
-            borderColor={colors.gray[200]}
-            borderWidth={2}
-            borderRadius="$4"
-            height="$5"
-            onPress={onPress}
-            disabled={isLoading}
-            icon={isLoading ? <Spinner color={colors.gray[700]} /> : icon}
-            pressStyle={{ backgroundColor: colors.gray[50] }}
-            hoverStyle={{ backgroundColor: colors.gray[50] }}
-            justifyContent="center"
-        >
-            {!isLoading && <Text color={colors.gray[700]} fontWeight="500" fontSize="$3">{label}</Text>}
-        </Button>
-    )
 }

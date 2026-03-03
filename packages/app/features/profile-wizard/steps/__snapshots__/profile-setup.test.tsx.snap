@@ -53,6 +53,14 @@ exports[`ProfileSetupStep renders correctly (snapshot) 1`] = `
         >
           profileWizard.setup.subtitle
         </Text>
+        <Text
+          color="#9ca3af"
+          fontSize="$2"
+          textAlign="center"
+        >
+          ✉️ 
+          test@example.com
+        </Text>
       </View>
       <View
         alignItems="center"
@@ -80,16 +88,6 @@ exports[`ProfileSetupStep renders correctly (snapshot) 1`] = `
               T
             </Text>
           </View>
-          <View
-            backgroundColor="#16a34a"
-            borderColor="white"
-            borderRadius={20}
-            borderWidth={2}
-            bottom={0}
-            padding="$2"
-            position="absolute"
-            right={0}
-          />
         </View>
         <View
           gap="$3"
@@ -179,16 +177,62 @@ exports[`ProfileSetupStep renders correctly (snapshot) 1`] = `
         </View>
       </View>
       <View
-        gap="$5"
+        gap="$2"
       >
+        <Text
+          color="#374151"
+          fontWeight="600"
+        >
+          profileWizard.setup.nameLabel
+        </Text>
+        <TextInput
+          backgroundColor="white"
+          borderColor="#d1d5db"
+          borderWidth={1}
+          focusStyle={
+            {
+              "borderColor": "#22c55e",
+              "borderWidth": 2,
+            }
+          }
+          fontWeight="400"
+          onChangeText={[Function]}
+          placeholder="profileWizard.setup.namePlaceholder"
+          size="$4"
+          value="Test User"
+        />
+      </View>
+      <View />
+      <View
+        gap="$3"
+      >
+        <Text
+          color="#374151"
+          fontWeight="600"
+        >
+          <View
+            alignItems="center"
+            gap="$2"
+          >
+            <Text>
+              profileWizard.setup.addressTitle
+            </Text>
+          </View>
+        </Text>
+        <Text
+          color="#6b7280"
+          fontSize="$2"
+        >
+          profileWizard.setup.addressSubtitle
+        </Text>
         <View
-          gap="$2"
+          gap="$1"
         >
           <Text
-            color="#374151"
-            fontWeight="600"
+            color="#4b5563"
+            fontSize="$2"
           >
-            profileWizard.setup.nameLabel
+            profileWizard.setup.streetLabel
           </Text>
           <TextInput
             backgroundColor="white"
@@ -202,141 +246,174 @@ exports[`ProfileSetupStep renders correctly (snapshot) 1`] = `
             }
             fontWeight="400"
             onChangeText={[Function]}
-            placeholder="profileWizard.setup.namePlaceholder"
+            placeholder="profileWizard.setup.streetPlaceholder"
             size="$4"
-            value="Test User"
+            value=""
           />
         </View>
         <View
-          gap="$3"
+          gap="$2"
         >
-          <Text
-            color="#374151"
-            fontWeight="600"
-          >
-            profileWizard.setup.notificationTitle
-          </Text>
-          <Text
-            color="#6b7280"
-            fontSize="$3"
-            marginTop={-2}
-          >
-            profileWizard.setup.notificationSubtitle
-          </Text>
           <View
-            backgroundColor="#f9fafb"
-            borderColor="#f3f4f6"
-            borderRadius={8}
-            borderWidth={1}
-            gap="$3"
-            padding="$4"
+            flex={2}
+            gap="$1"
           >
-            <View
-              gap="$3"
+            <Text
+              color="#4b5563"
+              fontSize="$2"
             >
-              <View
-                alignItems="center"
-                gap="$3"
-              >
-                <View
-                  accessibilityState={
-                    {
-                      "busy": undefined,
-                      "checked": undefined,
-                      "disabled": undefined,
-                      "expanded": undefined,
-                      "selected": undefined,
-                    }
-                  }
-                  accessibilityValue={
-                    {
-                      "max": undefined,
-                      "min": undefined,
-                      "now": undefined,
-                      "text": undefined,
-                    }
-                  }
-                  accessible={true}
-                  collapsable={false}
-                  focusable={true}
-                  onClick={[Function]}
-                  onResponderGrant={[Function]}
-                  onResponderMove={[Function]}
-                  onResponderRelease={[Function]}
-                  onResponderTerminate={[Function]}
-                  onResponderTerminationRequest={[Function]}
-                  onStartShouldSetResponder={[Function]}
-                  style={
-                    {
-                      "opacity": 1,
-                    }
-                  }
-                >
-                  <Text>
-                    ☐
-                  </Text>
-                  <View />
-                </View>
-                <Text
-                  color="#1f2937"
-                  fontSize="$3"
-                >
-                  profileWizard.setup.notifySell
-                </Text>
-              </View>
-              <View
-                alignItems="center"
-                gap="$3"
-              >
-                <View
-                  accessibilityState={
-                    {
-                      "busy": undefined,
-                      "checked": undefined,
-                      "disabled": undefined,
-                      "expanded": undefined,
-                      "selected": undefined,
-                    }
-                  }
-                  accessibilityValue={
-                    {
-                      "max": undefined,
-                      "min": undefined,
-                      "now": undefined,
-                      "text": undefined,
-                    }
-                  }
-                  accessible={true}
-                  collapsable={false}
-                  focusable={true}
-                  onClick={[Function]}
-                  onResponderGrant={[Function]}
-                  onResponderMove={[Function]}
-                  onResponderRelease={[Function]}
-                  onResponderTerminate={[Function]}
-                  onResponderTerminationRequest={[Function]}
-                  onStartShouldSetResponder={[Function]}
-                  style={
-                    {
-                      "opacity": 1,
-                    }
-                  }
-                >
-                  <Text>
-                    ☐
-                  </Text>
-                  <View />
-                </View>
-                <Text
-                  color="#1f2937"
-                  fontSize="$3"
-                >
-                  profileWizard.setup.notifyBuy
-                </Text>
-              </View>
-            </View>
+              profileWizard.setup.cityLabel
+            </Text>
+            <TextInput
+              backgroundColor="white"
+              borderColor="#d1d5db"
+              borderWidth={1}
+              focusStyle={
+                {
+                  "borderColor": "#22c55e",
+                  "borderWidth": 2,
+                }
+              }
+              fontWeight="400"
+              onChangeText={[Function]}
+              placeholder="profileWizard.setup.cityPlaceholder"
+              size="$4"
+              value=""
+            />
+          </View>
+          <View
+            flex={1}
+            gap="$1"
+          >
+            <Text
+              color="#4b5563"
+              fontSize="$2"
+            >
+              profileWizard.setup.stateLabel
+            </Text>
+            <TextInput
+              autoCapitalize="characters"
+              backgroundColor="white"
+              borderColor="#d1d5db"
+              borderWidth={1}
+              focusStyle={
+                {
+                  "borderColor": "#22c55e",
+                  "borderWidth": 2,
+                }
+              }
+              fontWeight="400"
+              maxLength={2}
+              onChangeText={[Function]}
+              placeholder="CA"
+              size="$4"
+              value=""
+            />
+          </View>
+          <View
+            flex={1}
+            gap="$1"
+          >
+            <Text
+              color="#4b5563"
+              fontSize="$2"
+            >
+              profileWizard.setup.zipLabel
+            </Text>
+            <TextInput
+              backgroundColor="white"
+              borderColor="#d1d5db"
+              borderWidth={1}
+              focusStyle={
+                {
+                  "borderColor": "#22c55e",
+                  "borderWidth": 2,
+                }
+              }
+              fontWeight="400"
+              keyboardType="number-pad"
+              maxLength={5}
+              onChangeText={[Function]}
+              placeholder="00000"
+              size="$4"
+              value=""
+            />
           </View>
         </View>
+        <Text
+          color="#9ca3af"
+          fontSize="$2"
+          fontStyle="italic"
+        >
+          profileWizard.setup.zipAutoInfer
+        </Text>
+        <View
+          accessibilityState={
+            {
+              "busy": undefined,
+              "checked": undefined,
+              "disabled": false,
+              "expanded": undefined,
+              "selected": undefined,
+            }
+          }
+          accessibilityValue={
+            {
+              "max": undefined,
+              "min": undefined,
+              "now": undefined,
+              "text": undefined,
+            }
+          }
+          accessible={true}
+          collapsable={false}
+          focusable={true}
+          onClick={[Function]}
+          onResponderGrant={[Function]}
+          onResponderMove={[Function]}
+          onResponderRelease={[Function]}
+          onResponderTerminate={[Function]}
+          onResponderTerminationRequest={[Function]}
+          onStartShouldSetResponder={[Function]}
+          style={
+            {
+              "opacity": 1,
+            }
+          }
+        >
+          <Text
+            color="#15803d"
+            fontSize="$3"
+            fontWeight="500"
+          >
+            profileWizard.setup.useCurrentLocation
+          </Text>
+        </View>
+      </View>
+      <View />
+      <View
+        gap="$2"
+      >
+        <Text
+          color="#374151"
+          fontWeight="600"
+        >
+          <View
+            alignItems="center"
+            gap="$2"
+          >
+            <Text>
+              profileWizard.setup.communityTitle
+            </Text>
+          </View>
+        </Text>
+        <Text
+          color="#9ca3af"
+          fontSize="$2"
+          fontStyle="italic"
+        >
+          profileWizard.setup.communityWaiting
+        </Text>
       </View>
       <View
         gap="$3"
@@ -387,7 +464,7 @@ exports[`ProfileSetupStep renders correctly (snapshot) 1`] = `
             {
               "busy": undefined,
               "checked": undefined,
-              "disabled": false,
+              "disabled": true,
               "expanded": undefined,
               "selected": undefined,
             }
@@ -402,7 +479,7 @@ exports[`ProfileSetupStep renders correctly (snapshot) 1`] = `
           }
           accessible={true}
           collapsable={false}
-          focusable={true}
+          focusable={false}
           onClick={[Function]}
           onResponderGrant={[Function]}
           onResponderMove={[Function]}

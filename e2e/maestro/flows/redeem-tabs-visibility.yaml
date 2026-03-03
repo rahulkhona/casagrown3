@@ -1,25 +1,28 @@
 appId: dev.casagrown.community
 name: "Redemption Tabs Visibility Testing"
 ---
-- launchApp:
-          clearState: true
-          clearKeychain: true
-
-# The flow requires user to be logged in
+# Login first (login.yaml handles auth regardless of app state)
 - runFlow:
-          file: "../utils/login.yaml"
+      file: "../utils/login.yaml"
 
-# Click Points Badge to reveal menu
-- tapOn:
-          id: "points-badge"
-
-- assertVisible: "Redeem"
-- tapOn: "Redeem"
-
-# Wait for Screen and RPC payload
+# Wait for feed to load after login
 - extendedWaitUntil:
-          visible: "Available Redemptions"
-          timeout: 10000
+      visible: "Tomatoes|Feed|Create Post"
+      timeout: 15000
+
+# Navigate to Redeem via Menu tab (consistent with giftcards/charity/cashout flows)
+- tapOn:
+      text: ".*Menu.*"
+
+- extendedWaitUntil:
+      visible: ".*Redeem Points.*"
+      timeout: 5000
+- tapOn: ".*Redeem Points.*"
+
+# Wait for Screen to load (title is "Redeem points")
+- extendedWaitUntil:
+      visible: ".*Redeem points.*|.*Gift Cards.*"
+      timeout: 10000
 
 # Validate all default tabs render properly with the healthy DB seeded state
 - assertVisible: "Gift Cards"
