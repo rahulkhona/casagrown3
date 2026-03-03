@@ -84,10 +84,10 @@ Deno.test("redeem-paypal-payout — rejects missing payout ID", async () => {
 Deno.test("redeem-paypal-payout — rejects insufficient points", async () => {
   const headers = await authHeaders();
 
-  // Test user has 0 points, so requesting 100 should fail
+  // Test user gets 100 signup reward points from seed data, so requesting 500 should fail
   const { status, data } = await invokeFunction(
     "redeem-paypal-payout",
-    { pointsToRedeem: 100, payoutId: "test@example.com" },
+    { pointsToRedeem: 500, payoutId: "test@example.com" },
     headers,
   );
   assertEquals(status, 400);

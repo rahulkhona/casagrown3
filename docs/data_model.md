@@ -90,7 +90,8 @@ and any associated triggers/functions/RLS policies.
 > `20260301100100_garden_categories` → `20260301100200_drop_incentive_rules` →
 > `20260301100300_zipcode_popular_produce` → `20260301100500_user_garden_rls` →
 > `20260301100600_tax_rate_cache` → `20260301100700_order_tax_columns` →
-> `20260301100800_sales_tax_ledger_type` → `20260301100900_seed_ca_tax_rules`
+> `20260301100800_sales_tax_ledger_type` → `20260301100900_seed_ca_tax_rules` →
+> `20260303000000_post_moderation_pipeline`
 
 ## Extensions
 
@@ -182,6 +183,15 @@ create type campaign_behavior as enum (
 create type tax_rule_type as enum (
   'fixed',      -- rate_pct known (0 = exempt)
   'evaluate'    -- must compute at runtime
+);
+
+-- Added by 20260303000000_post_moderation_pipeline
+create type post_status as enum (
+  'review',      -- Just created, awaiting verification
+  'available',   -- Passed review, visible in feed
+  'flagged',     -- Community-flagged, hidden pending admin review
+  'rejected',    -- AI rejected, user must edit
+  'removed'      -- Admin removed
 );
 ```
 
@@ -622,11 +632,13 @@ create table point_ledger (
 | `reach`              | `post_reach`  | Visibility scope. Default: `'community'`.                                 |
 | `content`            | `text`        | Post body.                                                                |
 | `is_archived`        | `boolean`     | Set `true` by ban cascade RPCs. Default: `false`. _(by `20260301080000`)_ |
+| `status`             | `post_status` | Moderation status. Default: `'available'`. _(by `20260303000000`)_        |
 | `created_at`         | `timestamptz` | Default `now()`.                                                          |
 | `updated_at`         | `timestamptz` | Default `now()`.                                                          |
 
 **Indexes**: `posts_community_h3_idx`, `posts_on_behalf_of_idx`,
-`idx_posts_is_archived` (partial, WHERE `is_archived = false`)
+`idx_posts_is_archived` (partial, WHERE `is_archived = false`),
+`idx_posts_status` (partial, WHERE `status = 'available'`)
 
 ```sql
 create table posts (
@@ -638,6 +650,7 @@ create table posts (
   reach post_reach not null default 'community',
   content text not null,
   is_archived boolean not null default false,   -- 20260301080000
+  status post_status not null default 'available', -- 20260303000000
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -645,6 +658,7 @@ create table posts (
 create index posts_community_h3_idx on posts(community_h3_index);
 create index posts_on_behalf_of_idx on posts(on_behalf_of) where on_behalf_of is not null;
 create index idx_posts_is_archived on posts(is_archived) where is_archived = false;
+create index idx_posts_status on posts(status) where status = 'available';
 ```
 
 **RLS Policies** (`20260207060000_posts_content_rls`,
@@ -713,6 +727,11 @@ create table post_flags (
   created_at timestamptz default now()
 );
 ```
+
+**Trigger: `trg_post_flag_threshold`** (`AFTER INSERT`, added by
+`20260303000000`): When a post accumulates ≥ 3 flags, auto-sets
+`posts.status = 'flagged'` (if currently `'available'`) and inserts a
+notification to the post author informing them of the review.
 
 **RLS Policies** (`20260207060000_posts_content_rls`,
 `20260212000000_public_post_anon_rls`):
@@ -1561,13 +1580,19 @@ create table notifications (
 );
 ```
 
-**RLS Policies** (`20260207070000_shared_tables_rls`): Private to recipient.
+**RLS Policies** (`20260207070000_shared_tables_rls`,
+`20260303000000_post_moderation_pipeline`): Private to recipient.
 
 | Policy                                     | Operation | Rule                             |
 | :----------------------------------------- | :-------- | :------------------------------- |
 | Users can read their own notifications     | `SELECT`  | `using (user_id = auth.uid())`   |
 | Users can mark their notifications as read | `UPDATE`  | `using (user_id = auth.uid())`   |
-| No insert/delete by users                  | —         | Created by system (service role) |
+| Users can delete their own notifications   | `DELETE`  | `using (user_id = auth.uid())`   |
+| No insert by users                         | —         | Created by system (service role) |
+
+**Auto-Expiry** (`20260303000000`): A `pg_cron` job runs daily at 03:00 UTC,
+deleting notifications older than 30 days:
+`DELETE FROM notifications WHERE created_at < now() - interval '30 days'`.
 
 ---
 

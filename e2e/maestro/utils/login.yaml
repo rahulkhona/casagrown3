@@ -33,6 +33,18 @@ env:
           commands:
                   - tapOn: "localhost"
 
+# On Android emulator after clearing app data, the URL may show as
+# 10.0.2.2 (the emulator's host loopback alias) instead of localhost.
+- runFlow:
+          when:
+                  visible: "10.0.2.2"
+          commands:
+                  - tapOn: "10.0.2.2"
+                  - extendedWaitUntil:
+                            visible:
+                                    text: ".*(?:Create Post|Join the Movement|Welcome to CasaGrown|Get You Set Up|Send Verification Code).*"
+                            timeout: 45000
+
 # Wait for the app to fully load before checking conditions.
 # The app may show any of these screens after launch:
 #   - "Create Post" → already logged in, on feed

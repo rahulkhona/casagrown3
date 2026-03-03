@@ -32,15 +32,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     return jsonError("PayPal API keys are missing", corsHeaders);
   }
 
-  // Kill switch: set PAYPAL_ENABLED=false in .env.local to block ALL PayPal API calls
-  const paypalEnabled = env("PAYPAL_ENABLED");
-  if (paypalEnabled === "false") {
-    return jsonError(
-      "PayPal payouts are currently disabled. Set PAYPAL_ENABLED=true to re-enable.",
-      corsHeaders,
-      400,
-    );
-  }
+  // Kill switch constant — checked right before making external API calls
+  const paypalEnabled = env("PAYPAL_ENABLED") !== "false";
 
   // 1. Authenticate user
   const auth = await requireAuth(req, supabase, corsHeaders);
@@ -189,6 +182,26 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   let externalErrorMsg: string | null = null;
 
   if (!isQueuing) {
+    // Kill switch: block actual PayPal API calls when disabled
+    if (!paypalEnabled) {
+      // Mark the redemption as queued instead of making the API call
+      await supabase
+        .from("redemptions")
+        .update({ status: "queued" })
+        .eq("id", redemption.id);
+
+      return jsonOk(
+        {
+          success: true,
+          queued: true,
+          message:
+            "PayPal payouts are currently disabled. Your cashout has been queued.",
+          redemptionId: redemption.id,
+          newBalance: earnedBalance - pointsToRedeem,
+        },
+        corsHeaders,
+      );
+    }
     try {
       // Step A: Get OAuth Token
       const credentials = btoa(`${PAYPAL_CLIENT_ID}:${PAYPAL_SECRET}`);

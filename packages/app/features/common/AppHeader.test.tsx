@@ -73,6 +73,15 @@ jest.mock('../../utils/normalize-storage-url', () => ({
   normalizeStorageUrl: (url) => url,
 }))
 
+jest.mock('../notifications/useNotifications', () => ({
+  useNotifications: () => ({ notifications: [], unreadCount: 0, loading: false, markAsRead: jest.fn(), markAllAsRead: jest.fn(), clearAll: jest.fn(), refetch: jest.fn() }),
+}))
+
+jest.mock('../notifications/NotificationPanel', () => {
+  const { View } = require('react-native')
+  return { NotificationPanel: () => <View testID="notification-panel" /> }
+})
+
 jest.mock('tamagui', () => {
   const React = require('react')
   const { View, Text: RNText, TouchableOpacity, ScrollView: RNScrollView } = require('react-native')

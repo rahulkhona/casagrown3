@@ -219,13 +219,13 @@ Deno.test("create-order — happy path: creates order atomically", async () => {
     );
 
     // 5. Verify response shape
-    // Note: new users get 50pt signup reward (auth_triggers migration),
-    // so buyer balance = 0 (baseline) + 50 (signup) + 500 (seeded) = 550
-    // After -30 escrow => 520
+    // Note: new users get 100pt signup reward (campaign_rewards seed),
+    // so buyer balance = 0 (baseline) + 100 (signup) + 500 (seeded) = 600
+    // After -30 escrow => 570
     assertEquals(status, 200);
     assertExists(data.orderId);
     assertExists(data.conversationId);
-    assertEquals(data.newBalance, 520); // 550 - 30
+    assertEquals(data.newBalance, 570); // 600 - 30
 
     const orderId = data.orderId as string;
     const conversationId = data.conversationId as string;

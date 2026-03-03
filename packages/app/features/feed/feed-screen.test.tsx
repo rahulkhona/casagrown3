@@ -225,6 +225,14 @@ jest.mock('@tamagui/lucide-icons', () => ({
   Separator: () => null,
 }))
 
+jest.mock('../notifications/useNotifications', () => ({
+  useNotifications: () => ({ notifications: [], unreadCount: 0, loading: false, markAsRead: jest.fn(), markAllAsRead: jest.fn(), clearAll: jest.fn(), refetch: jest.fn() }),
+}))
+
+jest.mock('../notifications/NotificationPanel', () => ({
+  NotificationPanel: () => null,
+}))
+
 // Mock tamagui (following profile-screen.test.tsx pattern)
 jest.mock('tamagui', () => {
   const { View, Text: RNText, TouchableOpacity, ScrollView: RNScrollView, TextInput, ActivityIndicator } = require('react-native')

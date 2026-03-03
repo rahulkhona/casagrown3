@@ -66,9 +66,11 @@ describe("getCommunityFeedPosts", () => {
         mockFrom.mockReturnValue({
             select: jest.fn().mockReturnValue({
                 or: jest.fn().mockReturnValue({
-                    order: jest.fn().mockResolvedValue({
-                        data: mockData,
-                        error: null,
+                    eq: jest.fn().mockReturnValue({
+                        order: jest.fn().mockResolvedValue({
+                            data: mockData,
+                            error: null,
+                        }),
                     }),
                 }),
             }),
@@ -91,9 +93,11 @@ describe("getCommunityFeedPosts", () => {
         mockFrom.mockReturnValue({
             select: jest.fn().mockReturnValue({
                 or: jest.fn().mockReturnValue({
-                    order: jest.fn().mockResolvedValue({
-                        data: [],
-                        error: null,
+                    eq: jest.fn().mockReturnValue({
+                        order: jest.fn().mockResolvedValue({
+                            data: [],
+                            error: null,
+                        }),
                     }),
                 }),
             }),
@@ -107,9 +111,11 @@ describe("getCommunityFeedPosts", () => {
         mockFrom.mockReturnValue({
             select: jest.fn().mockReturnValue({
                 or: jest.fn().mockReturnValue({
-                    order: jest.fn().mockResolvedValue({
-                        data: null,
-                        error: { message: "DB error" },
+                    eq: jest.fn().mockReturnValue({
+                        order: jest.fn().mockResolvedValue({
+                            data: null,
+                            error: { message: "DB error" },
+                        }),
                     }),
                 }),
             }),
@@ -156,9 +162,11 @@ describe("getCommunityFeedPosts", () => {
         mockFrom.mockReturnValue({
             select: jest.fn().mockReturnValue({
                 or: jest.fn().mockReturnValue({
-                    order: jest.fn().mockResolvedValue({
-                        data: mockData,
-                        error: null,
+                    eq: jest.fn().mockReturnValue({
+                        order: jest.fn().mockResolvedValue({
+                            data: mockData,
+                            error: null,
+                        }),
                     }),
                 }),
             }),

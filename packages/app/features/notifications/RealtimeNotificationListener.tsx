@@ -92,156 +92,33 @@ export function RealtimeNotificationListener() {
         }
       )
 
-      // 2. Listen for Order completions
+      // 2. Listen for ALL notifications (unified toast for orders, cashouts, bans, etc.)
       channel.on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: 'INSERT',
           schema: 'public',
-          table: 'orders',
-          filter: `status=eq.completed`,
-        },
-        async (payload) => {
-          if (!mountedRef.current) return
-          const oldOrder = payload.old
-          const newOrder = payload.new
-
-          if (oldOrder.status !== 'completed' && newOrder.status === 'completed') {
-            if (newOrder.buyer_id === user.id) {
-              toast.show('Order Complete', {
-                message: 'Your points have been debited.',
-                native: false,
-              })
-            } else if (newOrder.seller_id === user.id) {
-              toast.show('Payment Received', {
-                message: 'Order completed and points credited.',
-                native: false,
-              })
-            } else {
-              const { data: post } = await supabase
-                .from('posts')
-                .select('on_behalf_of')
-                .eq('id', newOrder.post_id)
-                .single()
-              if (post?.on_behalf_of === user.id) {
-                toast.show('Delegated Sale Complete', {
-                  message: `An order for your delegated post has been completed.`,
-                  native: false,
-                  action: {
-                    altText: 'History',
-                    label: 'History',
-                    onPress: () => router.push('/transaction-history'),
-                  },
-                })
-              }
-            }
-          }
-        }
-      )
-
-      // 3. Listen for Delegation changes
-      // NOTE: RLS prevents listening on rows the user isn't involved in
-      channel.on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'delegations',
-        },
-        async (payload) => {
-          if (!mountedRef.current) return
-          const oldDel = payload.old
-          const newDel = payload.new
-
-          console.log('[SystemChannel] Delegation update received:', { oldStatus: oldDel.status, newStatus: newDel.status, newDel })
-
-          if (newDel.delegator_id !== user.id && newDel.delegatee_id !== user.id) {
-            console.log('[SystemChannel] Delegation ignored, user not involved')
-            return
-          }
-
-          // Acceptance
-          if (oldDel.status === 'pending_pairing' && newDel.status === 'active') {
-            if (newDel.delegator_id === user.id) {
-              let delegateName = 'Someone'
-              if (newDel.delegatee_id) {
-                const { data: profile } = await supabase
-                  .from('profiles')
-                  .select('full_name')
-                  .eq('id', newDel.delegatee_id)
-                  .single()
-                if (profile?.full_name) delegateName = profile.full_name
-              }
-
-              toast.show('Delegation Accepted', {
-                message: `${delegateName} has accepted your request.`,
-                native: false,
-                action: { altText: 'View', label: 'View', onPress: () => router.push('/delegate') },
-              })
-            }
-          }
-
-          // Revocation / Rejection
-          if (oldDel.status !== 'revoked' && newDel.status === 'revoked') {
-            // Determine who we need to notify and who did the revoking
-            // If the current user is the delegator, the delegatee revoked it (or rejected it).
-            // If the current user is the delegatee, the delegator revoked it.
-            const isDelegator = newDel.delegator_id === user.id
-            const otherUserId = isDelegator ? newDel.delegatee_id : newDel.delegator_id
-            
-            let otherUserName = 'Someone'
-            if (otherUserId) {
-              const { data: profile } = await supabase
-                .from('profiles')
-                .select('full_name')
-                .eq('id', otherUserId)
-                .single()
-              if (profile?.full_name) otherUserName = profile.full_name
-            }
-
-            let message = `${otherUserName} has revoked the delegation.`
-            if (oldDel.status === 'pending' || oldDel.status === 'pending_pairing') {
-              message = `${otherUserName} has declined the delegation request.`
-            }
-
-            toast.show('Delegation Revoked', {
-              message,
-              native: false,
-              action: { altText: 'View', label: 'View', onPress: () => router.push('/delegate') },
-            })
-          }
-        }
-      )
-
-      // 4. Listen for Redemptions
-      channel.on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'redemptions',
-          filter: `status=eq.completed`,
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
           if (!mountedRef.current) return
-          const oldRed = payload.old
-          const newRed = payload.new
-          
-          if (newRed.user_id !== user.id) return
+          const notif = payload.new
 
-          // Only toast if it was explicitly queued and is now completed (background fulfillment).
-          // Immediate successes shouldn't toast, because the user is actively on the redeem screen seeing the gift card.
-          if (oldRed.status === 'queued' && newRed.status === 'completed') {
-            toast.show('Redemption Complete', {
-              message: `Your ${newRed.cash_value_cents / 100} cash redemption has been processed.`,
-              native: false,
+          const content = String(notif.content || '')
+          const linkUrl = notif.link_url
+
+          toast.show('Notification', {
+            message: content.length > 80 ? content.substring(0, 80) + '...' : content,
+            native: false,
+            ...(linkUrl ? {
               action: {
-                altText: 'History',
-                label: 'History',
-                onPress: () => router.push('/transaction-history')
-              }
-            })
-          }
+                altText: 'View',
+                label: 'View',
+                onPress: () => router.push(linkUrl),
+              },
+            } : {}),
+          })
         }
       )
 

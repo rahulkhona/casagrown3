@@ -15,6 +15,8 @@ import { useTranslation } from 'react-i18next'
 import { normalizeStorageUrl } from '../../utils/normalize-storage-url'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { colors } from '../../design-tokens'
+import { useNotifications } from '../notifications/useNotifications'
+import { NotificationPanel } from '../notifications/NotificationPanel'
 
 const NAV_KEYS_BASE = [
   { key: 'feed', active: false, badge: 0 },
@@ -77,9 +79,9 @@ export function AppHeader({ activeKey = 'feed' }: { activeKey?: string }) {
   const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null)
   const [userDisplayName, setUserDisplayName] = useState<string | null>(null)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [notifPanelOpen, setNotifPanelOpen] = useState(false)
   
-  // Unread notifications (stubbed for now to 0 like FeedScreen)
-  const unreadNotificationsCount = 0
+  const { unreadCount: unreadNotificationsCount } = useNotifications(user?.id)
 
   useEffect(() => {
     if (!user?.id) return
@@ -223,6 +225,7 @@ export function AppHeader({ activeKey = 'feed' }: { activeKey?: string }) {
             <TouchableOpacity
               style={{ padding: 8, borderRadius: 999, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
               activeOpacity={0.6}
+              onPress={() => { setMobileMenuOpen(false); setNotifPanelOpen(!notifPanelOpen) }}
             >
               <Bell size={20} color={colors.gray[600]} />
             </TouchableOpacity>
@@ -238,12 +241,18 @@ export function AppHeader({ activeKey = 'feed' }: { activeKey?: string }) {
                 alignItems="center" 
                 justifyContent="center"
                 paddingHorizontal="$1"
+                pointerEvents="none"
               >
                 <Text fontSize={10} color="white" fontWeight="700">
-                  {unreadNotificationsCount}
+                  {unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount}
                 </Text>
               </YStack>
             )}
+            <NotificationPanel 
+              visible={notifPanelOpen} 
+              onClose={() => setNotifPanelOpen(false)} 
+              userId={user?.id} 
+            />
           </XStack>
 
           {isMediumUp && (

@@ -162,6 +162,7 @@ export async function getCommunityFeedPosts(
             )
         `)
         .or(`community_h3_index.eq.${communityH3Index},community_h3_index.is.null`)
+        .eq("status", "available")
         .order("created_at", { ascending: false });
 
     if (error) {
@@ -232,6 +233,7 @@ export async function getLatestPostTimestamp(
         .or(
             `community_h3_index.eq.${communityH3Index},community_h3_index.is.null`,
         )
+        .eq("status", "available")
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();

@@ -35,6 +35,8 @@ import { FeedNavigation } from './FeedNavigation'
 import { PointsMenu } from '../points/PointsMenu'
 import { useNotificationPrompt } from '../notifications/useNotificationPrompt'
 import { NotificationPromptModal } from '../notifications/NotificationPromptModal'
+import { useNotifications } from '../notifications/useNotifications'
+import { NotificationPanel } from '../notifications/NotificationPanel'
 
 // Types for invite rewards
 interface InviteRewards {
@@ -147,10 +149,10 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
   // User data — load real balance from point_ledger
   const { balance: userPoints, refetch: refetchBalance } = usePointsBalance(userId)
 
-  // Notification permission prompt
   const { showPrompt: showNotifPrompt, modalProps: notifModalProps } = useNotificationPrompt(userId)
 
-  const unreadNotificationsCount = 0
+  const { unreadCount: unreadNotificationsCount } = useNotifications(userId)
+  const [notifPanelOpen, setNotifPanelOpen] = useState(false)
   const userInitial = userDisplayName ? userDisplayName.charAt(0).toUpperCase() : 'A'
 
   // Unread chat count
@@ -476,10 +478,32 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
               onNavigateToTransactionHistory={onNavigateToTransactionHistory}
             />
 
-            <TouchableOpacity style={{ position: 'relative' }}>
-              <Bell size={24} color={colors.gray[700]} />
-              {/* Future: Add badge here when Notifications backend exists */}
-            </TouchableOpacity>
+            <XStack position="relative">
+              <TouchableOpacity 
+                style={{ position: 'relative' }}
+                onPress={() => setNotifPanelOpen(!notifPanelOpen)}
+              >
+                <Bell size={24} color={colors.gray[700]} />
+              </TouchableOpacity>
+              {unreadNotificationsCount > 0 && (
+                <YStack 
+                  position="absolute" top={-4} right={-4} 
+                  backgroundColor={colors.red[500]} borderRadius={999} 
+                  minWidth={16} height={16}
+                  alignItems="center" justifyContent="center"
+                  paddingHorizontal={3} pointerEvents="none"
+                >
+                  <Text fontSize={9} color="white" fontWeight="700">
+                    {unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount}
+                  </Text>
+                </YStack>
+              )}
+              <NotificationPanel 
+                visible={notifPanelOpen} 
+                onClose={() => setNotifPanelOpen(false)} 
+                userId={userId} 
+              />
+            </XStack>
           </XStack>
         </XStack>
       )}

@@ -50,10 +50,10 @@ The universal delivery engine processes requests formatted as:
 
 ```json
 {
-    "userId": "uuid",
-    "title": "Notification Title",
-    "body": "Detailed description here",
-    "url": "/deeplink/path"
+  "userId": "uuid",
+  "title": "Notification Title",
+  "body": "Detailed description here",
+  "url": "/deeplink/path"
 }
 ```
 
@@ -80,18 +80,33 @@ and fans out the payload:
 
 ### `RealtimeNotificationListener.tsx`
 
-A global context hook instantiated at the Root App Layout level when a user logs
-in.
+A global context component instantiated at the Root App Layout level when a user
+logs in. **Simplified in March 2026** to subscribe only to `notifications` table
+`INSERT` events via Supabase Realtime. When a new notification row is inserted,
+the listener triggers a toast via `useToastController().show(...)`.
 
-It subscribes to:
+Previous per-channel listeners (`messages`, `orders`, `delegations`) have been
+replaced by a unified flow: backend triggers write to the `notifications` table,
+and the single listener picks up all events.
 
-- `messages`: Filters `recipient_id` or `chat_messages` inserts.
-- `orders`: Watches `status` modifications.
-- `delegations`: Monitors `status` modifications like pairings dropping.
+### `useNotifications.ts` Hook
 
-When a row modifies, the hook parses the result and executes standard Tamagui
-`useToastController().show(...)` logic. It operates universally across Desktop
-Web and Expo Native boundaries.
+Central hook for managing notification state across web and mobile:
+
+- **Fetches** the 50 most recent notifications on mount
+- **Subscribes** to Realtime `INSERT` events and prepends new notifications
+- **Provides** `markAsRead(id)`, `markAllAsRead()`, `clearAll()`
+- **Exposes** `unreadNotificationsCount` for badge rendering
+
+### `NotificationPanel.tsx`
+
+Overlay panel triggered by the bell icon in `AppHeader.tsx` (web) and
+`feed-screen.tsx` (mobile). Displays:
+
+- Unread count badge on the bell icon
+- Scrollable list of notifications with read/unread styling
+- "Mark all as read" and "Clear all" action buttons
+- Empty state when no notifications exist
 
 ## Setting Up Notifications (Production)
 
