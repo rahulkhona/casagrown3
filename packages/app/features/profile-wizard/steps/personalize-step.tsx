@@ -3,7 +3,7 @@ import { YStack, XStack, Input, Button, Text, Label, ScrollView, Separator, Spin
 import { useRouter } from 'solito/navigation'
 import { useWizard } from '../wizard-context'
 import { useAuth, supabase } from '../../auth/auth-hook'
-import { Leaf, Check, Plus, X, MapPin, Phone, Shield } from '@tamagui/lucide-icons'
+import { Leaf, Check, Plus, X, MapPin, Phone } from '@tamagui/lucide-icons'
 import { colors, shadows, borderRadius } from '../../../design-tokens'
 import { useTranslation } from 'react-i18next'
 import { Platform } from 'react-native'
@@ -301,7 +301,7 @@ export const PersonalizeStep = () => {
                 alignItems="center"
                 gap="$2"
               >
-                <Shield size={16} color={colors.green[600]} />
+                <Text fontSize={16} color={colors.green[600]} fontWeight="800">✓</Text>
                 <Text fontSize="$3" fontWeight="600" color={colors.green[700]}>
                   {t('profileWizard.personalize.phoneVerifiedSuccess')}
                 </Text>

@@ -43,7 +43,11 @@ describe("getCommunityFeedPosts", () => {
                 content: "Fresh tomatoes",
                 created_at: "2026-02-10T00:00:00Z",
                 community_h3_index: "h3-abc",
-                author: { full_name: "Alice", avatar_url: "http://avatar.png" },
+                author: {
+                    full_name: "Alice",
+                    avatar_url: "http://avatar.png",
+                    phone_verified: true,
+                },
                 community: { name: "Sunset Park" },
                 want_to_sell_details: [
                     {
@@ -87,6 +91,7 @@ describe("getCommunityFeedPosts", () => {
         expect(posts[0].like_count).toBe(1);
         expect(posts[0].comment_count).toBe(2);
         expect(posts[0].is_liked).toBe(true);
+        expect(posts[0].author_phone_verified).toBe(true);
     });
 
     it("returns empty array when no posts", async () => {
@@ -136,7 +141,11 @@ describe("getCommunityFeedPosts", () => {
                 content: "Looking for apples",
                 created_at: "2026-02-10T00:00:00Z",
                 community_h3_index: "h3-abc",
-                author: { full_name: "Bob", avatar_url: null },
+                author: {
+                    full_name: "Bob",
+                    avatar_url: null,
+                    phone_verified: false,
+                },
                 community: { name: "Sunset Park" },
                 want_to_sell_details: [],
                 want_to_buy_details: [

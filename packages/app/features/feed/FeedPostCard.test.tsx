@@ -40,6 +40,7 @@ jest.mock('@tamagui/lucide-icons', () => ({
   Send: () => null,
   Calendar: () => null,
   Package: () => null,
+
 }))
 
 // Mock tamagui
@@ -90,6 +91,7 @@ const makeSellPost = (overrides?: Partial<FeedPost>): FeedPost => ({
   comment_count: 1,
   is_liked: false,
   is_flagged: false,
+  author_phone_verified: true,
   ...overrides,
 })
 
@@ -230,6 +232,16 @@ describe('FeedPostCard', () => {
       />
     )
     expect(screen.getByText('feed.unknownAuthor')).toBeTruthy()
+  })
+
+  it('renders verified badge when author is phone-verified', () => {
+    render(<FeedPostCard post={makeSellPost({ author_phone_verified: true })} currentUserId="other-user" t={t} />)
+    expect(screen.getByText('feed.verified')).toBeTruthy()
+  })
+
+  it('does not render verified badge when author is not phone-verified', () => {
+    render(<FeedPostCard post={makeSellPost({ author_phone_verified: false })} currentUserId="other-user" t={t} />)
+    expect(screen.queryByText('feed.verified')).toBeNull()
   })
 
   it('matches snapshot', () => {

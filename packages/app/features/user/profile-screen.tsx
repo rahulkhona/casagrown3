@@ -29,8 +29,7 @@ import {
   Tag, 
   Mail, 
   Bell, 
-  MessageSquare,
-  Shield
+
 } from '@tamagui/lucide-icons'
 import { Alert, Image, Platform, TextInput, Keyboard, KeyboardAvoidingView } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -338,7 +337,14 @@ export function ProfileScreen() {
           body: { h3_index: h3Index },
         })
         if (!error && data) {
-          setCommunityMapData(data as ResolveResponse)
+          // Validate response has expected structure before setting state
+          if (data.primary?.name) {
+            setCommunityMapData(data as ResolveResponse)
+          } else {
+            // Edge function returned incomplete data — use fallback
+            const fallback = buildResolveResponseFromIndex(h3Index, name, city, lat, lng)
+            setCommunityMapData(fallback as ResolveResponse)
+          }
         } else {
           // Fallback with real lat/lng from DB (h3-js stubs return 0,0 on Hermes)
           const fallback = buildResolveResponseFromIndex(h3Index, name, city, lat, lng)
@@ -920,7 +926,7 @@ export function ProfileScreen() {
                         alignItems="center"
                         gap="$2"
                       >
-                        <Shield size={16} color={colors.primary[600]} />
+                        <Text fontSize={16} color={colors.primary[600]} fontWeight="800">✓</Text>
                         <Text fontSize="$3" fontWeight="600" color={colors.primary[700]}>
                           {t('profile.phoneVerifiedSuccess', 'Phone number verified!')}
                         </Text>
@@ -1094,7 +1100,7 @@ export function ProfileScreen() {
                       alignItems="center"
                       gap="$1"
                     >
-                      <Shield size={12} color={colors.primary[700]} />
+                      <Text fontSize={12} color={colors.primary[700]} fontWeight="800">✓</Text>
                       <Text fontSize="$1" color={colors.primary[700]} fontWeight="600">
                         {t('profile.phoneVerifiedBadge')}
                       </Text>
@@ -1363,7 +1369,7 @@ export function ProfileScreen() {
                   </Text>
                 </Button>
                 
-                {resolvedCommunity && (
+                {resolvedCommunity?.primary && (
                   <YStack
                     backgroundColor="white"
                     padding="$3"
@@ -1380,9 +1386,9 @@ export function ProfileScreen() {
                     />
                     <XStack alignItems="center" gap="$2" marginTop="$2">
                       <Check size={20} color={colors.primary[600]} />
-                      <Text fontWeight="600">{resolvedCommunity.primary.name}</Text>
+                      <Text fontWeight="600">{resolvedCommunity.primary?.name}</Text>
                     </XStack>
-                    <Text color={colors.neutral[500]}>{resolvedCommunity.primary.city}</Text>
+                    <Text color={colors.neutral[500]}>{resolvedCommunity.primary?.city}</Text>
                     {resolvedCommunity.resolved_location && (
                       <Text color={colors.neutral[400]} fontSize="$1">
                         📍 {resolvedCommunity.resolved_location.lat.toFixed(4)}, {resolvedCommunity.resolved_location.lng.toFixed(4)}

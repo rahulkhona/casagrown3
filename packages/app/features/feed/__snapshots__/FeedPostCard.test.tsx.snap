@@ -47,13 +47,41 @@ exports[`FeedPostCard matches snapshot 1`] = `
       <View
         flex={1}
       >
-        <Text
-          color="#111827"
-          fontSize={14}
-          fontWeight="600"
+        <View
+          alignItems="center"
+          gap="$1.5"
         >
-          Alice Smith
-        </Text>
+          <Text
+            color="#111827"
+            fontSize={14}
+            fontWeight="600"
+          >
+            Alice Smith
+          </Text>
+          <View
+            alignItems="center"
+            backgroundColor="#dcfce7"
+            borderRadius={4}
+            gap={2}
+            paddingHorizontal="$1.5"
+            paddingVertical={2}
+          >
+            <Text
+              color="#15803d"
+              fontSize={10}
+              fontWeight="800"
+            >
+              ✓
+            </Text>
+            <Text
+              color="#15803d"
+              fontSize={10}
+              fontWeight="600"
+            >
+              feed.verified
+            </Text>
+          </View>
+        </View>
         <Text
           color="#6b7280"
           fontSize={12}

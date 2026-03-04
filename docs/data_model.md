@@ -468,23 +468,74 @@ create index stripe_connect_accounts_stripe_id_idx on stripe_connect_accounts(st
 
 Tracks produce items a user grows.
 
-| Column         | Type          | Description           |
-| :------------- | :------------ | :-------------------- |
-| `id`           | `uuid`        | Primary Key.          |
-| `user_id`      | `uuid`        | FK to `profiles(id)`. |
-| `produce_name` | `text`        | Name of the produce.  |
-| `created_at`   | `timestamptz` | Default `now()`.      |
-| `updated_at`   | `timestamptz` | Default `now()`.      |
+| Column         | Type          | Description                                                             |
+| :------------- | :------------ | :---------------------------------------------------------------------- |
+| `id`           | `uuid`        | Primary Key.                                                            |
+| `user_id`      | `uuid`        | FK to `profiles(id)`.                                                   |
+| `produce_name` | `text`        | Name of the produce.                                                    |
+| `category`     | `text`        | Category (fruits/vegetables/flowers/herbs). `20260301100100`.           |
+| `is_custom`    | `boolean`     | `true` if user typed a custom name. Default: `false`. `20260301100100`. |
+| `created_at`   | `timestamptz` | Default `now()`.                                                        |
+| `updated_at`   | `timestamptz` | Default `now()`.                                                        |
+
+**Constraints**: Unique `(user_id, produce_name)` (`20260301100100`)
 
 ```sql
 create table user_garden (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references profiles(id),
   produce_name text not null,
+  category text default 'vegetables',          -- 20260301100100
+  is_custom boolean not null default false,     -- 20260301100100
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
+
+create unique index idx_user_garden_unique on user_garden (user_id, produce_name);
 ```
+
+### `usda_zone_produce`
+
+Zone-based produce suggestions derived from USDA Plant Hardiness Zone data. The
+app's garden picker in the profile wizard uses the `get_popular_produce_for_zip`
+RPC to query this table via the user's zip code.
+
+**Migration**: `20260301100300_zipcode_popular_produce.sql`
+
+| Column         | Type      | Description                                                                                                                  |
+| :------------- | :-------- | :--------------------------------------------------------------------------------------------------------------------------- |
+| `zone_group`   | `text`    | PK part 1. Climate zone: `cold`, `cool`, `moderate_cool`, `moderate`, `warm_moderate`, `warm`, `hot`, `tropical`, `DEFAULT`. |
+| `produce_name` | `text`    | PK part 2. Produce item name.                                                                                                |
+| `category`     | `text`    | `fruits`, `vegetables`, `flowers`, or `herbs`.                                                                               |
+| `emoji`        | `text`    | Display emoji.                                                                                                               |
+| `season`       | `text`    | `spring`, `summer`, `fall`, `winter`, or `year_round`.                                                                       |
+| `rank`         | `integer` | Sort order within zone group. Default: `0`.                                                                                  |
+
+**RLS Policies**: Authenticated + anonymous can read.
+
+### `zip_prefix_to_zone`
+
+Maps 3-digit US zip prefixes to USDA hardiness zone groups. Used by
+`get_popular_produce_for_zip` to resolve a user's climate zone.
+
+**Migration**: `20260301100300_zipcode_popular_produce.sql`
+
+| Column       | Type   | Description                                      |
+| :----------- | :----- | :----------------------------------------------- |
+| `zip_prefix` | `text` | **Primary Key**. 3-digit prefix (e.g., `'950'`). |
+| `zone_group` | `text` | Zone group key in `usda_zone_produce`.           |
+
+**RLS Policies**: Authenticated + anonymous can read.
+
+**RPC**: `get_popular_produce_for_zip(p_zip TEXT)` — extracts the 3-digit prefix
+from the zip code, looks up the zone group, and returns produce items sorted by
+category and rank. Falls back to `'DEFAULT'` zone if no mapping exists.
+
+### `garden_produce_catalog` _(legacy backup)_
+
+Static seed of common produce items. Created by `20260301100100` but superseded
+by the USDA zone-based system above (`20260301100300`). **Not queried by the by
+the USDA zone-based system above (`20260301100300`). **Not queried by the app.**
 
 ### `followers`
 

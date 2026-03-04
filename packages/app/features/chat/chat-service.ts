@@ -35,6 +35,7 @@ export interface ConversationParticipant {
     id: string;
     full_name: string | null;
     avatar_url: string | null;
+    phone_verified: boolean;
 }
 
 export interface ConversationPost {
@@ -304,12 +305,14 @@ export async function getConversationWithDetails(
       buyer:profiles!conversations_buyer_id_fkey (
         id,
         full_name,
-        avatar_url
+        avatar_url,
+        phone_verified
       ),
       seller:profiles!conversations_seller_id_fkey (
         id,
         full_name,
-        avatar_url
+        avatar_url,
+        phone_verified
       )
     `)
         .eq("id", conversationId)
@@ -361,11 +364,13 @@ export async function getConversationWithDetails(
             id: row.buyer.id,
             full_name: row.buyer.full_name,
             avatar_url: row.buyer.avatar_url,
+            phone_verified: row.buyer.phone_verified ?? false,
         },
         seller: {
             id: row.seller.id,
             full_name: row.seller.full_name,
             avatar_url: row.seller.avatar_url,
+            phone_verified: row.seller.phone_verified ?? false,
         },
     };
 }
@@ -412,12 +417,14 @@ export async function getUserConversations(
       buyer:profiles!conversations_buyer_id_fkey (
         id,
         full_name,
-        avatar_url
+        avatar_url,
+        phone_verified
       ),
       seller:profiles!conversations_seller_id_fkey (
         id,
         full_name,
-        avatar_url
+        avatar_url,
+        phone_verified
       )
     `)
         .or(`buyer_id.eq.${userId},seller_id.eq.${userId}`);

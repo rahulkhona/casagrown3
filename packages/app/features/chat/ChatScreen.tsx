@@ -496,6 +496,7 @@ export function ChatScreen({
 
   const otherUserName = otherUser?.full_name || t('chat.unknownUser')
   const otherUserAvatar = normalizeStorageUrl(otherUser?.avatar_url)
+  const otherUserPhoneVerified = otherUser?.phone_verified ?? false
 
   // Show "Place Order" button for buyers on for-sale posts with no existing order or completed/cancelled order
   const isBuyer = conversation?.buyer_id === currentUserId
@@ -533,6 +534,7 @@ export function ChatScreen({
       comment_count: 0,
       is_liked: false,
       is_flagged: false,
+      author_phone_verified: false,
     }
   }, [conversation])
 
@@ -558,6 +560,7 @@ export function ChatScreen({
       comment_count: 0,
       is_liked: false,
       is_flagged: false,
+      author_phone_verified: false,
     }
   }, [conversation])
 
@@ -1346,9 +1349,26 @@ export function ChatScreen({
               <Text fontSize={10} color={colors.gray[400]} fontWeight="500" letterSpacing={0.5}>
                 CHAT WITH
               </Text>
-              <Text fontSize={15} fontWeight="600" color={colors.gray[900]}>
-                {otherUserName}
-              </Text>
+              <XStack alignItems="center" gap="$1.5">
+                <Text fontSize={15} fontWeight="600" color={colors.gray[900]}>
+                  {otherUserName}
+                </Text>
+                {otherUserPhoneVerified && (
+                  <XStack
+                    backgroundColor={colors.green[100]}
+                    paddingHorizontal="$1.5"
+                    paddingVertical={2}
+                    borderRadius={4}
+                    alignItems="center"
+                    gap={2}
+                  >
+                    <Text fontSize={9} color={colors.green[700]} fontWeight="800">✓</Text>
+                    <Text fontSize={9} color={colors.green[700]} fontWeight="600">
+                      {t('feed.verified')}
+                    </Text>
+                  </XStack>
+                )}
+              </XStack>
               {otherPresence.typing ? (
                 <Text fontSize={11} color={colors.green[600]}>
                   {t('chat.typing')}

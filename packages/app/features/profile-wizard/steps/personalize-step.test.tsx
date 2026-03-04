@@ -102,7 +102,7 @@ jest.mock('@tamagui/lucide-icons', () => ({
   MapPin: () => null,
   Phone: () => null,
   Check: () => null,
-  Shield: () => null,
+
 }))
 
 // Mock wizard context

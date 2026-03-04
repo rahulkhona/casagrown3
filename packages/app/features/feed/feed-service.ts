@@ -22,7 +22,11 @@ interface FeedQueryRow {
     content: string;
     created_at: string;
     community_h3_index: string | null;
-    author: { full_name: string | null; avatar_url: string | null } | null;
+    author: {
+        full_name: string | null;
+        avatar_url: string | null;
+        phone_verified: boolean;
+    } | null;
     community: { name: string } | null;
     want_to_sell_details: Array<{
         category: string;
@@ -65,6 +69,7 @@ export interface FeedPost {
     author_id: string;
     author_name: string | null;
     author_avatar_url: string | null;
+    author_phone_verified: boolean;
     type: string;
     reach: string;
     content: string;
@@ -121,7 +126,8 @@ export async function getCommunityFeedPosts(
             community_h3_index,
             author:profiles!posts_author_id_fkey (
                 full_name,
-                avatar_url
+                avatar_url,
+                phone_verified
             ),
             community:communities!posts_community_h3_index_fkey (
                 name
@@ -175,6 +181,7 @@ export async function getCommunityFeedPosts(
         author_id: row.author_id,
         author_name: row.author?.full_name || null,
         author_avatar_url: row.author?.avatar_url || null,
+        author_phone_verified: row.author?.phone_verified ?? false,
         type: row.type,
         reach: row.reach,
         content: row.content,

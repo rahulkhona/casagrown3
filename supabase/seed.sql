@@ -194,14 +194,15 @@ INSERT INTO auth.identities (
 -- 11. Test Profiles
 -- =============================================================================
 
-INSERT INTO public.profiles (id, email, full_name, home_community_h3_index, referral_code)
+INSERT INTO public.profiles (id, email, full_name, home_community_h3_index, referral_code, phone_verified)
 VALUES
-  ('a1111111-1111-1111-1111-111111111111', 'seller@test.local', 'Test Seller', '89283470c2fffff', 'SELLER01'),
-  ('b2222222-2222-2222-2222-222222222222', 'buyer@test.local',  'Test Buyer',  '89283470c2fffff', 'BUYER01')
+  ('a1111111-1111-1111-1111-111111111111', 'seller@test.local', 'Test Seller', '89283470c2fffff', 'SELLER01', true),
+  ('b2222222-2222-2222-2222-222222222222', 'buyer@test.local',  'Test Buyer',  '89283470c2fffff', 'BUYER01', false)
 ON CONFLICT (id) DO UPDATE SET
   full_name = EXCLUDED.full_name,
   home_community_h3_index = EXCLUDED.home_community_h3_index,
-  referral_code = EXCLUDED.referral_code;
+  referral_code = EXCLUDED.referral_code,
+  phone_verified = EXCLUDED.phone_verified;
 
 -- Seed points for both users (enough for test transactions)
 INSERT INTO public.point_ledger (user_id, type, amount, balance_after, created_at, metadata)

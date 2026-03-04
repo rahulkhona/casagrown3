@@ -126,6 +126,8 @@ Each post card displays:
 
 - Author avatar, name, community
 - Post type badge (color-coded)
+- Phone verified badge (`✓ Verified` green pill) for users with
+  `phone_verified = true`
 - Content text with media carousel (images + videos)
 - Like count + comment count
 - "Chat" action button to initiate conversation

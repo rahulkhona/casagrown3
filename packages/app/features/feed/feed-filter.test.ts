@@ -33,6 +33,7 @@ function makePost(overrides: Partial<FeedPost> = {}): FeedPost {
         comment_count: 0,
         is_liked: false,
         is_flagged: false,
+        author_phone_verified: false,
         ...overrides,
     };
 }

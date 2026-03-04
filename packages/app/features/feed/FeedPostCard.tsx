@@ -249,9 +249,26 @@ function FeedPostCardInner({
 
           {/* Author Info */}
           <YStack flex={1}>
-            <Text fontSize={14} fontWeight="600" color={colors.gray[900]}>
-              {post.author_name || t('feed.unknownAuthor')}
-            </Text>
+            <XStack alignItems="center" gap="$1.5">
+              <Text fontSize={14} fontWeight="600" color={colors.gray[900]}>
+                {post.author_name || t('feed.unknownAuthor')}
+              </Text>
+              {post.author_phone_verified && (
+                <XStack
+                  backgroundColor={colors.green[100]}
+                  paddingHorizontal="$1.5"
+                  paddingVertical={2}
+                  borderRadius={4}
+                  alignItems="center"
+                  gap={2}
+                >
+                  <Text fontSize={10} color={colors.green[700]} fontWeight="800">✓</Text>
+                  <Text fontSize={10} color={colors.green[700]} fontWeight="600">
+                    {t('feed.verified')}
+                  </Text>
+                </XStack>
+              )}
+            </XStack>
             <Text fontSize={12} color={colors.gray[500]} numberOfLines={1}>
               {post.community_name} · {getTimeAgo(post.created_at, t)}
             </Text>
