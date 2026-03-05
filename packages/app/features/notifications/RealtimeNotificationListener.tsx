@@ -31,9 +31,40 @@ export function RealtimeNotificationListener() {
   const channelRef = useRef<RealtimeChannel | null>(null)
   const isSubscribedRef = useRef(false)
   const mountedRef = useRef(true)
+  const hasShownLaunchToastRef = useRef(false)
+  const lastResumeCheckRef = useRef<number>(0)
 
   useEffect(() => {
     if (!user?.id) return
+
+    // Check for accumulated unread notifications and show a summary toast
+    const checkUnreadOnLaunch = async () => {
+      if (!user?.id || !mountedRef.current) return
+      try {
+        const { count, error } = await supabase
+          .from('notifications')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .is('read_at', null)
+
+        if (error || !count || count === 0) return
+
+        toast.show(`You have ${count} unread notification${count > 1 ? 's' : ''}`, {
+          message: 'Tap to view your notifications',
+          native: false,
+          action: {
+            altText: 'View',
+            label: 'View',
+            onPress: () => {
+              // Emit badge refresh to ensure counts are current
+              emitBadgeRefresh()
+            },
+          },
+        })
+      } catch (err) {
+        console.warn('[SystemChannel] Failed to check unread notifications:', err)
+      }
+    }
 
     const subscribe = () => {
       if (isSubscribedRef.current || !user?.id) return
@@ -140,6 +171,11 @@ export function RealtimeNotificationListener() {
       channel.subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           isSubscribedRef.current = true
+          // Show accumulated unreads on first subscribe (app launch)
+          if (!hasShownLaunchToastRef.current) {
+            hasShownLaunchToastRef.current = true
+            checkUnreadOnLaunch()
+          }
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           isSubscribedRef.current = false
         }
@@ -165,6 +201,13 @@ export function RealtimeNotificationListener() {
       appStateSub = AppState.addEventListener('change', (state) => {
         if (state === 'active') {
           subscribe()
+          // Re-check unreads on resume (throttled to once per 30s)
+          const now = Date.now()
+          if (now - lastResumeCheckRef.current > 30_000) {
+            lastResumeCheckRef.current = now
+            checkUnreadOnLaunch()
+          }
+          emitBadgeRefresh()
         } else if (state === 'background' || state === 'inactive') {
           unsubscribe()
         }
@@ -177,6 +220,13 @@ export function RealtimeNotificationListener() {
       handleVisibility = () => {
         if (document.visibilityState === 'visible') {
           subscribe()
+          // Re-check unreads when tab becomes visible (throttled)
+          const now = Date.now()
+          if (now - lastResumeCheckRef.current > 30_000) {
+            lastResumeCheckRef.current = now
+            checkUnreadOnLaunch()
+          }
+          emitBadgeRefresh()
         } else {
           unsubscribe()
         }

@@ -67,12 +67,12 @@ verifying end-to-end user flows.
 ```
 e2e/maestro/
 ├── runner.yaml               # appId, env vars, ordered flow list
-├── flows/                    # 24 emulator-safe flows (run on emulator + device)
+├── flows/                    # Emulator-safe flows (run on emulator + device)
 │   ├── login.yaml
 │   ├── feed-navigation.yaml
 │   ├── hamburger-menu.yaml
 │   ├── buy-points.yaml
-│   ├── create-post.yaml
+│   ├── create-post.yaml            # Includes neighbor zone selector check
 │   ├── order-flow.yaml
 │   ├── order-lifecycle.yaml
 │   ├── orders.yaml
@@ -91,7 +91,9 @@ e2e/maestro/
 │   ├── refund-points.yaml
 │   ├── refund-options.yaml
 │   ├── venmo-refund.yaml
-│   └── transaction-history.yaml
+│   ├── transaction-history.yaml
+│   ├── compliance-produce.yaml     # Compliance: produce classification
+│   └── compliance-transaction-history.yaml # Compliance: receipts + balances
 ├── flows-device-only/        # Flows requiring physical device hardware
 │   └── camera-upload.yaml    # Needs real camera/photo library
 └── utils/
@@ -185,7 +187,7 @@ e2e/playwright/
 │   ├── feed.spec.ts           # Feed page: posts, navigation
 │   ├── feed-filters.spec.ts   # Feed filter tabs (All, For Sale, Wanted)
 │   ├── create-post.spec.ts    # Create post form basics
-│   ├── create-post-full.spec.ts # Full create post flow
+│   ├── create-post-full.spec.ts # Full create post flow + neighbor zones
 │   ├── profile.spec.ts        # Profile screen
 │   ├── chat.spec.ts           # Chat list
 │   ├── chat-conversation.spec.ts  # Chat conversation details
@@ -197,8 +199,15 @@ e2e/playwright/
 │   ├── order-flow.spec.ts     # Order/Offer button visibility
 │   ├── invite.spec.ts         # Invite modal and share links
 │   ├── login.spec.ts          # Login flow (OTP, errors)
-│   ├── hamburger-menu.spec.ts # Hamburger menu: items, Profile→/profile, no Transfer Points
-│   └── points.spec.ts         # Points (buy/redeem) flow
+│   ├── hamburger-menu.spec.ts # Hamburger menu items
+│   ├── points.spec.ts         # Points (buy/redeem) flow
+│   ├── notification-badges.spec.ts  # Bell panel, badge clearing
+│   ├── notifications.spec.ts  # Push notification prompt UI
+│   ├── transaction-history.spec.ts  # History page + digital receipts
+│   ├── digital-receipts.spec.ts     # Receipt RPC compliance (FL footer)
+│   ├── compliance-receipts.spec.ts  # Receipt compliance checks
+│   ├── compliance-limits.spec.ts    # Purchase limit enforcement
+│   └── wallet-refund.spec.ts  # Wallet refund (disabled via describe.skip)
 └── .auth/
     ├── seller.json            # Seller storage state (auto-generated)
     └── buyer.json             # Buyer storage state (auto-generated)
@@ -259,10 +268,15 @@ npx playwright test --config=e2e/playwright/playwright.config.ts --last-failed
 ### Pre-Push (Husky)
 
 - **Trigger**: `git push`
-- **Action**: Runs full Jest test suite with `--bail`.
-- **Goal**: Prevent regressions in all app features.
-- **Note**: Edge function tests (Deno) and E2E tests (Playwright, Maestro) run
-  separately — see commands above.
+- **Action**: Full 5-phase test pipeline:
+  1. **Jest unit tests** (Community App + Community Voice)
+  2. **Supabase infrastructure** check (auto-start, seed verification)
+  3. **Deno integration tests** (edge function compliance)
+  4. **Playwright E2E** (all web specs for seller + buyer projects)
+  5. **Maestro E2E** (all mobile flows on Android emulator)
+- **Goal**: Prevent regressions across unit, integration, and E2E layers.
+- **Note**: Android emulator is shut down during Playwright phase to free
+  resources, then rebooted for Maestro. See `.husky/pre-push` for details.
 
 ## 4. Configuration Details
 

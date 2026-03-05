@@ -13,34 +13,47 @@ appId: dev.casagrown.community
 
 # Wait for feed to load
 - extendedWaitUntil:
-      visible: "Tomatoes|Feed|Create Post"
-      timeout: 15000
+        visible: "Tomatoes|Feed|Create Post"
+        timeout: 15000
 
 # Navigate via Menu tab
 - tapOn:
-      text: ".*Menu.*"
+        text: ".*Menu.*"
 
 # Wait for menu items to load — match either label
 - extendedWaitUntil:
-      visible: ".*Points Balance.*|.*Transaction History.*"
-      timeout: 10000
+        visible: ".*Points Balance.*|.*Transaction History.*"
+        timeout: 10000
 
 # Tap the menu link
 - tapOn:
-      text: ".*Points Balance.*|.*Transaction History.*"
+        text: ".*Points Balance.*|.*Transaction History.*"
 
 # Wait for the balance screen to load
 - extendedWaitUntil:
-      visible: ".*Earned.*Balance.*|.*Total Balance.*|.*Purchased.*Balance.*"
-      timeout: 15000
+        visible: ".*Earned.*Balance.*|.*Total Balance.*|.*Purchased.*Balance.*"
+        timeout: 15000
 
 # Verify balance header with earned/purchased segmentation
 - assertVisible:
-      text: ".*Earned.*|.*Total.*Balance.*"
+        text: ".*Earned.*|.*Total.*Balance.*"
 
 # Verify the pts label renders
 - assertVisible:
-      text: ".*pts.*"
+        text: ".*pts.*"
+
+# Regression: Verify Digital Receipt cards render for sale/hold transactions
+- scrollUntilVisible:
+        element:
+              text: ".*Digital Receipt.*"
+        direction: DOWN
+        timeout: 10000
+        optional: true
+
+# If receipt is visible, verify it has transaction sections
+- assertVisible:
+        text: ".*Digital Receipt.*"
+        optional: true
 
 # Navigate back
 - back

@@ -14,8 +14,9 @@ import { useMedia } from 'tamagui'
 import { useTranslation } from 'react-i18next'
 import { normalizeStorageUrl } from '../../utils/normalize-storage-url'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { DeviceEventEmitter } from 'react-native'
 import { colors } from '../../design-tokens'
-import { useNotifications } from '../notifications/useNotifications'
+import { useNotificationContext } from '../notifications/NotificationContext'
 import { NotificationPanel } from '../notifications/NotificationPanel'
 
 const NAV_KEYS_BASE = [
@@ -81,7 +82,7 @@ export function AppHeader({ activeKey = 'feed' }: { activeKey?: string }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [notifPanelOpen, setNotifPanelOpen] = useState(false)
   
-  const { unreadCount: unreadNotificationsCount } = useNotifications(user?.id)
+  const { unreadCount: unreadNotificationsCount } = useNotificationContext()
 
   useEffect(() => {
     if (!user?.id) return
@@ -109,6 +110,22 @@ export function AppHeader({ activeKey = 'feed' }: { activeKey?: string }) {
       }
     }
     fetchCounts()
+
+    // Re-fetch counts on badge-refresh events (from RealtimeNotificationListener)
+    const handleBadgeRefresh = () => fetchCounts()
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.addEventListener('casagrown:badge-refresh', handleBadgeRefresh)
+    }
+    const nativeSub = Platform.OS !== 'web'
+      ? DeviceEventEmitter.addListener('casagrown:badge-refresh', handleBadgeRefresh)
+      : null
+
+    return () => {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.removeEventListener('casagrown:badge-refresh', handleBadgeRefresh)
+      }
+      nativeSub?.remove()
+    }
   }, [user?.id])
 
   const NAV_KEYS = useMemo(() =>

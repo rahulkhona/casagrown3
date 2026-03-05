@@ -34,6 +34,13 @@ values (
 )
 on conflict (h3_index) do nothing;
 
+-- Neighboring communities for delivery zone selection
+insert into public.communities (h3_index, name, city, state, country, location)
+values
+  ('89283470c6fffff', 'Rose Garden', 'San Jose', 'California', 'USA', 'POINT(-121.93 37.33)'),
+  ('89283470cafffff', 'Cambrian Park', 'San Jose', 'California', 'USA', 'POINT(-121.93 37.26)')
+on conflict (h3_index) do nothing;
+
 -- 6. Launch Campaign (replaces legacy incentive_rules)
 INSERT INTO public.incentive_campaigns (id, name, description, starts_at, ends_at, is_active)
 VALUES (
@@ -197,15 +204,18 @@ INSERT INTO auth.identities (
 INSERT INTO public.profiles (
   id, email, full_name, home_community_h3_index, referral_code,
   phone_verified, tos_accepted_at,
-  zip_code, street_address, city, state_code, phone_number
+  zip_code, street_address, city, state_code, phone_number,
+  nearby_community_h3_indices
 )
 VALUES
   ('a1111111-1111-1111-1111-111111111111', 'seller@test.local', 'Test Seller',
    '89283470c2fffff', 'SELLER01', true, NOW(),
-   '95125', '973 Wallace Dr', 'San Jose', 'CA', '+14085551234'),
+   '95125', '973 Wallace Dr', 'San Jose', 'CA', '+14085551234',
+   ARRAY['89283470c6fffff', '89283470cafffff']),
   ('b2222222-2222-2222-2222-222222222222', 'buyer@test.local', 'Test Buyer',
    '89283470c2fffff', 'BUYER01', false, NOW(),
-   '95120', '123 Main St', 'San Jose', 'CA', '+14085555678')
+   '95120', '123 Main St', 'San Jose', 'CA', '+14085555678',
+   ARRAY['89283470c6fffff', '89283470cafffff'])
 ON CONFLICT (id) DO UPDATE SET
   full_name = EXCLUDED.full_name,
   home_community_h3_index = EXCLUDED.home_community_h3_index,
@@ -216,7 +226,8 @@ ON CONFLICT (id) DO UPDATE SET
   street_address = EXCLUDED.street_address,
   city = EXCLUDED.city,
   state_code = EXCLUDED.state_code,
-  phone_number = EXCLUDED.phone_number;
+  phone_number = EXCLUDED.phone_number,
+  nearby_community_h3_indices = EXCLUDED.nearby_community_h3_indices;
 
 -- Seed points for both users (enough for test transactions)
 -- Using 2000 to ensure enough points after cashout test (−500 pts) for the

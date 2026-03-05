@@ -1035,7 +1035,7 @@ function TransactionCard({
         </YStack>
       )}
       {/* Digital Receipt details */}
-      {tx.receipt && (
+      {((tx.receipt) || ((tx.type === 'sale_credit' || tx.type === 'hold') && tx.receiptProduct)) && (
         <ReceiptCard
           variant="card"
           data={{

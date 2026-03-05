@@ -41,6 +41,22 @@ appId: dev.casagrown.community
 - assertVisible:
           text: ".*Product.*"
 
+# Regression: Verify neighbor zone selector appears (requires seeded DB with neighbors)
+- scrollUntilVisible:
+          element:
+                  text: ".*Also post to.*|.*adjacent communities.*"
+          direction: DOWN
+          timeout: 10000
+          optional: true
+
+# If neighbor section loaded, verify community pills
+- assertVisible:
+          text: ".*Rose Garden.*"
+          optional: true
+- assertVisible:
+          text: ".*Cambrian Park.*"
+          optional: true
+
 # Go back to type selection
 - tapOn: "Back"
 

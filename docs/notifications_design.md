@@ -78,10 +78,21 @@ and fans out the payload:
 
 ## In-App Realtime Component
 
+### `NotificationContext.tsx` (Shared State)
+
+All notification consumers (`AppHeader`, `MobileTabHeader`, `NotificationPanel`)
+share a single state via React Context. This prevents the bug where multiple
+independent `useNotifications()` instances held separate states, causing badges
+to not clear when notifications were read.
+
+- **`NotificationProvider`** wraps the app in `provider/index.tsx`
+- **`useNotificationContext()`** hook consumed by all UI components
+- Internally delegates to `useNotifications(userId)` as a single instance
+
 ### `RealtimeNotificationListener.tsx`
 
-A global context component instantiated at the Root App Layout level when a user
-logs in. **Simplified in March 2026** to subscribe only to `notifications` table
+A global component instantiated at the Root App Layout level when a user logs
+in. **Simplified in March 2026** to subscribe only to `notifications` table
 `INSERT` events via Supabase Realtime. When a new notification row is inserted,
 the listener triggers a toast via `useToastController().show(...)`.
 
@@ -89,14 +100,31 @@ Previous per-channel listeners (`messages`, `orders`, `delegations`) have been
 replaced by a unified flow: backend triggers write to the `notifications` table,
 and the single listener picks up all events.
 
+#### On-Launch Unread Toast
+
+When the listener mounts (or the app resumes from background), it queries for
+recent unread notifications and shows a summary toast (e.g., "You have 3 unread
+notifications"). This runs once per session via `hasShownLaunchToastRef` and is
+throttled to 30 seconds on app resume to avoid duplicate toasts.
+
+#### Badge Refresh Events
+
+When a new notification arrives, the listener emits a `casagrown:badge-refresh`
+event via `window.dispatchEvent` (web) and `DeviceEventEmitter.emit` (native).
+Both `AppHeader` and the Expo `TabLayout` listen for this event and re-fetch
+chat, order, and offer counts.
+
 ### `useNotifications.ts` Hook
 
-Central hook for managing notification state across web and mobile:
+Internal hook for managing notification state (used by `NotificationContext`):
 
 - **Fetches** the 50 most recent notifications on mount
 - **Subscribes** to Realtime `INSERT` events and prepends new notifications
 - **Provides** `markAsRead(id)`, `markAllAsRead()`, `clearAll()`
 - **Exposes** `unreadNotificationsCount` for badge rendering
+
+> **Note:** Do not call `useNotifications()` directly in UI components. Use
+> `useNotificationContext()` from `NotificationContext.tsx` instead.
 
 ### `NotificationPanel.tsx`
 

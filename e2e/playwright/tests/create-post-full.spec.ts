@@ -362,4 +362,68 @@ test.describe("Create Post - Full Flow", () => {
         const bodyText = await page.locator("body").textContent();
         expect(bodyText?.toLowerCase()).not.toContain("escrow");
     });
+
+    // =========================================
+    // Regression: Neighboring Zones Selector
+    // =========================================
+
+    test("sell form shows neighbor zone selector with adjacent communities", async ({ page }) => {
+        const ok = await gotoWithAuth(page, "/create-post");
+        if (!ok) {
+            test.skip();
+            return;
+        }
+
+        await page.locator("text=Looking to Sell").first().click();
+        await page.waitForTimeout(2000);
+
+        // Community section should be visible
+        const hasCommunity = await page
+            .locator("text=Community")
+            .first()
+            .isVisible({ timeout: 5_000 })
+            .catch(() => false);
+
+        if (!hasCommunity) {
+            test.skip();
+            return;
+        }
+
+        // Check if the neighbor zone section is present
+        // It only renders when nearby_community_h3_indices is populated in the profile
+        const hasNeighborLabel = await page
+            .locator("text=/Also post to|adjacent communities/i")
+            .first()
+            .isVisible({ timeout: 5_000 })
+            .catch(() => false);
+
+        if (!hasNeighborLabel) {
+            // Neighbor data not seeded yet — skip gracefully
+            // After `supabase db reset` with updated seed.sql, this test will assert
+            test.skip();
+            return;
+        }
+
+        // Scroll into view
+        await page
+            .locator("text=/Also post to|adjacent communities/i")
+            .first()
+            .scrollIntoViewIfNeeded();
+
+        // Should show Rose Garden and/or Cambrian Park pills
+        const hasRoseGarden = await page
+            .locator("text=Rose Garden")
+            .first()
+            .isVisible({ timeout: 3_000 })
+            .catch(() => false);
+
+        const hasCambrianPark = await page
+            .locator("text=Cambrian Park")
+            .first()
+            .isVisible({ timeout: 3_000 })
+            .catch(() => false);
+
+        // At least one neighbor community should be visible
+        expect(hasRoseGarden || hasCambrianPark).toBeTruthy();
+    });
 });

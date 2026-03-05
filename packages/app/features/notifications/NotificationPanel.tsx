@@ -3,7 +3,8 @@ import { YStack, XStack, Text, ScrollView, Separator, Spinner } from 'tamagui'
 import { TouchableOpacity, Platform } from 'react-native'
 import { Check, Trash2, X, Bell } from '@tamagui/lucide-icons'
 import { colors } from '../../design-tokens'
-import { useNotifications, type Notification } from './useNotifications'
+import { type Notification } from './useNotifications'
+import { useNotificationContext } from './NotificationContext'
 import { useRouter } from 'solito/navigation'
 
 function formatTimeAgo(dateString: string): string {
@@ -68,10 +69,10 @@ function NotificationItem({ notification, onPress }: NotificationItemProps) {
 interface NotificationPanelProps {
   visible: boolean
   onClose: () => void
-  userId: string | undefined
+  userId?: string | undefined
 }
 
-export function NotificationPanel({ visible, onClose, userId }: NotificationPanelProps) {
+export function NotificationPanel({ visible, onClose }: NotificationPanelProps) {
   const {
     notifications,
     unreadCount,
@@ -79,7 +80,7 @@ export function NotificationPanel({ visible, onClose, userId }: NotificationPane
     markAsRead,
     markAllAsRead,
     clearAll,
-  } = useNotifications(userId)
+  } = useNotificationContext()
   const router = useRouter()
 
   if (!visible) return null

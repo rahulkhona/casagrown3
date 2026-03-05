@@ -13,6 +13,7 @@ import { ToastProvider, ToastViewport } from '@casagrown/ui'
 import { CustomToast } from '@casagrown/ui'
 import { WebPushListener } from '../features/notifications/WebPushListener'
 import { RealtimeNotificationListener } from '../features/notifications/RealtimeNotificationListener'
+import { NotificationProvider } from '../features/notifications/NotificationContext'
 
 // Only import Stripe on native — the package contains RN-only code that breaks Next.js
 let StripeProvider: any = null
@@ -39,7 +40,9 @@ export function Provider({
     <TamaguiProvider config={config} defaultTheme={theme} {...rest}>
       <ToastProvider swipeDirection="horizontal" duration={5000}>
         <SupabaseProvider>
-          {children}
+          <NotificationProvider>
+            {children}
+          </NotificationProvider>
           <CustomToast />
           <ToastViewport 
             left={0} 

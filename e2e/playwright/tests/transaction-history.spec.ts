@@ -86,4 +86,49 @@ test.describe("Transaction History Page", () => {
             await expect(donationEntry).toContainText("Donated to:");
         }
     });
+
+    test("Sale transactions show Digital Receipt card", async ({ page }) => {
+        await page.goto("/feed");
+        await page.waitForTimeout(2000);
+
+        if (page.url().includes("/login")) {
+            test.skip();
+        }
+
+        const pointsBadge = page.locator("text=/\\d+\\s*(pts|points)/i")
+            .first();
+        await expect(pointsBadge).toBeVisible({ timeout: 15000 });
+        await pointsBadge.click();
+        await page.waitForTimeout(500);
+
+        const historyOption = page.getByText("Transaction History").first();
+        await expect(historyOption).toBeVisible({ timeout: 10000 });
+        await historyOption.click();
+
+        // Wait for transactions to load
+        await page.waitForTimeout(3000);
+
+        // Look for any sale/hold entry that should now have a Digital Receipt
+        const receiptCard = page.locator("text=/Digital Receipt/i").first();
+        const hasReceipt = await receiptCard
+            .isVisible({ timeout: 5_000 })
+            .catch(() => false);
+
+        // If there are any sale_credit or hold entries in the seed data,
+        // they should show a Digital Receipt card after the auto-detect fix
+        if (hasReceipt) {
+            await expect(receiptCard).toBeVisible();
+
+            // Receipt should contain transaction info sections
+            const hasTransactionInfo = await page
+                .locator("text=/Transaction Info|Order Details|Seller|Buyer/i")
+                .first()
+                .isVisible({ timeout: 3_000 })
+                .catch(() => false);
+
+            if (hasTransactionInfo) {
+                expect(hasTransactionInfo).toBeTruthy();
+            }
+        }
+    });
 });

@@ -8,7 +8,7 @@ import { useAuth } from '../auth/auth-hook'
 import { usePointsBalance } from '../../hooks/usePointsBalance'
 import { colors } from '../../design-tokens'
 import { PointsMenu } from '../points/PointsMenu'
-import { useNotifications } from '../notifications/useNotifications'
+import { useNotificationContext } from '../notifications/NotificationContext'
 import { NotificationPanel } from '../notifications/NotificationPanel'
 
 export function MobileTabHeader() {
@@ -16,7 +16,7 @@ export function MobileTabHeader() {
   const router = useRouter()
   const { user } = useAuth()
   const { balance: userPoints } = usePointsBalance(user?.id)
-  const { unreadCount } = useNotifications(user?.id)
+  const { unreadCount } = useNotificationContext()
   const [notifPanelOpen, setNotifPanelOpen] = useState(false)
   
   if (Platform.OS === 'web') return null
