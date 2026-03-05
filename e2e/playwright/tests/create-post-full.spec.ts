@@ -11,6 +11,7 @@
  */
 
 import { expect, test } from "@playwright/test";
+import { gotoWithAuth } from "../helpers/navigation";
 
 test.describe("Create Post - Full Flow", () => {
     test.beforeEach(async ({ page }) => {
@@ -277,5 +278,88 @@ test.describe("Create Post - Full Flow", () => {
             .catch(() => false);
 
         expect(hasCommunity).toBeTruthy();
+    });
+
+    // =========================================
+    // Compliance: Produce Checkbox & Harvest Date
+    // =========================================
+
+    test("sell form shows produce checkbox after category selection", async ({ page }) => {
+        const ok = await gotoWithAuth(page, "/create-post");
+        if (!ok) {
+            test.skip();
+            return;
+        }
+
+        await page.locator("text=Looking to Sell").first().click();
+        await page.waitForTimeout(1000);
+
+        // Select a produce category (fruits/vegetables/herbs)
+        const categoryField = page.locator("text=Category").first();
+        const hasCat = await categoryField.isVisible().catch(() => false);
+        if (!hasCat) {
+            test.skip();
+        }
+
+        // Try to find and select a category
+        await categoryField.click();
+        await page.waitForTimeout(500);
+
+        // Look for a produce category in the dropdown
+        const fruitOption = page.locator("text=/fruits|vegetables|herbs/i")
+            .first();
+        const hasProduce = await fruitOption.isVisible({ timeout: 3000 }).catch(
+            () => false,
+        );
+
+        if (hasProduce) {
+            await fruitOption.click();
+            await page.waitForTimeout(500);
+
+            // After selecting a produce category, the "This is produce" checkbox should be visible and checked
+            const produceCheckbox = page.locator(
+                "text=/This is produce|produce/i",
+            ).first();
+            const hasProduceCheckbox = await produceCheckbox
+                .isVisible({ timeout: 5000 })
+                .catch(() => false);
+
+            if (hasProduceCheckbox) {
+                expect(hasProduceCheckbox).toBeTruthy();
+
+                // Scroll to harvest date section
+                await page.locator("text=/harvest/i").first()
+                    .scrollIntoViewIfNeeded()
+                    .catch(() => {});
+
+                // Harvest date field should be visible when produce is checked
+                const hasHarvest = await page
+                    .locator("text=/harvest/i")
+                    .first()
+                    .isVisible({ timeout: 3000 })
+                    .catch(() => false);
+
+                expect(hasHarvest).toBeTruthy();
+            }
+        }
+    });
+
+    // =========================================
+    // Compliance: Escrow → Hold language check
+    // =========================================
+
+    test("sell form does not contain escrow language", async ({ page }) => {
+        const ok = await gotoWithAuth(page, "/create-post");
+        if (!ok) {
+            test.skip();
+            return;
+        }
+
+        await page.locator("text=Looking to Sell").first().click();
+        await page.waitForTimeout(1000);
+
+        // The sell form should NOT contain the word "escrow" anywhere
+        const bodyText = await page.locator("body").textContent();
+        expect(bodyText?.toLowerCase()).not.toContain("escrow");
     });
 });

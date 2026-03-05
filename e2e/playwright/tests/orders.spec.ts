@@ -27,13 +27,14 @@ import { expect, test } from "@playwright/test";
 
 /** Navigate to Orders page and wait for it to load */
 async function goToOrders(page: import("@playwright/test").Page) {
-    await page.goto("/orders");
-    // Wait for either order cards or empty state
+    await page.goto("/orders", { waitUntil: "domcontentloaded" });
+    // Wait for order cards to load (may take time under load)
+    await page.waitForTimeout(3000);
     await page
         .locator("[data-testid^='order-card-']")
         .or(page.getByText(/No open orders/i))
         .first()
-        .waitFor({ timeout: 15_000 });
+        .waitFor({ timeout: 20_000 });
 }
 
 /** Find an order card by product name */
@@ -72,10 +73,16 @@ test.describe("Orders — Seller perspective", () => {
 
     test("shows all order cards on the Open tab", async ({ page }) => {
         // Open tab should show pending, accepted, delivered, disputed orders
-        await expect(orderCard(page, "Peppers")).toBeVisible();
-        await expect(orderCard(page, "Tomatoes")).toBeVisible();
-        await expect(orderCard(page, "Strawberries")).toBeVisible();
-        await expect(orderCard(page, "Basil")).toBeVisible();
+        await expect(orderCard(page, "Peppers")).toBeVisible({
+            timeout: 10_000,
+        });
+        await expect(orderCard(page, "Tomatoes")).toBeVisible({
+            timeout: 5_000,
+        });
+        await expect(orderCard(page, "Strawberries")).toBeVisible({
+            timeout: 5_000,
+        });
+        await expect(orderCard(page, "Basil")).toBeVisible({ timeout: 5_000 });
     });
 
     test("shows completed and cancelled on Past tab", async ({ page }) => {
@@ -166,8 +173,12 @@ test.describe("Orders — Buyer perspective", () => {
 
     test("shows order cards for buyer", async ({ page }) => {
         // Buyer is buyer on Tomatoes, Strawberries
-        await expect(orderCard(page, "Tomatoes")).toBeVisible();
-        await expect(orderCard(page, "Strawberries")).toBeVisible();
+        await expect(orderCard(page, "Tomatoes")).toBeVisible({
+            timeout: 10_000,
+        });
+        await expect(orderCard(page, "Strawberries")).toBeVisible({
+            timeout: 5_000,
+        });
     });
 
     test("order cards show correct statuses", async ({ page }) => {

@@ -38,7 +38,7 @@ stateDiagram-v2
     pending --> withdrawn : Seller withdraws
     pending --> pending : Seller modifies\n(version bump)
 
-    accepted --> [*] : Order created\n+ Points escrowed
+    accepted --> [*] : Order created\n+ Points holded
     rejected --> [*]
     withdrawn --> [*]
 ```
@@ -60,7 +60,7 @@ sequenceDiagram
         B->>DB: accept_offer_atomic(offer_id, address, qty)
         DB->>DB: offer.status → accepted
         DB->>DB: Create order (pending)
-        DB->>DB: Escrow buyer's points
+        DB->>DB: Hold buyer's points
         DB->>DB: Insert buyer chat message
     else Buyer Rejects
         B->>DB: reject_offer_with_message(offer_id)
@@ -82,7 +82,7 @@ sequenceDiagram
 | Function                      | Actor  | Status   | Purpose                                                       |
 | :---------------------------- | :----- | :------- | :------------------------------------------------------------ |
 | `create_offer_atomic`         | Seller | ✅ Built | Creates conversation + offer + seller chat message atomically |
-| `accept_offer_atomic`         | Buyer  | ✅ Built | Accepts offer, creates order, escrows points, buyer message   |
+| `accept_offer_atomic`         | Buyer  | ✅ Built | Accepts offer, creates order, holds points, buyer message   |
 | `reject_offer_with_message`   | Buyer  | ✅ Built | Rejects offer, inserts system message                         |
 | `withdraw_offer_with_message` | Seller | ✅ Built | Withdraws pending offer, inserts system message               |
 | `modify_offer_with_message`   | Seller | ✅ Built | Modifies pending offer (qty/price/dates/media), bumps version |
@@ -118,7 +118,7 @@ sequenceDiagram
 6. Check buyer's point balance ≥ total price
 7. Mark offer as `accepted`
 8. Create order in `pending` status
-9. Escrow buyer's points (type=`escrow`)
+9. Hold buyer's points (type=`hold`)
 10. Insert buyer chat message ("✅ Offer accepted! Order placed: ...")
 11. Return `{ orderId, conversationId, newBalance }`
 
@@ -159,8 +159,8 @@ Orders are created either:
 
 | Status      | Description                                                                            |
 | :---------- | :------------------------------------------------------------------------------------- |
-| `pending`   | Order placed by buyer. Points escrowed. Awaiting seller acceptance.                    |
-| `accepted`  | Seller has accepted the order. Points still in escrow. Delivery expected.              |
+| `pending`   | Order placed by buyer. Points holded. Awaiting seller acceptance.                    |
+| `accepted`  | Seller has accepted the order. Points still in hold. Delivery expected.              |
 | `delivered` | Seller marked delivery complete. Buyer confirms, or auto-confirms after timeout.       |
 | `disputed`  | Buyer raised a dispute. Escalation flow begins.                                        |
 | `cancelled` | Order cancelled (by buyer before acceptance, or by seller declining). Points refunded. |
@@ -188,16 +188,16 @@ stateDiagram-v2
 
 ---
 
-## Point Flow (Escrow Model)
+## Point Flow (Hold Model)
 
 Points are **never transferred directly** between buyer and seller. Instead they
-flow through an escrow pattern tied to the order lifecycle.
+flow through an hold pattern tied to the order lifecycle.
 
 ### Point Transaction Types
 
 | Type      | When                                            | Amount      | Description                   |
 | :-------- | :---------------------------------------------- | :---------- | :---------------------------- |
-| `escrow`  | Order placed (`pending`)                        | −N (buyer)  | Buyer's points held in escrow |
+| `hold`  | Order placed (`pending`)                        | −N (buyer)  | Buyer's points held in hold |
 | `payment` | Order completed (delivered + confirmed)         | +N (seller) | Seller receives points        |
 | `refund`  | Order cancelled or dispute resolved with refund | +N (buyer)  | Points returned to buyer      |
 
@@ -206,10 +206,10 @@ flow through an escrow pattern tied to the order lifecycle.
 ```mermaid
 sequenceDiagram
     participant B as Buyer
-    participant E as Escrow (point_ledger)
+    participant E as Hold (point_ledger)
     participant S as Seller
 
-    B->>E: Place order (−100 pts, type=escrow)
+    B->>E: Place order (−100 pts, type=hold)
     Note over E: Points held until resolution
 
     alt Seller Accepts → Delivered → Confirmed
@@ -227,7 +227,7 @@ sequenceDiagram
 
 - **Actor:** Seller
 - **RPC function:** `accept_order_versioned(order_id, expected_version)`
-- **Point action:** None — points remain in escrow
+- **Point action:** None — points remain in hold
 - **Version check:** Returns `VERSION_MISMATCH` if buyer modified the order
   since seller last viewed it
 - **Side effects:** System message in conversation (with unit), reduces
@@ -260,23 +260,23 @@ sequenceDiagram
 ### `accepted` → `disputed`
 
 - **Actor:** Buyer (if seller hasn't delivered by expected date)
-- **Point action:** None — points remain in escrow pending resolution
+- **Point action:** None — points remain in hold pending resolution
 - **Side effects:** Escalation record created
 
 ### `delivered` → confirmed (terminal)
 
 - **Actor:** Buyer confirms, or auto-confirm after timeout (e.g. 48h)
 - **RPC function:** `confirm_order_delivery(order_id, buyer_id)`
-- **Point action:** Release escrow to seller minus 10% platform fee
+- **Point action:** Release hold to seller minus 10% platform fee
   (type=`payment`, +N points; type=`platform_fee`, −fee)
 - **Side effects:** Role-specific system messages with `visible_to` metadata:
-  buyer sees escrow release confirmation, seller sees payout details
+  buyer sees hold release confirmation, seller sees payout details
 
 ### `delivered` → `disputed`
 
 - **Actor:** Buyer (wrong item, quality issue, etc.)
 - **RPC function:** `create_escalation(order_id, buyer_id, reason, proof_url)`
-- **Point action:** None — points remain in escrow pending resolution
+- **Point action:** None — points remain in hold pending resolution
 - **Side effects:** Escalation record created, delivery proof reviewed
 
 ### `disputed` → resolved (terminal)
@@ -297,7 +297,7 @@ sequenceDiagram
 | :-------------- | :-------------------------------------------- |
 | `offers`        | Offer record with lifecycle status            |
 | `orders`        | Primary order record with `status` field      |
-| `point_ledger`  | All point movements (escrow, payment, refund) |
+| `point_ledger`  | All point movements (hold, payment, refund) |
 | `conversations` | Chat thread between buyer and seller          |
 | `chat_messages` | System messages for offer/order events        |
 | `escalations`   | Dispute records                               |
@@ -312,7 +312,7 @@ sequenceDiagram
 | Function                      | Status   | Type    | Purpose                                               |
 | :---------------------------- | :------- | :------ | :---------------------------------------------------- |
 | `create_offer_atomic`         | ✅ Built | SQL RPC | Creates conversation + offer + seller message         |
-| `accept_offer_atomic`         | ✅ Built | SQL RPC | Accepts offer, creates order, escrows points          |
+| `accept_offer_atomic`         | ✅ Built | SQL RPC | Accepts offer, creates order, holds points          |
 | `reject_offer_with_message`   | ✅ Built | SQL RPC | Rejects offer, system message                         |
 | `withdraw_offer_with_message` | ✅ Built | SQL RPC | Withdraws pending offer, system message               |
 | `modify_offer_with_message`   | ✅ Built | SQL RPC | Modifies pending offer, bumps version, seller message |
@@ -321,12 +321,12 @@ sequenceDiagram
 
 | Function                           | Status   | Type      | Purpose                                     |
 | :--------------------------------- | :------- | :-------- | :------------------------------------------ |
-| `create-order`                     | ✅ Built | Edge func | Places order, escrows buyer points          |
+| `create-order`                     | ✅ Built | Edge func | Places order, holds buyer points          |
 | `accept_order_versioned`           | ✅ Built | SQL RPC   | Seller accepts with version check           |
 | `reject_order_versioned`           | ✅ Built | SQL RPC   | Seller declines, refunds buyer              |
 | `cancel_order_with_message`        | ✅ Built | SQL RPC   | Cancel by buyer or seller, refunds buyer    |
 | `mark_delivered`                   | ✅ Built | SQL RPC   | Seller marks delivered with proof           |
-| `confirm_order_delivery`           | ✅ Built | SQL RPC   | Buyer confirms receipt, releases escrow     |
+| `confirm_order_delivery`           | ✅ Built | SQL RPC   | Buyer confirms receipt, releases hold     |
 | `create_escalation`                | ✅ Built | SQL RPC   | Buyer disputes order                        |
 | `create_refund_offer`              | ✅ Built | SQL RPC   | Counter-offer during dispute                |
 | `accept_refund_offer_with_message` | ✅ Built | SQL RPC   | Accept refund, close escalation             |
@@ -341,7 +341,7 @@ sequenceDiagram
   `OrderSheet.tsx` (sell posts) or via `accept_offer_atomic` RPC (buy posts)
 - The `OrderSheet` shows a "Buy Points & Submit" flow when buyer has
   insufficient balance
-- Points are escrowed immediately at order creation to prevent double-spending
+- Points are holded immediately at order creation to prevent double-spending
 - All lifecycle transitions use SQL RPC functions with `SECURITY DEFINER` and
   `FOR UPDATE` row-level locking to prevent race conditions
 - Optimistic locking via `version` column prevents stale accept/reject when

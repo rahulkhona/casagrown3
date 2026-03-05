@@ -734,7 +734,7 @@ export default function PostPage() {
                   Why Use a Points System?
                 </Text>
                 <Text fontSize={15} color={colors.gray[300]} textAlign="center" lineHeight={24} opacity={0.95} maxWidth={680}>
-                  Our closed-loop point system minimizes payment processing fees and keeps more money in your community. Points are available instantly (unlike credit cards that take 2-5 days), making escrow and returns seamless. Buy points once, trade with neighbors, and redeem for gift cards or donate to charity.
+                  Our closed-loop point system minimizes payment processing fees and keeps more money in your community. Points are available instantly (unlike credit cards that take 2-5 days), making holds and returns seamless. Buy points once, trade with neighbors, and redeem for gift cards or donate to charity.
                 </Text>
                 <Button
                   size="$4"

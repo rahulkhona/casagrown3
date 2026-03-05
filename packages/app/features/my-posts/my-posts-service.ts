@@ -34,6 +34,8 @@ interface PostQueryRow {
                 unit: string;
                 total_quantity_available: number;
                 points_per_unit: number;
+                is_produce?: boolean;
+                harvest_date?: string | null;
             }
         >
         | null;
@@ -84,6 +86,8 @@ export interface UserPost {
         unit: string;
         total_quantity_available: number;
         points_per_unit: number;
+        is_produce?: boolean;
+        harvest_date?: string | null;
     } | null;
     buy_details: {
         category: string;
@@ -175,7 +179,9 @@ export async function getUserPosts(userId: string): Promise<UserPost[]> {
         produce_name,
         unit,
         total_quantity_available,
-        points_per_unit
+        points_per_unit,
+        is_produce,
+        harvest_date
       ),
       want_to_buy_details (
         category,
@@ -358,7 +364,9 @@ export async function getPostById(postId: string): Promise<UserPost | null> {
         produce_name,
         unit,
         total_quantity_available,
-        points_per_unit
+        points_per_unit,
+        is_produce,
+        harvest_date
       ),
       want_to_buy_details (
         category,
@@ -424,7 +432,9 @@ export async function clonePostData(postId: string): Promise<CloneData> {
         produce_name,
         unit,
         total_quantity_available,
-        points_per_unit
+        points_per_unit,
+        is_produce,
+        harvest_date
       ),
       want_to_buy_details (
         category,
@@ -446,33 +456,30 @@ export async function clonePostData(postId: string): Promise<CloneData> {
         type: data.type,
         content: data.content,
         community_h3_index: data.community_h3_index,
-        sell_details:
-            (data.want_to_sell_details as
-                | Array<
-                    {
-                        category: string;
-                        produce_name: string;
-                        unit: string;
-                        total_quantity_available: number;
-                        points_per_unit: number;
-                    }
-                >
-                | null)?.[0] || null,
-        buy_details:
-            (data.want_to_buy_details as
-                | Array<
-                    {
-                        category: string;
-                        produce_names: string[];
-                        need_by_date: string | null;
-                    }
-                >
-                | null)?.[0] || null,
-        delivery_dates:
-            ((data as unknown as {
-                delivery_dates: Array<{ delivery_date: string }> | null;
-            }).delivery_dates || []).map((d) => d.delivery_date).filter(
-                Boolean,
-            ),
+        sell_details: (data.want_to_sell_details as
+            | Array<
+                {
+                    category: string;
+                    produce_name: string;
+                    unit: string;
+                    total_quantity_available: number;
+                    points_per_unit: number;
+                }
+            >
+            | null)?.[0] || null,
+        buy_details: (data.want_to_buy_details as
+            | Array<
+                {
+                    category: string;
+                    produce_names: string[];
+                    need_by_date: string | null;
+                }
+            >
+            | null)?.[0] || null,
+        delivery_dates: ((data as unknown as {
+            delivery_dates: Array<{ delivery_date: string }> | null;
+        }).delivery_dates || []).map((d) => d.delivery_date).filter(
+            Boolean,
+        ),
     };
 }

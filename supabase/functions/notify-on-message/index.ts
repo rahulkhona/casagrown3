@@ -93,7 +93,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
         title = "CasaGrown";
         let content = message.content || "";
         content = content.replace(
-            /escrowed points released/g,
+            /held points released/g,
             "points debited",
         );
 

@@ -24,7 +24,7 @@ begin
   values (v_offer_id, p_buyer_id, p_seller_id, p_category, p_product, p_quantity, p_points_per_unit, p_delivery_date, p_delivery_instructions, v_conversation_id, 'pending')
   returning id into v_order_id;
   insert into point_ledger (user_id, type, amount, balance_after, reference_id, metadata)
-  values (p_buyer_id, 'escrow', -p_total_price, 0, v_order_id,
+  values (p_buyer_id, 'hold', -p_total_price, 0, v_order_id,
     jsonb_build_object('order_id', v_order_id, 'post_id', p_post_id, 'seller_id', p_seller_id, 'product', p_product, 'quantity', p_quantity, 'points_per_unit', p_points_per_unit));
   insert into chat_messages (conversation_id, sender_id, content, type)
   values (v_conversation_id, p_buyer_id,

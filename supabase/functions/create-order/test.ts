@@ -221,7 +221,7 @@ Deno.test("create-order — happy path: creates order atomically", async () => {
     // 5. Verify response shape
     // Note: new users get 100pt signup reward (campaign_rewards seed),
     // so buyer balance = 0 (baseline) + 100 (signup) + 500 (seeded) = 600
-    // After -30 escrow => 570
+    // After -30 hold => 570
     assertEquals(status, 200);
     assertExists(data.orderId);
     assertExists(data.conversationId);
@@ -266,16 +266,16 @@ Deno.test("create-order — happy path: creates order atomically", async () => {
     assertEquals(offers[0]!.created_by, buyer.userId);
     assertEquals(offers[0]!.status, "pending");
 
-    // 9. Verify escrow ledger entry
-    const escrowEntries = await supabaseRest(
+    // 9. Verify hold ledger entry
+    const holdEntries = await supabaseRest(
         "point_ledger",
         "GET",
         undefined,
-        `user_id=eq.${buyer.userId}&type=eq.escrow&select=*`,
+        `user_id=eq.${buyer.userId}&type=eq.hold&select=*`,
     );
-    assertEquals(escrowEntries.length, 1);
-    assertEquals(escrowEntries[0]!.amount, -30);
-    assertEquals(escrowEntries[0]!.reference_id, orderId);
+    assertEquals(holdEntries.length, 1);
+    assertEquals(holdEntries[0]!.amount, -30);
+    assertEquals(holdEntries[0]!.reference_id, orderId);
 
     // 10. Verify order message in chat (attributed to buyer, type='text')
     const messages = await supabaseRest(

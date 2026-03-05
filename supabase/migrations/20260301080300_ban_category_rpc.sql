@@ -51,7 +51,7 @@ BEGIN
     END IF;
     INSERT INTO chat_messages (conversation_id, sender_id, content, type)
     VALUES (v_order.conversation_id, NULL,
-      '⚠️ This order has been cancelled because the "' || p_category_name || '" category has been restricted. Escrowed points have been refunded to the buyer.', 'system');
+      '⚠️ This order has been cancelled because the "' || p_category_name || '" category has been restricted. Held points have been refunded to the buyer.', 'system');
     INSERT INTO notifications (user_id, content, created_at) VALUES
       (v_order.buyer_id, 'Your order for "' || v_order.product || '" has been cancelled and points refunded. The "' || p_category_name || '" category has been restricted.', now()),
       (v_order.seller_id, 'An order for "' || v_order.product || '" has been cancelled. The "' || p_category_name || '" category has been restricted.', now());

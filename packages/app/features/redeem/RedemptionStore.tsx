@@ -128,6 +128,7 @@ export function RedemptionStore({ onNavigateToFeed }: RedemptionStoreProps) {
     is_active: boolean;
     instruments: { instrument: string; is_active: boolean }[];
   }[]>([])
+  const [blockedMethods, setBlockedMethods] = useState<string[]>([])
 
   useEffect(() => {
     const fetchMethods = () => {
@@ -162,11 +163,56 @@ export function RedemptionStore({ onNavigateToFeed }: RedemptionStoreProps) {
     }
   }, [])
 
+  // Fetch state-based redemption blocks
+  useEffect(() => {
+    if (!user?.id) return
+    ;(async () => {
+      try {
+        // Get user's state from community
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('home_community_h3_index')
+          .eq('id', user.id)
+          .single()
+        if (!profile?.home_community_h3_index) return
+
+        const { data: community } = await supabase
+          .from('communities')
+          .select('state')
+          .eq('h3_index', profile.home_community_h3_index)
+          .single()
+        if (!community?.state) return
+
+        // Query state blocks — state_code is 2-letter abbreviation
+        // Communities store full state name, so we need to look up the state code
+        const { data: stateRow } = await supabase
+          .from('states')
+          .select('code')
+          .eq('name', community.state)
+          .single()
+        if (!stateRow?.code) return
+
+        const { data: blocks } = await supabase
+          .from('state_redemption_method_blocks')
+          .select('method')
+          .eq('state_code', stateRow.code)
+        if (blocks && blocks.length > 0) {
+          setBlockedMethods(blocks.map((b: { method: string }) => b.method))
+        }
+      } catch (err) {
+        console.warn('[REDEEM] Failed to fetch state blocks:', err)
+      }
+    })()
+  }, [user?.id])
+
   // Generate Available Tabs
   const availableTabs = useMemo(() => {
     const tabs: { key: Tab; icon: any; label: string }[] = []
 
     const isMethodAvailable = (methodName: string) => {
+      // State-based block check
+      if (blockedMethods.includes(methodName)) return false
+
       const methodObj = activeMethods.find(m => m.method === methodName)
       if (!methodObj?.is_active) return false
       
@@ -199,7 +245,7 @@ export function RedemptionStore({ onNavigateToFeed }: RedemptionStoreProps) {
     }
     
     return tabs
-  }, [activeMethods])
+  }, [activeMethods, blockedMethods])
 
   // Fix active tab logic ensuring a hidden tab defaults gracefully
   useEffect(() => {

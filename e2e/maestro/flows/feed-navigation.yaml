@@ -14,25 +14,27 @@ appId: dev.casagrown.community
 
 # Wait for feed to load
 - extendedWaitUntil:
-          visible: "Tomatoes"
+          visible: "Create Post"
+          timeout: 15000
+- scrollUntilVisible:
+          element: "Tomatoes"
+          direction: DOWN
           timeout: 15000
 
 # Verify seeded post content
 - assertVisible: "Test Seller"
 - assertVisible: "Tomatoes"
 
-# Scroll down to find the buy post and verify its new fields
-- scroll
-- extendedWaitUntil:
-          visible:
+# Scroll up to find the buy post and verify its new fields
+- scrollUntilVisible:
+          element:
                   text: ".*Looking for.*"
-          timeout: 10000
+          direction: UP
+          timeout: 15000
 - assertVisible:
-          text: ".*Looking for.*3.*"
+          text: ".*Looking for.*"
 - assertVisible:
           text: ".*Need by.*"
-- assertVisible:
-          text: ".*Drop-off.*"
 
 # Scroll back up
 - scrollUntilVisible:

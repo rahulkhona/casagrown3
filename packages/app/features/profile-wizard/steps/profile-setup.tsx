@@ -44,59 +44,67 @@ export const ProfileSetupStep = () => {
     && stateCode.length === 2
     && zipCode.trim().length === 5
 
+  // Ref to keep updateData stable inside effects
+  const updateDataRef = useRef(updateData)
+  updateDataRef.current = updateData
+
   // Auto-detect community when address fields change
-  const detectCommunity = useCallback(async () => {
-    if (!streetAddress.trim() || !city.trim() || stateCode.length !== 2 || zipCode.length !== 5) {
-      return
-    }
-    setCommunityLoading(true)
-    setCommunityError('')
-    setDetectedCommunity(null)
-    try {
-      const query = `${streetAddress}, ${city}, ${stateCode} ${zipCode}`
-      const response = await supabase.functions.invoke('resolve-community', {
-        body: { address: query },
-      })
-
-      if (response.data?.primary) {
-        const primary = response.data.primary
-        const loc = response.data.resolved_location
-        setDetectedCommunity({
-          h3Index: primary.h3_index,
-          name: primary.name,
-        })
-        setCommunityMapData(response.data as ResolveResponse)
-        updateData({
-          location: loc ? { lat: loc.lat, lng: loc.lng } : undefined,
-          community: {
-            h3Index: primary.h3_index,
-            name: primary.name,
-          },
-        })
-      } else {
-        setCommunityError(t('profileWizard.setup.communityNotDetected'))
-      }
-    } catch (err) {
-      console.warn('Community detection failed:', err)
-      setCommunityError(t('profileWizard.setup.communityNotDetected'))
-    } finally {
-      setCommunityLoading(false)
-    }
-  }, [streetAddress, city, stateCode, zipCode, supabase, t, updateData])
-
-  // Trigger community detection when all address fields are filled
   useEffect(() => {
-    if (streetAddress.trim() && city.trim() && stateCode.length === 2 && zipCode.length === 5) {
-      const timer = setTimeout(() => {
-        detectCommunity()
-      }, 800) // Debounce 800ms
-      return () => clearTimeout(timer)
-    } else {
+    if (!streetAddress.trim() || !city.trim() || stateCode.length !== 2 || zipCode.length !== 5) {
       setDetectedCommunity(null)
       setCommunityError('')
       setCommunityMapData(null)
+      return
     }
-  }, [streetAddress, city, stateCode, zipCode])
+
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      setCommunityLoading(true)
+      setCommunityError('')
+      setDetectedCommunity(null)
+      try {
+        const query = `${streetAddress}, ${city}, ${stateCode} ${zipCode}`
+        const response = await supabase.functions.invoke('resolve-community', {
+          body: { address: query },
+        })
+
+        if (cancelled) return
+
+        if (response.data?.primary) {
+          const primary = response.data.primary
+          const loc = response.data.resolved_location
+          setDetectedCommunity({
+            h3Index: primary.h3_index,
+            name: primary.name,
+          })
+          setCommunityMapData(response.data as ResolveResponse)
+          updateDataRef.current({
+            location: loc ? { lat: loc.lat, lng: loc.lng } : undefined,
+            community: {
+              h3Index: primary.h3_index,
+              name: primary.name,
+            },
+          })
+        } else {
+          setCommunityError(t('profileWizard.setup.communityNotDetected'))
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.warn('Community detection failed:', err)
+          setCommunityError(t('profileWizard.setup.communityNotDetected'))
+        }
+      } finally {
+        if (!cancelled) {
+          setCommunityLoading(false)
+        }
+      }
+    }, 800) // Debounce 800ms
+
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [streetAddress, city, stateCode, zipCode, t])
 
   // Reverse geocode from lat/lng to address
   const useCurrentLocation = useCallback(async () => {

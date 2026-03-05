@@ -137,7 +137,7 @@ INSERT INTO auth.users (
   '00000000-0000-0000-0000-000000000000',
   'authenticated', 'authenticated',
   'seller@test.local',
-  crypt('TestPassword123!', gen_salt('bf')),
+  '$2a$06$FbG0qaw0v4J3GOm/y5tduulnL0cYxDpju9ZoHH9mNJW.GgeaC.xve',
   now(),
   '{"provider":"email","providers":["email"]}',
   '{"full_name":"Test Seller"}',
@@ -170,7 +170,7 @@ INSERT INTO auth.users (
   '00000000-0000-0000-0000-000000000000',
   'authenticated', 'authenticated',
   'buyer@test.local',
-  crypt('TestPassword123!', gen_salt('bf')),
+  '$2a$06$FbG0qaw0v4J3GOm/y5tduulnL0cYxDpju9ZoHH9mNJW.GgeaC.xve',
   now(),
   '{"provider":"email","providers":["email"]}',
   '{"full_name":"Test Buyer"}',
@@ -194,23 +194,37 @@ INSERT INTO auth.identities (
 -- 11. Test Profiles
 -- =============================================================================
 
-INSERT INTO public.profiles (id, email, full_name, home_community_h3_index, referral_code, phone_verified)
+INSERT INTO public.profiles (
+  id, email, full_name, home_community_h3_index, referral_code,
+  phone_verified, tos_accepted_at,
+  zip_code, street_address, city, state_code, phone_number
+)
 VALUES
-  ('a1111111-1111-1111-1111-111111111111', 'seller@test.local', 'Test Seller', '89283470c2fffff', 'SELLER01', true),
-  ('b2222222-2222-2222-2222-222222222222', 'buyer@test.local',  'Test Buyer',  '89283470c2fffff', 'BUYER01', false)
+  ('a1111111-1111-1111-1111-111111111111', 'seller@test.local', 'Test Seller',
+   '89283470c2fffff', 'SELLER01', true, NOW(),
+   '95125', '973 Wallace Dr', 'San Jose', 'CA', '+14085551234'),
+  ('b2222222-2222-2222-2222-222222222222', 'buyer@test.local', 'Test Buyer',
+   '89283470c2fffff', 'BUYER01', false, NOW(),
+   '95120', '123 Main St', 'San Jose', 'CA', '+14085555678')
 ON CONFLICT (id) DO UPDATE SET
   full_name = EXCLUDED.full_name,
   home_community_h3_index = EXCLUDED.home_community_h3_index,
   referral_code = EXCLUDED.referral_code,
-  phone_verified = EXCLUDED.phone_verified;
+  phone_verified = EXCLUDED.phone_verified,
+  tos_accepted_at = EXCLUDED.tos_accepted_at,
+  zip_code = EXCLUDED.zip_code,
+  street_address = EXCLUDED.street_address,
+  city = EXCLUDED.city,
+  state_code = EXCLUDED.state_code,
+  phone_number = EXCLUDED.phone_number;
 
 -- Seed points for both users (enough for test transactions)
 -- Using 2000 to ensure enough points after cashout test (−500 pts) for the
--- giftcards test ($10 card + Reloadly fee = 1,080 pts).
+-- giftcards test (first Gaming card = ~3000 pts, need enough after order holds).
 INSERT INTO public.point_ledger (user_id, type, amount, balance_after, created_at, metadata)
 VALUES
-  ('a1111111-1111-1111-1111-111111111111', 'reward', 2000, 2000, now() + interval '1 second', '{"reason":"E2E test seed"}'),
-  ('b2222222-2222-2222-2222-222222222222', 'reward', 2000, 2000, now() + interval '1 second', '{"reason":"E2E test seed"}');
+  ('a1111111-1111-1111-1111-111111111111', 'reward', 5000, 5000, now() + interval '1 second', '{"reason":"E2E test seed"}'),
+  ('b2222222-2222-2222-2222-222222222222', 'reward', 5000, 5000, now() + interval '1 second', '{"reason":"E2E test seed"}');
 
 -- =============================================================================
 -- 12. Test Posts (with complete detail rows)
@@ -226,8 +240,8 @@ VALUES (
   '{"produceName":"Tomatoes","description":"Fresh organic tomatoes from my garden"}'
 );
 
-INSERT INTO public.want_to_sell_details (post_id, category, produce_name, unit, total_quantity_available, points_per_unit)
-VALUES ('c3333333-3333-3333-3333-333333333333', 'vegetables', 'Tomatoes', 'box', 10, 25);
+INSERT INTO public.want_to_sell_details (post_id, category, produce_name, unit, total_quantity_available, points_per_unit, is_produce, harvest_date)
+VALUES ('c3333333-3333-3333-3333-333333333333', 'vegetables', 'Tomatoes', 'box', 10, 25, true, CURRENT_DATE);
 
 INSERT INTO public.delivery_dates (post_id, delivery_date)
 VALUES
@@ -244,8 +258,8 @@ VALUES (
   '{"produceName":"Strawberries","description":"Sweet seasonal strawberries, picked fresh"}'
 );
 
-INSERT INTO public.want_to_sell_details (post_id, category, produce_name, unit, total_quantity_available, points_per_unit)
-VALUES ('d4444444-4444-4444-4444-444444444444', 'fruits', 'Strawberries', 'box', 5, 40);
+INSERT INTO public.want_to_sell_details (post_id, category, produce_name, unit, total_quantity_available, points_per_unit, is_produce, harvest_date)
+VALUES ('d4444444-4444-4444-4444-444444444444', 'fruits', 'Strawberries', 'box', 5, 40, true, CURRENT_DATE);
 
 INSERT INTO public.delivery_dates (post_id, delivery_date)
 VALUES ('d4444444-4444-4444-4444-444444444444', CURRENT_DATE + interval '5 days');
@@ -291,8 +305,8 @@ VALUES (
   '{"produceName":"Peppers","description":"Fresh bell peppers, red and green"}'
 );
 
-INSERT INTO public.want_to_sell_details (post_id, category, produce_name, unit, total_quantity_available, points_per_unit)
-VALUES ('a7777777-7777-7777-7777-777777777777', 'vegetables', 'Peppers', 'bag', 8, 15);
+INSERT INTO public.want_to_sell_details (post_id, category, produce_name, unit, total_quantity_available, points_per_unit, is_produce, harvest_date)
+VALUES ('a7777777-7777-7777-7777-777777777777', 'vegetables', 'Peppers', 'bag', 8, 15, true, CURRENT_DATE);
 
 INSERT INTO public.delivery_dates (post_id, delivery_date)
 VALUES
@@ -338,14 +352,14 @@ VALUES (
   'pending', 1
 );
 
--- Escrow: debit buyer (seller account) 45 points for the order
+-- Hold: debit buyer (seller account) 45 points for the order
 INSERT INTO public.point_ledger (user_id, type, amount, balance_after, reference_id, created_at, metadata)
 VALUES (
   'a1111111-1111-1111-1111-111111111111',
-  'escrow', -45, 955,
+  'hold', -45, 955,
   'd0000000-0000-0000-0000-000000000001',
   now() + interval '2 seconds',
-  '{"reason":"Order escrow for Peppers","order_id":"d0000000-0000-0000-0000-000000000001"}'
+  '{"reason":"Order hold for Peppers","order_id":"d0000000-0000-0000-0000-000000000001"}'
 );
 
 -- System message in the conversation
@@ -377,13 +391,13 @@ VALUES
    'want_to_sell', 'community', '{"produceName":"Herbs Mix","description":"Mixed fresh herbs bundle"}')
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.want_to_sell_details (post_id, category, produce_name, unit, total_quantity_available, points_per_unit)
+INSERT INTO public.want_to_sell_details (post_id, category, produce_name, unit, total_quantity_available, points_per_unit, is_produce, harvest_date)
 VALUES
-  ('f0000002-0000-0000-0000-000000000002', 'vegetables', 'Tomatoes', 'box', 10, 25),
-  ('f0000003-0000-0000-0000-000000000003', 'fruits', 'Strawberries', 'box', 5, 50),
-  ('f0000004-0000-0000-0000-000000000004', 'herbs', 'Basil', 'bag', 10, 8),
-  ('f0000005-0000-0000-0000-000000000005', 'fruits', 'Lemons', 'bag', 8, 20),
-  ('f0000006-0000-0000-0000-000000000006', 'herbs', 'Herbs Mix', 'bag', 6, 12);
+  ('f0000002-0000-0000-0000-000000000002', 'vegetables', 'Tomatoes', 'box', 10, 25, true, CURRENT_DATE),
+  ('f0000003-0000-0000-0000-000000000003', 'fruits', 'Strawberries', 'box', 5, 50, true, CURRENT_DATE),
+  ('f0000004-0000-0000-0000-000000000004', 'herbs', 'Basil', 'bag', 10, 8, true, CURRENT_DATE),
+  ('f0000005-0000-0000-0000-000000000005', 'fruits', 'Lemons', 'bag', 8, 20, true, CURRENT_DATE),
+  ('f0000006-0000-0000-0000-000000000006', 'herbs', 'Herbs Mix', 'bag', 6, 12, false, null);
 
 -- Conversations for additional orders (each uses its own post_id → unique constraint satisfied)
 INSERT INTO public.conversations (id, post_id, buyer_id, seller_id)

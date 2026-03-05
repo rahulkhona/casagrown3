@@ -1185,134 +1185,252 @@ exports[`HomeScreen matches snapshot 1`] = `
       alignItems="center"
       backgroundColor="#1f2937"
       paddingHorizontal="$4"
-      paddingVertical="$8"
+      paddingVertical="$6"
       width="100%"
     >
       <View
-        gap="$6"
+        gap="$4"
         maxWidth={1000}
         width="100%"
       >
         <View
           alignItems="center"
           flexDirection="column"
-          gap="$6"
+          gap="$4"
           justifyContent="space-between"
         >
           <View
             alignItems="center"
-            gap="$2"
+            gap="$3"
           >
-            <View
-              alignItems="center"
-              gap="$2"
-            >
-              <Text>
-                🏠
-              </Text>
-              <Text
-                color="#ffffff"
-                fontSize={18}
-                fontWeight="600"
-              >
-                CasaGrown
-              </Text>
-            </View>
+            <Text>
+              🏠
+            </Text>
             <Text
-              color="#9ca3af"
-              fontSize={13}
-              maxWidth={280}
-              testID="p"
-              textAlign="center"
+              color="#ffffff"
+              fontSize={16}
+              fontWeight="600"
             >
-              home.footer.tagline
+              CasaGrown
             </Text>
           </View>
           <View
+            alignItems="center"
             flexWrap="wrap"
-            gap="$8"
+            gap="$5"
             justifyContent="center"
           >
             <View
-              alignItems="center"
-              gap="$2"
+              accessibilityState={
+                {
+                  "busy": undefined,
+                  "checked": undefined,
+                  "disabled": undefined,
+                  "expanded": undefined,
+                  "selected": undefined,
+                }
+              }
+              accessibilityValue={
+                {
+                  "max": undefined,
+                  "min": undefined,
+                  "now": undefined,
+                  "text": undefined,
+                }
+              }
+              accessible={true}
+              collapsable={false}
+              focusable={true}
+              onBlur={[Function]}
+              onClick={[Function]}
+              onFocus={[Function]}
+              onResponderGrant={[Function]}
+              onResponderMove={[Function]}
+              onResponderRelease={[Function]}
+              onResponderTerminate={[Function]}
+              onResponderTerminationRequest={[Function]}
+              onStartShouldSetResponder={[Function]}
             >
               <Text
-                color="#ffffff"
-                fontSize={14}
-                fontWeight="600"
-              >
-                home.footer.product
-              </Text>
-              <Text
                 color="#9ca3af"
                 fontSize={13}
-              >
-                home.footer.features
-              </Text>
-              <Text
-                color="#9ca3af"
-                fontSize={13}
-              >
-                home.footer.howItWorks
-              </Text>
-              <Text
-                color="#9ca3af"
-                fontSize={13}
-              >
-                home.footer.pricing
-              </Text>
-            </View>
-            <View
-              alignItems="center"
-              gap="$2"
-            >
-              <Text
-                color="#ffffff"
-                fontSize={14}
-                fontWeight="600"
-              >
-                home.footer.company
-              </Text>
-              <Text
-                color="#9ca3af"
-                fontSize={13}
-              >
-                home.footer.about
-              </Text>
-              <Text
-                color="#9ca3af"
-                fontSize={13}
-              >
-                home.footer.blog
-              </Text>
-              <Text
-                color="#9ca3af"
-                fontSize={13}
+                hoverStyle={
+                  {
+                    "color": "#4ade80",
+                  }
+                }
               >
                 home.footer.contact
               </Text>
             </View>
             <View
-              alignItems="center"
-              gap="$2"
+              accessibilityState={
+                {
+                  "busy": undefined,
+                  "checked": undefined,
+                  "disabled": undefined,
+                  "expanded": undefined,
+                  "selected": undefined,
+                }
+              }
+              accessibilityValue={
+                {
+                  "max": undefined,
+                  "min": undefined,
+                  "now": undefined,
+                  "text": undefined,
+                }
+              }
+              accessible={true}
+              collapsable={false}
+              focusable={true}
+              onBlur={[Function]}
+              onClick={[Function]}
+              onFocus={[Function]}
+              onResponderGrant={[Function]}
+              onResponderMove={[Function]}
+              onResponderRelease={[Function]}
+              onResponderTerminate={[Function]}
+              onResponderTerminationRequest={[Function]}
+              onStartShouldSetResponder={[Function]}
             >
-              <Text
-                color="#ffffff"
-                fontSize={14}
-                fontWeight="600"
-              >
-                home.footer.legal
-              </Text>
               <Text
                 color="#9ca3af"
                 fontSize={13}
+                hoverStyle={
+                  {
+                    "color": "#4ade80",
+                  }
+                }
+              >
+                home.footer.guidelines
+              </Text>
+            </View>
+            <View
+              accessibilityState={
+                {
+                  "busy": undefined,
+                  "checked": undefined,
+                  "disabled": undefined,
+                  "expanded": undefined,
+                  "selected": undefined,
+                }
+              }
+              accessibilityValue={
+                {
+                  "max": undefined,
+                  "min": undefined,
+                  "now": undefined,
+                  "text": undefined,
+                }
+              }
+              accessible={true}
+              collapsable={false}
+              focusable={true}
+              onBlur={[Function]}
+              onClick={[Function]}
+              onFocus={[Function]}
+              onResponderGrant={[Function]}
+              onResponderMove={[Function]}
+              onResponderRelease={[Function]}
+              onResponderTerminate={[Function]}
+              onResponderTerminationRequest={[Function]}
+              onStartShouldSetResponder={[Function]}
+            >
+              <Text
+                color="#9ca3af"
+                fontSize={13}
+                hoverStyle={
+                  {
+                    "color": "#4ade80",
+                  }
+                }
+              >
+                home.footer.sellersHandbook
+              </Text>
+            </View>
+            <View
+              accessibilityState={
+                {
+                  "busy": undefined,
+                  "checked": undefined,
+                  "disabled": undefined,
+                  "expanded": undefined,
+                  "selected": undefined,
+                }
+              }
+              accessibilityValue={
+                {
+                  "max": undefined,
+                  "min": undefined,
+                  "now": undefined,
+                  "text": undefined,
+                }
+              }
+              accessible={true}
+              collapsable={false}
+              focusable={true}
+              onBlur={[Function]}
+              onClick={[Function]}
+              onFocus={[Function]}
+              onResponderGrant={[Function]}
+              onResponderMove={[Function]}
+              onResponderRelease={[Function]}
+              onResponderTerminate={[Function]}
+              onResponderTerminationRequest={[Function]}
+              onStartShouldSetResponder={[Function]}
+            >
+              <Text
+                color="#9ca3af"
+                fontSize={13}
+                hoverStyle={
+                  {
+                    "color": "#4ade80",
+                  }
+                }
               >
                 home.footer.privacy
               </Text>
+            </View>
+            <View
+              accessibilityState={
+                {
+                  "busy": undefined,
+                  "checked": undefined,
+                  "disabled": undefined,
+                  "expanded": undefined,
+                  "selected": undefined,
+                }
+              }
+              accessibilityValue={
+                {
+                  "max": undefined,
+                  "min": undefined,
+                  "now": undefined,
+                  "text": undefined,
+                }
+              }
+              accessible={true}
+              collapsable={false}
+              focusable={true}
+              onBlur={[Function]}
+              onClick={[Function]}
+              onFocus={[Function]}
+              onResponderGrant={[Function]}
+              onResponderMove={[Function]}
+              onResponderRelease={[Function]}
+              onResponderTerminate={[Function]}
+              onResponderTerminationRequest={[Function]}
+              onStartShouldSetResponder={[Function]}
+            >
               <Text
                 color="#9ca3af"
                 fontSize={13}
+                hoverStyle={
+                  {
+                    "color": "#4ade80",
+                  }
+                }
               >
                 home.footer.terms
               </Text>
@@ -1323,7 +1441,7 @@ exports[`HomeScreen matches snapshot 1`] = `
           alignItems="center"
           borderColor="#374151"
           borderTopWidth={1}
-          paddingTop="$4"
+          paddingTop="$3"
         >
           <Text
             color="#6b7280"

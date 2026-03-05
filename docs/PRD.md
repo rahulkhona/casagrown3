@@ -457,7 +457,7 @@ Full audit trail of all point transactions:
 - `platform_charge` — Platform fee deduction
 - `transfer` — User-to-user point transfer
 - `redemption` — Spending points on rewards
-- `escrow` — Points held during pending orders
+- `hold` — Points held during pending orders
 - `refund` — Points returned on cancellation/dispute
 - `delegation_split` — Earnings split between delegator and delegate
 
@@ -566,11 +566,11 @@ The transaction system supports two distinct flows depending on the post type:
 ```
 Buyer sees sell post → Opens chat → Taps "Order" →
 OrderSheet (qty, date, address) → create-order edge function →
-Order created (pending) + Points escrowed → Seller accepts/rejects
+Order created (pending) + Points held → Seller accepts/rejects
 ```
 
 - Buyer specifies: quantity, delivery date, delivery address, instructions
-- Points are escrowed immediately via `create-order` edge function
+- Points are held immediately via `create-order` edge function
 - Order is created in `pending` status
 - Seller reviews and accepts (via `accept_order_versioned`) or rejects
 
@@ -587,7 +587,7 @@ Accept (AcceptOfferSheet: address, partial qty) / Reject / Wait
   dates, message, media attachments, optional link to their own sell post
 - Offer created via `create_offer_atomic` SQL RPC
 - Buyer reviews offer in chat and can:
-  - **Accept** → `accept_offer_atomic` creates order + escrows points (buyer can
+  - **Accept** → `accept_offer_atomic` creates order + holds points (buyer can
     specify partial quantity and delivery address)
   - **Reject** → `reject_offer_with_message` (system message)
 - Seller can **Modify** (bump version) or **Withdraw** a pending offer
@@ -606,20 +606,20 @@ Accept (AcceptOfferSheet: address, partial qty) / Reject / Wait
 | RPC                           | Actor  | Effect                                                |
 | :---------------------------- | :----- | :---------------------------------------------------- |
 | `create_offer_atomic`         | Seller | Creates conversation + offer + seller chat message    |
-| `accept_offer_atomic`         | Buyer  | Accepts offer, creates order, escrows points          |
+| `accept_offer_atomic`         | Buyer  | Accepts offer, creates order, holds points            |
 | `reject_offer_with_message`   | Buyer  | Rejects offer, system message                         |
 | `withdraw_offer_with_message` | Seller | Withdraws pending offer, system message               |
 | `modify_offer_with_message`   | Seller | Modifies pending offer, bumps version, seller message |
 
 #### 3.11.4 Order Lifecycle
 
-| Status      | Description                                                         |
-| :---------- | :------------------------------------------------------------------ |
-| `pending`   | Order placed by buyer. Points escrowed. Awaiting seller acceptance. |
-| `accepted`  | Seller accepted. Delivery expected.                                 |
-| `delivered` | Seller marked delivered. Buyer confirms or auto-confirms.           |
-| `disputed`  | Buyer raised a dispute. Escalation flow begins.                     |
-| `cancelled` | Order cancelled. Points refunded.                                   |
+| Status      | Description                                                     |
+| :---------- | :-------------------------------------------------------------- |
+| `pending`   | Order placed by buyer. Points held. Awaiting seller acceptance. |
+| `accepted`  | Seller accepted. Delivery expected.                             |
+| `delivered` | Seller marked delivered. Buyer confirms or auto-confirms.       |
+| `disputed`  | Buyer raised a dispute. Escalation flow begins.                 |
+| `cancelled` | Order cancelled. Points refunded.                               |
 
 Full order lifecycle details documented in
 [order_lifecycle.md](order_lifecycle.md).
@@ -632,7 +632,7 @@ Full order lifecycle details documented in
 | `reject_order_versioned`    | Seller | Declines, refunds buyer                          |
 | `cancel_order_with_message` | Either | Cancel + refund + system message                 |
 | `mark_delivered`            | Seller | Marks delivered with proof (URL, geo, timestamp) |
-| `confirm_order_delivery`    | Buyer  | Confirms receipt, releases escrow minus fees     |
+| `confirm_order_delivery`    | Buyer  | Confirms receipt, releases hold minus fees       |
 | `modify_order`              | Buyer  | Modifies pending order, bumps version            |
 
 #### 3.11.5 Orders Screen
@@ -658,10 +658,10 @@ Full order lifecycle details documented in
 - Role-specific system messages: buyer sees refund details, seller sees payout
   details (via `visible_to` metadata)
 
-#### 3.11.8 Point Escrow Model
+#### 3.11.8 Point Hold Model
 
 - Points are **never transferred directly** between buyer and seller
-- Buyer's points are escrowed at order creation (type=`escrow`)
+- Buyer's points are held at order creation (type=`hold`)
 - On completion: seller receives payment minus platform fee (type=`payment` +
   type=`platform_fee`)
 - On cancellation or dispute refund: buyer receives refund (type=`refund`)
@@ -860,7 +860,7 @@ Full post detail page with transactional capabilities:
 > Orders, offers, and transaction management are **fully implemented**. See
 > **Section 3.11** for complete documentation of the offer + order lifecycle,
 > including both sell-post and buy-post flows, with 11 SQL RPC functions, point
-> escrow, and the Orders screen UI.
+> hold, and the Orders screen UI.
 
 ---
 

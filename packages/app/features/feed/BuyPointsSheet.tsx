@@ -29,8 +29,9 @@ import {
 import { CardField, useStripe } from '@stripe/stripe-react-native'
 import { colors, shadows, borderRadius } from '../../design-tokens'
 import { usePaymentService } from '../../hooks/usePaymentService'
+import { usePurchaseLimits } from '../../hooks/usePurchaseLimits'
 import { isMockPaymentMode, getPaymentMode } from './paymentService'
-import { supabase } from '../auth/auth-hook'
+import { supabase, useAuth } from '../auth/auth-hook'
 
 // Lazy import StripeCardForm (web only)
 let StripeCardForm: any = null
@@ -131,6 +132,12 @@ export function BuyPointsSheet({
 
   // Payment service integration
   const { processPayment, status: paymentStatus, isProcessing, error: paymentError, isMock, reset: resetPayment } = usePaymentService()
+
+  // Purchase limit validation
+  const { user } = useAuth()
+  const { validate: validateLimits, loading: limitsLoading } = usePurchaseLimits(user?.id)
+  const totalCents = Math.round(totalCost * 100)
+  const limitError = (purchaseAmount > 0 && !limitsLoading) ? validateLimits(totalCents) : null
 
   // Stripe Elements (web only)
   const stripeFormRef = useRef<any>(null)
@@ -680,6 +687,24 @@ export function BuyPointsSheet({
             </XStack>
           </YStack>
 
+          {/* ─── Limit Warning ─── */}
+          {limitError && (
+            <XStack
+              backgroundColor="#fef2f2"
+              borderWidth={1}
+              borderColor="#fecaca"
+              borderRadius={borderRadius.lg}
+              padding="$3"
+              gap="$2"
+              alignItems="flex-start"
+            >
+              <AlertCircle size={16} color="#ef4444" style={{ marginTop: 2 }} />
+              <Text fontSize={13} color="#dc2626" flex={1}>
+                {limitError}
+              </Text>
+            </XStack>
+          )}
+
           {/* ─── Credit Card Details ─── */}
           <YStack gap="$2">
             <XStack alignItems="center" gap="$2">
@@ -944,7 +969,7 @@ export function BuyPointsSheet({
               <TouchableOpacity
                 style={{
                   flex: 1,
-                  backgroundColor: purchaseAmount > 0 && isCardValid ? colors.green[600] : colors.gray[300],
+                  backgroundColor: purchaseAmount > 0 && isCardValid && !limitError ? colors.green[600] : colors.gray[300],
                   paddingVertical: 14,
                   borderRadius: 10,
                   alignItems: 'center',
@@ -952,7 +977,7 @@ export function BuyPointsSheet({
                   minHeight: 50,
                 }}
                 activeOpacity={0.7}
-                disabled={purchaseAmount <= 0 || !isCardValid}
+                disabled={purchaseAmount <= 0 || !isCardValid || !!limitError}
                 onPress={handleComplete}
               >
                 <RNText style={{ color: 'white', fontWeight: '600', fontSize: 15 }}>

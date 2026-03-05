@@ -285,4 +285,33 @@ describe('LoginScreen', () => {
       expect(mockGetInstallReferrerAsync).not.toHaveBeenCalled()
     })
   })
+
+  // =========================================
+  // ToS Consent Tests
+  // =========================================
+
+  describe('Terms of Service', () => {
+    it('renders passive ToS footer text on email step', () => {
+      const { getAllByText } = render(<LoginScreen />)
+      // Footer should show Terms and Privacy links
+      expect(getAllByText('auth.login.terms').length).toBeGreaterThan(0)
+      expect(getAllByText('auth.login.privacy').length).toBeGreaterThan(0)
+    })
+
+    it('Send Code button is enabled without checkbox (passive ToS)', () => {
+      const { getByText } = render(<LoginScreen />)
+      const sendCodeButton = getByText('auth.login.sendCode')
+      // Walk up — should NOT find a disabled=true ancestor
+      let node = sendCodeButton.parent
+      let foundDisabled = false
+      while (node) {
+        if (node.props?.accessibilityState?.disabled === true) {
+          foundDisabled = true
+          break
+        }
+        node = node.parent
+      }
+      expect(foundDisabled).toBe(false)
+    })
+  })
 })

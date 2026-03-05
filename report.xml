@@ -1,35 +1,29 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <testsuites>
-  <testsuite name="Test Suite" device="Medium_Phone_API_36.1" tests="10" failures="0" time="310.0">
-    <testcase id="delegation" name="delegation" classname="delegation" time="28.0" status="SUCCESS">
-      <properties/>
-    </testcase>
-    <testcase id="post-management" name="post-management" classname="post-management" time="22.0" status="SUCCESS">
-      <properties/>
-    </testcase>
-    <testcase id="chat" name="chat" classname="chat" time="24.0" status="SUCCESS">
-      <properties/>
-    </testcase>
-    <testcase id="create-post" name="create-post" classname="create-post" time="39.0" status="SUCCESS">
-      <properties/>
-    </testcase>
-    <testcase id="profile-wizard" name="profile-wizard" classname="profile-wizard" time="26.0" status="SUCCESS">
-      <properties/>
-    </testcase>
-    <testcase id="feed-navigation" name="feed-navigation" classname="feed-navigation" time="27.0" status="SUCCESS">
-      <properties/>
-    </testcase>
-    <testcase id="orders" name="orders" classname="orders" time="32.0" status="SUCCESS">
-      <properties/>
-    </testcase>
-    <testcase id="order-flow" name="order-flow" classname="order-flow" time="22.0" status="SUCCESS">
-      <properties/>
-    </testcase>
-    <testcase id="login" name="login" classname="login" time="45.0" status="SUCCESS">
-      <properties/>
-    </testcase>
-    <testcase id="profile-management" name="profile-management" classname="profile-management" time="45.0" status="SUCCESS">
-      <properties/>
-    </testcase>
+  <testsuite name="Test Suite" device="Pixel_API_35" tests="24" failures="0" time="793.0">
+    <testcase id="login" name="login" classname="login" time="10.0" status="SUCCESS"/>
+    <testcase id="feed-navigation" name="feed-navigation" classname="feed-navigation" time="17.0" status="SUCCESS"/>
+    <testcase id="hamburger-menu" name="hamburger-menu" classname="hamburger-menu" time="42.0" status="SUCCESS"/>
+    <testcase id="buy-points" name="buy-points" classname="buy-points" time="18.0" status="SUCCESS"/>
+    <testcase id="create-post" name="create-post" classname="create-post" time="45.0" status="SUCCESS"/>
+    <testcase id="order-flow" name="order-flow" classname="order-flow" time="19.0" status="SUCCESS"/>
+    <testcase id="orders" name="orders" classname="orders" time="18.0" status="SUCCESS"/>
+    <testcase id="offers" name="offers" classname="offers" time="15.0" status="SUCCESS"/>
+    <testcase id="chat" name="chat" classname="chat" time="18.0" status="SUCCESS"/>
+    <testcase id="chat-conversation" name="chat-conversation" classname="chat-conversation" time="129.0" status="SUCCESS"/>
+    <testcase id="post-management" name="post-management" classname="post-management" time="18.0" status="SUCCESS"/>
+    <testcase id="delegation" name="delegation" classname="delegation" time="19.0" status="SUCCESS"/>
+    <testcase id="profile-management" name="profile-management" classname="profile-management" time="24.0" status="SUCCESS"/>
+    <testcase id="profile-wizard" name="profile-wizard" classname="profile-wizard" time="20.0" status="SUCCESS"/>
+    <testcase id="transaction-history" name="transaction-history" classname="transaction-history" time="27.0" status="SUCCESS"/>
+    <testcase id="refund-points" name="refund-points" classname="refund-points" time="21.0" status="SUCCESS"/>
+    <testcase id="venmo-refund" name="venmo-refund" classname="venmo-refund" time="26.0" status="SUCCESS"/>
+    <testcase id="refund-options" name="refund-options" classname="refund-options" time="27.0" status="SUCCESS"/>
+    <testcase id="Redemption Tabs Visibility Testing" name="Redemption Tabs Visibility Testing" classname="Redemption Tabs Visibility Testing" time="15.0" status="SUCCESS"/>
+    <testcase id="cashout" name="cashout" classname="cashout" time="35.0" status="SUCCESS"/>
+    <testcase id="order-lifecycle" name="order-lifecycle" classname="order-lifecycle" time="143.0" status="SUCCESS"/>
+    <testcase id="charity" name="charity" classname="charity" time="23.0" status="SUCCESS"/>
+    <testcase id="giftcards" name="giftcards" classname="giftcards" time="42.0" status="SUCCESS"/>
+    <testcase id="redemption-block" name="redemption-block" classname="redemption-block" time="22.0" status="SUCCESS"/>
   </testsuite>
 </testsuites>

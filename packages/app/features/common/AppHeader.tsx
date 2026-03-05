@@ -358,6 +358,27 @@ export function AppHeader({ activeKey = 'feed' }: { activeKey?: string }) {
                   onPress={() => { setMobileMenuOpen(false); handleNavPress('myPosts') }} />
               </YStack>
 
+              {/* Support & Legal */}
+              <YStack backgroundColor="white" marginTop="$2" borderTopWidth={1} borderBottomWidth={1} borderColor={colors.gray[200]}>
+                <Text fontSize={12} fontWeight="700" color={colors.gray[500]} marginHorizontal="$4" marginTop="$3" marginBottom="$1" textTransform="uppercase">
+                  Support & Legal
+                </Text>
+                <HamburgerItem icon={ChevronRight} title={t('home.footer.contact')}
+                  onPress={() => { setMobileMenuOpen(false); if (Platform.OS === 'web') { window.open('mailto:support@casagrown.com', '_blank') } }} />
+                <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+                <HamburgerItem icon={ChevronRight} title={t('home.footer.guidelines')}
+                  onPress={() => { setMobileMenuOpen(false); router.push('/guidelines') }} />
+                <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+                <HamburgerItem icon={ChevronRight} title={t('home.footer.sellersHandbook')}
+                  onPress={() => { setMobileMenuOpen(false); router.push('/sellers-handbook') }} />
+                <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+                <HamburgerItem icon={ChevronRight} title={t('home.footer.privacy')}
+                  onPress={() => { setMobileMenuOpen(false); router.push('/privacy') }} />
+                <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+                <HamburgerItem icon={ChevronRight} title={t('home.footer.terms')}
+                  onPress={() => { setMobileMenuOpen(false); router.push('/terms') }} />
+              </YStack>
+
               {/* Sign Out */}
               <YStack backgroundColor="white" marginTop="$2" borderTopWidth={1} borderBottomWidth={1} borderColor={colors.gray[200]}>
                 <HamburgerItem icon={LogOut} title="Sign Out" destructive

@@ -133,12 +133,12 @@ Deno.test("notify-on-message — calculates correct recipients and content filte
     assertEquals(dataA.sent, true);
     assertEquals(dataA.recipients, 1);
 
-    // 5. Create System Message about escrow
+    // 5. Create System Message about hold release
     const sysMsgs = await supabaseRest("chat_messages", "POST", {
         conversation_id: conversationId,
         sender_id: null,
         type: "system",
-        content: "Order complete! The escrowed points released.", // Test string replacement logic
+        content: "Order complete! The held points released.", // Test string replacement logic
         metadata: { visible_to: buyerId }, // Restrict to buyer
     });
     const sysMsgId = (sysMsgs[0] as Record<string, unknown>).id as string;

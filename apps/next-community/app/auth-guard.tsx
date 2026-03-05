@@ -11,7 +11,7 @@ import { colors } from '@casagrown/app/design-tokens'
  * Routes that do NOT require authentication.
  * All other routes redirect to /login if the user is not logged in.
  */
-const PUBLIC_ROUTES = ['/', '/login', '/login-success', '/logout', '/buy-points-mockup']
+const PUBLIC_ROUTES = ['/', '/login', '/login-success', '/logout', '/buy-points-mockup', '/terms', '/privacy', '/guidelines', '/sellers-handbook']
 
 /** Route prefixes that are public (for dynamic routes like /invite/[code]) */
 const PUBLIC_PREFIXES = ['/invite/', '/delegate-invite/', '/post/']
@@ -65,7 +65,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   // Public route or authorized → render children
   if (isPublicRoute(pathname) || authorized) {
-    const showHeader = !!user && authorized && !['/login', '/login-success', '/logout', '/profile-wizard'].includes(pathname)
+    const showHeader = !!user && authorized && !['/login', '/login-success', '/logout', '/profile-wizard', '/terms', '/privacy'].includes(pathname)
     let activeKey = 'feed'
     if (pathname.startsWith('/offers')) activeKey = 'offers'
     else if (pathname.startsWith('/orders')) activeKey = 'orders'

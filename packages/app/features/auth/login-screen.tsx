@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Platform, Image, TextInput } from 'react-native'
+import { Platform, Image, TextInput, Pressable, Linking } from 'react-native'
 import { YStack, XStack, Text, Button, Input, ScrollView, Separator, useMedia, Spinner } from 'tamagui'
 import { ArrowLeft, Mail } from '@tamagui/lucide-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -26,13 +26,14 @@ export function LoginScreen({ logoSrc, onLogin, onBack, referralCode, delegation
   const router = useRouter()
   const { signInWithOtp, verifyOtp, user, loading: authLoading } = useAuth()
   
-  const [loginMethod, setLoginMethod] = useState<'email' | 'otp'>('email')
+  const [loginMethod, setLoginMethod] = useState<'email' | 'otp' | 'tos'>('email')
   const [email, setEmail] = useState('')
   const [otp, setOtp] = useState('')
   const [errors, setErrors] = useState<{ email?: string; otp?: string; general?: string }>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [codeResent, setCodeResent] = useState(false)
   const [isRedirecting, setIsRedirecting] = useState(false)
+  const [tosAccepted, setTosAccepted] = useState(false)
   const media = useMedia()
 
   // Store referral code if present - will be used in profile creation
@@ -124,10 +125,17 @@ export function LoginScreen({ logoSrc, onLogin, onBack, referralCode, delegation
       try {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('full_name, home_community_h3_index')
+          .select('full_name, home_community_h3_index, tos_accepted_at')
           .eq('id', user.id)
           .single()
         
+        // Must accept ToS before any redirect
+        if (!profile?.tos_accepted_at) {
+          setLoginMethod('tos')
+          setIsRedirecting(false)
+          return
+        }
+
       // Check if user came from a delegation link — redirect to accept it
       let storedDelegationCode: string | null = null
       try {
@@ -180,8 +188,25 @@ export function LoginScreen({ logoSrc, onLogin, onBack, referralCode, delegation
         router.replace('/profile-wizard')
       }
       } catch (err) {
-        // On error, default to wizard for new users
+        // On error, check ToS status before defaulting to wizard
         console.error('Error checking profile:', err)
+        try {
+          const { data: fallbackProfile } = await supabase
+            .from('profiles')
+            .select('tos_accepted_at')
+            .eq('id', user.id)
+            .single()
+          if (!fallbackProfile?.tos_accepted_at) {
+            setLoginMethod('tos')
+            setIsRedirecting(false)
+            return
+          }
+        } catch (_) {
+          // If even this fails, show ToS to be safe
+          setLoginMethod('tos')
+          setIsRedirecting(false)
+          return
+        }
         router.replace('/profile-wizard')
       }
     }
@@ -245,7 +270,21 @@ export function LoginScreen({ logoSrc, onLogin, onBack, referralCode, delegation
     try {
         const { session } = await verifyOtp(email, otp)
         if (session) {
-             // Success handled by useEffect
+             // Check if user has already accepted ToS
+             if (session.user?.id) {
+               const { data: tosProfile } = await supabase
+                 .from('profiles')
+                 .select('tos_accepted_at')
+                 .eq('id', session.user.id)
+                 .single()
+               if (!tosProfile?.tos_accepted_at) {
+                 // First-time user — show ToS acceptance step
+                 setLoginMethod('tos')
+                 setIsSubmitting(false)
+                 return
+               }
+             }
+             // Returning user with ToS already accepted — useEffect will redirect
         } else {
              setErrors({ ...errors, general: 'Invalid code' })
         }
@@ -462,17 +501,92 @@ export function LoginScreen({ logoSrc, onLogin, onBack, referralCode, delegation
                     </YStack>
                 </YStack>
             )}
+
+            {loginMethod === 'tos' && (
+                <YStack gap="$4">
+                    <YStack alignItems="center" gap="$2" marginBottom="$2">
+                        <Text fontSize={20} fontWeight="700" color={colors.gray[900]}>📋</Text>
+                        <Text fontSize={18} fontWeight="700" color={colors.gray[900]}>
+                          {t('auth.login.tosTitle')}
+                        </Text>
+                        <Text color={colors.gray[600]} fontSize={14} textAlign="center">
+                          {t('auth.login.tosSubtitle')}
+                        </Text>
+                    </YStack>
+
+                    {/* ToS Acceptance Checkbox */}
+                    <Pressable onPress={() => setTosAccepted(!tosAccepted)} testID="tos_checkbox">
+                      <XStack alignItems="center" gap="$3" paddingVertical="$2">
+                        <YStack
+                          width={24}
+                          height={24}
+                          borderRadius={6}
+                          borderWidth={2}
+                          borderColor={tosAccepted ? colors.green[600] : colors.gray[300]}
+                          backgroundColor={tosAccepted ? colors.green[600] : 'white'}
+                          alignItems="center"
+                          justifyContent="center"
+                        >
+                          {tosAccepted && (
+                            <Text color="white" fontSize={14} fontWeight="700">✓</Text>
+                          )}
+                        </YStack>
+                        <Text fontSize={14} color={colors.gray[700]} flex={1}>
+                          {t('auth.login.tosAgree')}{' '}
+                          <Text color={colors.green[600]} fontWeight="600" onPress={() => router.push('/terms')}>{t('auth.login.terms')}</Text>
+                          {' '}&{' '}
+                          <Text color={colors.green[600]} fontWeight="600" onPress={() => router.push('/privacy')}>{t('auth.login.privacy')}</Text>
+                        </Text>
+                      </XStack>
+                    </Pressable>
+
+                    <Button 
+                        backgroundColor={tosAccepted ? colors.green[600] : colors.gray[300]} 
+                        height="$5"
+                        borderRadius="$4"
+                        onPress={async () => {
+                          // Set tos_accepted_at in DB
+                          if (user?.id) {
+                            await supabase.from('profiles').update({
+                              tos_accepted_at: new Date().toISOString(),
+                            }).eq('id', user.id)
+                            
+                            // Redirect based on profile completeness
+                            const { data: profile } = await supabase
+                              .from('profiles')
+                              .select('full_name, home_community_h3_index')
+                              .eq('id', user.id)
+                              .single()
+                            
+                            if (profile?.full_name && profile?.home_community_h3_index) {
+                              router.replace('/feed')
+                            } else {
+                              router.replace('/profile-wizard')
+                            }
+                          }
+                        }}
+                        disabled={!tosAccepted}
+                        pressStyle={{ backgroundColor: colors.green[700] }}
+                        hoverStyle={{ backgroundColor: colors.green[700] }}
+                        testID="tos_accept_button"
+                    >
+                        <Text color="white" fontWeight="600" fontSize="$4">{t('auth.login.tosAcceptButton')}</Text>
+                    </Button>
+                </YStack>
+            )}
         </YStack>
 
         {/* Footer - Constrained Width */}
-        <YStack width="100%" maxWidth={450} alignItems="center">
-             <Text textAlign="center" fontSize="$2" color={colors.gray[600]}>
+        {loginMethod !== 'tos' && (
+          <YStack width="100%" maxWidth={450} alignItems="center">
+            <Text textAlign="center" fontSize="$2" color={colors.gray[600]}>
                 {t('auth.login.agreement')}
-                <Text color={colors.green[600]} fontWeight="600">{t('auth.login.terms')}</Text>
+                <Text color={colors.green[600]} fontWeight="600" onPress={() => router.push('/terms')}>{t('auth.login.terms')}</Text>
                 {' '}&{' '}
-                <Text color={colors.green[600]} fontWeight="600">{t('auth.login.privacy')}</Text>
+                <Text color={colors.green[600]} fontWeight="600" onPress={() => router.push('/privacy')}>{t('auth.login.privacy')}</Text>
             </Text>
-        </YStack>
+          </YStack>
+        )}
 
       </YStack>
     </ScrollView>

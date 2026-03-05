@@ -14,7 +14,7 @@ import {
  *
  * Atomically creates a "buy now" order from the feed via a single
  * Postgres RPC call (create_order_atomic). This ensures all-or-nothing
- * execution: conversation, offer, order, escrow, and system message
+ * execution: conversation, offer, order, hold, and system message
  * are all committed or all rolled back.
  *
  * When sales tax applies, a separate `sales_tax` ledger entry is
@@ -85,7 +85,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
         [deliveryAddress, deliveryInstructions].filter(Boolean).join("\n") ||
         null;
 
-    // Call atomic RPC — escrows the FULL totalPrice (subtotal + tax)
+    // Call atomic RPC — holds the FULL totalPrice (subtotal + tax)
     const { data, error } = await supabase.rpc("create_order_atomic", {
         p_buyer_id: buyerId,
         p_seller_id: sellerId,
@@ -141,7 +141,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
 
         // 2. Insert separate sales_tax ledger entry for audit/reporting.
         //    The amount is 0 because the tax was already included in the
-        //    escrow deduction. This entry serves as an audit record with
+        //    hold deduction. This entry serves as an audit record with
         //    tax-specific metadata for tax-filing purposes.
         await supabase.from("point_ledger").insert({
             user_id: buyerId,
@@ -164,8 +164,24 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
         });
     }
 
-    // Fire-and-forget push notification to seller
-    getUserDisplayName(supabase, buyerId).then((buyerName: string) => {
+    // ── In-app notification for seller ──────────────────────────────────
+    getUserDisplayName(supabase, buyerId).then(async (buyerName: string) => {
+        // 1. Insert into notifications table (powers in-app bell + panel)
+        await supabase.from("notifications").insert({
+            user_id: sellerId,
+            content:
+                `🛒 New Order! ${buyerName} ordered ${quantity} ${product}`,
+            link_url: "/orders",
+        }).then(({ error: notifErr }) => {
+            if (notifErr) {
+                console.warn(
+                    "⚠️ Notification insert failed:",
+                    notifErr.message,
+                );
+            }
+        });
+
+        // 2. Fire-and-forget push notification (FCM/APNs)
         sendPushNotification(supabase, {
             userIds: [sellerId],
             title: "New Order! 🛒",

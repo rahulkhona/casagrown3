@@ -20,6 +20,7 @@ import {
 import { useRouter } from 'solito/navigation'
 import { supabase, useAuth } from '../auth/auth-hook'
 import { usePointsBalance } from '../../hooks/usePointsBalance'
+import { usePurchaseLimits } from '../../hooks/usePurchaseLimits'
 import { colors, shadows, borderRadius } from '../../design-tokens'
 import { CardField, useStripe as useNativeStripe } from '@stripe/stripe-react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -121,6 +122,7 @@ function BuyPointsForm({ t, useStripePayment }: { t: (key: string, opts?: any) =
 
   const { user } = useAuth()
   const { refetch: refetchBalance, adjustBalance } = usePointsBalance(user?.id)
+  const { validate: validateLimits, limits, maxPurchasablePoints, loading: limitsLoading } = usePurchaseLimits(user?.id)
 
   const stripe = useStripePayment && useStripe ? useStripe() : null
   const elements = useStripePayment && useElements ? useElements() : null
@@ -137,15 +139,22 @@ function BuyPointsForm({ t, useStripePayment }: { t: (key: string, opts?: any) =
   
   const totalCost = baseCost + serviceFee
 
+  // Purchase limit validation
+  const limitError = useMemo(() => {
+    if (numericPoints <= 0) return null
+    return validateLimits(numericPoints)
+  }, [numericPoints, validateLimits])
+
   const router = useRouter()
 
   const canSubmit = useMemo(() => {
     if (numericPoints <= 0 || isProcessing || isSuccess) return false
+    if (limitError) return false
     if (!cardName.trim()) return false
     if (useStripePayment && Platform.OS === 'web') return cardComplete
     if (useStripePayment && Platform.OS !== 'web') return nativeCardReady
     return false // Mock deprecated
-  }, [numericPoints, isProcessing, isSuccess, useStripePayment, cardComplete, nativeCardReady, cardName])
+  }, [numericPoints, isProcessing, isSuccess, useStripePayment, cardComplete, nativeCardReady, cardName, limitError])
 
   const handlePurchase = async () => {
     if (numericPoints <= 0) return
@@ -380,7 +389,35 @@ function BuyPointsForm({ t, useStripePayment }: { t: (key: string, opts?: any) =
               Buy {MIN_PURCHASE_AMOUNT} or more to waive the fee.
             </Text>
           </XStack>
+
+          {/* Purchase Limit Info */}
+          {!limitsLoading && (
+            <XStack gap="$2" alignItems="flex-start" paddingTop="$1">
+              <Info size={14} color={colors.gray[400]} style={{ marginTop: 2 }} />
+              <Text fontSize={12} color={colors.gray[400]} flex={1} lineHeight={16}>
+                Daily limit: ${(limits.dailyLimitCents / 100).toLocaleString()} · Max balance: ${(limits.maxOutstandingCents / 100).toLocaleString()}
+              </Text>
+            </XStack>
+          )}
         </YStack>
+
+        {/* Limit Warning */}
+        {limitError && (
+          <XStack
+            backgroundColor="#fef2f2"
+            borderWidth={1}
+            borderColor="#fecaca"
+            borderRadius={borderRadius.lg}
+            padding="$3"
+            gap="$2"
+            alignItems="flex-start"
+          >
+            <AlertCircle size={16} color="#ef4444" style={{ marginTop: 2 }} />
+            <Text fontSize={13} color="#dc2626" flex={1}>
+              {limitError}
+            </Text>
+          </XStack>
+        )}
 
         {/* Pricing Breakdown */}
         {numericPoints > 0 && (

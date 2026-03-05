@@ -99,18 +99,11 @@
       "button": "Bắt Đầu Miễn Phí"
     },
     "footer": {
-      "tagline": "Kết nối cộng đồng thông qua chia sẻ thực phẩm bền vững.",
-      "product": "Sản phẩm",
-      "features": "Tính năng",
-      "howItWorks": "Cách Hoạt Động",
-      "pricing": "Giá cả",
-      "company": "Công ty",
-      "about": "Giới thiệu",
-      "blog": "Blog",
-      "contact": "Liên hệ",
-      "legal": "Pháp lý",
-      "privacy": "Riêng tư",
-      "terms": "Điều khoản",
+      "contact": "Hỗ Trợ Liên Hệ",
+      "guidelines": "Quy Tắc Cộng Đồng",
+      "sellersHandbook": "Cẩm Nang Người Bán",
+      "privacy": "Chính Sách Bảo Mật",
+      "terms": "Điều Khoản Dịch Vụ",
       "copyright": "© 2026 CasaGrown. Bảo lưu mọi quyền."
     }
   },

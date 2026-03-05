@@ -73,7 +73,7 @@ begin
   values (
     v_order.conversation_id,
     null,
-    'Order accepted by seller. ' || v_order.quantity || ' ' || v_order.product || ' for ' || (v_order.quantity * v_order.points_per_unit) || ' points. Points held in escrow until delivery is confirmed.',
+    'Order accepted by seller. ' || v_order.quantity || ' ' || v_order.product || ' for ' || (v_order.quantity * v_order.points_per_unit) || ' points. Points are on hold until delivery is confirmed.',
     'system'
   );
 
@@ -163,7 +163,7 @@ begin
   values (
     v_order.conversation_id,
     null,
-    '✅ Order complete! ' || v_total || ' escrowed points have been released to the seller. Thank you for your purchase!',
+    '✅ Order complete! ' || v_total || ' held points have been released to the seller. Thank you for your purchase!',
     'system'
   );
 
@@ -520,7 +520,7 @@ begin
   values (
     v_order.conversation_id,
     null,
-    '✅ ' || v_role || ' resolved the dispute. ' || v_total || ' escrowed points have been released to the seller. Order complete.',
+    '✅ ' || v_role || ' resolved the dispute. ' || v_total || ' held points have been released to the seller. Order complete.',
     'system'
   );
 

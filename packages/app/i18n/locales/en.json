@@ -32,7 +32,7 @@
     },
     "pointsSection": {
       "title": "Why Use a Points System?",
-      "description": "Our closed-loop point system minimizes payment processing fees and keeps more money in your community. Points are available instantly (unlike credit cards that take 2-5 days), making escrow and returns seamless. Buy points once, trade with neighbors, and redeem for gift cards or donate to charity.",
+      "description": "Our closed-loop point system minimizes payment processing fees and keeps more money in your community. Points are available instantly (unlike credit cards that take 2-5 days), making transactions and returns seamless. Buy points once, trade with neighbors, and redeem for gift cards or donate to charity.",
       "cta": "Join CasaGrown Today"
     },
     "safetySection": {
@@ -43,7 +43,7 @@
           "title": "Transaction Safety & Security",
           "description": "",
           "bullets": [
-             "Built-in escrow system protects buyers and sellers",
+             "Built-in buyer protection safeguards every transaction",
              "Drop-off option for safety and convenience",
              "Safe for teen sellers",
              "Local-only membership keeps community trusted",
@@ -99,18 +99,11 @@
       "button": "Get Started for Free"
     },
     "footer": {
-      "tagline": "Connecting communities through sustainable food sharing.",
-      "product": "Product",
-      "features": "Features",
-      "howItWorks": "How It Works",
-      "pricing": "Pricing",
-      "company": "Company",
-      "about": "About",
-      "blog": "Blog",
-      "contact": "Contact",
-      "legal": "Legal",
-      "privacy": "Privacy",
-      "terms": "Terms",
+      "contact": "Contact Support",
+      "guidelines": "Community Guidelines",
+      "sellersHandbook": "Seller's Handbook",
+      "privacy": "Privacy Policy",
+      "terms": "Terms of Service",
       "copyright": "© 2026 CasaGrown. All rights reserved."
     }
   },
@@ -138,6 +131,10 @@
       "agreement": "By continuing, you agree to CasaGrown's ",
       "terms": "Terms of Service",
       "privacy": "Privacy Policy",
+      "tosTitle": "Terms & Privacy",
+      "tosSubtitle": "Before you continue, please review and accept our terms.",
+      "tosAgree": "I have read and agree to the ",
+      "tosAcceptButton": "Accept & Continue",
       "checking": "Checking session...",
       "redirecting": "Redirecting..."
     },
@@ -774,7 +771,10 @@
       "acceptDropoffDates": "Accept Drop-off Dates",
       "acceptDropoffDatesHint": "Which dates work for drop-off?",
       "title": "Title",
-      "titlePlaceholder": "Give your post a title"
+      "titlePlaceholder": "Give your post a title",
+      "isHomegrownProduce": "This is homegrown produce",
+      "isHomegrownProduceHint": "Check if this is a fresh produce item (fruits, vegetables, herbs, etc.)",
+      "harvestDatePrompt": "When was this produce harvested? Required at delivery if not entered now."
     },
     "loading": {
       "community": "Loading community...",
@@ -963,7 +963,7 @@
     },
     "dispute": {
       "title": "File a Dispute",
-      "warning": "Filing a dispute will freeze the points in escrow until resolved. The seller will be notified.",
+      "warning": "Filing a dispute will freeze the held points until resolved. The seller will be notified.",
       "reason": "Reason for dispute",
       "reasonPlaceholder": "Describe what went wrong with this delivery…",
       "reasonRequired": "Please describe the issue before submitting.",
@@ -1008,6 +1008,13 @@
       "ratings": "Ratings",
       "yourRating": "Your rating",
       "theirRating": "{{name}}'s rating"
+    },
+    "receipt": {
+      "title": "🧾 Digital Receipt",
+      "product": "Product",
+      "seller": "Seller",
+      "buyer": "Buyer",
+      "harvestDate": "Harvest Date"
     }
   },
   "offers": {

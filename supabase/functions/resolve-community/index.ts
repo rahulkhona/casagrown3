@@ -143,6 +143,8 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
   );
 
   // ─── 3. Generate missing communities ────────────────────────
+  // PERF: Only use Overpass for the primary cell. Neighbors get fast
+  // fallback names and are enriched in the background.
   const missingIndices = allIndices.filter((idx) => !existingMap.has(idx));
 
   if (missingIndices.length > 0) {
@@ -150,79 +152,90 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
       `Generating ${missingIndices.length} missing communities...`,
     );
 
-    let overpassRateLimited = false;
+    const tGen = Date.now();
 
-    for (const idx of missingIndices) {
-      const tGen = Date.now();
-
-      if (!overpassRateLimited) {
-        try {
-          const comm = await generateCommunityFromOverpass(
-            supabase,
-            idx,
-          );
-          if (comm) {
-            existingMap.set(comm.h3_index, comm);
-            console.log(
-              `⏱️ Overpass generation for ${idx}: ${Date.now() - tGen}ms`,
-            );
-            continue;
-          }
-        } catch (e: any) {
-          if (e.message?.includes("429")) {
-            console.warn(
-              `⚠️ Overpass rate-limited — switching to fallback names`,
-            );
-            overpassRateLimited = true;
-          } else {
-            console.error(`Overpass failed for ${idx}:`, e);
-          }
-        }
-      }
-
-      // Fallback
+    // ── Primary cell: try Overpass (single call, ~1-3s) ──
+    if (!existingMap.has(h3Index)) {
       try {
-        const comm = await createFallbackCommunity(
-          supabase,
-          idx,
-          geocodedNeighborhood,
-          geocodedCity,
-        );
+        const comm = await generateCommunityFromOverpass(supabase, h3Index);
         if (comm) {
           existingMap.set(comm.h3_index, comm);
           console.log(
-            `✅ Fallback community created for ${idx}: "${comm.name}" (${
+            `⏱️ Overpass generation for PRIMARY ${h3Index}: ${
               Date.now() - tGen
-            }ms)`,
+            }ms`,
           );
         }
-      } catch (e) {
-        console.error(
-          `Failed to create fallback community ${idx}:`,
-          e,
-        );
+      } catch (e: any) {
+        console.warn(`⚠️ Overpass failed for primary ${h3Index}: ${e.message}`);
+        // Fall through to fallback below
+      }
+
+      // If Overpass didn't produce a result, use fallback for primary
+      if (!existingMap.has(h3Index)) {
+        try {
+          const comm = await createFallbackCommunity(
+            supabase,
+            h3Index,
+            geocodedNeighborhood,
+            geocodedCity,
+          );
+          if (comm) {
+            existingMap.set(comm.h3_index, comm);
+            console.log(`✅ Fallback primary community: "${comm.name}"`);
+          }
+        } catch (e) {
+          console.error(`Failed to create fallback primary ${h3Index}:`, e);
+        }
       }
     }
 
-    // Fire-and-forget: trigger background enrichment
+    // ── Neighbor cells: fast fallback in parallel (no Overpass) ──
+    const missingNeighbors = missingIndices.filter(
+      (idx) => idx !== h3Index && !existingMap.has(idx),
+    );
+
+    if (missingNeighbors.length > 0) {
+      console.log(
+        `Creating ${missingNeighbors.length} neighbor communities via fast fallback...`,
+      );
+      const neighborResults = await Promise.allSettled(
+        missingNeighbors.map((idx) =>
+          createFallbackCommunity(
+            supabase,
+            idx,
+            geocodedNeighborhood,
+            geocodedCity,
+          )
+        ),
+      );
+
+      for (let i = 0; i < neighborResults.length; i++) {
+        const result = neighborResults[i];
+        const idx = missingNeighbors[i];
+        if (result.status === "fulfilled" && result.value) {
+          existingMap.set(result.value.h3_index, result.value);
+        } else if (result.status === "rejected") {
+          console.error(`Failed neighbor ${idx}:`, result.reason);
+        }
+      }
+    }
+
+    console.log(
+      `⏱️ Total community generation: ${Date.now() - tGen}ms`,
+    );
+
+    // Fire-and-forget: trigger background enrichment for fallback communities
     supabase.functions.invoke("enrich-communities", {
       body: { limit: 5 },
     }).then((res: any) => {
       if (res.error) {
-        console.warn(
-          "⚠️ Enrich-communities trigger failed:",
-          res.error,
-        );
+        console.warn("⚠️ Enrich-communities trigger failed:", res.error);
       } else {
-        console.log(
-          "🔄 Enrich-communities triggered for fallback communities",
-        );
+        console.log("🔄 Enrich-communities triggered for fallback communities");
       }
     }).catch((e: any) => {
-      console.warn(
-        "⚠️ Enrich-communities fire-and-forget failed:",
-        e,
-      );
+      console.warn("⚠️ Enrich-communities fire-and-forget failed:", e);
     });
   } else {
     console.log(
@@ -346,7 +359,7 @@ async function generateCommunityFromOverpass(
   const elements = osmData.elements || [];
 
   // Naming Heuristic
-  let bestName = `Community ${index.substring(0, 6)}...`;
+  let bestName = "Community";
   let nameSource = "fallback_index";
   let city = "Unknown";
 
@@ -444,9 +457,35 @@ async function generateCommunityFromOverpass(
 // ============================================================================
 // Fallback Community Creator (used when Overpass is rate-limited)
 // ============================================================================
-function extractZoneSuffix(h3Index: string): string {
-  const core = h3Index.replace(/f+$/, "");
-  return core.substring(core.length - 3);
+
+/**
+ * Generate a human-readable suffix based on the cell's position relative to a
+ * reference point (the geocoded location). Uses last 2 chars of the H3 index
+ * to deterministically pick a directional name.
+ */
+function getDirectionSuffix(h3Index: string): string {
+  const directions = [
+    "North",
+    "Northeast",
+    "East",
+    "Southeast",
+    "South",
+    "Southwest",
+    "West",
+    "Northwest",
+    "Central",
+    "Inner",
+    "Outer",
+    "Upper",
+    "Lower",
+    "Midtown",
+    "Uptown",
+    "Downtown",
+  ];
+  // Use the last two hex chars to deterministically pick a direction
+  const tail = h3Index.replace(/f+$/, "");
+  const code = parseInt(tail.substring(tail.length - 2), 16);
+  return directions[code % directions.length];
 }
 
 async function createFallbackCommunity(
@@ -459,9 +498,11 @@ async function createFallbackCommunity(
   const [lat, lng] = cellToLatLng(index);
   const centroidPoint = `POINT(${lng} ${lat})`;
 
-  const zoneSuffix = extractZoneSuffix(index);
-  const locationPart = geocodedNeighborhood || geocodedCity || "Community";
-  const fallbackName = `Zone ${zoneSuffix} · ${locationPart}`;
+  const locationPart = geocodedNeighborhood || geocodedCity || "";
+  const direction = getDirectionSuffix(index);
+  const fallbackName = locationPart
+    ? `${locationPart} ${direction} Community`
+    : `${direction} Community`;
 
   const polygonPoints = boundary.map(([bLat, bLng]: number[]) =>
     `${bLng} ${bLat}`

@@ -271,32 +271,33 @@ All edge functions use a shared `serveWithCors` wrapper from
 client initialization, and error wrapping. Functions requiring auth use
 `requireAuth`. Response helpers: `jsonOk`, `jsonError`.
 
-| Function                   | Auth | Purpose                                             |
-| :------------------------- | :--- | :-------------------------------------------------- |
-| `create-payment-intent`    | Yes  | Creates `payment_transactions` row + Stripe PI      |
-| `confirm-payment`          | No   | Idempotent point crediting (single source of truth) |
-| `stripe-webhook`           | No   | Handles Stripe webhook events (signature verified)  |
-| `resolve-pending-payments` | Yes  | Recovers stuck payments on app open                 |
-| `create-order`             | Yes  | Atomic order: conversation + offer + order + ledger |
-| `create-offer`             | Yes  | Atomic offer creation on buy posts (wraps RPC)      |
-| `register-push-token`      | Yes  | Upsert push notification tokens/subscriptions       |
-| `send-push-notification`   | Yes  | Send push to users via Web Push, APNs, or FCM       |
-| `notify-on-message`        | No   | Push notification trigger for new chat messages     |
-| `donate-points`            | Yes  | Donate points to GlobalGiving charitable projects   |
-| `fetch-donation-projects`  | No   | Fetch/search GlobalGiving project catalog           |
-| `fetch-gift-cards`         | No   | Merged Reloadly + Tremendous gift card catalog      |
-| `redeem-gift-card`         | Yes  | Purchase gift card with points via provider APIs    |
-| `redeem-paypal-payout`     | Yes  | PayPal/Venmo cashout via PayPal Payouts API         |
-| `refund-purchased-points`  | Yes  | Refund purchased points (Stripe/Venmo/gift card)    |
-| `process-redemptions`      | No   | Queue-based redemption processor                    |
-| `sync-provider-balance`    | No   | Cron: monitor Reloadly/Tremendous balances          |
-| `get-tax-rate`             | No   | California sales tax lookup for food items          |
-| `assign-experiment`        | No   | Deterministic A/B experiment assignment             |
-| `resolve-community`        | No   | Resolves H3 community from lat/lng or address       |
-| `enrich-communities`       | No   | Background enrichment of community metadata         |
-| `sync-locations`           | No   | Syncs country reference data from REST Countries    |
-| `pair-delegation`          | Yes  | Delegated sales pairing (multi-action router)       |
-| `update-zip-codes`         | No   | Batch zip code data processing                      |
+| Function                   | Auth | Purpose                                                          |
+| :------------------------- | :--- | :--------------------------------------------------------------- |
+| `create-payment-intent`    | Yes  | Creates `payment_transactions` row + Stripe PI                   |
+| `confirm-payment`          | No   | Idempotent point crediting (single source of truth)              |
+| `stripe-webhook`           | No   | Handles Stripe webhook events (signature verified)               |
+| `resolve-pending-payments` | Yes  | Recovers stuck payments on app open                              |
+| `create-order`             | Yes  | Atomic order: conversation + offer + order + ledger              |
+| `create-offer`             | Yes  | Atomic offer creation on buy posts (wraps RPC)                   |
+| `register-push-token`      | Yes  | Upsert push notification tokens/subscriptions                    |
+| `send-push-notification`   | Yes  | Send push to users via Web Push, APNs, or FCM                    |
+| `notify-on-message`        | No   | Push notification trigger for new chat messages                  |
+| `donate-points`            | Yes  | Donate points to GlobalGiving charitable projects                |
+| `fetch-donation-projects`  | No   | Fetch/search GlobalGiving project catalog                        |
+| `fetch-gift-cards`         | No   | Merged Reloadly + Tremendous gift card catalog                   |
+| `redeem-gift-card`         | Yes  | Purchase gift card with points via provider APIs                 |
+| `redeem-paypal-payout`     | Yes  | PayPal/Venmo cashout via PayPal Payouts API                      |
+| `refund-purchased-points`  | Yes  | Refund purchased points (Stripe/Venmo/gift card)                 |
+| `process-redemptions`      | No   | Queue-based redemption processor                                 |
+| `sync-provider-balance`    | No   | Cron: monitor Reloadly/Tremendous balances                       |
+| `get-tax-rate`             | No   | California sales tax lookup for food items                       |
+| `assign-experiment`        | No   | Deterministic A/B experiment assignment                          |
+| `resolve-community`        | No   | Resolves H3 community from lat/lng or address                    |
+| `enrich-communities`       | No   | Background enrichment of community metadata                      |
+| `sync-locations`           | No   | Syncs country reference data from REST Countries                 |
+| `pair-delegation`          | Yes  | Delegated sales pairing (multi-action router)                    |
+| `update-zip-codes`         | No   | Batch zip code data processing                                   |
+| `hold-flow`                | No   | _(test-only)_ Compliance integration tests (hold/release/refund) |
 
 ```bash
 # Serve locally
@@ -542,10 +543,10 @@ yarn workspace @casagrown/app jest --watch
 # Requires: npx supabase functions serve (running in another terminal)
 deno test --allow-net --allow-env supabase/functions/*/test.ts
 
-# Web integration tests (Playwright — 228 pass, 40 skipped)
+# Web integration tests (Playwright — 247 pass, 57 skipped)
 npx playwright test --config=e2e/playwright/playwright.config.ts
 
-# Mobile E2E tests (Maestro — 22 flows, iOS + Android)
+# Mobile E2E tests (Maestro — 26 flows, iOS + Android)
 # Requires: app running on iOS Simulator or Android Emulator
 ./e2e/seed-test-data.sh                              # Reset DB + clear Mailpit
 maestro test --udid <UDID> e2e/maestro/flows/        # iOS (use xcrun simctl list)

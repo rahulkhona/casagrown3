@@ -91,7 +91,7 @@ begin
   values (
     v_order.conversation_id,
     null,
-    '✅ Order complete! ' || v_total || ' escrowed points have been released to the seller. Thank you for your purchase!',
+    '✅ Order complete! ' || v_total || ' held points have been released to the seller. Thank you for your purchase!',
     'system',
     jsonb_build_object('visible_to', v_order.buyer_id)
   );
@@ -365,7 +365,7 @@ begin
   values (
     v_order.conversation_id,
     null,
-    '✅ ' || v_role || ' resolved the dispute. ' || v_total || ' escrowed points have been released to the seller. Order complete.',
+    '✅ ' || v_role || ' resolved the dispute. ' || v_total || ' held points have been released to the seller. Order complete.',
     'system',
     jsonb_build_object('visible_to', v_order.buyer_id)
   );

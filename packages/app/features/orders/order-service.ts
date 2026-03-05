@@ -134,6 +134,31 @@ export async function getOrders(
 
     let results = (data ?? []).map(mapOrderRow);
 
+    // Batch-fetch profile names for buyer/seller IDs
+    const userIds = new Set<string>();
+    results.forEach((o) => {
+        userIds.add(o.buyer_id);
+        userIds.add(o.seller_id);
+    });
+    if (userIds.size > 0) {
+        const { data: profiles } = await supabase
+            .from("profiles")
+            .select("id, full_name, avatar_url")
+            .in("id", Array.from(userIds));
+        if (profiles) {
+            const profileMap = new Map(profiles.map((p) => [p.id, p]));
+            results = results.map((o) => ({
+                ...o,
+                buyer_name: profileMap.get(o.buyer_id)?.full_name ?? null,
+                buyer_avatar_url: profileMap.get(o.buyer_id)?.avatar_url ??
+                    null,
+                seller_name: profileMap.get(o.seller_id)?.full_name ?? null,
+                seller_avatar_url: profileMap.get(o.seller_id)?.avatar_url ??
+                    null,
+            }));
+        }
+    }
+
     // Tab filter (client-side since it involves logic)
     if (filter.tab === "open") {
         results = results.filter(isOpenOrder);
@@ -255,7 +280,7 @@ export async function updateOrderStatus(
     return mapOrderRow(data);
 }
 
-/** Cancel an order — refunds escrow, restores qty if accepted, sends chat message */
+/** Cancel an order — refunds held points, restores qty if accepted, sends chat message */
 export async function cancelOrder(
     orderId: string,
     userId: string,
@@ -312,7 +337,7 @@ export async function rejectOrder(
     return { success: true };
 }
 
-/** Modify an order (buyer only) — bumps version, adjusts escrow */
+/** Modify an order (buyer only) — bumps version, adjusts hold */
 export async function modifyOrder(
     orderId: string,
     buyerId: string,
@@ -366,11 +391,13 @@ export async function markDelivered(
     orderId: string,
     sellerId: string,
     proofMediaId: string,
+    harvestDate?: string,
 ): Promise<{ success: boolean; error?: string }> {
     const { data, error } = await supabase.rpc("mark_order_delivered", {
         p_order_id: orderId,
         p_seller_id: sellerId,
         p_proof_media_id: proofMediaId,
+        p_harvest_date: harvestDate ?? null,
     });
 
     if (error) throw new Error(`Failed to mark delivered: ${error.message}`);

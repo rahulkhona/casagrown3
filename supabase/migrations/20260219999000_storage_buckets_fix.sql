@@ -15,7 +15,7 @@ VALUES ('post-media', 'post-media', true)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('chat-media', 'chat-media', false)
+VALUES ('chat-media', 'chat-media', true)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO storage.buckets (id, name, public)

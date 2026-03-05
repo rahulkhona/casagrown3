@@ -55,15 +55,19 @@ async function injectSession(
 }
 
 setup("authenticate as test seller", async ({ page }) => {
+    setup.setTimeout(60_000);
     const session = await signInWithPassword(
         TEST_SELLER.email,
         TEST_SELLER.password,
     );
 
-    await page.goto("/login");
+    await page.goto("/login", {
+        waitUntil: "domcontentloaded",
+        timeout: 45_000,
+    });
     await page.waitForTimeout(2000);
     await injectSession(page, session);
-    await page.reload();
+    await page.reload({ waitUntil: "domcontentloaded", timeout: 45_000 });
 
     try {
         await page.waitForURL(/\/(feed|wizard|profile)/, { timeout: 15_000 });
@@ -78,15 +82,19 @@ setup("authenticate as test seller", async ({ page }) => {
 });
 
 setup("authenticate as test buyer", async ({ page }) => {
+    setup.setTimeout(60_000);
     const session = await signInWithPassword(
         TEST_BUYER.email,
         TEST_BUYER.password,
     );
 
-    await page.goto("/login");
+    await page.goto("/login", {
+        waitUntil: "domcontentloaded",
+        timeout: 45_000,
+    });
     await page.waitForTimeout(2000);
     await injectSession(page, session);
-    await page.reload();
+    await page.reload({ waitUntil: "domcontentloaded", timeout: 45_000 });
 
     try {
         await page.waitForURL(/\/(feed|wizard|profile)/, { timeout: 15_000 });

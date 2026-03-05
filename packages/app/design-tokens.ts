@@ -401,7 +401,7 @@ export const safetyFeatures = [
     iconBg: colors.green[600],
     title: "Transaction Safety & Security",
     bullets: [
-      "Built-in escrow system protects buyers and sellers",
+      "Built-in buyer protection safeguards every transaction",
       "Drop-off option for safety and convenience",
       "Safe for teen sellers",
       "Local-only membership keeps community trusted",

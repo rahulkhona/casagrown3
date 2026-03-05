@@ -420,6 +420,7 @@ describe("markDelivered", () => {
             p_order_id: "order-1",
             p_seller_id: "seller-1",
             p_proof_media_id: "media-1",
+            p_harvest_date: null,
         });
         expect(result).toEqual({ success: true });
     });

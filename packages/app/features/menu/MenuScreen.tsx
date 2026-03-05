@@ -14,7 +14,8 @@ import {
   ChevronRight,
   ShieldCheck,
   PackageCheck,
-  History
+  History,
+  FileText
 } from '@tamagui/lucide-icons'
 
 import { useAuth, supabase } from '../auth/auth-hook'
@@ -250,6 +251,45 @@ export function MenuScreen() {
                 ]
               )
             }} 
+          />
+        </YStack>
+
+        {/* Support & Legal */}
+        <YStack marginTop="$4" backgroundColor="white" borderTopWidth={1} borderBottomWidth={1} borderColor={colors.gray[200]}>
+          <Text fontSize={13} fontWeight="700" color={colors.gray[500]} marginHorizontal="$4" marginTop="$4" marginBottom="$2" textTransform="uppercase">
+            {t('header.supportLegal', 'Support & Legal')}
+          </Text>
+          <MenuItem 
+            icon={FileText} 
+            title={t('home.footer.contact')} 
+            onPress={() => {
+              const { Linking } = require('react-native')
+              Linking.openURL('mailto:support@casagrown.com')
+            }} 
+          />
+          <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+          <MenuItem 
+            icon={FileText} 
+            title={t('home.footer.guidelines')} 
+            onPress={() => navigateTo('/guidelines')} 
+          />
+          <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+          <MenuItem 
+            icon={FileText} 
+            title={t('home.footer.sellersHandbook')} 
+            onPress={() => navigateTo('/sellers-handbook')} 
+          />
+          <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+          <MenuItem 
+            icon={FileText} 
+            title={t('home.footer.terms')} 
+            onPress={() => navigateTo('/terms')} 
+          />
+          <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+          <MenuItem 
+            icon={FileText} 
+            title={t('home.footer.privacy')} 
+            onPress={() => navigateTo('/privacy')} 
           />
         </YStack>
         

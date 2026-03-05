@@ -55,6 +55,71 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     if (auth instanceof Response) return auth;
     const userId = auth;
 
+    // ─── PURCHASE LIMIT CHECKS ─────────────────────────────────────
+    // Fetch limits from config table (defaults: $2000 outstanding, $500/day)
+    const { data: limits } = await supabase
+        .from("point_purchase_limits")
+        .select("max_outstanding_cents, daily_limit_cents")
+        .eq("country_iso_3", "USA")
+        .single();
+
+    const maxOutstanding = limits?.max_outstanding_cents ?? 200_000;
+    const dailyLimit = limits?.daily_limit_cents ?? 50_000;
+
+    // Check outstanding (total purchases - total refunds/redemptions)
+    const { data: outstandingData } = await supabase
+        .from("payment_transactions")
+        .select("amount_cents")
+        .eq("user_id", userId)
+        .eq("status", "completed");
+
+    const totalOutstanding = (outstandingData || []).reduce(
+        (sum: number, t: { amount_cents: number }) => sum + t.amount_cents,
+        0,
+    );
+
+    if (totalOutstanding + amountCents > maxOutstanding) {
+        throw new Error(
+            `Purchase would exceed maximum outstanding limit of $${
+                (maxOutstanding / 100).toFixed(2)
+            }. ` +
+                `Current outstanding: $${
+                    (totalOutstanding / 100).toFixed(2)
+                }. ` +
+                `Maximum additional purchase: $${
+                    ((maxOutstanding - totalOutstanding) / 100).toFixed(2)
+                }.`,
+        );
+    }
+
+    // Check daily limit
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const { data: dailyData } = await supabase
+        .from("payment_transactions")
+        .select("amount_cents")
+        .eq("user_id", userId)
+        .in("status", ["completed", "pending"])
+        .gte("created_at", todayStart.toISOString());
+
+    const dailyTotal = (dailyData || []).reduce(
+        (sum: number, t: { amount_cents: number }) => sum + t.amount_cents,
+        0,
+    );
+
+    if (dailyTotal + amountCents > dailyLimit) {
+        throw new Error(
+            `Purchase would exceed daily limit of $${
+                (dailyLimit / 100).toFixed(2)
+            }. ` +
+                `Purchased today: $${(dailyTotal / 100).toFixed(2)}. ` +
+                `Remaining today: $${
+                    ((dailyLimit - dailyTotal) / 100).toFixed(2)
+                }.`,
+        );
+    }
+
     // ─── STRIPE MODE ───────────────────────────────────────────────
     if (provider === "stripe") {
         if (!STRIPE_SECRET_KEY) {

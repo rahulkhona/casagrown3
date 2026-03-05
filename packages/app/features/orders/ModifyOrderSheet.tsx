@@ -7,7 +7,7 @@
  *  - CalendarPicker for delivery date
  *  - Delivery address with "Use My Location"
  *  - Delivery instructions
- *  - Points balance summary (accounts for escrow refund from old total)
+ *  - Points balance summary (accounts for hold refund from old total)
  *  - BuyPointsSheet when the modification increases cost beyond balance
  */
 
@@ -487,7 +487,7 @@ export function ModifyOrderSheet({
 
               <XStack justifyContent="space-between" alignItems="center">
                 <Text fontSize={13} color={colors.gray[700]}>
-                  Current escrow
+                  Current hold
                 </Text>
                 <Text fontSize={14} fontWeight="600" color={colors.gray[500]}>
                   {oldTotal} pts

@@ -97,5 +97,9 @@ appId: dev.casagrown.community
 # Verify we're back on feed (longer timeout — community resolution
 # may still be in progress after a fresh login)
 - extendedWaitUntil:
-          visible: "Tomatoes"
+          visible: "Create Post"
           timeout: 30000
+- scrollUntilVisible:
+          element: "Tomatoes"
+          direction: DOWN
+          timeout: 15000

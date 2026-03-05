@@ -37,39 +37,47 @@ appId: dev.casagrown.community
 #  input which causes the RN Modal sheet to dismiss on iOS)
 - tapOn: "Gaming"
 
-# Wait for gaming cards to appear
+# Wait for gaming cards to re-render after category filter change
 - extendedWaitUntil:
           visible:
                   id: "giftcard-item-0"
-          timeout: 10000
+          timeout: 15000
 
 # Tap the first gaming card
 - tapOn:
           id: "giftcard-item-0"
 
-# Wait for the gift card sheet to fully render
+# Wait for the gift card sheet to fully render (Modal slide animation)
 - extendedWaitUntil:
-          visible: ".*Choose Amount.*"
-          timeout: 10000
+          visible: ".*Choose Amount.*|.*Gift Card.*"
+          timeout: 15000
 
-# Tap a denomination pill — gaming cards have fixed denominations like $10, $25
+# Tap a denomination pill — try common denominations
+# The first Gaming card may vary; pills are optional so failures are OK
 - tapOn:
           text: ".*\\$10.*"
           optional: true
-
-# If no $10, try $25
 - tapOn:
           text: ".*\\$25.*"
           optional: true
-
-# If no $25, try $5
 - tapOn:
           text: ".*\\$5.*"
           optional: true
+- tapOn:
+          text: ".*\\$20.*"
+          optional: true
+- tapOn:
+          text: ".*\\$29.*"
+          optional: true
+- tapOn:
+          text: ".*\\$50.*"
+          optional: true
 
-# Wait for Confirm Redemption button to become active
-- extendedWaitUntil:
-          visible: ".*Confirm Redemption.*"
+# Scroll down to make Confirm Redemption visible (sheet may need scroll)
+- scrollUntilVisible:
+          element:
+                  text: ".*Confirm Redemption.*"
+          direction: DOWN
           timeout: 10000
 
 # Tap the confirm button

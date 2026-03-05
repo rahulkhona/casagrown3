@@ -1,9 +1,18 @@
 import { useEffect, useRef } from 'react'
-import { AppState, Platform } from 'react-native'
+import { AppState, Platform, DeviceEventEmitter } from 'react-native'
 import { useToastController } from '@casagrown/ui'
 import { useAuth, supabase } from '../auth/auth-hook'
 import { useRouter } from 'solito/navigation'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+
+/** Emit a badge refresh event so tab layouts can update counts */
+export function emitBadgeRefresh() {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('casagrown:badge-refresh'))
+  } else {
+    DeviceEventEmitter.emit('casagrown:badge-refresh')
+  }
+}
 
 /**
  * RealtimeNotificationListener (System Channel)
@@ -89,6 +98,9 @@ export function RealtimeNotificationListener() {
               onPress: () => router.push(`/chat?postId=${conv.post_id}&otherUserId=${otherUserId}`),
             },
           })
+
+          // Trigger badge count refresh in tab layout
+          emitBadgeRefresh()
         }
       )
 
@@ -119,6 +131,9 @@ export function RealtimeNotificationListener() {
               },
             } : {}),
           })
+
+          // Trigger badge count refresh in tab layout
+          emitBadgeRefresh()
         }
       )
 

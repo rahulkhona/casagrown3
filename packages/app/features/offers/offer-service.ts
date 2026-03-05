@@ -260,7 +260,7 @@ export async function createOffer(data: {
     };
 }
 
-/** Accept an offer (buyer) — creates order, escrows points */
+/** Accept an offer (buyer) — creates order, holds points */
 export async function acceptOffer(
     offerId: string,
     buyerId: string,

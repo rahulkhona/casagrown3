@@ -32,6 +32,10 @@ export interface SellPostData {
   quantity: number;
   pointsPerUnit: number;
   dropoffDates: string[];
+  /** Whether this item is produce (auto-set from category, overrideable) */
+  isProduce?: boolean;
+  /** Optional harvest date (YYYY-MM-DD) — required at delivery if produce */
+  harvestDate?: string;
   /** Media assets to upload (local URIs from camera/gallery) */
   mediaAssets?: Array<{ uri: string; type?: string; isExisting?: boolean }>;
 }
@@ -386,19 +390,41 @@ export async function getUserCommunity(
  * Queries the sales_categories table and subtracts any that are restricted
  * (globally or for the user's community).
  */
+export interface CategoryInfo {
+  name: string;
+  isProduce: boolean;
+}
+
+/** In-memory cache populated by getAvailableCategories */
+let _categoryInfoCache: CategoryInfo[] = [];
+
+/** Look up whether a category is produce from the cached data */
+export function getCategoryIsProduce(categoryName: string): boolean {
+  const info = _categoryInfoCache.find((c) => c.name === categoryName);
+  return info?.isProduce ?? false;
+}
+
 export async function getAvailableCategories(
   communityH3Index?: string,
 ): Promise<string[]> {
   // Fetch all categories from the dynamic table
   const { data: allCategories, error: catError } = await supabase
     .from("sales_categories")
-    .select("name")
+    .select("name, is_produce")
     .order("display_order", { ascending: true });
 
   if (catError || !allCategories) {
     console.error("Error fetching categories:", JSON.stringify(catError));
     return [];
   }
+
+  // Store full category info for is_produce lookup
+  _categoryInfoCache = allCategories.map((
+    c: { name: string; is_produce?: boolean },
+  ) => ({
+    name: c.name,
+    isProduce: c.is_produce ?? false,
+  }));
 
   const categoryNames = allCategories.map((c: { name: string }) => c.name);
 
@@ -518,6 +544,8 @@ export async function createSellPost(data: SellPostData) {
     unit: data.unit,
     total_quantity_available: data.quantity,
     points_per_unit: data.pointsPerUnit,
+    is_produce: data.isProduce ?? false,
+    harvest_date: data.harvestDate || null,
   };
 
   if (onBehalfOf) {
@@ -756,6 +784,8 @@ export async function updateSellPost(
       unit: data.unit,
       total_quantity_available: data.quantity,
       points_per_unit: data.pointsPerUnit,
+      is_produce: data.isProduce ?? false,
+      harvest_date: data.harvestDate || null,
     })
     .eq("post_id", postId);
 

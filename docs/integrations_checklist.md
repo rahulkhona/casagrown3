@@ -82,7 +82,7 @@ Last Updated: 2026-03-03
 | `create-payment-intent`    | ✅     | Handles mock + Stripe providers       |
 | `confirm-payment`          | ✅     | Credits points via `point_ledger`     |
 | `stripe-webhook`           | ⬜     | Needs production webhook URL          |
-| `create-order`             | ✅     | Atomic order + escrow                 |
+| `create-order`             | ✅     | Atomic order + hold                   |
 | `create-offer`             | ✅     | Atomic offer creation                 |
 | `redeem-gift-card`         | ✅     | Reloadly + Tremendous providers, ACID |
 | `redeem-paypal-payout`     | ✅     | PayPal/Venmo cashout, ACID            |

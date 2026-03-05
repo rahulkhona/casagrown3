@@ -60,7 +60,7 @@ BEGIN
       v_refunded_points := v_refunded_points + (-v_escrow_amount);
     END IF;
     INSERT INTO chat_messages (conversation_id, sender_id, content, type)
-    VALUES (v_order.conversation_id, NULL, '⚠️ This order has been cancelled because "' || p_category_name || '" is now restricted. Escrowed points have been refunded.', 'system');
+    VALUES (v_order.conversation_id, NULL, '⚠️ This order has been cancelled because "' || p_category_name || '" is now restricted. Held points have been refunded.', 'system');
     INSERT INTO notifications (user_id, content, created_at) VALUES
       (v_order.buyer_id, 'Your order for "' || v_order.product || '" was cancelled (category restricted). Points refunded.', now()),
       (v_order.seller_id, 'An order for "' || v_order.product || '" was cancelled (category restricted).', now());

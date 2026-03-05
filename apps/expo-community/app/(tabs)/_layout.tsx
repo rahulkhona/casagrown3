@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Tabs } from 'expo-router'
+import { useFocusEffect } from '@react-navigation/native'
+import { Platform, DeviceEventEmitter } from 'react-native'
 import { Home, ShoppingBag, Tag, Menu as MenuIcon, MessagesSquare } from '@tamagui/lucide-icons'
 import { colors } from '@casagrown/app/design-tokens'
 import { useAuth } from '@casagrown/app/features/auth/auth-hook'
@@ -28,10 +30,28 @@ export default function TabLayout() {
     }
   }, [user?.id])
 
+  // Initial fetch on mount
   useEffect(() => {
     fetchCounts()
-    const interval = setInterval(fetchCounts, 30000) // refresh every 30s
-    return () => clearInterval(interval)
+  }, [fetchCounts])
+
+  // Refresh counts when any tab is focused
+  useFocusEffect(
+    useCallback(() => {
+      fetchCounts()
+    }, [fetchCounts])
+  )
+
+  // Listen for badge-refresh events from root RealtimeNotificationListener
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const handler = () => fetchCounts()
+      window.addEventListener('casagrown:badge-refresh', handler)
+      return () => window.removeEventListener('casagrown:badge-refresh', handler)
+    } else {
+      const sub = DeviceEventEmitter.addListener('casagrown:badge-refresh', fetchCounts)
+      return () => sub.remove()
+    }
   }, [fetchCounts])
 
   return (

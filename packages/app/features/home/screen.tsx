@@ -14,10 +14,11 @@ import {
 } from '@casagrown/ui'
 import { useAuth } from '../auth/auth-hook'
 import { ArrowRight, Shield, Zap, HandHeart, Sparkles, Ban, TrendingUp, GraduationCap, Download } from '@tamagui/lucide-icons'
-import { Platform, useWindowDimensions, Image, Linking, Alert, type ImageSourcePropType } from 'react-native'
+import { Platform, useWindowDimensions, Image, Linking, Alert, Pressable, type ImageSourcePropType } from 'react-native'
 // Note: expo-clipboard is imported dynamically only on native platforms
 import { colors, tc } from '../../design-tokens'
 import { useTranslation } from 'react-i18next'
+import { useRouter } from 'solito/navigation'
 
 // ============================================================================
 // Hooks
@@ -793,54 +794,60 @@ function ReadyToMakeDifferenceSection({ onLinkPress }: { onLinkPress?: () => voi
 function Footer() {
   const isMobile = useIsMobile()
   const { t } = useTranslation()
+  const router = useRouter()
 
   return (
-    <YStack width="100%" paddingHorizontal="$4" paddingVertical="$8" backgroundColor={colors.gray[800]} alignItems="center">
-      <YStack maxWidth={1000} width="100%" gap="$6">
+    <YStack width="100%" paddingHorizontal="$4" paddingVertical="$6" backgroundColor={colors.gray[800]} alignItems="center">
+      <YStack maxWidth={1000} width="100%" gap="$4">
         <XStack
           flexDirection={isMobile ? 'column' : 'row'}
           justifyContent="space-between"
-          alignItems={isMobile ? 'center' : 'flex-start'}
-          gap="$6"
+          alignItems="center"
+          gap="$4"
         >
-          <YStack alignItems={isMobile ? 'center' : 'flex-start'} gap="$2">
-            <XStack alignItems="center" gap="$2">
-              {Platform.OS === 'web' ? (
-                <img src="/logo.png" alt="CasaGrown" style={{ width: 32, height: 32, objectFit: 'contain' }} />
-              ) : (
-                <Text>🏠</Text>
-              )}
-              <Text fontWeight="600" fontSize={18} color={colors.white}>
-                CasaGrown
-              </Text>
-            </XStack>
-            <Paragraph color={colors.gray[400]} fontSize={13} textAlign={isMobile ? 'center' : 'left'} maxWidth={280}>
-              {t('home.footer.tagline')}
-            </Paragraph>
-          </YStack>
+          {/* Logo */}
+          <XStack alignItems="center" gap="$3">
+            {Platform.OS === 'web' ? (
+              <img src="/logo.png" alt="CasaGrown" style={{ width: 28, height: 28, objectFit: 'contain' }} />
+            ) : (
+              <Text>🏠</Text>
+            )}
+            <Text fontWeight="600" fontSize={16} color={colors.white}>
+              CasaGrown
+            </Text>
+          </XStack>
 
-          <XStack gap="$8" flexWrap="wrap" justifyContent="center">
-            <YStack gap="$2" alignItems={isMobile ? 'center' : 'flex-start'}>
-              <Text color={colors.white} fontWeight="600" fontSize={14}>{t('home.footer.product')}</Text>
-              <Text color={colors.gray[400]} fontSize={13}>{t('home.footer.features')}</Text>
-              <Text color={colors.gray[400]} fontSize={13}>{t('home.footer.howItWorks')}</Text>
-              <Text color={colors.gray[400]} fontSize={13}>{t('home.footer.pricing')}</Text>
-            </YStack>
-            <YStack gap="$2" alignItems={isMobile ? 'center' : 'flex-start'}>
-              <Text color={colors.white} fontWeight="600" fontSize={14}>{t('home.footer.company')}</Text>
-              <Text color={colors.gray[400]} fontSize={13}>{t('home.footer.about')}</Text>
-              <Text color={colors.gray[400]} fontSize={13}>{t('home.footer.blog')}</Text>
-              <Text color={colors.gray[400]} fontSize={13}>{t('home.footer.contact')}</Text>
-            </YStack>
-            <YStack gap="$2" alignItems={isMobile ? 'center' : 'flex-start'}>
-              <Text color={colors.white} fontWeight="600" fontSize={14}>{t('home.footer.legal')}</Text>
-              <Text color={colors.gray[400]} fontSize={13}>{t('home.footer.privacy')}</Text>
-              <Text color={colors.gray[400]} fontSize={13}>{t('home.footer.terms')}</Text>
-            </YStack>
+          {/* Links */}
+          <XStack gap="$5" alignItems="center" flexWrap="wrap" justifyContent="center">
+            <Pressable onPress={() => Linking.openURL('mailto:support@casagrown.com')}>
+              <Text color={colors.gray[400]} fontSize={13} hoverStyle={{ color: colors.green[400] } as any}>
+                {t('home.footer.contact')}
+              </Text>
+            </Pressable>
+            <Pressable onPress={() => router.push('/guidelines')}>
+              <Text color={colors.gray[400]} fontSize={13} hoverStyle={{ color: colors.green[400] } as any}>
+                {t('home.footer.guidelines')}
+              </Text>
+            </Pressable>
+            <Pressable onPress={() => router.push('/sellers-handbook')}>
+              <Text color={colors.gray[400]} fontSize={13} hoverStyle={{ color: colors.green[400] } as any}>
+                {t('home.footer.sellersHandbook')}
+              </Text>
+            </Pressable>
+            <Pressable onPress={() => router.push('/privacy')}>
+              <Text color={colors.gray[400]} fontSize={13} hoverStyle={{ color: colors.green[400] } as any}>
+                {t('home.footer.privacy')}
+              </Text>
+            </Pressable>
+            <Pressable onPress={() => router.push('/terms')}>
+              <Text color={colors.gray[400]} fontSize={13} hoverStyle={{ color: colors.green[400] } as any}>
+                {t('home.footer.terms')}
+              </Text>
+            </Pressable>
           </XStack>
         </XStack>
 
-        <YStack borderTopWidth={1} borderColor={colors.gray[700]} paddingTop="$4" alignItems="center">
+        <YStack borderTopWidth={1} borderColor={colors.gray[700]} paddingTop="$3" alignItems="center">
           <Text color={colors.gray[500]} fontSize={12}>
             {t('home.footer.copyright')}
           </Text>

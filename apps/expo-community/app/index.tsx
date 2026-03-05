@@ -38,10 +38,17 @@ export default function Index() {
       try {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('full_name, home_community_h3_index')
+          .select('full_name, home_community_h3_index, tos_accepted_at')
           .eq('id', user.id)
           .single()
         
+        // Must accept ToS first — redirect to login which handles ToS flow
+        if (!profile?.tos_accepted_at) {
+          console.log('🟡 INDEX: ToS not accepted, redirecting to /login')
+          router.replace('/login')
+          return
+        }
+
         // Complete profile → Feed
         if (profile?.full_name && profile?.home_community_h3_index) {
           console.log('🟡 INDEX: Complete profile, redirecting to /feed')
@@ -53,8 +60,8 @@ export default function Index() {
         }
       } catch (err) {
         console.error('Error checking profile:', err)
-        // On error, go to wizard for safety
-        router.replace('/profile-wizard')
+        // On error, go to login which handles ToS safely
+        router.replace('/login')
       }
     }
     

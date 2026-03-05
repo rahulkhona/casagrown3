@@ -33,7 +33,7 @@ begin
     jsonb_build_object('order_id', v_order_id, 'offer_id', v_offer.id, 'post_id', v_conv.post_id, 'seller_id', v_conv.seller_id, 'product', v_offer.product, 'quantity', v_quantity, 'points_per_unit', v_offer.points_per_unit));
   insert into chat_messages (conversation_id, sender_id, content, type)
   values (v_offer.conversation_id, p_buyer_id,
-    '✅ Offer accepted! Order placed: ' || v_quantity || ' ' || coalesce(v_offer.unit, '') || ' ' || v_offer.product || ' for ' || v_total_price || ' points. Points held in escrow.', 'text');
+    '✅ Offer accepted! Order placed: ' || v_quantity || ' ' || coalesce(v_offer.unit, '') || ' ' || v_offer.product || ' for ' || v_total_price || ' points. Points are on hold.', 'text');
   return jsonb_build_object('orderId', v_order_id, 'conversationId', v_offer.conversation_id, 'newBalance', v_current_balance - v_total_price);
 end;
 $$;

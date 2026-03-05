@@ -91,7 +91,10 @@ and any associated triggers/functions/RLS policies.
 > `20260301100300_zipcode_popular_produce` → `20260301100500_user_garden_rls` →
 > `20260301100600_tax_rate_cache` → `20260301100700_order_tax_columns` →
 > `20260301100800_sales_tax_ledger_type` → `20260301100900_seed_ca_tax_rules` →
-> `20260303000000_post_moderation_pipeline`
+> `20260303000000_post_moderation_pipeline` → `20260305000000_compliance_ddl` →
+> `20260305000001_compliance_functions` →
+> `20260305000100_seed_redemption_blocks` →
+> `20260305000200_edge_function_errors`
 
 ## Extensions
 
@@ -119,10 +122,12 @@ create type incentive_scope as enum ('global', 'country', 'state', 'city', 'zip'
 
 create type point_transaction_type as enum (
   'purchase', 'transfer', 'payment', 'platform_charge', 'redemption', 'reward',
-  'escrow',            -- buyer's points held until seller accepts (20260215090000)
+  'hold',              -- buyer's points held until order completes (was 'escrow', renamed by 20260305000000)
   'refund',            -- points returned to buyer if order is cancelled (20260215090000)
+  'platform_fee',      -- platform fee deducted from seller payout (20260227195508)
   'donation',          -- points spent on charitable donations (20260222100000)
   'delegation_split',  -- delegate/delegator share of a delegated sale (20260223100000)
+  'hold_refund',       -- refund of held points (was 'escrow_refund', renamed by 20260305000000)
   'sales_tax'          -- sales tax collected on an order (20260301100800)
 );
 
@@ -143,7 +148,9 @@ create type media_asset_type as enum ('video', 'image');
 create type offer_status as enum ('pending', 'accepted', 'rejected', 'withdrawn');
 -- Updated by 20260219099000: added 'withdrawn'
 -- Updated by 20260215090000: added 'pending' (before 'accepted'), 'delivered', 'cancelled'
-create type order_status as enum ('pending', 'accepted', 'delivered', 'disputed', 'cancelled');
+-- Updated by 20260217000008: added 'escalated'
+-- Updated by 20260305000000: added 'completed' (set when buyer confirms delivery)
+create type order_status as enum ('pending', 'accepted', 'delivered', 'completed', 'disputed', 'escalated', 'cancelled');
 create type rating_score as enum ('1', '2', '3', '4', '5');
 create type chat_message_type as enum ('text', 'media', 'mixed', 'system');
 create type escalation_status as enum ('open', 'resolved');
@@ -384,6 +391,7 @@ Linked to Supabase Auth `auth.users` table. Auto-created on signup via
 | `phone_verification_code`       | `text`                  | Temp 6-digit OTP for phone verification. `20260301100000`.     |
 | `phone_verification_expires_at` | `timestamptz`           | OTP expiration timestamp. `20260301100000`.                    |
 | `profile_completed_at`          | `timestamptz`           | When wizard was completed. `20260301100000`.                   |
+| `tos_accepted_at`               | `timestamptz`           | When ToS was accepted. Nullable. `20260305000000`.             |
 | `created_at`                    | `timestamptz`           | Default `now()`.                                               |
 | `updated_at`                    | `timestamptz`           | Default `now()`.                                               |
 
@@ -428,6 +436,7 @@ create table profiles (
   phone_verification_code text,                                    -- 20260301100000
   phone_verification_expires_at timestamptz,                       -- 20260301100000
   profile_completed_at timestamptz,                                -- 20260301100000
+  tos_accepted_at timestamptz,                                      -- 20260305000000
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -828,6 +837,8 @@ create table post_media (
 | `points_per_unit`          | `integer`         | Points per unit.                                                                            |
 | `delegator_id`             | `uuid`            | FK to `profiles(id)`. Optional delegator.                                                   |
 | `need_by_date`             | `date`            | Latest drop-off date. Added by `20260210060000`.                                            |
+| `is_produce`               | `boolean`         | Whether this is produce. Default: `false`. Added by `20260305000000`.                       |
+| `harvest_date`             | `date`            | When the produce was harvested. Nullable. Added by `20260305000000`.                        |
 | `created_at`               | `timestamptz`     | Default `now()`.                                                                            |
 | `updated_at`               | `timestamptz`     | Default `now()`.                                                                            |
 
@@ -842,6 +853,8 @@ create table want_to_sell_details (
   points_per_unit integer not null,
   delegator_id uuid references profiles(id),
   need_by_date date,                               -- 20260210060000
+  is_produce boolean not null default false,        -- 20260305000000
+  harvest_date date,                                 -- 20260305000000
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -912,17 +925,19 @@ create table want_to_buy_details (
 
 Dynamic, table-driven categories replacing the old `sales_category` enum.
 
-| Column          | Type          | Description      |
-| :-------------- | :------------ | :--------------- |
-| `name`          | `text`        | **Primary Key**. |
-| `display_order` | `integer`     | Sorting order.   |
-| `created_at`    | `timestamptz` | Default `now()`. |
-| `updated_at`    | `timestamptz` | Default `now()`. |
+| Column          | Type          | Description                                                           |
+| :-------------- | :------------ | :-------------------------------------------------------------------- |
+| `name`          | `text`        | **Primary Key**.                                                      |
+| `display_order` | `integer`     | Sorting order.                                                        |
+| `is_produce`    | `boolean`     | Whether this category is produce. Default: `false`. `20260305000000`. |
+| `created_at`    | `timestamptz` | Default `now()`.                                                      |
+| `updated_at`    | `timestamptz` | Default `now()`.                                                      |
 
 ```sql
 create table sales_categories (
   name          text primary key,
   display_order integer not null default 0,
+  is_produce    boolean not null default false,    -- 20260305000000
   created_at    timestamptz default now(),
   updated_at    timestamptz default now()
 );
@@ -932,7 +947,7 @@ create table sales_categories (
 
 Soft-blocks a category in a specific H3 zone (or globally when
 `community_h3_index` is NULL). Cascades: archives posts, cancels orders, refunds
-escrow, sends system messages.
+held-point refunds, sends system messages.
 
 | Column               | Type          | Description                                       |
 | :------------------- | :------------ | :------------------------------------------------ |
@@ -985,7 +1000,7 @@ create table blocked_products (
 
 | RPC                        | Input                               | Effect                                                                              |
 | :------------------------- | :---------------------------------- | :---------------------------------------------------------------------------------- |
-| `ban_category(p_name)`     | Category name                       | Hard-delete category → cascades FKs, archives posts, cancels orders, refunds escrow |
+| `ban_category(p_name)`     | Category name                       | Hard-delete category → cascades FKs, archives posts, cancels orders, refunds held points |
 | `add_category_restriction` | Name, H3 (optional), reason         | Soft-block: insert restriction row → archive + cancel + refund                      |
 | `ban_product`              | Product name, H3 (optional), reason | Block product → archive matching posts, cancel orders, refund                       |
 
@@ -1392,6 +1407,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.offers;
 | `seller_feedback`          | `text`           | Seller's feedback text.                                             |
 | `tax_rate_pct`             | `numeric`        | Applied sales tax rate (%). Nullable. Added by `20260301100700`.    |
 | `tax_amount`               | `integer`        | Tax amount in points. Nullable. Added by `20260301100700`.          |
+| `harvest_date`             | `date`           | When produce was harvested. Nullable. Added by `20260305000000`.    |
 | `created_at`               | `timestamptz`    | Default `now()`.                                                    |
 | `updated_at`               | `timestamptz`    | Default `now()`.                                                    |
 
@@ -1424,6 +1440,7 @@ create table orders (
   seller_feedback text,
   tax_rate_pct numeric,                                       -- 20260301100700
   tax_amount integer,                                          -- 20260301100700
+  harvest_date date,                                           -- 20260305000000
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -2274,7 +2291,7 @@ create trigger trg_compute_balance_after
 ### `create_order_atomic()`
 
 Atomically creates a "buy now" order — wraps conversation + offer + order +
-escrow + system message in a single transaction. The `compute_balance_after`
+hold + system message in a single transaction. The `compute_balance_after`
 trigger fires inside this transaction, so advisory locks are properly held.
 
 **Migration**: `20260215200000_create_order_atomic.sql`
@@ -2300,7 +2317,7 @@ create or replace function public.create_order_atomic(
 2. Create or reuse `conversations` row (buyer + seller + post)
 3. Create pending `offers` row
 4. Create pending `orders` row
-5. Escrow buyer's points via `point_ledger` insert (type: `escrow`, amount:
+5. Hold buyer's points via `point_ledger` insert (type: `hold`, amount:
    `-totalPrice`) — `balance_after` auto-computed by trigger
 6. Insert system `chat_messages` ("Order placed: ...")
 7. Return `{ orderId, conversationId, newBalance }`
@@ -2628,7 +2645,7 @@ Atomically creates a "buy now" order from the feed.
 2. Create/reuse `conversations` row (buyer + seller + post)
 3. Create auto-accepted `offers` row
 4. Create `orders` row (status=`pending`, version=`1`)
-5. Debit buyer: insert `point_ledger` (type: `escrow`, amount: -totalPrice)
+5. Debit buyer: insert `point_ledger` (type: `hold`, amount: -totalPrice)
 6. Insert system `chat_messages` ("Order placed: ...")
 7. Return `{ orderId, conversationId, newBalance }`
 
@@ -2801,7 +2818,7 @@ Cron function that polls Reloadly and Tremendous balance APIs, updates
 ## Order Lifecycle RPC Functions
 
 Server-side functions implementing the order state machine with optimistic
-locking (`version` column) and escrow-based point flows. All RPCs use
+locking (`version` column) and hold-based point flows. All RPCs use
 `SECURITY DEFINER` and `FOR UPDATE` row locking.
 
 ### `accept_order_versioned`
@@ -2820,7 +2837,7 @@ locking (`version` column) and escrow-based point flows. All RPCs use
 4. Set status → `accepted`, reduce
    `want_to_sell_details.total_quantity_available`
 5. Insert system message with unit-aware formatting (e.g., "2 dozen Tomatoes for
-   200 points. Points held in escrow…")
+   200 points. Points held on hold…")
 6. Return `{ success: true }`
 
 ### `reject_order_versioned`
@@ -2901,7 +2918,7 @@ locking (`version` column) and escrow-based point flows. All RPCs use
 7. Set status → `completed` (terminal)
 8. Insert **role-specific system messages** (both `sender_id = null`,
    `type = 'system'`):
-   - _Buyer sees_: "✅ Order complete! X escrowed points released…"
+   - _Buyer sees_: "✅ Order complete! X held points released…"
      (`metadata.visible_to = buyer_id`)
    - _Seller sees_: "💰 Payment received: X points credited…"
      (`metadata.visible_to = seller_id`)
@@ -2980,7 +2997,7 @@ locking (`version` column) and escrow-based point flows. All RPCs use
 
 1. Lock and fetch order, verify caller is buyer, status = `pending`
 2. Compute price difference (old total vs new total)
-3. If cost increased: verify buyer balance, escrow additional amount
+3. If cost increased: verify buyer balance, hold additional amount
 4. If cost decreased: refund difference to buyer
 5. Update order fields + bump `version`
 6. Insert system message with unit ("Order modified: 3 boxes Tomatoes for 300
@@ -3037,7 +3054,7 @@ quantity support).
 7. Verify buyer's point balance ≥ `v_total_price`
 8. Update offer: `status → 'accepted'`, `updated_at → now()`
 9. Insert order (status=`pending`) with buyer's quantity and calculated price
-10. Escrow buyer's points: `point_ledger` INSERT (type=`escrow`, −total_price)
+10. Hold buyer's points: `point_ledger` INSERT (type=`hold`, −total_price)
 11. Update buyer's balance: `profiles.current_points -= v_total_price`
 12. Insert buyer chat message (type=`text`, "✅ Offer accepted! Order placed:
     ...")
@@ -3924,3 +3941,185 @@ Migration `20260301100900_seed_ca_tax_rules.sql` seeds California-specific tax
 rules. Food items (fruits, vegetables, herbs) are exempt (fixed 0%), while
 non-food categories (flowers, equipment, etc.) use the `evaluate` rule type for
 dynamic ZipTax API lookup.
+
+---
+
+## Compliance & Regulatory Tables _(20260305000000)_
+
+### `point_purchase_limits`
+
+Per-country caps on point purchases to prevent abuse.
+
+| Column                  | Type          | Description                                        |
+| :---------------------- | :------------ | :------------------------------------------------- |
+| `id`                    | `uuid`        | Primary Key.                                       |
+| `country_iso_3`         | `text`        | Country code. Default: `'USA'`. Unique.            |
+| `max_outstanding_cents` | `integer`     | Max outstanding balance in cents. Default: 200000. |
+| `daily_limit_cents`     | `integer`     | Daily purchase cap in cents. Default: 50000.       |
+| `created_at`            | `timestamptz` | Default `now()`.                                   |
+| `updated_at`            | `timestamptz` | Default `now()`.                                   |
+
+```sql
+CREATE TABLE point_purchase_limits (
+  id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  country_iso_3        TEXT NOT NULL DEFAULT 'USA',
+  max_outstanding_cents INTEGER NOT NULL DEFAULT 200000,
+  daily_limit_cents    INTEGER NOT NULL DEFAULT 50000,
+  created_at           TIMESTAMPTZ DEFAULT now(),
+  updated_at           TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(country_iso_3)
+);
+```
+
+**RLS Policies**: Authenticated can read. Admins (via `staff_members`) can
+manage.
+
+### `state_redemption_method_blocks`
+
+Blocks specific redemption methods in specific states (e.g., cashout blocked in
+all 50 states + DC).
+
+| Column          | Type                | Description                                    |
+| :-------------- | :------------------ | :--------------------------------------------- |
+| `id`            | `uuid`              | Primary Key.                                   |
+| `country_iso_3` | `text`              | Country code. Default: `'USA'`.                |
+| `state_code`    | `text`              | 2-letter state code.                           |
+| `method`        | `redemption_method` | Redemption method being blocked.               |
+| `reason`        | `text`              | Human-readable reason for the block. Nullable. |
+| `created_at`    | `timestamptz`       | Default `now()`.                               |
+
+**Unique**: `(country_iso_3, state_code, method)`
+
+```sql
+CREATE TABLE state_redemption_method_blocks (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  country_iso_3   TEXT NOT NULL DEFAULT 'USA',
+  state_code      TEXT NOT NULL,
+  method          redemption_method NOT NULL,
+  reason          TEXT,
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(country_iso_3, state_code, method)
+);
+```
+
+**RLS Policies**: Authenticated can read. Admins (via `staff_members`) can
+manage.
+
+**Seed Data** (`20260305000100`): Cashout blocked in all 50 US states + DC.
+
+### `digital_receipts`
+
+Stores jsonb buyer/seller receipt data generated by `confirm_order_delivery`.
+
+| Column           | Type          | Description                            |
+| :--------------- | :------------ | :------------------------------------- |
+| `id`             | `uuid`        | Primary Key.                           |
+| `order_id`       | `uuid`        | FK to `orders(id)`. Not null.          |
+| `buyer_receipt`  | `jsonb`       | Buyer-facing receipt data.             |
+| `seller_receipt` | `jsonb`       | Seller-facing receipt (includes fees). |
+| `created_at`     | `timestamptz` | Default `now()`.                       |
+
+```sql
+CREATE TABLE digital_receipts (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id        UUID NOT NULL REFERENCES orders(id),
+  buyer_receipt   JSONB NOT NULL,
+  seller_receipt  JSONB NOT NULL,
+  created_at      TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX idx_digital_receipts_order ON digital_receipts(order_id);
+```
+
+**RLS Policies**: Users can read receipts from their own orders (buyer or
+seller).
+
+**Receipt JSONB structure** (buyer):
+
+```json
+{
+  "transaction_id": "uuid",
+  "date": "timestamptz",
+  "type": "Affiliated Network Fulfillment",
+  "buyer_name": "text",
+  "buyer_zip": "text",
+  "seller_name": "text",
+  "seller_zip": "text",
+  "harvest_date": "date",
+  "product": "text",
+  "quantity": 1,
+  "points_per_unit": 10,
+  "subtotal": 10,
+  "tax_amount": 0,
+  "total": 10,
+  "footer": "text or null"
+}
+```
+
+### `receipt_footers`
+
+State-specific legal footer text appended to digital receipts.
+
+| Column          | Type          | Description                         |
+| :-------------- | :------------ | :---------------------------------- |
+| `id`            | `uuid`        | Primary Key.                        |
+| `country_iso_3` | `text`        | Country code. Default: `'USA'`.     |
+| `state_code`    | `text`        | 2-letter state code.                |
+| `footer_text`   | `text`        | Legal footer text.                  |
+| `font_size_pt`  | `integer`     | Font size in points. Default: `10`. |
+| `created_at`    | `timestamptz` | Default `now()`.                    |
+
+**Unique**: `(country_iso_3, state_code)`
+
+```sql
+CREATE TABLE receipt_footers (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  country_iso_3   TEXT NOT NULL DEFAULT 'USA',
+  state_code      TEXT NOT NULL,
+  footer_text     TEXT NOT NULL,
+  font_size_pt    INTEGER NOT NULL DEFAULT 10,
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(country_iso_3, state_code)
+);
+```
+
+**RLS Policies**: Authenticated can read. Admins (via `staff_members`) can
+manage.
+
+**Seed Data**: FL entry with cottage food disclaimer.
+
+---
+
+## Observability _(20260305000200)_
+
+### `edge_function_errors`
+
+Persistent error log for edge functions. Service-role only (no public access).
+Rows should be cleaned up after 30 days.
+
+| Column           | Type          | Description             |
+| :--------------- | :------------ | :---------------------- |
+| `id`             | `uuid`        | Primary Key.            |
+| `created_at`     | `timestamptz` | Default `now()`.        |
+| `function_name`  | `text`        | Edge function name.     |
+| `error_message`  | `text`        | Error message.          |
+| `error_stack`    | `text`        | Stack trace. Nullable.  |
+| `request_method` | `text`        | HTTP method. Nullable.  |
+| `request_path`   | `text`        | Request path. Nullable. |
+
+```sql
+CREATE TABLE edge_function_errors (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  function_name text NOT NULL,
+  error_message text NOT NULL,
+  error_stack   text,
+  request_method text,
+  request_path  text
+);
+
+CREATE INDEX idx_efe_fn_created
+  ON edge_function_errors (function_name, created_at DESC);
+```
+
+**RLS**: Enabled, no public policies (service_role only).

@@ -1,0 +1,46 @@
+# Compliance Transaction History Flow — Maestro E2E test
+# Verifies compliance data on the Transaction History screen:
+#   - Earned vs purchased balance separation
+#   - Transaction entries visible with dates
+#   - Navigation from Menu → Transaction History
+
+appId: dev.casagrown.community
+
+---
+
+# Login first
+- runFlow: ../utils/login.yaml
+
+# Wait for feed to load
+- extendedWaitUntil:
+      visible: "Tomatoes|Feed|Create Post"
+      timeout: 15000
+
+# Navigate via Menu tab
+- tapOn:
+      text: ".*Menu.*"
+
+# Wait for menu items to load — match either label
+- extendedWaitUntil:
+      visible: ".*Points Balance.*|.*Transaction History.*"
+      timeout: 10000
+
+# Tap the menu link
+- tapOn:
+      text: ".*Points Balance.*|.*Transaction History.*"
+
+# Wait for the balance screen to load
+- extendedWaitUntil:
+      visible: ".*Earned.*Balance.*|.*Total Balance.*|.*Purchased.*Balance.*"
+      timeout: 15000
+
+# Verify balance header with earned/purchased segmentation
+- assertVisible:
+      text: ".*Earned.*|.*Total.*Balance.*"
+
+# Verify the pts label renders
+- assertVisible:
+      text: ".*pts.*"
+
+# Navigate back
+- back

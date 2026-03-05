@@ -12,6 +12,7 @@ import {
 import { colors, borderRadius, shadows } from '../../design-tokens'
 import * as ImagePicker from 'expo-image-picker'
 import * as Location from 'expo-location'
+import { CalendarPicker } from '../create-post/CalendarPicker'
 
 // Conditionally load WebCameraModal on web only
 const WebCameraModal = Platform.OS === 'web'
@@ -30,7 +31,10 @@ interface DeliveryProofSheetProps {
     photoUri: string
     location?: { latitude: number; longitude: number }
     timestamp: string
+    harvestDate?: string
   }) => void
+  /** Whether the order item is produce (shows harvest date input) */
+  isProduce?: boolean
   t: (key: string, opts?: Record<string, unknown>) => string
 }
 
@@ -43,6 +47,7 @@ export function DeliveryProofSheet({
   orderId,
   onClose,
   onSubmit,
+  isProduce,
   t,
 }: DeliveryProofSheetProps) {
   const [photoUri, setPhotoUri] = useState<string | null>(null)
@@ -54,12 +59,15 @@ export function DeliveryProofSheet({
   const [loading, setLoading] = useState(false)
   const [capturing, setCapturing] = useState(false)
   const [webCameraOpen, setWebCameraOpen] = useState(false)
+  const [harvestDate, setHarvestDate] = useState('')
+  const [harvestPickerOpen, setHarvestPickerOpen] = useState(false)
 
   const reset = useCallback(() => {
     setPhotoUri(null)
     setLocation(null)
     setTimestamp(null)
     setWebCameraOpen(false)
+    setHarvestDate('')
   }, [])
 
   // Capture geolocation (used by both web and native flows)
@@ -157,10 +165,23 @@ export function DeliveryProofSheet({
 
   const handleSubmit = useCallback(() => {
     if (!photoUri || !timestamp) return
-    onSubmit({ photoUri, location: location ?? undefined, timestamp })
+    // If produce and no harvest date provided, warn
+    if (isProduce && !harvestDate) {
+      if (Platform.OS === 'web') {
+        if (!window.confirm('This is a produce item. Are you sure you want to submit without a harvest date?')) return
+      } else {
+        Alert.alert(
+          'Harvest Date Missing',
+          'This is a produce item. Please enter the harvest date.',
+          [{ text: 'OK' }]
+        )
+        return
+      }
+    }
+    onSubmit({ photoUri, location: location ?? undefined, timestamp, harvestDate: harvestDate || undefined })
     reset()
     onClose()
-  }, [photoUri, location, timestamp, onSubmit, onClose, reset])
+  }, [photoUri, location, timestamp, harvestDate, isProduce, onSubmit, onClose, reset])
 
   if (!visible) return null
 
@@ -340,6 +361,71 @@ export function DeliveryProofSheet({
               {t('orders.delivery.geotagNote')}
             </Text>
           </XStack>
+
+          {/* Harvest Date (for produce items) */}
+          {isProduce && photoUri && (
+            <YStack
+              backgroundColor={colors.green[50]}
+              borderWidth={1}
+              borderColor={colors.green[200]}
+              borderRadius={borderRadius.md}
+              padding="$3"
+              gap="$2"
+            >
+              <Text fontSize={14} fontWeight="600" color={colors.green[800]}>
+                🌿 Harvest Date
+              </Text>
+              <Text fontSize={12} color={colors.green[700]}>
+                When was this produce harvested?
+              </Text>
+              {Platform.OS === 'web' ? (
+                <input
+                  type="date"
+                  value={harvestDate}
+                  onChange={(e: any) => setHarvestDate(e.target.value)}
+                  max={new Date().toISOString().split('T')[0]}
+                  style={{
+                    fontSize: 15,
+                    padding: '10px 14px',
+                    borderRadius: 10,
+                    border: `1px solid ${colors.green[300]}`,
+                    backgroundColor: 'white',
+                    color: colors.gray[900],
+                    outline: 'none',
+                    width: '100%',
+                    boxSizing: 'border-box' as const,
+                  }}
+                />
+              ) : (
+                <>
+                  <TouchableOpacity
+                    onPress={() => setHarvestPickerOpen(true)}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.green[300],
+                      borderRadius: 10,
+                      paddingHorizontal: 14,
+                      paddingVertical: 12,
+                      backgroundColor: 'white',
+                    }}
+                  >
+                    <Text color={harvestDate ? colors.gray[900] : colors.gray[400]}>
+                      {harvestDate || 'Tap to select harvest date'}
+                    </Text>
+                  </TouchableOpacity>
+                  <CalendarPicker
+                    visible={harvestPickerOpen}
+                    initialDate={harvestDate || undefined}
+                    onSelect={(dateStr) => {
+                      setHarvestDate(dateStr)
+                      setHarvestPickerOpen(false)
+                    }}
+                    onCancel={() => setHarvestPickerOpen(false)}
+                  />
+                </>
+              )}
+            </YStack>
+          )}
 
           {/* Actions */}
           <XStack gap="$3">

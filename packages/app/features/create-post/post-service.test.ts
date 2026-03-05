@@ -105,6 +105,7 @@ import {
     GeneralPostData,
     getActiveDelegators,
     getAvailableCategories,
+    getCategoryIsProduce,
     getCommunityWithNeighborsByH3,
     getPlatformFeePercent,
     getUserCommunitiesWithNeighbors,
@@ -748,7 +749,14 @@ describe("post-service", () => {
                     return {
                         select: jest.fn().mockReturnValue({
                             order: jest.fn().mockResolvedValue({
-                                data: allCategories.map((c) => ({ name: c })),
+                                data: allCategories.map((c) => ({
+                                    name: c,
+                                    is_produce: [
+                                        "fruits",
+                                        "vegetables",
+                                        "herbs",
+                                    ].includes(c),
+                                })),
                                 error: null,
                             }),
                         }),
@@ -777,7 +785,14 @@ describe("post-service", () => {
                     return {
                         select: jest.fn().mockReturnValue({
                             order: jest.fn().mockResolvedValue({
-                                data: allCategories.map((c) => ({ name: c })),
+                                data: allCategories.map((c) => ({
+                                    name: c,
+                                    is_produce: [
+                                        "fruits",
+                                        "vegetables",
+                                        "herbs",
+                                    ].includes(c),
+                                })),
                                 error: null,
                             }),
                         }),
@@ -812,7 +827,14 @@ describe("post-service", () => {
                     return {
                         select: jest.fn().mockReturnValue({
                             order: jest.fn().mockResolvedValue({
-                                data: allCategories.map((c) => ({ name: c })),
+                                data: allCategories.map((c) => ({
+                                    name: c,
+                                    is_produce: [
+                                        "fruits",
+                                        "vegetables",
+                                        "herbs",
+                                    ].includes(c),
+                                })),
                                 error: null,
                             }),
                         }),
@@ -1532,6 +1554,185 @@ describe("post-service", () => {
             const content = JSON.parse(updateArg.content);
             expect(content.title).toBe("Hello Neighbors!");
             expect(content.description).toBe("Just joined the community");
+        });
+    });
+
+    // =========================================================================
+    // Compliance: isProduce & harvestDate in createSellPost
+    // =========================================================================
+
+    describe("createSellPost - compliance fields", () => {
+        it("passes is_produce and harvest_date to want_to_sell_details insert", async () => {
+            let capturedInsert: any = null;
+
+            mockFrom.mockImplementation((table: string) => {
+                if (table === "posts") {
+                    return {
+                        insert: jest.fn().mockReturnValue({
+                            select: jest.fn().mockReturnValue({
+                                single: jest.fn().mockResolvedValue({
+                                    data: { id: "produce-post-1" },
+                                    error: null,
+                                }),
+                            }),
+                        }),
+                    };
+                }
+                if (table === "want_to_sell_details") {
+                    return {
+                        insert: jest.fn().mockImplementation((rows: any) => {
+                            capturedInsert = rows;
+                            return Promise.resolve({ error: null });
+                        }),
+                    };
+                }
+                return buildChain(table);
+            });
+
+            await createSellPost({
+                ...baseSellData,
+                isProduce: true,
+                harvestDate: "2026-03-01",
+            });
+
+            expect(capturedInsert).toBeDefined();
+            expect(capturedInsert.is_produce).toBe(true);
+            expect(capturedInsert.harvest_date).toBe("2026-03-01");
+        });
+
+        it("defaults is_produce to false and harvest_date to null when not provided", async () => {
+            let capturedInsert: any = null;
+
+            mockFrom.mockImplementation((table: string) => {
+                if (table === "posts") {
+                    return {
+                        insert: jest.fn().mockReturnValue({
+                            select: jest.fn().mockReturnValue({
+                                single: jest.fn().mockResolvedValue({
+                                    data: { id: "non-produce-post" },
+                                    error: null,
+                                }),
+                            }),
+                        }),
+                    };
+                }
+                if (table === "want_to_sell_details") {
+                    return {
+                        insert: jest.fn().mockImplementation((rows: any) => {
+                            capturedInsert = rows;
+                            return Promise.resolve({ error: null });
+                        }),
+                    };
+                }
+                return buildChain(table);
+            });
+
+            await createSellPost(baseSellData);
+
+            expect(capturedInsert).toBeDefined();
+            expect(capturedInsert.is_produce).toBe(false);
+            expect(capturedInsert.harvest_date).toBeNull();
+        });
+    });
+
+    // =========================================================================
+    // Compliance: isProduce & harvestDate in updateSellPost
+    // =========================================================================
+
+    describe("updateSellPost - compliance fields", () => {
+        it("passes is_produce and harvest_date in update payload", async () => {
+            let capturedUpdate: any = null;
+
+            mockFrom.mockImplementation((table: string) => {
+                if (table === "posts") {
+                    return {
+                        update: jest.fn().mockImplementation(() => ({
+                            eq: jest.fn().mockResolvedValue({ error: null }),
+                        })),
+                    };
+                }
+                if (table === "want_to_sell_details") {
+                    return {
+                        update: jest.fn().mockImplementation((rows: any) => {
+                            capturedUpdate = rows;
+                            return {
+                                eq: jest.fn().mockResolvedValue({
+                                    error: null,
+                                }),
+                            };
+                        }),
+                    };
+                }
+                if (table === "post_media") {
+                    return {
+                        delete: jest.fn().mockReturnValue({
+                            eq: jest.fn().mockResolvedValue({ error: null }),
+                        }),
+                    };
+                }
+                return buildChain(table);
+            });
+
+            await updateSellPost("post-edit-1", {
+                ...baseSellData,
+                isProduce: true,
+                harvestDate: "2026-02-28",
+            });
+
+            expect(capturedUpdate).toBeDefined();
+            expect(capturedUpdate.is_produce).toBe(true);
+            expect(capturedUpdate.harvest_date).toBe("2026-02-28");
+        });
+    });
+
+    // =========================================================================
+    // Compliance: getCategoryIsProduce
+    // =========================================================================
+
+    describe("getCategoryIsProduce", () => {
+        it("returns true for produce categories after getAvailableCategories populates cache", async () => {
+            mockFrom.mockImplementation((table: string) => {
+                if (table === "sales_categories") {
+                    return {
+                        select: jest.fn().mockReturnValue({
+                            order: jest.fn().mockResolvedValue({
+                                data: [
+                                    { name: "fruits", is_produce: true },
+                                    { name: "vegetables", is_produce: true },
+                                    {
+                                        name: "garden_equipment",
+                                        is_produce: false,
+                                    },
+                                ],
+                                error: null,
+                            }),
+                        }),
+                    };
+                }
+                if (table === "category_restrictions") {
+                    return {
+                        select: jest.fn().mockReturnValue({
+                            is: jest.fn().mockResolvedValue({
+                                data: [],
+                                error: null,
+                            }),
+                        }),
+                    };
+                }
+                return buildChain(table);
+            });
+
+            // Populate the cache
+            await getAvailableCategories();
+
+            // Now check the cached values
+            expect(getCategoryIsProduce("fruits")).toBe(true);
+            expect(getCategoryIsProduce("vegetables")).toBe(true);
+            expect(getCategoryIsProduce("garden_equipment")).toBe(false);
+        });
+
+        it("returns false for unknown categories", async () => {
+            expect(getCategoryIsProduce("unknown_category")).toBe(false);
         });
     });
 });

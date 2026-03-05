@@ -12,12 +12,19 @@ appId: dev.casagrown.community
 
 # Wait for feed to load
 - extendedWaitUntil:
-          visible: "Tomatoes"
+          visible: "Create Post"
+          timeout: 15000
+- scrollUntilVisible:
+          element: "Tomatoes"
+          direction: DOWN
           timeout: 15000
 
 # Verify the Create Post button is visible on the feed
-- assertVisible:
-          text: ".*Create Post.*"
+- scrollUntilVisible:
+          element:
+                  text: ".*Create Post.*"
+          direction: UP
+          timeout: 10000
 
 # Tap Create Post to verify navigation works
 - tapOn:

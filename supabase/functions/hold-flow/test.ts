@@ -1,22 +1,22 @@
 /**
- * Integration tests for the complete Order Escrow & Point Flow.
+ * Integration tests for the complete Order Hold & Point Flow.
  *
  * Covers every financial scenario end-to-end:
- *   1. Order creation → escrow deducted from buyer
- *   2. Order acceptance → NO seller credit (points stay in escrow)
+ *   1. Order creation → hold deducted from buyer
+ *   2. Order acceptance → NO seller credit (points stay on hold)
  *   3. Delivery confirmed → seller credited (total - 10% fee)
  *   4. Order cancelled (pending) → full refund to buyer
  *   5. Order cancelled (accepted) → full refund to buyer, qty restored, NO seller reversal
  *   6. Dispute + accept refund offer → buyer refunded, seller gets remainder minus fee
  *   7. Dispute + resolve without refund → seller gets full amount minus fee
  *   8. Full escalation flow: dispute → escalate → offer → accept
- *   9. Balance invariant: escrow = payment + fee (happy path)
- *   10. Balance invariant: escrow = refund + payment + fee (dispute path)
+ *   9. Balance invariant: hold = payment + fee (happy path)
+ *   10. Balance invariant: hold = refund + payment + fee (dispute path)
  *   11. Cannot cancel after delivery
  *   12. Cannot confirm delivery twice (double-pay protection)
  *
  * Run:
- *   deno test --allow-net --allow-env supabase/functions/escrow-flow/test.ts
+ *   deno test --allow-net --allow-env supabase/functions/hold-flow/test.ts
  *
  * Prerequisites:
  *   - Local Supabase running (npx supabase start)
@@ -109,7 +109,7 @@ async function createTestUser(): Promise<{
     userId: string;
     headers: Record<string, string>;
 }> {
-    const email = `escrow-test-${Date.now()}-${
+    const email = `hold-test-${Date.now()}-${
         Math.random().toString(36).slice(2)
     }@test.com`;
     const password = "TestPassword123!";
@@ -157,7 +157,7 @@ async function createSellerPost(sellerId: string): Promise<string> {
         reach: "community",
         content: JSON.stringify({
             produceName: "Test Oranges",
-            description: "Fresh oranges for escrow test",
+            description: "Fresh oranges for hold test",
         }),
     });
     const postId = (rows[0] as Record<string, unknown>).id as string;
@@ -313,10 +313,10 @@ async function markDelivered(orderId: string, sellerId: string): Promise<void> {
 }
 
 // ============================================================
-// Test 1: Order creation → escrow deducted from buyer
+// Test 1: Order creation → hold deducted from buyer
 // ============================================================
 
-Deno.test("escrow-flow — 1: order creation deducts escrow from buyer", async () => {
+Deno.test("hold-flow — 1: order creation deducts hold from buyer", async () => {
     const buyer = await createTestUser();
     const seller = await createTestUser();
     await seedPoints(buyer.userId, SEED_POINTS);
@@ -329,16 +329,16 @@ Deno.test("escrow-flow — 1: order creation deducts escrow from buyer", async (
         postId,
     );
 
-    // Verify escrow entry
+    // Verify hold entry
     const ledger = await getOrderLedger(orderId);
-    const escrowEntry = ledger.find((e) =>
-        e.type === "escrow" && e.user_id === buyer.userId
+    const holdEntry = ledger.find((e) =>
+        e.type === "hold" && e.user_id === buyer.userId
     );
-    assertExists(escrowEntry, "Escrow entry should exist");
+    assertExists(holdEntry, "Hold entry should exist");
     assertEquals(
-        escrowEntry!.amount,
+        holdEntry!.amount,
         -ORDER_TOTAL,
-        "Escrow should deduct full order total",
+        "Hold should deduct full order total",
     );
 
     // Verify NO seller entries at this point
@@ -362,7 +362,7 @@ Deno.test("escrow-flow — 1: order creation deducts escrow from buyer", async (
 // Test 2: Accept order → NO seller credit
 // ============================================================
 
-Deno.test("escrow-flow — 2: accepting order does NOT credit seller", async () => {
+Deno.test("hold-flow — 2: accepting order does NOT credit seller", async () => {
     const buyer = await createTestUser();
     const seller = await createTestUser();
     await seedPoints(buyer.userId, SEED_POINTS);
@@ -410,7 +410,7 @@ Deno.test("escrow-flow — 2: accepting order does NOT credit seller", async () 
 // Test 3: Confirm delivery → seller gets total - 10% fee
 // ============================================================
 
-Deno.test("escrow-flow — 3: confirm delivery credits seller with platform fee deduction", async () => {
+Deno.test("hold-flow — 3: confirm delivery credits seller with platform fee deduction", async () => {
     const buyer = await createTestUser();
     const seller = await createTestUser();
     await seedPoints(buyer.userId, SEED_POINTS);
@@ -481,14 +481,14 @@ Deno.test("escrow-flow — 3: confirm delivery credits seller with platform fee 
     const messages = await getChatMessages(conversationId);
     const systemMessages = messages.filter((m) => m.type === "system");
     const buyerMsg = systemMessages.find((m) =>
-        m.content.includes("escrowed points")
+        m.content.includes("held points")
     );
     const sellerMsg = systemMessages.find((m) =>
         m.content.includes("Payment received")
     );
     assertExists(
         buyerMsg,
-        "Buyer system message about escrow release should exist",
+        "Buyer system message about hold release should exist",
     );
     assertExists(sellerMsg, "Seller system message about payment should exist");
     assert(
@@ -505,7 +505,7 @@ Deno.test("escrow-flow — 3: confirm delivery credits seller with platform fee 
 // Test 4: Cancel pending order → full refund to buyer
 // ============================================================
 
-Deno.test("escrow-flow — 4: cancel pending order refunds buyer fully", async () => {
+Deno.test("hold-flow — 4: cancel pending order refunds buyer fully", async () => {
     const buyer = await createTestUser();
     const seller = await createTestUser();
     await seedPoints(buyer.userId, SEED_POINTS);
@@ -569,7 +569,7 @@ Deno.test("escrow-flow — 4: cancel pending order refunds buyer fully", async (
 // Test 5: Cancel accepted order → refund buyer, restore qty, NO seller reversal
 // ============================================================
 
-Deno.test("escrow-flow — 5: cancel accepted order refunds buyer, restores qty, no seller reversal", async () => {
+Deno.test("hold-flow — 5: cancel accepted order refunds buyer, restores qty, no seller reversal", async () => {
     const buyer = await createTestUser();
     const seller = await createTestUser();
     await seedPoints(buyer.userId, SEED_POINTS);
@@ -648,7 +648,7 @@ Deno.test("escrow-flow — 5: cancel accepted order refunds buyer, restores qty,
 // Test 6: Dispute + accept refund offer → partial refund
 // ============================================================
 
-Deno.test("escrow-flow — 6: dispute + accept refund offer: correct point distribution", async () => {
+Deno.test("hold-flow — 6: dispute + accept refund offer: correct point distribution", async () => {
     const buyer = await createTestUser();
     const seller = await createTestUser();
     await seedPoints(buyer.userId, SEED_POINTS);
@@ -781,7 +781,7 @@ Deno.test("escrow-flow — 6: dispute + accept refund offer: correct point distr
 // Test 7: Dispute + resolve without refund → seller gets full minus fee
 // ============================================================
 
-Deno.test("escrow-flow — 7: dispute + resolve without refund: seller gets full payout minus fee", async () => {
+Deno.test("hold-flow — 7: dispute + resolve without refund: seller gets full payout minus fee", async () => {
     const buyer = await createTestUser();
     const seller = await createTestUser();
     await seedPoints(buyer.userId, SEED_POINTS);
@@ -883,7 +883,7 @@ Deno.test("escrow-flow — 7: dispute + resolve without refund: seller gets full
 // Test 8: Full escalation flow: dispute → escalate → offer → accept
 // ============================================================
 
-Deno.test("escrow-flow — 8: full escalation flow: dispute → escalate → offer → accept", async () => {
+Deno.test("hold-flow — 8: full escalation flow: dispute → escalate → offer → accept", async () => {
     const buyer = await createTestUser();
     const seller = await createTestUser();
     await seedPoints(buyer.userId, SEED_POINTS);
@@ -974,10 +974,10 @@ Deno.test("escrow-flow — 8: full escalation flow: dispute → escalate → off
 });
 
 // ============================================================
-// Test 9: Balance invariant — happy path: escrow out = payment in + fee
+// Test 9: Balance invariant — happy path: hold out = payment in + fee
 // ============================================================
 
-Deno.test("escrow-flow — 9: balance invariant: |escrow| = seller_payout + fee", async () => {
+Deno.test("hold-flow — 9: balance invariant: |hold| = seller_payout + fee", async () => {
     const buyer = await createTestUser();
     const seller = await createTestUser();
     await seedPoints(buyer.userId, SEED_POINTS);
@@ -1004,7 +1004,7 @@ Deno.test("escrow-flow — 9: balance invariant: |escrow| = seller_payout + fee"
     // Get all ledger entries for this order
     const ledger = await getOrderLedger(orderId);
 
-    const escrow = ledger.filter((e) => e.type === "escrow").reduce(
+    const hold = ledger.filter((e) => e.type === "hold").reduce(
         (s, e) => s + e.amount,
         0,
     );
@@ -1017,8 +1017,8 @@ Deno.test("escrow-flow — 9: balance invariant: |escrow| = seller_payout + fee"
         0,
     );
 
-    // Invariant: what the buyer paid (|escrow|) = what seller got + what platform got
-    assertEquals(escrow, -ORDER_TOTAL, "Escrow should be negative order total");
+    // Invariant: what the buyer paid (|hold|) = what seller got + what platform got
+    assertEquals(hold, -ORDER_TOTAL, "Hold should be negative order total");
     assertEquals(
         payments,
         EXPECTED_SELLER_PAYOUT,
@@ -1026,16 +1026,16 @@ Deno.test("escrow-flow — 9: balance invariant: |escrow| = seller_payout + fee"
     );
     assertEquals(fees, -EXPECTED_FEE, `Fee should be -${EXPECTED_FEE}`);
 
-    // The money that "left" the system = |escrow| - payments = fee magnitude
-    // Equivalently: |escrow| = payments + |fees|
-    assertEquals(-escrow, payments + (-fees), "escrow out = payment + fee");
+    // The money that "left" the system = |hold| - payments = fee magnitude
+    // Equivalently: |hold| = payments + |fees|
+    assertEquals(-hold, payments + (-fees), "hold out = payment + fee");
 });
 
 // ============================================================
-// Test 10: Balance invariant — dispute path: |escrow| = refund + payment + |fee|
+// Test 10: Balance invariant — dispute path: |hold| = refund + payment + |fee|
 // ============================================================
 
-Deno.test("escrow-flow — 10: balance invariant for refund: |escrow| = refund + payment + |fee|", async () => {
+Deno.test("hold-flow — 10: balance invariant for refund: |hold| = refund + payment + |fee|", async () => {
     const buyer = await createTestUser();
     const seller = await createTestUser();
     await seedPoints(buyer.userId, SEED_POINTS);
@@ -1087,7 +1087,7 @@ Deno.test("escrow-flow — 10: balance invariant for refund: |escrow| = refund +
     // Verify invariant
     const ledger = await getOrderLedger(orderId);
 
-    const escrow = ledger.filter((e) => e.type === "escrow").reduce(
+    const hold = ledger.filter((e) => e.type === "hold").reduce(
         (s, e) => s + e.amount,
         0,
     );
@@ -1109,16 +1109,16 @@ Deno.test("escrow-flow — 10: balance invariant for refund: |escrow| = refund +
     const fee = Math.floor(sellerAmount * PLATFORM_FEE_RATE); // 35
     const sellerPayout = sellerAmount - fee; // 315
 
-    assertEquals(escrow, -ORDER_TOTAL);
+    assertEquals(hold, -ORDER_TOTAL);
     assertEquals(refunds, REFUND);
     assertEquals(payments, sellerPayout);
     assertEquals(fees, -fee);
 
-    // Core invariant: |escrow| = refund + payment + |fee|
+    // Core invariant: |hold| = refund + payment + |fee|
     assertEquals(
-        -escrow,
+        -hold,
         refunds + payments + (-fees),
-        "|escrow| = refund + payment + |fee|",
+        "|hold| = refund + payment + |fee|",
     );
 });
 
@@ -1126,7 +1126,7 @@ Deno.test("escrow-flow — 10: balance invariant for refund: |escrow| = refund +
 // Test 11: Cancel after delivery should fail
 // ============================================================
 
-Deno.test("escrow-flow — 11: cannot cancel after delivery", async () => {
+Deno.test("hold-flow — 11: cannot cancel after delivery", async () => {
     const buyer = await createTestUser();
     const seller = await createTestUser();
     await seedPoints(buyer.userId, SEED_POINTS);
@@ -1157,7 +1157,7 @@ Deno.test("escrow-flow — 11: cannot cancel after delivery", async () => {
 // Test 12: Cannot confirm delivery twice (double-pay protection)
 // ============================================================
 
-Deno.test("escrow-flow — 12: cannot confirm delivery twice", async () => {
+Deno.test("hold-flow — 12: cannot confirm delivery twice", async () => {
     const buyer = await createTestUser();
     const seller = await createTestUser();
     await seedPoints(buyer.userId, SEED_POINTS);

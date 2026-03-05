@@ -1,0 +1,86 @@
+# Compliance Produce Flow — Maestro E2E test
+# Verifies the Sell form includes:
+#   - Category selection
+#   - is_produce toggle visible after selecting a produce category
+#   - The toggle text matches the i18n key "This is homegrown produce"
+#
+# NOTE: The harvest date picker (conditionally shown after toggling produce)
+# is verified by unit tests — Maestro has timing issues detecting elements
+# that appear after React state toggling on conditionally-rendered sections.
+
+appId: dev.casagrown.community
+
+---
+
+# Login first
+- runFlow: ../utils/login.yaml
+
+# Wait for feed to load
+- extendedWaitUntil:
+          visible: "Create Post"
+          timeout: 15000
+
+# Navigate to create sell post
+- tapOn: "Create Post"
+
+# Dismiss push notification prompt if it appears
+- tapOn:
+          text: "Not now"
+          optional: true
+
+# Select "Looking to Sell"
+- extendedWaitUntil:
+          visible: "What would you like to share with your community?"
+          timeout: 10000
+- tapOn:
+          text: ".*Looking to Sell.*"
+
+# Wait for sell form
+- extendedWaitUntil:
+          visible: "Sell Produce"
+          timeout: 10000
+
+# Verify Category field exists
+- assertVisible:
+          text: ".*Category.*"
+
+# Select a category (e.g. Vegetables) — the produce section only renders
+# when a category is selected
+- scrollUntilVisible:
+          element:
+                  text: ".*Vegetables.*"
+          direction: DOWN
+          timeout: 10000
+- tapOn:
+          text: ".*Vegetables.*"
+
+# Wait for re-render after category selection
+- waitForAnimationToEnd
+
+# Scroll to find the produce toggle
+- scrollUntilVisible:
+          element:
+                  text: ".*homegrown produce.*"
+          direction: DOWN
+          timeout: 10000
+
+# Verify the produce checkbox is visible with correct text
+- assertVisible:
+          text: ".*homegrown produce.*"
+
+# Also verify the hint text below the toggle
+- assertVisible:
+          text: ".*fresh produce item.*"
+
+# Tap the produce toggle to verify it's interactable
+- tapOn:
+          text: ".*homegrown produce.*"
+
+# Go back
+- tapOn: "Back"
+- tapOn: "Back"
+
+# Return to feed
+- extendedWaitUntil:
+          visible: "Create Post"
+          timeout: 15000

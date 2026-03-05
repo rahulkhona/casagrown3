@@ -19,6 +19,7 @@ import {
   getUserCommunitiesWithNeighbors,
   getCommunityWithNeighborsByH3,
   getAvailableCategories,
+  getCategoryIsProduce,
   isProductBlocked,
   getPlatformFeePercent,
   type DelegatorInfo,
@@ -30,6 +31,7 @@ import { useMediaAssets } from './useMediaAssets'
 import { CommunityMapWrapper } from './CommunityMapWrapper'
 import { PostFormShell } from './PostFormShell'
 import { MediaPickerSection } from './MediaPickerSection'
+import { getPostById } from '../my-posts/my-posts-service'
 
 interface SellFormProps {
   onBack: () => void
@@ -54,11 +56,14 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState('')
   const [productBlockedError, setProductBlockedError] = useState('')
+  const [isProduce, setIsProduce] = useState(false)
+  const [harvestDate, setHarvestDate] = useState('')
 
   // Native date picker state
   const [datePickerVisible, setDatePickerVisible] = useState(false)
   const [editingDateIndex, setEditingDateIndex] = useState<number | null>(null)
   const [isAddingNewDate, setIsAddingNewDate] = useState(false)
+  const [harvestPickerVisible, setHarvestPickerVisible] = useState(false)
 
   // ── Delegate State ──────────────────────────────────────────
   const [delegators, setDelegators] = useState<DelegatorInfo[]>([])
@@ -121,6 +126,20 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
     return () => clearTimeout(timer)
   }, [productName, communityH3Index])
 
+  // ── Auto-set produce flag when category changes ──────────────
+  const editDataLoadedRef = useRef(false)
+  useEffect(() => {
+    if (category) {
+      // Skip auto-detection if we just loaded edit data (the saved value takes priority)
+      if (editDataLoadedRef.current) {
+        editDataLoadedRef.current = false
+        return
+      }
+      const catIsProduce = getCategoryIsProduce(category)
+      setIsProduce(catIsProduce)
+    }
+  }, [category])
+
   // ── Load edit data ─────────────────────────────────────────
   useEffect(() => {
     if (!editId && !cloneData) return
@@ -155,8 +174,6 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
           } catch {}
           return
         }
-        const { getPostById } = await import('../my-posts/my-posts-service')
-        const { supabase } = await import('../auth/auth-hook')
         const post = await getPostById(editId!)
         if (cancelled || !post) return
         // Pre-fill from content JSON
@@ -167,11 +184,14 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
         } catch {}
         // Pre-fill from sell_details
         if (post.sell_details) {
+          editDataLoadedRef.current = true
           setCategory(post.sell_details.category || '')
           setProductName(post.sell_details.produce_name || '')
           setUnit(post.sell_details.unit || 'piece')
           setQuantity(String(post.sell_details.total_quantity_available || ''))
           setPrice(String(post.sell_details.points_per_unit || ''))
+          if (post.sell_details.is_produce) setIsProduce(true)
+          if (post.sell_details.harvest_date) setHarvestDate(post.sell_details.harvest_date)
         }
         // Pre-fill delivery dates
         if (Array.isArray(post.delivery_dates) && post.delivery_dates.length > 0) {
@@ -378,6 +398,8 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
         quantity: parseFloat(quantity) || 1,
         pointsPerUnit: parseFloat(price) || 0,
         dropoffDates: validDates,
+        isProduce,
+        harvestDate: harvestDate || undefined,
         mediaAssets:
           media.mediaAssets.length > 0
             ? media.mediaAssets.map((a) => ({ uri: a.uri, type: a.type ?? undefined }))
@@ -813,6 +835,107 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
           </YStack>
         )}
       </YStack>
+
+      {/* ════════════════════════════════════════════════════
+          PRODUCE FLAG & HARVEST DATE
+          ════════════════════════════════════════════════════ */}
+      {category && (
+        <YStack
+          backgroundColor="white"
+          borderRadius={borderRadius.lg}
+          padding="$4"
+          gap="$3"
+          borderWidth={1}
+          borderColor={colors.neutral[200]}
+        >
+          {/* Produce Checkbox */}
+          <Pressable onPress={() => setIsProduce(!isProduce)}>
+            <XStack alignItems="center" gap="$3">
+              <YStack
+                width={24}
+                height={24}
+                borderRadius={6}
+                borderWidth={2}
+                borderColor={isProduce ? colors.green[600] : colors.neutral[300]}
+                backgroundColor={isProduce ? colors.green[600] : 'white'}
+                alignItems="center"
+                justifyContent="center"
+              >
+                {isProduce && (
+                  <Text color="white" fontSize={14} fontWeight="700">✓</Text>
+                )}
+              </YStack>
+              <YStack flex={1}>
+                <Text fontWeight="600" color={colors.neutral[900]}>
+                  {t('createPost.fields.isHomegrownProduce')}
+                </Text>
+                <Text fontSize={12} color={colors.neutral[500]}>
+                  {t('createPost.fields.isHomegrownProduceHint')}
+                </Text>
+              </YStack>
+            </XStack>
+          </Pressable>
+
+          {/* Harvest Date (optional, shown when produce is checked) */}
+          {isProduce && (
+            <YStack gap="$2" paddingTop="$2">
+              <Label fontWeight="600" color={colors.neutral[900]}>
+                Harvest Date (optional)
+              </Label>
+              <Text fontSize={12} color={colors.neutral[500]}>
+                {t('createPost.fields.harvestDatePrompt')}
+              </Text>
+              {Platform.OS === 'web' ? (
+                <input
+                  type="date"
+                  value={harvestDate}
+                  onChange={(e) => setHarvestDate(e.target.value)}
+                  max={new Date().toISOString().split('T')[0]}
+                  style={{
+                    fontSize: 16,
+                    padding: '10px 14px',
+                    borderRadius: borderRadius.lg,
+                    border: `1px solid ${colors.neutral[300]}`,
+                    backgroundColor: 'white',
+                    color: colors.neutral[900],
+                    outline: 'none',
+                    width: '100%',
+                    boxSizing: 'border-box' as const,
+                  }}
+                />
+              ) : (
+                <>
+                  <Pressable onPress={() => setHarvestPickerVisible(true)}>
+                    <XStack
+                      borderWidth={1}
+                      borderColor={colors.neutral[300]}
+                      borderRadius={borderRadius.lg}
+                      paddingHorizontal="$3"
+                      paddingVertical="$3"
+                      alignItems="center"
+                      backgroundColor="white"
+                    >
+                      <Text color={harvestDate ? colors.neutral[900] : colors.neutral[400]} flex={1}>
+                        {harvestDate || 'Tap to select harvest date'}
+                      </Text>
+                      <Text fontSize="$3" color={colors.neutral[400]}>📅</Text>
+                    </XStack>
+                  </Pressable>
+                  <CalendarPicker
+                    visible={harvestPickerVisible}
+                    initialDate={harvestDate || undefined}
+                    onSelect={(dateStr) => {
+                      setHarvestDate(dateStr)
+                      setHarvestPickerVisible(false)
+                    }}
+                    onCancel={() => setHarvestPickerVisible(false)}
+                  />
+                </>
+              )}
+            </YStack>
+          )}
+        </YStack>
+      )}
 
       {/* ════════════════════════════════════════════════════
           PRODUCT DETAILS

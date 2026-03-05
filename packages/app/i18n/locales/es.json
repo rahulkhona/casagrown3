@@ -99,18 +99,11 @@
       "button": "Empiece Gratis"
     },
     "footer": {
-      "tagline": "Conectando comunidades a través del intercambio sostenible de alimentos.",
-      "product": "Producto",
-      "features": "Características",
-      "howItWorks": "Cómo Funciona",
-      "pricing": "Precios",
-      "company": "Compañía",
-      "about": "Acerca de",
-      "blog": "Blog",
-      "contact": "Contacto",
-      "legal": "Legal",
-      "privacy": "Privacidad",
-      "terms": "Términos",
+      "contact": "Soporte de Contacto",
+      "guidelines": "Normas de la Comunidad",
+      "sellersHandbook": "Manual del Vendedor",
+      "privacy": "Política de Privacidad",
+      "terms": "Términos de Servicio",
       "copyright": "© 2026 CasaGrown. Todos los derechos reservados."
     }
   },
@@ -701,7 +694,10 @@
       "acceptDropoffDates": "Fechas de Entrega Aceptadas",
       "acceptDropoffDatesHint": "¿Qué fechas te funcionan para la entrega?",
       "title": "Título",
-      "titlePlaceholder": "Dale un título a tu publicación"
+      "titlePlaceholder": "Dale un título a tu publicación",
+      "isHomegrownProduce": "Esto es producto cosechado en casa",
+      "isHomegrownProduceHint": "Marca si es un producto fresco (frutas, verduras, hierbas, etc.)",
+      "harvestDatePrompt": "¿Cuándo se cosechó este producto? Requerido en la entrega si no se ingresa ahora."
     },
     "loading": {
       "community": "Cargando comunidad...",

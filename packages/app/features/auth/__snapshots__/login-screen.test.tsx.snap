@@ -210,6 +210,7 @@ exports[`LoginScreen renders correctly (initial state) 1`] = `
         <Text
           color="#16a34a"
           fontWeight="600"
+          onPress={[Function]}
         >
           auth.login.terms
         </Text>
@@ -219,6 +220,7 @@ exports[`LoginScreen renders correctly (initial state) 1`] = `
         <Text
           color="#16a34a"
           fontWeight="600"
+          onPress={[Function]}
         >
           auth.login.privacy
         </Text>

@@ -10,6 +10,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { YStack, XStack, Text, Button, Spinner, ScrollView } from 'tamagui'
+import { ReceiptCard, metadataToReceiptData } from '../orders/ReceiptCard'
 import { Platform, TextInput, FlatList, KeyboardAvoidingView, TouchableOpacity, Pressable, Image, Alert, Linking, Modal } from 'react-native'
 import { ArrowLeft, Send, Paperclip, MapPin, Camera, Video, X, Loader, Image as LucideImage, Check, CheckCheck, Calendar, Package, ShoppingCart, ThumbsUp } from '@tamagui/lucide-icons'
 import { colors, borderRadius, shadows } from '../../design-tokens'
@@ -289,13 +290,20 @@ function MessageBubble({
 
         {/* Text content (skip if location message — content is redundant) */}
         {message.content && !message.metadata?.location && (
-          <Text
-            fontSize={15}
-            color={isOwn ? 'white' : colors.gray[800]}
-            lineHeight={20}
-          >
-            {message.content}
-          </Text>
+          message.metadata?.receipt ? (
+            <ReceiptCard
+              variant="inline"
+              data={metadataToReceiptData(message.metadata as Record<string, any>)}
+            />
+          ) : (
+            <Text
+              fontSize={15}
+              color={isOwn ? 'white' : colors.gray[800]}
+              lineHeight={20}
+            >
+              {message.content}
+            </Text>
+          )
         )}
 
         {/* Timestamp + delivery status */}
@@ -354,9 +362,29 @@ function SystemMessage({ message, deliveryAddress, deliveryInstructions }: {
         gap="$1"
         maxWidth="90%"
       >
-        <Text fontSize={12} color={colors.gray[500]} textAlign="center">
-          {message.content}
-        </Text>
+        {/* Media content (delivery proof photo) */}
+        {message.media_url && (() => {
+          const mediaUrl = normalizeStorageUrl(message.media_url) || message.media_url
+          return (
+            <YStack borderRadius={8} overflow="hidden" marginBottom="$2" alignItems="center">
+              <Image
+                source={{ uri: mediaUrl }}
+                style={{ width: 220, height: 165, borderRadius: 8 }}
+                resizeMode="cover"
+              />
+            </YStack>
+          )
+        })()}
+        {message.metadata?.receipt ? (
+          <ReceiptCard
+            variant="inline"
+            data={metadataToReceiptData(message.metadata as Record<string, any>)}
+          />
+        ) : (
+          <Text fontSize={12} color={colors.gray[500]} textAlign="center">
+            {message.content}
+          </Text>
+        )}
         {deliveryAddress && (
           <TouchableOpacity
             activeOpacity={0.7}
@@ -1114,6 +1142,16 @@ export function ChatScreen({
         }
         return
       }
+      // Defense-in-depth: check business-level error in response body
+      if (result?.error || result?.success === false) {
+        const msg = result.error || 'Something went wrong while placing your order'
+        if (Platform.OS === 'web') {
+          window.alert(msg)
+        } else {
+          Alert.alert('Order Failed', msg)
+        }
+        return
+      }
       // Refresh order data & balance
       orderData.refresh()
       refetchBalance()
@@ -1558,7 +1596,7 @@ export function ChatScreen({
       )}
 
       {/* ============ OFFER ACTIONS (buy post) ============ */}
-      {offerData.offer && offerData.offer.status === 'pending' && (
+      {offerData.offer && offerData.offer.status === 'pending' && !orderData.order && (
         <ChatOfferActions
           offer={offerData.offer}
           currentUserId={currentUserId}
@@ -1744,6 +1782,7 @@ export function ChatScreen({
           <DeliveryProofSheet
             visible={deliveryProofOpen}
             orderId={orderData.order.id}
+            isProduce={['fruits', 'vegetables', 'herbs'].includes(orderData.order.category?.toLowerCase() ?? '')}
             onClose={() => setDeliveryProofOpen(false)}
             onSubmit={async (data) => {
               try {
@@ -1752,8 +1791,8 @@ export function ChatScreen({
                 const { mediaId } = await uploadChatMedia(
                   currentUserId, data.photoUri, fileName, 'image/jpeg', 'image',
                 )
-                // Mark order as delivered with proof (RPC also sends chat message)
-                await markDelivered(orderData.order!.id, currentUserId, mediaId)
+                // Mark order as delivered with proof + harvest date (RPC also sends chat message)
+                await markDelivered(orderData.order!.id, currentUserId, mediaId, data.harvestDate)
                 orderData.refresh()
               } catch (err) {
                 console.error('Delivery proof error:', err)

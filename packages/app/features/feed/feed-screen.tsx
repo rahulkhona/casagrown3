@@ -157,6 +157,8 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
 
   // Unread chat count
   const [unreadChats, setUnreadChats] = useState(0)
+  // Pending orders count (seller has new orders to act on)
+  const [pendingOrders, setPendingOrders] = useState(0)
 
   // Fetch unread chat count on mount and focus
   const fetchUnreadChats = useCallback(async () => {
@@ -169,16 +171,50 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
     }
   }, [userId])
 
+  // Fetch pending orders count (orders where user is seller, status pending/accepted)
+  const fetchPendingOrders = useCallback(async () => {
+    if (!userId) return
+    try {
+      const { count } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('seller_id', userId)
+        .in('status', ['pending', 'accepted'])
+      setPendingOrders(count ?? 0)
+    } catch {
+      // Non-critical: badge just stays at 0
+    }
+  }, [userId])
+
   useEffect(() => {
     fetchUnreadChats()
-  }, [fetchUnreadChats])
+    fetchPendingOrders()
+  }, [fetchUnreadChats, fetchPendingOrders])
 
-  // Build NAV_KEYS with dynamic badge count
+  // Listen for badge-refresh events from root RealtimeNotificationListener
+  useEffect(() => {
+    const refreshBadges = () => {
+      fetchUnreadChats()
+      fetchPendingOrders()
+    }
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.addEventListener('casagrown:badge-refresh', refreshBadges)
+      return () => window.removeEventListener('casagrown:badge-refresh', refreshBadges)
+    } else {
+      const { DeviceEventEmitter } = require('react-native')
+      const sub = DeviceEventEmitter.addListener('casagrown:badge-refresh', refreshBadges)
+      return () => sub.remove()
+    }
+  }, [fetchUnreadChats, fetchPendingOrders])
+
+  // Build NAV_KEYS with dynamic badge counts
   const NAV_KEYS = useMemo(() =>
-    NAV_KEYS_BASE.map((item) =>
-      item.key === 'chats' ? { ...item, badge: unreadChats } : item
-    ),
-    [unreadChats],
+    NAV_KEYS_BASE.map((item) => {
+      if (item.key === 'chats') return { ...item, badge: unreadChats }
+      if (item.key === 'orders') return { ...item, badge: pendingOrders }
+      return item
+    }),
+    [unreadChats, pendingOrders],
   )
 
   const handleNavPress = useCallback((key: string) => {
@@ -255,7 +291,8 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
     // Also refresh points balance and unread chat count
     refetchBalance()
     fetchUnreadChats()
-  }, [communityH3Index, userId, fullFetch, refetchBalance, fetchUnreadChats])
+    fetchPendingOrders()
+  }, [communityH3Index, userId, fullFetch, refetchBalance, fetchUnreadChats, fetchPendingOrders])
 
   // Re-fetch feed when screen is focused (native only — web uses Next.js without
   // NavigationContainer, so useFocusEffect is unavailable there).
@@ -373,6 +410,12 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
 
       if (error) {
         Alert.alert('Order Failed', error.message || 'Failed to place order')
+        return
+      }
+
+      // Defense-in-depth: check business-level error in response body
+      if (result?.error || result?.success === false) {
+        Alert.alert('Order Failed', result.error || 'Something went wrong while placing your order')
         return
       }
 

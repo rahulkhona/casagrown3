@@ -10,7 +10,11 @@ appId: dev.casagrown.community
 
 # Wait for feed to load
 - extendedWaitUntil:
-          visible: "Tomatoes"
+          visible: "Create Post"
+          timeout: 15000
+- scrollUntilVisible:
+          element: "Tomatoes"
+          direction: DOWN
           timeout: 15000
 
 # Open Menu via bottom tab

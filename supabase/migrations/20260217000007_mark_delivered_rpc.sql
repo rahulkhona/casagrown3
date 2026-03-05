@@ -1,8 +1,9 @@
--- mark_order_delivered — sets status to delivered, stores proof, sends chat message with proof
+-- mark_order_delivered — sets status to delivered, stores proof + harvest date, sends chat message with proof
 create or replace function public.mark_order_delivered(
   p_order_id       uuid,
   p_seller_id      uuid,
-  p_proof_media_id uuid
+  p_proof_media_id uuid,
+  p_harvest_date   date default null
 ) returns jsonb
 language plpgsql
 security definer
@@ -35,6 +36,7 @@ begin
   update orders
   set status = 'delivered',
       delivery_proof_media_id = p_proof_media_id,
+      harvest_date = coalesce(p_harvest_date, v_order.harvest_date),
       updated_at = now()
   where id = p_order_id;
 
@@ -43,7 +45,9 @@ begin
   values (
     v_order.conversation_id,
     p_seller_id,
-    'Delivery proof submitted for ' || v_order.quantity || ' ' || v_order.product || '. Please confirm receipt or dispute within 48 hours. After that, delivery will be automatically confirmed.',
+    'Delivery proof submitted for ' || v_order.quantity || ' ' || v_order.product
+    || case when p_harvest_date is not null then '. Harvested on ' || p_harvest_date::text else '' end
+    || '. Please confirm receipt or dispute within 48 hours. After that, delivery will be automatically confirmed.',
     'media',
     p_proof_media_id
   );

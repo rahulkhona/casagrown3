@@ -159,7 +159,7 @@ begin
   values (
     v_order.conversation_id,
     null,
-    'Order rejected by seller. Escrow of ' || (v_order.quantity * v_order.points_per_unit) || ' points has been refunded.',
+    'Order rejected by seller. Hold of ' || (v_order.quantity * v_order.points_per_unit) || ' points has been refunded.',
     'system'
   );
 

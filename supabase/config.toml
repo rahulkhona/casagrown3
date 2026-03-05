@@ -385,28 +385,15 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 
 [functions.sync-locations]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/sync-locations/deno.json"
-# Uncomment to specify a custom file path to the entrypoint.
-# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/sync-locations/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/sync-locations/*.html" ]
 
 [functions.update-zip-codes]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/update-zip-codes/deno.json"
-# Uncomment to specify a custom file path to the entrypoint.
-# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/update-zip-codes/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/update-zip-codes/*.html" ]
-
-
-
 
 [functions.resolve-community]
 enabled = true
@@ -420,7 +407,7 @@ entrypoint = "./functions/pair-delegation/index.ts"
 
 [functions.enrich-communities]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 entrypoint = "./functions/enrich-communities/index.ts"
 
 [functions.create-payment-intent]
@@ -483,19 +470,38 @@ enabled = true
 verify_jwt = false
 entrypoint = "./functions/notify-on-message/index.ts"
 
-
 [functions.redeem-paypal-payout]
 enabled = true
 verify_jwt = false
 import_map = "./functions/redeem-paypal-payout/deno.json"
-# Uncomment to specify a custom file path to the entrypoint.
-# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/redeem-paypal-payout/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/redeem-paypal-payout/*.html" ]
 
 [functions.refund-purchased-points]
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/refund-purchased-points/index.ts"
+
+[functions.get-tax-rate]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/get-tax-rate/index.ts"
+
+[functions.assign-experiment]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/assign-experiment/index.ts"
+
+[functions.create-offer]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/create-offer/index.ts"
+
+[functions.process-redemptions]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/process-redemptions/index.ts"
+
+[functions.sync-provider-balance]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/sync-provider-balance/index.ts"

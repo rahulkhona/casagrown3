@@ -16,6 +16,7 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react'
 import { YStack, XStack, Text, Button, ScrollView, Input, useMedia } from 'tamagui'
 import { Platform, Alert, Share, Pressable } from 'react-native'
 import { useTranslation } from 'react-i18next'
+import { ReceiptCard } from '../orders/ReceiptCard'
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -99,6 +100,23 @@ interface Transaction {
   // Status tracking
   status?: TransactionStatus // queued, processing, completed, failed
   provider?: string // 'tremendous' | 'reloadly' | 'globalgiving'
+
+  // Receipt data (from completed orders)
+  receipt?: boolean
+  receiptProduct?: string
+  receiptQuantity?: number
+  receiptUnit?: string
+  receiptHarvestDate?: string
+  receiptBuyerName?: string
+  receiptSellerName?: string
+  receiptBuyerZip?: string
+  receiptSellerZip?: string
+  receiptSubtotal?: number
+  receiptTax?: number
+  receiptPlatformFee?: number
+  receiptSellerPayout?: number
+  receiptCompletedAt?: string
+  receiptPointsPerUnit?: number
 }
 
 // =============================================================================
@@ -130,6 +148,8 @@ export function mapLedgerType(dbType: string, amount: number): TransactionType {
       return 'refund'
     case 'sales_tax':
       return 'sales_tax'
+    case 'hold':
+      return 'order_debit'
     default:
       return amount > 0 ? 'purchase' : 'order_debit'
   }
@@ -175,6 +195,23 @@ export function mapLedgerToTransaction(row: any): Transaction {
     purchaseStripeFee: meta.service_fee_cents ? meta.service_fee_cents / 100 : undefined,
     refundUsdAmount: meta.refund_usd_cents ? meta.refund_usd_cents / 100 : undefined,
     refundFeeAmount: meta.fee_deducted_cents ? meta.fee_deducted_cents / 100 : undefined,
+
+    // Receipt data
+    receipt: meta.receipt || false,
+    receiptProduct: meta.product,
+    receiptQuantity: meta.quantity,
+    receiptUnit: meta.unit,
+    receiptHarvestDate: meta.harvest_date,
+    receiptBuyerName: meta.buyer_name,
+    receiptSellerName: meta.seller_name,
+    receiptBuyerZip: meta.buyer_zip,
+    receiptSellerZip: meta.seller_zip,
+    receiptSubtotal: meta.total || meta.subtotal || (meta.points_per_unit && meta.quantity ? meta.points_per_unit * meta.quantity : undefined),
+    receiptTax: meta.tax,
+    receiptPlatformFee: meta.platform_fee,
+    receiptSellerPayout: meta.seller_payout,
+    receiptCompletedAt: meta.completed_at,
+    receiptPointsPerUnit: meta.points_per_unit,
   }
 
   return tx
@@ -875,6 +912,7 @@ function TransactionCard({
   onShare: (url: string, title: string) => void
   onViewDetail?: (tx: Transaction) => void
 }) {
+  const { t } = useTranslation()
   const baseConfig = TYPE_CONFIG[tx.type]
   let Icon = baseConfig.icon
   let bgColor = baseConfig.bgColor
@@ -995,6 +1033,29 @@ function TransactionCard({
             </Text>
           </XStack>
         </YStack>
+      )}
+      {/* Digital Receipt details */}
+      {tx.receipt && (
+        <ReceiptCard
+          variant="card"
+          data={{
+            orderId: tx.orderId,
+            completedAt: tx.receiptCompletedAt,
+            sellerName: tx.receiptSellerName,
+            sellerZip: tx.receiptSellerZip,
+            buyerName: tx.receiptBuyerName,
+            buyerZip: tx.receiptBuyerZip,
+            harvestDate: tx.receiptHarvestDate,
+            product: tx.receiptProduct,
+            quantity: tx.receiptQuantity,
+            unit: tx.receiptUnit,
+            pointsPerUnit: tx.receiptPointsPerUnit,
+            subtotal: tx.receiptSubtotal,
+            tax: tx.receiptTax,
+            platformFee: tx.receiptPlatformFee,
+            sellerPayout: tx.receiptSellerPayout,
+          }}
+        />
       )}
       {/* Purchase details */}
       {tx.type === 'purchase' && (tx.detail || tx.purchaseCardInfo) && (

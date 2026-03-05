@@ -138,7 +138,7 @@ begin
     p_buyer_id,
     '✅ Offer accepted! Order placed: ' || v_quantity || ' ' ||
     coalesce(v_offer.unit, '') || ' ' || v_offer.product ||
-    ' for ' || v_total_price || ' points. Points held in escrow.',
+    ' for ' || v_total_price || ' points. Points are on hold.',
     'text'
   );
 

@@ -125,6 +125,40 @@ else
     echo "   ✓ Supabase started"
 fi
 
+# Verify seed data exists (db reset sometimes silently fails to apply seed.sql)
+USER_COUNT=$(docker exec -i supabase_db_casagrown3 psql -U postgres -t -c "SELECT count(*) FROM auth.users;" 2>/dev/null | tr -d ' ')
+if [ "${USER_COUNT:-0}" -lt "2" ]; then
+    echo "   ⚠️  Seed data missing (auth.users: $USER_COUNT) — re-applying seed.sql..."
+    docker exec -i supabase_db_casagrown3 psql -U postgres -f /dev/stdin < "$ROOT_DIR/supabase/seed.sql" 2>&1 | tail -3
+    echo "   ✓ Seed data applied"
+fi
+
+# Verify large compliance migration applied (20260305000001 often fails silently)
+ENUM_CHECK=$(docker exec -i supabase_db_casagrown3 psql -U postgres -t -c "SELECT prosrc FROM pg_proc WHERE proname = 'create_order_atomic';" 2>/dev/null | grep -c "'escrow'" || true)
+if [ "${ENUM_CHECK:-0}" -gt "0" ]; then
+    echo "   ⚠️  Stale 'escrow' enum in create_order_atomic — re-applying compliance functions..."
+    docker exec -i supabase_db_casagrown3 psql -U postgres -f /dev/stdin < "$ROOT_DIR/supabase/migrations/20260305000001_compliance_functions.sql" 2>&1 | tail -3
+    echo "   ✓ Compliance functions applied"
+fi
+
+echo ""
+
+# ═══════════════════════════════════════════════════════════════════
+# PHASE 1.5b: Deno Integration Tests (requires Supabase)
+# ═══════════════════════════════════════════════════════════════════
+
+echo "━━━ Phase 1.5b: Deno Integration Tests ━━━━━━━━━━━━━━━━━━━━━━"
+
+if command -v deno > /dev/null 2>&1; then
+    echo "📋 Deno compliance integration tests..."
+    deno test --allow-net --allow-env supabase/functions/_compliance-tests/ 2>&1 || {
+        echo "❌ Deno integration tests failed — push aborted."
+        exit 1
+    }
+else
+    echo "   ⚠️  Deno not found — skipping integration tests."
+fi
+
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════

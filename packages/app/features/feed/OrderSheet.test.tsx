@@ -47,6 +47,11 @@ jest.mock('../../hooks/usePaymentService', () => ({
 
 // Mock supabase
 jest.mock('../auth/auth-hook', () => ({
+  useAuth: () => ({
+    user: { id: 'test-user-id' },
+    loading: false,
+    signOut: jest.fn(),
+  }),
   supabase: {
     storage: {
       from: () => ({
@@ -113,6 +118,14 @@ jest.mock('expo-location', () => ({
 // Mock CalendarPicker
 jest.mock('../create-post/CalendarPicker', () => ({
   CalendarPicker: () => null,
+}))
+
+// Mock usePurchaseLimits (used by BuyPointsSheet)
+jest.mock('../../hooks/usePurchaseLimits', () => ({
+  usePurchaseLimits: () => ({
+    validate: () => null,
+    loading: false,
+  }),
 }))
 
 const t = (key: string, opts?: Record<string, any>) => {

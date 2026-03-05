@@ -78,7 +78,7 @@ begin
     'Order accepted by seller. ' || v_order.quantity
       || case when v_unit is not null and v_unit != 'piece' then ' ' || v_unit else '' end
       || ' ' || v_order.product
-      || ' for ' || (v_order.quantity * v_order.points_per_unit) || ' points. Points held in escrow until delivery is confirmed.',
+      || ' for ' || (v_order.quantity * v_order.points_per_unit) || ' points. Points are on hold until delivery is confirmed.',
     'system'
   );
 

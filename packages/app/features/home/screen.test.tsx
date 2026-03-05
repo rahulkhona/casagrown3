@@ -67,6 +67,33 @@ jest.mock('@casagrown/ui', () => {
   }
 })
 
+// Mock solito router (Footer uses useRouter → useLinkTo → @react-navigation/native)
+jest.mock('solito/navigation', () => ({
+  useRouter: () => ({
+    push: jest.fn(),
+    replace: jest.fn(),
+    back: jest.fn(),
+  }),
+  useLink: () => ({
+    onPress: jest.fn(),
+    href: '#',
+  }),
+  Link: ({ children }: any) => children,
+}))
+jest.mock('@react-navigation/native', () => ({
+  useNavigation: () => ({
+    navigate: jest.fn(),
+    goBack: jest.fn(),
+  }),
+  useLinkTo: () => jest.fn(),
+  useLinkBuilder: () => ({
+    buildHref: jest.fn(),
+  }),
+  NavigationContainer: ({ children }: any) => children,
+  LinkingContext: {
+    Provider: ({ children }: any) => children,
+  },
+}))
 
 describe('HomeScreen', () => {
   it('renders correctly and displays localized text', () => {

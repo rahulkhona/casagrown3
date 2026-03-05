@@ -93,11 +93,51 @@ export function serveWithCors(
             const message = error instanceof Error
                 ? error.message
                 : "Unknown error";
+            const stack = error instanceof Error ? error.stack : undefined;
             console.error("Edge function error:", error);
+
+            // Persist error to edge_function_errors table (fire-and-forget)
+            try {
+                const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+                const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get(
+                    "SUPABASE_SERVICE_ROLE_KEY",
+                );
+                if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+                    const logClient = createClient(
+                        SUPABASE_URL,
+                        SUPABASE_SERVICE_ROLE_KEY,
+                    );
+                    const pathParts = new URL(req.url).pathname
+                        .replace(/^\/functions\/v1\//, "")
+                        .replace(/^\//, "")
+                        .split("/");
+                    const fnName = pathParts[0] || "unknown";
+                    logClient
+                        .from("edge_function_errors")
+                        .insert({
+                            function_name: fnName,
+                            error_message: message,
+                            error_stack: stack ?? null,
+                            request_method: req.method,
+                            request_path: new URL(req.url).pathname,
+                        })
+                        .then(({ error: logErr }) => {
+                            if (logErr) {
+                                console.error(
+                                    "Failed to log error to DB:",
+                                    logErr.message,
+                                );
+                            }
+                        });
+                }
+            } catch {
+                // Don't let logging failures mask the original error
+            }
+
             return new Response(
                 JSON.stringify({ success: false, error: message }),
                 {
-                    status: options?.errorStatus ?? 200,
+                    status: options?.errorStatus ?? 500,
                     headers: {
                         ...corsHeaders,
                         "Content-Type": "application/json",
