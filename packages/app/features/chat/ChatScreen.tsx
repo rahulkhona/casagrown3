@@ -1720,6 +1720,7 @@ export function ChatScreen({
 
         {/* Send button */}
         <TouchableOpacity
+          testID="chat_send_button"
           onPress={handleSend}
           disabled={!inputText.trim() || sending}
           style={{

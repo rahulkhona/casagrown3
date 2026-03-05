@@ -5,48 +5,78 @@ appId: dev.casagrown.community
 
 # Wait for feed to load
 - extendedWaitUntil:
-      visible: "Tomatoes|Feed"
-      timeout: 15000
+          visible: "Tomatoes|Feed"
+          timeout: 15000
 
 # Open Menu via bottom tab
 - tapOn:
-      text: ".*Menu.*"
+          text: ".*Menu.*"
 
 # Navigate to Redeem Points
 - extendedWaitUntil:
-      visible: ".*Redeem Points.*"
-      timeout: 5000
+          visible: ".*Redeem Points.*"
+          timeout: 5000
 - tapOn: ".*Redeem Points.*"
 
 # Wait for Screen and generic tabs
 - extendedWaitUntil:
-      visible: "Cashout|Donate|Gift Cards"
-      timeout: 20000
+          visible: "Cashout|Donate|Gift Cards"
+          timeout: 20000
 
 # Tap the Gift Cards tab
 - tapOn: "Gift Cards"
 
-# Wait for the catalog to load
+# Wait for the catalog to load from the edge function (may take time)
 - extendedWaitUntil:
-      visible: ".*Amazon.*|.*Visa.*|.*Walmart.*"
-      timeout: 15000
+          visible:
+                  id: "giftcard-item-0"
+          timeout: 30000
 
-# Tap the first available card
-- tapOn:
-      id: "giftcard-item-0"
+# Tap "Gaming" category filter to find cards with fixed denomination pills
+# (Shopping cards like Amazon, Target, Walmart are range-type requiring keyboard
+#  input which causes the RN Modal sheet to dismiss on iOS)
+- tapOn: "Gaming"
 
-# Enter amount if required
+# Wait for gaming cards to appear
 - extendedWaitUntil:
-      visible: ".*Enter Amount.*|.*Select Amount.*"
-      timeout: 5000
-- tapOn: ".*Enter Amount.*"
-- inputText: "10"
+          visible:
+                  id: "giftcard-item-0"
+          timeout: 10000
 
-# Submit the purchase via bottom sheet
+# Tap the first gaming card
 - tapOn:
-      id: "giftcard-sheet-confirm"
+          id: "giftcard-item-0"
+
+# Wait for the gift card sheet to fully render
+- extendedWaitUntil:
+          visible: ".*Choose Amount.*"
+          timeout: 10000
+
+# Tap a denomination pill — gaming cards have fixed denominations like $10, $25
+- tapOn:
+          text: ".*\\$10.*"
+          optional: true
+
+# If no $10, try $25
+- tapOn:
+          text: ".*\\$25.*"
+          optional: true
+
+# If no $25, try $5
+- tapOn:
+          text: ".*\\$5.*"
+          optional: true
+
+# Wait for Confirm Redemption button to become active
+- extendedWaitUntil:
+          visible: ".*Confirm Redemption.*"
+          timeout: 10000
+
+# Tap the confirm button
+- tapOn:
+          text: ".*Confirm Redemption.*"
 
 # Wait for Success State
 - extendedWaitUntil:
-      visible: ".*queued.*|.*processing.*|.*Points Cost.*"
-      timeout: 15000
+          visible: ".*queued.*|.*processing.*|.*Points Cost.*|.*Pending.*|.*Success.*"
+          timeout: 15000

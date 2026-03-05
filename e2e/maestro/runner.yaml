@@ -11,6 +11,7 @@ env:
   MAILPIT_URL: http://localhost:54324
 
 # Flow execution settings — ordered by dependency
+# Note: camera-upload.yaml is excluded — requires physical device.
 executionOrder:
   - flows/login.yaml
   - flows/feed-navigation.yaml
@@ -21,6 +22,7 @@ executionOrder:
   - flows/orders.yaml
   - flows/offers.yaml
   - flows/chat.yaml
+  - flows/chat-conversation.yaml
   - flows/post-management.yaml
   - flows/delegation.yaml
   - flows/profile-management.yaml
@@ -29,4 +31,8 @@ executionOrder:
   - flows/refund-points.yaml
   - flows/venmo-refund.yaml
   - flows/refund-options.yaml
+  - flows/redeem-tabs-visibility.yaml
+  - flows/giftcards.yaml
+  - flows/charity.yaml
   - flows/redemption-block.yaml
+  - flows/order-lifecycle.yaml

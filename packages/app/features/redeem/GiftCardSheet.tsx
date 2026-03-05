@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useMemo } from 'react'
-import { Modal, Platform, Pressable } from 'react-native'
+import { KeyboardAvoidingView, Modal, Platform, Pressable } from 'react-native'
 import { YStack, XStack, Text, Button, Input, ScrollView } from 'tamagui'
 import { colors, borderRadius } from '../../design-tokens'
 import { type GiftCardProduct, POINTS_PER_DOLLAR } from './mock-data'
@@ -250,18 +250,20 @@ export function GiftCardSheet({ visible, card, balance, onClose, onConfirm, t }:
   // Native: React Native Modal
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable
-        style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}
-        onPress={onClose}
-      >
-        <Pressable onPress={(e) => e.stopPropagation()}
-          style={{ backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '85%' }}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}
+          onPress={onClose}
         >
-          <ScrollView>
-            {sheetContent}
-          </ScrollView>
+          <Pressable onPress={(e) => e.stopPropagation()}
+            style={{ backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '85%' }}
+          >
+            <ScrollView keyboardShouldPersistTaps="handled">
+              {sheetContent}
+            </ScrollView>
+          </Pressable>
         </Pressable>
-      </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   )
 }

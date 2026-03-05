@@ -66,32 +66,37 @@ verifying end-to-end user flows.
 
 ```
 e2e/maestro/
-├── runner.yaml           # appId, env vars, ordered flow list (22 flows)
-├── flows/
-│   ├── login.yaml            # Full login + OTP verification
-│   ├── feed-navigation.yaml  # Feed content, scroll, Menu tab items
-│   ├── hamburger-menu.yaml   # Menu items, Profile nav, Transfer Points absence
-│   ├── buy-points.yaml       # Menu → Buy Points → Stripe form
-│   ├── create-post.yaml      # Create Post → Sell form
-│   ├── order-flow.yaml       # Conditional: tap Order if visible
-│   ├── orders.yaml           # Orders tab: tabs, filters, order cards
-│   ├── offers.yaml           # Offers tab: tabs, filters
-│   ├── chat.yaml             # Chats tab
-│   ├── post-management.yaml  # Menu → My Posts
-│   ├── delegation.yaml       # Menu → Delegate Sales
-│   ├── profile-management.yaml  # Menu → Profile & Settings
-│   ├── profile-wizard.yaml   # Conditional: wizard if visible
-│   ├── giftcards.yaml        # Menu → Redeem Points → Gift Cards tab
-│   ├── charity.yaml          # Menu → Redeem Points → Donate tab
-│   ├── cashout.yaml          # Menu → Redeem Points → Cashout tab
-│   ├── redeem-tabs-visibility.yaml # Verify all 4 redemption tabs render
-│   ├── redemption-block.yaml # Verify blocked redemption methods
-│   ├── refund-points.yaml    # Menu → Redeem Points → refund flow
-│   ├── refund-options.yaml   # Verify refund method options (Venmo/Gift Card/Card)
-│   ├── venmo-refund.yaml     # Venmo refund UI flow (no live API)
-│   └── transaction-history.yaml  # Menu → Transaction History
+├── runner.yaml               # appId, env vars, ordered flow list
+├── flows/                    # 24 emulator-safe flows (run on emulator + device)
+│   ├── login.yaml
+│   ├── feed-navigation.yaml
+│   ├── hamburger-menu.yaml
+│   ├── buy-points.yaml
+│   ├── create-post.yaml
+│   ├── order-flow.yaml
+│   ├── order-lifecycle.yaml
+│   ├── orders.yaml
+│   ├── offers.yaml
+│   ├── chat.yaml
+│   ├── chat-conversation.yaml
+│   ├── post-management.yaml
+│   ├── delegation.yaml
+│   ├── profile-management.yaml
+│   ├── profile-wizard.yaml
+│   ├── giftcards.yaml
+│   ├── charity.yaml
+│   ├── cashout.yaml
+│   ├── redeem-tabs-visibility.yaml
+│   ├── redemption-block.yaml
+│   ├── refund-points.yaml
+│   ├── refund-options.yaml
+│   ├── venmo-refund.yaml
+│   └── transaction-history.yaml
+├── flows-device-only/        # Flows requiring physical device hardware
+│   └── camera-upload.yaml    # Needs real camera/photo library
 └── utils/
-    └── login.yaml            # Reusable login utility (used by all flows)
+    ├── login.yaml            # Reusable seller login utility
+    └── login-buyer.yaml      # Reusable buyer login utility
 ```
 
 > [!IMPORTANT]
@@ -135,11 +140,14 @@ curl -Ls "https://get.maestro.mobile.dev" | bash
 # Start the app
 cd apps/expo-community && npx expo run:ios
 
-# Run all 22 flows (iOS)
-maestro test --udid <SIMULATOR_UDID> e2e/maestro/flows/
-
-# Run all 22 flows (Android)
+# Run emulator-safe flows (24 flows — works on emulator or device)
 maestro test e2e/maestro/flows/
+
+# Run device-only flows (requires real device with camera)
+maestro test e2e/maestro/flows-device-only/
+
+# Run ALL flows on a real device (emulator + device-only)
+maestro test e2e/maestro/flows/ e2e/maestro/flows-device-only/
 
 # Run a single flow
 maestro test e2e/maestro/flows/login.yaml
@@ -148,6 +156,13 @@ maestro test e2e/maestro/flows/login.yaml
 > [!NOTE]
 > Do NOT use `maestro test e2e/maestro/` — this picks up `runner.yaml` as a flow
 > file and errors. Always point to `e2e/maestro/flows/` instead.
+
+> [!IMPORTANT]
+> **Emulator vs Real Device:** The `flows/` directory contains 24 tests that
+> work on both emulators and physical devices. The `flows-device-only/`
+> directory contains tests that need real hardware (camera, photo library). When
+> testing on a cloud device farm or real device, run **both** directories for
+> full coverage.
 
 ### 2.4 Web E2E Tests (Playwright)
 

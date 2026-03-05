@@ -1,0 +1,30 @@
+# Maestro workspace configuration
+# Defines execution order for sequential test runs.
+# camera-upload.yaml is excluded — requires physical device.
+
+executionOrder:
+  continueOnFailure: true
+  flowsOrder:
+    - login
+    - feed-navigation
+    - hamburger-menu
+    - buy-points
+    - create-post
+    - order-flow
+    - orders
+    - offers
+    - chat
+    - chat-conversation
+    - post-management
+    - delegation
+    - profile-management
+    - profile-wizard
+    - transaction-history
+    - refund-points
+    - venmo-refund
+    - refund-options
+    - redeem-tabs-visibility
+    - giftcards
+    - charity
+    - redemption-block
+    - order-lifecycle

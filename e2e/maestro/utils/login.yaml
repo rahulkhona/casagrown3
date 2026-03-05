@@ -32,6 +32,10 @@ env:
                   visible: "localhost"
           commands:
                   - tapOn: "localhost"
+                  - extendedWaitUntil:
+                            visible:
+                                    text: ".*(?:Create Post|Join the Movement|Welcome to CasaGrown|Get You Set Up|Send Verification Code).*"
+                            timeout: 45000
 
 # On Android emulator after clearing app data, the URL may show as
 # 10.0.2.2 (the emulator's host loopback alias) instead of localhost.

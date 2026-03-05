@@ -1,0 +1,97 @@
+appId: dev.casagrown.community
+
+env:
+  TEST_EMAIL: "buyer@test.local"
+
+---
+# Login utility flow for the BUYER account
+# Identical to utils/login.yaml but uses buyer@test.local
+# Used by order-lifecycle.yaml (buyer needs to see seller's posts to place orders)
+
+- stopApp:
+    appId: dev.casagrown.community
+- launchApp:
+    clearState: false
+    clearKeychain: false
+    stopApp: false
+
+# Handle Expo dev-client launcher
+- runFlow:
+    when:
+      visible: "localhost"
+    commands:
+      - tapOn: "localhost"
+
+- runFlow:
+    when:
+      visible: "10.0.2.2"
+    commands:
+      - tapOn: "10.0.2.2"
+      - extendedWaitUntil:
+          visible:
+            text: ".*(?:Create Post|Join the Movement|Welcome to CasaGrown|Get You Set Up|Send Verification Code).*"
+          timeout: 45000
+
+# Wait for app to load
+- extendedWaitUntil:
+    visible:
+      text: ".*(?:Create Post|Join the Movement|Welcome to CasaGrown|Get You Set Up|Send Verification Code).*"
+    timeout: 45000
+
+# If already logged in, skip
+- runFlow:
+    when:
+      visible: "Create Post"
+    commands:
+      - assertVisible: "Create Post"
+
+# If on landing page, tap to login
+- runFlow:
+    when:
+      visible: "Join the Movement!"
+    commands:
+      - tapOn: "Join the Movement!"
+      - extendedWaitUntil:
+          visible: "Welcome to CasaGrown"
+          timeout: 15000
+
+# Perform email OTP login with buyer email
+- runFlow:
+    when:
+      visible: "Welcome to CasaGrown"
+    commands:
+      - longPressOn:
+          id: "email_input"
+      - eraseText: 50
+      - inputText: "${TEST_EMAIL}"
+      - pressKey: Enter
+      - extendedWaitUntil:
+          visible: "Verification Code"
+          timeout: 15000
+      - tapOn: "Verify & Continue"
+      - extendedWaitUntil:
+          visible:
+            text: ".*(?:Create Post|Get You Set Up).*"
+          timeout: 15000
+
+# If wizard shows, step through it
+- runFlow:
+    when:
+      visible:
+        text: ".*Get You Set Up.*"
+    commands:
+      - tapOn: "Continue"
+      - extendedWaitUntil:
+          visible:
+            text: ".*"
+          timeout: 10000
+      - tapOn: "Continue"
+      - extendedWaitUntil:
+          visible:
+            text: ".*"
+          timeout: 10000
+      - tapOn: "Continue"
+      - extendedWaitUntil:
+          visible:
+            text: ".*"
+          timeout: 10000

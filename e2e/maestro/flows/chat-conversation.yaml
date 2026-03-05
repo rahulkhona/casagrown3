@@ -1,0 +1,205 @@
+# Chat Conversation Flow — Maestro E2E test
+# Tests the full round-trip: seller sends a message, buyer receives it.
+# Uses seeded conversation between seller (Test Seller) and buyer (Test Buyer).
+
+appId: dev.casagrown.community
+
+---
+
+# ═══════════════════════════════════════════════
+# PART 1: Seller sends a message
+# ═══════════════════════════════════════════════
+
+# Login as seller (has seeded conversations)
+- runFlow: ../utils/login.yaml
+
+# Wait for feed to load
+- extendedWaitUntil:
+          visible: "Create Post"
+          timeout: 15000
+
+# Navigate to Chats tab
+- tapOn:
+          text: ".*Chats.*"
+
+# Wait for chat inbox to load — should show seeded conversations
+- extendedWaitUntil:
+          visible:
+                  text: ".*Test Buyer.*"
+          timeout: 15000
+
+# Tap the conversation with Test Buyer
+- tapOn:
+          text: ".*Test Buyer.*"
+
+# Wait for the chat screen to load — message input area appears
+- extendedWaitUntil:
+          visible:
+                  text: ".*Type a message.*"
+          timeout: 15000
+
+# Type a test message
+- tapOn:
+          text: ".*Type a message.*"
+- inputText: "Hello from Maestro test!"
+
+# Send the message by tapping the send button
+# The chat input bar uses KeyboardAvoidingView, so the send button
+# is visible above the keyboard on both iOS and Android.
+# NOTE: Do NOT use hideKeyboard here — on Android it sends a back press
+# which navigates away from the chat screen entirely.
+- tapOn:
+          id: "chat_send_button"
+
+# Wait for the message to appear in seller's chat view
+- extendedWaitUntil:
+          visible:
+                  text: ".*Hello from Maestro test.*"
+          timeout: 10000
+
+# Verify the message is visible on sender's side
+- assertVisible:
+          text: ".*Hello from Maestro test.*"
+
+# ═══════════════════════════════════════════════
+# PART 2: Sign out seller
+# ═══════════════════════════════════════════════
+
+# Navigate to Menu (use coordinates to avoid toast issues)
+- tapOn:
+          point: "95%,93%"
+          optional: true
+- swipe:
+          start: "50%,50%"
+          end: "50%,49%"
+          duration: 200
+- tapOn:
+          point: "90%,96%"
+
+# Wait for menu screen to appear
+- extendedWaitUntil:
+          visible:
+                  text: ".*(?:Sign Out|Transaction|My Posts|Edit Profile).*"
+          timeout: 20000
+
+# Scroll to Sign Out and tap
+- scrollUntilVisible:
+          element:
+                  text: ".*Sign Out.*"
+          direction: DOWN
+          speed: 20
+          timeout: 15000
+
+- tapOn:
+          text: ".*Sign Out.*"
+
+# Confirm sign-out dialog
+# iOS shows "Sign Out" (mixed case), Android shows "SIGN OUT" (all caps)
+- extendedWaitUntil:
+          visible:
+                  text: ".*Are you sure.*"
+          timeout: 5000
+- tapOn:
+          text: "(?i)sign.out"
+          index: 1
+
+- extendedWaitUntil:
+          visible:
+                  text: ".*(?:Join the Movement|Welcome to CasaGrown).*"
+          timeout: 15000
+
+# ═══════════════════════════════════════════════
+# PART 3: Login as buyer and verify message received
+# ═══════════════════════════════════════════════
+
+- runFlow: ../utils/login-buyer.yaml
+
+# Wait for feed to load as buyer
+- extendedWaitUntil:
+          visible: "Create Post"
+          timeout: 30000
+
+# Dismiss push notification prompt if shown
+- tapOn:
+          text: "Not now"
+          optional: true
+
+# Navigate to Chats tab
+- tapOn:
+          text: ".*Chats.*"
+
+# Wait for chat inbox — should show conversation with Test Seller
+- extendedWaitUntil:
+          visible:
+                  text: ".*Test Seller.*"
+          timeout: 15000
+
+# Tap the conversation with Test Seller
+- tapOn:
+          text: ".*Test Seller.*"
+
+# Wait for the chat screen to load
+- extendedWaitUntil:
+          visible:
+                  text: ".*Type a message.*"
+          timeout: 15000
+
+# Scroll down to find the seller's message (the DISCUSSING card and
+# PENDING order bar can push messages below the viewport)
+- scrollUntilVisible:
+          element:
+                  text: ".*Hello from Maestro test.*"
+          direction: DOWN
+          timeout: 15000
+
+# ✅ VERIFY: Seller's message is visible on buyer's side
+- assertVisible:
+          text: ".*Hello from Maestro test.*"
+
+# ═══════════════════════════════════════════════
+# PART 4: Clean up — sign out buyer, re-login seller
+# ═══════════════════════════════════════════════
+
+# Navigate to Menu (coordinates to avoid toast)
+- tapOn:
+          point: "95%,93%"
+          optional: true
+- swipe:
+          start: "50%,50%"
+          end: "50%,49%"
+          duration: 200
+- tapOn:
+          point: "90%,96%"
+
+- extendedWaitUntil:
+          visible:
+                  text: ".*(?:Sign Out|Transaction|My Posts|Edit Profile).*"
+          timeout: 20000
+
+- scrollUntilVisible:
+          element:
+                  text: ".*Sign Out.*"
+          direction: DOWN
+          speed: 20
+          timeout: 15000
+
+- tapOn:
+          text: ".*Sign Out.*"
+
+# Confirm sign-out dialog
+# iOS shows "Sign Out" (mixed case), Android shows "SIGN OUT" (all caps)
+- extendedWaitUntil:
+          visible:
+                  text: ".*Are you sure.*"
+          timeout: 5000
+- tapOn:
+          text: "(?i)sign.out"
+          index: 1
+
+- extendedWaitUntil:
+          visible:
+                  text: ".*(?:Join the Movement|Welcome to CasaGrown).*"
+          timeout: 15000
+
+# Re-login as seller to restore state for subsequent tests
+- runFlow: ../utils/login.yaml

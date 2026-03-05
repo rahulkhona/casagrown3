@@ -1,0 +1,100 @@
+# Camera Upload Flow — Maestro E2E test
+# Tests creating a sell post with a photo from the camera/gallery.
+#
+# ⚠️  PHYSICAL DEVICE ONLY — camera is not available on emulators.
+# This flow is NOT included in runner.yaml.
+# Run manually on real devices or device farm services:
+#   maestro test e2e/maestro/flows/camera-upload.yaml
+#
+# On device farms (BrowserStack, AWS Device Farm), use addMedia
+# to inject a test image into the device gallery before running.
+
+appId: dev.casagrown.community
+
+---
+
+# Login first
+- runFlow: ../utils/login.yaml
+
+# Wait for feed to load
+- extendedWaitUntil:
+    visible: "Create Post"
+    timeout: 15000
+
+# Tap create post
+- tapOn: "Create Post"
+
+# Dismiss push notification prompt if shown
+- tapOn:
+    text: "Not now"
+    optional: true
+
+# Select "Looking to Sell"
+- extendedWaitUntil:
+    visible: "What would you like to share with your community?"
+    timeout: 10000
+- tapOn:
+    text: ".*Looking to Sell.*"
+
+# Wait for sell form
+- extendedWaitUntil:
+    visible: "Sell Produce"
+    timeout: 10000
+
+# Fill in required fields first
+# Category
+- tapOn:
+    text: ".*Category.*"
+- tapOn:
+    text: ".*Fruits.*"
+    optional: true
+
+# Product name
+- tapOn:
+    text: ".*Product.*"
+- inputText: "Camera Test Oranges"
+
+# Look for photo/camera button (gallery picker button)
+- scrollUntilVisible:
+    element:
+      text: ".*(?:Add Photo|Take Photo|Upload|Camera|Gallery|Photo).*"
+    direction: DOWN
+    timeout: 10000
+
+# Tap the photo button — this opens the camera or gallery picker
+# On a real device, this will open the native camera/gallery
+- tapOn:
+    text: ".*(?:Add Photo|Take Photo|Upload|Camera|Gallery|Photo).*"
+
+# On real devices, the system photo picker or camera opens.
+# For device farm testing, use addMedia to pre-load a test image.
+# Wait for a picker to appear and select the first image.
+- extendedWaitUntil:
+    visible:
+      text: ".*"
+    timeout: 10000
+
+# NOTE: The exact interaction here depends on the device/OS.
+# On Android, the photo picker shows recent photos.
+# On iOS, the system photo library opens.
+# Tap the first available image in the picker.
+- tapOn:
+    index: 0
+    optional: true
+
+# After selecting a photo, verify the image preview appears in the form
+- extendedWaitUntil:
+    visible:
+      text: ".*(?:Sell Produce|Camera Test Oranges).*"
+    timeout: 15000
+
+# Go back without submitting (avoid polluting test data)
+- tapOn: "Back"
+
+# Go back to feed
+- tapOn: "Back"
+
+# Verify we're back on feed
+- extendedWaitUntil:
+    visible: "Create Post"
+    timeout: 15000

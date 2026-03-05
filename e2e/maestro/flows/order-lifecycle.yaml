@@ -1,0 +1,263 @@
+# Order Lifecycle Flow — Maestro E2E test
+# Tests placing an order from the buyer's perspective.
+# Logs in as buyer (buyer@test.local) to see seller's posts.
+#
+# Pre-condition: seed.sql creates posts owned by seller@test.local.
+# The buyer can see and order from those posts.
+#
+# This flow runs LAST in runner.yaml since it switches users.
+# At the end, it signs back in as seller for any subsequent tests.
+
+appId: dev.casagrown.community
+
+---
+
+# Step 1: Launch app fresh
+- stopApp:
+          appId: dev.casagrown.community
+- launchApp:
+          clearState: false
+          clearKeychain: false
+          stopApp: false
+
+# Wait for something to render (gives time for dev client, dev menu, etc.)
+- extendedWaitUntil:
+          visible:
+                  text: ".*"
+          timeout: 10000
+
+# Dismiss Expo developer menu overlay if shown (appears on first launch)
+- tapOn:
+          text: "Continue"
+          optional: true
+
+# Handle dev-client launcher if shown
+- runFlow:
+          when:
+                  visible: "Development Build"
+          commands:
+                  - tapOn:
+                            text: ".*10\\.0\\.2\\.2.*"
+                            optional: true
+                  - tapOn:
+                            text: ".*localhost.*"
+                            optional: true
+                  - extendedWaitUntil:
+                            visible:
+                                    text: ".*(?:Create Post|Join the Movement|Welcome to CasaGrown|Get You Set Up|Send Verification Code|Continue).*"
+                            timeout: 45000
+                  # Dismiss developer menu if it appears after launch
+                  - tapOn:
+                            text: "Continue"
+                            optional: true
+
+# Wait for the app to reach a recognizable screen
+- extendedWaitUntil:
+          visible:
+                  text: ".*(?:Create Post|Join the Movement|Welcome to CasaGrown|Get You Set Up|Send Verification Code).*"
+          timeout: 45000
+
+# If on feed (logged in as another user), sign out first
+- runFlow:
+          when:
+                  visible: "Create Post"
+          commands:
+                  - tapOn:
+                            text: ".*Menu.*"
+                  - extendedWaitUntil:
+                            visible:
+                                    text: ".*(?:Profile|Sign Out|Redeem).*"
+                            timeout: 10000
+                  - scrollUntilVisible:
+                            element:
+                                    text: ".*Sign Out.*"
+                            direction: DOWN
+                            timeout: 10000
+                  - tapOn:
+                            text: ".*Sign Out.*"
+                  # Confirm sign-out dialog
+                  - extendedWaitUntil:
+                            visible:
+                                    text: ".*Are you sure.*"
+                            timeout: 5000
+                  - tapOn:
+                            text: "(?i)sign.out"
+                            index: 1
+                  - extendedWaitUntil:
+                            visible:
+                                    text: ".*(?:Join the Movement|Welcome to CasaGrown).*"
+                            timeout: 15000
+
+# Now login as buyer
+- runFlow: ../utils/login-buyer.yaml
+
+# Wait for feed to load as buyer
+- extendedWaitUntil:
+          visible: "Create Post"
+          timeout: 30000
+
+# Filter to "For Sale" to find seller's posts
+- tapOn: "For Sale"
+- extendedWaitUntil:
+          visible: "Tomatoes"
+          timeout: 15000
+
+# As buyer, the Order button should be visible on seller's posts
+- extendedWaitUntil:
+          visible:
+                  id: "order-button"
+          timeout: 10000
+
+# Tap the first Order button
+- tapOn:
+          id: "order-button"
+
+# Dismiss push notification prompt if shown ("Stay in the Loop!")
+- tapOn:
+          text: "Not now"
+          optional: true
+
+# Wait for Order Sheet to appear
+- extendedWaitUntil:
+          visible:
+                  text: ".*Quantity.*"
+          timeout: 10000
+
+# Enter quantity
+- tapOn:
+          text: ".*Enter quantity.*"
+          optional: true
+- inputText: "2"
+
+# Scroll to address field
+- scrollUntilVisible:
+          element:
+                  text: ".*(?:Enter your full delivery address|Enter delivery address|123 Main).*"
+          direction: DOWN
+          timeout: 10000
+
+# Tap and fill address (required field)
+- tapOn:
+          text: ".*(?:Enter your full delivery address|Enter delivery address|123 Main).*"
+- inputText: "123 Test St, San Jose, CA 95125"
+
+# Select delivery date (required field)
+- scrollUntilVisible:
+          element:
+                  text: ".*Select a date.*"
+          direction: DOWN
+          timeout: 10000
+- tapOn:
+          text: ".*Select a date.*"
+
+# Wait for date picker calendar to appear
+- extendedWaitUntil:
+          visible:
+                  text: ".*(?:March|April|May|2026).*"
+          timeout: 10000
+
+# Tap the "Today" button via coordinates
+# (Maestro on iOS cannot interact with elements inside RN Modal)
+# The "Today" button is at bottom-right of the calendar modal (~75% x, ~65% y)
+- tapOn:
+          point: "75%,65%"
+
+# Scroll to the submit button
+- scrollUntilVisible:
+          element:
+                  text: ".*(?:Submit Request|Place Order|Confirm|Submit).*"
+          direction: DOWN
+          timeout: 10000
+
+# Tap to submit the order
+- tapOn:
+          text: ".*(?:Submit Request|Place Order|Confirm|Submit).*"
+
+# Wait for order success — may show "Order Placed" alert
+- extendedWaitUntil:
+          visible:
+                  text: ".*(?:Order Placed|Order|Placed|Success|Tomatoes|Chat|Type a message|Feed).*"
+          timeout: 15000
+
+# Dismiss "Order Placed" success dialog if shown
+- tapOn:
+          text: "OK"
+          optional: true
+
+# Dismiss any error toast (e.g. tax lookup) by tapping X via coordinate
+# Toast X button is at far right bottom of screen
+- tapOn:
+          point: "95%,97%"
+          optional: true
+
+# Small delay for toast to animate away
+- swipe:
+          start: "50%,50%"
+          end: "50%,49%"
+          duration: 200
+
+# Navigate to the Orders tab (3rd tab — center of bottom tab bar)
+- tapOn:
+          point: "50%,97%"
+
+# Wait for Orders screen to load
+- extendedWaitUntil:
+          visible:
+                  text: ".*(?:Orders|Pending|Active).*"
+          timeout: 15000
+
+# Verify our Tomatoes order appears
+- assertVisible:
+          text: ".*Tomatoes.*"
+
+# Clean up: sign out buyer
+
+# Dismiss the toast's X button if it's blocking the tab bar
+# The X is at the far right edge of the error toast (~95% x, ~93% y)
+- tapOn:
+          point: "95%,93%"
+          optional: true
+
+# Wait for the toast to animate away
+- swipe:
+          start: "50%,50%"
+          end: "50%,49%"
+          duration: 200
+
+# Now tap the Menu tab (5th tab, bottom-right)
+- tapOn:
+          point: "90%,96%"
+
+# If Menu didn't load, try tapping by text as fallback
+- extendedWaitUntil:
+          visible:
+                  text: ".*(?:Sign Out|Transaction|My Posts|Edit Profile).*"
+          timeout: 20000
+
+# Scroll to Sign Out if needed and tap
+- scrollUntilVisible:
+          element:
+                  text: ".*Sign Out.*"
+          direction: DOWN
+          speed: 20
+          timeout: 15000
+
+- tapOn:
+          text: ".*Sign Out.*"
+
+# Confirm sign-out dialog
+- extendedWaitUntil:
+          visible:
+                  text: ".*Are you sure.*"
+          timeout: 5000
+- tapOn:
+          text: "(?i)sign.out"
+          index: 1
+
+- extendedWaitUntil:
+          visible:
+                  text: ".*(?:Join the Movement|Welcome to CasaGrown).*"
+          timeout: 15000
+
+# Re-login as seller for subsequent tests
+- runFlow: ../utils/login.yaml

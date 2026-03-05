@@ -205,10 +205,12 @@ ON CONFLICT (id) DO UPDATE SET
   phone_verified = EXCLUDED.phone_verified;
 
 -- Seed points for both users (enough for test transactions)
+-- Using 2000 to ensure enough points after cashout test (−500 pts) for the
+-- giftcards test ($10 card + Reloadly fee = 1,080 pts).
 INSERT INTO public.point_ledger (user_id, type, amount, balance_after, created_at, metadata)
 VALUES
-  ('a1111111-1111-1111-1111-111111111111', 'reward', 1500, 1500, now() + interval '1 second', '{"reason":"E2E test seed"}'),
-  ('b2222222-2222-2222-2222-222222222222', 'reward', 1500, 1500, now() + interval '1 second', '{"reason":"E2E test seed"}');
+  ('a1111111-1111-1111-1111-111111111111', 'reward', 2000, 2000, now() + interval '1 second', '{"reason":"E2E test seed"}'),
+  ('b2222222-2222-2222-2222-222222222222', 'reward', 2000, 2000, now() + interval '1 second', '{"reason":"E2E test seed"}');
 
 -- =============================================================================
 -- 12. Test Posts (with complete detail rows)
@@ -340,7 +342,7 @@ VALUES (
 INSERT INTO public.point_ledger (user_id, type, amount, balance_after, reference_id, created_at, metadata)
 VALUES (
   'a1111111-1111-1111-1111-111111111111',
-  'escrow', -45, 455,
+  'escrow', -45, 955,
   'd0000000-0000-0000-0000-000000000001',
   now() + interval '2 seconds',
   '{"reason":"Order escrow for Peppers","order_id":"d0000000-0000-0000-0000-000000000001"}'

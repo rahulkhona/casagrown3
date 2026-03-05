@@ -5,46 +5,49 @@ appId: dev.casagrown.community
 
 # Wait for feed to load
 - extendedWaitUntil:
-      visible: "Tomatoes|Feed"
-      timeout: 15000
+          visible: "Tomatoes|Feed"
+          timeout: 15000
 
 # Open Menu via bottom tab
 - tapOn:
-      text: ".*Menu.*"
+          text: ".*Menu.*"
 
 # Navigate to Redeem Points
 - extendedWaitUntil:
-      visible: ".*Redeem Points.*"
-      timeout: 5000
+          visible: ".*Redeem Points.*"
+          timeout: 5000
 - tapOn: ".*Redeem Points.*"
 
 # Wait for Screen and generic tabs
 - extendedWaitUntil:
-      visible: "Cashout|Donate|Gift Cards"
-      timeout: 20000
+          visible: "Cashout|Donate|Gift Cards"
+          timeout: 20000
 
 # Tap the Donate tab
 - tapOn: "Donate"
 
-# Wait for the charity list to load
+# Wait for the charity list to actually load from the edge function
+# The tab label "Donate" matches immediately; we need to wait for real project data
 - extendedWaitUntil:
-      visible: ".*Donate.*"
-      timeout: 10000
+          visible:
+                  id: "donate-button-0"
+          timeout: 30000
 
 # Tap the first available Donate button
 - tapOn:
-      id: "donate-button-0"
+          id: "donate-button-0"
 
-# Wait for confirm sheet/modal
+# Wait for confirm sheet/modal — "Donation Amount" is the section header
 - extendedWaitUntil:
-      visible: ".*Donation Amount.*"
-      timeout: 10000
+          visible: ".*Donation Amount.*"
+          timeout: 10000
 
-# Tap confirm checkout from the bottom sheet
+# Tap the Donate confirm button (already visible on screen)
+# On iOS, testIDs inside sheet components may not be accessible to Maestro
 - tapOn:
-      id: "donation-sheet-confirm"
+          text: ".*Donate.*Points.*"
 
 # Wait for Success (Toast or screen)
 - extendedWaitUntil:
-      visible: ".*Success.*|.*Thank you.*|.*Done.*"
-      timeout: 15000
+          visible: ".*Success.*|.*Thank you.*|.*Done.*|.*receipt.*|.*queued.*"
+          timeout: 15000
