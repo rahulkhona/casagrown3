@@ -1,6 +1,6 @@
 # Integration Checklist — Pre-Launch
 
-Last Updated: 2026-03-03
+Last Updated: 2026-03-05
 
 ## Stripe (Payments)
 
@@ -63,11 +63,29 @@ Last Updated: 2026-03-03
 > **No tests hit live PayPal/Venmo APIs.** All payout tests validate input/error
 > paths before reaching the API call, or are statically skipped.
 
+## Twilio Verify (SMS Phone Verification)
+
+| Item                                             | Status | Notes                                              |
+| :----------------------------------------------- | :----- | :------------------------------------------------- |
+| Account SID (`TWILIO_ACCOUNT_SID`)               | ✅     | Test credentials configured in `.env.local`        |
+| Auth Token (`TWILIO_AUTH_TOKEN`)                 | ✅     | Test credentials configured in `.env.local`        |
+| Verify Service SID (`TWILIO_VERIFY_SERVICE_SID`) | ✅     | `VA4baed7c12c33e5b9a27da3970a439142`               |
+| `send-phone-otp` edge function                   | ✅     | Twilio Verify API + 6-layer abuse prevention       |
+| `verify-phone-otp` edge function                 | ✅     | Code verification + lockout (5 fails → 30min lock) |
+| `sms_rate_limits` table                          | ✅     | IP, phone, user rate limiting                      |
+| Switch test → production credentials             | ⬜     | Replace test SID/token with live credentials       |
+| Test live SMS delivery end-to-end                | ⬜     | Verify API requires live creds (test creds fail)   |
+
+> [!IMPORTANT]
+> **Twilio Verify API does not support test credentials.** Magic number tests
+> verify error handling only. Real SMS delivery requires live credentials.
+
 ## Authentication
 
 | Item                              | Status | Notes                              |
 | :-------------------------------- | :----- | :--------------------------------- |
 | Email + OTP authentication        | ✅     | Implemented via Supabase Auth      |
+| Phone number verification (SMS)   | ✅     | Via Twilio Verify (see above)      |
 | Supabase project URL (production) | ⬜     | Replace `localhost:54321` URLs     |
 | Remove dev OTP auto-fill          | ⬜     | `login-screen.tsx` dev mode bypass |
 
@@ -101,6 +119,8 @@ Last Updated: 2026-03-03
 | `pair-delegation`          | ✅     | Delegation pairing                    |
 | `assign-experiment`        | ✅     | A/B test assignment                   |
 | `resolve-pending-payments` | ✅     | Stuck payment recovery                |
+| `send-phone-otp`           | ✅     | Twilio Verify SMS + rate limiting     |
+| `verify-phone-otp`         | ✅     | OTP code check + lockout              |
 | `sync-locations`           | ✅     | Country reference data                |
 | `update-zip-codes`         | ✅     | Zip code data processing              |
 
@@ -137,6 +157,11 @@ APNS_KEY_ID=...          # iOS only
 APNS_TEAM_ID=...         # iOS only
 APNS_KEY=...             # iOS only (.p8 contents)
 FCM_SERVER_KEY=...       # Android only
+
+# Twilio Verify (SMS Phone Verification)
+TWILIO_ACCOUNT_SID=AC...
+TWILIO_AUTH_TOKEN=...
+TWILIO_VERIFY_SERVICE_SID=VA...
 
 # Supabase (production)
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co

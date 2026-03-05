@@ -94,7 +94,7 @@ and any associated triggers/functions/RLS policies.
 > `20260303000000_post_moderation_pipeline` → `20260305000000_compliance_ddl` →
 > `20260305000001_compliance_functions` →
 > `20260305000100_seed_redemption_blocks` →
-> `20260305000200_edge_function_errors`
+> `20260305000200_edge_function_errors` → `20260306000000_sms_rate_limits`
 
 ## Extensions
 
@@ -400,8 +400,16 @@ Linked to Supabase Auth `auth.users` table. Auto-created on signup via
 `campaign_rewards`), `trg_clear_phone_verification` (auto-clears phone
 verification when phone_number changes)
 
-**RPCs**: `verify_phone(p_code TEXT)` — validates OTP code and sets
-`phone_verified = true`
+**RPCs**: `verify_phone(p_code TEXT)` — validates OTP code, increments
+`phone_verification_attempts`, enforces lockout after 5 failures (30 min), and
+sets `phone_verified = true` on success. (Hardened by `20260306000000`)
+
+**Additional Profile Columns** (added by `20260306000000_sms_rate_limits`):
+
+| Column                            | Type          | Description                                                  |
+| :-------------------------------- | :------------ | :----------------------------------------------------------- |
+| `phone_verification_attempts`     | `integer`     | Failed OTP attempts counter. Default: `0`. Reset on success. |
+| `phone_verification_locked_until` | `timestamptz` | Lockout timestamp after 5 failed attempts (30 min).          |
 
 **Indexes**: `profiles_home_location_idx` (GiST),
 `profiles_nearby_communities_idx` (GIN)
@@ -585,6 +593,56 @@ follower-controlled writes.
 ```text
 (indexes shown above)
 ```
+
+---
+
+## SMS Rate Limiting
+
+### `sms_rate_limits`
+
+Tracks SMS verification attempts for abuse prevention. Used by the
+`send-phone-otp` edge function to enforce IP, phone number, and user-level rate
+limits.
+
+**Migration**: `20260306000000_sms_rate_limits.sql`
+
+| Column       | Type          | Description                                               |
+| :----------- | :------------ | :-------------------------------------------------------- |
+| `id`         | `uuid`        | Primary Key.                                              |
+| `user_id`    | `uuid`        | FK to `profiles(id)`. Nullable (IP-only entries).         |
+| `phone`      | `text`        | E.164 phone number. Nullable.                             |
+| `ip`         | `text`        | Client IP address. Nullable.                              |
+| `created_at` | `timestamptz` | Default `now()`. Used for time-window rate limit queries. |
+
+**Rate Limits** (enforced by `send-phone-otp` edge function):
+
+| Dimension | Threshold | Window   |
+| :-------- | :-------- | :------- |
+| Per IP    | 5         | 15 min   |
+| Per phone | 3         | 1 hour   |
+| Per user  | 5         | 24 hours |
+| Cooldown  | 1         | 60 sec   |
+
+**Indexes**: `idx_sms_rate_limits_ip` (ip, created_at),
+`idx_sms_rate_limits_phone` (phone, created_at), `idx_sms_rate_limits_user`
+(user_id, created_at)
+
+```sql
+create table sms_rate_limits (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references profiles(id),
+  phone text,
+  ip text,
+  created_at timestamptz default now()
+);
+
+create index idx_sms_rate_limits_ip on sms_rate_limits(ip, created_at);
+create index idx_sms_rate_limits_phone on sms_rate_limits(phone, created_at);
+create index idx_sms_rate_limits_user on sms_rate_limits(user_id, created_at);
+```
+
+**RLS Policies**: `sms_rate_limits` uses service-role access only (no
+user-facing RLS). The edge functions operate with `SUPABASE_SERVICE_ROLE_KEY`.
 
 ---
 
@@ -998,11 +1056,11 @@ create table blocked_products (
 
 ### Ban Cascade RPCs _(added by `20260301080300`–`20260301080500`)_
 
-| RPC                        | Input                               | Effect                                                                              |
-| :------------------------- | :---------------------------------- | :---------------------------------------------------------------------------------- |
+| RPC                        | Input                               | Effect                                                                                   |
+| :------------------------- | :---------------------------------- | :--------------------------------------------------------------------------------------- |
 | `ban_category(p_name)`     | Category name                       | Hard-delete category → cascades FKs, archives posts, cancels orders, refunds held points |
-| `add_category_restriction` | Name, H3 (optional), reason         | Soft-block: insert restriction row → archive + cancel + refund                      |
-| `ban_product`              | Product name, H3 (optional), reason | Block product → archive matching posts, cancel orders, refund                       |
+| `add_category_restriction` | Name, H3 (optional), reason         | Soft-block: insert restriction row → archive + cancel + refund                           |
+| `ban_product`              | Product name, H3 (optional), reason | Block product → archive matching posts, cancel orders, refund                            |
 
 ---
 

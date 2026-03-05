@@ -271,7 +271,7 @@ npx playwright test --config=e2e/playwright/playwright.config.ts --last-failed
 - **Action**: Full 5-phase test pipeline:
   1. **Jest unit tests** (Community App + Community Voice)
   2. **Supabase infrastructure** check (auto-start, seed verification)
-  3. **Deno integration tests** (edge function compliance)
+  3. **Deno integration tests** (edge function compliance + Twilio SMS)
   4. **Playwright E2E** (all web specs for seller + buyer projects)
   5. **Maestro E2E** (all mobile flows on Android emulator)
 - **Goal**: Prevent regressions across unit, integration, and E2E layers.

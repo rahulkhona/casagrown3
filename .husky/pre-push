@@ -155,6 +155,11 @@ if command -v deno > /dev/null 2>&1; then
         echo "❌ Deno integration tests failed — push aborted."
         exit 1
     }
+    echo "📋 Deno Twilio SMS integration tests..."
+    deno test --allow-net --allow-env supabase/functions/send-phone-otp/test.ts 2>&1 || {
+        echo "❌ Twilio SMS tests failed — push aborted."
+        exit 1
+    }
 else
     echo "   ⚠️  Deno not found — skipping integration tests."
 fi

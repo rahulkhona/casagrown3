@@ -296,6 +296,8 @@ client initialization, and error wrapping. Functions requiring auth use
 | `enrich-communities`       | No   | Background enrichment of community metadata                      |
 | `sync-locations`           | No   | Syncs country reference data from REST Countries                 |
 | `pair-delegation`          | Yes  | Delegated sales pairing (multi-action router)                    |
+| `send-phone-otp`           | Yes  | Twilio Verify SMS verification + 6-layer rate limiting           |
+| `verify-phone-otp`         | Yes  | OTP code check + lockout (5 failures → 30min lock)               |
 | `update-zip-codes`         | No   | Batch zip code data processing                                   |
 | `hold-flow`                | No   | _(test-only)_ Compliance integration tests (hold/release/refund) |
 
@@ -332,6 +334,11 @@ supabase secrets set GLOBALGIVING_SANDBOX=true      # Set to "false" for product
 # Cashouts — PayPal Payouts
 supabase secrets set PAYPAL_CLIENT_ID=xxx
 supabase secrets set PAYPAL_SECRET=xxx
+
+# SMS Phone Verification — Twilio Verify
+supabase secrets set TWILIO_ACCOUNT_SID=ACxxx
+supabase secrets set TWILIO_AUTH_TOKEN=xxx
+supabase secrets set TWILIO_VERIFY_SERVICE_SID=VAxxx
 ```
 
 ### API Provider Funding & Wallets
@@ -578,6 +585,7 @@ yarn test
 | Edge: assign-experiment     | `supabase/functions/assign-experiment/test.ts`          |      3 |
 | Edge: enrich-communities    | `supabase/functions/enrich-communities/test.ts`         |      3 |
 | Edge: sync-locations        | `supabase/functions/sync-locations/test.ts`             |      2 |
+| Edge: send-phone-otp        | `supabase/functions/send-phone-otp/test.ts`             |      9 |
 | Notification storage        | `notification-storage.test.ts`                          |     13 |
 | Notification service        | `notification-service.test.ts`                          |     19 |
 | Notification hook           | `useNotificationPrompt.test.ts`                         |      9 |
@@ -672,6 +680,9 @@ npx supabase functions deploy  # Deploy edge functions
 | `APNS_TEAM_ID`              | Push (iOS)   | Apple Developer Team ID              |
 | `APNS_KEY`                  | Push (iOS)   | Contents of .p8 file from Apple      |
 | `FCM_SERVER_KEY`            | Push (Droid) | Firebase Cloud Messaging server key  |
+| `TWILIO_ACCOUNT_SID`        | Phone verif  | Twilio Account SID                   |
+| `TWILIO_AUTH_TOKEN`         | Phone verif  | Twilio Auth Token                    |
+| `TWILIO_VERIFY_SERVICE_SID` | Phone verif  | Twilio Verify Service SID            |
 
 ---
 
