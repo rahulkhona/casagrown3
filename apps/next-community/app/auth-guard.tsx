@@ -28,7 +28,7 @@ function isPublicRoute(pathname: string): boolean {
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
-  const { user, loading: authLoading } = useAuth()
+  const { user, loading: authLoading, tosAccepted } = useAuth()
   const [authorized, setAuthorized] = useState(false)
 
   useEffect(() => {
@@ -49,9 +49,18 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       return
     }
 
-    // Logged in on a protected route → allowed
+    if (!tosAccepted) {
+      // Logged in but ToS not accepted → redirect to login (handles ToS flow)
+      console.log('🔒 AuthGuard: ToS not accepted, redirecting to /login')
+      setAuthorized(false)
+      const returnTo = encodeURIComponent(pathname)
+      router.replace(`/login?returnTo=${returnTo}`)
+      return
+    }
+
+    // Logged in with ToS accepted → allowed
     setAuthorized(true)
-  }, [user, authLoading, pathname, router])
+  }, [user, authLoading, tosAccepted, pathname, router])
 
   // Still loading auth
   if (authLoading) {

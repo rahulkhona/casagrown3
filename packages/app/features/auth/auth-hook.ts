@@ -86,6 +86,8 @@ type AuthState = {
   session: Session | null;
   user: User | null;
   loading: boolean;
+  /** True when the user has accepted the Terms of Service */
+  tosAccepted: boolean;
 };
 
 // 3. Create Hook
@@ -94,6 +96,7 @@ export function useAuth() {
     session: null,
     user: null,
     loading: true,
+    tosAccepted: false,
   });
 
   useEffect(() => {
@@ -103,7 +106,7 @@ export function useAuth() {
         // Guard: verify profile actually exists in DB (protects against stale sessions after db reset)
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
-          .select("id")
+          .select("id, tos_accepted_at")
           .eq("id", session.user.id)
           .maybeSingle();
 
@@ -113,17 +116,41 @@ export function useAuth() {
             "⚠️ Stale session detected (no profile row). Auto-signing out.",
           );
           await supabase.auth.signOut();
-          setState({ session: null, user: null, loading: false });
+          setState({
+            session: null,
+            user: null,
+            loading: false,
+            tosAccepted: false,
+          });
           return;
         }
+
+        const tosAccepted = !!profile?.tos_accepted_at;
+        setState({ session, user: session.user, loading: false, tosAccepted });
+        return;
       }
-      setState({ session, user: session?.user ?? null, loading: false });
+      setState({ session, user: null, loading: false, tosAccepted: false });
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setState({ session, user: session?.user ?? null, loading: false });
+      async (_event, session) => {
+        if (session?.user) {
+          // Re-check ToS on auth state change (e.g. after login)
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("tos_accepted_at")
+            .eq("id", session.user.id)
+            .maybeSingle();
+          setState({
+            session,
+            user: session.user,
+            loading: false,
+            tosAccepted: !!profile?.tos_accepted_at,
+          });
+        } else {
+          setState({ session, user: null, loading: false, tosAccepted: false });
+        }
       },
     );
 
@@ -305,7 +332,7 @@ export function useAuth() {
       console.warn("Could not clear auth storage:", e);
     }
     // Force state to logged out
-    setState({ session: null, user: null, loading: false });
+    setState({ session: null, user: null, loading: false, tosAccepted: false });
   };
 
   return {

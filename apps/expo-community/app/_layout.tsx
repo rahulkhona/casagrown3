@@ -55,7 +55,7 @@ export default function App() {
  * and this hook redirects from any screen to the root index.
  */
 function useProtectedRoute() {
-  const { user, loading } = useAuth()
+  const { user, loading, tosAccepted } = useAuth()
   const segments = useSegments()
   const router = useRouter()
 
@@ -69,8 +69,12 @@ function useProtectedRoute() {
       // User signed out but still on a protected screen → go to root
       console.log('🔒 Auth guard: user signed out, redirecting to /')
       router.replace('/')
+    } else if (user && !tosAccepted && inProtectedGroup) {
+      // User is logged in but ToS not accepted → redirect to login for ToS flow
+      console.log('🔒 Auth guard: ToS not accepted, redirecting to /login')
+      router.replace('/login')
     }
-  }, [user, loading, segments])
+  }, [user, loading, tosAccepted, segments])
 }
 
 function RootLayoutNav() {
