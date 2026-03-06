@@ -60,6 +60,7 @@ type TransactionType =
   | 'referral'
   | 'refund'
   | 'sales_tax'
+  | 'delegation_split'
 type FilterType = 'all' | 'credits' | 'debits'
 type TransactionStatus = 'queued' | 'processing' | 'completed' | 'failed'
 type DatePeriod = 'all' | '7d' | '90d' | 'custom'
@@ -117,6 +118,15 @@ interface Transaction {
   receiptSellerPayout?: number
   receiptCompletedAt?: string
   receiptPointsPerUnit?: number
+
+  // Delegation split fields
+  delegationRole?: 'delegate' | 'delegator'
+  delegatePct?: number
+  delegateShare?: number
+  delegatorShare?: number
+  delegated?: boolean
+  delegatorName?: string
+  delegateName?: string
 }
 
 // =============================================================================
@@ -150,6 +160,8 @@ export function mapLedgerType(dbType: string, amount: number): TransactionType {
       return 'sales_tax'
     case 'hold':
       return 'order_debit'
+    case 'delegation_split':
+      return 'delegation_split'
     default:
       return amount > 0 ? 'purchase' : 'order_debit'
   }
@@ -212,6 +224,15 @@ export function mapLedgerToTransaction(row: any): Transaction {
     receiptSellerPayout: meta.seller_payout,
     receiptCompletedAt: meta.completed_at,
     receiptPointsPerUnit: meta.points_per_unit,
+
+    // Delegation split fields
+    delegationRole: meta.role,
+    delegatePct: meta.delegate_pct,
+    delegateShare: meta.delegate_share || (meta.role === 'delegate' ? row.amount : undefined),
+    delegatorShare: meta.delegator_share || (meta.role === 'delegator' ? row.amount : undefined),
+    delegated: meta.delegated || meta.role != null,
+    delegatorName: meta.delegator_name,
+    delegateName: meta.delegate_name,
   }
 
   return tx
@@ -268,6 +289,13 @@ export function buildDescription(type: TransactionType, amount: number, meta: an
       const taxAmt = meta.tax_amount || 0
       return `Sales Tax: ${product}${rate ? ` @ ${rate}` : ''} — ${taxAmt} pts`
     }
+    case 'delegation_split': {
+      const product = meta.product || 'item'
+      const role = meta.role === 'delegator' ? 'Delegator' : 'Delegate'
+      const pct = meta.delegate_pct || 50
+      const share = meta.role === 'delegator' ? (100 - pct) : pct
+      return `Delegation Sale: ${product} (${role} — ${share}% share)`
+    }
     default:
       return meta.description || `${amount > 0 ? 'Credit' : 'Debit'}: ${Math.abs(amount)} points`
   }
@@ -323,6 +351,12 @@ const TYPE_CONFIG: Record<
     label: 'Sales Tax',
     color: '#d97706',
     bgColor: '#fffbeb',
+  },
+  delegation_split: {
+    icon: ArrowDownLeft,
+    label: 'Delegation Income',
+    color: colors.amber[600],
+    bgColor: colors.amber[100],
   },
 }
 
@@ -1035,7 +1069,7 @@ function TransactionCard({
         </YStack>
       )}
       {/* Digital Receipt details */}
-      {((tx.receipt) || ((tx.type === 'sale_credit' || tx.type === 'hold') && tx.receiptProduct)) && (
+      {((tx.receipt) || ((tx.type === 'sale_credit' || tx.type === 'order_debit' || tx.type === 'delegation_split') && tx.receiptProduct)) && (
         <ReceiptCard
           variant="card"
           data={{
@@ -1054,6 +1088,13 @@ function TransactionCard({
             tax: tx.receiptTax,
             platformFee: tx.receiptPlatformFee,
             sellerPayout: tx.receiptSellerPayout,
+            delegated: tx.delegated,
+            delegatePct: tx.delegatePct,
+            delegateShare: tx.delegateShare,
+            delegatorShare: tx.delegatorShare,
+            delegationRole: tx.delegationRole,
+            delegatorName: tx.delegatorName,
+            delegateName: tx.delegateName,
           }}
         />
       )}

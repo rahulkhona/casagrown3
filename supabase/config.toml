@@ -96,8 +96,8 @@ openai_api_key = "env(OPENAI_API_KEY)"
 enabled = true
 # Port to use for the email testing server web interface.
 port = 54324
-# Uncomment to expose additional ports for testing user applications that send emails.
-# smtp_port = 54325
+# Expose SMTP port for edge functions to send emails to Mailpit
+smtp_port = 54325
 # pop3_port = 54326
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
@@ -508,3 +508,8 @@ verify_jwt = false
 [functions.verify-phone-otp]
 enabled = true
 verify_jwt = false
+
+[functions.send-transaction-email]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/send-transaction-email/index.ts"

@@ -26,6 +26,14 @@ export interface ReceiptData {
   tax?: number
   platformFee?: number
   sellerPayout?: number
+  // Delegation fields
+  delegated?: boolean
+  delegatePct?: number
+  delegateShare?: number
+  delegatorShare?: number
+  delegationRole?: 'delegate' | 'delegator'
+  delegatorName?: string
+  delegateName?: string
 }
 
 interface ReceiptCardProps {
@@ -160,13 +168,60 @@ export function ReceiptCard({ data, variant = 'card' }: ReceiptCardProps) {
               -{data.platformFee.toLocaleString()} pts
             </Text>
           </XStack>
-          {data.sellerPayout != null && (
-            <XStack justifyContent="space-between">
-              <Text fontSize={11} fontWeight="600" color={colors.green[700]}>You Received</Text>
-              <Text fontSize={11} fontWeight="600" color={colors.green[700]}>
-                {data.sellerPayout.toLocaleString()} pts
-              </Text>
-            </XStack>
+          {data.delegated && data.delegatePct != null ? (
+            /* ── Delegation Split ── */
+            <>
+              <XStack justifyContent="space-between" marginTop={4}>
+                <Text fontSize={10} fontWeight="600" color={colors.gray[500]}>
+                  Delegation Split ({data.delegatePct}% / {100 - data.delegatePct}%)
+                </Text>
+              </XStack>
+              {data.delegationRole === 'delegate' && data.delegateShare != null && (
+                <>
+                  <XStack justifyContent="space-between">
+                    <Text fontSize={11} fontWeight="600" color={colors.green[700]}>Your Share</Text>
+                    <Text fontSize={11} fontWeight="600" color={colors.green[700]}>
+                      {data.delegateShare.toLocaleString()} pts
+                    </Text>
+                  </XStack>
+                  {data.delegatorShare != null && (
+                    <XStack justifyContent="space-between">
+                      <Text fontSize={11} color={colors.gray[500]}>{data.delegatorName || 'Delegator'}'s Share</Text>
+                      <Text fontSize={11} color={colors.gray[500]}>
+                        {data.delegatorShare.toLocaleString()} pts
+                      </Text>
+                    </XStack>
+                  )}
+                </>
+              )}
+              {data.delegationRole === 'delegator' && data.delegatorShare != null && (
+                <>
+                  <XStack justifyContent="space-between">
+                    <Text fontSize={11} fontWeight="600" color={colors.green[700]}>Your Share</Text>
+                    <Text fontSize={11} fontWeight="600" color={colors.green[700]}>
+                      {data.delegatorShare.toLocaleString()} pts
+                    </Text>
+                  </XStack>
+                  {data.delegateShare != null && (
+                    <XStack justifyContent="space-between">
+                      <Text fontSize={11} color={colors.gray[500]}>{data.delegateName || 'Delegate'}'s Share</Text>
+                      <Text fontSize={11} color={colors.gray[500]}>
+                        {data.delegateShare.toLocaleString()} pts
+                      </Text>
+                    </XStack>
+                  )}
+                </>
+              )}
+            </>
+          ) : (
+            data.sellerPayout != null && (
+              <XStack justifyContent="space-between">
+                <Text fontSize={11} fontWeight="600" color={colors.green[700]}>You Received</Text>
+                <Text fontSize={11} fontWeight="600" color={colors.green[700]}>
+                  {data.sellerPayout.toLocaleString()} pts
+                </Text>
+              </XStack>
+            )
           )}
         </>
       )}
@@ -195,5 +250,13 @@ export function metadataToReceiptData(meta: Record<string, any>): ReceiptData {
     tax: meta.tax,
     platformFee: meta.platform_fee,
     sellerPayout: meta.seller_payout,
+    // Delegation fields
+    delegated: meta.delegated || meta.role != null,
+    delegatePct: meta.delegate_pct,
+    delegateShare: meta.delegate_share,
+    delegatorShare: meta.delegator_share,
+    delegationRole: meta.role,
+    delegatorName: meta.delegator_name,
+    delegateName: meta.delegate_name,
   }
 }

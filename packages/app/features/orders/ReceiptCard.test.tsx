@@ -256,4 +256,101 @@ describe('metadataToReceiptData', () => {
     expect(result.buyerZip).toBeUndefined()
     expect(result.harvestDate).toBeUndefined()
   })
+
+  it('maps delegation metadata keys correctly', () => {
+    const meta = {
+      order_id: 'abc123',
+      delegated: true,
+      delegate_pct: 30,
+      delegate_share: 14,
+      delegator_share: 31,
+      role: 'delegate',
+      delegator_name: 'Maria Garcia',
+      delegate_name: 'Test Seller',
+    }
+    const result = metadataToReceiptData(meta)
+    expect(result.delegated).toBe(true)
+    expect(result.delegatePct).toBe(30)
+    expect(result.delegateShare).toBe(14)
+    expect(result.delegatorShare).toBe(31)
+    expect(result.delegationRole).toBe('delegate')
+    expect(result.delegatorName).toBe('Maria Garcia')
+    expect(result.delegateName).toBe('Test Seller')
+  })
 })
+
+// =============================================================================
+// Delegation split rendering
+// =============================================================================
+
+describe('ReceiptCard delegation split', () => {
+  const DELEGATE_RECEIPT: ReceiptData = {
+    ...FULL_RECEIPT,
+    delegated: true,
+    delegatePct: 30,
+    delegateShare: 14,
+    delegatorShare: 31,
+    delegationRole: 'delegate',
+    delegatorName: 'Maria Garcia',
+    delegateName: 'Test Seller',
+  }
+
+  const DELEGATOR_RECEIPT: ReceiptData = {
+    ...FULL_RECEIPT,
+    delegated: true,
+    delegatePct: 30,
+    delegateShare: 14,
+    delegatorShare: 31,
+    delegationRole: 'delegator',
+    delegatorName: 'Maria Garcia',
+    delegateName: 'Test Seller',
+  }
+
+  it('renders delegation split header with percentages', () => {
+    render(<ReceiptCard data={DELEGATE_RECEIPT} variant="card" />)
+    expect(screen.getByText(/Delegation Split.*30%.*70%/)).toBeTruthy()
+  })
+
+  it('delegate view shows "Your Share" without role suffix', () => {
+    render(<ReceiptCard data={DELEGATE_RECEIPT} variant="card" />)
+    expect(screen.getByText('Your Share')).toBeTruthy()
+    expect(screen.queryByText(/Your Share \(Delegate\)/)).toBeNull()
+  })
+
+  it('delegate view shows delegator name in other share label', () => {
+    render(<ReceiptCard data={DELEGATE_RECEIPT} variant="card" />)
+    expect(screen.getByText("Maria Garcia's Share")).toBeTruthy()
+  })
+
+  it('delegate view renders correct amounts', () => {
+    render(<ReceiptCard data={DELEGATE_RECEIPT} variant="card" />)
+    expect(screen.getByText(/14.*pts/)).toBeTruthy()
+    expect(screen.getByText(/31.*pts/)).toBeTruthy()
+  })
+
+  it('delegator view shows "Your Share" without role suffix', () => {
+    render(<ReceiptCard data={DELEGATOR_RECEIPT} variant="card" />)
+    expect(screen.getByText('Your Share')).toBeTruthy()
+    expect(screen.queryByText(/Your Share \(Delegator\)/)).toBeNull()
+  })
+
+  it('delegator view shows delegate name in other share label', () => {
+    render(<ReceiptCard data={DELEGATOR_RECEIPT} variant="card" />)
+    expect(screen.getByText("Test Seller's Share")).toBeTruthy()
+  })
+
+  it('falls back to generic label when name is missing', () => {
+    const noNames: ReceiptData = {
+      ...DELEGATE_RECEIPT,
+      delegatorName: undefined,
+    }
+    render(<ReceiptCard data={noNames} variant="card" />)
+    expect(screen.getByText("Delegator's Share")).toBeTruthy()
+  })
+
+  it('does NOT show delegation section for non-delegated receipts', () => {
+    render(<ReceiptCard data={FULL_RECEIPT} variant="card" />)
+    expect(screen.queryByText(/Delegation Split/)).toBeNull()
+  })
+})
+
