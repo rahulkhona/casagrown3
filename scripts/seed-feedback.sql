@@ -13,6 +13,10 @@ DECLARE
   v_fb7 uuid;
   v_fb8 uuid;
 BEGIN
+  -- Make this script idempotent: clean existing feedback data first
+  TRUNCATE feedback_comments, feedback_votes, feedback_media, feedback_comment_media,
+           feedback_status_history, feedback_flags, user_feedback CASCADE;
+
   SELECT id INTO v_user1 FROM profiles ORDER BY created_at LIMIT 1;
   SELECT id INTO v_user2 FROM profiles ORDER BY created_at LIMIT 1 OFFSET 1;
   SELECT id INTO v_user3 FROM profiles ORDER BY created_at LIMIT 1 OFFSET 2;

@@ -9,6 +9,21 @@
 
 set -e
 
+# ─── Skip tests for tag-only pushes ──────────────────────────────
+# Git feeds "local_ref local_sha remote_ref remote_sha" lines on stdin.
+# If every ref being pushed is a tag (refs/tags/...), skip the test suite.
+TAG_ONLY=true
+while read local_ref local_sha remote_ref remote_sha; do
+    case "$local_ref" in
+        refs/tags/*) ;;  # tag push — keep checking
+        *) TAG_ONLY=false; break ;;
+    esac
+done
+if [ "$TAG_ONLY" = true ]; then
+    echo "🏷️  Tag-only push detected — skipping pre-push tests."
+    exit 0
+fi
+
 ROOT_DIR="$(git rev-parse --show-toplevel)"
 cd "$ROOT_DIR"
 
@@ -171,6 +186,23 @@ echo ""
 # ═══════════════════════════════════════════════════════════════════
 
 echo "━━━ Phase 2: Playwright E2E (Web) ━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# --- Clean stale test data so Playwright finds only seed records ---
+echo "   Cleaning stale test data..."
+docker exec -i supabase_db_casagrown3 psql -U postgres -d postgres <<'CLEANUP_SQL' 2>&1 | tail -1
+-- Remove non-seed orders (seed orders have d0000000-... UUIDs)
+DELETE FROM orders WHERE id::text NOT LIKE 'd0000000-%';
+-- Remove non-seed offers (seed offers have c999... UUIDs)
+DELETE FROM offers WHERE id::text NOT LIKE 'c999%';
+-- Remove non-seed posts (seed posts have e555... / f666... / a0000... UUIDs)
+DELETE FROM posts WHERE id::text NOT LIKE 'e555%'
+                    AND id::text NOT LIKE 'f666%'
+                    AND id::text NOT LIKE 'a0000%';
+-- Remove non-seed conversations (seed convos have c9999999-... UUIDs)
+DELETE FROM conversations WHERE id::text NOT LIKE 'c9999999-%';
+SELECT 'Stale data cleaned';
+CLEANUP_SQL
+echo "   ✓ Stale test data removed"
 
 # --- Start Community Voice dev server (port 3002) if not running ---
 if is_port_in_use 3002; then
