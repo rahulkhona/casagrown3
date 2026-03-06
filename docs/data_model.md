@@ -4063,7 +4063,8 @@ CREATE TABLE state_redemption_method_blocks (
 **RLS Policies**: Authenticated can read. Admins (via `staff_members`) can
 manage.
 
-**Seed Data** (`20260305000100`): Cashout blocked in all 50 US states + DC.
+**Seed Data** (`20260305000100`): Cashout blocked in 49 US states + DC (CA
+excluded).
 
 ### `digital_receipts`
 

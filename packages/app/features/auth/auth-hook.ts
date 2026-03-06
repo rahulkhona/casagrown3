@@ -100,8 +100,11 @@ export function useAuth() {
   });
 
   useEffect(() => {
+    let mounted = true;
+
     // Check active session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!mounted) return;
       if (session?.user) {
         // Guard: verify profile actually exists in DB (protects against stale sessions after db reset)
         const { data: profile, error: profileError } = await supabase
@@ -110,12 +113,15 @@ export function useAuth() {
           .eq("id", session.user.id)
           .maybeSingle();
 
+        if (!mounted) return;
+
         if (!profile && !profileError) {
           // Session is stale — user no longer exists in db
           console.warn(
             "⚠️ Stale session detected (no profile row). Auto-signing out.",
           );
           await supabase.auth.signOut();
+          if (!mounted) return;
           setState({
             session: null,
             user: null,
@@ -129,32 +135,77 @@ export function useAuth() {
         setState({ session, user: session.user, loading: false, tosAccepted });
         return;
       }
-      setState({ session, user: null, loading: false, tosAccepted: false });
+      if (mounted) {
+        setState({ session, user: null, loading: false, tosAccepted: false });
+      }
+    }).catch((err) => {
+      // Handle AbortError from navigator.locks when page navigates away
+      if (err?.name === "AbortError") {
+        console.debug("Auth: getSession aborted (page navigated away)");
+        return;
+      }
+      console.error("Auth: getSession error:", err);
+      if (mounted) {
+        setState({
+          session: null,
+          user: null,
+          loading: false,
+          tosAccepted: false,
+        });
+      }
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
-        if (session?.user) {
-          // Re-check ToS on auth state change (e.g. after login)
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("tos_accepted_at")
-            .eq("id", session.user.id)
-            .maybeSingle();
-          setState({
-            session,
-            user: session.user,
-            loading: false,
-            tosAccepted: !!profile?.tos_accepted_at,
-          });
-        } else {
-          setState({ session, user: null, loading: false, tosAccepted: false });
+        if (!mounted) return;
+        try {
+          if (session?.user) {
+            // Re-check ToS on auth state change (e.g. after login)
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("tos_accepted_at")
+              .eq("id", session.user.id)
+              .maybeSingle();
+            if (!mounted) return;
+            setState({
+              session,
+              user: session.user,
+              loading: false,
+              tosAccepted: !!profile?.tos_accepted_at,
+            });
+          } else {
+            setState({
+              session,
+              user: null,
+              loading: false,
+              tosAccepted: false,
+            });
+          }
+        } catch (err: any) {
+          if (err?.name === "AbortError") {
+            console.debug(
+              "Auth: onAuthStateChange aborted (page navigated away)",
+            );
+            return;
+          }
+          console.error("Auth: onAuthStateChange error:", err);
+          if (mounted) {
+            setState({
+              session: null,
+              user: null,
+              loading: false,
+              tosAccepted: false,
+            });
+          }
         }
       },
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   // Login Methods
@@ -335,11 +386,17 @@ export function useAuth() {
     setState({ session: null, user: null, loading: false, tosAccepted: false });
   };
 
+  /** Mark ToS as accepted in local state (call after DB update succeeds) */
+  const markTosAccepted = () => {
+    setState((prev) => ({ ...prev, tosAccepted: true }));
+  };
+
   return {
     ...state,
     signInWithOtp,
     verifyOtp,
     signInWithOAuth,
     signOut,
+    markTosAccepted,
   };
 }

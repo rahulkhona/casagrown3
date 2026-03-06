@@ -24,7 +24,7 @@ export function LoginScreen({ logoSrc, onLogin, onBack, referralCode, delegation
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
   const router = useRouter()
-  const { signInWithOtp, verifyOtp, user, loading: authLoading } = useAuth()
+  const { signInWithOtp, verifyOtp, user, loading: authLoading, markTosAccepted: markTosAcceptedHook } = useAuth()
   
   const [loginMethod, setLoginMethod] = useState<'email' | 'otp' | 'tos'>('email')
   const [email, setEmail] = useState('')
@@ -547,9 +547,15 @@ export function LoginScreen({ logoSrc, onLogin, onBack, referralCode, delegation
                         onPress={async () => {
                           // Set tos_accepted_at in DB
                           if (user?.id) {
-                            await supabase.from('profiles').update({
+                            const { error: tosError } = await supabase.from('profiles').update({
                               tos_accepted_at: new Date().toISOString(),
                             }).eq('id', user.id)
+                            if (tosError) {
+                              console.error('Failed to accept ToS:', tosError)
+                              return
+                            }
+                            // Sync auth hook state so the auth guard knows ToS is accepted
+                            markTosAcceptedHook()
                             
                             // Redirect based on profile completeness
                             const { data: profile } = await supabase

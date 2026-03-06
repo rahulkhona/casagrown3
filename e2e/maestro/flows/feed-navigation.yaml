@@ -25,22 +25,18 @@ appId: dev.casagrown.community
 - assertVisible: "Test Seller"
 - assertVisible: "Tomatoes"
 
-# Scroll up to find the buy post and verify its new fields
-- scrollUntilVisible:
-          element:
+# Switch to "Wanted" filter to show only buy posts
+- tapOn: "Wanted"
+- extendedWaitUntil:
+          visible:
                   text: ".*Looking for.*"
-          direction: UP
           timeout: 15000
+
+# Verify buy post fields
 - assertVisible:
           text: ".*Looking for.*"
 - assertVisible:
           text: ".*Need by.*"
-
-# Scroll back up
-- scrollUntilVisible:
-          element: "Tomatoes"
-          direction: UP
-          timeout: 10000
 
 # Navigate to Menu tab and verify key items are present
 - tapOn:

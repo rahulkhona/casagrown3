@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { AppHeader } from '@casagrown/app/features/common/AppHeader'
-import { useAuth } from '@casagrown/app/features/auth/auth-hook'
+import { useAuth, supabase } from '@casagrown/app/features/auth/auth-hook'
 import { YStack, Spinner, Text } from 'tamagui'
 import { colors } from '@casagrown/app/design-tokens'
 
@@ -15,6 +15,12 @@ const PUBLIC_ROUTES = ['/', '/login', '/login-success', '/logout', '/buy-points-
 
 /** Route prefixes that are public (for dynamic routes like /invite/[code]) */
 const PUBLIC_PREFIXES = ['/invite/', '/delegate-invite/', '/post/']
+
+/**
+ * Routes where a logged-in user WITHOUT ToS may remain authenticated.
+ * On all other routes, users without ToS get signed out to clear tokens.
+ */
+const TOS_FLOW_ROUTES = ['/login', '/login-success', '/terms', '/privacy', '/guidelines', '/profile-wizard']
 
 function isPublicRoute(pathname: string): boolean {
   // Allow Playwright E2E testing to bypass auth redirects
@@ -35,6 +41,18 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     // Wait for auth to finish loading
     if (authLoading) return
 
+    // If user is logged in but hasn't accepted ToS, and is NOT on a ToS flow route,
+    // sign them out so tokens are cleared. They'll need to login again.
+    // Skip this check for E2E tests (test users have ToS accepted in seed, but this is a safety net).
+    const isE2E = typeof window !== 'undefined' && window.localStorage.getItem('E2E_BYPASS_AUTH') === 'true'
+    if (user && !tosAccepted && !isE2E && !TOS_FLOW_ROUTES.includes(pathname)) {
+      console.log('🔒 AuthGuard: ToS not accepted on non-flow route, signing out')
+      supabase.auth.signOut().then(() => {
+        // After sign-out, user becomes null → effect re-runs → normal unauthenticated flow
+      })
+      return
+    }
+
     if (isPublicRoute(pathname)) {
       // Public route — always allowed
       setAuthorized(true)
@@ -49,16 +67,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       return
     }
 
-    if (!tosAccepted) {
-      // Logged in but ToS not accepted → redirect to login (handles ToS flow)
-      console.log('🔒 AuthGuard: ToS not accepted, redirecting to /login')
-      setAuthorized(false)
-      const returnTo = encodeURIComponent(pathname)
-      router.replace(`/login?returnTo=${returnTo}`)
-      return
-    }
-
-    // Logged in with ToS accepted → allowed
+    // Logged in with ToS → allowed
     setAuthorized(true)
   }, [user, authLoading, tosAccepted, pathname, router])
 

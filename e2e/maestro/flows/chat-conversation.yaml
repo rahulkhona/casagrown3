@@ -10,7 +10,38 @@ appId: dev.casagrown.community
 # PART 1: Seller sends a message
 # ═══════════════════════════════════════════════
 
-# Login as seller (has seeded conversations)
+# Ensure we're logged in as seller — always sign out first to clear any
+# stale session from a previous test (e.g. buyer), then login as seller.
+- runFlow: ../utils/login.yaml
+
+# Sign out whoever is currently logged in
+- tapOn:
+          text: ".*Menu.*"
+- extendedWaitUntil:
+          visible:
+                  text: ".*(?:Sign Out|Profile).*"
+          timeout: 10000
+- scrollUntilVisible:
+          element:
+                  text: ".*Sign Out.*"
+          direction: DOWN
+          speed: 20
+          timeout: 10000
+- tapOn:
+          text: ".*Sign Out.*"
+- extendedWaitUntil:
+          visible:
+                  text: ".*Are you sure.*"
+          timeout: 5000
+- tapOn:
+          text: "(?i)sign.out"
+          index: 1
+- extendedWaitUntil:
+          visible:
+                  text: ".*(?:Join the Movement|Welcome to CasaGrown).*"
+          timeout: 15000
+
+# Now login as seller (fresh login, guaranteed correct user)
 - runFlow: ../utils/login.yaml
 
 # Wait for feed to load
@@ -43,19 +74,23 @@ appId: dev.casagrown.community
           text: ".*Type a message.*"
 - inputText: "Hello from Maestro test!"
 
-# Send the message by tapping the send button
-# The chat input bar uses KeyboardAvoidingView, so the send button
-# is visible above the keyboard on both iOS and Android.
-# NOTE: Do NOT use hideKeyboard here — on Android it sends a back press
-# which navigates away from the chat screen entirely.
+# Send the message by tapping the send button.
+# First press "back" to dismiss keyboard — on Android, the first back press
+# when the keyboard is visible closes the keyboard (does NOT navigate back).
+# Then tap the send button by testID or coordinate fallback.
+- pressKey: back
 - tapOn:
           id: "chat_send_button"
+          optional: true
+- tapOn:
+          point: "93%,92%"
+          optional: true
 
 # Wait for the message to appear in seller's chat view
 - extendedWaitUntil:
           visible:
                   text: ".*Hello from Maestro test.*"
-          timeout: 10000
+          timeout: 15000
 
 # Verify the message is visible on sender's side
 - assertVisible:

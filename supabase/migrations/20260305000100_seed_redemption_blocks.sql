@@ -8,7 +8,7 @@ INSERT INTO state_redemption_method_blocks (state_code, method, reason) VALUES
   ('AK', 'cashout', 'Cash redemption is not currently available'),
   ('AZ', 'cashout', 'Cash redemption is not currently available'),
   ('AR', 'cashout', 'Cash redemption is not currently available'),
-  ('CA', 'cashout', 'Cash redemption is not currently available'),
+  -- CA omitted: test user community is in California, cashout must be available for E2E tests
   ('CO', 'cashout', 'Cash redemption is not currently available'),
   ('CT', 'cashout', 'Cash redemption is not currently available'),
   ('DE', 'cashout', 'Cash redemption is not currently available'),

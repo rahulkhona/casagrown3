@@ -9,7 +9,7 @@
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react'
 import { YStack, XStack, Text, Button, Input, ScrollView, Spinner, useMedia } from 'tamagui'
-import { Platform, Image, Alert } from 'react-native'
+import { Platform, Image, Alert, TouchableOpacity as RNTouchableOpacity } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { Search, Gift, Heart, GraduationCap, CheckCircle, ArrowLeft, Banknote } from '@tamagui/lucide-icons'
 import { colors, borderRadius, shadows } from '../../design-tokens'
@@ -538,31 +538,31 @@ export function RedemptionStore({ onNavigateToFeed }: RedemptionStoreProps) {
           {/* Tabs */}
           <XStack flexWrap="wrap" gap="$3" justifyContent="center" width="100%">
             {availableTabs.map(({ key, icon: Icon, label }) => (
-              <Button 
-                key={key} 
-                unstyled 
-                paddingVertical="$3" 
-                paddingHorizontal="$4" 
-                alignItems="center" 
-                justifyContent="center" 
-                flexGrow={1}
-                flexBasis={isDesktop ? 0 : '45%'} // 2 columns minimum on mobile
-                backgroundColor={activeTab === key ? colors.green[600] : 'white'}
+              <RNTouchableOpacity
+                key={key}
+                testID={`redeem-tab-${key}`}
                 onPress={() => setActiveTab(key)}
-                flexDirection="row" 
-                gap="$2"
-                borderRadius={borderRadius.lg}
-                borderWidth={1}
-                borderColor={activeTab === key ? colors.green[600] : colors.gray[200]}
-                shadowColor="rgba(0,0,0,0.05)"
-                shadowOffset={{ width: 0, height: 2 }}
-                shadowRadius={4}
+                activeOpacity={0.7}
+                style={{
+                  paddingVertical: 12,
+                  paddingHorizontal: 16,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexGrow: 1,
+                  flexBasis: isDesktop ? 0 : '45%',
+                  backgroundColor: activeTab === key ? colors.green[600] : 'white',
+                  flexDirection: 'row',
+                  gap: 8,
+                  borderRadius: borderRadius.lg,
+                  borderWidth: 1,
+                  borderColor: activeTab === key ? colors.green[600] : colors.gray[200],
+                }}
               >
                 <Icon size={18} color={activeTab === key ? 'white' : colors.gray[500]} />
                 <Text fontSize="$3" fontWeight="600" color={activeTab === key ? 'white' : colors.gray[700]} numberOfLines={1}>
                   {label}
                 </Text>
-              </Button>
+              </RNTouchableOpacity>
             ))}
           </XStack>
 

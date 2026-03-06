@@ -31,33 +31,39 @@ appId: dev.casagrown.community
           visible: "Cashout|Donate|Gift Cards"
           timeout: 20000
 
-# Cashout should be visible, tap it (tab)
+# Cashout button is in row 2, left column of the tab grid
+# Tamagui Button doesn't reliably respond to testID/text taps via Maestro
+# Use coordinate tap targeting the center of the Cashout button
 - tapOn:
-          text: "Cashout"
+          point: "25%,30%"
 
 # Wait for the text in the active tab explaining Venmo
 - extendedWaitUntil:
           visible: ".*Convert your points directly to USD.*"
-          timeout: 5000
+          timeout: 15000
 
-# Tap the Cashout button to open the sheet (using default 500 points)
-
-# Tap the Cashout button to open the sheet
-- scroll
+# Tap the Cashout submit button (index:1 because index:0 is the tab label)
 - tapOn:
-          id: "cashout-submit-button"
+          text: "Cashout"
+          index: 1
 
-# Wait for Sheet to open and Input to appear
+# Wait for Sheet to open (keyboard may auto-focus the input field)
 - extendedWaitUntil:
-          visible: ".*Where should we send your money?.*|.*Enter Amount.*"
+          visible: ".*Cash Out via PayPal.*|.*Where should we send your money?.*|.*Enter Amount.*"
           timeout: 10000
 
-# Fill out PayPal / Venmo Email
+# Fill out PayPal / Venmo number
+# The keyboard may be covering the Venmo input — scroll to find it if needed
+- scrollUntilVisible:
+          element:
+                  text: ".*Venmo #.*"
+          direction: DOWN
+          timeout: 10000
 - tapOn: ".*Venmo #.*"
 - inputText: "+15554443333"
 
-# Hide Keyboard to see confirm button
-- tapOn: ".*Where should we send your money?.*"
+# Dismiss keyboard after typing (back key closes keyboard on Android)
+- pressKey: back
 
 # Click Confirm
 - tapOn: "Confirm Cashout"

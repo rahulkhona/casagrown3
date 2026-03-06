@@ -13,16 +13,20 @@ export default function LoginSuccessPage() {
     if (authLoading || !user) return
 
     const handleRedirect = async () => {
-      // Check if profile is complete (wizard done)
+      // Check if profile is complete (wizard done) and ToS accepted
       const { data: profile } = await supabase
         .from('profiles')
-        .select('full_name, home_community_h3_index')
+        .select('full_name, home_community_h3_index, tos_accepted_at')
         .eq('id', user.id)
         .single()
 
+      const tosAccepted = !!profile?.tos_accepted_at
       const wizardComplete = profile?.full_name && profile?.home_community_h3_index
 
-      if (!wizardComplete) {
+      if (!tosAccepted) {
+        // ToS not accepted → redirect to terms page
+        router.replace('/terms')
+      } else if (!wizardComplete) {
         // Keep returnTo in sessionStorage so the wizard can use it after completion
         // (it's already there from the login page — don't remove it)
         router.replace('/profile-wizard')

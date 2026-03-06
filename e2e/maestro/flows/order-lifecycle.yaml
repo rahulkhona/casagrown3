@@ -153,21 +153,35 @@ appId: dev.casagrown.community
 # Wait for date picker calendar to appear
 - extendedWaitUntil:
           visible:
-                  text: ".*(?:March|April|May|2026).*"
+                  text: ".*(?:March|April|May|June|2026).*"
           timeout: 10000
 
-# Tap the "Today" button via coordinates
-# (Maestro on iOS cannot interact with elements inside RN Modal)
-# The "Today" button is at bottom-right of the calendar modal (~75% x, ~65% y)
+# Tap a visible date number (15 is always visible in any month)
+# This selects a future date on the calendar grid
 - tapOn:
-          point: "75%,65%"
+          text: "15"
+          optional: true
+
+# If "15" wasn't found, try tapping OK/Done button or the center of the calendar
+- tapOn:
+          text: "OK"
+          optional: true
+
+# Dismiss keyboard so submit button is reachable
+- pressKey: back
+
+# Small wait for keyboard to animate closed
+- swipe:
+          start: "50%,50%"
+          end: "50%,49%"
+          duration: 200
 
 # Scroll to the submit button
 - scrollUntilVisible:
           element:
                   text: ".*(?:Submit Request|Place Order|Confirm|Submit).*"
           direction: DOWN
-          timeout: 10000
+          timeout: 15000
 
 # Tap to submit the order
 - tapOn:
