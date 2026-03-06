@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Your CasaGrown Login Code</title>
+  <style>
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    body { margin: 0; padding: 0; width: 100% !important; height: 100% !important; }
+
+    @media (prefers-color-scheme: dark) {
+      .email-bg { background-color: #1a1a2e !important; }
+      .email-card { background-color: #16213e !important; }
+      .email-text { color: #e0e0e0 !important; }
+      .email-subtext { color: #b0b0b0 !important; }
+      .email-footer { color: #888888 !important; }
+    }
+  </style>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+
+  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f4f7fa;" class="email-bg">
+    <tr>
+      <td align="center" style="padding: 40px 16px;">
+
+        <!-- Card -->
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width: 480px; background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); overflow: hidden;" class="email-card">
+
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #15803d 0%, #16a34a 50%, #22c55e 100%); padding: 32px 32px 24px; text-align: center;">
+              <!-- Logo from app (served at /logo.png) -->
+              <div style="margin-bottom: 12px;">
+                <img src="{{ .SiteURL }}/logo.png" alt="CasaGrown" width="64" height="64" style="display: inline-block; width: 64px; height: 64px; object-fit: contain;" />
+              </div>
+              <h1 style="margin: 0; font-size: 26px; font-weight: 700; color: #ffffff; letter-spacing: -0.5px;">
+                CasaGrown
+              </h1>
+              <p style="margin: 10px 0 0; font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.9); letter-spacing: 3px; text-transform: uppercase;">
+                FRESH &bull; LOCAL &bull; TRUSTED
+              </p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding: 32px;">
+              <p style="margin: 0 0 8px; font-size: 18px; font-weight: 600; color: #1a1a2e;" class="email-text">
+                Your login code
+              </p>
+              <p style="margin: 0 0 24px; font-size: 14px; color: #666666; line-height: 1.5;" class="email-subtext">
+                Enter this code in the app to sign in to your account.
+              </p>
+
+              <!-- OTP Code Box -->
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td align="center" style="padding: 20px 0;">
+                    <div style="display: inline-block; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 2px solid #86efac; border-radius: 12px; padding: 16px 40px;">
+                      <span style="font-size: 36px; font-weight: 700; letter-spacing: 8px; color: #166534; font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;">
+                        {{ .Token }}
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin: 24px 0 0; font-size: 13px; color: #999999; line-height: 1.5;" class="email-subtext">
+                This code expires in <strong style="color: #666;">60 minutes</strong>.
+                If you didn't request this code, you can safely ignore this email.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Divider -->
+          <tr>
+            <td style="padding: 0 32px;">
+              <div style="height: 1px; background-color: #eee;"></div>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 24px 32px; text-align: center;">
+              <p style="margin: 0; font-size: 12px; color: #999999; line-height: 1.6;" class="email-footer">
+                Fresh from Neighbors' backyard 🌱<br />
+                This is an automated message. Please do not reply.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>

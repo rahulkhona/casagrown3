@@ -212,26 +212,21 @@ otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
-# Use a production-ready SMTP server
+# Use a production-ready SMTP server (Postmark)
+# Uncomment for production deployment — locally, emails go to Mailpit.
 # [auth.email.smtp]
 # enabled = true
-# host = "smtp.sendgrid.net"
+# host = "smtp.postmarkapp.com"
 # port = 587
-# user = "apikey"
-# pass = "env(SENDGRID_API_KEY)"
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
+# user = "env(POSTMARK_SERVER_TOKEN)"
+# pass = "env(POSTMARK_SERVER_TOKEN)"
+# admin_email = "noreply@casagrown.dev"
+# sender_name = "CasaGrown"
 
-# Uncomment to customize email template
-# [auth.email.template.invite]
-# subject = "You have been invited"
-# content_path = "./supabase/templates/invite.html"
-
-# Uncomment to customize notification email template
-# [auth.email.notification.password_changed]
-# enabled = true
-# subject = "Your password has been changed"
-# content_path = "./templates/password_changed_notification.html"
+# Custom branded email templates (only OTP login is used)
+[auth.email.template.magic_link]
+subject = "Your CasaGrown Login Code"
+content_path = "./supabase/templates/magic_link.html"
 
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.
