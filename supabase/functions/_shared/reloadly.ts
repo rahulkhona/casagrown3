@@ -1,6 +1,7 @@
 import {
     isOpenLoopCard,
     mapCategory,
+    ProviderOption,
     ProviderOrderResult,
     UnifiedGiftCard,
 } from "./gift-card-types.ts";
@@ -208,4 +209,84 @@ export async function fetchReloadlyBalance(
     const data = await balanceRes.json();
     // Convert to cents (balance is typically in USD)
     return Math.round((data.balance || 0) * 100);
+}
+
+/** Fetch a single product by ID for real-time availability/pricing check */
+export async function fetchReloadlyProduct(
+    clientId: string,
+    clientSecret: string,
+    productId: string,
+    isSandbox: boolean,
+): Promise<ProviderOption | null> {
+    if (!clientId || !clientSecret || !productId) return null;
+
+    const audience = isSandbox
+        ? "https://giftcards-sandbox.reloadly.com"
+        : "https://giftcards.reloadly.com";
+
+    try {
+        // Get OAuth token
+        const tokenRes = await fetch("https://auth.reloadly.com/oauth/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                client_id: clientId,
+                client_secret: clientSecret,
+                grant_type: "client_credentials",
+                audience,
+            }),
+        });
+
+        if (!tokenRes.ok) {
+            console.warn(
+                `[RELOADLY] Auth failed for product lookup: ${tokenRes.status}`,
+            );
+            return null;
+        }
+        const { access_token } = await tokenRes.json();
+
+        // Fetch product details
+        const productRes = await fetch(
+            `${audience}/products/${productId}`,
+            { headers: { Authorization: `Bearer ${access_token}` } },
+        );
+
+        if (!productRes.ok) {
+            console.warn(
+                `[RELOADLY] Product ${productId} lookup failed: ${productRes.status}`,
+            );
+            return null;
+        }
+
+        const product = await productRes.json();
+        if (!product || !product.productId) return null;
+
+        // Fetch discount for this product
+        let discountPercentage = product.discountPercentage || 0;
+        try {
+            const discountRes = await fetch(
+                `${audience}/products/${productId}/discounts`,
+                { headers: { Authorization: `Bearer ${access_token}` } },
+            );
+            if (discountRes.ok) {
+                const discountData = await discountRes.json();
+                if (discountData?.percentage != null) {
+                    discountPercentage = discountData.percentage;
+                }
+            }
+        } catch {
+            // Use product-level discount as fallback
+        }
+
+        return {
+            provider: "reloadly",
+            productId: String(product.productId),
+            discountPercentage,
+            feePerTransaction: product.senderFee || 0,
+            feePercentage: product.senderFeePercentage || 0,
+        };
+    } catch (err) {
+        console.warn(`[RELOADLY] Product lookup error:`, err);
+        return null;
+    }
 }

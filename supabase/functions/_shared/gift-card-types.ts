@@ -25,6 +25,26 @@ export interface ProviderOrderResult {
     actualCostCents: number;
 }
 
+export interface ProviderOption {
+    provider: "tremendous" | "reloadly";
+    productId: string;
+    discountPercentage: number;
+    feePerTransaction: number;
+    feePercentage: number;
+}
+
+/** Compute net fee (USD) for a given face value and provider option */
+export function computeNetFee(
+    faceValueCents: number,
+    option: ProviderOption,
+): number {
+    const faceUsd = faceValueCents / 100;
+    const discountSavings = faceUsd * (option.discountPercentage / 100);
+    const totalFee = option.feePerTransaction +
+        faceUsd * (option.feePercentage / 100);
+    return Math.max(0, totalFee - discountSavings);
+}
+
 export function mapCategory(
     tremendousCategory?: string,
     reloadlyCategory?: string,

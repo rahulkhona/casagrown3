@@ -6,7 +6,10 @@
  * Each brand includes an `availableProviders` array so the redemption
  * function can pick the cheapest option at order time.
  *
- * Results are cached in platform_config for 24 hours.
+ * Uses double-buffered caching:
+ * - Read path: always serves from status='active' row
+ * - Write path (refresh=true): writes to 'building', then atomically swaps
+ * - At most 2 rows during refresh, 1 after swap (old purged)
  */
 
 import { jsonOk, serveWithCors } from "../_shared/serve-with-cors.ts";
@@ -51,6 +54,7 @@ export async function fetchAndCacheGiftCards(
     // deno-lint-ignore no-explicit-any
     supabase: any,
     env: (key: string) => string | undefined,
+    isRefresh = false,
 ) {
     // ── 1. Fetch live active instruments ──
     const { data: activeInstruments } = await supabase
@@ -62,18 +66,16 @@ export async function fetchAndCacheGiftCards(
         i: { instrument: string },
     ) => i.instrument);
 
-    // ── 2. Check cache first ──
-    const { data: cached } = await supabase
-        .from("giftcards_cache")
-        .select("data, updated_at")
-        .eq("provider", "unified")
-        .maybeSingle();
+    // ── 2. Read path: serve from active cache (skip if refreshing) ──
+    if (!isRefresh) {
+        const { data: cached } = await supabase
+            .from("giftcards_cache")
+            .select("data, updated_at")
+            .eq("provider", "unified")
+            .eq("status", "active")
+            .maybeSingle();
 
-    if (cached) {
-        const cacheAge = Date.now() - new Date(cached.updated_at).getTime();
-        const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
-
-        if (cacheAge < CACHE_TTL) {
+        if (cached?.data) {
             const rawCards = cached.data as UnifiedGiftCard[];
 
             // Filter cached providers by activeList
@@ -86,6 +88,7 @@ export async function fetchAndCacheGiftCards(
 
             return { cards, cached: true, count: cards.length };
         }
+        // No active cache — fall through to live fetch (first boot)
     }
 
     const brandMap = new Map<string, UnifiedGiftCard>();
@@ -301,13 +304,47 @@ export async function fetchAndCacheGiftCards(
         `[CATALOG] Final: ${cards.length} unique brands`,
     );
 
-    // ── Cache results ──
+    // ── Cache results with double-buffer swap ──
     if (cards.length > 0) {
-        await supabase.from("giftcards_cache").upsert({
-            provider: "unified",
-            data: cards,
-            updated_at: new Date().toISOString(),
-        }, { onConflict: "provider" });
+        if (isRefresh) {
+            // Cron refresh path: write to 'building', then atomic swap
+            // 1. Clean up any leftover 'building' row from a prior failed refresh
+            await supabase.from("giftcards_cache")
+                .delete()
+                .eq("provider", "unified")
+                .eq("status", "building");
+
+            // 2. Insert new data as 'building'
+            await supabase.from("giftcards_cache").insert({
+                provider: "unified",
+                status: "building",
+                data: cards,
+                updated_at: new Date().toISOString(),
+            });
+
+            // 3. Atomic swap: delete old active, rename building → active
+            await supabase.from("giftcards_cache")
+                .delete()
+                .eq("provider", "unified")
+                .eq("status", "active");
+
+            await supabase.from("giftcards_cache")
+                .update({ status: "active" })
+                .eq("provider", "unified")
+                .eq("status", "building");
+
+            console.log(
+                `[CATALOG] Double-buffer swap complete: ${cards.length} brands`,
+            );
+        } else {
+            // First-boot path: insert directly as active
+            await supabase.from("giftcards_cache").upsert({
+                provider: "unified",
+                status: "active",
+                data: cards,
+                updated_at: new Date().toISOString(),
+            }, { onConflict: "provider,status" });
+        }
     }
 
     return { cards, cached: false, count: cards.length };
@@ -315,7 +352,20 @@ export async function fetchAndCacheGiftCards(
 
 if (import.meta.main) {
     serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
-        const result = await fetchAndCacheGiftCards(supabase, env);
+        // Parse refresh flag from URL or POST body
+        let isRefresh = false;
+        try {
+            const url = new URL(_req.url);
+            isRefresh = url.searchParams.get("refresh") === "true";
+        } catch { /* ignore */ }
+        if (!isRefresh && _req.method === "POST") {
+            try {
+                const body = await _req.clone().json();
+                isRefresh = body?.refresh === true;
+            } catch { /* not JSON */ }
+        }
+
+        const result = await fetchAndCacheGiftCards(supabase, env, isRefresh);
         return jsonOk(result, corsHeaders);
     });
 }

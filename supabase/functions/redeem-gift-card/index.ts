@@ -19,30 +19,17 @@ import {
   serveWithCors,
 } from "../_shared/serve-with-cors.ts";
 import { sendPushNotification } from "../_shared/push-notify.ts";
-import { ProviderOrderResult } from "../_shared/gift-card-types.ts";
+import {
+  computeNetFee,
+  ProviderOption,
+  ProviderOrderResult,
+} from "../_shared/gift-card-types.ts";
 import { getProviderGracePeriodMs } from "../_shared/grace-period.ts";
 import { orderFromTremendous } from "../_shared/tremendous.ts";
 import { orderFromReloadly } from "../_shared/reloadly.ts";
+import { pickBestProvider } from "../_shared/pick-best-provider.ts";
 
-// ── Types ──────────────────────────────────────────────────────────
-
-interface ProviderOption {
-  provider: "tremendous" | "reloadly";
-  productId: string;
-  discountPercentage: number;
-  feePerTransaction: number;
-  feePercentage: number;
-}
-
-// ── Helpers ────────────────────────────────────────────────────────
-
-function computeNetFee(faceValueCents: number, option: ProviderOption): number {
-  const faceUsd = faceValueCents / 100;
-  const discountSavings = faceUsd * (option.discountPercentage / 100);
-  const totalFee = option.feePerTransaction +
-    faceUsd * (option.feePercentage / 100);
-  return Math.max(0, totalFee - discountSavings);
-}
+// ── Types (ProviderOption and computeNetFee imported from shared) ──
 
 function normalizeBrand(name: string): string {
   return name
@@ -78,7 +65,10 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     .from("giftcards_cache")
     .select("data")
     .eq("provider", "unified")
+    .eq("status", "active")
     .maybeSingle();
+
+  let cachedProviders: ProviderOption[] = [];
 
   if (catalogRow?.data) {
     try {
@@ -87,13 +77,37 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         normalizeBrand(c.brandName) === brandKey
       );
       if (brand?.availableProviders?.length > 0) {
-        // Providers are already sorted cheapest-first by fetch-gift-cards
-        selectedProvider = brand.availableProviders[0];
-        const feeUsd = computeNetFee(faceValueCents, selectedProvider!);
-        netFeeCents = Math.round(feeUsd * 100);
+        cachedProviders = brand.availableProviders;
       }
     } catch {
       console.warn("[REDEEM] Failed to parse cached catalog");
+    }
+  }
+
+  // ── 1b. Real-time provider comparison (single-product lookups) ──
+  if (cachedProviders.length > 0) {
+    try {
+      const best = await pickBestProvider(
+        faceValueCents,
+        cachedProviders,
+        env,
+      );
+      selectedProvider = best.provider;
+      netFeeCents = best.netFeeCents;
+      console.log(
+        `[REDEEM] Provider: ${best.provider.provider} (${best.source}), net fee: $${
+          (netFeeCents / 100).toFixed(2)
+        }`,
+      );
+    } catch (err) {
+      console.warn(
+        "[REDEEM] pickBestProvider failed, using cached fallback:",
+        err,
+      );
+      selectedProvider = cachedProviders[0]!;
+      netFeeCents = Math.round(
+        computeNetFee(faceValueCents, selectedProvider) * 100,
+      );
     }
   }
 
@@ -103,7 +117,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     if (tremendousKey) {
       selectedProvider = {
         provider: "tremendous",
-        productId: "", // will need to look up
+        productId: "",
         discountPercentage: 0,
         feePerTransaction: 0,
         feePercentage: 0,
@@ -115,10 +129,10 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           provider: "reloadly",
           productId: "",
           discountPercentage: 0,
-          feePerTransaction: 0.5, // default
+          feePerTransaction: 0.5,
           feePercentage: 0,
         };
-        netFeeCents = 50; // default $0.50
+        netFeeCents = 50;
       }
     }
   }

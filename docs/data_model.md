@@ -94,7 +94,13 @@ and any associated triggers/functions/RLS policies.
 > `20260303000000_post_moderation_pipeline` → `20260305000000_compliance_ddl` →
 > `20260305000001_compliance_functions` →
 > `20260305000100_seed_redemption_blocks` →
-> `20260305000200_edge_function_errors` → `20260306000000_sms_rate_limits`
+> `20260305000200_edge_function_errors` → `20260306000000_sms_rate_limits` →
+> `20260306000001_get_user_email` →
+> `20260306000002_confirm_delivery_with_emails` →
+> `20260306000003_email_helper_and_create_order` →
+> `20260306000004_email_offer_and_dispute` →
+> `20260306000005_email_resolve_dispute` →
+> `20260306000006_email_triggers_and_ddl` → `20260307000000_double_buffer_cache`
 
 ## Extensions
 
@@ -1161,36 +1167,62 @@ create index idx_platform_fees_country on platform_fees(country_code, creation_d
 ### `giftcards_cache`
 
 Stores deduplicated, unified catalog data from multiple gift card providers to
-reduce load on external APIs and decouple from `platform_config`.
+reduce load on external APIs. Uses **double-buffered caching** for seamless
+refresh without downtime.
 
-**Migration**: `20260228042110_giftcards_cache.sql`
+**Migrations**: `20260228042110_giftcards_cache.sql`,
+`20260307000000_double_buffer_cache.sql` (added `status` column)
 
 | Column       | Type                | Description                                                   |
 | :----------- | :------------------ | :------------------------------------------------------------ |
 | `id`         | `uuid`              | **Primary Key**. Auto-generated.                              |
-| `provider`   | `giftcard_provider` | Enum (`'unified'`, `'tremendous'`, `'reloadly'`). **UNIQUE**. |
+| `provider`   | `giftcard_provider` | Enum (`'unified'`, `'tremendous'`, `'reloadly'`).             |
+| `status`     | `text`              | Buffer slot: `'active'` (live) or `'building'` (in-progress). |
 | `data`       | `jsonb`             | The actual cached JSON payload of unified gift cards.         |
 | `updated_at` | `timestamptz`       | Default `now()`.                                              |
+
+**Unique**: `(provider, status)` — allows at most 2 rows per provider during
+refresh. After swap, only 1 row (active) remains.
 
 ```sql
 create type giftcard_provider as enum ('unified', 'tremendous', 'reloadly');
 
 create table giftcards_cache (
   id uuid primary key default gen_random_uuid(),
-  provider giftcard_provider unique not null,
+  provider giftcard_provider not null,
+  status text not null default 'active',
   data jsonb not null,
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  unique(provider, status)
 );
 ```
 
+**Double-Buffer Swap Sequence** (triggered by cron refresh):
+
+1. Delete any leftover `building` row
+2. Insert fresh data as `status = 'building'`
+3. Delete old `active` row (purge)
+4. Rename `building` → `active`
+
 ### `charity_projects_cache` _(added by `20260228065500`)_
 
-Caches charity project listings from GlobalGiving API. Single row, upserted by
-the Edge Function.
+Caches charity project listings from GlobalGiving API. Uses the same
+**double-buffered caching** pattern as `giftcards_cache`.
+
+**Migrations**: `20260228065500_platform_config_deprecation.sql`,
+`20260307000000_double_buffer_cache.sql` (added `status` column)
+
+| Column       | Type          | Description                                                   |
+| :----------- | :------------ | :------------------------------------------------------------ |
+| `id`         | `uuid`        | **Primary Key**. Auto-generated.                              |
+| `status`     | `text`        | Buffer slot: `'active'` (live) or `'building'` (in-progress). |
+| `data`       | `jsonb`       | Cached GlobalGiving project listings.                         |
+| `updated_at` | `timestamptz` | Default `now()`.                                              |
 
 ```sql
 create table charity_projects_cache (
   id         uuid primary key default gen_random_uuid(),
+  status     text not null default 'active',
   data       jsonb not null,
   updated_at timestamptz not null default now()
 );
@@ -2764,23 +2796,28 @@ lifecycle: debit → API call → receipt → refund on failure.
 **Conversion**: 100 points = $1.00 USD
 
 **Source**:
-[donate-points/index.ts](file:///Users/rkhona/development/bug_reporting/casagrown3/supabase/functions/donate-points/index.ts)
+[donate-points/index.ts](file:///Users/rkhona/development/casagrown3/supabase/functions/donate-points/index.ts)
 
 #### `fetch-donation-projects`
 
 Fetches charitable project catalog from GlobalGiving. Supports search and browse
-modes with 24-hour caching.
+modes with **double-buffered caching**.
 
 **Endpoint**: `POST /functions/v1/fetch-donation-projects`
 
-**Input**: `{ "q?": "search term" }` or `?q=search+term` query parameter
+**Input**: `{ "q?": "search term", "refresh?": true }` or `?q=search+term` /
+`?refresh=true`
 
 **Modes**:
 
-| Mode   | Trigger             | API Call                     | Cache                                                 |
-| :----- | :------------------ | :--------------------------- | :---------------------------------------------------- |
-| Search | `q` param ≥ 2 chars | GlobalGiving search API      | No cache (live)                                       |
-| Browse | No `q` param        | GlobalGiving active projects | `platform_config` key `donation_projects_v1`, 24h TTL |
+| Mode    | Trigger               | API Call                     | Cache                                                     |
+| :------ | :-------------------- | :--------------------------- | :-------------------------------------------------------- |
+| Search  | `q` param ≥ 2 chars   | GlobalGiving search API      | No cache (live)                                           |
+| Browse  | No `q`, no `refresh`  | —                            | Reads from `charity_projects_cache` `status='active'` row |
+| Refresh | `refresh=true` (cron) | GlobalGiving active projects | Writes to `building`, then atomic swap → `active`         |
+
+**Cron Job**: `refresh-donation-projects` runs at 00:05 UTC daily via `pg_cron`
+(staggered 5 min after gift cards).
 
 **Fallback**: Returns hardcoded mock projects (4 items) when
 `GLOBALGIVING_API_KEY` is not configured.
@@ -2788,27 +2825,32 @@ modes with 24-hour caching.
 **Output**: `{ projects: DonationProject[], cached: boolean }`
 
 **Source**:
-[fetch-donation-projects/index.ts](file:///Users/rkhona/development/bug_reporting/casagrown3/supabase/functions/fetch-donation-projects/index.ts)
+[fetch-donation-projects/index.ts](file:///Users/rkhona/development/casagrown3/supabase/functions/fetch-donation-projects/index.ts)
 
 #### `fetch-gift-cards`
 
 Merges gift card catalogs from Reloadly and Tremendous providers into a unified,
-deduplicated list sorted by brand popularity.
+deduplicated list sorted by brand popularity. Uses **double-buffered caching**.
 
 **Endpoint**: `POST /functions/v1/fetch-gift-cards`
 
+**Parameters**: `{ "refresh?": true }` or `?refresh=true` (for cron)
+
 **Logic**:
 
-1. Check cache (`platform_config` key `gift_card_catalog_v4`, 24h TTL)
-2. Fetch catalogs from both providers in parallel (`Promise.allSettled`)
-3. Process Tremendous first (preferred — no processing fees)
-4. Merge Reloadly cards: extend denomination ranges for existing brands, add new
-   brands
-5. Compute `hasProcessingFee` and `processingFeeUsd` per brand
-6. Sort by popularity (curated top 10: Amazon, Target, Walmart, Starbucks, …)
-   then alphabetically
-7. Cache results to `platform_config`
-8. Return `{ cards: UnifiedGiftCard[], cached: boolean, count }`
+1. **Read path** (default): Serve from `giftcards_cache` where
+   `status='active'`. Filter providers by
+   `available_redemption_method_instruments`.
+2. **Write path** (`refresh=true` — cron job): a. Fetch catalogs from both
+   providers in parallel (`Promise.allSettled`) b. Process Tremendous first
+   (preferred — no processing fees) c. Merge Reloadly cards: extend denomination
+   ranges for existing brands, add new brands d. Compute `hasProcessingFee` and
+   `processingFeeUsd` per brand e. Sort by popularity (curated top 10: Amazon,
+   Target, Walmart, …) then alphabetically f. Double-buffer swap: write to
+   `building` → delete old `active` → rename `building` to `active`
+3. Return `{ cards: UnifiedGiftCard[], cached: boolean, count }`
+
+**Cron Job**: `refresh-giftcard-catalog` runs at 00:00 UTC daily via `pg_cron`.
 
 **Brand deduplication**: Normalizes brand names (lowercase, strip punctuation,
 remove country suffixes) to merge the same brand from different providers.
@@ -2817,12 +2859,13 @@ remove country suffixes) to merge the same brand from different providers.
 `RELOADLY_CLIENT_SECRET`, `RELOADLY_SANDBOX`
 
 **Source**:
-[fetch-gift-cards/index.ts](file:///Users/rkhona/development/bug_reporting/casagrown3/supabase/functions/fetch-gift-cards/index.ts)
+[fetch-gift-cards/index.ts](file:///Users/rkhona/development/casagrown3/supabase/functions/fetch-gift-cards/index.ts)
 
 #### `redeem-gift-card`
 
-Purchases a gift card with points. Picks the cheapest provider, handles the full
-lifecycle: debit → provider order → delivery → refund on failure.
+Purchases a gift card with points. Performs **real-time provider comparison**
+using single-product API lookups, then handles the full lifecycle: debit →
+provider order → delivery → refund on failure.
 
 **Endpoint**: `POST /functions/v1/redeem-gift-card`
 
@@ -2831,9 +2874,13 @@ lifecycle: debit → provider order → delivery → refund on failure.
 **Logic**:
 
 1. Validate balance
-2. Look up brand in cached catalog (`gift_card_catalog_v4`) to find available
-   providers and compute net fees
-3. Pick cheapest provider (Tremendous first — free; Reloadly as fallback)
+2. Look up brand in `giftcards_cache` (`status='active'`) to find cached
+   providers
+3. **Real-time provider comparison** (`pickBestProvider`): a. Calls
+   `fetchTremendousProduct` (GET `/v2/products/{id}`) and `fetchReloadlyProduct`
+   (OAuth → GET `/products/{id}` + discounts) **in parallel** b. Recomputes net
+   fees with fresh discount/fee data c. Picks cheapest available provider d.
+   Falls back to cached provider sort order if all real-time lookups fail
 4. Create pending `redemptions` row
 5. Debit points: insert `point_ledger` (type: `redemption`, −pointsCost)
 6. Place order with selected provider API
@@ -2843,8 +2890,15 @@ lifecycle: debit → provider order → delivery → refund on failure.
 10. Mark redemption `completed`
 11. Return `{ success, redemptionId, provider, cardCode, cardUrl, netFeeCents }`
 
+**Shared modules used**:
+
+- `_shared/pick-best-provider.ts` — orchestrates real-time comparison
+- `_shared/tremendous.ts` — `fetchTremendousProduct()` single-product lookup
+- `_shared/reloadly.ts` — `fetchReloadlyProduct()` single-product lookup
+- `_shared/gift-card-types.ts` — `ProviderOption`, `computeNetFee()`
+
 **Source**:
-[redeem-gift-card/index.ts](file:///Users/rkhona/development/bug_reporting/casagrown3/supabase/functions/redeem-gift-card/index.ts)
+[redeem-gift-card/index.ts](file:///Users/rkhona/development/casagrown3/supabase/functions/redeem-gift-card/index.ts)
 
 #### `sync-provider-balance`
 

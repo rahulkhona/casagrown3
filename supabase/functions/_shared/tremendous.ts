@@ -1,6 +1,7 @@
 import {
     isOpenLoopCard,
     mapCategory,
+    ProviderOption,
     ProviderOrderResult,
     UnifiedGiftCard,
 } from "./gift-card-types.ts";
@@ -186,4 +187,47 @@ export async function fetchTremendousBalance(apiKey: string): Promise<number> {
                 0,
         ),
     );
+}
+
+/** Fetch a single product by ID for real-time availability/pricing check */
+export async function fetchTremendousProduct(
+    apiKey: string,
+    productId: string,
+): Promise<ProviderOption | null> {
+    if (!apiKey || !productId) return null;
+
+    try {
+        const res = await fetch(
+            `https://testflight.tremendous.com/api/v2/products/${productId}`,
+            { headers: { Authorization: `Bearer ${apiKey}` } },
+        );
+
+        if (!res.ok) {
+            console.warn(
+                `[TREMENDOUS] Product ${productId} lookup failed: ${res.status}`,
+            );
+            return null;
+        }
+
+        const data = await res.json() as Record<string, unknown>;
+        const product = data.product as Record<string, unknown>;
+        if (!product) return null;
+
+        // Verify it's still a valid merchant card
+        if ((product.category as string) !== "merchant_card") return null;
+        if (
+            !(product.currency_codes as string[])?.includes("USD")
+        ) return null;
+
+        return {
+            provider: "tremendous",
+            productId: String(product.id),
+            discountPercentage: 0,
+            feePerTransaction: 0,
+            feePercentage: 0,
+        };
+    } catch (err) {
+        console.warn(`[TREMENDOUS] Product lookup error:`, err);
+        return null;
+    }
 }

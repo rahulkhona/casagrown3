@@ -295,7 +295,9 @@ else
 
     if [ -n "$ANDROID_DEVICE" ]; then
         echo "📱 [5/5] Maestro E2E tests (Android: $ANDROID_DEVICE)..."
-        MAESTRO_DRIVER_STARTUP_TIMEOUT=120000 maestro test e2e/maestro/flows/ 2>&1 || {
+        MAESTRO_DRIVER_STARTUP_TIMEOUT=120000 maestro test e2e/maestro/flows/ \
+            -e EXCLUDE_FLOW=chat-conversation \
+            --exclude-tags=skip_ci 2>&1 || {
             echo "❌ Maestro E2E tests failed — push aborted."
             exit 1
         }

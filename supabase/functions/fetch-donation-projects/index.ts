@@ -3,10 +3,11 @@
  *
  * Fetches active projects from GlobalGiving's public API,
  * maps them to the format expected by the Donate tab UI,
- * and caches results for 24 hours.
- *
- * Falls back to mock data if the API key is not configured
- * or the API request fails.
+ * and uses double-buffered caching:
+ * - Read path: serves from status='active' row
+ * - Write path (refresh=true): writes to 'building', then atomically swaps
+ * - At most 2 rows during refresh, 1 after swap (old purged)
+ * Search mode always hits the live API.
  */
 
 import { jsonOk, serveWithCors } from "../_shared/serve-with-cors.ts";
@@ -60,6 +61,16 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
     }
 
     const apiKey = env("GLOBALGIVING_API_KEY");
+
+    // ── Parse refresh flag from URL or POST body ──
+    const reqUrl = new URL(_req.url);
+    let isRefresh = reqUrl.searchParams.get("refresh") === "true";
+    if (!isRefresh && _req.method === "POST" && !searchQuery) {
+        try {
+            const body = await _req.clone().json();
+            isRefresh = body?.refresh === true;
+        } catch { /* not JSON */ }
+    }
 
     // ── SEARCH MODE: call GlobalGiving search API ──
     if (searchQuery && searchQuery.length >= 2) {
@@ -178,26 +189,25 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
         }
     }
 
-    // ── BROWSE MODE: return cached/paginated projects ──
+    // ── BROWSE MODE: return double-buffered cached projects ──
 
-    // Check cache
-    const { data: cached } = await supabase
-        .from("charity_projects_cache")
-        .select("data, updated_at")
-        .limit(1)
-        .maybeSingle();
+    // Read from active cache (skip if refreshing)
+    if (!isRefresh) {
+        const { data: cached } = await supabase
+            .from("charity_projects_cache")
+            .select("data, updated_at")
+            .eq("status", "active")
+            .limit(1)
+            .maybeSingle();
 
-    if (cached) {
-        const cacheAge = Date.now() - new Date(cached.updated_at).getTime();
-        const CACHE_TTL = 24 * 60 * 60 * 1000;
-
-        if (cacheAge < CACHE_TTL) {
+        if (cached?.data) {
             const projects = cached.data as DonationProject[];
             return jsonOk(
                 { projects, cached: true, count: projects.length },
                 corsHeaders,
             );
         }
+        // No active cache — fall through to live fetch (first boot)
     }
 
     if (!apiKey) {
@@ -269,30 +279,60 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
             `[DONATIONS] Fetched ${projects.length} projects from GlobalGiving`,
         );
 
-        // Cache results
+        // Cache with double-buffer swap
         if (projects.length > 0) {
-            // Upsert the single cache row (or insert if empty)
-            const { data: existingCache } = await supabase
-                .from("charity_projects_cache")
-                .select("id")
-                .limit(1)
-                .maybeSingle();
+            if (isRefresh) {
+                // 1. Clean up leftover 'building' row
+                await supabase.from("charity_projects_cache")
+                    .delete()
+                    .eq("status", "building");
 
-            if (existingCache?.id) {
-                await supabase
-                    .from("charity_projects_cache")
-                    .update({
-                        data: projects,
-                        updated_at: new Date().toISOString(),
-                    })
-                    .eq("id", existingCache.id);
-            } else {
-                await supabase
-                    .from("charity_projects_cache")
+                // 2. Insert as 'building'
+                await supabase.from("charity_projects_cache")
                     .insert({
+                        status: "building",
                         data: projects,
                         updated_at: new Date().toISOString(),
                     });
+
+                // 3. Atomic swap: delete old active, rename building → active
+                await supabase.from("charity_projects_cache")
+                    .delete()
+                    .eq("status", "active");
+
+                await supabase.from("charity_projects_cache")
+                    .update({ status: "active" })
+                    .eq("status", "building");
+
+                console.log(
+                    `[DONATIONS] Double-buffer swap complete: ${projects.length} projects`,
+                );
+            } else {
+                // First-boot: upsert directly as active
+                const { data: existingCache } = await supabase
+                    .from("charity_projects_cache")
+                    .select("id")
+                    .eq("status", "active")
+                    .limit(1)
+                    .maybeSingle();
+
+                if (existingCache?.id) {
+                    await supabase
+                        .from("charity_projects_cache")
+                        .update({
+                            data: projects,
+                            updated_at: new Date().toISOString(),
+                        })
+                        .eq("id", existingCache.id);
+                } else {
+                    await supabase
+                        .from("charity_projects_cache")
+                        .insert({
+                            status: "active",
+                            data: projects,
+                            updated_at: new Date().toISOString(),
+                        });
+                }
             }
         }
 
