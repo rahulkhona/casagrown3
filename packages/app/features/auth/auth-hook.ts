@@ -142,6 +142,15 @@ export function useAuth() {
       // Handle AbortError from navigator.locks when page navigates away
       if (err?.name === "AbortError") {
         console.debug("Auth: getSession aborted (page navigated away)");
+        // Still set loading: false so the auth guard doesn't hang on a spinner
+        if (mounted) {
+          setState({
+            session: null,
+            user: null,
+            loading: false,
+            tosAccepted: false,
+          });
+        }
         return;
       }
       console.error("Auth: getSession error:", err);
