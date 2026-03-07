@@ -7,6 +7,7 @@ import { colors } from '@casagrown/app/design-tokens'
 import { ArrowUp, MessageSquare, Bug, Lightbulb, Filter, Search, ChevronDown, X, Headphones, Lock, LogOut, LogIn, User, Flag, Trash2 } from '@tamagui/lucide-icons'
 import { useAuth } from '@casagrown/app/features/auth/auth-hook'
 import { supabase } from '@casagrown/app/utils/supabase'
+import { normalizeStorageUrl } from '@casagrown/app/utils/normalize-storage-url'
 import {
   fetchTickets,
   fetchReporters,
@@ -38,7 +39,7 @@ export function FeedbackBoard({ isStaff = false, hideHeader = false }: { isStaff
       .then(({ data }) => {
         if (data) {
           setUserName(data.full_name)
-          setUserAvatar(data.avatar_url)
+          setUserAvatar(normalizeStorageUrl(data.avatar_url) ?? null)
         }
       })
   }, [user?.id])
