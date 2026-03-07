@@ -30,6 +30,7 @@ export function FeedbackBoard({ isStaff = false, hideHeader = false }: { isStaff
   // User profile for header display
   const [userName, setUserName] = useState<string | null>(null)
   const [userAvatar, setUserAvatar] = useState<string | null>(null)
+  const [showLogoutMenu, setShowLogoutMenu] = useState(false)
 
   useEffect(() => {
     if (!user?.id) { setUserName(null); setUserAvatar(null); return }
@@ -223,84 +224,108 @@ export function FeedbackBoard({ isStaff = false, hideHeader = false }: { isStaff
   return (
     <YStack flex={1} backgroundColor={colors.green[50]} padding={isDesktop ? '$4' : '$3'} paddingTop={hideHeader ? '$2' : undefined}>
       {/* Header */}
-      {!hideHeader && (
-      <YStack gap="$3" marginBottom="$4" {...(isDesktop && { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' } as any)}>
+      {!hideHeader && (<>
+      {/* Top Bar: Logo + User */}
+      <XStack justifyContent="space-between" alignItems="center" marginBottom="$3">
         <XStack gap="$2" alignItems="center">
             <Image src="/logo.png" width={40} height={40} />
             <Text fontSize={isDesktop ? '$6' : '$5'} fontWeight="700" color={colors.green[800]}>Community Board</Text>
         </XStack>
-        <XStack gap="$2" flexWrap="wrap" alignItems="center">
-            <Button 
-                backgroundColor={colors.red[50]} 
-                borderColor={colors.red[200]}
-                borderWidth={1}
-                size="$3" 
-                icon={<Bug size={14} />}
-                onPress={() => router.push(user ? '/submit?type=bug' : '/login?returnTo=/submit%3Ftype%3Dbug')}
+        {user ? (
+          <YStack position="relative">
+            <XStack
+              alignItems="center"
+              gap="$2"
+              cursor="pointer"
+              onPress={() => setShowLogoutMenu(!showLogoutMenu)}
+              hoverStyle={{ opacity: 0.8 } as any}
             >
-                <Text color={colors.red[700]}>Report Issue</Text>
-            </Button>
-            <Button 
-                backgroundColor={colors.green[600]} 
-                size="$3" 
-                icon={<Lightbulb size={14} color="white" />}
-                onPress={() => router.push(user ? '/submit?type=feature' : '/login?returnTo=/submit%3Ftype%3Dfeature')}
-            >
-                <Text color="white">Suggest Feature</Text>
-            </Button>
-            {user ? (
-              <XStack alignItems="center" gap="$2">
-                <XStack
-                  alignItems="center"
-                  gap="$2"
-                  backgroundColor={colors.green[50]}
-                  paddingHorizontal="$3"
-                  paddingVertical="$2"
-                  borderRadius="$4"
-                  borderWidth={1}
-                  borderColor={colors.green[200]}
-                >
-                  <Avatar circular size="$2">
-                    {userAvatar ? (
-                      <Image src={userAvatar} width={24} height={24} borderRadius={12} />
-                    ) : null}
-                    <Avatar.Fallback backgroundColor={colors.green[400]}>
-                      <Text color="white" fontSize={11} fontWeight="700">
-                        {(userName || user.email || '?').charAt(0).toUpperCase()}
-                      </Text>
-                    </Avatar.Fallback>
-                  </Avatar>
-                  <Text fontSize="$3" fontWeight="600" color={colors.green[800]}>
-                    {userName || user.email?.split('@')[0] || 'User'}
+              <Avatar circular size="$3">
+                {userAvatar ? (
+                  <Image src={userAvatar} width={32} height={32} borderRadius={16} />
+                ) : null}
+                <Avatar.Fallback backgroundColor={colors.green[500]}>
+                  <Text color="white" fontSize={13} fontWeight="700">
+                    {(userName || user.email || '?').charAt(0).toUpperCase()}
                   </Text>
-                </XStack>
+                </Avatar.Fallback>
+              </Avatar>
+              <Text fontSize="$3" fontWeight="600" color={colors.gray[800]}>
+                {userName || user.email?.split('@')[0] || 'User'}
+              </Text>
+              <ChevronDown size={14} color={colors.gray[500]} />
+            </XStack>
+            {showLogoutMenu && (
+              <Card
+                position="absolute"
+                top="100%"
+                right={0}
+                marginTop="$1"
+                backgroundColor="white"
+                borderWidth={1}
+                borderColor={colors.gray[200]}
+                borderRadius="$3"
+                padding="$1"
+                elevation={4}
+                zIndex={100}
+                width={140}
+              >
                 <Button
-                  size="$2"
+                  size="$3"
                   chromeless
-                  icon={<LogOut size={14} color={colors.gray[400]} />}
+                  justifyContent="flex-start"
+                  icon={<LogOut size={14} color={colors.red[500]} />}
                   onPress={async () => {
+                    setShowLogoutMenu(false)
                     await supabase.auth.signOut()
                     router.push('/')
                   }}
-                />
-              </XStack>
-            ) : (
-              <Button
-                size="$3"
-                backgroundColor={colors.green[100]}
-                borderColor={colors.green[300]}
-                borderWidth={1}
-                borderRadius="$4"
-                icon={<User size={14} color={colors.green[700]} />}
-                onPress={() => router.push('/login?returnTo=/board')}
-                hoverStyle={{ backgroundColor: colors.green[200] }}
-              >
-                <Text color={colors.green[700]} fontWeight="600" fontSize="$3">Sign in</Text>
-              </Button>
+                  hoverStyle={{ backgroundColor: colors.red[50] }}
+                  borderRadius="$2"
+                >
+                  <Text color={colors.red[600]} fontSize="$3" fontWeight="500">Sign out</Text>
+                </Button>
+              </Card>
             )}
-        </XStack>
-      </YStack>
-      )}
+          </YStack>
+        ) : (
+          <Button
+            size="$3"
+            backgroundColor={colors.green[100]}
+            borderColor={colors.green[300]}
+            borderWidth={1}
+            borderRadius="$4"
+            icon={<User size={14} color={colors.green[700]} />}
+            onPress={() => router.push('/login?returnTo=/board')}
+            hoverStyle={{ backgroundColor: colors.green[200] }}
+          >
+            <Text color={colors.green[700]} fontWeight="600" fontSize="$3">Sign in</Text>
+          </Button>
+        )}
+      </XStack>
+
+      {/* Action Buttons */}
+      <XStack gap="$2" flexWrap="wrap" marginBottom="$4">
+          <Button 
+              backgroundColor={colors.red[50]} 
+              borderColor={colors.red[200]}
+              borderWidth={1}
+              size="$3" 
+              icon={<Bug size={14} />}
+              onPress={() => router.push(user ? '/submit?type=bug' : '/login?returnTo=/submit%3Ftype%3Dbug')}
+          >
+              <Text color={colors.red[700]}>Report Issue</Text>
+          </Button>
+          <Button 
+              backgroundColor={colors.green[600]} 
+              size="$3" 
+              icon={<Lightbulb size={14} color="white" />}
+              onPress={() => router.push(user ? '/submit?type=feature' : '/login?returnTo=/submit%3Ftype%3Dfeature')}
+          >
+              <Text color="white">Suggest Feature</Text>
+          </Button>
+      </XStack>
+      </>)}
 
       {/* Search Bar */}
       <XStack gap="$2" marginBottom="$3" alignItems="center">
