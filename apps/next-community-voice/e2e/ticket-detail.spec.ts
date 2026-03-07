@@ -51,7 +51,7 @@ test.describe("Ticket Detail", () => {
         await expect(page.locator("text=Back to Board")).toBeVisible();
     });
 
-    test("comment section shows login prompt when not logged in", async ({ page }) => {
+    test("comment section shows comment input when logged in", async ({ page }) => {
         await page.goto("/board");
         await page.locator("text=/results/").first().waitFor({
             timeout: 30_000,
@@ -61,10 +61,10 @@ test.describe("Ticket Detail", () => {
         await firstTicket.click();
         await page.waitForTimeout(2000);
 
-        // When not logged in, should show "Log in to comment" button
+        // When logged in, should show comment textarea or "Add a comment" placeholder
         await expect(
-            page.getByRole("button", { name: /Log in to comment/i }).or(
-                page.getByRole("button", { name: /Sign in/i }),
+            page.getByPlaceholder(/comment/i).or(
+                page.locator("textarea"),
             ).first(),
         )
             .toBeVisible();
