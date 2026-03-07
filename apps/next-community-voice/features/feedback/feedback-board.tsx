@@ -241,16 +241,23 @@ export function FeedbackBoard({ isStaff = false, hideHeader = false }: { isStaff
               onPress={() => setShowLogoutMenu(!showLogoutMenu)}
               hoverStyle={{ opacity: 0.8 } as any}
             >
-              <Avatar circular size="$3">
+              <XStack
+                width={36}
+                height={36}
+                borderRadius={18}
+                backgroundColor={colors.green[600]}
+                alignItems="center"
+                justifyContent="center"
+                overflow="hidden"
+              >
                 {userAvatar ? (
-                  <Image src={userAvatar} width={32} height={32} borderRadius={16} />
-                ) : null}
-                <Avatar.Fallback backgroundColor={colors.green[500]}>
-                  <Text color="white" fontSize={13} fontWeight="700">
+                  <Image src={userAvatar} width={36} height={36} borderRadius={18} />
+                ) : (
+                  <Text color="white" fontSize={15} fontWeight="700">
                     {(userName || user.email || '?').charAt(0).toUpperCase()}
                   </Text>
-                </Avatar.Fallback>
-              </Avatar>
+                )}
+              </XStack>
               <Text fontSize="$3" fontWeight="600" color={colors.gray[800]}>
                 {userName || user.email?.split('@')[0] || 'User'}
               </Text>
