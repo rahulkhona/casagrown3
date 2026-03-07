@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { YStack, XStack, Text, Button, Input, Card, Spinner, Separator, Image } from 'tamagui'
+import { YStack, XStack, Text, Button, Input, Card, Spinner, Image } from 'tamagui'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { colors } from '@casagrown/app/design-tokens'
-import { ArrowLeft, Mail, Chrome } from '@tamagui/lucide-icons'
+import { ArrowLeft, Mail } from '@tamagui/lucide-icons'
 import { useAuth } from '@casagrown/app/features/auth/auth-hook'
 import { supabase } from '@casagrown/app/utils/supabase'
 import { checkIsStaffByEmail, linkStaffUserId } from '../../features/feedback/feedback-service'
@@ -15,14 +15,14 @@ function LoginContent() {
   const returnTo = searchParams.get('returnTo') || '/'
   const { signInWithOtp, verifyOtp, user, loading: authLoading } = useAuth()
 
-  const [method, setMethod] = useState<'select' | 'email' | 'otp'>('select')
+  const [method, setMethod] = useState<'email' | 'otp'>('email')
   const [email, setEmail] = useState('')
   const [otp, setOtp] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [devOtp, setDevOtp] = useState<string | null>(null)
 
-  // After OAuth redirect or if already logged in, check staff and redirect
+  // After login, check staff status and redirect
   useEffect(() => {
     if (authLoading || !user) return
 
@@ -49,8 +49,6 @@ function LoginContent() {
         const staffCheck = await checkIsStaffByEmail(email)
         if (staffCheck.isStaff) {
           await linkStaffUserId(email, user.id)
-          // If user came from a specific page (flag, vote, etc.), go back there
-          // Only auto-redirect to dashboard when no explicit returnTo
           router.replace(returnTo !== '/' ? returnTo : '/staff/dashboard')
           return
         }
@@ -61,26 +59,6 @@ function LoginContent() {
 
     checkAndRedirect()
   }, [user, authLoading, router, returnTo])
-
-  const handleSocialLogin = async (provider: 'google' | 'apple' | 'facebook') => {
-    setError('')
-    setLoading(true)
-    try {
-      const { error: oauthError } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: `${window.location.origin}/login?returnTo=${encodeURIComponent(returnTo)}`,
-        },
-      })
-      if (oauthError) {
-        setLoading(false)
-        setError(oauthError.message)
-      }
-    } catch (e: any) {
-      setLoading(false)
-      setError(e.message || 'Social login failed')
-    }
-  }
 
   const handleSendCode = async () => {
     if (!email.includes('@')) {
@@ -135,9 +113,9 @@ function LoginContent() {
         <Button 
             icon={ArrowLeft} 
             chromeless 
-            onPress={() => method === 'select' ? router.back() : setMethod('select')}
+            onPress={() => method === 'email' ? router.back() : setMethod('email')}
         >
-            {method === 'select' ? 'Back' : 'Back to options'}
+            {method === 'email' ? 'Back' : 'Change Email'}
         </Button>
       </XStack>
 
@@ -160,49 +138,7 @@ function LoginContent() {
             </YStack>
         ) : null}
 
-        {/* METHOD: SELECT */}
-        {method === 'select' && (
-            <YStack gap="$3">
-                <SocialButton 
-                    icon={<Chrome size={20} color={colors.gray[700]} />} 
-                    label="Continue with Google"
-                    onPress={() => handleSocialLogin('google')}
-                    loading={loading}
-                />
-                <SocialButton 
-                    icon={<Text fontSize={20} fontWeight="900" color={colors.gray[900]}></Text>} 
-                    label="Continue with Apple"
-                    onPress={() => handleSocialLogin('apple')}
-                    loading={loading}
-                />
-                <SocialButton 
-                    icon={<Text fontSize={20} fontWeight="700" color="#1877F2">f</Text>} 
-                    label="Continue with Facebook"
-                    onPress={() => handleSocialLogin('facebook')}
-                    loading={loading}
-                />
-
-                <XStack alignItems="center" marginVertical="$2">
-                    <Separator flex={1} borderColor={colors.gray[300]} />
-                    <Text color={colors.gray[500]} fontSize="$3" marginHorizontal="$3">OR</Text>
-                    <Separator flex={1} borderColor={colors.gray[300]} />
-                </XStack>
-
-                <Button 
-                    backgroundColor={colors.green[600]} 
-                    height="$5"
-                    borderRadius="$4"
-                    icon={<Mail size={20} color="white" />}
-                    onPress={() => setMethod('email')}
-                    pressStyle={{ backgroundColor: colors.green[700] }}
-                    hoverStyle={{ backgroundColor: colors.green[700] }}
-                >
-                    <Text color="white" fontWeight="600" fontSize="$4">Continue with Email</Text>
-                </Button>
-            </YStack>
-        )}
-
-        {/* METHOD: EMAIL INPUT */}
+        {/* EMAIL INPUT */}
         {method === 'email' && (
             <YStack gap="$4">
                 <YStack gap="$2">
@@ -229,14 +165,14 @@ function LoginContent() {
                     opacity={loading ? 0.7 : 1}
                     pressStyle={{ backgroundColor: colors.green[700] }}
                     hoverStyle={{ backgroundColor: colors.green[700] }}
-                    icon={loading ? <Spinner color="white" /> : undefined}
+                    icon={loading ? <Spinner color="white" /> : <Mail size={20} color="white" />}
                 >
                     {!loading && <Text color="white" fontWeight="600" fontSize="$4">Send Code</Text>}
                 </Button>
             </YStack>
         )}
 
-        {/* METHOD: OTP INPUT */}
+        {/* OTP INPUT */}
         {method === 'otp' && (
             <YStack gap="$4">
                 <YStack gap="$2">
@@ -278,33 +214,14 @@ function LoginContent() {
                 </Button>
             </YStack>
         )}
-        
-        {method === 'select' && (
-             <Text textAlign="center" fontSize="$2" color={colors.gray[400]} paddingHorizontal="$4">
-                By signing in, you agree to our Terms of Service and Privacy Policy.
-            </Text>
-        )}
+
+        <Text textAlign="center" fontSize="$2" color={colors.gray[400]} paddingHorizontal="$4">
+          By signing in, you agree to our Terms of Service and Privacy Policy.
+        </Text>
 
       </Card>
     </YStack>
   )
-}
-
-function SocialButton({ icon, label, onPress, loading }: { icon: any, label: string, onPress: () => void, loading: boolean }) {
-    return (
-        <Button 
-            backgroundColor="white"
-            borderColor={colors.gray[200]}
-            borderWidth={1}
-            icon={loading ? <Spinner color={colors.gray[700]} /> : icon}
-            onPress={onPress}
-            size="$5"
-            disabled={loading}
-            pressStyle={{ backgroundColor: colors.gray[50] }}
-        >
-            {!loading && <Text color={colors.gray[700]} fontWeight="500" fontSize="$3">{label}</Text>}
-        </Button>
-    )
 }
 
 export default function LoginPage() {
