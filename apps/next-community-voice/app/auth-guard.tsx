@@ -9,8 +9,8 @@ import { colors } from '@casagrown/app/design-tokens'
 /**
  * Routes that do NOT require authentication.
  */
-const PUBLIC_ROUTES = ['/', '/login', '/login-success', '/logout', '/board', '/staff/login', '/submit'] // Added /submit as public for Phase 1 mock
-const PUBLIC_PREFIXES = ['/board/', '/staff/'] // Allow board/id and staff/* initially
+const PUBLIC_ROUTES = ['/', '/login', '/login-success', '/logout', '/staff/login', '/submit'] // Added /submit as public for Phase 1 mock
+const PUBLIC_PREFIXES = ['/staff/'] // Allow staff/* initially
 
 function isPublicRoute(pathname: string): boolean {
   if (PUBLIC_ROUTES.includes(pathname)) return true
