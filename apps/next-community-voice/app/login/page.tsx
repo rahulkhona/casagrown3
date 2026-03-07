@@ -29,22 +29,6 @@ function LoginContent() {
     const checkAndRedirect = async () => {
       const email = user.email
 
-      // Auto-fill profile display name if not set
-      if (email) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('full_name')
-          .eq('id', user.id)
-          .maybeSingle()
-        if (profile && !profile.full_name) {
-          const displayName = email.split('@')[0] || email
-          await supabase
-            .from('profiles')
-            .update({ full_name: displayName })
-            .eq('id', user.id)
-        }
-      }
-
       if (email) {
         const staffCheck = await checkIsStaffByEmail(email)
         if (staffCheck.isStaff) {
