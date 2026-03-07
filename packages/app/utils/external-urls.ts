@@ -9,11 +9,11 @@ const COMMUNITY_VOICE_URL = __DEV__
     : "https://voice.casagrown.com";
 
 /**
- * Opens the Community Voice feedback form.
+ * Opens the Community Voice feedback board.
  * Web: opens in a new tab. Mobile: opens in the default browser.
  */
 export function openContactSupport() {
-    const url = `${COMMUNITY_VOICE_URL}/submit`;
+    const url = `${COMMUNITY_VOICE_URL}/board`;
     if (Platform.OS === "web") {
         window.open(url, "_blank");
     } else {
