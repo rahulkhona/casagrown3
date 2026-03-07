@@ -341,7 +341,7 @@ export function FeedbackBoard({ isStaff = false, hideHeader = false }: { isStaff
           <Search size={18} color={colors.gray[400]} />
           <Input
             flex={1}
-            placeholder="Search by title or keyword..."
+            placeholder="Search to check if your issue is already reported..."
             value={searchQuery}
             onChangeText={setSearchQuery}
             borderWidth={0}
