@@ -27,6 +27,21 @@ export function FeedbackBoard({ isStaff = false, hideHeader = false }: { isStaff
   const isDesktop = !media.sm
   const { user } = useAuth()
 
+  // User profile for header display
+  const [userName, setUserName] = useState<string | null>(null)
+  const [userAvatar, setUserAvatar] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!user?.id) { setUserName(null); setUserAvatar(null); return }
+    supabase.from('profiles').select('full_name, avatar_url').eq('id', user.id).single()
+      .then(({ data }) => {
+        if (data) {
+          setUserName(data.full_name)
+          setUserAvatar(data.avatar_url)
+        }
+      })
+  }, [user?.id])
+
   // Data state
   const [tickets, setTickets] = useState<FeedbackTicket[]>([])
   const [totalCount, setTotalCount] = useState(0)
@@ -214,14 +229,14 @@ export function FeedbackBoard({ isStaff = false, hideHeader = false }: { isStaff
             <Image src="/logo.png" width={40} height={40} />
             <Text fontSize={isDesktop ? '$6' : '$5'} fontWeight="700" color={colors.green[800]}>Community Board</Text>
         </XStack>
-        <XStack gap="$2" flexWrap="wrap">
+        <XStack gap="$2" flexWrap="wrap" alignItems="center">
             <Button 
                 backgroundColor={colors.red[50]} 
                 borderColor={colors.red[200]}
                 borderWidth={1}
                 size="$3" 
                 icon={<Bug size={14} />}
-                onPress={() => router.push('/submit?type=bug')}
+                onPress={() => router.push(user ? '/submit?type=bug' : '/login?returnTo=/submit%3Ftype%3Dbug')}
             >
                 <Text color={colors.red[700]}>Report Issue</Text>
             </Button>
@@ -229,30 +244,58 @@ export function FeedbackBoard({ isStaff = false, hideHeader = false }: { isStaff
                 backgroundColor={colors.green[600]} 
                 size="$3" 
                 icon={<Lightbulb size={14} color="white" />}
-                onPress={() => router.push('/submit?type=feature')}
+                onPress={() => router.push(user ? '/submit?type=feature' : '/login?returnTo=/submit%3Ftype%3Dfeature')}
             >
                 <Text color="white">Suggest Feature</Text>
             </Button>
             {user ? (
-              <Button
-                size="$3"
-                chromeless
-                icon={<LogOut size={14} color={colors.gray[500]} />}
-                onPress={async () => {
-                  await supabase.auth.signOut()
-                  router.push('/')
-                }}
-              >
-                <Text color={colors.gray[500]} fontSize="$2">Logout</Text>
-              </Button>
+              <XStack alignItems="center" gap="$2">
+                <XStack
+                  alignItems="center"
+                  gap="$2"
+                  backgroundColor={colors.green[50]}
+                  paddingHorizontal="$3"
+                  paddingVertical="$2"
+                  borderRadius="$4"
+                  borderWidth={1}
+                  borderColor={colors.green[200]}
+                >
+                  <Avatar circular size="$2">
+                    {userAvatar ? (
+                      <Image src={userAvatar} width={24} height={24} borderRadius={12} />
+                    ) : null}
+                    <Avatar.Fallback backgroundColor={colors.green[400]}>
+                      <Text color="white" fontSize={11} fontWeight="700">
+                        {(userName || user.email || '?').charAt(0).toUpperCase()}
+                      </Text>
+                    </Avatar.Fallback>
+                  </Avatar>
+                  <Text fontSize="$3" fontWeight="600" color={colors.green[800]}>
+                    {userName || user.email?.split('@')[0] || 'User'}
+                  </Text>
+                </XStack>
+                <Button
+                  size="$2"
+                  chromeless
+                  icon={<LogOut size={14} color={colors.gray[400]} />}
+                  onPress={async () => {
+                    await supabase.auth.signOut()
+                    router.push('/')
+                  }}
+                />
+              </XStack>
             ) : (
               <Button
                 size="$3"
-                chromeless
-                icon={<LogIn size={14} color={colors.green[600]} />}
+                backgroundColor={colors.green[100]}
+                borderColor={colors.green[300]}
+                borderWidth={1}
+                borderRadius="$4"
+                icon={<User size={14} color={colors.green[700]} />}
                 onPress={() => router.push('/login?returnTo=/board')}
+                hoverStyle={{ backgroundColor: colors.green[200] }}
               >
-                <Text color={colors.green[600]} fontSize="$2">Login</Text>
+                <Text color={colors.green[700]} fontWeight="600" fontSize="$3">Sign in</Text>
               </Button>
             )}
         </XStack>
