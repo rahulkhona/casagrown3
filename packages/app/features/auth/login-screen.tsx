@@ -448,6 +448,9 @@ export function LoginScreen({ logoSrc, onLogin, onBack, referralCode, delegation
                     <YStack alignItems="center" gap="$1" marginBottom="$2">
                         <Text color={colors.gray[600]} fontSize="$3">{t('auth.login.verifyTitle')}</Text>
                         <Text color={colors.gray[900]} fontWeight="600">{email}</Text>
+                        <Text color={colors.gray[500]} fontSize="$2" textAlign="center" marginTop="$2">
+                          {t('auth.login.emailSenderHint', 'Look for an email from no-reply@alerts.casagrown.com. If you don\'t see it, check your spam folder or add this address to your contacts.')}
+                        </Text>
                     </YStack>
 
                     <YStack gap="$2">

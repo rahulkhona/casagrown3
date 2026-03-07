@@ -42,6 +42,7 @@ import { useResolveCommunity, ResolveResponse } from '../community/use-resolve-c
 import { buildResolveResponseFromIndex } from '../community/h3-utils'
 import { uploadProfileAvatar } from '../profile-wizard/utils/media-upload'
 import { normalizeStorageUrl } from '../../utils/normalize-storage-url'
+import { openContactSupport } from '../../utils/external-urls'
 import { getProduceEmoji } from '../profile-wizard/utils/produce-emoji'
 
 // Platform-conditional import: React.lazy for web (avoids SSR crash from
@@ -1728,7 +1729,7 @@ export function ProfileScreen() {
               alignItems="center"
               justifyContent="space-between"
               paddingVertical="$2"
-              onPress={() => {/* TODO: Open support email */}}
+              onPress={() => openContactSupport()}
             >
               <Text color={colors.primary[600]} fontWeight="500">{t('profile.legal.contactSupport', 'Contact Support')}</Text>
               <ChevronLeft size={20} color={colors.primary[400]} style={{ transform: [{ rotate: '180deg' }] }} />

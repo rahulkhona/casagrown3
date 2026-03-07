@@ -16,6 +16,7 @@ import { normalizeStorageUrl } from '../../utils/normalize-storage-url'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { DeviceEventEmitter } from 'react-native'
 import { colors } from '../../design-tokens'
+import { openContactSupport } from '../../utils/external-urls'
 import { useNotificationContext } from '../notifications/NotificationContext'
 import { NotificationPanel } from '../notifications/NotificationPanel'
 
@@ -381,7 +382,7 @@ export function AppHeader({ activeKey = 'feed' }: { activeKey?: string }) {
                   Support & Legal
                 </Text>
                 <HamburgerItem icon={ChevronRight} title={t('home.footer.contact')}
-                  onPress={() => { setMobileMenuOpen(false); if (Platform.OS === 'web') { window.open('mailto:support@casagrown.com', '_blank') } }} />
+                  onPress={() => { setMobileMenuOpen(false); openContactSupport() }} />
                 <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
                 <HamburgerItem icon={ChevronRight} title={t('home.footer.guidelines')}
                   onPress={() => { setMobileMenuOpen(false); router.push('/guidelines') }} />

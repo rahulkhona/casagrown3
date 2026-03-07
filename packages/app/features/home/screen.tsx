@@ -17,6 +17,7 @@ import { ArrowRight, Shield, Zap, HandHeart, Sparkles, Ban, TrendingUp, Graduati
 import { Platform, useWindowDimensions, Image, Linking, Alert, Pressable, type ImageSourcePropType } from 'react-native'
 // Note: expo-clipboard is imported dynamically only on native platforms
 import { colors, tc } from '../../design-tokens'
+import { openContactSupport } from '../../utils/external-urls'
 import { useTranslation } from 'react-i18next'
 import { useRouter } from 'solito/navigation'
 
@@ -819,7 +820,7 @@ function Footer() {
 
           {/* Links */}
           <XStack gap="$5" alignItems="center" flexWrap="wrap" justifyContent="center">
-            <Pressable onPress={() => Linking.openURL('mailto:support@casagrown.com')}>
+            <Pressable onPress={() => openContactSupport()}>
               <Text color={colors.gray[400]} fontSize={13} hoverStyle={{ color: colors.green[400] } as any}>
                 {t('home.footer.contact')}
               </Text>

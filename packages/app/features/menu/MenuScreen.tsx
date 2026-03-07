@@ -22,6 +22,7 @@ import { useAuth, supabase } from '../auth/auth-hook'
 import { usePointsBalance } from '../../hooks/usePointsBalance'
 import { colors, borderRadius, shadows } from '../../design-tokens'
 import { normalizeStorageUrl } from '../../utils/normalize-storage-url'
+import { openContactSupport } from '../../utils/external-urls'
 
 export function MenuScreen() {
   const { t } = useTranslation()
@@ -262,10 +263,7 @@ export function MenuScreen() {
           <MenuItem 
             icon={FileText} 
             title={t('home.footer.contact')} 
-            onPress={() => {
-              const { Linking } = require('react-native')
-              Linking.openURL('mailto:support@casagrown.com')
-            }} 
+            onPress={() => openContactSupport()} 
           />
           <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
           <MenuItem 

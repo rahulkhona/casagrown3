@@ -244,6 +244,9 @@ function LoginContent() {
                     {devOtp && (
                       <Text fontSize={12} color={colors.green[600]}>Dev OTP: {devOtp}</Text>
                     )}
+                    <Text fontSize={12} color={colors.gray[500]} textAlign="center">
+                      Look for an email from no-reply@alerts.casagrown.com. If you don't see it, check your spam folder or add this address to your contacts.
+                    </Text>
                     <Input 
                         placeholder="123456" 
                         value={otp} 
