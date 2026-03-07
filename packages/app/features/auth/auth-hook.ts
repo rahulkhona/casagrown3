@@ -38,24 +38,41 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
   // Local Supabase dev anon key (safe to commit — it's the default demo key)
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    storage: authStorage,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
-    flowType: "pkce", // Implicit flow can cause issues in key exchange on native
-  },
-  realtime: {
-    params: {
-      eventsPerSecond: 10,
+/**
+ * Singleton Supabase client.
+ *
+ * CRITICAL: In Next.js dev mode, HMR re-executes module-level code. Without
+ * caching on globalThis, each reload creates a NEW GoTrueClient that competes
+ * for navigator.locks, causing AbortError → infinite loading spinners.
+ */
+const SUPABASE_GLOBAL_KEY = "__casagrown_supabase_client__";
+
+function getOrCreateClient() {
+  const g = globalThis as any;
+  if (g[SUPABASE_GLOBAL_KEY]) {
+    return g[SUPABASE_GLOBAL_KEY];
+  }
+  const client = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      storage: authStorage,
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false,
+      flowType: "pkce",
     },
-    heartbeatIntervalMs: 15000, // Keep WebSocket alive
-    reconnectAfterMs: (tries: number) =>
-      // Exponential backoff capped at 10 seconds
-      Math.min(1000 * 2 ** tries, 10000),
-  },
-});
+    realtime: {
+      params: {
+        eventsPerSecond: 10,
+      },
+      heartbeatIntervalMs: 15000,
+      reconnectAfterMs: (tries: number) => Math.min(1000 * 2 ** tries, 10000),
+    },
+  });
+  g[SUPABASE_GLOBAL_KEY] = client;
+  return client;
+}
+
+export const supabase = getOrCreateClient();
 
 // ── Reconnect realtime when app returns from background ──
 // Android emulators (and sometimes real devices) silently drop WebSocket
