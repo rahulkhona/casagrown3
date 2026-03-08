@@ -5,7 +5,7 @@
     "scheme": "casagrowncom",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon_new.png",
+    "icon": "./assets/logo.png",
     "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/splash.png",
@@ -33,7 +33,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive_icon_new.png",
+        "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#FFFFFF"
       },
       "package": "dev.casagrown.community",
