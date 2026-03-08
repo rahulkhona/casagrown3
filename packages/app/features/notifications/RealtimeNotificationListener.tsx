@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { AppState, Platform, DeviceEventEmitter } from 'react-native'
+import { AppState, Platform, DeviceEventEmitter, Alert } from 'react-native'
 import { useToastController } from '@casagrown/ui'
 import { useAuth, supabase } from '../auth/auth-hook'
 import { useRouter } from 'solito/navigation'
@@ -56,8 +56,14 @@ export function RealtimeNotificationListener() {
             altText: 'View',
             label: 'View',
             onPress: () => {
-              // Emit badge refresh to ensure counts are current
               emitBadgeRefresh()
+              if (Platform.OS === 'web' && typeof window !== 'undefined') {
+                // On web, open the notification panel dropdown
+                window.dispatchEvent(new Event('casagrown:open-notifications'))
+              } else {
+                // On mobile, navigate to the full notifications screen
+                router.push('/notifications')
+              }
             },
           },
         })

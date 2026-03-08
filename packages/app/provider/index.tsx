@@ -26,8 +26,9 @@ if (Platform.OS !== 'web') {
 export function Provider({
   children,
   defaultTheme = 'light',
+  disableNotifications = false,
   ...rest
-}: Omit<TamaguiProviderProps, 'config' | 'defaultTheme'> & { defaultTheme?: string }) {
+}: Omit<TamaguiProviderProps, 'config' | 'defaultTheme'> & { defaultTheme?: string; disableNotifications?: boolean }) {
   const colorScheme = useColorScheme()
   const theme = defaultTheme || (colorScheme === 'dark' ? 'dark' : 'light')
 
@@ -40,9 +41,11 @@ export function Provider({
     <TamaguiProvider config={config} defaultTheme={theme} {...rest}>
       <ToastProvider swipeDirection="horizontal" duration={5000}>
         <SupabaseProvider>
-          <NotificationProvider>
-            {children}
-          </NotificationProvider>
+          {disableNotifications ? children : (
+            <NotificationProvider>
+              {children}
+            </NotificationProvider>
+          )}
           <CustomToast />
           <ToastViewport 
             left={0} 
@@ -51,8 +54,8 @@ export function Provider({
             zIndex={99999} 
             alignItems="center" 
           />
-          {Platform.OS === 'web' && <WebPushListener />}
-          <RealtimeNotificationListener />
+          {!disableNotifications && Platform.OS === 'web' && <WebPushListener />}
+          {!disableNotifications && <RealtimeNotificationListener />}
         </SupabaseProvider>
       </ToastProvider>
     </TamaguiProvider>

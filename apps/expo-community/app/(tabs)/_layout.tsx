@@ -166,6 +166,34 @@ export default function TabLayout() {
           headerShown: false,
         }} 
       />
+      <Tabs.Screen 
+        name="feedback" 
+        options={{ 
+          href: null,
+          headerShown: false,
+        }} 
+      />
+      <Tabs.Screen 
+        name="feedback-detail" 
+        options={{ 
+          href: null,
+          headerShown: false,
+        }} 
+      />
+      <Tabs.Screen 
+        name="feedback-submit" 
+        options={{ 
+          href: null,
+          headerShown: false,
+        }} 
+      />
+      <Tabs.Screen 
+        name="notifications" 
+        options={{ 
+          href: null,
+          headerShown: false,
+        }} 
+      />
     </Tabs>
     </>
   )

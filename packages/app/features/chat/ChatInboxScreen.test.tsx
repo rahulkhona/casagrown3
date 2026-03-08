@@ -370,7 +370,7 @@ describe("ChatInboxScreen", () => {
         );
 
         await waitFor(() => {
-            expect(mockChannel).toHaveBeenCalledWith("inbox-live");
+            expect(mockChannel).toHaveBeenCalledWith("inbox:user-me");
         });
 
         unmount();

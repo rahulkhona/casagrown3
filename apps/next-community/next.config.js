@@ -1,15 +1,18 @@
 /** @type {import('next').NextConfig} */
 const webpack = require('webpack')
 
+// Bundle analyzer — run with ANALYZE=true to inspect bundle sizes
+const withBundleAnalyzer = require('@next/bundle-analyzer')({
+  enabled: process.env.ANALYZE === 'true',
+})
+
 // Define __DEV__ globally for Turbopack (which doesn't use webpack plugins)
 if (typeof globalThis.__DEV__ === 'undefined') {
   globalThis.__DEV__ = process.env.NODE_ENV !== 'production'
 }
 
-module.exports = {
-  typescript: {
-    ignoreBuildErrors: true,
-  },
+module.exports = withBundleAnalyzer({
+  output: 'standalone',
   transpilePackages: [
     'solito',
     'react-native-web',
@@ -71,4 +74,4 @@ module.exports = {
     )
     return config
   },
-}
+})

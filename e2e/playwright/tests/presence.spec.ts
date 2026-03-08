@@ -66,6 +66,7 @@ test.describe("Online Presence (Two Users)", () => {
     let buyerPage: Page;
 
     test.beforeAll(async ({ browser }) => {
+        test.setTimeout(60_000); // Dual-context auth needs more time under full suite load
         // Create two independent browser contexts (two separate sessions)
         sellerContext = await browser.newContext();
         buyerContext = await browser.newContext();

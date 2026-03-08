@@ -152,6 +152,7 @@ test.describe("Chat Restrictions", () => {
     // ── Control Test: no restriction = no banner ──
 
     test("no restriction banner when category is not restricted", async ({ page }) => {
+        test.setTimeout(60_000); // navigateToTomatoChat has multiple page.goto + waits
         const onChat = await navigateToTomatoChat(page);
         if (!onChat) test.skip();
 

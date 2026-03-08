@@ -22,7 +22,7 @@ import { config } from '@casagrown/ui'
 import { Provider } from './index'
 import { StyleSheet } from 'react-native'
 
-export const NextTamaguiProvider = ({ children }: { children: ReactNode }) => {
+export const NextTamaguiProvider = ({ children, disableNotifications }: { children: ReactNode; disableNotifications?: boolean }) => {
   const [theme, setTheme] = useRootTheme()
 
   useServerInsertedHTML(() => {
@@ -75,6 +75,7 @@ export const NextTamaguiProvider = ({ children }: { children: ReactNode }) => {
       <Provider
         disableRootThemeClass
         defaultTheme={theme || 'light'}
+        disableNotifications={disableNotifications}
       >
         {children}
       </Provider>

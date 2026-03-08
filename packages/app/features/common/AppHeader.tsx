@@ -16,7 +16,7 @@ import { normalizeStorageUrl } from '../../utils/normalize-storage-url'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { DeviceEventEmitter } from 'react-native'
 import { colors } from '../../design-tokens'
-import { openContactSupport } from '../../utils/external-urls'
+
 import { useNotificationContext } from '../notifications/NotificationContext'
 import { NotificationPanel } from '../notifications/NotificationPanel'
 
@@ -84,6 +84,18 @@ export function AppHeader({ activeKey = 'feed' }: { activeKey?: string }) {
   const [notifPanelOpen, setNotifPanelOpen] = useState(false)
   
   const { unreadCount: unreadNotificationsCount } = useNotificationContext()
+
+  // Listen for "open notifications" event from toast View button
+  useEffect(() => {
+    const openPanel = () => setNotifPanelOpen(true)
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.addEventListener('casagrown:open-notifications', openPanel)
+      return () => window.removeEventListener('casagrown:open-notifications', openPanel)
+    } else {
+      const sub = DeviceEventEmitter.addListener('casagrown:open-notifications', openPanel)
+      return () => sub.remove()
+    }
+  }, [])
 
   useEffect(() => {
     if (!user?.id) return
@@ -331,6 +343,7 @@ export function AppHeader({ activeKey = 'feed' }: { activeKey?: string }) {
             right={8}
             zIndex={999}
             width={300}
+            maxHeight={'80vh' as any}
             backgroundColor={colors.gray[50]}
             borderRadius={16}
             shadowColor="black"
@@ -338,7 +351,16 @@ export function AppHeader({ activeKey = 'feed' }: { activeKey?: string }) {
             shadowRadius={12}
             shadowOffset={{ width: 0, height: 4 }}
             elevation={8}
+            overflow="hidden"
           >
+            {Platform.OS === 'web' ? (
+              <>
+              <div
+                style={{
+                  overflowY: 'auto',
+                  maxHeight: '80vh',
+                }}
+              >
             <YStack>
               {/* Account Section */}
               <YStack backgroundColor="white" borderBottomWidth={1} borderBottomColor={colors.gray[200]}>
@@ -382,7 +404,7 @@ export function AppHeader({ activeKey = 'feed' }: { activeKey?: string }) {
                   Support & Legal
                 </Text>
                 <HamburgerItem icon={ChevronRight} title={t('home.footer.contact')}
-                  onPress={() => { setMobileMenuOpen(false); openContactSupport() }} />
+                  onPress={() => { setMobileMenuOpen(false); router.push('/feedback') }} />
                 <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
                 <HamburgerItem icon={ChevronRight} title={t('home.footer.guidelines')}
                   onPress={() => { setMobileMenuOpen(false); router.push('/guidelines') }} />
@@ -406,6 +428,99 @@ export function AppHeader({ activeKey = 'feed' }: { activeKey?: string }) {
                   }} />
               </YStack>
             </YStack>
+              </div>
+              {/* Sticky scroll hint at the bottom */}
+              <div style={{
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                padding: '10px 0',
+                background: `linear-gradient(to bottom, transparent 0%, ${colors.gray[200]} 50%)`,
+                borderRadius: '0 0 16px 16px',
+                pointerEvents: 'none',
+              }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: colors.gray[600], letterSpacing: 0.5 }}>
+                  SCROLL FOR MORE
+                </span>
+                <span style={{ fontSize: 12, color: colors.gray[600] }}>▼</span>
+              </div>
+              </>
+            ) : (
+            <ScrollView showsVerticalScrollIndicator>
+            <YStack>
+              {/* Account Section */}
+              <YStack backgroundColor="white" borderBottomWidth={1} borderBottomColor={colors.gray[200]}>
+                <HamburgerItem icon={User} title="Profile & Settings" subtitle="Manage your location and details"
+                  onPress={() => { setMobileMenuOpen(false); handleNavPress('profile') }} />
+                <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+                <HamburgerItem icon={HandCoins} title="Redeem Points" subtitle="Cash out your earned points"
+                  onPress={() => { setMobileMenuOpen(false); handleNavPress('redeem') }} />
+                <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+                <HamburgerItem icon={HandCoins} title="Buy Points" subtitle="Purchase more points for the market"
+                  onPress={() => { setMobileMenuOpen(false); handleNavPress('buyPoints') }} />
+                <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+                <HamburgerItem icon={ChevronRight} title="Transaction History" subtitle="View all point activity"
+                  onPress={() => { setMobileMenuOpen(false); handleNavPress('transactionHistory') }} />
+                <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+                <HamburgerItem icon={HandCoins} title="Refund Points" subtitle="Return unspent points to your card"
+                  onPress={() => { setMobileMenuOpen(false); handleNavPress('refundPoints') }} />
+              </YStack>
+
+              {/* Community Section */}
+              <YStack backgroundColor="white" marginTop="$2" borderTopWidth={1} borderBottomWidth={1} borderColor={colors.gray[200]}>
+                <Text fontSize={12} fontWeight="700" color={colors.gray[500]} marginHorizontal="$4" marginTop="$3" marginBottom="$1" textTransform="uppercase">
+                  Community
+                </Text>
+                <HamburgerItem icon={ChevronRight} title="Delegate Sales"
+                  onPress={() => { setMobileMenuOpen(false); handleNavPress('delegateSales') }} />
+                <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+                <HamburgerItem icon={ChevronRight} title="Accept Delegation"
+                  onPress={() => { setMobileMenuOpen(false); handleNavPress('acceptDelegation') }} />
+                <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+                <HamburgerItem icon={Share2} title="Invite Friends"
+                  onPress={() => { setMobileMenuOpen(false); handleNavPress('invite') }} />
+                <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+                <HamburgerItem icon={Users} title="My Posts"
+                  onPress={() => { setMobileMenuOpen(false); handleNavPress('myPosts') }} />
+              </YStack>
+
+              {/* Support & Legal */}
+              <YStack backgroundColor="white" marginTop="$2" borderTopWidth={1} borderBottomWidth={1} borderColor={colors.gray[200]}>
+                <Text fontSize={12} fontWeight="700" color={colors.gray[500]} marginHorizontal="$4" marginTop="$3" marginBottom="$1" textTransform="uppercase">
+                  Support & Legal
+                </Text>
+                <HamburgerItem icon={ChevronRight} title={t('home.footer.contact')}
+                  onPress={() => { setMobileMenuOpen(false); router.push('/feedback') }} />
+                <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+                <HamburgerItem icon={ChevronRight} title={t('home.footer.guidelines')}
+                  onPress={() => { setMobileMenuOpen(false); router.push('/guidelines') }} />
+                <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+                <HamburgerItem icon={ChevronRight} title={t('home.footer.sellersHandbook')}
+                  onPress={() => { setMobileMenuOpen(false); router.push('/sellers-handbook') }} />
+                <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+                <HamburgerItem icon={ChevronRight} title={t('home.footer.privacy')}
+                  onPress={() => { setMobileMenuOpen(false); router.push('/privacy') }} />
+                <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+                <HamburgerItem icon={ChevronRight} title={t('home.footer.terms')}
+                  onPress={() => { setMobileMenuOpen(false); router.push('/terms') }} />
+              </YStack>
+
+              {/* Sign Out */}
+              <YStack backgroundColor="white" marginTop="$2" borderTopWidth={1} borderBottomWidth={1} borderColor={colors.gray[200]}>
+                <HamburgerItem icon={LogOut} title="Sign Out" destructive
+                  onPress={async () => {
+                    setMobileMenuOpen(false)
+                    await signOut()
+                  }} />
+              </YStack>
+            </YStack>
+            </ScrollView>
+            )}
           </YStack>
         </>
       )}

@@ -273,7 +273,7 @@ export function ChatInboxScreen({
     // Realtime: re-fetch when a new message arrives in any conversation
     useEffect(() => {
         const channel = supabase
-            .channel('inbox-live')
+            .channel(`inbox:${currentUserId}`)
             .on(
                 'postgres_changes',
                 {

@@ -140,7 +140,7 @@ export function RedemptionStore({ onNavigateToFeed }: RedemptionStoreProps) {
     fetchMethods()
 
     const channel1 = supabase
-      .channel('methods-changes')
+      .channel(`methods:${user?.id}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'available_redemption_methods' },
@@ -149,7 +149,7 @@ export function RedemptionStore({ onNavigateToFeed }: RedemptionStoreProps) {
       .subscribe()
 
     const channel2 = supabase
-      .channel('instruments-changes')
+      .channel(`instruments:${user?.id}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'available_redemption_method_instruments' },

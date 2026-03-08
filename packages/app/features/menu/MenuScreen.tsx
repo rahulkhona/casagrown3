@@ -236,24 +236,6 @@ export function MenuScreen() {
           />
         </YStack>
 
-        {/* System */}
-        <YStack marginTop="$4" backgroundColor="white" borderTopWidth={1} borderBottomWidth={1} borderColor={colors.gray[200]}>
-          <MenuItem 
-            icon={LogOut} 
-            title={t('header.signOut', 'Sign Out')} 
-            destructive={true}
-            onPress={() => {
-              Alert.alert(
-                t('header.signOut', 'Sign Out'),
-                'Are you sure you want to sign out?',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Sign Out', style: 'destructive', onPress: handleSignOut }
-                ]
-              )
-            }} 
-          />
-        </YStack>
 
         {/* Support & Legal */}
         <YStack marginTop="$4" backgroundColor="white" borderTopWidth={1} borderBottomWidth={1} borderColor={colors.gray[200]}>
@@ -288,6 +270,25 @@ export function MenuScreen() {
             icon={FileText} 
             title={t('home.footer.privacy')} 
             onPress={() => navigateTo('/privacy')} 
+          />
+        </YStack>
+
+        {/* Sign Out — always last */}
+        <YStack marginTop="$4" backgroundColor="white" borderTopWidth={1} borderBottomWidth={1} borderColor={colors.gray[200]}>
+          <MenuItem 
+            icon={LogOut} 
+            title={t('header.signOut', 'Sign Out')} 
+            destructive={true}
+            onPress={() => {
+              Alert.alert(
+                t('header.signOut', 'Sign Out'),
+                'Are you sure you want to sign out?',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Sign Out', style: 'destructive', onPress: handleSignOut }
+                ]
+              )
+            }} 
           />
         </YStack>
         

@@ -625,11 +625,77 @@ npx supabase db reset    # Apply and test
 
 ## 8. Deployment
 
-### Web (Vercel)
+### Web — Production Build (Next.js)
+
+The Next.js app is configured with `output: 'standalone'` for optimized
+deployments. This creates a minimal, self-contained build (~50MB) instead of
+shipping the full `node_modules` (~843MB).
 
 ```bash
-yarn web:prod           # Build Next.js production bundle
-yarn web:prod:serve     # Serve locally to test
+# Build the production bundle
+cd apps/next-community
+yarn next build
+
+# The standalone output is in .next/standalone/
+# It includes a minimal Node.js server that doesn't need node_modules
+```
+
+#### Deploying to Vercel
+
+```bash
+# Option 1: Auto-deploy via Vercel CLI
+cd apps/next-community && npx vercel
+
+# Option 2: Git-based deploy (recommended)
+# Connect your repo in Vercel Dashboard → set:
+#   Root Directory: apps/next-community
+#   Build Command: yarn next build
+#   Output Directory: .next
+```
+
+#### Deploying Standalone (Docker / VPS / AWS)
+
+The `standalone` output can run anywhere Node.js is available:
+
+```bash
+# After building:
+cd apps/next-community/.next/standalone
+node server.js   # Starts on port 3000
+
+# For production, copy static assets too:
+cp -r apps/next-community/.next/static .next/standalone/.next/static
+cp -r apps/next-community/public .next/standalone/public
+```
+
+#### Bundle Analysis
+
+To inspect bundle sizes and identify large dependencies:
+
+```bash
+cd apps/next-community
+ANALYZE=true yarn next build
+# Opens interactive treemap in your browser
+```
+
+> [!TIP]
+> The `@next/bundle-analyzer` is installed and configured. Set `ANALYZE=true`
+> before building to generate a visual bundle report. This helps identify
+> unnecessarily large client-side dependencies (e.g. icon libraries, unused
+> polyfills).
+
+### Mobile — Production Build (Expo / EAS)
+
+```bash
+# Local production build
+cd apps/expo-community
+npx expo prebuild --clean
+npx expo run:android --variant release
+npx expo run:ios --configuration Release
+
+# EAS Build (cloud-based, recommended for release)
+npx eas build --platform android
+npx eas build --platform ios
+npx eas submit   # Submit to App Store / Google Play
 ```
 
 ### Supabase (Production)

@@ -78,6 +78,42 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-production-anon-key
 
 ---
 
+## 🟢 Production Build Optimizations (Done)
+
+The following optimizations are configured in
+`apps/next-community/next.config.js`:
+
+| Item                         | Status  | Details                                                                 |
+| ---------------------------- | ------- | ----------------------------------------------------------------------- |
+| **Standalone output**        | ✅ Done | `output: 'standalone'` — deploy size ~843MB → ~50MB                     |
+| **TypeScript build errors**  | ✅ Done | Removed `ignoreBuildErrors: true` — catches TS errors at build time     |
+| **Bundle analyzer**          | ✅ Done | `@next/bundle-analyzer` — run `ANALYZE=true yarn next build` to inspect |
+| **Realtime channel scoping** | ✅ Done | Global channels scoped to `userId` to avoid 500-connection limit        |
+
+### How to Deploy an Optimized Build
+
+```bash
+# 1. Build the production bundle
+cd apps/next-community && yarn next build
+
+# 2. (Optional) Inspect bundle sizes
+cd apps/next-community && ANALYZE=true yarn next build
+
+# 3. The standalone output is in .next/standalone/
+#    Copy static assets for deployment:
+cp -r .next/static .next/standalone/.next/static
+cp -r public .next/standalone/public
+
+# 4. Start the production server
+cd .next/standalone && node server.js
+```
+
+> [!TIP]
+> For Vercel deployments, `output: 'standalone'` is automatically detected. Just
+> connect the repo and set Root Directory to `apps/next-community`.
+
+---
+
 ## 🟢 Verified Ready
 
 | Item                                   | Status   |

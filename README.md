@@ -98,3 +98,39 @@ We use Supabase Auth with a custom Native adapter.
 
 See [docs/architecture_guidelines.md](docs/architecture_guidelines.md) for
 detailed standards.
+
+## 🚀 Production Builds
+
+### Web (Next.js)
+
+The Next.js app uses `output: 'standalone'` for optimized deployments (~50MB
+instead of ~843MB).
+
+```bash
+cd apps/next-community
+
+# Build production bundle
+yarn next build
+
+# Inspect bundle sizes (opens interactive treemap)
+ANALYZE=true yarn next build
+
+# Run standalone server
+node .next/standalone/server.js
+```
+
+### Mobile (Expo / EAS)
+
+```bash
+cd apps/expo-community
+
+# Local release builds
+npx expo run:android --variant release
+npx expo run:ios --configuration Release
+
+# Cloud builds via EAS
+npx eas build --platform all
+```
+
+See [docs/developer_guide.md](docs/developer_guide.md) for full deployment
+documentation.

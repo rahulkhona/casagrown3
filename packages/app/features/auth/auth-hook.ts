@@ -59,6 +59,19 @@ function getOrCreateClient() {
       persistSession: true,
       detectSessionInUrl: false,
       flowType: "pkce",
+      // Use a no-op lock instead of navigator.locks.
+      // navigator.locks can hang indefinitely when a page is opened
+      // via window.open() from a different origin (e.g. Contact Support
+      // link on port 3000 opening Community Voice on port 3002).
+      // This matches the Supabase library's own default for React Native
+      // (single-process environments that don't need cross-tab coordination).
+      lock: async (
+        _name: string,
+        _acquireTimeout: number,
+        fn: () => Promise<any>,
+      ) => {
+        return await fn();
+      },
     },
     realtime: {
       params: {

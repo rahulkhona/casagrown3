@@ -29,7 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         ` }} />
       </head>
       <body suppressHydrationWarning>
-        <NextTamaguiProvider>
+        <NextTamaguiProvider disableNotifications>
           <AuthGuard>{children}</AuthGuard>
         </NextTamaguiProvider>
       </body>

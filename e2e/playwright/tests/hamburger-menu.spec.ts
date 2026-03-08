@@ -71,4 +71,41 @@ test.describe("Hamburger Menu", () => {
         await expect(page.getByText("Invite Friends")).toBeVisible();
         await expect(page.getByText("My Posts")).toBeVisible();
     });
+
+    test("scroll indicator is visible in menu", async ({ page }) => {
+        await openMenu(page);
+
+        await expect(page.getByText("SCROLL FOR MORE")).toBeVisible({
+            timeout: 5000,
+        });
+    });
+
+    test("Support & Legal section is present", async ({ page }) => {
+        await openMenu(page);
+
+        await expect(page.getByText("Support & Legal")).toBeVisible({
+            timeout: 5000,
+        });
+    });
+
+    test("Sign Out appears after Support & Legal section", async ({page,}) => {
+        await openMenu(page);
+
+        // Both must be visible
+        await expect(page.getByText("Support & Legal")).toBeVisible({
+            timeout: 5000,
+        });
+        await expect(page.getByText("Sign Out")).toBeVisible();
+
+        // Sign Out should be positioned below Support & Legal
+        const supportLegal = page.getByText("Support & Legal");
+        const signOut = page.getByText("Sign Out");
+
+        const supportRect = await supportLegal.boundingBox();
+        const signOutRect = await signOut.boundingBox();
+
+        if (supportRect && signOutRect) {
+            expect(signOutRect.y).toBeGreaterThan(supportRect.y);
+        }
+    });
 });
