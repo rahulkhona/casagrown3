@@ -100,7 +100,20 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     });
 
     if (error) {
-        throw new Error(`create_order_atomic failed: ${error.message}`);
+        // Return structured error so the client can parse it
+        // (throwing causes a 500 which supabase.functions.invoke strips the message from)
+        const msg = error.message || "Order failed";
+        console.error(`create_order_atomic error: ${msg}`);
+        return jsonOk(
+            {
+                success: false,
+                error: msg.startsWith("PRODUCT_RESTRICTED:")
+                    ? msg.replace("PRODUCT_RESTRICTED:", "").trim()
+                    : msg,
+            },
+            corsHeaders,
+            400,
+        );
     }
 
     // RPC returns jsonb — check for business logic errors

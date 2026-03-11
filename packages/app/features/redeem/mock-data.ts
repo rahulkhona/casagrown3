@@ -42,6 +42,10 @@ export interface GiftCardProduct {
     hasProcessingFee: boolean;
     /** Processing fee in USD (0 if no fee) */
     processingFeeUsd: number;
+    /** Global availability marker */
+    isGlobal?: boolean;
+    /** Base discount percentage computed from providers */
+    discountPercentage: number;
 }
 
 // ── Backward-compat helpers ────────────────────────────────────────
@@ -93,6 +97,7 @@ export const MOCK_GIFT_CARDS: GiftCardProduct[] = [
             },
         ],
         hasProcessingFee: false,
+        discountPercentage: 0,
         processingFeeUsd: 0,
     },
     {
@@ -118,6 +123,7 @@ export const MOCK_GIFT_CARDS: GiftCardProduct[] = [
             },
         ],
         hasProcessingFee: true,
+        discountPercentage: 0,
         processingFeeUsd: 0.50,
     },
     {
@@ -143,6 +149,7 @@ export const MOCK_GIFT_CARDS: GiftCardProduct[] = [
             },
         ],
         hasProcessingFee: false,
+        discountPercentage: 0,
         processingFeeUsd: 0,
     },
     {
@@ -168,6 +175,7 @@ export const MOCK_GIFT_CARDS: GiftCardProduct[] = [
             },
         ],
         hasProcessingFee: true,
+        discountPercentage: 0,
         processingFeeUsd: 0.50,
     },
     {
@@ -193,6 +201,7 @@ export const MOCK_GIFT_CARDS: GiftCardProduct[] = [
             },
         ],
         hasProcessingFee: false,
+        discountPercentage: 0,
         processingFeeUsd: 0,
     },
     {
@@ -218,6 +227,7 @@ export const MOCK_GIFT_CARDS: GiftCardProduct[] = [
             },
         ],
         hasProcessingFee: true,
+        discountPercentage: 0,
         processingFeeUsd: 0.50,
     },
     {
@@ -243,6 +253,7 @@ export const MOCK_GIFT_CARDS: GiftCardProduct[] = [
             },
         ],
         hasProcessingFee: false,
+        discountPercentage: 0,
         processingFeeUsd: 0,
     },
     {
@@ -268,6 +279,7 @@ export const MOCK_GIFT_CARDS: GiftCardProduct[] = [
             },
         ],
         hasProcessingFee: true,
+        discountPercentage: 0,
         processingFeeUsd: 0.50,
     },
     {
@@ -293,6 +305,7 @@ export const MOCK_GIFT_CARDS: GiftCardProduct[] = [
             },
         ],
         hasProcessingFee: false,
+        discountPercentage: 0,
         processingFeeUsd: 0,
     },
     {
@@ -318,6 +331,7 @@ export const MOCK_GIFT_CARDS: GiftCardProduct[] = [
             },
         ],
         hasProcessingFee: true,
+        discountPercentage: 0,
         processingFeeUsd: 0.50,
     },
     {
@@ -343,6 +357,7 @@ export const MOCK_GIFT_CARDS: GiftCardProduct[] = [
             },
         ],
         hasProcessingFee: false,
+        discountPercentage: 0,
         processingFeeUsd: 0,
     },
     {
@@ -368,6 +383,7 @@ export const MOCK_GIFT_CARDS: GiftCardProduct[] = [
             },
         ],
         hasProcessingFee: true,
+        discountPercentage: 0,
         processingFeeUsd: 0.50,
     },
 ];

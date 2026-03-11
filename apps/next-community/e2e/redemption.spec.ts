@@ -200,7 +200,7 @@ test.describe("Redemption Queueing and States UI", () => {
     });
 
     test("(a) Global Giving disabled", async ({ page }) => {
-        // Mock get_active_redemption_providers to ONLY return tremendous (no globalgiving)
+        // Mock get_active_redemption_providers to ONLY return giftcards (no charity)
         await page.route(
             "**/rest/v1/rpc/get_active_redemption_providers*",
             async (route) => {
@@ -208,7 +208,14 @@ test.describe("Redemption Queueing and States UI", () => {
                     status: 200,
                     contentType: "application/json",
                     body: JSON.stringify([
-                        { provider: "tremendous", is_queuing: false },
+                        {
+                            method: "giftcards",
+                            is_active: true,
+                            instruments: [{
+                                instrument: "tremendous",
+                                is_active: true,
+                            }],
+                        },
                     ]),
                 });
             },
@@ -232,7 +239,7 @@ test.describe("Redemption Queueing and States UI", () => {
     });
 
     test("(a) Global Giving enabled", async ({ page }) => {
-        // Mock get_active_redemption_providers to include globalgiving
+        // Mock get_active_redemption_providers to include charity
         await page.route(
             "**/rest/v1/rpc/get_active_redemption_providers*",
             async (route) => {
@@ -240,8 +247,22 @@ test.describe("Redemption Queueing and States UI", () => {
                     status: 200,
                     contentType: "application/json",
                     body: JSON.stringify([
-                        { provider: "tremendous", is_queuing: false },
-                        { provider: "globalgiving", is_queuing: false },
+                        {
+                            method: "giftcards",
+                            is_active: true,
+                            instruments: [{
+                                instrument: "tremendous",
+                                is_active: true,
+                            }],
+                        },
+                        {
+                            method: "charity",
+                            is_active: true,
+                            instruments: [{
+                                instrument: "globalgiving",
+                                is_active: true,
+                            }],
+                        },
                     ]),
                 });
             },
@@ -261,7 +282,7 @@ test.describe("Redemption Queueing and States UI", () => {
     });
 
     test("(b) Gift Cards disabled", async ({ page }) => {
-        // Mock get_active_redemption_providers to ONLY return globalgiving (no tremendous/reloadly)
+        // Mock get_active_redemption_providers to ONLY return charity (no giftcards)
         await page.route(
             "**/rest/v1/rpc/get_active_redemption_providers*",
             async (route) => {
@@ -269,7 +290,14 @@ test.describe("Redemption Queueing and States UI", () => {
                     status: 200,
                     contentType: "application/json",
                     body: JSON.stringify([
-                        { provider: "globalgiving", is_queuing: false },
+                        {
+                            method: "charity",
+                            is_active: true,
+                            instruments: [{
+                                instrument: "globalgiving",
+                                is_active: true,
+                            }],
+                        },
                     ]),
                 });
             },
@@ -290,7 +318,7 @@ test.describe("Redemption Queueing and States UI", () => {
     });
 
     test("(b) Gift Cards enabled", async ({ page }) => {
-        // Mock get_active_redemption_providers to include tremendous
+        // Mock get_active_redemption_providers to include giftcards and charity
         await page.route(
             "**/rest/v1/rpc/get_active_redemption_providers*",
             async (route) => {
@@ -298,8 +326,22 @@ test.describe("Redemption Queueing and States UI", () => {
                     status: 200,
                     contentType: "application/json",
                     body: JSON.stringify([
-                        { provider: "tremendous", is_queuing: false },
-                        { provider: "globalgiving", is_queuing: false },
+                        {
+                            method: "giftcards",
+                            is_active: true,
+                            instruments: [{
+                                instrument: "tremendous",
+                                is_active: true,
+                            }],
+                        },
+                        {
+                            method: "charity",
+                            is_active: true,
+                            instruments: [{
+                                instrument: "globalgiving",
+                                is_active: true,
+                            }],
+                        },
                     ]),
                 });
             },
@@ -331,8 +373,22 @@ test.describe("Redemption Queueing and States UI", () => {
                     status: 200,
                     contentType: "application/json",
                     body: JSON.stringify([
-                        { provider: "globalgiving", is_queuing: false },
-                        { provider: "tremendous", is_queuing: false },
+                        {
+                            method: "charity",
+                            is_active: true,
+                            instruments: [{
+                                instrument: "globalgiving",
+                                is_active: true,
+                            }],
+                        },
+                        {
+                            method: "giftcards",
+                            is_active: true,
+                            instruments: [{
+                                instrument: "tremendous",
+                                is_active: true,
+                            }],
+                        },
                     ]),
                 });
             },
@@ -400,8 +456,22 @@ test.describe("Redemption Queueing and States UI", () => {
                     status: 200,
                     contentType: "application/json",
                     body: JSON.stringify([
-                        { provider: "globalgiving", is_queuing: false },
-                        { provider: "reloadly", is_queuing: false },
+                        {
+                            method: "charity",
+                            is_active: true,
+                            instruments: [{
+                                instrument: "globalgiving",
+                                is_active: true,
+                            }],
+                        },
+                        {
+                            method: "giftcards",
+                            is_active: true,
+                            instruments: [{
+                                instrument: "reloadly",
+                                is_active: true,
+                            }],
+                        },
                     ]),
                 });
             },
@@ -469,7 +539,14 @@ test.describe("Redemption Queueing and States UI", () => {
                     status: 200,
                     contentType: "application/json",
                     body: JSON.stringify([
-                        { provider: "tremendous", is_queuing: false },
+                        {
+                            method: "giftcards",
+                            is_active: true,
+                            instruments: [{
+                                instrument: "tremendous",
+                                is_active: true,
+                            }],
+                        },
                     ]),
                 });
             },
@@ -542,7 +619,14 @@ test.describe("Redemption Queueing and States UI", () => {
                     status: 200,
                     contentType: "application/json",
                     body: JSON.stringify([
-                        { provider: "globalgiving", is_queuing: false },
+                        {
+                            method: "charity",
+                            is_active: true,
+                            instruments: [{
+                                instrument: "globalgiving",
+                                is_active: true,
+                            }],
+                        },
                     ]),
                 });
             },

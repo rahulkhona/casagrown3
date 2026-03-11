@@ -49,7 +49,7 @@ export interface OrderSheetProps {
   post: FeedPost | null
   userPoints: number
   onClose: () => void
-  onSubmit: (data: OrderFormData) => void
+  onSubmit: (data: OrderFormData) => Promise<void> | void
   /** Called when balance changes (e.g., after buying points) */
   onBalanceChanged?: () => void
   t: (key: string, opts?: Record<string, any>) => string
@@ -251,11 +251,15 @@ export function OrderSheet({
   // Today's date for min date
   const todayString = useMemo(() => new Date().toISOString().split('T')[0]!, [])
 
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
   const resetForm = useCallback(() => {
     setQuantity('')
     setAddress('')
     setLatestDate('')
     setInstructions('')
+    setSubmitError(null)
   }, [])
 
   const handleClose = useCallback(() => {
@@ -263,7 +267,7 @@ export function OrderSheet({
     onClose()
   }, [resetForm, onClose])
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = useCallback(async () => {
     if (!quantity || !address.trim() || !latestDate) {
       Alert.alert(t('feed.orderForm.requiredFields'))
       return
@@ -276,16 +280,25 @@ export function OrderSheet({
       Alert.alert(t('feed.orderForm.insufficientAlert'))
       return
     }
-    onSubmit({
-      quantity: numericQty,
-      address: address.trim(),
-      latestDate,
-      instructions: instructions.trim(),
-      totalPrice,
-      taxRatePct: taxInfo.rate_pct,
-      taxAmount: taxPoints,
-    })
-    resetForm()
+    setSubmitting(true)
+    setSubmitError(null)
+    try {
+      await onSubmit({
+        quantity: numericQty,
+        address: address.trim(),
+        latestDate,
+        instructions: instructions.trim(),
+        totalPrice,
+        taxRatePct: taxInfo.rate_pct,
+        taxAmount: taxPoints,
+      })
+      resetForm()
+    } catch (err: any) {
+      console.error('Submit error:', err)
+      setSubmitError(err.message || 'Validation failed')
+    } finally {
+      setSubmitting(false)
+    }
   }, [quantity, address, latestDate, instructions, exceedsMax, hasInsufficientPoints, maxQuantity, unit, numericQty, totalPrice, taxInfo.rate_pct, taxPoints, onSubmit, resetForm, t])
 
   const handleUseMyLocation = useCallback(async () => {
@@ -368,6 +381,7 @@ export function OrderSheet({
         padding="$4"
       >
         <ScrollView
+          testID="orderSheetScrollView"
           style={{ width: '100%', maxWidth: 480, maxHeight: '90%' }}
           contentContainerStyle={{ flexGrow: 0 }}
           keyboardShouldPersistTaps="handled"
@@ -546,6 +560,7 @@ export function OrderSheet({
               </Text>
               {/* Selected date display / toggle */}
               <TouchableOpacity
+                testID="select-date-button"
                 activeOpacity={0.7}
                 onPress={() => setCalendarOpen(true)}
                 style={{
@@ -794,14 +809,30 @@ export function OrderSheet({
 
             {/* ─── Action Buttons ─── */}
             <YStack gap="$3">
+              {submitError && (
+                <XStack
+                  backgroundColor="#fef2f2"
+                  borderWidth={1}
+                  borderColor="#fecaca"
+                  borderRadius={borderRadius.md}
+                  padding="$3"
+                  gap="$2"
+                  alignItems="center"
+                >
+                  <AlertTriangle size={16} color="#dc2626" />
+                  <Text fontSize={13} color="#b91c1c" flex={1}>
+                    {submitError}
+                  </Text>
+                </XStack>
+              )}
               {hasInsufficientPoints ? (
                 <YStack gap="$2">
                   <Button
-                    backgroundColor={cannotSubmit ? colors.gray[300] : '#f59e0b'}
+                    backgroundColor={cannotSubmit || submitting ? colors.gray[300] : '#f59e0b'}
                     paddingVertical="$2.5"
                     borderRadius={borderRadius.md}
-                    pressStyle={cannotSubmit ? undefined : { backgroundColor: '#d97706' }}
-                    disabled={cannotSubmit}
+                    pressStyle={cannotSubmit || submitting ? undefined : { backgroundColor: '#d97706' }}
+                    disabled={cannotSubmit || submitting}
                     onPress={() => setBuyPointsVisible(true)}
                   >
                     <Text color="white" fontWeight="600" fontSize={15}>
@@ -814,6 +845,7 @@ export function OrderSheet({
                     borderRadius={borderRadius.md}
                     pressStyle={{ backgroundColor: colors.gray[200] }}
                     onPress={handleClose}
+                    disabled={submitting}
                   >
                     <Text color={colors.gray[700]} fontWeight="600" fontSize={15}>
                       {t('feed.orderForm.cancel')}
@@ -829,23 +861,30 @@ export function OrderSheet({
                     borderRadius={borderRadius.md}
                     pressStyle={{ backgroundColor: colors.gray[200] }}
                     onPress={handleClose}
+                    disabled={submitting}
                   >
                     <Text color={colors.gray[700]} fontWeight="600" fontSize={15}>
                       {t('feed.orderForm.cancel')}
                     </Text>
                   </Button>
                   <Button
+                    testID="submit-order-button"
+                    accessibilityLabel="submit-order-button"
                     flex={1}
-                    backgroundColor={cannotSubmit ? colors.gray[300] : colors.green[600]}
+                    backgroundColor={cannotSubmit || submitting ? colors.gray[300] : colors.green[600]}
                     paddingVertical="$2.5"
                     borderRadius={borderRadius.md}
-                    pressStyle={cannotSubmit ? undefined : { backgroundColor: colors.green[700] }}
-                    disabled={cannotSubmit}
+                    pressStyle={cannotSubmit || submitting ? undefined : { backgroundColor: colors.green[700] }}
+                    disabled={cannotSubmit || submitting}
                     onPress={handleSubmit}
                   >
-                    <Text color="white" fontWeight="600" fontSize={15}>
-                      {t('feed.orderForm.submit')}
-                    </Text>
+                    {submitting ? (
+                      <Spinner size="small" color="white" />
+                    ) : (
+                      <Text color="white" fontWeight="600" fontSize={15}>
+                        {t('feed.orderForm.submit')}
+                      </Text>
+                    )}
                   </Button>
                 </XStack>
               )}

@@ -190,6 +190,10 @@ echo "━━━ Phase 2: Playwright E2E (Web) ━━━━━━━━━━━�
 # --- Clean stale test data so Playwright finds only seed records ---
 echo "   Cleaning stale test data..."
 docker exec -i supabase_db_casagrown3 psql -U postgres -d postgres <<'CLEANUP_SQL' 2>&1 | tail -1
+-- Remove digital receipts for non-seed orders (FK cascade)
+DELETE FROM digital_receipts WHERE order_id IN (
+  SELECT id FROM orders WHERE id::text NOT LIKE 'd0000000-%'
+);
 -- Remove non-seed orders (seed orders have d0000000-... UUIDs)
 DELETE FROM orders WHERE id::text NOT LIKE 'd0000000-%';
 -- Remove non-seed offers (seed offers have c999... UUIDs)

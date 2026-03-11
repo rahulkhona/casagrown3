@@ -91,6 +91,8 @@ function mapOrderRow(row: Record<string, unknown>): Order {
         })(),
         tax_rate_pct: Number(row.tax_rate_pct ?? 0),
         tax_amount: Number(row.tax_amount ?? 0),
+        tax_rule_type: (row.tax_rule_type as string) ?? null,
+        tax_is_exempt: Boolean(row.tax_is_exempt),
     };
 }
 
@@ -146,7 +148,7 @@ export async function getOrders(
             .select("id, full_name, avatar_url")
             .in("id", Array.from(userIds));
         if (profiles) {
-            const profileMap = new Map(profiles.map((p) => [p.id, p]));
+            const profileMap = new Map<string, { full_name: string; avatar_url: string }>(profiles.map((p: any) => [p.id, p]));
             results = results.map((o) => ({
                 ...o,
                 buyer_name: profileMap.get(o.buyer_id)?.full_name ?? null,

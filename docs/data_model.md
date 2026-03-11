@@ -1228,6 +1228,10 @@ create table charity_projects_cache (
 );
 ```
 
+**Seed data**: `seed.sql` populates 5 sample charity projects (Hunger,
+Environment, Education, Health, Other themes) so the Donate tab has data after
+`supabase db reset` without requiring a `GLOBALGIVING_API_KEY`.
+
 ### `platform_settings` _(added by `20260228065500`)_
 
 Global platform settings (replaces legacy `platform_config` key-value store
@@ -1654,8 +1658,38 @@ create table provider_queue_status (
 | Admins can update provider queue status | `UPDATE`  | `public.has_staff_role(auth.uid(), 'admin')` |
 
 **RPC `get_active_redemption_providers()`** Returns available redemption methods
-(`provider`, `is_queuing`) where `is_active = true`. Security definer (bypasses
-RLS so guests can read).
+and their instruments, grouped by method. Security definer (bypasses RLS so
+guests can read).
+
+**Response format**:
+
+```json
+[
+  {
+    "method": "giftcards",
+    "is_active": true,
+    "instruments": [
+      { "instrument": "tremendous", "is_active": true },
+      { "instrument": "reloadly", "is_active": true }
+    ]
+  },
+  {
+    "method": "charity",
+    "is_active": true,
+    "instruments": [{ "instrument": "globalgiving", "is_active": true }]
+  },
+  {
+    "method": "cashout",
+    "is_active": true,
+    "instruments": [{ "instrument": "paypal", "is_active": true }]
+  },
+  { "method": "529c", "is_active": true, "instruments": [] }
+]
+```
+
+The UI uses `method` to determine which tabs to show (Gift Cards, Donate,
+Cashout, 529 Savings) and `instruments` to determine active providers within
+each tab.
 
 ### `redemption_merchandize`
 
@@ -2739,6 +2773,12 @@ Atomically creates a "buy now" order from the feed.
 6. Insert system `chat_messages` ("Order placed: ...")
 7. Return `{ orderId, conversationId, newBalance }`
 
+**Error handling**: If `create_order_atomic` fails (e.g., jurisdiction block for
+regulated products), returns a **400 JSON response** with the error message
+(`{ "error": "Regulated product — not available in your state" }`) instead of
+throwing a generic 500. The client parses the error from `response.context` to
+display in the order sheet banner.
+
 #### `create-offer`
 
 Thin wrapper around the `create_offer_atomic` RPC. Validates inputs and
@@ -2924,6 +2964,45 @@ Cron function that polls Reloadly and Tremendous balance APIs, updates
 
 **Source**:
 [sync-provider-balance/index.ts](file:///Users/rkhona/development/bug_reporting/casagrown3/supabase/functions/sync-provider-balance/index.ts)
+
+#### `resolve-usps-address`
+
+Validates a street address via the USPS Address API v3 and resolves its
+jurisdiction (county, FIPS code). Used for sales tax determination and
+compliance.
+
+**Endpoint**: `POST /functions/v1/resolve-usps-address`
+
+**Input**:
+`{ "streetAddress", "secondaryAddress?", "city", "state", "zipCode" }`
+
+**Logic**:
+
+1. Authenticate via USPS OAuth2 (`USPS_CONSUMER_KEY` / `USPS_CONSUMER_SECRET`)
+   with token caching (1-hour TTL)
+2. Call USPS Address API v3 to standardize the address and get ZIP+4
+3. Call USPS City/State API to resolve county name for the ZIP code
+4. Return standardized address + jurisdiction info
+
+**Response**:
+
+```json
+{
+  "address": {
+    "streetAddress": "...",
+    "city": "...",
+    "state": "...",
+    "ZIPCode": "...",
+    "ZIPPlus4": "12345-6789"
+  },
+  "jurisdiction": { "county": "Santa Clara", "fipsCode": "" }
+}
+```
+
+**Env vars**: `USPS_CONSUMER_KEY`, `USPS_CONSUMER_SECRET`
+
+**Source**:
+[resolve-usps-address/index.ts](file:///Users/rkhona/development/casagrown3/supabase/functions/resolve-usps-address/index.ts)
 
 ---
 

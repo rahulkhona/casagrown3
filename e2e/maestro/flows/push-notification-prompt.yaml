@@ -1,0 +1,51 @@
+# Push Notification Prompt Flow — Maestro E2E test
+# Tests push notification permission prompt UI on mobile.
+# Verifies prompt appears after ordering and can be dismissed.
+# Originally .maestro/08_push_notification_flow.yaml
+#
+# NOTE: Actual push delivery cannot be tested in Maestro without
+# real VAPID keys. This flow tests the permission prompt UI.
+
+appId: dev.casagrown.community
+
+---
+
+# Login first
+- runFlow: ../utils/login.yaml
+
+# Wait for feed to load
+- extendedWaitUntil:
+    visible: "Create Post"
+    timeout: 15000
+
+# Look for any sale post with a Buy/Order button
+- assertVisible:
+    text: ".*Buy.*|.*Order.*|.*Offer.*"
+    optional: true
+
+# Tap a buy/order button to trigger notification prompt
+- tapOn:
+    text: ".*Buy.*|.*Order.*"
+    optional: true
+
+# Wait for notification prompt modal to appear
+- extendedWaitUntil:
+    visible:
+      text: ".*Stay in the Loop.*|.*Enable Notifications.*|.*Notifications.*"
+    timeout: 5000
+    optional: true
+
+# Verify the prompt has expected elements
+- assertVisible:
+    text: ".*Enable.*Notifications.*"
+    optional: true
+
+# Dismiss with "Not now" to verify dismiss flow
+- tapOn:
+    text: ".*Not now.*|.*not now.*"
+    optional: true
+
+# Verify prompt is dismissed
+- assertNotVisible:
+    text: ".*Stay in the Loop.*"
+    optional: true

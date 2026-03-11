@@ -1,0 +1,125 @@
+# Jurisdiction Blocks Flow — Maestro E2E test
+# Verifies: OrderSheet displays Error Banner when product is blocked.
+# Requires: Tobacco post + blocked_products entry in seed.sql.
+# Must login as BUYER since sellers can't order their own products.
+
+appId: dev.casagrown.community
+
+---
+
+# First login (ensures app is running and on a known screen)
+- runFlow: ../utils/login.yaml
+
+# Sign out current user (seller) so we can login as buyer
+- tapOn:
+          text: ".*Menu.*"
+- scrollUntilVisible:
+          element: ".*Sign Out.*"
+          direction: DOWN
+          timeout: 15000
+- tapOn: ".*Sign Out.*"
+- extendedWaitUntil:
+          visible: ".*Are you sure.*"
+          timeout: 5000
+- tapOn:
+          text: "(?i)sign.out"
+          index: 1
+- extendedWaitUntil:
+          visible: ".*(?:Join the Movement|Welcome to CasaGrown).*"
+          timeout: 15000
+
+# Login as buyer
+- runFlow: ../utils/login-buyer.yaml
+
+# Navigate to Feed tab explicitly (prior flows may leave on different tab)
+- extendedWaitUntil:
+          visible: ".*(?:Create Post|Feed|Chats|Orders|Offers|Menu).*"
+          timeout: 15000
+- tapOn:
+          text: "Feed"
+          index: 0
+- extendedWaitUntil:
+          visible: "Create Post"
+          timeout: 10000
+
+# Dismiss push notification prompt if shown
+- tapOn:
+          text: "Not now"
+          optional: true
+
+# Navigate to the Tobacco post and open order sheet
+- scrollUntilVisible:
+          element: "Tobacco"
+          direction: DOWN
+          timeout: 15000
+- tapOn: ".*Tobacco.*"
+
+# Wait for Tobacco Order button — unique testID per post
+- extendedWaitUntil:
+          visible:
+                  id: "order-button-Tobacco-c9999999-9999-9999-9999-999999999999"
+          timeout: 10000
+- tapOn:
+          id: "order-button-Tobacco-c9999999-9999-9999-9999-999999999999"
+
+# Dismiss notifications prompt if it appears
+- tapOn:
+          text: "Not now"
+          optional: true
+
+# ─── Fill in order form ───
+# 1. Enter quantity
+- extendedWaitUntil:
+          visible: "Enter quantity"
+          timeout: 10000
+- tapOn: "Enter quantity"
+- eraseText: 5
+- inputText: "1"
+
+# 2. Address — type manually (Use My Location fails on emulator — no GPS)
+- hideKeyboard
+- tapOn: ".*(?:Drop-off Address|Enter your|address).*"
+- inputText: "123 Main St, San Jose, CA 95120"
+- hideKeyboard
+
+# Wait for date button to appear after keyboard dismissal
+- extendedWaitUntil:
+          visible:
+                  id: "select-date-button"
+          timeout: 10000
+
+# 3. Select date — CalendarPicker auto-closes after picking a day
+- tapOn:
+          id: "select-date-button"
+- extendedWaitUntil:
+          visible: ".*(?:March|April|May|June|2026).*"
+          timeout: 10000
+- tapOn: "15"
+
+# Wait for the calendar to close and the date to be set
+# (CalendarPicker calls setCalendarOpen(false) automatically)
+- extendedWaitUntil:
+          visible:
+                  id: "select-date-button"
+          timeout: 5000
+
+# 4. Scroll to find the submit button and tap it
+- scrollUntilVisible:
+          element:
+                  id: "submit-order-button"
+          direction: DOWN
+          timeout: 10000
+- tapOn:
+          id: "submit-order-button"
+
+# Verify Error Banner — product is blocked in buyer's jurisdiction
+# The edge function returns the blocked_products.reason ("Regulated product")
+# which is displayed in the OrderSheet's error banner
+- extendedWaitUntil:
+          visible: ".*(?:Regulated product|PRODUCT_RESTRICTED|restricted|failed|Action Failed).*"
+          timeout: 15000
+
+# Clean up — stop app and re-login as seller for subsequent tests
+- stopApp:
+          appId: dev.casagrown.community
+- runFlow: ../utils/login.yaml

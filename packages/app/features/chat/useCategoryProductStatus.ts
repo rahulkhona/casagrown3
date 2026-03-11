@@ -101,11 +101,18 @@ export function useCategoryProductStatus(
                         .eq("category_name", category);
 
                     if (communityH3) {
-                        catQuery = catQuery.or(
-                            `community_h3_index.is.null,community_h3_index.eq.${communityH3}`,
-                        );
+                        // Query for global restrictions (all jurisdiction columns null)
+                        catQuery = catQuery
+                            .is("country_iso_3", null)
+                            .is("state_id", null)
+                            .is("county_id", null)
+                            .is("city_id", null);
                     } else {
-                        catQuery = catQuery.is("community_h3_index", null);
+                        catQuery = catQuery
+                            .is("country_iso_3", null)
+                            .is("state_id", null)
+                            .is("county_id", null)
+                            .is("city_id", null);
                     }
 
                     const { data: catRestrictions } = await catQuery.limit(1);
@@ -132,11 +139,17 @@ export function useCategoryProductStatus(
                         .ilike("product_name", productName);
 
                     if (communityH3) {
-                        prodQuery = prodQuery.or(
-                            `community_h3_index.is.null,community_h3_index.eq.${communityH3}`,
-                        );
+                        prodQuery = prodQuery
+                            .is("country_iso_3", null)
+                            .is("state_id", null)
+                            .is("county_id", null)
+                            .is("city_id", null);
                     } else {
-                        prodQuery = prodQuery.is("community_h3_index", null);
+                        prodQuery = prodQuery
+                            .is("country_iso_3", null)
+                            .is("state_id", null)
+                            .is("county_id", null)
+                            .is("city_id", null);
                     }
 
                     const { data: prodBlocks } = await prodQuery.limit(1);
@@ -163,14 +176,17 @@ export function useCategoryProductStatus(
                         .ilike("product_name", name);
 
                     if (communityH3) {
-                        buyProdQuery = buyProdQuery.or(
-                            `community_h3_index.is.null,community_h3_index.eq.${communityH3}`,
-                        );
+                        buyProdQuery = buyProdQuery
+                            .is("country_iso_3", null)
+                            .is("state_id", null)
+                            .is("county_id", null)
+                            .is("city_id", null);
                     } else {
-                        buyProdQuery = buyProdQuery.is(
-                            "community_h3_index",
-                            null,
-                        );
+                        buyProdQuery = buyProdQuery
+                            .is("country_iso_3", null)
+                            .is("state_id", null)
+                            .is("county_id", null)
+                            .is("city_id", null);
                     }
 
                     const { data: buyBlocks } = await buyProdQuery.limit(1);

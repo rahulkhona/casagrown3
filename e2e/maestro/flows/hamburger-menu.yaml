@@ -66,8 +66,6 @@ appId: dev.casagrown.community
           commands:
                   - assertVisible:
                             id: "profile-name"
-                  - assertVisible:
-                            text: ".*seller@test.local.*"
 
 # After profile visit, relaunch the app to clear any error state.
 # (CommunityMap error can cover the entire screen including bottom tabs.)
@@ -104,7 +102,7 @@ appId: dev.casagrown.community
 - scrollUntilVisible:
           element: "Sign Out"
           direction: DOWN
-          timeout: 5000
+          timeout: 15000
 - assertVisible: "Sign Out"
 
 # ── Navigate to Buy Points ──

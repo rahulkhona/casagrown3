@@ -59,6 +59,11 @@ async function supabaseDelete(table: string, filter: string) {
 async function cleanupTestRestrictions() {
     await supabaseDelete("category_restrictions", `reason=eq.${TEST_MARKER}`);
     await supabaseDelete("blocked_products", `reason=eq.${TEST_MARKER}`);
+    // Also clean up Maestro-inserted test blocks (left over from jurisdiction tests)
+    await supabaseDelete(
+        "blocked_products",
+        `reason=eq.This product is restricted in your area`,
+    );
 }
 
 /**
@@ -173,7 +178,6 @@ test.describe("Chat Restrictions", () => {
         // Insert a global restriction on 'vegetables' (Tomatoes & Peppers are vegetables)
         await supabaseInsert("category_restrictions", {
             category_name: "vegetables",
-            community_h3_index: null,
             reason: TEST_MARKER,
         });
 
@@ -193,14 +197,12 @@ test.describe("Chat Restrictions", () => {
         // Block 'Tomatoes' product globally
         await supabaseInsert("blocked_products", {
             product_name: "Tomatoes",
-            community_h3_index: null,
             reason: TEST_MARKER,
         });
 
         // Also block Peppers in case test opens a Peppers chat
         await supabaseInsert("blocked_products", {
             product_name: "Peppers",
-            community_h3_index: null,
             reason: TEST_MARKER,
         });
 
@@ -223,7 +225,6 @@ test.describe("Chat Restrictions", () => {
         // Insert restriction
         await supabaseInsert("category_restrictions", {
             category_name: "vegetables",
-            community_h3_index: null,
             reason: TEST_MARKER,
         });
 

@@ -54,10 +54,16 @@ test("snapshot only", async ({ page }) => {
             await route.fulfill({
                 status: 200,
                 contentType: "application/json",
-                body: JSON.stringify([{
-                    provider: "tremendous",
-                    is_queuing: false,
-                }]),
+                body: JSON.stringify([
+                    {
+                        method: "giftcards",
+                        is_active: true,
+                        instruments: [{
+                            instrument: "tremendous",
+                            is_active: true,
+                        }],
+                    },
+                ]),
             });
         },
     );

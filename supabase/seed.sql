@@ -65,16 +65,16 @@ INSERT INTO public.campaign_rewards (campaign_id, behavior, points) VALUES
 -- 7. Category & Product Restrictions (for testing restriction enforcement)
 -- No category restrictions by default.
 -- Uncomment below to test category restriction behavior:
--- insert into public.category_restrictions (category_name, community_h3_index, reason)
--- values ('herbs', NULL, 'Controlled substance regulations');
+-- insert into public.category_restrictions (category_name, country_iso_3, state_id, county_id, city_id, reason)
+-- values ('herbs', NULL, NULL, NULL, NULL, 'Controlled substance regulations');
 
 -- Globally blocked products (cannot be added as custom garden items)
-insert into public.blocked_products (product_name, community_h3_index, reason) values
-  ('Marijuana', NULL, 'Controlled substance - federally prohibited'),
-  ('Cannabis', NULL, 'Controlled substance - federally prohibited'),
-  ('Tobacco', NULL, 'Regulated product'),
-  ('Opium Poppy', NULL, 'Controlled substance'),
-  ('Coca', NULL, 'Controlled substance')
+insert into public.blocked_products (product_name, country_iso_3, state_id, county_id, city_id, reason) values
+  ('Marijuana', NULL, NULL, NULL, NULL, 'Controlled substance - federally prohibited'),
+  ('Cannabis', NULL, NULL, NULL, NULL, 'Controlled substance - federally prohibited'),
+  ('Tobacco', NULL, NULL, NULL, NULL, 'Regulated product'),
+  ('Opium Poppy', NULL, NULL, NULL, NULL, 'Controlled substance'),
+  ('Coca', NULL, NULL, NULL, NULL, 'Controlled substance')
 on conflict do nothing;
 
 -- 8. Storage Buckets & Policies
@@ -258,6 +258,24 @@ INSERT INTO public.delivery_dates (post_id, delivery_date)
 VALUES
   ('c3333333-3333-3333-3333-333333333333', CURRENT_DATE + interval '3 days'),
   ('c3333333-3333-3333-3333-333333333333', CURRENT_DATE + interval '7 days');
+
+-- Sell Post: Tobacco (globally blocked — exists for jurisdiction blocks E2E test)
+INSERT INTO public.posts (id, author_id, community_h3_index, type, reach, content)
+VALUES (
+  'c9999999-9999-9999-9999-999999999999',
+  'a1111111-1111-1111-1111-111111111111',
+  '89283470c2fffff',
+  'want_to_sell', 'community',
+  '{"produceName":"Tobacco","description":"Cured tobacco leaves for personal use"}'
+);
+
+INSERT INTO public.want_to_sell_details (post_id, category, produce_name, unit, total_quantity_available, points_per_unit, is_produce, harvest_date)
+VALUES ('c9999999-9999-9999-9999-999999999999', 'herbs', 'Tobacco', 'bag', 5, 10, false, CURRENT_DATE);
+
+INSERT INTO public.delivery_dates (post_id, delivery_date)
+VALUES
+  ('c9999999-9999-9999-9999-999999999999', CURRENT_DATE + interval '5 days'),
+  ('c9999999-9999-9999-9999-999999999999', CURRENT_DATE + interval '10 days');
 
 -- Sell Post 2: Strawberries
 INSERT INTO public.posts (id, author_id, community_h3_index, type, reach, content)
@@ -655,9 +673,9 @@ INSERT INTO public.delegations (
   15
 ) ON CONFLICT (id) DO NOTHING;
 -- Mock the State Threshold for CA to $15.00
-INSERT INTO small_balance_refund_thresholds (country_iso_3, state_code, threshold_cents)
-VALUES ('USA', 'CA', 1500)
-ON CONFLICT (country_iso_3, state_code) 
+INSERT INTO small_balance_refund_thresholds (country_iso_3, state_id, threshold_cents)
+VALUES ('USA', '00000000-0000-0000-0000-000000000001', 1500)
+ON CONFLICT (COALESCE(country_iso_3, ''), COALESCE(state_id, '00000000-0000-0000-0000-000000000000'::uuid), COALESCE(county_id, '00000000-0000-0000-0000-000000000000'::uuid), COALESCE(city_id, '00000000-0000-0000-0000-000000000000'::uuid))
 DO UPDATE SET threshold_cents = EXCLUDED.threshold_cents;
 
 -- Mock an old points bucket by backdating a single bucket
@@ -796,3 +814,18 @@ BEGIN
 
   RAISE NOTICE 'Seeded 8 feedback tickets with votes and comments';
 END $$;
+
+-- ============================================================================
+-- Charity Projects Cache (so Donate tab works without GlobalGiving API key)
+-- ============================================================================
+INSERT INTO public.charity_projects_cache (status, data, updated_at) VALUES (
+  'active',
+  '[
+    {"id":1001,"title":"Feed the Hungry","organization":"Food for All","theme":"Hunger","imageUrl":"https://picsum.photos/seed/charity1/400/300","goal":50000,"raised":32000,"summary":"Providing nutritious meals to families in need across communities."},
+    {"id":1002,"title":"Plant Trees for Tomorrow","organization":"GreenEarth Foundation","theme":"Environment","imageUrl":"https://picsum.photos/seed/charity2/400/300","goal":25000,"raised":18500,"summary":"Planting trees in deforested areas to combat climate change."},
+    {"id":1003,"title":"Books for Every Child","organization":"Education First","theme":"Education","imageUrl":"https://picsum.photos/seed/charity3/400/300","goal":15000,"raised":9200,"summary":"Providing books and educational materials to underserved schools."},
+    {"id":1004,"title":"Clean Water Initiative","organization":"WaterAid","theme":"Health","imageUrl":"https://picsum.photos/seed/charity4/400/300","goal":40000,"raised":27000,"summary":"Building wells and water purification systems in rural communities."},
+    {"id":1005,"title":"Youth Sports Program","organization":"Play Together","theme":"Other","imageUrl":"https://picsum.photos/seed/charity5/400/300","goal":10000,"raised":6100,"summary":"Supporting youth sports programs and equipment for communities."}
+  ]'::jsonb,
+  now()
+);

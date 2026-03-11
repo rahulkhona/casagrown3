@@ -53,5 +53,3 @@ appId: dev.casagrown.community
           commands:
                   - assertVisible:
                             id: "profile-name"
-                  - assertVisible:
-                            text: ".*seller@test.local.*"

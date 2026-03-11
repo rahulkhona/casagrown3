@@ -390,43 +390,42 @@ export function FeedScreen({ onCreatePost, onNavigateToProfile, onNavigateToDele
   const handleOrderSubmit = useCallback(async (data: OrderFormData) => {
     if (!userId || !orderPost) return
 
-    try {
-      const { data: result, error } = await supabase.functions.invoke('create-order', {
-        body: {
-          postId: orderPost.id,
-          sellerId: orderPost.author_id,
-          quantity: data.quantity,
-          pointsPerUnit: orderPost.sell_details?.points_per_unit ?? 0,
-          totalPrice: data.totalPrice,
-          category: orderPost.sell_details?.category ?? 'fruits',
-          product: orderPost.sell_details?.produce_name ?? orderPost.content?.slice(0, 50) ?? 'Item',
-          deliveryDate: data.latestDate,
-          deliveryInstructions: data.instructions,
-          deliveryAddress: data.address,
-          taxRatePct: data.taxRatePct,
-          taxAmount: data.taxAmount,
-        },
-      })
+    const { data: result, error } = await supabase.functions.invoke('create-order', {
+      body: {
+        postId: orderPost.id,
+        sellerId: orderPost.author_id,
+        quantity: data.quantity,
+        pointsPerUnit: orderPost.sell_details?.points_per_unit ?? 0,
+        totalPrice: data.totalPrice,
+        category: orderPost.sell_details?.category ?? 'fruits',
+        product: orderPost.sell_details?.produce_name ?? orderPost.content?.slice(0, 50) ?? 'Item',
+        deliveryDate: data.latestDate,
+        deliveryInstructions: data.instructions,
+        deliveryAddress: data.address,
+        taxRatePct: data.taxRatePct,
+        taxAmount: data.taxAmount,
+      },
+    })
 
-      if (error) {
-        Alert.alert('Order Failed', error.message || 'Failed to place order')
-        return
-      }
-
-      // Defense-in-depth: check business-level error in response body
-      if (result?.error || result?.success === false) {
-        Alert.alert('Order Failed', result.error || 'Something went wrong while placing your order')
-        return
-      }
-
-      // Refresh balance after successful order
-      await refetchBalance()
-      setOrderPost(null)
-      Alert.alert('Order Placed', `Your order has been placed! New balance: ${result?.newBalance ?? userPoints} points`)
-    } catch (err) {
-      Alert.alert('Error', 'An unexpected error occurred while placing your order')
-      console.error('Order submission error:', err)
+    if (error) {
+      // supabase.functions.invoke wraps non-2xx as generic "Edge Function returned a non-2xx status code".
+      // The actual error body is in error.context (the raw Response). Try to read it.
+      let msg = error.message || 'Failed to place order'
+      try {
+        const body = await (error as any).context?.json?.()
+        if (body?.error) msg = body.error
+      } catch { /* fallback to generic */ }
+      throw new Error(msg)
     }
+
+    if (result?.error || result?.success === false) {
+      throw new Error(result?.error || 'Something went wrong while placing your order')
+    }
+
+    // Refresh balance after successful order
+    await refetchBalance()
+    setOrderPost(null)
+    Alert.alert('Order Placed', `Your order has been placed! New balance: ${result?.newBalance ?? userPoints} points`)
   }, [userId, orderPost, refetchBalance, userPoints])
 
 

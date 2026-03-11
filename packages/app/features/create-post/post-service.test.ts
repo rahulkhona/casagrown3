@@ -763,12 +763,14 @@ describe("post-service", () => {
                     };
                 }
                 if (table === "category_restrictions") {
+                    const isChain: any = {};
+                    isChain.is = jest.fn().mockReturnValue(isChain);
+                    // Final await resolves via .then
+                    isChain.then = (r: any) =>
+                        Promise.resolve({ data: [], error: null }).then(r);
                     return {
                         select: jest.fn().mockReturnValue({
-                            is: jest.fn().mockResolvedValue({
-                                data: [],
-                                error: null,
-                            }),
+                            is: jest.fn().mockReturnValue(isChain),
                         }),
                     };
                 }
@@ -779,7 +781,18 @@ describe("post-service", () => {
             expect(result).toEqual(allCategories);
         });
 
-        it("filters out categories with restrictions", async () => {
+        it("filters out categories with restrictions (userId + jurisdiction)", async () => {
+            // Mock the jurisdiction RPC to return a full hierarchy
+            mockResponses["rpc.get_user_jurisdiction"] = {
+                data: [{
+                    country_iso_3: "USA",
+                    state_id: "state-uuid-1",
+                    county_id: "county-uuid-1",
+                    city_id: "city-uuid-1",
+                }],
+                error: null,
+            };
+
             mockFrom.mockImplementation((table: string) => {
                 if (table === "sales_categories") {
                     return {
@@ -814,14 +827,73 @@ describe("post-service", () => {
                 return buildChain(table);
             });
 
-            const result = await getAvailableCategories("872834461ffffff");
+            const result = await getAvailableCategories("user-uuid-123");
             expect(result).not.toContain("flowers");
             expect(result).not.toContain("soil");
             expect(result).toContain("fruits");
             expect(result).toContain("vegetables");
         });
 
+        it("falls back to global-only restrictions when jurisdiction is empty", async () => {
+            // RPC returns empty array → fallback to .is() chain
+            mockResponses["rpc.get_user_jurisdiction"] = {
+                data: [],
+                error: null,
+            };
+
+            mockFrom.mockImplementation((table: string) => {
+                if (table === "sales_categories") {
+                    return {
+                        select: jest.fn().mockReturnValue({
+                            order: jest.fn().mockResolvedValue({
+                                data: allCategories.map((c) => ({
+                                    name: c,
+                                    is_produce: [
+                                        "fruits",
+                                        "vegetables",
+                                        "herbs",
+                                    ].includes(c),
+                                })),
+                                error: null,
+                            }),
+                        }),
+                    };
+                }
+                if (table === "category_restrictions") {
+                    return {
+                        select: jest.fn().mockReturnValue({
+                            is: jest.fn().mockReturnValue({
+                                is: jest.fn().mockReturnValue({
+                                    is: jest.fn().mockReturnValue({
+                                        is: jest.fn().mockResolvedValue({
+                                            data: [{ category_name: "herbs" }],
+                                            error: null,
+                                        }),
+                                    }),
+                                }),
+                            }),
+                        }),
+                    };
+                }
+                return buildChain(table);
+            });
+
+            const result = await getAvailableCategories("user-uuid-123");
+            expect(result).not.toContain("herbs");
+            expect(result).toContain("fruits");
+        });
+
         it("returns all categories on restriction query error (fail open)", async () => {
+            mockResponses["rpc.get_user_jurisdiction"] = {
+                data: [{
+                    country_iso_3: "USA",
+                    state_id: "state-uuid-1",
+                    county_id: null,
+                    city_id: null,
+                }],
+                error: null,
+            };
+
             mockFrom.mockImplementation((table: string) => {
                 if (table === "sales_categories") {
                     return {
@@ -853,7 +925,7 @@ describe("post-service", () => {
                 return buildChain(table);
             });
 
-            const result = await getAvailableCategories("872834461ffffff");
+            const result = await getAvailableCategories("user-uuid-123");
             expect(result).toEqual(allCategories);
         });
 
@@ -885,15 +957,16 @@ describe("post-service", () => {
         it("returns blocked=false when product is not blocked", async () => {
             mockFrom.mockImplementation((table: string) => {
                 if (table === "blocked_products") {
+                    const isChain: any = {};
+                    isChain.is = jest.fn().mockReturnValue(isChain);
+                    isChain.limit = jest.fn().mockResolvedValue({
+                        data: [],
+                        error: null,
+                    });
                     return {
                         select: jest.fn().mockReturnValue({
                             ilike: jest.fn().mockReturnValue({
-                                is: jest.fn().mockReturnValue({
-                                    limit: jest.fn().mockResolvedValue({
-                                        data: [],
-                                        error: null,
-                                    }),
-                                }),
+                                is: jest.fn().mockReturnValue(isChain),
                             }),
                         }),
                     };
@@ -905,7 +978,18 @@ describe("post-service", () => {
             expect(result.blocked).toBe(false);
         });
 
-        it("returns blocked=true with reason when product is blocked", async () => {
+        it("returns blocked=true with reason when product is blocked (userId + jurisdiction)", async () => {
+            // Mock jurisdiction RPC
+            mockResponses["rpc.get_user_jurisdiction"] = {
+                data: [{
+                    country_iso_3: "USA",
+                    state_id: "state-uuid-1",
+                    county_id: "county-uuid-1",
+                    city_id: "city-uuid-1",
+                }],
+                error: null,
+            };
+
             mockFrom.mockImplementation((table: string) => {
                 if (table === "blocked_products") {
                     return {
@@ -929,7 +1013,7 @@ describe("post-service", () => {
 
             const result = await isProductBlocked(
                 "Cannabis",
-                "872834461ffffff",
+                "user-uuid-123",
             );
             expect(result.blocked).toBe(true);
             expect(result.reason).toBe("Restricted substance");
@@ -938,15 +1022,16 @@ describe("post-service", () => {
         it("returns blocked=false on error (fail open)", async () => {
             mockFrom.mockImplementation((table: string) => {
                 if (table === "blocked_products") {
+                    const isChain: any = {};
+                    isChain.is = jest.fn().mockReturnValue(isChain);
+                    isChain.limit = jest.fn().mockResolvedValue({
+                        data: null,
+                        error: { message: "Query failed" },
+                    });
                     return {
                         select: jest.fn().mockReturnValue({
                             ilike: jest.fn().mockReturnValue({
-                                is: jest.fn().mockReturnValue({
-                                    limit: jest.fn().mockResolvedValue({
-                                        data: null,
-                                        error: { message: "Query failed" },
-                                    }),
-                                }),
+                                is: jest.fn().mockReturnValue(isChain),
                             }),
                         }),
                     };
@@ -955,6 +1040,34 @@ describe("post-service", () => {
             });
 
             const result = await isProductBlocked("Anything");
+            expect(result.blocked).toBe(false);
+        });
+
+        it("uses global-only filter when jurisdiction RPC errors", async () => {
+            // RPC fails — logs error, but query is unchanged (no .or/.is applied)
+            // Code falls to await query.limit(1) with just .ilike() applied
+            mockResponses["rpc.get_user_jurisdiction"] = {
+                data: null,
+                error: { message: "RPC unavailable" },
+            };
+
+            mockFrom.mockImplementation((table: string) => {
+                if (table === "blocked_products") {
+                    return {
+                        select: jest.fn().mockReturnValue({
+                            ilike: jest.fn().mockReturnValue({
+                                limit: jest.fn().mockResolvedValue({
+                                    data: [],
+                                    error: null,
+                                }),
+                            }),
+                        }),
+                    };
+                }
+                return buildChain(table);
+            });
+
+            const result = await isProductBlocked("Cannabis", "user-uuid-123");
             expect(result.blocked).toBe(false);
         });
     });
@@ -1710,12 +1823,13 @@ describe("post-service", () => {
                     };
                 }
                 if (table === "category_restrictions") {
+                    const isChain: any = {};
+                    isChain.is = jest.fn().mockReturnValue(isChain);
+                    isChain.then = (r: any) =>
+                        Promise.resolve({ data: [], error: null }).then(r);
                     return {
                         select: jest.fn().mockReturnValue({
-                            is: jest.fn().mockResolvedValue({
-                                data: [],
-                                error: null,
-                            }),
+                            is: jest.fn().mockReturnValue(isChain),
                         }),
                     };
                 }

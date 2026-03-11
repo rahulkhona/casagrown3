@@ -85,21 +85,62 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   const userEmail = profile?.email || "user@example.com";
   const countryIso3 = profile?.country_code || "USA";
 
-  // Fetch state minimum threshold
-  const userStateCode = body.stateCode || "DEFAULT";
-  let stateMinimumCents = 0;
+  // Fetch jurisdiction threshold (Maximum value wins)
+  let stateMinimumCents = 500; // Match UI default
 
-  if (countryIso3) {
-    const { data: thresholdData } = await supabase
+  const { data: jurData, error: jurErr } = await supabaseAdmin.rpc(
+    "get_user_jurisdiction",
+    { p_user_id: userId },
+  );
+
+  if (jurErr) {
+    console.error("Jurisdiction fetch failed in refund edge fn:", jurErr);
+  } else if (jurData && jurData.length > 0) {
+    const j = jurData[0];
+    const conditions: string[] = [];
+
+    conditions.push(
+      `and(country_iso_3.is.null,state_id.is.null,county_id.is.null,city_id.is.null)`,
+    );
+    if (j.country_iso_3) {
+      conditions.push(
+        `and(country_iso_3.eq.${j.country_iso_3},state_id.is.null,county_id.is.null,city_id.is.null)`,
+      );
+    }
+    if (j.state_id) {
+      conditions.push(
+        `and(state_id.eq.${j.state_id},county_id.is.null,city_id.is.null)`,
+      );
+    }
+    if (j.county_id) {
+      conditions.push(`and(county_id.eq.${j.county_id},city_id.is.null)`);
+    }
+    if (j.city_id) conditions.push(`city_id.eq.${j.city_id}`);
+
+    const { data: thresholdData } = await supabaseAdmin
       .from("small_balance_refund_thresholds")
       .select("threshold_cents")
-      .eq("country_iso_3", countryIso3)
-      .eq("state_code", userStateCode)
-      .maybeSingle();
-    if (thresholdData) stateMinimumCents = thresholdData.threshold_cents;
-    else stateMinimumCents = 500; // Match UI default
+      .or(conditions.join(","))
+      .order("threshold_cents", { ascending: false })
+      .limit(1);
+
+    if (thresholdData && thresholdData.length > 0) {
+      stateMinimumCents = thresholdData[0].threshold_cents;
+    }
   } else {
-    stateMinimumCents = 500;
+    // Global fallback
+    const { data: thresholdData } = await supabaseAdmin
+      .from("small_balance_refund_thresholds")
+      .select("threshold_cents")
+      .is("country_iso_3", null)
+      .is("state_id", null)
+      .is("county_id", null)
+      .is("city_id", null)
+      .order("threshold_cents", { ascending: false })
+      .limit(1);
+    if (thresholdData && thresholdData.length > 0) {
+      stateMinimumCents = thresholdData[0].threshold_cents;
+    }
   }
 
   const isSmallBalance = refundAmountCents < stateMinimumCents;

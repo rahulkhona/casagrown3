@@ -25,10 +25,10 @@ appId: dev.casagrown.community
 - runFlow:
           when:
                   visible:
-                          id: "order-button"
+                          id: "order-button-Tomatoes-c3333333-3333-3333-3333-333333333333"
           commands:
                   - tapOn:
-                            id: "order-button"
+                            id: "order-button-Tomatoes-c3333333-3333-3333-3333-333333333333"
                   # Wait for order sheet
                   - extendedWaitUntil:
                             visible:

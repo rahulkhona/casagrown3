@@ -42,12 +42,13 @@ jest.mock('../../auth/auth-hook', () => ({
     }),
     from: jest.fn((table: string) => {
       if (table === 'blocked_products') {
-        const mockResult = Promise.resolve({ data: [], error: null })
+        const mockResult = { data: [], error: null }
+        const chainableIs: any = {
+          is: jest.fn(() => chainableIs),
+          then: (resolve: any) => Promise.resolve(mockResult).then(resolve),
+        }
         return {
-          select: jest.fn(() => ({
-            or: jest.fn(() => mockResult),
-            is: jest.fn(() => mockResult),
-          })),
+          select: jest.fn(() => chainableIs),
         }
       }
       // Default fallback

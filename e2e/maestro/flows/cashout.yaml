@@ -31,11 +31,9 @@ appId: dev.casagrown.community
           visible: "Cashout|Donate|Gift Cards"
           timeout: 20000
 
-# Cashout button is in row 2, left column of the tab grid
-# Tamagui Button doesn't reliably respond to testID/text taps via Maestro
-# Use coordinate tap targeting the center of the Cashout button
+# Tap the Cashout tab using testID for reliability across layouts
 - tapOn:
-          point: "25%,30%"
+          id: "redeem-tab-cashout"
 
 # Wait for the text in the active tab explaining Venmo
 - extendedWaitUntil:

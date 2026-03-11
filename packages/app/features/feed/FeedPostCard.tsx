@@ -466,7 +466,7 @@ function FeedPostCardInner({
                 pressStyle={{ backgroundColor: colors.green[700] }}
                 onPress={() => onOrder?.(post.id)}
                 icon={<ShoppingCart size={16} color="white" />}
-                testID="order-button"
+                testID={`order-button-${(post.sell_details?.produce_name || 'item').replace(/\s+/g, '-')}-${post.id}`}
               >
                 <Text fontSize={13} fontWeight="600" color="white">{t('feed.order')}</Text>
               </Button>

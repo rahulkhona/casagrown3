@@ -1135,22 +1135,11 @@ export function ChatScreen({
         },
       })
       if (error) {
-        if (Platform.OS === 'web') {
-          window.alert(error.message || 'Failed to place order')
-        } else {
-          Alert.alert('Order Failed', error.message || 'Failed to place order')
-        }
-        return
+        throw new Error(error.message || 'Failed to place order')
       }
       // Defense-in-depth: check business-level error in response body
       if (result?.error || result?.success === false) {
-        const msg = result.error || 'Something went wrong while placing your order'
-        if (Platform.OS === 'web') {
-          window.alert(msg)
-        } else {
-          Alert.alert('Order Failed', msg)
-        }
-        return
+        throw new Error(result.error || 'Something went wrong while placing your order')
       }
       // Refresh order data & balance
       orderData.refresh()

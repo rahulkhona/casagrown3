@@ -425,3 +425,29 @@ Deno.test("Orders generate notifications for the seller", async () => {
         "Notifications table accessible for seller",
     );
 });
+
+// =============================================================================
+// 8. Jurisdiction Resolution — get_user_jurisdiction RPC
+// =============================================================================
+
+Deno.test("get_user_jurisdiction returns correct hierarchy for seeded buyer", async () => {
+    const { data, error } = await supabaseRpc("get_user_jurisdiction", {
+        p_user_id: BUYER_ID,
+    });
+
+    assertEquals(error, null, "RPC should not error for seeded buyer");
+    assert(Array.isArray(data), "Response should be an array");
+
+    const rows = data as unknown as Record<string, unknown>[];
+    assert(rows.length > 0, "Should return at least one row for seeded buyer");
+
+    const j = rows[0]!;
+
+    // Buyer has zip_code=95120 which maps to San Jose, CA, USA
+    assertExists(j.country_iso_3, "Should have country_iso_3");
+    assertEquals(j.country_iso_3, "USA");
+
+    // state_id, county_id, and city_id may or may not be set depending on
+    // whether the zip_codes/states/counties/cities tables are populated in seed.
+    // The key validation is that the RPC returns a valid row with country_iso_3.
+});

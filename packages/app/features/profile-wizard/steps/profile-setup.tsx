@@ -35,6 +35,7 @@ export const ProfileSetupStep = () => {
   const [locationLoading, setLocationLoading] = useState(false)
   const [communityLoading, setCommunityLoading] = useState(false)
   const [communityError, setCommunityError] = useState('')
+  const [verifyingAddress, setVerifyingAddress] = useState(false)
   const [detectedCommunity, setDetectedCommunity] = useState(data.community || null as null | { h3Index: string; name: string })
   const [communityMapData, setCommunityMapData] = useState<ResolveResponse | null>(null)
 
@@ -42,7 +43,7 @@ export const ProfileSetupStep = () => {
     && streetAddress.trim().length > 0
     && city.trim().length > 0
     && stateCode.length === 2
-    && zipCode.trim().length === 5
+    && zipCode.trim().length >= 5
 
   // Ref to keep updateData stable inside effects
   const updateDataRef = useRef(updateData)
@@ -164,17 +165,44 @@ export const ProfileSetupStep = () => {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [showCamera, setShowCamera] = useState(false)
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (isFormValid) {
-      updateData({
-        name,
-        streetAddress,
-        city,
-        stateCode,
-        zipCode,
-        community: detectedCommunity || undefined,
-      })
-      nextStep()
+      setVerifyingAddress(true)
+      try {
+        const { data: resData, error: reqErr } = await supabase.functions.invoke('resolve-usps-address', {
+          body: {
+            address: streetAddress,
+            city,
+            state: stateCode,
+            zipCode
+          }
+        })
+        
+        if (reqErr) throw reqErr
+        if (resData?.error) throw new Error(resData.error)
+        
+        const uspsData = resData?.address
+        if (!uspsData) throw new Error('Invalid address resolution response')
+        
+        const finalZip = uspsData.ZIPPlus4 ? `${uspsData.ZIPCode}-${uspsData.ZIPPlus4}` : uspsData.ZIPCode
+
+        updateData({
+          name,
+          streetAddress: uspsData.Address2 || streetAddress,
+          city: uspsData.City || city,
+          stateCode: uspsData.State || stateCode,
+          zipCode: finalZip || zipCode,
+          community: detectedCommunity || undefined,
+        })
+        nextStep()
+      } catch (err: any) {
+        Alert.alert(
+          t('profileWizard.setup.addressErrorTitle', 'Address Verification Failed'),
+          err.message || t('profileWizard.setup.addressErrorMessage', 'Please check your address and try again.')
+        )
+      } finally {
+        setVerifyingAddress(false)
+      }
     }
   }
 
@@ -562,11 +590,14 @@ export const ProfileSetupStep = () => {
               backgroundColor={isFormValid ? colors.green[600] : colors.gray[400]}
               height="$5"
               onPress={handleContinue}
-              disabled={!isFormValid}
-              opacity={isFormValid ? 1 : 0.6}
+              disabled={!isFormValid || verifyingAddress}
+              opacity={isFormValid && !verifyingAddress ? 1 : 0.6}
               hoverStyle={{ backgroundColor: isFormValid ? colors.green[700] : colors.gray[400] }}
+              iconAfter={verifyingAddress ? <Spinner color="white" /> : undefined}
             >
-              <Text color="white" fontWeight="600">{t('profileWizard.setup.continue')}</Text>
+              <Text color="white" fontWeight="600">
+                {verifyingAddress ? t('profileWizard.setup.verifying', 'Verifying...') : t('profileWizard.setup.continue')}
+              </Text>
             </Button>
           </XStack>
         </YStack>

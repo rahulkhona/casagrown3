@@ -76,6 +76,8 @@ export interface Order {
     // Tax fields
     tax_rate_pct: number;
     tax_amount: number;
+    tax_rule_type: string | null;
+    tax_is_exempt: boolean;
 }
 
 export interface Offer {

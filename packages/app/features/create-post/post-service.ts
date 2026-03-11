@@ -405,7 +405,7 @@ export function getCategoryIsProduce(categoryName: string): boolean {
 }
 
 export async function getAvailableCategories(
-  communityH3Index?: string,
+  userId?: string,
 ): Promise<string[]> {
   // Fetch all categories from the dynamic table
   const { data: allCategories, error: catError } = await supabase
@@ -428,19 +428,68 @@ export async function getAvailableCategories(
 
   const categoryNames = allCategories.map((c: { name: string }) => c.name);
 
-  // No community = no community-level filtering, but still apply global restrictions
   let restrictionQuery = supabase
     .from("category_restrictions")
     .select("category_name");
 
-  if (communityH3Index) {
-    // Global (NULL community) OR this specific community
-    restrictionQuery = restrictionQuery.or(
-      `community_h3_index.is.null,community_h3_index.eq.${communityH3Index}`,
+  if (userId) {
+    // 1. Get the user's full jurisdiction hierarchy
+    const { data: jurisdictionResponse, error: jError } = await supabase.rpc(
+      "get_user_jurisdiction",
+      { p_user_id: userId },
     );
+
+    if (jError) {
+      console.warn("Error fetching user jurisdiction:", jError);
+    } else if (jurisdictionResponse && jurisdictionResponse.length > 0) {
+      const j = jurisdictionResponse[0];
+
+      // Build an OR clause to match ANY restriction level that applies to this user
+      const conditions: string[] = [];
+
+      // Global Restrictions
+      conditions.push(
+        `and(country_iso_3.is.null,state_id.is.null,county_id.is.null,city_id.is.null)`,
+      );
+
+      // Country Wide Restrictions
+      if (j.country_iso_3) {
+        conditions.push(
+          `and(country_iso_3.eq.${j.country_iso_3},state_id.is.null,county_id.is.null,city_id.is.null)`,
+        );
+      }
+
+      // State Wide Restrictions
+      if (j.state_id) {
+        conditions.push(
+          `and(state_id.eq.${j.state_id},county_id.is.null,city_id.is.null)`,
+        );
+      }
+
+      // County Wide Restrictions
+      if (j.county_id) {
+        conditions.push(`and(county_id.eq.${j.county_id},city_id.is.null)`);
+      }
+
+      // City Wide Restrictions
+      if (j.city_id) {
+        conditions.push(`city_id.eq.${j.city_id}`);
+      }
+
+      restrictionQuery = restrictionQuery.or(conditions.join(","));
+    } else {
+      // Fallback if jurisdiction is missing: apply global restrictions only
+      restrictionQuery = restrictionQuery.is("country_iso_3", null).is(
+        "state_id",
+        null,
+      ).is("county_id", null).is("city_id", null);
+    }
   } else {
-    // Only global restrictions
-    restrictionQuery = restrictionQuery.is("community_h3_index", null);
+    // No user ID = Only global restrictions
+    restrictionQuery = restrictionQuery.is("country_iso_3", null).is(
+      "state_id",
+      null,
+    ).is("county_id", null).is("city_id", null);
   }
 
   const { data: restrictions, error: restError } = await restrictionQuery;
@@ -459,25 +508,57 @@ export async function getAvailableCategories(
   return categoryNames.filter((cat) => !blocked.has(cat));
 }
 
-/**
- * Checks if a product name is blocked (globally or for a specific community).
- * Case-insensitive match against the blocked_products table.
- */
 export async function isProductBlocked(
   productName: string,
-  communityH3Index?: string,
+  userId?: string,
 ): Promise<{ blocked: boolean; reason?: string }> {
   let query = supabase
     .from("blocked_products")
     .select("product_name, reason")
     .ilike("product_name", productName);
 
-  if (communityH3Index) {
-    query = query.or(
-      `community_h3_index.is.null,community_h3_index.eq.${communityH3Index}`,
+  if (userId) {
+    const { data: jurisdictionResponse, error: jError } = await supabase.rpc(
+      "get_user_jurisdiction",
+      { p_user_id: userId },
     );
+
+    if (jError) {
+      console.warn("Error fetching user jurisdiction:", jError);
+    } else if (jurisdictionResponse && jurisdictionResponse.length > 0) {
+      const j = jurisdictionResponse[0];
+      const conditions: string[] = [];
+
+      conditions.push(
+        `and(country_iso_3.is.null,state_id.is.null,county_id.is.null,city_id.is.null)`,
+      );
+      if (j.country_iso_3) {
+        conditions.push(
+          `and(country_iso_3.eq.${j.country_iso_3},state_id.is.null,county_id.is.null,city_id.is.null)`,
+        );
+      }
+      if (j.state_id) {
+        conditions.push(
+          `and(state_id.eq.${j.state_id},county_id.is.null,city_id.is.null)`,
+        );
+      }
+      if (j.county_id) {
+        conditions.push(`and(county_id.eq.${j.county_id},city_id.is.null)`);
+      }
+      if (j.city_id) conditions.push(`city_id.eq.${j.city_id}`);
+
+      query = query.or(conditions.join(","));
+    } else {
+      query = query.is("country_iso_3", null).is("state_id", null).is(
+        "county_id",
+        null,
+      ).is("city_id", null);
+    }
   } else {
-    query = query.is("community_h3_index", null);
+    query = query.is("country_iso_3", null).is("state_id", null).is(
+      "county_id",
+      null,
+    ).is("city_id", null);
   }
 
   const { data, error } = await query.limit(1);

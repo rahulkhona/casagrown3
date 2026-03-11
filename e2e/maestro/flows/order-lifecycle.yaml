@@ -105,12 +105,12 @@ appId: dev.casagrown.community
 # As buyer, the Order button should be visible on seller's posts
 - extendedWaitUntil:
           visible:
-                  id: "order-button"
+                  id: "order-button-Tomatoes-c3333333-3333-3333-3333-333333333333"
           timeout: 10000
 
-# Tap the first Order button
+# Tap the Tomatoes Order button
 - tapOn:
-          id: "order-button"
+          id: "order-button-Tomatoes-c3333333-3333-3333-3333-333333333333"
 
 # Dismiss push notification prompt if shown ("Stay in the Loop!")
 - tapOn:

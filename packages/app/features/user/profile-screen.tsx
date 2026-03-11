@@ -277,9 +277,12 @@ export function ProfileScreen() {
       // Fetch blocked products
       const communityH3 = data.home_community_h3_index || null
       let blockedQuery = supabase.from('blocked_products').select('product_name')
-      const { data: blocked } = communityH3
-        ? await blockedQuery.or(`community_h3_index.is.null,community_h3_index.eq.${communityH3}`)
-        : await blockedQuery.is('community_h3_index', null)
+      // Global blocks have all jurisdiction columns null
+      const { data: blocked } = await blockedQuery
+        .is('country_iso_3', null)
+        .is('state_id', null)
+        .is('county_id', null)
+        .is('city_id', null)
       setBlockedProducts((blocked || []).map(b => b.product_name.toLowerCase()))
       
       // Fetch map data for CommunityMap
@@ -379,6 +382,37 @@ export function ProfileScreen() {
       // Detect phone change → mark unverified
       const phoneChanged = (editData.phone_number || '') !== (originalPhone || '')
       
+      // Resolve address via USPS if changed
+      const addressChanged = 
+        editData.street_address !== profile.street_address ||
+        editData.city !== profile.city ||
+        editData.state_code !== profile.state_code ||
+        editData.zip_code !== profile.zip_code;
+
+      if (addressChanged && editData.street_address && editData.city && editData.state_code && editData.zip_code) {
+        const { data: resData, error: reqErr } = await supabase.functions.invoke('resolve-usps-address', {
+          body: {
+            address: editData.street_address,
+            city: editData.city,
+            state: editData.state_code,
+            zipCode: editData.zip_code
+          }
+        })
+
+        if (reqErr) throw new Error(reqErr.message)
+        if (resData?.error) throw new Error(resData.error)
+
+        const uspsData = resData?.address
+        if (!uspsData) throw new Error('Invalid address resolution response')
+
+        const finalZip = uspsData.ZIPPlus4 ? `${uspsData.ZIPCode}-${uspsData.ZIPPlus4}` : uspsData.ZIPCode
+
+        editData.street_address = uspsData.Address2 || editData.street_address
+        editData.city = uspsData.City || editData.city
+        editData.state_code = uspsData.State || editData.state_code
+        editData.zip_code = finalZip || editData.zip_code
+      }
+      
       const { error } = await supabase
         .from('profiles')
         .update({
@@ -423,8 +457,9 @@ export function ProfileScreen() {
       setIsEditing(false)
       setOtpSent(false)
       setOtpCode('')
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error saving profile:', err)
+      Alert.alert(t('profile.saveError', 'Failed to save profile'), err.message || t('profile.saveErrorMessage', 'An error occurred while saving.'))
     } finally {
       setSaving(false)
     }

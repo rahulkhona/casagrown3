@@ -130,7 +130,7 @@ test.describe("Cashout Flow UI", () => {
     });
 
     test("User successfully cashes out points", async ({ page }) => {
-        // Mock get_active_redemption_providers to include paypal
+        // Mock get_active_redemption_providers to include cashout with paypal instrument
         await page.route(
             "**/rest/v1/rpc/get_active_redemption_providers*",
             async (route) => {
@@ -138,7 +138,14 @@ test.describe("Cashout Flow UI", () => {
                     status: 200,
                     contentType: "application/json",
                     body: JSON.stringify([
-                        { provider: "paypal", is_queuing: false },
+                        {
+                            method: "cashout",
+                            is_active: true,
+                            instruments: [{
+                                instrument: "paypal",
+                                is_active: true,
+                            }],
+                        },
                     ]),
                 });
             },
@@ -169,17 +176,15 @@ test.describe("Cashout Flow UI", () => {
         await page.waitForLoadState("networkidle");
         await page.waitForTimeout(1000); // react processing
 
-        // Verify Cashout Tab is visible and click it
-        const cashoutTab = page.getByText("Cashout", { exact: true });
+        // Verify Cashout Tab is visible and click it (use testID to avoid ambiguity with submit button)
+        const cashoutTab = page.getByTestId("redeem-tab-cashout");
         await expect(cashoutTab).toBeVisible({ timeout: 10000 });
         await cashoutTab.click();
 
         await page.waitForTimeout(500);
 
-        // Click Cashout button inside the tab
-        // The first "Cashout" text is the tab itself. The second is the submit button.
-        const cashoutSubmitBtn = page.getByText("Cashout", { exact: true })
-            .last();
+        // Click Cashout submit button inside the tab (use testID for specificity)
+        const cashoutSubmitBtn = page.getByTestId("cashout-submit-button");
         await cashoutSubmitBtn.click();
 
         // Verify modal opened and input is present

@@ -88,6 +88,7 @@ e2e/maestro/
 │   ├── cashout.yaml
 │   ├── redeem-tabs-visibility.yaml
 │   ├── redemption-block.yaml
+│   ├── jurisdiction-blocks.yaml     # Regulated product order blocking
 │   ├── refund-points.yaml
 │   ├── refund-options.yaml
 │   ├── venmo-refund.yaml
@@ -207,6 +208,13 @@ e2e/playwright/
 │   ├── digital-receipts.spec.ts     # Receipt RPC compliance (FL footer)
 │   ├── compliance-receipts.spec.ts  # Receipt compliance checks
 │   ├── compliance-limits.spec.ts    # Purchase limit enforcement
+│   ├── offers.spec.ts          # Offers screen (seller + buyer perspectives)
+│   ├── compliance-limits.spec.ts    # Purchase limit enforcement
+│   ├── presence.spec.ts        # User presence indicators
+│   ├── generate.spec.ts        # Generate data helpers
+│   ├── feedback-board.spec.ts  # Community Voice feedback board
+│   ├── redemption-tabs.spec.ts      # Redemption tab visibility toggling
+│   ├── redemption-checkout.spec.ts  # Redemption checkout flow
 │   └── wallet-refund.spec.ts  # Wallet refund (disabled via describe.skip)
 └── .auth/
     ├── seller.json            # Seller storage state (auto-generated)
@@ -229,7 +237,7 @@ skip for the buyer project).
 # Start dev server
 yarn workspace next-community dev
 
-# Run all 268 tests (228 pass, 40 skipped)
+# Run all tests (~336 total; ~257 pass, ~61 skipped, ~14 role-gated no-run)
 npx playwright test --config=e2e/playwright/playwright.config.ts
 
 # Run a single file
@@ -256,6 +264,17 @@ npx playwright test --config=e2e/playwright/playwright.config.ts --last-failed
 > `redeem-paypal-payout` edge function tests all fail before reaching the PayPal
 > API call (invalid amount, missing payout ID, insufficient points, or provider
 > disabled).
+
+#### Per-App Playwright Suites
+
+In addition to the main `e2e/playwright/` suite, each web app has its own
+Playwright tests:
+
+- **Community Web** (`apps/next-community/e2e/`): 16 tests covering cashout
+  flow, redemption provider toggling, screenshot regression, and gift card
+  checkout. These mock `get_active_redemption_providers` using the
+  `{ method, is_active, instruments }` format.
+- **Community Voice** (`apps/next-community-voice/e2e/`): Submit/ticket tests.
 
 ## 3. CI/CD Pipeline
 

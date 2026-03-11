@@ -140,7 +140,7 @@ export function OfferSheet({
   useEffect(() => {
     if (!visible || !user?.id) return
     loadCommunityData(user.id)
-    getPlatformFeePercent().then(setPlatformFeePercent).catch(() => {})
+    getPlatformFeePercent(user.id).then((val) => { if (val != null) setPlatformFeePercent(val) }).catch((e) => { console.error(e) })
   }, [visible, user?.id])
 
   async function loadCommunityData(userId: string) {
@@ -311,9 +311,9 @@ export function OfferSheet({
         setQuantity(
           String(
             desiredQuantity &&
-              desiredQuantity <= (post.sell_details.total_quantity_available ?? Infinity)
+              desiredQuantity <= ((post.sell_details as any)?.total_quantity_available ?? Infinity)
               ? desiredQuantity
-              : post.sell_details.total_quantity_available ?? '',
+              : (post.sell_details as any)?.total_quantity_available ?? '',
           ),
         )
         setPrice(String(post.sell_details.points_per_unit ?? ''))
@@ -579,10 +579,10 @@ export function OfferSheet({
                             {p.sell_details.unit ?? 'unit'}
                           </Text>
                         )}
-                        {p.sell_details?.total_quantity_available != null && (
+                        {(p.sell_details as any)?.total_quantity_available != null && (
                           <Text fontSize={12} color={colors.neutral[500]}>
-                            {p.sell_details.total_quantity_available}{' '}
-                            {p.sell_details.unit ?? 'units'} avail
+                            {(p.sell_details as any)?.total_quantity_available}{' '}
+                            {p.sell_details?.unit ?? 'units'} avail
                           </Text>
                         )}
                       </XStack>

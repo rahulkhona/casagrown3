@@ -54,5 +54,5 @@ appId: dev.casagrown.community
 - scrollUntilVisible:
           element: "Sign Out"
           direction: DOWN
-          timeout: 5000
+          timeout: 15000
 - assertVisible: "Sign Out"

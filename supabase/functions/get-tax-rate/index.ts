@@ -86,7 +86,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     }
 
     // ── 3. Check zip_tax_cache ──────────────────────────────────────────
-    const zipOnly = zip_code.replace(/\D/g, "").slice(0, 5);
+    // Use the 9-digit zip if available, fallback to 5-digit for legacy/API
+    const zipOnly = zip_code.replace(/[^0-9-]/g, "");
 
     const { data: cached } = await supabase
         .from("zip_tax_cache")

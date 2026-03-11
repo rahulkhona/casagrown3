@@ -93,6 +93,8 @@ function makeOrder(overrides: Partial<Order> = {}): Order {
     updated_at: '2026-02-16T10:00:00Z',
     tax_rate_pct: 0,
     tax_amount: 0,
+    tax_rule_type: null,
+    tax_is_exempt: false,
     ...overrides,
   }
 }

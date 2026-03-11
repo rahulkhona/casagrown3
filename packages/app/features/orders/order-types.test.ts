@@ -62,6 +62,8 @@ function makeOrder(overrides: Partial<Order> = {}): Order {
         unit: "box",
         tax_rate_pct: 0,
         tax_amount: 0,
+        tax_rule_type: null,
+        tax_is_exempt: false,
         ...overrides,
     };
 }

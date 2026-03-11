@@ -8,6 +8,7 @@ executionOrder:
     - login
     - feed-navigation
     - hamburger-menu
+    - tab-switching
     - buy-points
     - create-post
     - order-flow
@@ -19,6 +20,7 @@ executionOrder:
     - delegation
     - profile-management
     - profile-wizard
+    - push-notification-prompt
     - transaction-history
     - refund-points
     - venmo-refund
@@ -28,3 +30,4 @@ executionOrder:
     - charity
     - redemption-block
     - order-lifecycle
+    - jurisdiction-blocks

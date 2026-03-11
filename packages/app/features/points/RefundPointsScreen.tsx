@@ -334,9 +334,11 @@ export function RefundPointsScreen() {
 
                   {isExpired ? (
                       <XStack gap="$2">
-                          <Button flex={1} size="$4" backgroundColor={venmoActive ? '#008CFF' as any : colors.gray[400]} onPress={() => handleRefundAction(b, 'venmo')} disabled={isProcessing || !venmoActive}>
-                              <XStack alignItems="center" gap="$2"><DollarSign size={16} color="white" /><Text color="white" fontWeight="600">{venmoActive ? 'Venmo' : 'Offline'}</Text></XStack>
-                          </Button>
+                          {isSmallBalance && (
+                            <Button flex={1} size="$4" backgroundColor={venmoActive ? '#008CFF' as any : colors.gray[400]} onPress={() => handleRefundAction(b, 'venmo')} disabled={isProcessing || !venmoActive}>
+                                <XStack alignItems="center" gap="$2"><DollarSign size={16} color="white" /><Text color="white" fontWeight="600">{venmoActive ? 'Venmo' : 'Offline'}</Text></XStack>
+                            </Button>
+                          )}
                           <Button flex={1} size="$4" backgroundColor={giftCardsActive ? colors.green[600] : colors.gray[400]} onPress={() => handleRefundAction(b, 'egift_card')} disabled={isProcessing || !giftCardsActive}>
                               <XStack alignItems="center" gap="$2"><Gift size={16} color="white" /><Text color="white" fontWeight="600">{giftCardsActive ? 'Gift Card' : 'Offline'}</Text></XStack>
                           </Button>

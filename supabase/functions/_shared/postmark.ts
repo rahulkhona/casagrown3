@@ -75,7 +75,8 @@ export async function sendTransactionEmail(
             ...(!isProduction && { debug: { allowUnsecure: true } }),
         });
 
-        const sendOpts: Record<string, unknown> = {
+        // deno-lint-ignore no-explicit-any
+        const sendOpts: any = {
             from: fromEmail,
             to: payload.to,
             subject: payload.subject,

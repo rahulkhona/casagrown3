@@ -132,11 +132,13 @@ export const PersonalizeStep = () => {
       let blockedQuery = supabase
         .from('blocked_products')
         .select('product_name')
-      // Global blocks have null community_h3_index
-      // We want both global and community-specific blocks
-      const { data: blocked } = communityH3
-        ? await blockedQuery.or(`community_h3_index.is.null,community_h3_index.eq.${communityH3}`)
-        : await blockedQuery.is('community_h3_index', null)
+      // Global blocks have all jurisdiction columns null
+      // We want both global and location-specific blocks
+      const { data: blocked } = await blockedQuery
+        .is('country_iso_3', null)
+        .is('state_id', null)
+        .is('county_id', null)
+        .is('city_id', null)
 
       const blockedNames = (blocked || []).map(b => b.product_name.toLowerCase())
       setBlockedProducts(blockedNames)

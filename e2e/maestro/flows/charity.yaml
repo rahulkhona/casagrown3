@@ -3,19 +3,29 @@ appId: dev.casagrown.community
 # Login first
 - runFlow: ../utils/login.yaml
 
-# Wait for feed to load
+# Wait for feed to fully load and auth to settle
 - extendedWaitUntil:
           visible: "Tomatoes|Feed"
           timeout: 15000
 
-# Open Menu via bottom tab
+# Dismiss any error snackbars that may overlay the tab bar
+- tapOn:
+          point: "50%,50%"
+          optional: true
+
+# Open Menu via bottom tab — wait to ensure tab bar is ready
+- extendedWaitUntil:
+          visible:
+                  text: ".*Menu.*"
+          timeout: 10000
 - tapOn:
           text: ".*Menu.*"
 
-# Navigate to Redeem Points
-- extendedWaitUntil:
-          visible: ".*Redeem Points.*"
-          timeout: 5000
+# Navigate to Redeem Points — scroll if needed
+- scrollUntilVisible:
+          element: ".*Redeem Points.*"
+          direction: DOWN
+          timeout: 15000
 - tapOn: ".*Redeem Points.*"
 
 # Wait for Screen and generic tabs

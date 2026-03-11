@@ -68,17 +68,16 @@ jest.mock('../auth/auth-hook', () => ({
         }
       }
       if (table === 'blocked_products') {
+        const blockedResult = {
+          data: [{ product_name: 'Cannabis' }, { product_name: 'Tobacco' }],
+          error: null,
+        }
+        const chainableIs: any = {
+          is: jest.fn(() => chainableIs),
+          then: (resolve: any) => Promise.resolve(blockedResult).then(resolve),
+        }
         return {
-          select: jest.fn(() => ({
-            or: jest.fn(() => Promise.resolve({
-              data: [{ product_name: 'Cannabis' }, { product_name: 'Tobacco' }],
-              error: null,
-            })),
-            is: jest.fn(() => Promise.resolve({
-              data: [{ product_name: 'Cannabis' }, { product_name: 'Tobacco' }],
-              error: null,
-            })),
-          })),
+          select: jest.fn(() => chainableIs),
         }
       }
       if (table === 'posts' || table === 'orders') {
@@ -107,14 +106,31 @@ jest.mock('../auth/auth-hook', () => ({
       error: null,
     })),
     functions: {
-      invoke: jest.fn(() => Promise.resolve({
-        data: {
-          primary: { h3_index: 'abc123', name: 'Willow Glen', city: 'San Jose, CA', location: 'POINT(-121.8863 37.3382)' },
-          neighbors: [],
-          resolved_location: { lat: 37.3382, lng: -121.8863 },
-        },
-        error: null,
-      })),
+      invoke: jest.fn((fnName: string) => {
+        if (fnName === 'resolve-usps-address') {
+          return Promise.resolve({
+            data: {
+              address: {
+                Address2: '456 MAPLE AVE',
+                City: 'SAN JOSE',
+                State: 'CA',
+                ZIPCode: '95125',
+                ZIPPlus4: '1234',
+              },
+            },
+            error: null,
+          })
+        }
+        // Default: resolve-community
+        return Promise.resolve({
+          data: {
+            primary: { h3_index: 'abc123', name: 'Willow Glen', city: 'San Jose, CA', location: 'POINT(-121.8863 37.3382)' },
+            neighbors: [],
+            resolved_location: { lat: 37.3382, lng: -121.8863 },
+          },
+          error: null,
+        })
+      }),
     },
   },
 }))
@@ -542,10 +558,10 @@ describe('ProfileScreen', () => {
       // Verify update was called with new address
       expect(mockUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
-          street_address: '456 Maple Ave',
-          city: 'San Jose',
+          street_address: '456 MAPLE AVE',
+          city: 'SAN JOSE',
           state_code: 'CA',
-          zip_code: '95125',
+          zip_code: '95125-1234',
         })
       )
     })

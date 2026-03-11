@@ -78,17 +78,13 @@ tags:
           text: ".*Type a message.*"
 - inputText: "Hello from Maestro test!"
 
-# Send the message by tapping the send button.
-# First press "back" to dismiss keyboard — on Android, the first back press
-# when the keyboard is visible closes the keyboard (does NOT navigate back).
-# Then tap the send button by testID or coordinate fallback.
-- pressKey: back
+# Send the message by tapping the send button while keyboard is up.
+# The send button is only visible when the input is focused.
 - tapOn:
           id: "chat_send_button"
-          optional: true
-- tapOn:
-          point: "93%,92%"
-          optional: true
+
+# Dismiss keyboard so sent messages are visible
+- hideKeyboard
 
 # Wait for the message to appear in seller's chat view
 - extendedWaitUntil:

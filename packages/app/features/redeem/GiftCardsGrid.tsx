@@ -88,7 +88,7 @@ export function GiftCard({ card, onSelect, canAfford, index }: { card: GiftCardP
   const lighterHex = hex + '99'
 
   // Affordability check
-  const minPointsNeeded = card.minDenomination * POINTS_PER_DOLLAR
+  const minPointsNeeded = (card.minDenomination ?? 0) * POINTS_PER_DOLLAR
   const pointsShort = minPointsNeeded - (canAfford ? minPointsNeeded : 0) // Only show if not affordable
 
   const inner = (
@@ -147,8 +147,8 @@ export function GiftCard({ card, onSelect, canAfford, index }: { card: GiftCardP
           </Text>
           <Text fontSize={11} color="rgba(255,255,255,0.9)">
             {card.denominationType === 'range' 
-               ? `$${card.minDenomination}–$${card.maxDenomination}` 
-               : `From $${card.minDenomination}`}
+               ? `$${card.minDenomination ?? 0}–$${card.maxDenomination ?? 0}` 
+               : `From $${card.minDenomination ?? 0}`}
           </Text>
         </YStack>
       </YStack>
@@ -163,7 +163,7 @@ export function GiftCard({ card, onSelect, canAfford, index }: { card: GiftCardP
           zIndex={2}
         >
           <Text fontSize="$2" fontWeight="700" color={colors.gray[600]} textAlign="center">
-            Need {pointsShort.toLocaleString()} more pts
+            Need {(pointsShort || 0).toLocaleString()} more pts
           </Text>
         </YStack>
       )}
@@ -177,35 +177,37 @@ export function GiftCard({ card, onSelect, canAfford, index }: { card: GiftCardP
         style={{
           cursor: canAfford ? 'pointer' : 'not-allowed',
           transition: 'all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-          opacity: canAfford ? 1 : 0.6,
-          boxShadow: shadows.sm,
-          borderRadius: 16,
-        }}
-        onMouseEnter={(e) => {
-          if (canAfford) e.currentTarget.style.transform = 'translateY(-4px) scale(1.02)'
-        }}
-        onMouseLeave={(e) => {
-          if (canAfford) e.currentTarget.style.transform = 'translateY(0) scale(1)'
-        }}
-        aria-label={`Select ${card.brandName} gift card`}
-        data-testid={`giftcard-item-${index ?? 0}`}
-      >
-        {inner}
-      </div>
-    )
-  }
-
-  // Native pressable
-  return (
-    <Button
-       unstyled
-       onPress={() => { if (canAfford) onSelect(card) }}
-       pressStyle={{ scale: canAfford ? 0.96 : 1, opacity: 0.8 }}
-       animation="quick"
-       opacity={canAfford ? 1 : 0.6}
-       testID={`giftcard-item-${index ?? 0}`}
-       shadowColor="#000" shadowOffset={{ width: 0, height: 2 }} shadowOpacity={0.1} shadowRadius={4} elevation={2}
+        opacity: canAfford ? 1 : 0.6,
+        // @ts-ignore
+        boxShadow: shadows.sm,
+        borderRadius: 16,
+      }}
+      onMouseEnter={(e) => {
+        if (canAfford) e.currentTarget.style.transform = 'translateY(-4px) scale(1.02)'
+      }}
+      onMouseLeave={(e) => {
+        if (canAfford) e.currentTarget.style.transform = 'translateY(0) scale(1)'
+      }}
+      aria-label={`Select ${card.brandName} gift card`}
+      data-testid={`giftcard-item-${index ?? 0}`}
     >
+      {inner}
+    </div>
+  )
+}
+
+// Native pressable
+return (
+  <Button
+     unstyled
+     onPress={() => { if (canAfford) onSelect(card) }}
+     pressStyle={{ scale: canAfford ? 0.96 : 1, opacity: 0.8 }}
+     // @ts-ignore
+     animation="quick"
+     opacity={canAfford ? 1 : 0.6}
+     testID={`giftcard-item-${index ?? 0}`}
+     shadowColor="#000" shadowOffset={{ width: 0, height: 2 }} shadowOpacity={0.1} shadowRadius={4} elevation={2}
+  >
       {inner}
     </Button>
   )
