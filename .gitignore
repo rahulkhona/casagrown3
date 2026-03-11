@@ -73,3 +73,4 @@ figma_code/
 # Test output artifacts
 test-results/
 playwright-report/
+window_dump.xml
