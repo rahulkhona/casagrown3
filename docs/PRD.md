@@ -1,9 +1,10 @@
 # CasaGrown — Product Requirements Document (PRD)
 
-**Version**: 1.3\
-**Last Updated**: March 3, 2026\
+**Version**: 1.4\
+**Last Updated**: March 12, 2026\
 **Platform**: Cross-platform (iOS, Android, Web)\
-**Tech Stack**: React Native (Expo) + Tamagui + Supabase + Next.js Admin
+**Tech Stack**: React Native (Expo) + Tamagui + Supabase + Next.js Admin +
+Next.js Community Voice
 
 ---
 
@@ -709,15 +710,18 @@ Full order lifecycle details documented in
 ```
 casagrown3/
 ├── apps/
-│   ├── expo-community/     # Main Expo app (iOS, Android, Web)
-│   └── next-admin/         # Admin dashboard (Next.js)
+│   ├── expo-community/         # Main Expo app (iOS, Android, Web)
+│   ├── next-admin/             # Admin dashboard (Next.js, port 3003)
+│   └── next-community-voice/   # Community Voice feedback (Next.js, port 3002)
 ├── packages/
-│   └── app/                # Shared app code (features, utils, design tokens)
+│   └── app/                    # Shared app code (features, utils, design tokens)
 ├── supabase/
-│   ├── migrations/         # 131 database migrations
-│   ├── functions/          # 24 Edge Functions
-│   └── seed.sql            # Development seed data
-└── docs/                   # Documentation
+│   ├── migrations/             # 134 database migrations
+│   ├── functions/              # 24 Edge Functions
+│   └── seed.sql                # Development seed data
+├── e2e/
+│   └── playwright/             # Cross-app Playwright E2E tests
+└── docs/                       # Documentation
 ```
 
 ### 4.2 Backend (Supabase)
@@ -787,11 +791,12 @@ Comprehensive RLS policies on all tables ensuring:
 
 | Layer              | Suites/Flows |   Tests | Status                  |
 | :----------------- | -----------: | ------: | :---------------------- |
-| **Jest (Unit)**    |           37 |     549 | ✅ All pass             |
+| **Jest (Unit)**    |           52 |     798 | ✅ All pass             |
 | **Playwright E2E** |           14 |     268 | ✅ 228 pass, 40 skipped |
+| **Admin E2E**      |            6 |      32 | ✅ All pass             |
 | **Maestro E2E**    |           22 |      22 | ✅ All pass             |
 | **Deno (Edge)**    |            8 |      30 | ✅ All pass             |
-| **Total**          |       **81** | **869** | ✅ All pass             |
+| **Total**          |      **102** | **1150**| ✅ All pass             |
 
 > [!NOTE]
 > Playwright skipped tests include 6 disabled Venmo payout tests and 26
@@ -1045,21 +1050,47 @@ Public marketing page for unauthenticated visitors:
 
 ---
 
-### 7.11 Admin Dashboard
+### 7.11 ~~Admin Dashboard~~ → Implemented ✅
 
-**Figma**: `admin/` directory (6 components)\
-**Status**: Next.js admin app exists at `apps/next-admin/`, but Figma-designed
-admin features are not yet ported.\
-**DB**: All supporting tables exist
+> [!NOTE]
+> The Admin Portal is **fully implemented** as a standalone Next.js app at
+> `apps/next-admin/` (port 3003). See
+> [admin_portal_design.md](admin_portal_design.md) for complete documentation.
 
-| Admin Screen               | Purpose                                                     |
-| :------------------------- | :---------------------------------------------------------- |
-| **Dashboard**              | Overview stats (users, posts, transactions, revenue)        |
-| **Flagged Posts**          | Review and moderate flagged content (remove, dismiss, warn) |
-| **Category Deny List**     | Enable/disable sales categories per geographic scope        |
-| **Platform Fees**          | Configure platform fee percentage                           |
-| **Redemption Store Admin** | Manage redemption catalog (add/edit/deactivate items)       |
-| **Rewards Config**         | Configure incentive point values per action                 |
+**10 pages** covering full CRUD for:
+
+| Admin Page | Purpose |
+| :--------- | :------ |
+| Campaigns | Incentive campaign management with zone targeting |
+| Tax Rules | State-level sales tax rule management (retire-and-replace pattern) |
+| Post Policies | Configurable expiration days per post type |
+| Platform Settings | Grace period + fee ledger management |
+| Redemption Methods | Toggle active/queue status per instrument |
+| Category Restrictions | Category blocks by jurisdiction |
+| Product Restrictions | Product-level blocks |
+| Sales Categories | Dynamic category management |
+| Staff & Roles | Admin user management |
+
+**Testing**: 32 Playwright E2E tests + 10 Jest unit tests (zone coverage). See
+`e2e/playwright/admin-playwright.config.ts`.
+
+### 7.11b Community Voice → Implemented ✅
+
+> [!NOTE]
+> Community Voice is **fully implemented** as a standalone Next.js app at
+> `apps/next-community-voice/` (port 3002). See
+> [community_voice_design.md](community_voice_design.md) for complete
+> documentation.
+
+Public feedback platform with:
+
+- **Submit feedback**: Bug reports and feature requests with media uploads
+- **Browse board**: Public listing with voting, filtering, and search
+- **Ticket detail**: Discussion threads and status tracking
+- **Staff dashboard**: Triage, manage, and report on feedback
+- **Content moderation**: Flagging and review workflow
+
+**Testing**: 4 Playwright E2E spec files + Vitest unit tests for the service layer.
 
 ---
 

@@ -274,7 +274,65 @@ Playwright tests:
   flow, redemption provider toggling, screenshot regression, and gift card
   checkout. These mock `get_active_redemption_providers` using the
   `{ method, is_active, instruments }` format.
-- **Community Voice** (`apps/next-community-voice/e2e/`): Submit/ticket tests.
+- **Community Voice** (`apps/next-community-voice/e2e/`): 4 spec files covering
+  submission form, feedback board browsing, ticket detail, and content flagging.
+
+### 2.5 Admin Portal E2E Tests (Playwright)
+
+**Scope**: `e2e/playwright/tests/admin-*.spec.ts`\
+**Config**: `e2e/playwright/admin-playwright.config.ts` (port 3003)\
+**Tools**: [Playwright](https://playwright.dev/)
+
+These tests run against the Next.js admin app (`localhost:3003`) using
+service-role database access for assertions.
+
+#### Directory Structure
+
+```
+e2e/playwright/
+├── admin-playwright.config.ts   # Admin-specific config (port 3003)
+├── helpers/
+│   └── supabase-db.ts           # DB helpers: dbQuery, dbUpdate, dbDelete
+└── tests/
+    ├── admin.setup.ts           # Auth setup (admin login)
+    ├── admin-campaigns.spec.ts  # 7 tests: CRUD, toggle, expand, cancel
+    ├── admin-methods.spec.ts    # 9 tests: cards, providers, all toggles
+    ├── admin-platform-settings.spec.ts  # 4 tests: render, grace, fees
+    ├── admin-post-policies.spec.ts      # 6 tests: edit, save, dirty
+    └── admin-tax-rules.spec.ts  # 5 tests: create, exempt, delete, edit
+```
+
+#### Test Helpers
+
+The `supabase-db.ts` module provides direct database access using the Supabase
+service role key for reliable test assertions:
+
+- `dbQuery(table, filter)` — SELECT with optional filter
+- `dbUpdate(table, filter, data)` — UPDATE matching rows
+- `dbDelete(table, filter)` — DELETE matching rows
+
+#### To Run
+
+```bash
+# Start admin dev server (port 3003)
+cd apps/next-admin && yarn dev
+
+# Run all admin tests (32 tests, ~2 minutes)
+npx playwright test --config=e2e/playwright/admin-playwright.config.ts
+
+# Run a single spec
+npx playwright test --config=e2e/playwright/admin-playwright.config.ts admin-campaigns.spec.ts
+```
+
+### 2.6 Admin Unit Tests (Jest)
+
+**Scope**: `packages/app/features/admin/components/zone-coverage.test.ts`\
+**Tests**: 10
+
+Validates h3-js `polygonToCells` coordinate order, containment modes, GeoJSON
+Polygon/MultiPolygon handling, additive zone merging, determinism, and ZIP-code
+area sanity checks. These tests ensure the `AdminMapWidget` zone generation
+logic is correct.
 
 ## 3. CI/CD Pipeline
 
