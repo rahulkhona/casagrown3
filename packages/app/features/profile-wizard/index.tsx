@@ -2,6 +2,7 @@ import { YStack, XStack, Progress, Text, Spinner } from 'tamagui'
 import { WizardProvider, useWizard } from './wizard-context'
 import { ProfileSetupStep } from './steps/profile-setup'
 import { PersonalizeStep } from './steps/personalize-step'
+import { WelcomeStep } from './steps/welcome-step'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors } from '../../design-tokens'
 import { useTranslation } from 'react-i18next'
@@ -23,22 +24,28 @@ const WizardSteps = () => {
   const steps = [
     <ProfileSetupStep key="account" />,
     <PersonalizeStep key="personalize" />,
+    <WelcomeStep key="welcome" />,
   ]
+
+  // Step 2 (welcome) is post-wizard — hide progress bar
+  const showProgressBar = step < 2
 
   return (
     <YStack flex={1} backgroundColor={colors.green[50]}>
       <SafeAreaView style={{ flex: 1 }}>
-        {/* Progress Header */}
-        <YStack paddingHorizontal="$4" paddingVertical="$4" gap="$2" maxWidth={600} width="100%" alignSelf="center">
-          <XStack justifyContent="space-between">
-            <Text color={colors.gray[500]} fontSize="$3">
-              {t('profileWizard.stepOf', { current: step + 1, total: 2 })}
-            </Text>
-          </XStack>
-          <Progress value={((step + 1) / 2) * 100} size="$1" backgroundColor={colors.gray[200]}>
-            <Progress.Indicator backgroundColor={colors.green[600]} />
-          </Progress>
-        </YStack>
+        {/* Progress Header — only for steps 0 and 1 */}
+        {showProgressBar && (
+          <YStack paddingHorizontal="$4" paddingVertical="$4" gap="$2" maxWidth={600} width="100%" alignSelf="center">
+            <XStack justifyContent="space-between">
+              <Text color={colors.gray[500]} fontSize="$3">
+                {t('profileWizard.stepOf', { current: step + 1, total: 2 })}
+              </Text>
+            </XStack>
+            <Progress value={((step + 1) / 2) * 100} size="$1" backgroundColor={colors.gray[200]}>
+              <Progress.Indicator backgroundColor={colors.green[600]} />
+            </Progress>
+          </YStack>
+        )}
 
         {/* Step Content */}
         <YStack flex={1}>
@@ -56,3 +63,4 @@ export const ProfileWizardScreen = () => {
     </WizardProvider>
   )
 }
+

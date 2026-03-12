@@ -12,10 +12,11 @@ appId: dev.casagrown.community
 - tapOn:
           text: ".*Menu.*"
 
-# Navigate to Redeem Points
-- extendedWaitUntil:
-          visible: ".*Redeem Points.*"
-          timeout: 5000
+# Navigate to Redeem Points (may need scroll on smaller screens)
+- scrollUntilVisible:
+          element: ".*Redeem Points.*"
+          direction: DOWN
+          timeout: 10000
 - tapOn: ".*Redeem Points.*"
 
 # Wait for Screen and generic tabs

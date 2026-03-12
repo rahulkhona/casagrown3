@@ -777,8 +777,9 @@ export function SellForm({ onBack, onSuccess, editId, cloneData }: SellFormProps
           </YStack>
         ) : (
           <XStack alignItems="center" gap="$2" padding="$3">
-            <Spinner size="small" color={colors.primary[600]} />
-            <Text color={colors.neutral[500]}>{t('createPost.loading.communityData')}</Text>
+            <Text color={colors.neutral[500]} fontSize="$3">
+              {t('createPost.error.noCommunity', { defaultValue: 'Could not load your community. Please try again.' })}
+            </Text>
           </XStack>
         )}
       </YStack>

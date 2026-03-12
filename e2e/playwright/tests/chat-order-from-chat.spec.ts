@@ -18,11 +18,17 @@ import { expect, test } from "@playwright/test";
 test.describe("Order from Chat Flow", () => {
     test.beforeEach(async ({ page }) => {
         await page.goto("/feed");
-        // Wait for the Peppers post (buyer's sell post) to be visible
-        await page.locator("text=Peppers").first().waitFor({ timeout: 15_000 });
-        // Scroll Peppers into view
-        await page.locator("text=Peppers").first().scrollIntoViewIfNeeded();
-        await page.waitForTimeout(1000);
+        // Wait for feed to load
+        await page.locator("text=Tomatoes").or(
+            page.locator("text=No posts found"),
+        ).first().waitFor({ timeout: 15_000 });
+        // Scroll down to find a sell post from another user (with Order button)
+        for (let i = 0; i < 5; i++) {
+            const orderBtn = page.getByText("Order", { exact: true }).first();
+            if (await orderBtn.isVisible().catch(() => false)) break;
+            await page.mouse.wheel(0, 500);
+            await page.waitForTimeout(1000);
+        }
     });
 
     test("full flow: feed → click Order → order form appears", async ({ page }) => {

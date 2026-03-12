@@ -5,7 +5,7 @@ import { useFonts } from 'expo-font'
 import { SplashScreen, Stack, useRouter, useSegments } from 'expo-router'
 import { Provider } from '@casagrown/app/provider'
 import { useOTAUpdates } from '@casagrown/app/hooks/useOTAUpdates'
-import { useAuth } from '@casagrown/app/features/auth/auth-hook'
+import { useAuth, AuthProvider } from '@casagrown/app/features/auth/auth-hook'
 
 export const unstable_settings = {
   // Start at index.tsx which acts as auth guard and redirects appropriately
@@ -81,11 +81,13 @@ function RootLayoutNav() {
   const colorScheme = useColorScheme()
 
   return (
-    <Provider>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <AuthGuardedStack />
-      </ThemeProvider>
-    </Provider>
+    <AuthProvider>
+      <Provider>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          <AuthGuardedStack />
+        </ThemeProvider>
+      </Provider>
+    </AuthProvider>
   )
 }
 

@@ -171,7 +171,7 @@ export const ProfileSetupStep = () => {
       try {
         const { data: resData, error: reqErr } = await supabase.functions.invoke('resolve-usps-address', {
           body: {
-            address: streetAddress,
+            streetAddress: streetAddress,
             city,
             state: stateCode,
             zipCode

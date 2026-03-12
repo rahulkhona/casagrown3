@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { NextTamaguiProvider } from '@casagrown/app/provider/NextTamaguiProvider'
+import { AuthProvider } from '@casagrown/app/features/auth/auth-hook'
 
 export const metadata: Metadata = {
   title: 'CasaGrown Admin',
@@ -15,7 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       suppressHydrationWarning
     >
       <body suppressHydrationWarning>
-        <NextTamaguiProvider>{children}</NextTamaguiProvider>
+        <AuthProvider><NextTamaguiProvider>{children}</NextTamaguiProvider></AuthProvider>
       </body>
     </html>
   )

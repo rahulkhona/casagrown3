@@ -9,17 +9,15 @@ function CreatePostContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  // Parse initialType from query params (used by Edit and Clone from My Posts)
+  // Parse initialType from query params (used by Edit, Clone, and Welcome page prompts)
   const editId = searchParams.get('editId')
   const cloneDataRaw = searchParams.get('cloneData')
+  const typeParam = searchParams.get('type')
   let initialType: PostTypeKey | undefined
 
-  if (editId) {
-    // editId carries the post type as query param
-    const typeParam = searchParams.get('type')
-    if (typeParam) {
-      initialType = typeParam as PostTypeKey
-    }
+  if (typeParam) {
+    // Direct type param — used by welcome page prompts and edit flows
+    initialType = typeParam as PostTypeKey
   } else if (cloneDataRaw) {
     try {
       const parsed = JSON.parse(decodeURIComponent(cloneDataRaw))

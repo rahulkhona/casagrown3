@@ -351,7 +351,6 @@ export function AppHeader({ activeKey = 'feed' }: { activeKey?: string }) {
             shadowRadius={12}
             shadowOffset={{ width: 0, height: 4 }}
             elevation={8}
-            overflow="hidden"
           >
             {Platform.OS === 'web' ? (
               <>
@@ -428,26 +427,6 @@ export function AppHeader({ activeKey = 'feed' }: { activeKey?: string }) {
                   }} />
               </YStack>
             </YStack>
-              </div>
-              {/* Sticky scroll hint at the bottom */}
-              <div style={{
-                position: 'absolute',
-                bottom: 0,
-                left: 0,
-                right: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-                padding: '10px 0',
-                background: `linear-gradient(to bottom, transparent 0%, ${colors.gray[200]} 50%)`,
-                borderRadius: '0 0 16px 16px',
-                pointerEvents: 'none',
-              }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: colors.gray[600], letterSpacing: 0.5 }}>
-                  SCROLL FOR MORE
-                </span>
-                <span style={{ fontSize: 12, color: colors.gray[600] }}>▼</span>
               </div>
               </>
             ) : (

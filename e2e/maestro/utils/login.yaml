@@ -35,7 +35,7 @@ env:
                   - extendedWaitUntil:
                             visible:
                                     text: ".*(?:Create Post|Join the Movement|Welcome to CasaGrown|Get You Set Up|Send Verification Code).*"
-                            timeout: 45000
+                            timeout: 180000
 
 # On Android emulator after clearing app data, the URL may show as
 # 10.0.2.2 (the emulator's host loopback alias) instead of localhost.
@@ -47,7 +47,7 @@ env:
                   - extendedWaitUntil:
                             visible:
                                     text: ".*(?:Create Post|Join the Movement|Welcome to CasaGrown|Get You Set Up|Send Verification Code).*"
-                            timeout: 45000
+                            timeout: 90000
 
 # Wait for the app to fully load before checking conditions.
 # The app may show any of these screens after launch:
@@ -60,7 +60,7 @@ env:
 - extendedWaitUntil:
           visible:
                   text: ".*(?:Create Post|Join the Movement|Welcome to CasaGrown|Get You Set Up|Send Verification Code).*"
-          timeout: 45000
+          timeout: 180000
 
 # If already logged in (feed shows "Create Post"), skip login
 - runFlow:

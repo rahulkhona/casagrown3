@@ -229,6 +229,70 @@ pooling, limited shared middleware, and vendor lock-in to Deno runtime.
 
 ---
 
+## Authentication Architecture
+
+### Shared Auth State via React Context
+
+All apps use an `AuthProvider` (React Context) that wraps the component tree
+once in each app's root layout. Every `useAuth()` consumer shares the **same
+state instance** — session, user, loading, and ToS acceptance status propagate to
+all consumers simultaneously.
+
+```text
+Layout
+  └─ AuthProvider          ← single source of truth
+       └─ AuthGuard        ← reads shared context
+            └─ App routes  ← useAuth() reads shared context
+```
+
+**Key files**:
+
+- `packages/app/features/auth/auth-hook.ts` — defines `AuthProvider`,
+  `AuthContext`, and `useAuth()` (now `useContext(AuthContext)`)
+- Layout files wrapping `<AuthProvider>`:
+  - `apps/expo-community/app/_layout.tsx`
+  - `apps/next-community/app/layout.tsx`
+  - `apps/next-admin/app/layout.tsx`
+  - `apps/next-community-voice/app/layout.tsx`
+
+**`refreshTosStatus()`**: After ToS acceptance in the database, calling
+`refreshTosStatus()` re-reads `tos_accepted_at` from DB and updates the shared
+context — all guards and UI components see the update immediately.
+
+### Why Context Over Per-Component State
+
+The previous pattern (`useState` in each `useAuth()` call) caused state
+desynchronization: `markTosAccepted()` updated only the calling component's
+state, while `AuthGuard` (a separate consumer) still saw `tosAccepted: false`,
+triggering unwanted sign-outs.
+
+---
+
+## Feed Query Architecture
+
+### Server-Side Feed Filtering (`get_filtered_feed` RPC)
+
+The community feed uses a server-side Postgres RPC instead of direct
+`.from('posts')` queries. This moves compliance, ghosting, and expiration logic
+to the database layer for performance and consistency.
+
+```text
+feed-service.ts
+  └─ supabase.rpc('get_filtered_feed', { p_community_h3, p_viewer_id })
+       ├─ Expiration filter (expires_at > now(), index-backed)
+       ├─ Ghosted user exclusion (own posts still visible)
+       ├─ Blocked category exclusion (global scope)
+       └─ Blocked product exclusion (global scope)
+  └─ Hydration: fetch sell/buy details, media, interaction counts
+```
+
+**Why RPC instead of client-side filtering**: Filtering must be applied before
+pagination. Client-side filtering would leak hidden content and produce
+inconsistent page sizes. The `SECURITY DEFINER` function also enables
+cross-table joins (profiles, restrictions) that RLS alone cannot express.
+
+---
+
 ## ACID Transaction Patterns
 
 Edge functions that interact with external provider APIs (Stripe, PayPal,

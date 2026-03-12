@@ -1,13 +1,17 @@
 # Jurisdiction Blocks Flow — Maestro E2E test
-# Verifies: OrderSheet displays Error Banner when product is blocked.
+# Verifies: Globally blocked products are FILTERED from the feed.
+# The get_filtered_feed RPC excludes posts whose produce_name matches
+# a globally blocked entry in blocked_products (all jurisdiction columns NULL).
+# The create_order_atomic function provides a backup check at order time.
+#
 # Requires: Tobacco post + blocked_products entry in seed.sql.
-# Must login as BUYER since sellers can't order their own products.
+# Must login as BUYER since sellers see their own posts regardless.
 
 appId: dev.casagrown.community
 
 ---
 
-# First login (ensures app is running and on a known screen)
+# First login as seller (ensures app is running and on a known screen)
 - runFlow: ../utils/login.yaml
 
 # Sign out current user (seller) so we can login as buyer
@@ -47,77 +51,37 @@ appId: dev.casagrown.community
           text: "Not now"
           optional: true
 
-# Navigate to the Tobacco post and open order sheet
+# ── Verify blocked product is NOT in feed ──
+# The Tobacco post exists in the database but should be filtered out
+# by get_filtered_feed RPC because it's globally blocked.
+# First scroll through the feed to ensure it's fully loaded,
+# then assert Tobacco is not visible.
+
+# Scroll through the feed to make sure all posts are loaded
 - scrollUntilVisible:
-          element: "Tobacco"
+          element: "Tomatoes"
           direction: DOWN
           timeout: 15000
-- tapOn: ".*Tobacco.*"
 
-# Wait for Tobacco Order button — unique testID per post
-- extendedWaitUntil:
-          visible:
-                  id: "order-button-Tobacco-c9999999-9999-9999-9999-999999999999"
-          timeout: 10000
-- tapOn:
-          id: "order-button-Tobacco-c9999999-9999-9999-9999-999999999999"
+# Assert Tobacco is NOT visible in the feed
+# (get_filtered_feed filters globally blocked products)
+- assertNotVisible:
+          text: ".*Tobacco.*"
 
-# Dismiss notifications prompt if it appears
-- tapOn:
-          text: "Not now"
-          optional: true
+# Scroll down more to double-check Tobacco doesn't appear further
+- swipe:
+          direction: UP
+          duration: 400
+- swipe:
+          direction: UP
+          duration: 400
+- swipe:
+          direction: UP
+          duration: 400
 
-# ─── Fill in order form ───
-# 1. Enter quantity
-- extendedWaitUntil:
-          visible: "Enter quantity"
-          timeout: 10000
-- tapOn: "Enter quantity"
-- eraseText: 5
-- inputText: "1"
-
-# 2. Address — type manually (Use My Location fails on emulator — no GPS)
-- hideKeyboard
-- tapOn: ".*(?:Drop-off Address|Enter your|address).*"
-- inputText: "123 Main St, San Jose, CA 95120"
-- hideKeyboard
-
-# Wait for date button to appear after keyboard dismissal
-- extendedWaitUntil:
-          visible:
-                  id: "select-date-button"
-          timeout: 10000
-
-# 3. Select date — CalendarPicker auto-closes after picking a day
-- tapOn:
-          id: "select-date-button"
-- extendedWaitUntil:
-          visible: ".*(?:March|April|May|June|2026).*"
-          timeout: 10000
-- tapOn: "15"
-
-# Wait for the calendar to close and the date to be set
-# (CalendarPicker calls setCalendarOpen(false) automatically)
-- extendedWaitUntil:
-          visible:
-                  id: "select-date-button"
-          timeout: 5000
-
-# 4. Scroll to find the submit button and tap it
-- scrollUntilVisible:
-          element:
-                  id: "submit-order-button"
-          direction: DOWN
-          timeout: 10000
-- tapOn:
-          id: "submit-order-button"
-
-# Verify Error Banner — product is blocked in buyer's jurisdiction
-# The edge function returns the blocked_products.reason ("Regulated product")
-# which is displayed in the OrderSheet's error banner
-- extendedWaitUntil:
-          visible: ".*(?:Regulated product|PRODUCT_RESTRICTED|restricted|failed|Action Failed).*"
-          timeout: 15000
+# Final assertion: Tobacco must still not be visible after scrolling
+- assertNotVisible:
+          text: ".*Tobacco.*"
 
 # Clean up — stop app and re-login as seller for subsequent tests
 - stopApp:

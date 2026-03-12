@@ -85,7 +85,9 @@ export function PostFormShell({
         keyboardShouldPersistTaps="handled"
       >
         <YStack gap="$5" maxWidth={600} alignSelf="center" width="100%">
-          {children}
+          {React.Children.toArray(children).filter(
+            (child) => typeof child !== 'string' && typeof child !== 'number',
+          )}
 
           {/* Error banner */}
           {formError ? (

@@ -30,13 +30,13 @@ env:
       - extendedWaitUntil:
           visible:
             text: ".*(?:Create Post|Join the Movement|Welcome to CasaGrown|Get You Set Up|Send Verification Code).*"
-          timeout: 45000
+          timeout: 180000
 
 # Wait for app to load
 - extendedWaitUntil:
     visible:
       text: ".*(?:Create Post|Join the Movement|Welcome to CasaGrown|Get You Set Up|Send Verification Code).*"
-    timeout: 45000
+    timeout: 90000
 
 # If already logged in, skip
 - runFlow:

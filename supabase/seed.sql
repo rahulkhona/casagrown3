@@ -68,7 +68,10 @@ INSERT INTO public.campaign_rewards (campaign_id, behavior, points) VALUES
 -- insert into public.category_restrictions (category_name, country_iso_3, state_id, county_id, city_id, reason)
 -- values ('herbs', NULL, NULL, NULL, NULL, 'Controlled substance regulations');
 
--- Globally blocked products (cannot be added as custom garden items)
+-- Blocked products (globally or by jurisdiction)
+-- Global blocks (all jurisdiction columns NULL) are also filtered from the feed
+-- by get_filtered_feed RPC. The create_order_atomic function provides a backup
+-- check at order time for defense-in-depth.
 insert into public.blocked_products (product_name, country_iso_3, state_id, county_id, city_id, reason) values
   ('Marijuana', NULL, NULL, NULL, NULL, 'Controlled substance - federally prohibited'),
   ('Cannabis', NULL, NULL, NULL, NULL, 'Controlled substance - federally prohibited'),

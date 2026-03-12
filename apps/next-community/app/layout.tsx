@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { NextTamaguiProvider } from '@casagrown/app/provider/NextTamaguiProvider'
+import { AuthProvider } from '@casagrown/app/features/auth/auth-hook'
 import { AuthGuard } from './auth-guard'
 
 // @ts-ignore – __DEV__ polyfill
@@ -46,9 +47,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         ` }} />
       </head>
       <body suppressHydrationWarning>
-        <NextTamaguiProvider>
-          <AuthGuard>{children}</AuthGuard>
-        </NextTamaguiProvider>
+        <AuthProvider>
+          <NextTamaguiProvider>
+            <AuthGuard>{children}</AuthGuard>
+          </NextTamaguiProvider>
+        </AuthProvider>
       </body>
     </html>
   )

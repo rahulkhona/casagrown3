@@ -72,13 +72,7 @@ test.describe("Hamburger Menu", () => {
         await expect(page.getByText("My Posts")).toBeVisible();
     });
 
-    test("scroll indicator is visible in menu", async ({ page }) => {
-        await openMenu(page);
-
-        await expect(page.getByText("SCROLL FOR MORE")).toBeVisible({
-            timeout: 5000,
-        });
-    });
+    // "SCROLL FOR MORE" text was removed from the app — this test is no longer needed
 
     test("Support & Legal section is present", async ({ page }) => {
         await openMenu(page);

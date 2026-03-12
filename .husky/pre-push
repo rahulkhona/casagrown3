@@ -241,9 +241,19 @@ else
     wait_for_port 3000 "Community Web" 90
 fi
 
-echo "🎭 [4/5] Community Web Playwright E2E tests..."
+# --- Start Admin dev server (port 3003) if not running ---
+if is_port_in_use 3003; then
+    echo "   ✓ Admin dev server already running on 3003"
+else
+    echo "   Starting Admin dev server (port 3003)..."
+    yarn web:admin > /dev/null 2>&1 &
+    PIDS_TO_KILL="$PIDS_TO_KILL $!"
+    wait_for_port 3003 "Admin" 90
+fi
+
+echo "🎭 [4/5] Community Web + Admin Playwright E2E tests..."
 npx playwright test --config=e2e/playwright/playwright.config.ts --reporter=dot 2>&1 || {
-    echo "❌ Community Web Playwright tests failed — push aborted."
+    echo "❌ Community Web + Admin Playwright tests failed — push aborted."
     exit 1
 }
 

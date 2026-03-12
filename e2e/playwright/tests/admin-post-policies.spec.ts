@@ -97,6 +97,7 @@ test.describe("Admin Post Policies", () => {
         const firstPolicy = policies[0];
         const secondPolicy = policies[1];
         const originalDays = firstPolicy.expiration_days;
+        const secondOriginalDays = secondPolicy.expiration_days;
         const newDays = originalDays + 1;
 
         // Change only the first input
@@ -113,7 +114,8 @@ test.describe("Admin Post Policies", () => {
         const firstAfter = await dbQuery("post_type_policies", `post_type=eq.${firstPolicy.post_type}`);
         const secondAfter = await dbQuery("post_type_policies", `post_type=eq.${secondPolicy.post_type}`);
         expect(firstAfter[0].expiration_days).toBe(newDays);
-        expect(secondAfter[0].expiration_days).toBe(secondPolicy.expiration_days);
+        // Second policy should remain unchanged from its original value
+        expect(secondAfter[0].expiration_days).toBe(secondOriginalDays);
 
         // Restore via DB
         await dbUpdate("post_type_policies", `post_type=eq.${firstPolicy.post_type}`, {

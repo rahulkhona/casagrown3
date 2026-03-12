@@ -356,8 +356,9 @@ inspector_port = 8083
 # The Deno major version to use.
 deno_version = 2
 
-# [edge_runtime.secrets]
-# secret_key = "env(SECRET_VALUE)"
+[edge_runtime.secrets]
+USPS_CONSUMER_KEY = "env(USPS_CONSUMER_KEY)"
+USPS_CONSUMER_SECRET = "env(USPS_CONSUMER_SECRET)"
 
 [analytics]
 enabled = true
@@ -516,7 +517,7 @@ entrypoint = "./functions/send-transaction-email/index.ts"
 
 [functions.resolve-usps-address]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/resolve-usps-address/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx

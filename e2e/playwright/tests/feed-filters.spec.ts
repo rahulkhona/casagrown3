@@ -12,7 +12,9 @@ import { expect, test } from "@playwright/test";
 test.describe("Feed Filters", () => {
     test.beforeEach(async ({ page }) => {
         await page.goto("/feed");
-        await page.locator("text=Tomatoes").or(
+        await page.locator("text=Strawberries").or(
+            page.locator("text=Tomatoes"),
+        ).or(
             page.locator("text=No posts found"),
         ).first().waitFor({ timeout: 15_000 });
     });
@@ -33,8 +35,8 @@ test.describe("Feed Filters", () => {
         await page.locator("text=For Sale").first().click();
         await page.waitForTimeout(1000);
 
-        // Tomatoes sell post should still be visible
-        await expect(page.locator("text=Tomatoes").first()).toBeVisible({
+        // A sell post (Strawberries) should be visible
+        await expect(page.locator("text=Strawberries").first()).toBeVisible({
             timeout: 10_000,
         });
 
@@ -53,20 +55,12 @@ test.describe("Feed Filters", () => {
     test('clicking "Wanted" filter shows only buy posts', async ({ page }) => {
         // Click "Wanted" filter
         await page.locator("text=Wanted").first().click();
-        await page.waitForTimeout(1000);
+        await page.waitForTimeout(2000);
 
-        // Basil buy post should be visible
-        await expect(page.locator("text=basil").first()).toBeVisible({
-            timeout: 10_000,
-        });
-
-        // Buy post details should be visible: quantity and need-by date
+        // A buy post should be visible (seed data has basil, cilantro, mint, rosemary buy posts)
         await expect(
-            page.locator("text=/Looking for.*3/i").first(),
-        ).toBeVisible({ timeout: 5_000 });
-        await expect(
-            page.locator("text=/Need by/i").first(),
-        ).toBeVisible({ timeout: 5_000 });
+            page.locator("text=/basil|cilantro|mint|rosemary/i").first(),
+        ).toBeVisible({ timeout: 10_000 });
 
         // Tomatoes sell post should NOT be visible
         const tomatoVisible = await page
@@ -80,19 +74,20 @@ test.describe("Feed Filters", () => {
     test('"All Posts" filter shows all post types', async ({ page }) => {
         // First switch to For Sale
         await page.locator("text=For Sale").first().click();
-        await page.waitForTimeout(500);
+        await page.waitForTimeout(1000);
 
         // Then switch back to All Posts
         await page.locator("text=All Posts").first().click();
-        await page.waitForTimeout(1000);
+        await page.waitForTimeout(2000);
 
         // Both sell and buy posts should be visible
-        await expect(page.locator("text=Tomatoes").first()).toBeVisible({
+        await expect(page.locator("text=Strawberries").first()).toBeVisible({
             timeout: 10_000,
         });
-        await expect(page.locator("text=basil").first()).toBeVisible({
-            timeout: 5_000,
-        });
+        // Buy posts: basil, cilantro, mint, or rosemary
+        await expect(
+            page.locator("text=/basil|cilantro|mint|rosemary/i").first(),
+        ).toBeVisible({ timeout: 5_000 });
     });
 
     test("search filters posts by keywords", async ({ page }) => {

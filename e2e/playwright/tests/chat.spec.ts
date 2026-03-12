@@ -10,22 +10,23 @@ test.describe("Chat", () => {
     test("can initiate a chat from a feed post", async ({ page }) => {
         await page.goto("/feed");
         // Wait for feed content to load
-        await page.locator("text=Peppers").or(
-            page.locator("text=Tomatoes"),
+        await page.locator("text=Tomatoes").or(
+            page.locator("text=No posts found"),
         ).first().waitFor({ timeout: 15_000 });
 
-        // Scroll to the buyer's post (Peppers) which shows Chat/Order buttons
-        const peppersText = page.locator("text=Peppers").first();
-        await peppersText.scrollIntoViewIfNeeded();
-        await page.waitForTimeout(1000);
-
-        // Find a Chat button (appears on buy posts from other users)
-        // or Order button (appears on sell posts from other users)
+        // Scroll down to find a post from another user with Chat or Order buttons
+        let hasChatBtn = false;
+        let hasOrderBtn = false;
         const chatBtn = page.getByText("Chat", { exact: true }).first();
         const orderBtn = page.getByText("Order", { exact: true }).first();
 
-        const hasChatBtn = await chatBtn.isVisible().catch(() => false);
-        const hasOrderBtn = await orderBtn.isVisible().catch(() => false);
+        for (let i = 0; i < 5; i++) {
+            hasChatBtn = await chatBtn.isVisible().catch(() => false);
+            hasOrderBtn = await orderBtn.isVisible().catch(() => false);
+            if (hasChatBtn || hasOrderBtn) break;
+            await page.mouse.wheel(0, 500);
+            await page.waitForTimeout(1000);
+        }
 
         if (!hasChatBtn && !hasOrderBtn) {
             test.skip();

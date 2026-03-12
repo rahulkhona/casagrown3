@@ -7,6 +7,7 @@ import { uploadProfileAvatar } from './utils/media-upload'
 // ────────────────────────────────────────────────────────────
 // Step 1: Account & Address (mandatory)
 // Step 2: Personalize (optional / skippable)
+// Step 3: Welcome / First Post (post-wizard prompt screen)
 // ────────────────────────────────────────────────────────────
 
 export type WizardData = {
@@ -422,7 +423,7 @@ export const WizardProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
-  const nextStep = () => setStep((s) => Math.min(s + 1, 1))
+  const nextStep = () => setStep((s) => Math.min(s + 1, 2))
   const prevStep = () => setStep((s) => Math.max(s - 1, 0))
 
   return (

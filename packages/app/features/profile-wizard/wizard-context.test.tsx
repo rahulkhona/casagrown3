@@ -139,13 +139,15 @@ describe('WizardContext', () => {
     expect(result.current.data.country).toBe('USA')
   })
 
-  it('nextStep increments step (max 1)', () => {
+  it('nextStep increments step (max 2)', () => {
     const { result } = renderHook(() => useWizard(), { wrapper })
     expect(result.current.step).toBe(0)
     act(() => result.current.nextStep())
     expect(result.current.step).toBe(1)
     act(() => result.current.nextStep())
-    expect(result.current.step).toBe(1) // Capped at 1 (2-step wizard)
+    expect(result.current.step).toBe(2) // Capped at 2 (3-step wizard)
+    act(() => result.current.nextStep())
+    expect(result.current.step).toBe(2) // Still capped
   })
 
   it('prevStep decrements step (min 0)', () => {

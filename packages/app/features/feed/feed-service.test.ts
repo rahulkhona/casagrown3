@@ -17,10 +17,12 @@ const mockEq = jest.fn();
 const mockOrder = jest.fn();
 const mockDelete = jest.fn();
 const mockInsert = jest.fn();
+const mockRpc = jest.fn();
 
 jest.mock("../auth/auth-hook", () => ({
     supabase: {
         from: (...args: any[]) => mockFrom(...args),
+        rpc: (...args: any[]) => mockRpc(...args),
     },
 }));
 
@@ -34,48 +36,51 @@ beforeEach(() => {
 
 describe("getCommunityFeedPosts", () => {
     it("returns correctly mapped posts", async () => {
-        const mockData = [
-            {
-                id: "post-1",
-                author_id: "user-1",
-                type: "want_to_sell",
-                reach: "community",
-                content: "Fresh tomatoes",
-                created_at: "2026-02-10T00:00:00Z",
-                community_h3_index: "h3-abc",
-                author: {
-                    full_name: "Alice",
-                    avatar_url: "http://avatar.png",
-                    phone_verified: true,
+        // RPC returns base rows
+        mockRpc.mockResolvedValue({
+            data: [
+                {
+                    id: "post-1",
+                    author_id: "user-1",
+                    author_full_name: "Alice",
+                    author_avatar_url: "http://avatar.png",
+                    author_phone_verified: true,
+                    type: "want_to_sell",
+                    reach: "community",
+                    content: "Fresh tomatoes",
+                    created_at: "2026-02-10T00:00:00Z",
+                    community_h3_index: "h3-abc",
+                    community_name: "Sunset Park",
                 },
-                community: { name: "Sunset Park" },
-                want_to_sell_details: [
-                    {
-                        category: "vegetables",
-                        produce_name: "Tomatoes",
-                        unit: "box",
-                        total_quantity_available: 10,
-                        points_per_unit: 5,
-                    },
-                ],
-                want_to_buy_details: [],
-                delivery_dates: [],
-                post_media: [],
-                post_likes: [{ user_id: "current-user" }],
-                post_comments: [{ id: "c1" }, { id: "c2" }],
-                post_flags: [],
-            },
-        ];
+            ],
+            error: null,
+        });
 
+        // from('posts') returns details
         mockFrom.mockReturnValue({
             select: jest.fn().mockReturnValue({
-                or: jest.fn().mockReturnValue({
-                    eq: jest.fn().mockReturnValue({
-                        order: jest.fn().mockResolvedValue({
-                            data: mockData,
-                            error: null,
-                        }),
-                    }),
+                in: jest.fn().mockResolvedValue({
+                    data: [
+                        {
+                            id: "post-1",
+                            want_to_sell_details: [
+                                {
+                                    category: "vegetables",
+                                    produce_name: "Tomatoes",
+                                    unit: "box",
+                                    total_quantity_available: 10,
+                                    points_per_unit: 5,
+                                },
+                            ],
+                            want_to_buy_details: [],
+                            delivery_dates: [],
+                            post_media: [],
+                            post_likes: [{ user_id: "current-user" }],
+                            post_comments: [{ id: "c1" }, { id: "c2" }],
+                            post_flags: [],
+                        },
+                    ],
+                    error: null,
                 }),
             }),
         });
@@ -95,17 +100,9 @@ describe("getCommunityFeedPosts", () => {
     });
 
     it("returns empty array when no posts", async () => {
-        mockFrom.mockReturnValue({
-            select: jest.fn().mockReturnValue({
-                or: jest.fn().mockReturnValue({
-                    eq: jest.fn().mockReturnValue({
-                        order: jest.fn().mockResolvedValue({
-                            data: [],
-                            error: null,
-                        }),
-                    }),
-                }),
-            }),
+        mockRpc.mockResolvedValue({
+            data: [],
+            error: null,
         });
 
         const posts = await getCommunityFeedPosts("h3-abc", "user-1");
@@ -113,17 +110,9 @@ describe("getCommunityFeedPosts", () => {
     });
 
     it("throws on error", async () => {
-        mockFrom.mockReturnValue({
-            select: jest.fn().mockReturnValue({
-                or: jest.fn().mockReturnValue({
-                    eq: jest.fn().mockReturnValue({
-                        order: jest.fn().mockResolvedValue({
-                            data: null,
-                            error: { message: "DB error" },
-                        }),
-                    }),
-                }),
-            }),
+        mockRpc.mockResolvedValue({
+            data: null,
+            error: { message: "DB error" },
         });
 
         await expect(
@@ -132,51 +121,54 @@ describe("getCommunityFeedPosts", () => {
     });
 
     it("sets is_liked to false when user has not liked", async () => {
-        const mockData = [
-            {
-                id: "post-2",
-                author_id: "user-2",
-                type: "want_to_buy",
-                reach: "community",
-                content: "Looking for apples",
-                created_at: "2026-02-10T00:00:00Z",
-                community_h3_index: "h3-abc",
-                author: {
-                    full_name: "Bob",
-                    avatar_url: null,
-                    phone_verified: false,
+        // RPC returns base rows
+        mockRpc.mockResolvedValue({
+            data: [
+                {
+                    id: "post-2",
+                    author_id: "user-2",
+                    author_full_name: "Bob",
+                    author_avatar_url: null,
+                    author_phone_verified: false,
+                    type: "want_to_buy",
+                    reach: "community",
+                    content: "Looking for apples",
+                    created_at: "2026-02-10T00:00:00Z",
+                    community_h3_index: "h3-abc",
+                    community_name: "Sunset Park",
                 },
-                community: { name: "Sunset Park" },
-                want_to_sell_details: [],
-                want_to_buy_details: [
-                    {
-                        category: "fruits",
-                        produce_names: ["apples"],
-                        need_by_date: "2026-03-01",
-                        desired_quantity: 5,
-                        desired_unit: "box",
-                    },
-                ],
-                delivery_dates: [
-                    { delivery_date: "2026-02-25" },
-                    { delivery_date: "2026-02-28" },
-                ],
-                post_media: [],
-                post_likes: [],
-                post_comments: [],
-                post_flags: [],
-            },
-        ];
+            ],
+            error: null,
+        });
 
+        // from('posts') returns details
         mockFrom.mockReturnValue({
             select: jest.fn().mockReturnValue({
-                or: jest.fn().mockReturnValue({
-                    eq: jest.fn().mockReturnValue({
-                        order: jest.fn().mockResolvedValue({
-                            data: mockData,
-                            error: null,
-                        }),
-                    }),
+                in: jest.fn().mockResolvedValue({
+                    data: [
+                        {
+                            id: "post-2",
+                            want_to_sell_details: [],
+                            want_to_buy_details: [
+                                {
+                                    category: "fruits",
+                                    produce_names: ["apples"],
+                                    need_by_date: "2026-03-01",
+                                    desired_quantity: 5,
+                                    desired_unit: "box",
+                                },
+                            ],
+                            delivery_dates: [
+                                { delivery_date: "2026-02-25" },
+                                { delivery_date: "2026-02-28" },
+                            ],
+                            post_media: [],
+                            post_likes: [],
+                            post_comments: [],
+                            post_flags: [],
+                        },
+                    ],
+                    error: null,
                 }),
             }),
         });

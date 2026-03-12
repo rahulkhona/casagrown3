@@ -404,6 +404,7 @@ Linked to Supabase Auth `auth.users` table. Auto-created on signup via
 | `phone_verification_expires_at` | `timestamptz`           | OTP expiration timestamp. `20260301100000`.                    |
 | `profile_completed_at`          | `timestamptz`           | When wizard was completed. `20260301100000`.                   |
 | `tos_accepted_at`               | `timestamptz`           | When ToS was accepted. Nullable. `20260305000000`.             |
+| `is_ghosted`                    | `boolean`               | Shadow-ban flag. Posts hidden from others' feeds but visible to the author. Default: `false`. `20260312000100`. |
 | `created_at`                    | `timestamptz`           | Default `now()`.                                               |
 | `updated_at`                    | `timestamptz`           | Default `now()`.                                               |
 
@@ -424,7 +425,8 @@ sets `phone_verified = true` on success. (Hardened by `20260306000000`)
 | `phone_verification_locked_until` | `timestamptz` | Lockout timestamp after 5 failed attempts (30 min).          |
 
 **Indexes**: `profiles_home_location_idx` (GiST),
-`profiles_nearby_communities_idx` (GIN)
+`profiles_nearby_communities_idx` (GIN), `idx_profiles_ghosted` (partial,
+WHERE `is_ghosted = true`)
 
 ```sql
 -- Base table (initial_schema) + columns added by subsequent migrations
@@ -457,6 +459,7 @@ create table profiles (
   phone_verification_expires_at timestamptz,                       -- 20260301100000
   profile_completed_at timestamptz,                                -- 20260301100000
   tos_accepted_at timestamptz,                                      -- 20260305000000
+  is_ghosted boolean not null default false,                        -- 20260312000100
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -763,12 +766,18 @@ create table point_ledger (
 | `content`            | `text`        | Post body.                                                                |
 | `is_archived`        | `boolean`     | Set `true` by ban cascade RPCs. Default: `false`. _(by `20260301080000`)_ |
 | `status`             | `post_status` | Moderation status. Default: `'available'`. _(by `20260303000000`)_        |
+| `expires_at`         | `timestamptz` | Auto-computed expiration. Set by trigger from `post_type_policies.expiration_days`. _(by `20260312000000`)_ |
 | `created_at`         | `timestamptz` | Default `now()`.                                                          |
 | `updated_at`         | `timestamptz` | Default `now()`.                                                          |
 
 **Indexes**: `posts_community_h3_idx`, `posts_on_behalf_of_idx`,
 `idx_posts_is_archived` (partial, WHERE `is_archived = false`),
-`idx_posts_status` (partial, WHERE `status = 'available'`)
+`idx_posts_status` (partial, WHERE `status = 'available'`),
+`idx_posts_active_feed` (composite, WHERE `status = 'available'`)
+
+**Trigger: `trg_set_expires_at`** (`BEFORE INSERT OR UPDATE OF created_at, type`
+on `posts`, added by `20260312000000`): Auto-computes `expires_at` from
+`post_type_policies.expiration_days`. Falls back to 30 days if no policy found.
 
 ```sql
 create table posts (
@@ -781,6 +790,7 @@ create table posts (
   content text not null,
   is_archived boolean not null default false,   -- 20260301080000
   status post_status not null default 'available', -- 20260303000000
+  expires_at timestamptz,                        -- 20260312000000 (auto-computed by trigger)
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -789,6 +799,8 @@ create index posts_community_h3_idx on posts(community_h3_index);
 create index posts_on_behalf_of_idx on posts(on_behalf_of) where on_behalf_of is not null;
 create index idx_posts_is_archived on posts(is_archived) where is_archived = false;
 create index idx_posts_status on posts(status) where status = 'available';
+create index idx_posts_active_feed on posts(community_h3_index, created_at desc)
+  where status = 'available';
 ```
 
 **RLS Policies** (`20260207060000_posts_content_rls`,
@@ -1091,6 +1103,30 @@ create table blocked_products (
 | `ban_category(p_name)`     | Category name                       | Hard-delete category → cascades FKs, archives posts, cancels orders, refunds held points |
 | `add_category_restriction` | Name, H3 (optional), reason         | Soft-block: insert restriction row → archive + cancel + refund                           |
 | `ban_product`              | Product name, H3 (optional), reason | Block product → archive matching posts, cancel orders, refund                            |
+
+### Feed Filtering RPC _(added by `20260312000200`)_
+
+**`get_filtered_feed(p_community_h3, p_viewer_id)`** — Server-side feed query
+that returns active, non-expired posts for a community with compliance filtering.
+
+**Filters applied (all index-backed):**
+
+| Filter | Logic |
+| :--- | :--- |
+| Community | `community_h3_index = p_community_h3` or global (`NULL`) |
+| Status | `status = 'available'` |
+| Expiration | `expires_at > now()` (uses `idx_posts_active_feed`) |
+| Ghosted users | Hidden unless `author_id = p_viewer_id` (own posts always visible) |
+| Blocked categories | `NOT EXISTS` join on `category_restrictions` (global scope) |
+| Blocked products | `NOT EXISTS` join on `blocked_products` (global scope) |
+
+**Returns**: `id`, `author_id`, `type`, `reach`, `content`, `created_at`,
+`community_h3_index`, `expires_at`, author info (`full_name`, `avatar_url`,
+`phone_verified`), and community `name`.
+
+**Security**: `SECURITY DEFINER`, granted to `authenticated` role only.
+
+**Consumer**: `feed-service.ts` → `getCommunityFeedPosts()`.
 
 ---
 

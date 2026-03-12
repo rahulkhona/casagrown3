@@ -28,6 +28,7 @@ const MENU_GROUPS: MenuGroup[] = [
     icon: Users,
     items: [
       { label: 'Staff & Roles', path: '/users' },
+      { label: 'Members', path: '/members' },
     ]
   },
   {

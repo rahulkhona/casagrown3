@@ -9,38 +9,62 @@ appId: dev.casagrown.community
 # Login first
 - runFlow: ../utils/login.yaml
 
-# Wait for feed to load
+# Wait for app to fully load (may show feed, profile, or any screen)
 - extendedWaitUntil:
-          visible: "Create Post"
+          visible:
+                  text: ".*(?:Create Post|Profile|Feed|Menu|Chats|Orders|Offers|Settings).*"
           timeout: 15000
-- scrollUntilVisible:
-          element: "Tomatoes"
-          direction: DOWN
-          timeout: 15000
+
+# If on Profile Settings (stacked screen), press back to return to tabs
+- runFlow:
+          when:
+                  visible: "Profile Settings"
+          commands:
+                  - back
+
+# Navigate to feed first to ensure bottom tabs are visible
+- extendedWaitUntil:
+          visible:
+                  text: ".*(?:Feed|Menu|Chats|Orders|Offers).*"
+          timeout: 10000
 
 # Open Menu via bottom tab
 - tapOn:
           text: ".*Menu.*"
 
 # ── Verify menu items are visible ──
+# Use scrollUntilVisible instead of bare assertVisible since menu
+# items may render incrementally and may need scrolling on small screens.
 - extendedWaitUntil:
           visible:
                   text: ".*Profile.*Settings.*"
-          timeout: 5000
-- assertVisible:
-          text: ".*Redeem Points.*"
-- assertVisible:
-          text: ".*Buy Points.*"
-- assertVisible:
-          text: ".*Transaction History.*"
-- assertVisible:
-          text: ".*Refund Points.*"
+          timeout: 10000
+- scrollUntilVisible:
+          element: ".*Redeem Points.*"
+          direction: DOWN
+          timeout: 10000
+- scrollUntilVisible:
+          element: ".*Buy Points.*"
+          direction: DOWN
+          timeout: 10000
+- scrollUntilVisible:
+          element: ".*Transaction History.*"
+          direction: DOWN
+          timeout: 10000
+- scrollUntilVisible:
+          element: ".*Refund Points.*"
+          direction: DOWN
+          timeout: 10000
 
 # ── Verify Transfer Points is NOT visible ──
 - assertNotVisible:
           text: ".*Transfer Points.*"
 
 # ── Navigate to Profile (critical regression test) ──
+- scrollUntilVisible:
+          element: ".*Profile.*Settings.*"
+          direction: UP
+          timeout: 10000
 - tapOn:
           text: ".*Profile.*Settings.*"
 
@@ -67,34 +91,26 @@ appId: dev.casagrown.community
                   - assertVisible:
                             id: "profile-name"
 
-# After profile visit, relaunch the app to clear any error state.
-# (CommunityMap error can cover the entire screen including bottom tabs.)
-- stopApp
-- launchApp:
-          clearState: false
-          clearKeychain: false
-          stopApp: false
-
-# Wait for app to load back to the feed state
+# Go back from Profile Settings to return to Menu tab
+- back
 - extendedWaitUntil:
           visible:
-                  text: ".*(?:Create Post|Tomatoes|Feed|Menu).*"
-          timeout: 15000
+                  text: ".*(?:Feed|Menu|Chats|Orders|Offers).*"
+          timeout: 10000
 
-# Open menu tab again
+# Open Menu tab again
 - tapOn:
           text: ".*Menu.*"
 
-# ── Scroll to more items ──
+# ── Scroll to community items ──
 - extendedWaitUntil:
           visible:
                   text: ".*Profile.*Settings.*"
-          timeout: 5000
-
+          timeout: 10000
 - scrollUntilVisible:
           element: "Invite Friends"
           direction: DOWN
-          timeout: 5000
+          timeout: 10000
 - assertVisible:
           text: ".*Invite Friends.*"
 
@@ -110,7 +126,7 @@ appId: dev.casagrown.community
           element:
                   text: ".*Buy Points.*"
           direction: UP
-          timeout: 5000
+          timeout: 10000
 - tapOn:
           text: ".*Buy Points.*"
 

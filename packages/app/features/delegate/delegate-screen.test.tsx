@@ -8,6 +8,28 @@
 import React from 'react'
 import { render, screen, fireEvent } from '@testing-library/react-native'
 
+// Mock auth hook — tests don't wrap with AuthProvider
+jest.mock('../auth/auth-hook', () => ({
+  useAuth: () => ({
+    user: { id: 'user-123', email: 'test@test.com' },
+    session: null,
+    loading: false,
+    tosAccepted: true,
+    signInWithOtp: jest.fn(),
+    verifyOtp: jest.fn(),
+    signInWithOAuth: jest.fn(),
+    signOut: jest.fn(),
+    refreshTosStatus: jest.fn(),
+    markTosAccepted: jest.fn(),
+  }),
+  supabase: {
+    from: () => ({
+      select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null }) }) }),
+    }),
+  },
+  AuthProvider: ({ children }: any) => children,
+}))
+
 // ─── Mock useDelegations ─────────────────────────────────────
 
 const mockUseDelegations = {

@@ -1,3 +1,7 @@
+-- Ensure the USA country row exists (it may be seeded later, but we need FK here)
+INSERT INTO public.countries (iso_3, name) VALUES ('USA', 'United States')
+ON CONFLICT (iso_3) DO NOTHING;
+
 -- Seed all 50 US states, DC, and territories
 INSERT INTO public.states (country_iso_3, code, name) VALUES
   ('USA', 'AL', 'Alabama'),

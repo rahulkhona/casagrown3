@@ -78,6 +78,11 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     )
   }
 
+  // Public routes should render immediately — don't block on auth loading
+  if (isPublicRoute(pathname)) {
+    return <>{children}</>
+  }
+
   if (authLoading) {
     return (
       <YStack flex={1} alignItems="center" justifyContent="center" backgroundColor={colors.green[50]} minHeight="100vh">
@@ -87,7 +92,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     )
   }
 
-  if (isPublicRoute(pathname) || authorized) {
+  if (authorized) {
     return <>{children}</>
   }
 

@@ -94,7 +94,9 @@ e2e/maestro/
 │   ├── venmo-refund.yaml
 │   ├── transaction-history.yaml
 │   ├── compliance-produce.yaml     # Compliance: produce classification
-│   └── compliance-transaction-history.yaml # Compliance: receipts + balances
+│   ├── compliance-transaction-history.yaml # Compliance: receipts + balances
+│   ├── push-notification-prompt.yaml # Push notification permission prompt
+│   └── tab-switching.yaml          # Bottom tab navigation between screens
 ├── flows-device-only/        # Flows requiring physical device hardware
 │   └── camera-upload.yaml    # Needs real camera/photo library
 └── utils/
@@ -143,7 +145,7 @@ curl -Ls "https://get.maestro.mobile.dev" | bash
 # Start the app
 cd apps/expo-community && npx expo run:ios
 
-# Run emulator-safe flows (24 flows — works on emulator or device)
+# Run emulator-safe flows (29 flows — works on emulator or device)
 maestro test e2e/maestro/flows/
 
 # Run device-only flows (requires real device with camera)
@@ -161,7 +163,7 @@ maestro test e2e/maestro/flows/login.yaml
 > file and errors. Always point to `e2e/maestro/flows/` instead.
 
 > [!IMPORTANT]
-> **Emulator vs Real Device:** The `flows/` directory contains 24 tests that
+> **Emulator vs Real Device:** The `flows/` directory contains 29 tests that
 > work on both emulators and physical devices. The `flows-device-only/`
 > directory contains tests that need real hardware (camera, photo library). When
 > testing on a cloud device farm or real device, run **both** directories for
@@ -237,7 +239,7 @@ skip for the buyer project).
 # Start dev server
 yarn workspace next-community dev
 
-# Run all tests (~336 total; ~257 pass, ~61 skipped, ~14 role-gated no-run)
+# Run all tests (~376 total; ~311 pass, ~64 skipped)
 npx playwright test --config=e2e/playwright/playwright.config.ts
 
 # Run a single file
@@ -299,7 +301,8 @@ e2e/playwright/
     ├── admin-methods.spec.ts    # 9 tests: cards, providers, all toggles
     ├── admin-platform-settings.spec.ts  # 4 tests: render, grace, fees
     ├── admin-post-policies.spec.ts      # 6 tests: edit, save, dirty
-    └── admin-tax-rules.spec.ts  # 5 tests: create, exempt, delete, edit
+    ├── admin-tax-rules.spec.ts  # 5 tests: create, exempt, delete, edit
+    └── admin-members.spec.ts    # Admin member management
 ```
 
 #### Test Helpers
@@ -317,7 +320,7 @@ service role key for reliable test assertions:
 # Start admin dev server (port 3003)
 cd apps/next-admin && yarn dev
 
-# Run all admin tests (32 tests, ~2 minutes)
+# Run all admin tests (~38 tests, ~2 minutes)
 npx playwright test --config=e2e/playwright/admin-playwright.config.ts
 
 # Run a single spec

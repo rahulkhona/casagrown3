@@ -553,7 +553,7 @@ deno test --allow-net --allow-env supabase/functions/*/test.ts
 # Web integration tests (Playwright — 247 pass, 57 skipped)
 npx playwright test --config=e2e/playwright/playwright.config.ts
 
-# Mobile E2E tests (Maestro — 26 flows, iOS + Android)
+# Mobile E2E tests (Maestro — 29 flows, iOS + Android)
 # Requires: app running on iOS Simulator or Android Emulator
 ./e2e/seed-test-data.sh                              # Reset DB + clear Mailpit
 maestro test --udid <UDID> e2e/maestro/flows/        # iOS (use xcrun simctl list)

@@ -19,7 +19,7 @@ type GardenItem = {
 export const PersonalizeStep = () => {
   const { t } = useTranslation()
   const router = useRouter()
-  const { data, updateData, saveProfile, loading, prevStep } = useWizard()
+  const { data, updateData, saveProfile, loading, prevStep, nextStep } = useWizard()
   const { user } = useAuth()
 
   const [gardenCatalog, setGardenCatalog] = useState<GardenItem[]>([])
@@ -189,7 +189,7 @@ export const PersonalizeStep = () => {
     updateData({ smsDigest, phone: phone || undefined })
     const success = await saveProfile({ smsDigest, phone: phone || undefined })
     if (success) {
-      router.replace('/')
+      nextStep() // Go to welcome / first post page
     }
   }
 
@@ -197,7 +197,7 @@ export const PersonalizeStep = () => {
     updateData({ phone: phone || undefined })
     const success = await saveProfile({ phone: phone || undefined })
     if (success) {
-      router.replace('/')
+      nextStep() // Go to welcome / first post page
     }
   }
 

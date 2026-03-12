@@ -107,31 +107,40 @@ export interface FeedPost {
 // =============================================================================
 
 /**
- * Get all active posts for a community, newest first.
- * Includes author info, sell/buy details, media, and like/comment counts.
+ * Get all active, non-expired posts for a community, newest first.
+ * Uses the `get_filtered_feed` RPC which handles:
+ * - Expiration filtering (via `expires_at` column, index-backed)
+ * - Blocked category/product exclusion (by viewer's H3 zone)
+ * - Ghosted user exclusion (shadow ban, viewer's own posts still visible)
+ *
+ * Then hydrates with sell/buy details, media, and interaction counts.
  */
 export async function getCommunityFeedPosts(
     communityH3Index: string,
     currentUserId: string,
 ): Promise<FeedPost[]> {
-    const { data, error } = await supabase
+    // 1. Get filtered post IDs + base data from RPC
+    const { data: rpcData, error: rpcError } = await supabase
+        .rpc('get_filtered_feed', {
+            p_community_h3: communityH3Index,
+            p_viewer_id: currentUserId,
+        });
+
+    if (rpcError) {
+        console.error("Error fetching filtered feed:", rpcError);
+        throw rpcError;
+    }
+
+    const baseRows = rpcData || [];
+    if (baseRows.length === 0) return [];
+
+    // 2. Fetch details for these post IDs
+    const postIds = baseRows.map((r: { id: string }) => r.id);
+
+    const { data: detailsData, error: detailsError } = await supabase
         .from("posts")
         .select(`
             id,
-            author_id,
-            type,
-            reach,
-            content,
-            created_at,
-            community_h3_index,
-            author:profiles!posts_author_id_fkey (
-                full_name,
-                avatar_url,
-                phone_verified
-            ),
-            community:communities!posts_community_h3_index_fkey (
-                name
-            ),
             want_to_sell_details (
                 category,
                 produce_name,
@@ -167,59 +176,79 @@ export async function getCommunityFeedPosts(
                 user_id
             )
         `)
-        .or(`community_h3_index.eq.${communityH3Index},community_h3_index.is.null`)
-        .eq("status", "available")
-        .order("created_at", { ascending: false });
+        .in("id", postIds);
 
-    if (error) {
-        console.error("Error fetching feed posts:", error);
-        throw error;
+    if (detailsError) {
+        console.error("Error fetching feed details:", detailsError);
+        throw detailsError;
     }
 
-    return ((data || []) as unknown as FeedQueryRow[]).map((row) => ({
-        id: row.id,
-        author_id: row.author_id,
-        author_name: row.author?.full_name || null,
-        author_avatar_url: row.author?.avatar_url || null,
-        author_phone_verified: row.author?.phone_verified ?? false,
-        type: row.type,
-        reach: row.reach,
-        content: row.content,
-        created_at: row.created_at,
-        community_h3_index: row.community_h3_index,
-        community_name: row.community?.name || null,
-        sell_details: row.want_to_sell_details?.[0]
-            ? {
-                ...row.want_to_sell_details[0],
-                delivery_dates: (row.delivery_dates || []).map((d) =>
-                    d.delivery_date
-                ).sort(),
-            }
-            : null,
-        buy_details: row.want_to_buy_details?.[0]
-            ? {
-                ...row.want_to_buy_details[0],
-                delivery_dates: (row.delivery_dates || []).map((d) =>
-                    d.delivery_date
-                ).sort(),
-            }
-            : null,
-        media: (row.post_media || [])
-            .sort((a, b) => (a.position || 0) - (b.position || 0))
-            .map((pm) => ({
-                storage_path: pm.media_asset?.storage_path || "",
-                media_type: pm.media_asset?.media_type || "image",
-            }))
-            .filter((m) => m.storage_path),
-        like_count: (row.post_likes || []).length,
-        comment_count: (row.post_comments || []).length,
-        is_liked: (row.post_likes || []).some(
-            (l) => l.user_id === currentUserId,
-        ),
-        is_flagged: (row.post_flags || []).some(
-            (f) => f.user_id === currentUserId,
-        ),
-    }));
+    // Build a lookup map for details
+    const detailsMap = new Map<string, FeedQueryRow>();
+    for (const row of (detailsData || []) as unknown as FeedQueryRow[]) {
+        detailsMap.set(row.id, row);
+    }
+
+    // 3. Merge base data with details
+    return baseRows.map((base: {
+        id: string;
+        author_id: string;
+        author_full_name: string | null;
+        author_avatar_url: string | null;
+        author_phone_verified: boolean;
+        type: string;
+        reach: string;
+        content: string;
+        created_at: string;
+        community_h3_index: string | null;
+        community_name: string | null;
+    }) => {
+        const details = detailsMap.get(base.id);
+        return {
+            id: base.id,
+            author_id: base.author_id,
+            author_name: base.author_full_name || null,
+            author_avatar_url: base.author_avatar_url || null,
+            author_phone_verified: base.author_phone_verified ?? false,
+            type: base.type,
+            reach: base.reach,
+            content: base.content,
+            created_at: base.created_at,
+            community_h3_index: base.community_h3_index,
+            community_name: base.community_name || null,
+            sell_details: details?.want_to_sell_details?.[0]
+                ? {
+                    ...details.want_to_sell_details[0],
+                    delivery_dates: (details.delivery_dates || []).map((d) =>
+                        d.delivery_date
+                    ).sort(),
+                }
+                : null,
+            buy_details: details?.want_to_buy_details?.[0]
+                ? {
+                    ...details.want_to_buy_details[0],
+                    delivery_dates: (details.delivery_dates || []).map((d) =>
+                        d.delivery_date
+                    ).sort(),
+                }
+                : null,
+            media: (details?.post_media || [])
+                .sort((a, b) => (a.position || 0) - (b.position || 0))
+                .map((pm) => ({
+                    storage_path: pm.media_asset?.storage_path || "",
+                    media_type: pm.media_asset?.media_type || "image",
+                }))
+                .filter((m) => m.storage_path),
+            like_count: (details?.post_likes || []).length,
+            comment_count: (details?.post_comments || []).length,
+            is_liked: (details?.post_likes || []).some(
+                (l) => l.user_id === currentUserId,
+            ),
+            is_flagged: (details?.post_flags || []).some(
+                (f) => f.user_id === currentUserId,
+            ),
+        };
+    });
 }
 
 // =============================================================================
@@ -241,6 +270,7 @@ export async function getLatestPostTimestamp(
             `community_h3_index.eq.${communityH3Index},community_h3_index.is.null`,
         )
         .eq("status", "available")
+        .gte("expires_at", new Date().toISOString())
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();

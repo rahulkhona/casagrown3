@@ -34,7 +34,7 @@ function isPublicRoute(pathname: string): boolean {
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
-  const { user, loading: authLoading, tosAccepted } = useAuth()
+  const { user, loading: authLoading, tosAccepted, refreshTosStatus } = useAuth()
   const [authorized, setAuthorized] = useState(false)
 
   useEffect(() => {
@@ -42,13 +42,27 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     if (authLoading) return
 
     // If user is logged in but hasn't accepted ToS, and is NOT on a ToS flow route,
-    // sign them out so tokens are cleared. They'll need to login again.
-    // Skip this check for E2E tests (test users have ToS accepted in seed, but this is a safety net).
+    // verify against DB before signing out (prevents race condition during client-side navigation
+    // where tosAccepted state temporarily reads false while auth hook re-initializes).
     const isE2E = typeof window !== 'undefined' && window.localStorage.getItem('E2E_BYPASS_AUTH') === 'true'
     if (user && !tosAccepted && !isE2E && !TOS_FLOW_ROUTES.includes(pathname)) {
-      console.log('🔒 AuthGuard: ToS not accepted on non-flow route, signing out')
-      supabase.auth.signOut().then(() => {
-        // After sign-out, user becomes null → effect re-runs → normal unauthenticated flow
+      // Re-read tos_accepted_at from DB into the shared context
+      refreshTosStatus().then(() => {
+        // After refresh, re-check via the DB directly (the context update is async)
+        supabase
+          .from('profiles')
+          .select('tos_accepted_at')
+          .eq('id', user.id)
+          .maybeSingle()
+          .then(({ data: profile }: { data: { tos_accepted_at: string | null } | null }) => {
+            if (profile?.tos_accepted_at) {
+              console.log('🔒 AuthGuard: ToS verified in DB, allowing access')
+              setAuthorized(true)
+            } else {
+              console.log('🔒 AuthGuard: ToS not accepted (verified in DB), signing out')
+              supabase.auth.signOut()
+            }
+          })
       })
       return
     }
