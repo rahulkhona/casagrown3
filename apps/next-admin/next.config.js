@@ -24,6 +24,7 @@ module.exports = {
       'react-native': 'react-native-web',
       'react-native-svg': '@tamagui/react-native-svg',
       'react-native-safe-area-context': './shims/react-native-safe-area-context.js',
+      '@stripe/stripe-react-native': './shims/stripe-react-native.js',
     },
     resolveExtensions: [
       '.web.tsx',

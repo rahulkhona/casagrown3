@@ -1,9 +1,9 @@
 import type { Metadata } from 'next'
-import { NextTamaguiProvider } from 'app/provider/NextTamaguiProvider'
+import { NextTamaguiProvider } from '@casagrown/app/provider/NextTamaguiProvider'
 
 export const metadata: Metadata = {
-  title: 'Tamagui • App Router',
-  description: 'Tamagui, Solito, Expo & Next.js',
+  title: 'CasaGrown Admin',
+  description: 'CasaGrown Admin Dashboard',
   icons: '/favicon.ico',
 }
 
@@ -14,7 +14,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       lang="en"
       suppressHydrationWarning
     >
-      <body>
+      <body suppressHydrationWarning>
         <NextTamaguiProvider>{children}</NextTamaguiProvider>
       </body>
     </html>
