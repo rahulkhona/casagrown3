@@ -100,7 +100,9 @@ and any associated triggers/functions/RLS policies.
 > `20260306000003_email_helper_and_create_order` →
 > `20260306000004_email_offer_and_dispute` →
 > `20260306000005_email_resolve_dispute` →
-> `20260306000006_email_triggers_and_ddl` → `20260307000000_double_buffer_cache`
+> `20260306000006_email_triggers_and_ddl` → `20260307000000_double_buffer_cache` →
+> `20260308000000_fix_admin_rls` → `20260311000100_seed_all_us_states` →
+> `20260311000200_post_policies_admin_rls`
 
 ## Extensions
 
@@ -258,6 +260,10 @@ create table states (
   unique(country_iso_3, code)
 );
 ```
+
+**Seed Data** (`20260311000100_seed_all_us_states`): Seeds all 50 US states, DC,
+and 5 US territories (AS, GU, MP, PR, VI) into the `states` table. Uses
+`ON CONFLICT DO NOTHING` for idempotency.
 
 ### `cities`
 
@@ -1007,6 +1013,12 @@ create table sales_categories (
 );
 ```
 
+**RLS Policies** (`20260308000000_fix_admin_rls`):
+
+| Policy                         | Operation | Rule                                     |
+| :----------------------------- | :-------- | :--------------------------------------- |
+| Admins can manage categories   | `ALL`     | `has_staff_role(auth.uid(), 'admin')` |
+
 ### `category_restrictions` _(added by `20260301080000`)_
 
 Soft-blocks a category in a specific H3 zone (or globally when
@@ -1034,6 +1046,12 @@ create table category_restrictions (
 );
 ```
 
+**RLS Policies** (`20260308000000_fix_admin_rls`):
+
+| Policy                                     | Operation | Rule                                     |
+| :----------------------------------------- | :-------- | :--------------------------------------- |
+| Admins can manage category restrictions     | `ALL`     | `has_staff_role(auth.uid(), 'admin')` |
+
 ### `blocked_products` _(added by `20260301080000`)_
 
 Blocks a specific product name within a category/zone. Cascades same as category
@@ -1059,6 +1077,12 @@ create table blocked_products (
   unique(product_name, community_h3_index)
 );
 ```
+
+**RLS Policies** (`20260308000000_fix_admin_rls`):
+
+| Policy                              | Operation | Rule                                     |
+| :---------------------------------- | :-------- | :--------------------------------------- |
+| Admins can manage blocked products   | `ALL`     | `has_staff_role(auth.uid(), 'admin')` |
 
 ### Ban Cascade RPCs _(added by `20260301080300`–`20260301080500`)_
 
@@ -1292,11 +1316,13 @@ insert into post_type_policies (post_type, expiration_days) values
   ('general_info', 30);
 ```
 
-**RLS Policies** (`20260211000000_post_type_policies`):
+**RLS Policies** (`20260211000000_post_type_policies`, updated by
+`20260311000200_post_policies_admin_rls`):
 
-| Policy                                                     | Operation | Rule           |
-| :--------------------------------------------------------- | :-------- | :------------- |
-| Post type policies are readable by all authenticated users | `SELECT`  | `using (true)` |
+| Policy                                                     | Operation | Rule                                     |
+| :--------------------------------------------------------- | :-------- | :--------------------------------------- |
+| Post type policies are readable by all authenticated users | `SELECT`  | `using (true)`                           |
+| Admins can manage post type policies                       | `ALL`     | `has_staff_role(auth.uid(), 'admin')` |
 
 ---
 
