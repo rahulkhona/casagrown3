@@ -93,7 +93,7 @@ export default function OrdersPage() {
   useEffect(() => { loadOrders() }, [loadOrders])
 
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) router.push('/login')
+    if (!authLoading && !isAuthenticated) router.push('/login?redirect=/orders')
   }, [authLoading, isAuthenticated, router])
 
   if (authLoading || !isAuthenticated) {
