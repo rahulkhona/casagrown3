@@ -42,9 +42,6 @@ export function Navbar() {
     { href: '/following', label: 'Following', icon: '❤️', section: 'main' },
     { href: '/notifications', label: 'Notifications', icon: '🔔', section: 'account', badge: unreadCount },
     { href: '/profile', label: 'Profile', icon: '👤', section: 'account' },
-    { href: '/my-booth/customize', label: 'Booth Settings', icon: '🎨', section: 'account' },
-    { href: '/my-booth/invitations', label: 'Helpers', icon: '👥', section: 'account' },
-    { href: '/my-booth/coupons', label: 'Coupons', icon: '🏷️', section: 'account' },
   ]
 
   // Close menu on outside click
