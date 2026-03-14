@@ -89,6 +89,30 @@ CREATE POLICY "Users can remove own flags"
   USING (auth.uid() = user_id);
 
 -- ============================================================
+-- 3b. comment_likes (upvote)
+-- ============================================================
+CREATE TABLE comment_likes (
+  comment_id UUID NOT NULL REFERENCES product_comments(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  PRIMARY KEY (comment_id, user_id)
+);
+
+ALTER TABLE comment_likes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can see likes"
+  ON comment_likes FOR SELECT
+  USING (true);
+
+CREATE POLICY "Authenticated users can like"
+  ON comment_likes FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can unlike"
+  ON comment_likes FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- ============================================================
 -- 4. Auto-hide trigger at ≥3 flags
 -- ============================================================
 CREATE OR REPLACE FUNCTION check_comment_flag_threshold()
