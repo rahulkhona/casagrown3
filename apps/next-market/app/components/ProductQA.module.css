@@ -1,0 +1,77 @@
+.qaSection {
+  margin-top: 32px; padding-top: 24px;
+  border-top: 2px solid var(--border);
+}
+.qaTitle {
+  font-size: 18px; font-weight: 700; color: var(--gray-800);
+  margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+}
+.qaCount { font-size: 14px; color: var(--gray-400); font-weight: 400; }
+
+/* Ask box */
+.askBox { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+.qaInput {
+  width: 100%; padding: 10px 12px; font-size: 14px; font-family: inherit;
+  border: 1.5px solid var(--border); border-radius: var(--radius-lg);
+  resize: vertical; background: #fff; transition: border-color 0.15s;
+}
+.qaInput:focus { outline: none; border-color: var(--green-400); }
+.loginPrompt { font-size: 13px; color: var(--gray-400); margin-bottom: 16px; }
+.emptyState { font-size: 14px; color: var(--gray-400); text-align: center; padding: 24px 0; }
+
+/* Question list */
+.questionList { display: flex; flex-direction: column; gap: 16px; }
+
+.questionBlock {
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+/* Comment */
+.comment { padding: 14px 16px; }
+.commentHeader {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+}
+.authorName { font-size: 13px; font-weight: 600; color: var(--gray-700); display: flex; align-items: center; gap: 6px; }
+.sellerBadge {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  padding: 1px 6px; border-radius: var(--radius-full);
+  background: var(--green-50); color: var(--green-700);
+  border: 1px solid var(--green-200);
+}
+.timeAgo { font-size: 12px; color: var(--gray-400); }
+.commentBody { font-size: 14px; color: var(--gray-700); line-height: 1.5; margin: 0; }
+
+.commentActions {
+  display: flex; gap: 12px; margin-top: 8px;
+}
+.replyBtn, .flagCommentBtn, .deleteBtn, .cancelBtn {
+  background: none; border: none; cursor: pointer;
+  font-size: 12px; color: var(--gray-400); padding: 0;
+  transition: color 0.15s;
+}
+.replyBtn:hover { color: var(--green-600); }
+.flagCommentBtn:hover:not(:disabled) { color: var(--red-500); }
+.flagCommentBtn:disabled { color: var(--red-400); cursor: default; }
+.deleteBtn:hover { color: var(--red-500); }
+.cancelBtn:hover { color: var(--gray-600); }
+
+/* Replies */
+.reply {
+  padding: 12px 16px 12px 32px;
+  border-top: 1px solid var(--gray-100);
+  background: var(--gray-50);
+}
+.sellerReply {
+  background: var(--green-50);
+  border-left: 3px solid var(--green-400);
+}
+
+/* Reply input */
+.replyBox {
+  padding: 12px 16px 12px 32px;
+  border-top: 1px solid var(--gray-100);
+  background: var(--gray-50);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.replyActions { display: flex; gap: 8px; align-items: center; }

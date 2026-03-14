@@ -8,6 +8,7 @@ import { useAuth } from '../../../../../../../lib/useAuth'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import BuyModal from '../../../../../../components/BuyModal'
 import { FlagModal } from '../../../../../../components/FlagModal'
+import { ProductQA } from '../../../../../../components/ProductQA'
 import styles from './page.module.css'
 
 export default function ProductDetailPage({ params }: { params: Promise<{ id: string; productId: string }> }) {
@@ -201,6 +202,9 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
       </div>
+
+      {/* Q&A Section */}
+      <ProductQA productId={productId} sellerId={product.seller_id} />
 
       {/* Buy Modal */}
       {showBuy && (
