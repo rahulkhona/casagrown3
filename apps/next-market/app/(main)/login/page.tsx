@@ -1,0 +1,163 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useMarket } from '../../../lib/store'
+import { createClient } from '../../../lib/supabase'
+import styles from './page.module.css'
+
+export default function LoginPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { dispatch } = useMarket()
+  const template = searchParams.get('template')
+  const [step, setStep] = useState<'email' | 'otp'>('email')
+  const [email, setEmail] = useState('')
+  const [otp, setOtp] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const supabase = createClient()
+
+  // Redirect if already logged in
+  useEffect(() => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('tos_accepted_at, full_name, street_address')
+        .eq('id', user.id)
+        .single()
+
+      if (!profile?.tos_accepted_at) {
+        router.replace('/terms')
+      } else if (!profile?.full_name || !profile?.street_address) {
+        router.replace('/profile-setup')
+      } else {
+        router.replace('/market')
+      }
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email) return
+    setLoading(true)
+    setError('')
+
+    const { error: otpError } = await supabase.auth.signInWithOtp({ email })
+
+    if (otpError) {
+      setError(otpError.message)
+      setLoading(false)
+      return
+    }
+
+    setLoading(false)
+    setStep('otp')
+  }
+
+  const handleOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (otp.length < 6) return
+    setLoading(true)
+    setError('')
+
+    const { data, error: verifyError } = await supabase.auth.verifyOtp({
+      email,
+      token: otp,
+      type: 'email',
+    })
+
+    if (verifyError) {
+      setError(verifyError.message)
+      setLoading(false)
+      return
+    }
+
+    if (data.user) {
+      dispatch({ type: 'LOGIN', payload: { email } })
+
+      // Check ToS acceptance
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('tos_accepted_at, full_name, street_address')
+        .eq('id', data.user.id)
+        .single()
+
+      if (!profile?.tos_accepted_at) {
+        router.push(template ? `/terms?template=${template}` : '/terms')
+      } else if (!profile?.full_name || !profile?.street_address) {
+        router.push('/profile-setup')
+      } else {
+        router.push('/market')
+      }
+    }
+  }
+
+  return (
+    <div className={styles.page}>
+      <div className={styles.card}>
+        <div className={styles.logoArea}>
+          <img src="/logo.png" alt="CasaGrown" className={styles.logo} />
+          <h1 className={styles.title}>CasaGrown Market</h1>
+          <p className={styles.subtitle}>Fresh. Local. Trusted.</p>
+        </div>
+
+        {error && <p className={styles.errorText}>{error}</p>}
+
+        {step === 'email' ? (
+          <form onSubmit={handleEmailSubmit} className={styles.form}>
+            <div className="form-group">
+              <label className="label" htmlFor="email">Email Address</label>
+              <input
+                id="email"
+                type="email"
+                className="input"
+                placeholder="you@example.com"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                required
+                autoFocus
+              />
+            </div>
+            <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={loading}>
+              {loading ? 'Sending code...' : 'Send Login Code →'}
+            </button>
+            <p className={styles.helperText}>
+              We'll send a one-time code to your email. No password needed.
+              <br />
+              <small>Check your inbox (or Mailpit at localhost:54324 for local dev)</small>
+            </p>
+          </form>
+        ) : (
+          <form onSubmit={handleOtpSubmit} className={styles.form}>
+            <div className={styles.otpSent}>
+              <span className={styles.checkIcon}>✉️</span>
+              <p>Code sent to <strong>{email}</strong></p>
+              <button type="button" className={styles.changeEmail} onClick={() => { setStep('email'); setError('') }}>
+                Change email
+              </button>
+            </div>
+            <div className="form-group">
+              <label className="label" htmlFor="otp">Enter Code</label>
+              <input
+                id="otp"
+                type="text"
+                className={`input ${styles.otpInput}`}
+                placeholder="123456"
+                value={otp}
+                onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                maxLength={6}
+                autoFocus
+              />
+            </div>
+            <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={loading || otp.length < 6}>
+              {loading ? 'Signing in...' : 'Verify & Sign In'}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  )
+}

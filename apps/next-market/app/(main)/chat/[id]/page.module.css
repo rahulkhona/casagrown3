@@ -1,0 +1,62 @@
+.chatPage {
+  display: flex; flex-direction: column; height: calc(100vh - 64px);
+  max-width: 800px; margin: 0 auto;
+}
+
+.chatHeader {
+  display: flex; align-items: center; gap: 12px; padding: 12px 20px;
+  border-bottom: 1px solid var(--border); background: #fff; flex-shrink: 0;
+}
+.backBtn {
+  font-size: 20px; text-decoration: none; color: var(--gray-600);
+  padding: 4px 8px; border-radius: var(--radius);
+}
+.backBtn:hover { background: var(--gray-100); }
+
+.messages {
+  flex: 1; overflow-y: auto; padding: 16px 20px; display: flex;
+  flex-direction: column; gap: 8px; background: var(--gray-50);
+}
+
+.msgRow { display: flex; }
+.msgSent { justify-content: flex-end; }
+.msgReceived { justify-content: flex-start; }
+.msgSystem { justify-content: center; }
+
+.bubble {
+  max-width: 75%; padding: 10px 14px; border-radius: 16px;
+  font-size: 14px; line-height: 1.5;
+}
+.msgSent .bubble { background: var(--green-600); color: #fff; border-bottom-right-radius: 4px; }
+.msgReceived .bubble { background: #fff; border: 1px solid var(--gray-200); color: var(--gray-800); border-bottom-left-radius: 4px; }
+.bubbleSender { font-size: 11px; font-weight: 600; opacity: 0.7; margin-bottom: 2px; }
+.bubbleText { word-break: break-word; }
+.bubbleTime { font-size: 10px; opacity: 0.6; margin-top: 4px; text-align: right; }
+
+.systemMsg {
+  padding: 6px 14px; background: var(--gray-200); color: var(--gray-600);
+  border-radius: var(--radius-full); font-size: 12px; text-align: center; max-width: 80%;
+}
+
+.actionBar {
+  padding: 10px 20px; border-top: 1px solid var(--border);
+  background: var(--amber-50); flex-shrink: 0;
+}
+.actionGroup { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.passcodeDisplay {
+  display: flex; align-items: center; gap: 8px; padding: 8px 16px;
+  background: var(--green-50); border-radius: var(--radius-lg); border: 1px solid var(--green-200);
+}
+.passcodeDisplay span { font-size: 13px; color: var(--gray-600); }
+.passcodeDisplay strong { font-family: monospace; font-size: 20px; color: var(--green-700); letter-spacing: 3px; }
+
+.inputBar {
+  display: flex; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--border);
+  background: #fff; flex-shrink: 0;
+}
+.inputBar input { flex: 1; }
+
+@media (max-width: 768px) {
+  .chatPage { height: calc(100vh - 64px - 72px); }
+}

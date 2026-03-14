@@ -1,0 +1,73 @@
+/* ── Camera Capture Overlay ── */
+.overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0, 0, 0, 0.88);
+  display: flex; align-items: center; justify-content: center;
+}
+.modal {
+  width: 92vw; max-width: 640px;
+  border-radius: 16px; overflow: hidden;
+  background: #000; box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+.video {
+  width: 100%; display: block;
+  max-height: 60vh; object-fit: cover;
+}
+.controls {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 14px 16px; background: #111;
+}
+
+/* Buttons */
+.cancelBtn, .captureBtn {
+  padding: 10px 20px; border: none; border-radius: 10px;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: all 0.15s;
+}
+.cancelBtn {
+  background: var(--gray-700, #444); color: #fff;
+}
+.cancelBtn:hover { background: var(--gray-600, #555); }
+.captureBtn {
+  background: var(--green-500, #22c55e); color: #fff;
+}
+.captureBtn:hover { background: var(--green-600, #16a34a); }
+
+/* Camera selector */
+.cameraSelect {
+  background: var(--gray-800, #333); color: #fff; border: 1px solid var(--gray-600, #555);
+  border-radius: 8px; padding: 8px 12px; font-size: 13px;
+  max-width: 200px;
+}
+.cameraSelect option { color: #000; background: #fff; }
+
+/* Crop overlays */
+.videoWrap { position: relative; }
+.cropOverlay {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  pointer-events: none;
+}
+.cropDarkTop, .cropDarkBottom {
+  flex: 1; background: rgba(0, 0, 0, 0.55);
+}
+.cropClear {
+  height: 30%; /* banner aspect ratio approx */
+  border-top: 2px dashed rgba(255,255,255,0.7);
+  border-bottom: 2px dashed rgba(255,255,255,0.7);
+  display: flex; align-items: center; justify-content: center;
+}
+.cropLabel {
+  background: rgba(0,0,0,0.5); color: #fff;
+  padding: 4px 12px; border-radius: 12px;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.5px;
+}
+.cropOverlaySquare {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.cropOverlaySquare::after {
+  content: ''; width: 80%; aspect-ratio: 1;
+  border: 2px dashed rgba(255,255,255,0.7);
+  border-radius: 50%;
+}

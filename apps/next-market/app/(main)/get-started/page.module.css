@@ -1,0 +1,121 @@
+.page {
+  min-height: calc(100vh - 64px);
+  background: linear-gradient(180deg, var(--green-50) 0%, #fff 40%);
+  padding: 0 20px 60px;
+}
+
+/* Header */
+.header {
+  text-align: center; padding: 48px 20px 32px; max-width: 640px; margin: 0 auto;
+}
+.logo { width: 56px; height: 56px; object-fit: contain; margin-bottom: 16px; }
+.title {
+  font-size: 34px; font-weight: 800; color: var(--gray-900);
+  margin: 0 0 12px; letter-spacing: -0.02em;
+}
+.subtitle {
+  font-size: 16px; color: var(--gray-600); line-height: 1.6; margin: 0;
+}
+.buyerLink {
+  display: inline-block; margin-top: 16px;
+  font-size: 14px; font-weight: 600; color: var(--green-700);
+  background: none; border: none; cursor: pointer;
+  text-decoration: none; transition: color 0.2s;
+}
+.buyerLink:hover { color: var(--green-800); text-decoration: underline; }
+
+/* iOS Add to Home Screen prompt */
+.iosPrompt {
+  position: relative; margin-top: 20px; padding: 24px;
+  background: var(--green-50); border: 2px dashed var(--green-300);
+  border-radius: var(--radius-xl); text-align: left; max-width: 400px;
+  animation: slideDown 0.25s ease-out;
+}
+.iosClose {
+  position: absolute; top: 12px; right: 12px;
+  background: none; border: none; font-size: 18px; color: var(--gray-400);
+  cursor: pointer; padding: 4px;
+}
+.iosClose:hover { color: var(--gray-600); }
+.iosTitle { font-size: 16px; font-weight: 700; color: var(--gray-900); margin: 0 0 8px; }
+.iosDesc { font-size: 14px; color: var(--gray-600); margin: 0 0 12px; line-height: 1.5; }
+.iosSteps {
+  margin: 0; padding-left: 20px; font-size: 14px; color: var(--gray-700); line-height: 1.8;
+}
+.iosSteps li { margin-bottom: 4px; }
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Grid */
+.grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
+  max-width: 1080px; margin: 0 auto 40px;
+}
+
+/* Card */
+.card {
+  border: 2px solid var(--gray-200); border-radius: var(--radius-xl);
+  overflow: hidden; text-decoration: none; transition: all 0.25s;
+  display: flex; flex-direction: column; background: #fff;
+}
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.1);
+}
+
+.cardHeader {
+  padding: 28px 24px 20px; text-align: center;
+}
+.cardEmoji { font-size: 44px; display: block; margin-bottom: 8px; }
+.cardName {
+  font-size: 20px; font-weight: 700; color: var(--gray-800); margin: 0 0 4px;
+}
+.cardTagline {
+  font-size: 13px; color: var(--gray-600); margin: 0; font-style: italic;
+}
+
+.cardBody {
+  padding: 20px 24px; flex: 1;
+}
+.cardDesc {
+  font-size: 14px; color: var(--gray-600); line-height: 1.6; margin: 0 0 16px;
+}
+.exampleProducts { }
+.exampleLabel {
+  font-size: 11px; font-weight: 600; color: var(--gray-500);
+  text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 6px;
+}
+.productTags { display: flex; flex-wrap: wrap; gap: 6px; }
+.productTag {
+  font-size: 12px; padding: 3px 10px; border-radius: var(--radius-full);
+  background: var(--gray-100); color: var(--gray-700); font-weight: 500;
+}
+
+.cardFooter {
+  padding: 16px 24px; border-top: 1px solid var(--gray-100); text-align: center;
+}
+.chooseBtn {
+  font-size: 14px; font-weight: 600; color: var(--green-700);
+  transition: color 0.15s;
+}
+.card:hover .chooseBtn { color: var(--green-800); }
+
+/* Bottom */
+.bottom {
+  text-align: center; max-width: 520px; margin: 0 auto;
+}
+.bottomText {
+  font-size: 15px; color: var(--gray-500); margin-bottom: 16px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .grid { grid-template-columns: repeat(2, 1fr); }
+  .title { font-size: 28px; }
+}
+@media (max-width: 480px) {
+  .grid { grid-template-columns: 1fr; max-width: 400px; }
+}

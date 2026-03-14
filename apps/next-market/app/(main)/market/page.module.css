@@ -1,0 +1,220 @@
+.statusBanner {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 20px; border-radius: var(--radius-xl); margin-top: 20px;
+  font-size: 14px; gap: 12px; flex-wrap: wrap;
+}
+.bannerOpen { background: var(--green-50); border: 1px solid var(--green-200); }
+.bannerClosed { background: var(--amber-50); border: 1px solid var(--amber-200); }
+.statusLeft { display: flex; align-items: center; gap: 8px; }
+.statusDot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.bannerOpen .statusDot { background: var(--green-500); animation: pulse 2s infinite; }
+.bannerClosed .statusDot { background: var(--amber-500); }
+.statusRight { font-size: 13px; color: var(--gray-500); }
+
+.header { padding: 24px 0 12px; }
+
+.searchBar { margin-bottom: 12px; }
+.filters { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+.filterPill {
+  padding: 6px 16px; border-radius: var(--radius-full); border: 1px solid var(--border);
+  background: #fff; font-size: 13px; font-weight: 500; color: var(--gray-600);
+  cursor: pointer; transition: all 0.15s;
+}
+.filterPill:hover { border-color: var(--green-300); background: var(--green-50); }
+.filterActive { background: var(--green-600); color: #fff; border-color: var(--green-600); }
+.filterActive:hover { background: var(--green-700); }
+
+.boothGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; padding-bottom: 40px; }
+
+.boothCard {
+  display: flex; flex-direction: column; padding: 20px; border-radius: var(--radius-xl);
+  border: 1px solid var(--border); background: #fff; text-decoration: none;
+  transition: all 0.2s; cursor: pointer;
+}
+.boothCard:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); border-color: var(--green-200); }
+
+.boothHeader { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.boothTheme { font-size: 36px; line-height: 1; }
+.boothName { font-size: 17px; font-weight: 700; color: var(--gray-800); }
+.boothOwner { font-size: 13px; color: var(--gray-500); }
+.boothDesc { font-size: 13px; color: var(--gray-600); line-height: 1.5; margin-bottom: 12px; flex: 1; }
+
+.boothMeta { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+
+.boothFooter { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--gray-500); }
+.boothRating { font-weight: 600; color: var(--amber-600); }
+.boothSales { }
+
+.productPreview {
+  display: flex; gap: 6px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--gray-100);
+}
+.previewThumb {
+  width: 48px; height: 48px; border-radius: var(--radius); overflow: hidden;
+  border: 1px solid var(--gray-200);
+}
+.previewThumb img { width: 100%; height: 100%; object-fit: cover; }
+.previewMore {
+  width: 48px; height: 48px; border-radius: var(--radius); background: var(--gray-100);
+  display: flex; align-items: center; justify-content: center; font-size: 12px;
+  font-weight: 600; color: var(--gray-500);
+}
+
+/* ---- Market Closed State ---- */
+.closedPage {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 40px 0 60px; gap: 48px;
+}
+.closedBox {
+  text-align: center; max-width: 720px; width: 100%;
+  background: #fff; border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg); padding: 48px 32px;
+  border: 1px solid var(--gray-100);
+}
+.closedIcon { font-size: 56px; margin-bottom: 16px; }
+.closedTitle {
+  font-size: 28px; font-weight: 800; color: var(--gray-900);
+  margin-bottom: 8px; letter-spacing: -0.02em;
+}
+.closedDate {
+  font-size: 16px; color: var(--gray-600); margin-bottom: 12px; line-height: 1.6;
+}
+.closedDate strong { color: var(--green-700); }
+.closedSubtext {
+  font-size: 14px; color: var(--gray-400); margin-bottom: 28px;
+}
+
+/* ---- Countdown Timer ---- */
+.countdown {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--gray-900); border-radius: var(--radius-xl);
+  padding: 16px 28px; margin-bottom: 24px;
+}
+.countdownUnit { display: flex; flex-direction: column; align-items: center; min-width: 48px; }
+.countdownNumber {
+  font-size: 28px; font-weight: 800; color: #fff;
+  font-variant-numeric: tabular-nums; line-height: 1;
+}
+.countdownLabel { font-size: 10px; color: var(--gray-400); text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+.countdownSep { font-size: 24px; font-weight: 700; color: var(--green-500); line-height: 1.2; margin-bottom: 12px; }
+
+/* ---- Action Cards ---- */
+.actionGrid {
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;
+}
+.actionCard {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 24px 16px; border-radius: var(--radius-xl);
+  border: 1px solid var(--gray-200); background: var(--gray-50);
+  text-decoration: none; cursor: pointer; transition: all 0.2s;
+  text-align: center;
+}
+.actionCard:hover {
+  border-color: var(--green-300); background: var(--green-50);
+  transform: translateY(-3px); box-shadow: var(--shadow-md);
+}
+.actionIcon {
+  width: 52px; height: 52px; border-radius: var(--radius-lg);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px;
+}
+.actionIconGreen { background: var(--green-100); }
+.actionIconAmber { background: var(--amber-100); }
+.actionIconBlue { background: var(--blue-100, #dbeafe); }
+.actionTitle { font-size: 15px; font-weight: 700; color: var(--gray-800); }
+.actionDesc { font-size: 13px; color: var(--gray-500); line-height: 1.5; flex: 1; }
+.actionBtn { font-size: 13px; font-weight: 700; color: var(--green-600); margin-top: auto; }
+
+/* ---- Reminder Panel ---- */
+.reminderPanel {
+  margin-top: 24px; padding: 24px; border-radius: var(--radius-xl);
+  background: var(--gray-50); border: 1px solid var(--gray-200);
+  text-align: left;
+}
+.reminderInfo { display: flex; flex-direction: column; gap: 12px; }
+.reminderTitle { font-size: 16px; font-weight: 700; color: var(--gray-800); }
+.reminderText { font-size: 14px; color: var(--gray-600); line-height: 1.5; }
+.pwaInstructions {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 12px; background: var(--amber-50); border-radius: var(--radius);
+  border: 1px solid var(--amber-200);
+}
+.pwaStep {
+  font-size: 13px; color: var(--gray-700); line-height: 1.5;
+}
+.pwaStep strong { color: var(--gray-900); }
+.reminderPermBtn {
+  display: inline-block; padding: 10px 24px; border-radius: var(--radius-full);
+  background: var(--green-600); color: #fff; border: none;
+  font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.2s;
+}
+.reminderPermBtn:hover { background: var(--green-700); }
+.reminderOptions {
+  display: flex; gap: 8px; flex-wrap: wrap;
+}
+.reminderOption {
+  padding: 8px 16px; border-radius: var(--radius-full);
+  border: 1px solid var(--gray-300); background: #fff;
+  font-size: 13px; font-weight: 500; color: var(--gray-600);
+  cursor: pointer; transition: all 0.15s;
+}
+.reminderOption:hover { border-color: var(--green-400); background: var(--green-50); }
+.reminderOptionActive {
+  background: var(--green-600); color: #fff; border-color: var(--green-600);
+}
+.reminderOptionActive:hover { background: var(--green-700); }
+.reminderSetBtn {
+  padding: 10px 28px; border-radius: var(--radius-full);
+  background: var(--green-600); color: #fff; border: none;
+  font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.2s;
+  margin-top: 4px;
+}
+.reminderSetBtn:hover { background: var(--green-700); }
+.reminderSetBtn:disabled { background: var(--gray-300); cursor: default; }
+.reminderConfirm {
+  font-size: 13px; color: var(--green-600); line-height: 1.5; margin-top: 4px;
+}
+
+/* ---- How It Works ---- */
+.howItWorks {
+  max-width: 900px; width: 100%; text-align: center;
+}
+.howTitle {
+  font-size: 24px; font-weight: 800; color: var(--gray-900);
+  margin-bottom: 32px; letter-spacing: -0.02em;
+}
+.howSteps {
+  display: flex; align-items: flex-start; justify-content: center; gap: 8px;
+  flex-wrap: wrap;
+}
+.howStep {
+  flex: 1; min-width: 140px; max-width: 170px; display: flex;
+  flex-direction: column; align-items: center; gap: 8px; padding: 16px 8px;
+}
+.howStepNum {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--green-600); color: #fff;
+  font-size: 13px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.howStepIcon { font-size: 28px; }
+.howStepTitle { font-size: 14px; font-weight: 700; color: var(--gray-800); }
+.howStepDesc { font-size: 12px; color: var(--gray-500); line-height: 1.5; }
+.howArrow {
+  font-size: 20px; color: var(--green-400); font-weight: 700;
+  margin-top: 40px; flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .actionGrid { grid-template-columns: 1fr; }
+  .closedBox { padding: 32px 20px; }
+  .closedTitle { font-size: 24px; }
+  .countdown { padding: 12px 20px; }
+  .countdownNumber { font-size: 22px; }
+  .howSteps { flex-direction: column; align-items: center; }
+  .howArrow { transform: rotate(90deg); margin-top: 0; }
+  .howStep { max-width: 280px; }
+}
+
+@media (max-width: 480px) {
+  .boothGrid { grid-template-columns: 1fr; }
+}

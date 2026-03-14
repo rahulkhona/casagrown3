@@ -1,0 +1,162 @@
+/* Share Preview Card */
+.previewCard {
+  background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
+  border: 2px solid var(--green-200);
+  border-radius: var(--radius-xl);
+  padding: 32px 24px;
+  text-align: center;
+  margin-bottom: 24px;
+  position: relative;
+  overflow: hidden;
+}
+.previewCard::before {
+  content: '';
+  position: absolute; top: -40px; right: -40px;
+  width: 120px; height: 120px;
+  background: var(--green-100);
+  border-radius: 50%;
+  opacity: 0.5;
+}
+.previewCard::after {
+  content: '';
+  position: absolute; bottom: -30px; left: -30px;
+  width: 80px; height: 80px;
+  background: var(--green-100);
+  border-radius: 50%;
+  opacity: 0.5;
+}
+.previewHeader {
+  display: flex; align-items: center; gap: 8px;
+  justify-content: center; margin-bottom: 16px;
+  position: relative; z-index: 1;
+}
+.previewLogo { width: 28px; height: 28px; object-fit: contain; }
+.previewBrand { font-size: 14px; font-weight: 600; color: var(--green-700); }
+.previewTitle {
+  font-size: 24px; font-weight: 800; color: var(--gray-900);
+  margin-bottom: 6px; position: relative; z-index: 1;
+  line-height: 1.3;
+}
+.previewSubtitle {
+  font-size: 15px; color: var(--gray-600);
+  margin-bottom: 20px; position: relative; z-index: 1;
+}
+.previewBtn {
+  display: inline-block;
+  background: var(--green-600); color: #fff;
+  padding: 10px 32px; border-radius: var(--radius-full);
+  font-weight: 600; font-size: 15px;
+  margin-bottom: 16px; position: relative; z-index: 1;
+}
+
+/* Coupon Badge */
+.couponBadge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: #fff; border: 2px dashed var(--amber-400);
+  border-radius: var(--radius-lg);
+  padding: 10px 18px; font-size: 14px; color: var(--gray-700);
+  margin-bottom: 12px; position: relative; z-index: 1;
+}
+.couponBadge strong { color: var(--green-700); font-family: monospace; font-size: 15px; }
+.couponIcon { font-size: 18px; }
+
+/* Schedule */
+.previewSchedule {
+  font-size: 13px; color: var(--gray-500);
+  position: relative; z-index: 1;
+}
+
+/* Coupon selector */
+.couponSelector {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 24px; flex-wrap: wrap;
+}
+.couponSelectorLabel { font-size: 14px; font-weight: 500; color: var(--gray-600); white-space: nowrap; }
+
+/* Section headers */
+.sectionHeader {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 12px; margin-top: 8px;
+}
+.sectionHeader h3 { font-size: 16px; font-weight: 700; color: var(--gray-800); }
+
+/* Share Grid */
+.shareGrid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 10px; margin-bottom: 24px;
+}
+.shareBtn {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 16px 12px; border-radius: var(--radius-lg);
+  border: 1.5px solid var(--gray-200); background: #fff;
+  cursor: pointer; font-size: 14px; font-weight: 600;
+  transition: all 0.15s; text-align: center;
+}
+.shareBtn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+.shareIcon { font-size: 26px; margin-bottom: 2px; }
+.shareSub { font-size: 11px; font-weight: 400; color: var(--gray-400); }
+.shareNative { border-color: var(--green-500); color: var(--green-700); background: var(--green-50); }
+.shareNative:hover { background: var(--green-100); }
+.shareEmail { border-color: #6b7280; color: #374151; }
+.shareEmail:hover { background: #f9fafb; }
+.shareCopy { border-color: var(--green-500); color: var(--green-700); }
+.shareCopy:hover { background: #f0fdf4; }
+
+/* Message Preview */
+.messagePreview {
+  background: var(--gray-50); border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg); padding: 16px;
+  margin-bottom: 24px;
+}
+.messageText {
+  font-family: -apple-system, sans-serif; font-size: 13px;
+  color: var(--gray-700); line-height: 1.6;
+  white-space: pre-wrap; word-wrap: break-word;
+  margin: 0;
+}
+
+/* QR Card */
+.qrCard {
+  background: #fff; border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl); padding: 24px;
+  text-align: center; margin-bottom: 24px;
+}
+.qrPlaceholder { margin-bottom: 12px; }
+.qrInner {
+  width: 140px; height: 140px; margin: 0 auto 12px;
+  background: var(--gray-100); border: 2px dashed var(--gray-300);
+  border-radius: var(--radius-lg);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; color: var(--gray-400);
+}
+.qrCaption { font-size: 13px; color: var(--gray-500); }
+.inviteCodeRow { font-size: 13px; color: var(--gray-500); }
+.inviteCode { color: var(--green-600); font-family: monospace; font-size: 14px; }
+
+/* Calendar Grid */
+.calendarSubtitle { font-size: 14px; color: var(--gray-500); margin-bottom: 16px; line-height: 1.5; }
+.calendarGrid {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px; margin-bottom: 24px;
+}
+.calBtn {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 16px 12px; border-radius: var(--radius-lg);
+  border: 1.5px solid var(--gray-200); background: #fff;
+  cursor: pointer; font-size: 13px; font-weight: 600;
+  transition: all 0.15s; color: var(--gray-700);
+}
+.calBtn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+.calIcon { font-size: 28px; }
+.calGoogle { border-color: #4285f4; }
+.calGoogle:hover { background: #e8f0fe; color: #1967d2; }
+.calApple { border-color: #333; }
+.calApple:hover { background: #f5f5f5; color: #000; }
+.calOutlook { border-color: #0078d4; }
+.calOutlook:hover { background: #f0f6ff; color: #005a9e; }
+
+@media (max-width: 640px) {
+  .shareGrid { grid-template-columns: 1fr; }
+  .calendarGrid { grid-template-columns: 1fr; }
+  .couponSelector { flex-direction: column; align-items: flex-start; }
+}

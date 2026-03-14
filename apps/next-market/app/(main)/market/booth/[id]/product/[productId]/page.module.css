@@ -1,0 +1,59 @@
+.breadcrumb { padding: 16px 0; font-size: 13px; color: var(--gray-500); }
+.breadcrumb a { color: var(--green-600); text-decoration: none; }
+.breadcrumb a:hover { text-decoration: underline; }
+
+.layout { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; padding-bottom: 60px; }
+@media (max-width: 768px) { .layout { grid-template-columns: 1fr; gap: 24px; } }
+
+/* Gallery */
+.gallery { position: sticky; top: 80px; }
+.mainImage { border-radius: var(--radius-xl); overflow: hidden; background: var(--gray-100); aspect-ratio: 1; }
+.mainImage img { width: 100%; height: 100%; object-fit: cover; }
+.thumbs { display: flex; gap: 8px; margin-top: 8px; }
+.thumb {
+  width: 64px; height: 64px; border-radius: var(--radius); overflow: hidden;
+  border: 2px solid transparent; cursor: pointer; transition: border-color 0.15s;
+}
+.thumb img { width: 100%; height: 100%; object-fit: cover; }
+.thumbActive { border-color: var(--green-500); }
+
+/* Details */
+.details { }
+.productName { font-size: 26px; font-weight: 700; color: var(--gray-900); margin-bottom: 8px; }
+.productPrice { margin-bottom: 12px; }
+.unit { font-size: 15px; color: var(--gray-500); font-weight: 400; margin-left: 2px; }
+.productDesc { font-size: 14px; color: var(--gray-600); line-height: 1.6; margin-bottom: 16px; }
+.stockInfo { margin-bottom: 20px; }
+
+.sectionLabel { font-size: 13px; font-weight: 600; color: var(--gray-700); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+.deliverySection { margin-bottom: 20px; }
+.deliveryOptions { display: flex; gap: 10px; }
+.deliveryOption {
+  flex: 1; display: flex; align-items: flex-start; gap: 10px; padding: 12px;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: #fff; cursor: pointer; transition: all 0.15s; text-align: left;
+}
+.deliveryOption:hover { border-color: var(--green-300); }
+.deliveryOption span { font-size: 24px; }
+.deliveryOption strong { font-size: 14px; display: block; color: var(--gray-800); }
+.deliveryOption small { font-size: 12px; color: var(--gray-500); }
+.optionActive { border-color: var(--green-500); background: var(--green-50); }
+
+.qtySection { margin-bottom: 20px; }
+.qtyControl { display: flex; align-items: center; gap: 12px; }
+.qtyValue { font-size: 20px; font-weight: 700; min-width: 32px; text-align: center; }
+.qtyUnit { font-size: 14px; color: var(--gray-500); }
+
+.couponSection { margin-bottom: 20px; }
+.couponRow { display: flex; gap: 8px; }
+.couponRow input { flex: 1; }
+
+.priceBreakdown {
+  background: var(--gray-50); border-radius: var(--radius-lg); padding: 16px;
+  margin-bottom: 16px;
+}
+.priceRow { display: flex; justify-content: space-between; font-size: 14px; color: var(--gray-600); padding: 4px 0; }
+.priceTotal { border-top: 1px solid var(--border); padding-top: 8px; margin-top: 4px; font-weight: 700; font-size: 16px; color: var(--gray-900); }
+
+.holdNotice { font-size: 12px; color: var(--gray-500); text-align: center; margin-top: 8px; }

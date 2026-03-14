@@ -1,0 +1,39 @@
+.page {
+  min-height: calc(100vh - 64px); display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--green-50) 0%, #fff 50%, var(--emerald-100) 100%);
+  padding: 20px;
+}
+.card {
+  background: #fff; border-radius: var(--radius-xl); box-shadow: var(--shadow-lg);
+  padding: 40px; max-width: 420px; width: 100%; animation: scaleIn 0.3s ease-out;
+}
+.logoArea { text-align: center; margin-bottom: 32px; }
+.logo { width: 72px; height: 72px; object-fit: contain; margin: 0 auto 12px; display: block; }
+.title { font-size: 24px; font-weight: 700; color: var(--gray-900); }
+.subtitle { font-size: 14px; color: var(--gray-500); margin-top: 4px; }
+
+.form { display: flex; flex-direction: column; gap: 16px; }
+.helperText { font-size: 12px; color: var(--gray-400); text-align: center; }
+
+.otpSent {
+  text-align: center; padding: 16px; border-radius: var(--radius-lg);
+  background: var(--green-50); margin-bottom: 8px;
+}
+.otpSent p { font-size: 14px; color: var(--gray-600); margin-top: 8px; }
+.otpSent strong { color: var(--gray-800); }
+.checkIcon { font-size: 32px; }
+.changeEmail {
+  background: none; border: none; color: var(--green-600);
+  font-size: 13px; font-weight: 500; cursor: pointer; margin-top: 4px;
+}
+.changeEmail:hover { text-decoration: underline; }
+
+.otpInput {
+  text-align: center; font-size: 24px; font-weight: 700; letter-spacing: 8px;
+}
+
+.errorText {
+  color: var(--red-600, #dc2626); font-size: 13px; font-weight: 500;
+  text-align: center; padding: 8px 12px; margin-bottom: 8px;
+  background: var(--red-50, #fef2f2); border-radius: var(--radius);
+}

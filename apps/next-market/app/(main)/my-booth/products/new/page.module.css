@@ -1,0 +1,273 @@
+.page {
+  min-height: calc(100vh - 64px);
+  background: linear-gradient(180deg, var(--green-50) 0%, #fff 20%);
+  padding: 0 20px 80px;
+}
+.container { max-width: 520px; margin: 0 auto; padding-top: 24px; }
+.backLink { font-size: 13px; color: var(--green-600); font-weight: 500; text-decoration: none; }
+.backLink:hover { text-decoration: underline; }
+.title { font-size: 24px; font-weight: 800; margin: 12px 0 20px; color: var(--gray-900); }
+
+/* Sections */
+.section { margin-bottom: 16px; }
+.field { margin-bottom: 12px; }
+.label { display: block; font-size: 13px; font-weight: 600; color: var(--gray-700); margin-bottom: 4px; }
+.required { color: var(--red-500); }
+.optional { font-weight: 400; color: var(--gray-400); }
+.error { display: block; font-size: 12px; color: var(--red-500); margin-bottom: 4px; }
+.harvestHint {
+  display: block; font-size: 12px; margin-top: 4px; font-weight: 500;
+  color: var(--green-600);
+}
+
+.input {
+  width: 100%; padding: 10px 12px; font-size: 14px;
+  border: 2px solid var(--gray-200); border-radius: var(--radius);
+  background: #fff; box-sizing: border-box; transition: border-color 0.15s;
+}
+.input:focus { outline: none; border-color: var(--green-400); }
+.inputError { border-color: var(--red-400) !important; }
+
+/* Market Day Banner — static display */
+.marketDayBanner {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 18px; background: var(--green-50);
+  border: 2px solid var(--green-200); border-radius: var(--radius-xl);
+  font-size: 14px; color: var(--green-800);
+}
+.marketDayBanner strong { display: block; font-weight: 700; font-size: 15px; }
+.marketDayIcon { font-size: 24px; }
+.marketDayTime {
+  display: block; font-size: 13px; color: var(--green-600); font-weight: 500; margin-top: 2px;
+}
+
+/* Photo Section — multi-photo */
+.photoBtns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.photoBtn {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 28px 16px; border: 2px dashed var(--gray-300);
+  border-radius: var(--radius-xl); background: #fff;
+  cursor: pointer; transition: all 0.15s;
+}
+.photoBtn:hover { border-color: var(--green-400); background: var(--green-50); }
+.photoBtnIcon { font-size: 32px; }
+.photoBtnLabel { font-size: 13px; font-weight: 600; color: var(--gray-600); }
+.photoGallery { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.photoThumb {
+  position: relative; width: 96px; height: 96px; border-radius: var(--radius-lg);
+  overflow: hidden; flex-shrink: 0;
+}
+.photoThumbImg { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photoRemove {
+  position: absolute; top: 2px; right: 2px; width: 22px; height: 22px;
+  background: rgba(0,0,0,0.6); color: #fff; border: none;
+  border-radius: 50%; font-size: 12px; cursor: pointer; display: flex;
+  align-items: center; justify-content: center; line-height: 1;
+}
+.photoRemove:hover { background: rgba(0,0,0,0.8); }
+.addMoreBtn {
+  width: 96px; height: 96px; border: 2px dashed var(--gray-300);
+  border-radius: var(--radius-lg); background: #fff; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; transition: all 0.15s; flex-shrink: 0;
+}
+.addMoreBtn:hover { border-color: var(--green-400); background: var(--green-50); }
+.addMoreIcon { font-size: 20px; }
+.addMoreLabel { font-size: 10px; font-weight: 600; color: var(--gray-500); }
+.photoPreview { position: relative; border-radius: var(--radius-xl); overflow: hidden; }
+.photoImg { width: 100%; max-height: 280px; object-fit: cover; display: block; border-radius: var(--radius-xl); }
+.photoChange {
+  position: absolute; top: 8px; right: 8px;
+  padding: 6px 12px; font-size: 12px; font-weight: 600;
+  background: rgba(0,0,0,0.6); color: #fff; border: none;
+  border-radius: var(--radius-full); cursor: pointer;
+}
+.photoChange:hover { background: rgba(0,0,0,0.8); }
+.hidden { display: none; }
+
+/* Price Input */
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.priceInput { position: relative; }
+.priceCurrency {
+  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  font-size: 14px; font-weight: 600; color: var(--gray-400);
+}
+.priceField { padding-left: 28px !important; }
+
+/* Fulfillment Details */
+.details { margin: 16px 0; }
+.detailsSummary {
+  padding: 12px 16px; font-size: 14px; font-weight: 500;
+  color: var(--gray-500); background: #fff;
+  border: 1px dashed var(--gray-300); border-radius: var(--radius-xl);
+  cursor: pointer; list-style: none;
+}
+.detailsSummary::-webkit-details-marker { display: none; }
+.detailsSummary::before { content: '►  '; font-size: 10px; }
+details[open] .detailsSummary::before { content: '▼  '; }
+details[open] .detailsSummary { border-radius: var(--radius-xl) var(--radius-xl) 0 0; border-bottom: none; }
+.toggleRow { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.toggle {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14px; font-weight: 500; color: var(--gray-700); cursor: pointer;
+}
+.toggle input { width: 16px; height: 16px; accent-color: var(--green-600); }
+.slider { width: 100%; accent-color: var(--green-600); }
+.radiusRow { display: flex; align-items: center; gap: 12px; }
+.radiusValue { font-size: 14px; font-weight: 600; color: var(--green-700); white-space: nowrap; }
+.hint { font-size: 12px; color: var(--gray-400); margin: 8px 0 0; font-style: italic; }
+.hr { border: none; border-top: 1px solid var(--gray-150, var(--gray-200)); margin: 14px 0; }
+
+/* Per-day window cards */
+.dayWindowCard {
+  background: var(--gray-50); border-radius: var(--radius-lg);
+  padding: 14px; margin-bottom: 10px;
+}
+.dayWindowHeader {
+  font-size: 13px; font-weight: 700; color: var(--gray-700); margin-bottom: 10px;
+}
+.windowGroup { margin-bottom: 10px; }
+.windowGroup:last-child { margin-bottom: 0; }
+.windowLabel {
+  display: block; font-size: 12px; font-weight: 600; color: var(--gray-500); margin-bottom: 6px;
+}
+.windowPills { display: flex; flex-wrap: wrap; gap: 6px; }
+.windowPill {
+  padding: 6px 10px; font-size: 12px; font-weight: 500;
+  border: 1.5px solid var(--gray-200); border-radius: var(--radius-full);
+  background: #fff; color: var(--gray-600); cursor: pointer; transition: all 0.15s;
+}
+.windowPill:hover { border-color: var(--green-300); }
+.windowPillActive { border-color: var(--green-500); background: var(--green-50); color: var(--green-700); font-weight: 600; }
+
+/* Submit */
+.submitBtn {
+  width: 100%; padding: 16px 24px; font-size: 17px; font-weight: 700;
+  background: var(--green-600); color: #fff; border: none;
+  border-radius: var(--radius-full); cursor: pointer;
+  transition: all 0.2s; margin-top: 8px;
+}
+.submitBtn:hover { background: var(--green-700); transform: translateY(-1px); box-shadow: var(--shadow-lg); }
+.submitBtn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+.submitBtnDraft { background: var(--amber-500, #f59e0b); }
+.submitBtnDraft:hover { background: var(--amber-600, #d97706); }
+.draftHint {
+  font-size: 13px; color: var(--amber-700, #b45309); background: var(--amber-50, #fffbeb);
+  border: 1px solid var(--amber-200, #fde68a); border-radius: var(--radius-lg);
+  padding: 10px 14px; margin: 8px 0; line-height: 1.5;
+}
+
+/* ===== Webcam Modal ===== */
+.webcamModal {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  z-index: 201; width: 90%; max-width: 480px;
+  background: #111; border-radius: var(--radius-xl);
+  overflow: hidden; animation: slideUp 0.25s ease-out;
+}
+.webcamVideo {
+  width: 100%; display: block; border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  max-height: 360px; object-fit: cover; background: #000;
+}
+.webcamActions {
+  display: flex; justify-content: center; padding: 16px;
+  background: #111;
+}
+.webcamSnap {
+  width: 64px; height: 64px; border-radius: 50%;
+  background: #fff; border: 4px solid rgba(255,255,255,0.3);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: transform 0.15s;
+}
+.webcamSnap:hover { transform: scale(1.08); }
+.webcamSnap:active { transform: scale(0.95); }
+.webcamSnapRing {
+  width: 52px; height: 52px; border-radius: 50%;
+  border: 3px solid #111; display: block;
+}
+.webcamClose {
+  position: absolute; top: 8px; right: 8px;
+  width: 32px; height: 32px; border-radius: 50%;
+  background: rgba(0,0,0,0.6); color: #fff; border: none;
+  font-size: 14px; cursor: pointer; display: flex;
+  align-items: center; justify-content: center;
+}
+.webcamClose:hover { background: rgba(0,0,0,0.8); }
+
+/* ===== Share Modal ===== */
+.modalBackdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  z-index: 200; animation: fadeIn 0.2s ease-out;
+}
+.modal {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  z-index: 201; width: 90%; max-width: 420px;
+  background: #fff; border-radius: var(--radius-xl);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  padding: 32px 28px; text-align: center;
+  animation: slideUp 0.25s ease-out;
+}
+.modalEmoji { font-size: 48px; margin-bottom: 8px; }
+.modalTitle { font-size: 20px; font-weight: 800; color: var(--gray-900); margin: 0 0 6px; }
+.modalSubtitle { font-size: 14px; color: var(--gray-500); margin: 0 0 20px; line-height: 1.5; }
+
+/* Coupon section in modal */
+.couponSection {
+  background: var(--green-50); border-radius: var(--radius-lg);
+  padding: 14px; margin-bottom: 16px; text-align: left;
+}
+.couponRow {
+  display: flex; align-items: center; gap: 10px; margin-top: 10px;
+}
+.couponToggle { display: flex; border-radius: var(--radius); overflow: hidden; }
+.couponTab {
+  padding: 6px 12px; font-size: 13px; font-weight: 600; border: none;
+  background: var(--gray-100); color: var(--gray-600); cursor: pointer;
+  transition: all 0.15s;
+}
+.couponTabActive { background: var(--green-600); color: #fff; }
+.couponInput {
+  width: 60px; padding: 6px 8px; font-size: 14px; font-weight: 600;
+  border: 2px solid var(--gray-200); border-radius: var(--radius);
+  text-align: center;
+}
+.couponInput:focus { outline: none; border-color: var(--green-400); }
+.couponPreview { font-size: 13px; font-weight: 600; color: var(--green-700); }
+
+/* Share actions in modal */
+.modalActions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.shareActionBtn {
+  padding: 12px 16px; font-size: 14px; font-weight: 600;
+  background: var(--green-600); color: #fff; border: none;
+  border-radius: var(--radius-full); cursor: pointer;
+  transition: all 0.15s;
+}
+.shareActionBtn:hover { background: var(--green-700); }
+.draftHint {
+  background: #fff8e1; border: 1px solid #ffe082; border-radius: 10px;
+  padding: 14px 16px; font-size: 14px; color: #5d4037;
+  text-align: left; line-height: 1.5; margin-bottom: 8px;
+}
+.draftHint strong { display: block; margin-bottom: 4px; font-size: 15px; }
+.draftHint ul { list-style: disc; }
+.draftHint li { margin-bottom: 2px; }
+
+.modalSkip {
+  padding: 10px; font-size: 13px; font-weight: 500;
+  color: var(--gray-500); background: none; border: none;
+  cursor: pointer; transition: color 0.15s;
+}
+.modalSkip:hover { color: var(--gray-700); }
+
+@keyframes fadeIn {
+  from { opacity: 0; } to { opacity: 1; }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translate(-50%, -45%); }
+  to { opacity: 1; transform: translate(-50%, -50%); }
+}
+
+@media (max-width: 480px) {
+  .row2 { grid-template-columns: 1fr; }
+  .photoBtns { grid-template-columns: 1fr 1fr; }
+  .modalActions { grid-template-columns: 1fr; }
+}

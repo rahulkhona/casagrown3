@@ -4377,3 +4377,73 @@ CREATE INDEX idx_efe_fn_created
 ```
 
 **RLS**: Enabled, no public policies (service_role only).
+
+---
+
+## Market
+
+> **Migration**: `20260313000000_market_schema.sql`
+>
+> The Market module extends the CasaGrown platform with a 1-day-per-week
+> farmers' market experience. It reuses the shared `profiles` table (zero
+> modifications) and adds two new tables prefixed with `market_`. A user
+> becomes a "seller" by creating a booth — there is no approval process.
+>
+> **Key design decisions:**
+> - Products are **per-market-day** (not a recurring catalog). Sellers
+>   "arrange their booth" for each upcoming market day by filling shelves.
+> - **Delivery/pickup is booth-level**, not per-product.
+> - **No coupons** (deferred).
+
+### `market_booths`
+
+One booth per user. Delivery/pickup settings live here (booth-level).
+
+| Column                  | Type          | Description                                    |
+| :---------------------- | :------------ | :--------------------------------------------- |
+| `id`                    | `uuid`        | Primary Key.                                   |
+| `owner_id`              | `uuid`        | FK to `profiles(id)`. Unique — one per user.   |
+| `name`                  | `text`        | Booth display name.                            |
+| `description`           | `text`        | Short description.                             |
+| `decorative_theme`      | `text`        | UI theme (floral, rustic, tropical, minimal).  |
+| `about_html`            | `text`        | Rich about section.                            |
+| `invite_code`           | `text`        | Unique shareable invite code.                  |
+| `offers_delivery`       | `boolean`     | Whether booth offers delivery. Default: true.  |
+| `delivery_radius_miles` | `integer`     | Max delivery distance. Default: 5.             |
+| `offers_pickup`         | `boolean`     | Whether booth offers pickup. Default: true.    |
+| `pickup_address`        | `text`        | Address for pickup.                            |
+| `market_day_of_week`    | `integer`     | 0=Sun … 6=Sat. Default: 6 (Saturday).         |
+| `created_at`            | `timestamptz` | Default `now()`.                               |
+| `updated_at`            | `timestamptz` | Default `now()`.                               |
+
+**Constraints**: `UNIQUE(owner_id)`, `CHECK (market_day_of_week BETWEEN 0 AND 6)`
+**Indexes**: `idx_market_booths_owner`
+
+**RLS Policies**: Public read, owner write.
+
+### `market_products`
+
+Per-market-day products placed on booth "shelves". These are ephemeral —
+created for a specific market date. Delivery/pickup inherits from the booth.
+
+| Column         | Type          | Description                                    |
+| :------------- | :------------ | :--------------------------------------------- |
+| `id`           | `uuid`        | Primary Key.                                   |
+| `booth_id`     | `uuid`        | FK to `market_booths(id)`.                     |
+| `market_date`  | `date`        | **Required**. The market day this is listed for.|
+| `name`         | `text`        | Product name.                                  |
+| `description`  | `text`        | Optional description.                          |
+| `category`     | `text`        | produce, baked-goods, plants, etc.             |
+| `price_usd`    | `numeric`     | Price per unit in USD.                         |
+| `unit`         | `text`        | Unit of sale (each, bunch, dozen, etc.)        |
+| `inventory`    | `integer`     | Available stock count.                         |
+| `photos`       | `text[]`      | Array of photo URLs.                           |
+| `is_active`    | `boolean`     | Visibility toggle. Default: true.              |
+| `harvested_at` | `timestamptz` | When produce was harvested (freshness signal). |
+| `created_at`   | `timestamptz` | Default `now()`.                               |
+| `updated_at`   | `timestamptz` | Default `now()`.                               |
+
+**Indexes**: `idx_market_products_booth`, `idx_market_products_date`,
+`idx_market_products_booth_date` (composite)
+
+**RLS Policies**: Public read, booth owner write (subquery on `market_booths.owner_id`).

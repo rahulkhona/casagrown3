@@ -1,0 +1,11 @@
+.header { text-align: center; padding: 32px 0 24px; }
+.avatar {
+  width: 80px; height: 80px; border-radius: 50%; margin: 0 auto 16px;
+  background: var(--green-100); color: var(--green-700); font-size: 32px;
+  font-weight: 700; display: flex; align-items: center; justify-content: center;
+  border: 3px solid var(--green-200);
+}
+.form { padding-bottom: 40px; }
+.phoneRow { display: flex; gap: 8px; }
+.phoneRow .input { flex: 1; }
+.sectionTitle { font-size: 16px; font-weight: 600; color: var(--gray-700); margin-bottom: 16px; }

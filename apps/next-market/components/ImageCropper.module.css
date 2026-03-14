@@ -1,0 +1,99 @@
+/* ── Image Cropper Overlay ── */
+.overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0, 0, 0, 0.88);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.modal {
+  width: 92vw; max-width: 680px;
+  border-radius: 16px; overflow: hidden;
+  background: #1a1a1a; box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+.header {
+  padding: 12px 16px; background: #222;
+  text-align: center;
+}
+.headerTitle {
+  font-size: 13px; color: #aaa; font-weight: 500;
+}
+
+/* Crop area — the visible crop window */
+.cropArea {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  background: #000;
+  touch-action: none;
+  user-select: none;
+}
+
+/* Image — sized and positioned via inline styles */
+.cropImage {
+  position: absolute;
+  max-width: none; max-height: none;
+  pointer-events: none;
+}
+
+/* Visible crop border — a dashed inset border inside the crop area */
+.cropBorder {
+  position: absolute; inset: 0;
+  border: 2px solid rgba(255,255,255,0.5);
+  pointer-events: none; z-index: 2;
+  /* Rule of thirds grid lines */
+  background:
+    linear-gradient(to right, transparent 33.3%, rgba(255,255,255,0.15) 33.3%, rgba(255,255,255,0.15) 33.4%, transparent 33.4%,
+                    transparent 66.6%, rgba(255,255,255,0.15) 66.6%, rgba(255,255,255,0.15) 66.7%, transparent 66.7%),
+    linear-gradient(to bottom, transparent 33.3%, rgba(255,255,255,0.15) 33.3%, rgba(255,255,255,0.15) 33.4%, transparent 33.4%,
+                    transparent 66.6%, rgba(255,255,255,0.15) 66.6%, rgba(255,255,255,0.15) 66.7%, transparent 66.7%);
+}
+
+/* Circle guide for avatar crops */
+.circleGuide {
+  position: absolute; inset: 0;
+  pointer-events: none; z-index: 3;
+  display: flex; align-items: center; justify-content: center;
+}
+.circleGuide::before {
+  content: ''; display: block;
+  width: 85%; aspect-ratio: 1;
+  border: 2.5px dashed rgba(255,255,255,0.7);
+  border-radius: 50%;
+  box-shadow: 0 0 0 9999px rgba(0,0,0,0.4);
+}
+
+/* Controls */
+.controls {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; background: #222; gap: 12px;
+}
+.cancelBtn {
+  padding: 10px 20px; border: none; border-radius: 10px;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  background: var(--gray-700, #444); color: #fff;
+  transition: background 0.15s;
+}
+.cancelBtn:hover { background: var(--gray-600, #555); }
+.cropBtn {
+  padding: 10px 20px; border: none; border-radius: 10px;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  background: var(--green-500, #22c55e); color: #fff;
+  transition: background 0.15s;
+}
+.cropBtn:hover { background: var(--green-600, #16a34a); }
+
+/* Zoom */
+.zoomControls {
+  display: flex; align-items: center; gap: 8px;
+}
+.zoomBtn {
+  width: 32px; height: 32px; border-radius: 8px;
+  border: 1px solid #555; background: #333; color: #fff;
+  font-size: 18px; cursor: pointer; display: flex;
+  align-items: center; justify-content: center;
+  transition: background 0.15s;
+}
+.zoomBtn:hover { background: #444; }
+.zoomLabel {
+  font-size: 12px; color: #aaa; min-width: 40px; text-align: center;
+}

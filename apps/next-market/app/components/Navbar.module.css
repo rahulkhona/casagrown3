@@ -1,0 +1,132 @@
+.navbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: rgba(255,255,255,0.95); backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--gray-200);
+  height: 64px;
+}
+.inner {
+  max-width: 1200px; margin: 0 auto; padding: 0 20px;
+  height: 100%; display: flex; align-items: center; gap: 16px;
+}
+.logo {
+  display: flex; align-items: center; gap: 8px; text-decoration: none; flex-shrink: 0;
+}
+.logoImg { width: 32px; height: 32px; object-fit: contain; }
+.logoText { font-size: 18px; font-weight: 700; color: var(--gray-800); }
+.logoAccent { color: var(--green-600); }
+
+.marketStatus {
+  display: flex; align-items: center; gap: 6px; padding: 4px 12px;
+  border-radius: var(--radius-full); font-size: 12px; font-weight: 600;
+  flex-shrink: 0;
+}
+.statusDot {
+  width: 8px; height: 8px; border-radius: 50%;
+}
+.statusOpen { background: var(--green-50); color: var(--green-700); }
+.statusOpen .statusDot { background: var(--green-500); animation: pulse 2s infinite; }
+.statusClosed { background: var(--gray-100); color: var(--gray-500); }
+.statusClosed .statusDot { background: var(--gray-400); }
+
+.navLinks { display: flex; gap: 2px; margin-left: auto; flex-shrink: 0; }
+.navLink {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 12px; font-size: 14px; font-weight: 500; color: var(--gray-600);
+  border-radius: var(--radius); transition: all 0.15s ease; text-decoration: none;
+  white-space: nowrap;
+}
+.navLink:hover { color: var(--green-700); background: var(--green-50); }
+.navLinkActive { color: var(--green-700); background: var(--green-50); font-weight: 600; }
+.navIcon { font-size: 16px; line-height: 1; }
+.navLabel { font-size: inherit; }
+
+/* At medium widths, use compact labels */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .navLink { padding: 6px 8px; font-size: 12px; }
+  .navIcon { font-size: 14px; }
+}
+
+.right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+@media (min-width: 769px) { .right { margin-left: 0; } }
+
+.iconBtn {
+  position: relative; padding: 8px; font-size: 20px;
+  background: none; border: none; cursor: pointer; text-decoration: none;
+  border-radius: var(--radius); transition: background 0.15s;
+}
+.iconBtn:hover { background: var(--gray-100); }
+.badge {
+  position: absolute; top: 2px; right: 2px; min-width: 18px; height: 18px;
+  background: var(--red-500); color: #fff; font-size: 11px; font-weight: 700;
+  border-radius: 9px; display: flex; align-items: center; justify-content: center;
+  padding: 0 4px;
+}
+
+/* ============================================= */
+/* Always-visible Hamburger + Slide Menu         */
+/* ============================================= */
+
+.hamburgerWrapper { position: relative; }
+.hamburger {
+  padding: 6px 10px; font-size: 22px; background: none; border: 1px solid var(--gray-200);
+  color: var(--gray-700); cursor: pointer; border-radius: var(--radius);
+  transition: all 0.15s; line-height: 1;
+}
+.hamburger:hover { background: var(--gray-50); border-color: var(--gray-300); }
+
+.slideMenu {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 200;
+  width: 280px; max-height: calc(100vh - 80px);
+  overflow-y: auto; background: #fff;
+  border: 1px solid var(--gray-200); border-radius: var(--radius-xl);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.06);
+  animation: slideDown 0.15s ease-out;
+}
+
+/* User info at top */
+.menuUser {
+  display: flex; align-items: center; gap: 12px;
+  padding: 16px; border-bottom: 1px solid var(--gray-100);
+}
+.menuAvatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--green-100); color: var(--green-700); font-weight: 700;
+  font-size: 15px; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.menuUserName { display: block; font-size: 14px; color: var(--gray-800); }
+.menuUserEmail { display: block; font-size: 12px; color: var(--gray-500); }
+
+/* Sections */
+.menuSection { padding: 8px 0; border-bottom: 1px solid var(--gray-100); }
+.menuSection:last-child { border-bottom: none; }
+.menuSectionLabel {
+  padding: 4px 16px 6px; font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.8px; color: var(--gray-400);
+}
+
+/* Items */
+.menuItem {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 10px 16px; font-size: 14px; font-weight: 500; color: var(--gray-700);
+  background: none; border: none; text-align: left; cursor: pointer;
+  text-decoration: none; transition: background 0.1s;
+}
+.menuItem:hover { background: var(--green-50); color: var(--green-700); }
+.menuItemActive { color: var(--green-700); background: var(--green-50); font-weight: 600; }
+.menuItemIcon { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
+.menuBadge {
+  margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px;
+  background: var(--red-500); color: #fff; font-size: 11px; font-weight: 700;
+  border-radius: 10px; display: flex; align-items: center; justify-content: center;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}

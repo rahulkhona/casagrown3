@@ -1,0 +1,18 @@
+.bottomNav {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+  background: rgba(255,255,255,0.95); backdrop-filter: blur(12px);
+  border-top: 1px solid var(--gray-200);
+  display: flex; justify-content: space-around; padding: 6px 0 env(safe-area-inset-bottom, 8px);
+}
+@media (min-width: 769px) { .bottomNav { display: none; } }
+
+.tab {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 6px 12px; text-decoration: none; border-radius: var(--radius);
+  transition: all 0.15s;
+}
+.tab:hover { background: var(--green-50); }
+.icon { font-size: 22px; line-height: 1; }
+.label { font-size: 11px; font-weight: 500; color: var(--gray-500); }
+.tabActive .label { color: var(--green-700); font-weight: 700; }
+.tabActive { background: var(--green-50); }

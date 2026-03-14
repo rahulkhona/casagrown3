@@ -1,0 +1,308 @@
+/* ── Booth Preview Page ── */
+.boothPreviewPage {
+  max-width: 800px; margin: 0 auto; padding: 0 16px 40px;
+}
+
+/* ── Themed Header ── */
+.boothHeader {
+  border-radius: var(--radius-xl); overflow: hidden;
+  margin-bottom: 20px; margin-top: 20px;
+  border: 1px solid var(--border);
+}
+
+/* Banner */
+.bannerWrap { position: relative; }
+.bannerArea { width: 100%; height: 140px; }
+
+/* Corner icons (📷 and 🎨) */
+.bannerCornerBtn {
+  position: absolute; top: 8px; z-index: 5;
+  width: 32px; height: 32px; border-radius: 50%;
+  background: rgba(255,255,255,0.85); border: 1px solid rgba(0,0,0,0.1);
+  cursor: pointer; font-size: 16px; display: flex; align-items: center;
+  justify-content: center; transition: all 0.15s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+}
+.bannerCornerBtn:hover { background: #fff; transform: scale(1.1); }
+.photoCorner { position: absolute; top: 8px; left: 8px; z-index: 5; }
+.photoCorner .bannerCornerBtn { position: static; }
+.photoMenu {
+  position: absolute; top: 100%; left: 0; margin-top: 6px; z-index: 10;
+  background: #fff; border-radius: var(--radius-lg); border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg); min-width: 180px; overflow: hidden;
+}
+.photoMenuItem {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 10px 16px; border: none; background: none; cursor: pointer;
+  font-size: 14px; text-align: left; transition: background 0.1s;
+}
+.photoMenuItem:hover { background: var(--gray-50); }
+.themeCorner { position: absolute; top: 8px; right: 8px; z-index: 5; }
+.themeCorner .bannerCornerBtn { position: static; }
+
+/* Name bar below banner */
+.nameBar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 16px;
+}
+.nameBarInput {
+  font-size: 16px; font-weight: 700; border: none; background: transparent;
+  outline: none; flex: 1; min-width: 0;
+}
+.nameBarInput::placeholder { opacity: 0.5; font-weight: 400; }
+.nameBarOwner {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--gray-500); white-space: nowrap;
+}
+.ownerAvatar {
+  width: 24px; height: 24px; border-radius: 50%; object-fit: cover;
+  border: 1px solid rgba(0,0,0,0.1);
+}
+.ownerAvatarFallback {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--gray-200); color: var(--gray-600);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700;
+}
+
+/* Theme Picker Dropdown */
+.themePicker {
+  position: absolute; top: 100%; right: 0; margin-top: 6px; z-index: 10;
+  background: #fff; border-radius: var(--radius-lg); border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg); min-width: 160px; overflow: hidden;
+}
+.themePickerItem {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 10px 16px; border: none; background: none; cursor: pointer;
+  font-size: 14px; text-align: left; transition: background 0.1s;
+}
+.themePickerItem:hover { background: var(--gray-50); }
+.themePickerActive { background: var(--green-50); font-weight: 600; }
+
+/* ── Booth Sections ── */
+.boothSection {
+  background: #fff; border-radius: var(--radius-xl);
+  border: 1px solid var(--border); padding: 24px;
+  margin-bottom: 16px;
+}
+.sectionTitle {
+  font-size: 16px; font-weight: 700;
+  margin: 0 0 14px; display: flex; align-items: center; gap: 6px;
+}
+
+/* ── Product Grid ── */
+.productGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.productSlot {
+  border-radius: var(--radius-lg); border: 1px solid var(--border);
+  overflow: hidden; text-decoration: none; transition: all 0.2s;
+  background: #fff; display: flex; flex-direction: column;
+}
+.productSlot:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.productSlotImage {
+  aspect-ratio: 1; background: var(--gray-50); display: flex;
+  align-items: center; justify-content: center; overflow: hidden;
+}
+.productSlotImage img { width: 100%; height: 100%; object-fit: cover; }
+.productSlotEmoji { font-size: 40px; }
+.productSlotInfo { padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.productSlotInfo strong { font-size: 13px; color: var(--gray-800); }
+.productSlotStock { font-size: 11px; color: var(--gray-400); }
+
+/* Remove button */
+.productRemoveBtn {
+  position: absolute; top: 6px; right: 6px; z-index: 3;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: rgba(0,0,0,0.55); color: #fff; border: none;
+  font-size: 13px; cursor: pointer; display: flex;
+  align-items: center; justify-content: center;
+  opacity: 0; transition: opacity 0.15s;
+}
+.productSlot { position: relative; }
+.productSlot:hover .productRemoveBtn { opacity: 1; }
+.productRemoveBtn:hover { background: var(--red-500); }
+
+/* Drag-over */
+.productSlotDragOver {
+  border: 2px dashed var(--green-400) !important;
+  background: var(--green-50) !important;
+}
+
+/* Share modal */
+.shareBackdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  z-index: 100; animation: fadeIn 0.2s;
+}
+.shareModal {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  background: #fff; border-radius: var(--radius-xl); padding: 32px 28px;
+  max-width: 420px; width: calc(100% - 32px); z-index: 101;
+  text-align: center; box-shadow: var(--shadow-xl);
+  animation: slideUp 0.3s ease;
+}
+
+/* Empty slot */
+.productSlotEmpty { border: 2px dashed var(--gray-200); background: var(--gray-50); }
+.productSlotEmpty:hover { border-color: var(--green-300); background: var(--green-50); }
+.addSlotContent {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; min-height: 180px; padding: 20px;
+}
+.addSlotIcon {
+  width: 48px; height: 48px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; font-weight: 300; line-height: 1;
+  background: var(--green-100); color: var(--green-600);
+}
+.addSlotLabel { font-size: 13px; font-weight: 600; color: var(--gray-500); }
+
+/* ── Toggle Cards ── */
+.toggleGrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.toggleCard {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 20px 16px; border: 2px solid var(--border); border-radius: var(--radius-lg);
+  background: #fff; cursor: pointer; transition: all 0.15s; text-align: center;
+}
+.toggleCard strong { font-size: 14px; color: var(--gray-700); }
+.toggleCard:hover { border-color: var(--green-300); }
+.toggleActive { border-color: var(--green-500); background: var(--green-50); }
+.toggleActive strong { color: var(--green-700); }
+.toggleCardSmall { padding: 14px 12px; }
+
+/* ── Helpers ── */
+.helperList { display: flex; flex-direction: column; gap: 8px; }
+.helperRow {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  background: var(--gray-50); border-radius: var(--radius); border: 1px solid var(--border);
+}
+.helperEmail { flex: 1; font-size: 14px; color: var(--gray-700); }
+.helperRemove {
+  width: 24px; height: 24px; border-radius: 50%; border: none;
+  background: var(--gray-200); color: var(--gray-600); cursor: pointer;
+  font-size: 16px; display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.helperRemove:hover { background: var(--red-100); color: var(--red-600); }
+
+/* ── Quick Actions ── */
+.actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.actionCard {
+  display: flex; align-items: center; gap: 10px; padding: 16px;
+  border-radius: var(--radius-lg); border: 1px solid var(--border);
+  background: #fff; text-decoration: none; transition: all 0.2s;
+}
+.actionCard:hover { box-shadow: var(--shadow-sm); border-color: var(--green-200); }
+.actionCard span:first-child { font-size: 24px; }
+.actionCard strong { font-size: 14px; color: var(--gray-700); }
+
+/* ── Save Button ── */
+.saveBtn {
+  width: 100%; padding: 16px; font-size: 16px; font-weight: 700;
+  border: none; border-radius: var(--radius-lg); cursor: pointer;
+  color: #fff; background: var(--green-600); transition: all 0.2s;
+}
+.saveBtn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--shadow-md); }
+.saveBtn:disabled { background: var(--gray-200); color: var(--gray-500); cursor: default; }
+
+/* ── Charity Dropdown ── */
+.charityDropdown {
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 20; margin-top: 4px;
+  background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg); max-height: 240px; overflow-y: auto;
+}
+.charityItem {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; padding: 10px 14px; border: none; background: none;
+  cursor: pointer; text-align: left; transition: background 0.1s;
+}
+.charityItem:hover { background: var(--gray-50); }
+.charityItemName { font-size: 14px; color: var(--gray-800); }
+.charityItemCategory {
+  font-size: 11px; color: var(--gray-400); background: var(--gray-100);
+  padding: 2px 8px; border-radius: 10px;
+}
+
+/* ── Time Slots ── */
+.timeSlotRow {
+  display: flex; align-items: center; gap: 8px; margin-top: 8px;
+}
+.timeSlotRow select { max-width: 130px; }
+.timeSlotRow input[type="time"] { max-width: 120px; }
+.timeSlotRow span { font-size: 13px; color: var(--gray-500); }
+
+/* ── Camera Modal ── */
+.cameraOverlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center;
+}
+.cameraModal {
+  width: 90vw; max-width: 640px; border-radius: var(--radius-xl);
+  overflow: hidden; background: #000;
+}
+.cameraVideo { width: 100%; display: block; }
+.cameraControls {
+  display: flex; justify-content: center; gap: 16px; padding: 16px;
+  background: #111;
+}
+
+/* ── Time Window Chips ── */
+.windowGrid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+}
+.windowChip {
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+  padding: 8px 6px; border: 1.5px solid var(--border);
+  border-radius: var(--radius-lg); background: #fff;
+  font-size: 12px; cursor: pointer; transition: all 0.15s;
+  text-align: center; white-space: nowrap;
+}
+.windowChip:hover { border-color: var(--green-300); }
+.windowChipActive {
+  border-color: var(--green-500); background: var(--green-50);
+  font-weight: 600; color: var(--green-700);
+}
+
+/* Custom slots */
+.customSlotRow {
+  display: flex; align-items: center; gap: 8px; margin-top: 8px;
+}
+.customSlotRow span { font-size: 13px; color: var(--gray-500); }
+.customSlotLabel {
+  font-size: 13px; background: var(--green-50); border: 1px solid var(--green-200);
+  padding: 4px 10px; border-radius: 16px; color: var(--green-700);
+}
+.addCustomBtn {
+  margin-top: 8px; background: none; border: none;
+  color: var(--green-600); font-size: 13px; font-weight: 600;
+  cursor: pointer; padding: 4px 0;
+}
+.addCustomBtn:hover { color: var(--green-700); text-decoration: underline; }
+
+/* ── Passcode Card ── */
+.passcodeCard {
+  background: var(--gray-50); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 20px; text-align: center;
+}
+.passcodeLabel {
+  font-size: 13px; color: var(--gray-500); margin-bottom: 12px;
+}
+.passcodeDigits {
+  display: flex; justify-content: center; gap: 6px;
+}
+.passcodeDigit {
+  width: 36px; height: 44px; display: flex; align-items: center; justify-content: center;
+  background: #fff; border: 1.5px solid var(--border); border-radius: 8px;
+  font-size: 20px; font-weight: 700; color: var(--gray-800);
+  font-family: 'SF Mono', SFMono-Regular, Menlo, monospace;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .productGrid { grid-template-columns: repeat(2, 1fr); }
+  .actions { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+  .productGrid { grid-template-columns: repeat(2, 1fr); }
+  .actions { grid-template-columns: 1fr; }
+  .boothSection { padding: 16px; }
+  .toggleGrid { grid-template-columns: 1fr; }
+}
