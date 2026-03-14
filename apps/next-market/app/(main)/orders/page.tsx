@@ -92,13 +92,12 @@ export default function OrdersPage() {
 
   useEffect(() => { loadOrders() }, [loadOrders])
 
-  if (authLoading) {
-    return <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}><p>Loading...</p></div>
-  }
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) router.push('/login')
+  }, [authLoading, isAuthenticated, router])
 
-  if (!isAuthenticated) {
-    router.push('/login')
-    return null
+  if (authLoading || !isAuthenticated) {
+    return <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}><p>Loading...</p></div>
   }
 
   if (loading) {
