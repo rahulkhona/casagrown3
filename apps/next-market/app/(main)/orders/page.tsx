@@ -163,9 +163,8 @@ export default function OrdersPage() {
                   <div>
                     <div className={styles.productName}>{order.product_name}</div>
                     <div className={styles.orderMeta}>
-                      <span className={styles.roleBadge} style={{ background: isBuyer ? 'var(--blue-50, #eff6ff)' : 'var(--green-50)', color: isBuyer ? 'var(--blue-700, #1d4ed8)' : 'var(--green-700)' }}>
-                        {role}
-                      </span>
+                      <span>{isBuyer ? `Bought from ${order.seller_name}` : `Selling to ${order.buyer_name}`}</span>
+                      <span>•</span>
                       <span>{order.fulfillment_type === 'delivery' ? '🚗 Delivery' : '📍 Pickup'}</span>
                       <span>•</span>
                       <span>{new Date(order.created_at).toLocaleDateString()}</span>
@@ -177,10 +176,6 @@ export default function OrdersPage() {
                 </div>
 
                 <div className={styles.orderDetails}>
-                  <div className={styles.detailRow}>
-                    <span>{isBuyer ? 'Seller' : 'Buyer'}</span>
-                    <span>{otherParty}</span>
-                  </div>
                   <div className={styles.detailRow}>
                     <span>{order.quantity} × {formatUsd(order.unit_price_usd)}</span>
                     <span className={styles.totalPrice}>{formatUsd(order.total_usd)}</span>
