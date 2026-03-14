@@ -19,7 +19,14 @@
 
 /* Details */
 .details { }
-.productName { font-size: 26px; font-weight: 700; color: var(--gray-900); margin-bottom: 8px; }
+.productName { font-size: 26px; font-weight: 700; color: var(--gray-900); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+.flagBtn {
+  background: none; border: 1px solid var(--gray-200); cursor: pointer;
+  font-size: 13px; padding: 4px 8px; border-radius: var(--radius);
+  color: var(--gray-400); transition: all 0.15s; flex-shrink: 0;
+}
+.flagBtn:hover:not(:disabled) { border-color: var(--red-300); color: var(--red-500); background: var(--red-50); }
+.flagBtn:disabled { opacity: 0.6; cursor: default; color: var(--red-400); border-color: var(--red-200); }
 .productPrice { margin-bottom: 12px; }
 .unit { font-size: 15px; color: var(--gray-500); font-weight: 400; margin-left: 2px; }
 .productDesc { font-size: 14px; color: var(--gray-600); line-height: 1.6; margin-bottom: 16px; }

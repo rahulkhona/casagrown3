@@ -7,6 +7,7 @@ import { formatUsd } from '../../../../../lib/store'
 import { useAuth } from '../../../../../lib/useAuth'
 import { useRouter, usePathname } from 'next/navigation'
 import BuyModal from '../../../../components/BuyModal'
+import { FlagModal } from '../../../../components/FlagModal'
 import styles from './page.module.css'
 
 export default function BoothDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -14,13 +15,15 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
   const supabase = createClient()
   const router = useRouter()
   const pathname = usePathname()
-  const { isAuthenticated } = useAuth()
+  const { user, isAuthenticated } = useAuth()
   const [booth, setBooth] = useState<any>(null)
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [buyProduct, setBuyProduct] = useState<any>(null)
   const [buyerZip, setBuyerZip] = useState('')
   const [buyerAddress, setBuyerAddress] = useState('')
+  const [flagProduct, setFlagProduct] = useState<any>(null)
+  const [flaggedIds, setFlaggedIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const load = async () => {
@@ -213,22 +216,34 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
                       🌱 Harvested {new Date(p.harvested_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </p>
                   )}
-                  <button
-                    className="btn btn-primary"
-                    style={{ marginTop: 8, width: '100%', fontSize: 13, padding: '6px 12px' }}
-                    onClick={(e) => {
-                      e.preventDefault(); e.stopPropagation()
-                      if (!isAuthenticated) {
-                        const productUrl = `/market/booth/${id}/product/${p.id}`
-                        router.push(`/login?redirect=${encodeURIComponent(productUrl)}`)
-                        return
-                      }
-                      setBuyProduct(p)
-                    }}
-                    disabled={p.inventory === 0}
-                  >
-                    {p.inventory === 0 ? 'Sold Out' : 'Buy'}
-                  </button>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                    <button
+                      className="btn btn-primary"
+                      style={{ flex: 1, fontSize: 13, padding: '6px 12px' }}
+                      onClick={(e) => {
+                        e.preventDefault(); e.stopPropagation()
+                        if (!isAuthenticated) {
+                          const productUrl = `/market/booth/${id}/product/${p.id}`
+                          router.push(`/login?redirect=${encodeURIComponent(productUrl)}`)
+                          return
+                        }
+                        setBuyProduct(p)
+                      }}
+                      disabled={p.inventory === 0}
+                    >
+                      {p.inventory === 0 ? 'Sold Out' : 'Buy'}
+                    </button>
+                    {isAuthenticated && user?.id !== booth?.owner_id && (
+                      <button
+                        className={styles.flagBtn}
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFlagProduct(p) }}
+                        title="Flag this product"
+                        disabled={flaggedIds.has(p.id)}
+                      >
+                        {flaggedIds.has(p.id) ? '✓' : '🚩'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </Link>
             ))}
@@ -251,6 +266,19 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
             if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
               Notification.requestPermission()
             }
+          }}
+        />
+      )}
+
+      {/* Flag Modal */}
+      {flagProduct && (
+        <FlagModal
+          productId={flagProduct.id}
+          productName={flagProduct.name}
+          onClose={() => setFlagProduct(null)}
+          onFlagged={() => {
+            setFlaggedIds(prev => new Set(prev).add(flagProduct.id))
+            setFlagProduct(null)
           }}
         />
       )}

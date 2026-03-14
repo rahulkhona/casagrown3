@@ -5550,6 +5550,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@stripe/stripe-js@npm:^8.9.0":
+  version: 8.9.0
+  resolution: "@stripe/stripe-js@npm:8.9.0"
+  checksum: 10/61c0598d457e3920f444b647aafda8c2b47c11854616b9c976088d76363570defcc1f984b7203306c23f3eac92a512808ba605fae9e172e8c50a0d77cb1f8390
+  languageName: node
+  linkType: hard
+
 "@stripe/stripe-react-native@npm:0.50.3":
   version: 0.50.3
   resolution: "@stripe/stripe-react-native@npm:0.50.3"
@@ -16401,6 +16408,7 @@ __metadata:
   resolution: "next-market@workspace:apps/next-market"
   dependencies:
     "@playwright/test": "npm:^1.58.2"
+    "@stripe/stripe-js": "npm:^8.9.0"
     "@supabase/ssr": "npm:^0.9.0"
     "@supabase/supabase-js": "npm:^2.99.1"
     "@types/node": "npm:^20.14.1"

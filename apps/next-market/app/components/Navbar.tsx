@@ -28,17 +28,14 @@ export function Navbar() {
 
   // Primary nav tabs (always visible on desktop)
   const primaryNav = [
-    { href: '/market', label: 'Browse', icon: '🏪' },
-    { href: '/my-booth', label: 'My Booth', icon: '🌱' },
+    { href: '/market', label: open ? 'Market Open' : 'Market Closed', icon: '🧺', hasStatus: true },
     { href: '/orders', label: 'Orders', icon: '📦' },
     { href: '/chat', label: 'Chat', icon: '💬' },
-    { href: '/earnings', label: 'Earnings', icon: '💰' },
   ]
 
   // Extended menu items (in hamburger)
   const menuItems = [
-    { href: '/market', label: 'Browse Market', icon: '🏪', section: 'main' },
-    { href: '/my-booth', label: 'My Booth', icon: '🌱', section: 'main' },
+    { href: '/my-booth', label: 'My Booth', icon: '🏪', section: 'main' },
     { href: '/my-booth/products', label: 'My Products', icon: '📦', section: 'main' },
     { href: '/my-booth/products/new', label: 'Add Product', icon: '➕', section: 'main' },
     { href: '/orders', label: 'Orders', icon: '🧾', section: 'main' },
@@ -73,14 +70,11 @@ export function Navbar() {
         {/* Logo */}
         <Link href="/" className={styles.logo}>
           <img src="/logo.png" alt="CasaGrown" className={styles.logoImg} />
-          <span className={styles.logoText}>CasaGrown <span className={styles.logoAccent}>Market</span></span>
+          <div className={styles.logoTextWrap}>
+            <span className={styles.logoText}>CasaGrown</span>
+            <span className={styles.logoTagline}>Fresh • Local • Trusted</span>
+          </div>
         </Link>
-
-        {/* Market Status */}
-        <div className={`${styles.marketStatus} ${open ? styles.statusOpen : styles.statusClosed}`}>
-          <span className={styles.statusDot} />
-          {open ? 'Market Open' : 'Market Closed'}
-        </div>
 
         {/* Desktop Nav (primary tabs) */}
         <div className={`${styles.navLinks} hide-mobile`}>
@@ -91,6 +85,7 @@ export function Navbar() {
               className={`${styles.navLink} ${pathname.startsWith(item.href) ? styles.navLinkActive : ''}`}
             >
               <span className={styles.navIcon}>{item.icon}</span>
+              {item.hasStatus && <span className={`${styles.statusDot} ${open ? styles.statusDotOpen : styles.statusDotClosed}`} />}
               <span className={styles.navLabel}>{item.label}</span>
             </Link>
           ))}

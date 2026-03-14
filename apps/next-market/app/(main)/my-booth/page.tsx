@@ -781,6 +781,9 @@ export default function MyBoothPage() {
         <p style={{ fontSize: 14, color: 'var(--gray-500)', marginBottom: 16 }}>
           Drag to reorder. First product is your hero item. Tap + to add.
         </p>
+        <div style={{ background: 'var(--blue-50, #eff6ff)', border: '1px solid var(--blue-200, #bfdbfe)', borderRadius: 'var(--radius-md)', padding: '10px 14px', marginBottom: 16, fontSize: 13, color: 'var(--blue-700, #1d4ed8)' }}>
+          💡 <strong>Platform fee:</strong> 10% of each sale is retained as a platform fee. This is shown to buyers at checkout.
+        </div>
         <div className={styles.productGrid}>
           {slots.map(slot => (
             slot.type === 'product' && slot.product ? (

@@ -7,6 +7,7 @@ import { formatUsd } from '../../../../../../../lib/store'
 import { useAuth } from '../../../../../../../lib/useAuth'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import BuyModal from '../../../../../../components/BuyModal'
+import { FlagModal } from '../../../../../../components/FlagModal'
 import styles from './page.module.css'
 
 export default function ProductDetailPage({ params }: { params: Promise<{ id: string; productId: string }> }) {
@@ -24,6 +25,8 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   const [showBuy, setShowBuy] = useState(false)
   const [buyerZip, setBuyerZip] = useState('')
   const [buyerAddress, setBuyerAddress] = useState('')
+  const [showFlag, setShowFlag] = useState(false)
+  const [flagged, setFlagged] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -124,7 +127,19 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
           <div className="badge badge-green" style={{ marginBottom: 8 }}>
             {product.category?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
           </div>
-          <h1 className={styles.productName}>{product.name}</h1>
+          <h1 className={styles.productName}>
+            {product.name}
+            {isAuthenticated && user?.id !== product.seller_id && (
+              <button
+                className={styles.flagBtn}
+                onClick={() => setShowFlag(true)}
+                title="Flag this product"
+                disabled={flagged}
+              >
+                {flagged ? '✓ Flagged' : '🚩'}
+              </button>
+            )}
+          </h1>
           <p className={styles.productPrice}>
             <span className="price price-large">{formatUsd(product.price_usd)}</span>
             <span className={styles.unit}>/ {product.unit}</span>
@@ -208,6 +223,16 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
             // Navigate back to the booth page so user can continue browsing
             router.push(`/market/booth/${boothId}`)
           }}
+        />
+      )}
+
+      {/* Flag Modal */}
+      {showFlag && product && (
+        <FlagModal
+          productId={product.id}
+          productName={product.name}
+          onClose={() => setShowFlag(false)}
+          onFlagged={() => setFlagged(true)}
         />
       )}
     </div>

@@ -12,21 +12,16 @@
   display: flex; align-items: center; gap: 8px; text-decoration: none; flex-shrink: 0;
 }
 .logoImg { width: 32px; height: 32px; object-fit: contain; }
+.logoTextWrap { display: flex; flex-direction: column; line-height: 1.1; }
 .logoText { font-size: 18px; font-weight: 700; color: var(--gray-800); }
-.logoAccent { color: var(--green-600); }
+.logoTagline { font-size: 10px; font-weight: 500; color: var(--gray-400); letter-spacing: 0.5px; }
 
-.marketStatus {
-  display: flex; align-items: center; gap: 6px; padding: 4px 12px;
-  border-radius: var(--radius-full); font-size: 12px; font-weight: 600;
-  flex-shrink: 0;
-}
+
 .statusDot {
-  width: 8px; height: 8px; border-radius: 50%;
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
 }
-.statusOpen { background: var(--green-50); color: var(--green-700); }
-.statusOpen .statusDot { background: var(--green-500); animation: pulse 2s infinite; }
-.statusClosed { background: var(--gray-100); color: var(--gray-500); }
-.statusClosed .statusDot { background: var(--gray-400); }
+.statusDotOpen { background: var(--green-500); animation: pulse 2s infinite; }
+.statusDotClosed { background: var(--gray-400); }
 
 .navLinks { display: flex; gap: 2px; margin-left: auto; flex-shrink: 0; }
 .navLink {
