@@ -922,7 +922,7 @@ BEGIN
   SELECT
     'a1111111-1111-1111-1111-111111111111', s2, b.id, p.id, 'Meyer Lemons',
     3, 3.50, 10.50, 0.97, 11.47,
-    'delivery', 'delivering'
+    'delivery', 'pending'
   FROM market_booths b, market_products p
   WHERE b.owner_id = s2 AND p.seller_id = s2 AND p.name = 'Meyer Lemons'
   LIMIT 1;

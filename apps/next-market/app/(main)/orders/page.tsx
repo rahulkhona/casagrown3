@@ -34,7 +34,6 @@ interface MarketOrder {
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: string }> = {
   pending:          { label: 'Pending',          color: 'var(--amber-600, #d97706)', icon: '⏳' },
-  delivering:       { label: 'On the Way',       color: 'var(--blue-600, #2563eb)',  icon: '🚗' },
   delivered:        { label: 'Delivered',         color: 'var(--green-600)',          icon: '📦' },
   completed:        { label: 'Completed',         color: 'var(--green-700)',          icon: '✓' },
   ready_for_pickup: { label: 'Ready for Pickup',  color: 'var(--blue-600, #2563eb)',  icon: '📍' },
@@ -47,7 +46,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: string
   confirmed:        { label: 'Confirmed',         color: 'var(--green-700)',          icon: '✓' },
 }
 
-const ACTIVE_STATUSES = ['pending', 'delivering', 'delivered', 'ready_for_pickup', 'confirmed']
+const ACTIVE_STATUSES = ['pending', 'delivered', 'ready_for_pickup', 'confirmed']
 const PAST_STATUSES = ['completed', 'resolved', 'declined', 'cancelled', 'pickup_declined']
 const DISPUTED_STATUSES = ['disputed', 'escalated']
 

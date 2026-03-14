@@ -264,34 +264,22 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
       {/* ===== ACTION PANELS ===== */}
 
-      {/* SELLER: Pending delivery order → Mark Delivering or Decline */}
+      {/* SELLER: Pending delivery order → Mark Delivered or Decline */}
       {isSeller && order.status === 'pending' && order.fulfillment_type === 'delivery' && (
         <div className={styles.actionPanel}>
           <h2 className={styles.sectionTitle}>Actions</h2>
+          <p className={styles.actionHint}>Upload geotagged photos as proof of delivery</p>
           <div className={styles.actionButtons}>
             <button className="btn btn-primary" disabled={actionLoading}
-              onClick={() => callRpc('seller_mark_delivering', { p_order_id: orderId })}>
-              🚗 Mark as Delivering
+              onClick={() => {
+                callRpc('seller_mark_delivered', { p_order_id: orderId, p_proof: JSON.stringify([]) })
+              }}>
+              📦 Mark Delivered
             </button>
             <button className="btn btn-outline" onClick={() => setShowDecline(true)}>
               ✕ Decline Order
             </button>
           </div>
-        </div>
-      )}
-
-      {/* SELLER: Delivering → Mark Delivered with photos */}
-      {isSeller && (order.status === 'delivering' || (order.status === 'pending' && order.fulfillment_type === 'delivery')) && order.status === 'delivering' && (
-        <div className={styles.actionPanel}>
-          <h2 className={styles.sectionTitle}>Mark as Delivered</h2>
-          <p className={styles.actionHint}>Upload geotagged photos as proof of delivery</p>
-          <button className="btn btn-primary" disabled={actionLoading}
-            onClick={() => {
-              // For now, mark delivered without photos (photo upload can be added later)
-              callRpc('seller_mark_delivered', { p_order_id: orderId, p_proof: JSON.stringify([]) })
-            }}>
-            📦 Confirm Delivery
-          </button>
         </div>
       )}
 
