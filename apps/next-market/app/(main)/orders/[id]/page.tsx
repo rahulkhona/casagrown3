@@ -132,7 +132,12 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     setLoading(false)
   }, [orderId, user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { loadOrder() }, [loadOrder])
+  useEffect(() => { if (user) loadOrder() }, [loadOrder, user])
+
+  // Auth redirect
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) router.push('/login?redirect=/orders')
+  }, [authLoading, isAuthenticated, router])
 
   // Countdown timer for auto-complete
   useEffect(() => {
@@ -177,8 +182,12 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     loadOrder()
   }
 
-  if (authLoading || loading) {
+  if (authLoading || !isAuthenticated) {
     return <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}><p>Loading...</p></div>
+  }
+
+  if (loading) {
+    return <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}><p>Loading order...</p></div>
   }
 
   if (!order) {
