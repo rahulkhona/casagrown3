@@ -4,14 +4,23 @@ import { use, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '../../../../../lib/supabase'
 import { formatUsd } from '../../../../../lib/store'
+import { useAuth } from '../../../../../lib/useAuth'
+import { useRouter, usePathname } from 'next/navigation'
+import BuyModal from '../../../../components/BuyModal'
 import styles from './page.module.css'
 
 export default function BoothDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const supabase = createClient()
+  const router = useRouter()
+  const pathname = usePathname()
+  const { isAuthenticated } = useAuth()
   const [booth, setBooth] = useState<any>(null)
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [buyProduct, setBuyProduct] = useState<any>(null)
+  const [buyerZip, setBuyerZip] = useState('')
+  const [buyerAddress, setBuyerAddress] = useState('')
 
   useEffect(() => {
     const load = async () => {
@@ -33,7 +42,50 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
       setLoading(false)
     }
     load()
+    try {
+      const saved = new URLSearchParams(localStorage.getItem('market_search') || '')
+      setBuyerZip(saved.get('zip') || '')
+      setBuyerAddress(saved.get('addr') || '')
+    } catch {}
   }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Two-tier polling:
+  // 1. Lightweight refresh (30s + tab focus): just update prices/inventory
+  // 2. Full product re-fetch (2 min): catch new/removed products
+  useEffect(() => {
+    if (!booth) return
+
+    const refreshProducts = async () => {
+      const productIds = products.map(p => p.id)
+      if (productIds.length === 0) return
+      const { data } = await supabase.rpc('refresh_product_data', { product_ids: productIds })
+      if (!data) return
+      const updates = new Map((data as any[]).map(d => [d.id, d]))
+      setProducts(prev => prev.map(p => {
+        const u = updates.get(p.id)
+        return u ? { ...p, price_usd: u.price_usd, inventory: u.inventory, is_active: u.is_active } : p
+      }).filter(p => p.is_active))
+    }
+
+    const fullRefetch = async () => {
+      const { data: prods } = await supabase
+        .from('market_products')
+        .select('*')
+        .eq('seller_id', booth.owner_id)
+        .order('created_at', { ascending: true })
+      if (prods) setProducts(prods)
+    }
+
+    const lightInterval = setInterval(refreshProducts, 30_000)
+    const heavyInterval = setInterval(fullRefetch, 120_000)
+    const onFocus = () => { if (!document.hidden) refreshProducts() }
+    document.addEventListener('visibilitychange', onFocus)
+    return () => {
+      clearInterval(lightInterval)
+      clearInterval(heavyInterval)
+      document.removeEventListener('visibilitychange', onFocus)
+    }
+  }, [booth?.id, products.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const themeColors: Record<string, { bg: string; border: string }> = {
     rustic: { bg: '#fef3c7', border: '#f59e0b' },
@@ -161,12 +213,47 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
                       🌱 Harvested {new Date(p.harvested_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </p>
                   )}
+                  <button
+                    className="btn btn-primary"
+                    style={{ marginTop: 8, width: '100%', fontSize: 13, padding: '6px 12px' }}
+                    onClick={(e) => {
+                      e.preventDefault(); e.stopPropagation()
+                      if (!isAuthenticated) {
+                        const productUrl = `/market/booth/${id}/product/${p.id}`
+                        router.push(`/login?redirect=${encodeURIComponent(productUrl)}`)
+                        return
+                      }
+                      setBuyProduct(p)
+                    }}
+                    disabled={p.inventory === 0}
+                  >
+                    {p.inventory === 0 ? 'Sold Out' : 'Buy'}
+                  </button>
                 </div>
               </Link>
             ))}
           </div>
         )}
       </div>
+
+      {/* Buy Modal */}
+      {buyProduct && booth && (
+        <BuyModal
+          product={buyProduct}
+          booth={booth}
+          buyerZip={buyerZip}
+          buyerAddress={buyerAddress}
+          onClose={() => setBuyProduct(null)}
+          onSuccess={(order) => {
+            setBuyProduct(null)
+            setProducts(prev => prev.map(p => p.id === buyProduct.id ? { ...p, inventory: Math.max(0, p.inventory - order.quantity) } : p))
+            alert(`Order placed! Hold: $${order.holdAmount.toFixed(2)}. You'll only be charged the net amount at end of day.`)
+            if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+              Notification.requestPermission()
+            }
+          }}
+        />
+      )}
     </div>
   )
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
 import CameraCapture from '../../../components/CameraCapture'
 import ImageCropper from '../../../components/ImageCropper'
@@ -9,6 +9,8 @@ import styles from './page.module.css'
 
 export default function ProfileSetupPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirectTo = searchParams.get('redirect')
   const supabase = createClient()
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -187,7 +189,11 @@ export default function ProfileSetupPage() {
       .eq('id', userId!)
 
     if (updateErr) { setError(updateErr.message); setSaving(false); return }
-    router.push('/market')
+    if (redirectTo) {
+      router.push(redirectTo.includes('?') ? `${redirectTo}&autoBuy=true` : `${redirectTo}?autoBuy=true`)
+    } else {
+      router.push('/market')
+    }
   }
 
   if (loading) {

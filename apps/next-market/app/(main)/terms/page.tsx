@@ -152,6 +152,7 @@ export default function TermsPage() {
   const searchParams = useSearchParams()
   const { dispatch } = useMarket()
   const template = searchParams.get('template')
+  const redirectTo = searchParams.get('redirect')
   const [activeTab, setActiveTab] = useState<DocTab>('terms')
   const [agreedTerms, setAgreedTerms] = useState(false)
   const [agreedPrivacy, setAgreedPrivacy] = useState(false)
@@ -172,7 +173,8 @@ export default function TermsPage() {
     }
 
     dispatch({ type: 'ACCEPT_TERMS' })
-    router.push(template ? `/get-started/${template}` : '/profile-setup')
+    const redirectParam = redirectTo ? `?redirect=${encodeURIComponent(redirectTo)}` : ''
+    router.push(template ? `/get-started/${template}` : `/profile-setup${redirectParam}`)
   }
 
   const sections = activeTab === 'terms' ? TERMS_SECTIONS : PRIVACY_SECTIONS

@@ -145,22 +145,37 @@ export default function BrowseMarketPage() {
     return () => clearTimeout(t)
   }, [search, minPrice, maxPrice]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Realtime inventory updates
+  // Two-tier polling:
+  // 1. Lightweight refresh (30s + tab focus): just update prices/inventory for visible products
+  // 2. Full spatial search (2 min): catch new/removed booths
   useEffect(() => {
-    const channel = supabase
-      .channel('browse_inventory')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'market_products' },
-        (payload) => {
-          setBooths(prev => prev.map(b => ({
-            ...b,
-            matched_products: b.matched_products.map((p: any) =>
-              p.id === payload.new.id ? { ...p, inventory: payload.new.inventory } : p
-            ),
-          })))
-        }
-      ).subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    if (!lat || !lng || !addressResolved) return
+
+    const refreshProducts = async () => {
+      const productIds = booths.flatMap(b => b.matched_products.map((p: any) => p.id))
+      if (productIds.length === 0) return
+      const { data } = await supabase.rpc('refresh_product_data', { product_ids: productIds })
+      if (!data) return
+      const updates = new Map((data as any[]).map((d) => [d.id, d]))
+      setBooths(prev => prev.map(b => ({
+        ...b,
+        matched_products: b.matched_products.map((p: any) => {
+          const u = updates.get(p.id)
+          return u ? { ...p, price_usd: u.price_usd, inventory: u.inventory, is_active: u.is_active } : p
+        }).filter((p: any) => p.is_active),
+      })))
+    }
+
+    const lightInterval = setInterval(refreshProducts, 30_000)
+    const heavyInterval = setInterval(searchBooths, 120_000)
+    const onFocus = () => { if (!document.hidden) refreshProducts() }
+    document.addEventListener('visibilitychange', onFocus)
+    return () => {
+      clearInterval(lightInterval)
+      clearInterval(heavyInterval)
+      document.removeEventListener('visibilitychange', onFocus)
+    }
+  }, [searchBooths, booths.length, addressResolved]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAddressSubmit = async () => {
     if (!address.trim()) return

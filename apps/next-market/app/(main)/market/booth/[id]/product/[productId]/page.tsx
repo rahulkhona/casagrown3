@@ -4,17 +4,26 @@ import { use, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '../../../../../../../lib/supabase'
 import { formatUsd } from '../../../../../../../lib/store'
-import { useRouter } from 'next/navigation'
+import { useAuth } from '../../../../../../../lib/useAuth'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
+import BuyModal from '../../../../../../components/BuyModal'
 import styles from './page.module.css'
 
 export default function ProductDetailPage({ params }: { params: Promise<{ id: string; productId: string }> }) {
   const { id: boothId, productId } = use(params)
   const supabase = createClient()
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const { user, isAuthenticated } = useAuth()
+  const autoBuy = searchParams.get('autoBuy') === 'true'
   const [product, setProduct] = useState<any>(null)
   const [booth, setBooth] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [photoIndex, setPhotoIndex] = useState(0)
+  const [showBuy, setShowBuy] = useState(false)
+  const [buyerZip, setBuyerZip] = useState('')
+  const [buyerAddress, setBuyerAddress] = useState('')
 
   useEffect(() => {
     const load = async () => {
@@ -27,7 +36,40 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
       setLoading(false)
     }
     load()
+    try {
+      const saved = new URLSearchParams(localStorage.getItem('market_search') || '')
+      setBuyerZip(saved.get('zip') || '')
+      setBuyerAddress(saved.get('addr') || '')
+    } catch {}
   }, [productId, boothId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-open Buy modal when returning from login flow
+  useEffect(() => {
+    if (autoBuy && isAuthenticated && product && booth && !showBuy) {
+      setShowBuy(true)
+    }
+  }, [autoBuy, isAuthenticated, product, booth]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Periodic poll for fresh product data (price, inventory) — every 30s + on tab focus
+  useEffect(() => {
+    if (!product) return
+    const refreshProduct = async () => {
+      const { data } = await supabase.rpc('refresh_product_data', { product_ids: [productId] })
+      if (data && (data as any[]).length > 0) {
+        const d = (data as any[])[0]
+        setProduct((prev: any) => prev ? {
+          ...prev,
+          inventory: d.inventory,
+          price_usd: Number(d.price_usd),
+          is_active: d.is_active,
+        } : prev)
+      }
+    }
+    const interval = setInterval(refreshProduct, 30_000)
+    const onFocus = () => { if (!document.hidden) refreshProduct() }
+    document.addEventListener('visibilitychange', onFocus)
+    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onFocus) }
+  }, [product?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
@@ -98,6 +140,22 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
             )}
           </div>
 
+          {/* Buy Button */}
+          <button
+            className="btn btn-primary btn-lg"
+            style={{ width: '100%', marginTop: 16, fontSize: 16 }}
+            onClick={() => {
+              if (!isAuthenticated) {
+                router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
+                return
+              }
+              setShowBuy(true)
+            }}
+            disabled={product.inventory === 0}
+          >
+            {product.inventory === 0 ? 'Sold Out' : `Buy — ${formatUsd(product.price_usd)} / ${product.unit}`}
+          </button>
+
           {/* Harvest info */}
           {product.harvested_at && (
             <p style={{ fontSize: 13, color: 'var(--gray-500)', marginTop: 8 }}>
@@ -129,10 +187,29 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
               )}
             </div>
           </div>
-
-
         </div>
       </div>
+
+      {/* Buy Modal */}
+      {showBuy && (
+        <BuyModal
+          product={product}
+          booth={booth}
+          buyerZip={buyerZip}
+          buyerAddress={buyerAddress}
+          onClose={() => setShowBuy(false)}
+          onSuccess={(order) => {
+            setShowBuy(false)
+            alert(`Order placed! Hold: $${order.holdAmount.toFixed(2)}. You'll only be charged the net amount at end of day.`)
+            // Prompt push notifications if not already granted
+            if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+              Notification.requestPermission()
+            }
+            // Navigate back to the booth page so user can continue browsing
+            router.push(`/market/booth/${boothId}`)
+          }}
+        />
+      )}
     </div>
   )
 }

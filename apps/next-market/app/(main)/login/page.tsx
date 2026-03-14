@@ -11,6 +11,8 @@ export default function LoginPage() {
   const searchParams = useSearchParams()
   const { dispatch } = useMarket()
   const template = searchParams.get('template')
+  const redirectTo = searchParams.get('redirect')
+  const isBuyRedirect = redirectTo && redirectTo.includes('/product/')
   const [step, setStep] = useState<'email' | 'otp'>('email')
   const [email, setEmail] = useState('')
   const [otp, setOtp] = useState('')
@@ -33,6 +35,8 @@ export default function LoginPage() {
         router.replace('/terms')
       } else if (!profile?.full_name || !profile?.street_address) {
         router.replace('/profile-setup')
+      } else if (redirectTo) {
+        router.replace(redirectTo)
       } else {
         router.replace('/market')
       }
@@ -85,10 +89,15 @@ export default function LoginPage() {
         .eq('id', data.user.id)
         .single()
 
+      const redirectParam = redirectTo ? `redirect=${encodeURIComponent(redirectTo)}` : ''
+
       if (!profile?.tos_accepted_at) {
-        router.push(template ? `/terms?template=${template}` : '/terms')
+        const termsUrl = template ? `/terms?template=${template}` : `/terms${redirectParam ? `?${redirectParam}` : ''}`
+        router.push(termsUrl)
       } else if (!profile?.full_name || !profile?.street_address) {
-        router.push('/profile-setup')
+        router.push(`/profile-setup${redirectParam ? `?${redirectParam}` : ''}`)
+      } else if (redirectTo) {
+        router.push(redirectTo.includes('?') ? `${redirectTo}&autoBuy=true` : `${redirectTo}?autoBuy=true`)
       } else {
         router.push('/market')
       }
@@ -103,6 +112,20 @@ export default function LoginPage() {
           <h1 className={styles.title}>CasaGrown Market</h1>
           <p className={styles.subtitle}>Fresh. Local. Trusted.</p>
         </div>
+
+        {isBuyRedirect && (
+          <div className={styles.purchaseBanner}>
+            <strong>🛒 Sign in to complete your purchase</strong>
+            <p>You'll be returned to your item after signing in. Here's what to expect:</p>
+            <ol>
+              <li>Enter your email — we'll send a one-time code</li>
+              <li>Verify the code from your inbox</li>
+              <li>Accept our Terms of Service (first time only)</li>
+              <li>Complete your profile (first time only)</li>
+              <li>You'll be taken back to complete your purchase</li>
+            </ol>
+          </div>
+        )}
 
         {error && <p className={styles.errorText}>{error}</p>}
 

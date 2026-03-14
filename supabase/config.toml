@@ -359,6 +359,7 @@ deno_version = 2
 [edge_runtime.secrets]
 USPS_CONSUMER_KEY = "env(USPS_CONSUMER_KEY)"
 USPS_CONSUMER_SECRET = "env(USPS_CONSUMER_SECRET)"
+STRIPE_SECRET_KEY = "env(STRIPE_SECRET_KEY)"
 
 [analytics]
 enabled = true
@@ -525,3 +526,8 @@ entrypoint = "./functions/resolve-usps-address/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/resolve-usps-address/*.html" ]
+
+[functions.market-hold]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/market-hold/index.ts"
