@@ -139,14 +139,18 @@ export default function ProfileSetupPage() {
 
     // ── 2. Compute h3 index from geocoded coordinates ──
     let h3Index: string | null = null
+    let geoLat: number | null = null
+    let geoLng: number | null = null
     try {
       // Use browser geocoding to get lat/lng, then compute h3
       const geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(`${validatedStreet}, ${validatedCity}, ${validatedState} ${validatedZipPlus4.split('-')[0]}`)}&limit=1`
       const geoRes = await fetch(geocodeUrl)
       const geoData = await geoRes.json()
       if (geoData?.[0]?.lat && geoData?.[0]?.lon) {
+        geoLat = parseFloat(geoData[0].lat)
+        geoLng = parseFloat(geoData[0].lon)
         const { latLngToCell } = await import('h3-js')
-        h3Index = latLngToCell(parseFloat(geoData[0].lat), parseFloat(geoData[0].lon), 7)
+        h3Index = latLngToCell(geoLat, geoLng, 7)
       }
     } catch (err) {
       console.warn('H3 computation failed:', err)
@@ -162,6 +166,10 @@ export default function ProfileSetupPage() {
       county,
       avatar_url: avatarUrl || null,
       profile_completed_at: new Date().toISOString(),
+    }
+    // Store PostGIS point for spatial queries (Browse Market)
+    if (geoLat !== null && geoLng !== null) {
+      profileUpdate.home_location = `SRID=4326;POINT(${geoLng} ${geoLat})`
     }
     // Only set h3 after ensuring the community row exists (upsert, matching community app pattern)
     if (h3Index) {
@@ -279,7 +287,7 @@ export default function ProfileSetupPage() {
                 onClick={useCurrentLocation}
                 disabled={geolocating}
               >
-                {geolocating ? '⏳ Locating...' : '📍 Use Current Location'}
+                {geolocating ? '⏳ Locating...' : '📍 Use My Location'}
               </button>
             </div>
             <input id="street" type="text" className="input" placeholder="123 Main St"

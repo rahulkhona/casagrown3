@@ -1,451 +1,405 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { useMarket, isMarketOpen, getNextMarketDate } from '../../../lib/store'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
 import { useAuth } from '../../../lib/useAuth'
+import { geocodeAddress } from '../../../lib/geocode'
+import { formatUsd } from '../../../lib/store'
 import styles from './page.module.css'
 
-// ── Countdown Timer Hook ──
-function useCountdown(targetDate: Date | null) {
-  const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 })
-  const targetMs = targetDate?.getTime() ?? 0
-
-  useEffect(() => {
-    if (!targetMs) return
-    const tick = () => {
-      const diff = targetMs - Date.now()
-      if (diff <= 0) {
-        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 })
-        return
-      }
-      setTimeLeft({
-        days: Math.floor(diff / (1000 * 60 * 60 * 24)),
-        hours: Math.floor((diff / (1000 * 60 * 60)) % 24),
-        minutes: Math.floor((diff / (1000 * 60)) % 60),
-        seconds: Math.floor((diff / 1000) % 60),
-      })
-    }
-    tick()
-    const id = setInterval(tick, 1000)
-    return () => clearInterval(id)
-  }, [targetMs])
-
-  return timeLeft
+interface BoothResult {
+  booth_id: string
+  owner_id: string
+  booth_name: string
+  description: string | null
+  decorative_theme: string
+  header_image_url: string | null
+  offers_delivery: boolean
+  offers_pickup: boolean
+  delivery_radius_miles: number
+  pickup_address: string | null
+  delivery_windows: any[]
+  pickup_windows: any[]
+  distance_miles: number
+  product_count: number
+  matched_products: any[]
+  seller_avatar_url: string | null
+  seller_avg_rating: number | null
 }
 
-export default function MarketPage() {
-  const { state, dispatch } = useMarket()
+const themeColors: Record<string, { border: string; gradient: string }> = {
+  rustic:   { border: '#b45309', gradient: 'linear-gradient(135deg, #fef3c7, #fde68a)' },
+  tropical: { border: '#047857', gradient: 'linear-gradient(135deg, #d1fae5, #a7f3d0)' },
+  minimal:  { border: '#4b5563', gradient: 'linear-gradient(135deg, #f9fafb, #e5e7eb)' },
+  floral:   { border: '#be185d', gradient: 'linear-gradient(135deg, #fce7f3, #fbcfe8)' },
+  harvest:  { border: '#d97706', gradient: 'linear-gradient(135deg, #fffbeb, #fde68a)' },
+  cottage:  { border: '#0369a1', gradient: 'linear-gradient(135deg, #e0f2fe, #bae6fd)' },
+}
+
+const categoryIcons: Record<string, string> = {
+  produce: '🥬', baked: '🍞', preserved: '🫙', other: '📦',
+}
+
+export default function BrowseMarketPage() {
+  const supabase = createClient()
   const { user } = useAuth()
   const router = useRouter()
-  const supabase = createClient()
-  const open = isMarketOpen(state.marketSchedule)
-  const nextMarket = getNextMarketDate(state.marketSchedule)
-  const countdown = useCountdown(nextMarket?.date ?? null)
-  const [search, setSearch] = useState('')
+  const searchParams = useSearchParams()
 
-  // Reminder state
-  const [showReminder, setShowReminder] = useState(false)
-  const [notifPermission, setNotifPermission] = useState<NotificationPermission | 'unsupported'>('default')
-  const [reminderSet, setReminderSet] = useState(false)
-  const [reminderTime, setReminderTime] = useState('30') // minutes before
+  // Restore from localStorage if URL has no params
+  const saved = typeof window !== 'undefined' && !searchParams.has('lat')
+    ? new URLSearchParams(localStorage.getItem('market_search') || '') : null
 
+  const [address, setAddress] = useState(searchParams.get('addr') || saved?.get('addr') || '')
+  const [lat, setLat] = useState<number | null>(searchParams.has('lat') ? parseFloat(searchParams.get('lat')!) : saved?.has('lat') ? parseFloat(saved.get('lat')!) : null)
+  const [lng, setLng] = useState<number | null>(searchParams.has('lng') ? parseFloat(searchParams.get('lng')!) : saved?.has('lng') ? parseFloat(saved.get('lng')!) : null)
+  const [locationLoading, setLocationLoading] = useState(false)
+  const [locationError, setLocationError] = useState('')
+  const [addressResolved, setAddressResolved] = useState(searchParams.has('lat') || (saved?.has('lat') ?? false))
+  const [zipCode, setZipCode] = useState(searchParams.get('zip') || saved?.get('zip') || '')
+
+  const [search, setSearch] = useState(searchParams.get('q') || saved?.get('q') || '')
+  const [fulfillment, setFulfillment] = useState<'all' | 'delivery' | 'pickup'>((searchParams.get('ff') || saved?.get('ff') || 'all') as any)
+  const [maxMiles, setMaxMiles] = useState(searchParams.has('mi') ? parseInt(searchParams.get('mi')!) : saved?.has('mi') ? parseInt(saved.get('mi')!) : 10)
+  const [minPrice, setMinPrice] = useState(searchParams.get('pmin') || saved?.get('pmin') || '')
+  const [maxPrice, setMaxPrice] = useState(searchParams.get('pmax') || saved?.get('pmax') || '')
+  const [category, setCategory] = useState(searchParams.get('cat') || saved?.get('cat') || '')
+
+  const [allowedCategories, setAllowedCategories] = useState<{ name: string }[]>([])
+  const [booths, setBooths] = useState<BoothResult[]>([])
+  const [loading, setLoading] = useState(false)
+  const [profileLoading, setProfileLoading] = useState(true)
+
+  // Sync state to URL and localStorage
+  const syncUrl = useCallback(() => {
+    const params = new URLSearchParams()
+    if (address) params.set('addr', address)
+    if (lat) params.set('lat', lat.toFixed(4))
+    if (lng) params.set('lng', lng.toFixed(4))
+    if (search) params.set('q', search)
+    if (fulfillment !== 'all') params.set('ff', fulfillment)
+    if (fulfillment === 'pickup' && maxMiles !== 10) params.set('mi', maxMiles.toString())
+    if (zipCode) params.set('zip', zipCode)
+    if (minPrice) params.set('pmin', minPrice)
+    if (maxPrice) params.set('pmax', maxPrice)
+    if (category) params.set('cat', category)
+    const qs = params.toString()
+    window.history.replaceState(null, '', qs ? `/market?${qs}` : '/market')
+    // Persist to localStorage so Browse tab restores last search
+    try { localStorage.setItem('market_search', qs) } catch {}
+  }, [address, lat, lng, search, fulfillment, maxMiles, minPrice, maxPrice, category, zipCode])
+
+  useEffect(() => { if (addressResolved) syncUrl() }, [syncUrl, addressResolved])
+
+  // Load user's address from profile — only if no URL state
   useEffect(() => {
-    if (typeof Notification !== 'undefined') {
-      setNotifPermission(Notification.permission)
-    } else {
-      setNotifPermission('unsupported')
-    }
-  }, [])
-
-  // Check if user already has a reminder set for next market
-  useEffect(() => {
-    if (!user || !nextMarket) return
-    supabase
-      .from('market_reminders')
-      .select('id, reminder_minutes')
-      .eq('user_id', user.id)
-      .eq('market_date', nextMarket.date.toISOString())
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data) {
-          setReminderSet(true)
-          setReminderTime(String(data.reminder_minutes))
+    if (searchParams.has('lat')) { setProfileLoading(false); return }
+    if (!user) { setProfileLoading(false); return }
+    supabase.from('profiles').select('street_address, city, state_code, zip_code')
+      .eq('id', user.id).single()
+      .then(async ({ data: profile }) => {
+        if (profile?.street_address) {
+          const addr = [profile.street_address, profile.city, profile.state_code].filter(Boolean).join(', ')
+          setAddress(addr)
+          if (profile.zip_code) setZipCode(profile.zip_code)
+          const geo = await geocodeAddress(addr)
+          if (geo) { setLat(geo.lat); setLng(geo.lng); setAddressResolved(true) }
         }
+        setProfileLoading(false)
       })
-  }, [user, nextMarket?.date?.getTime()]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const requestNotifPermission = async () => {
-    if (typeof Notification === 'undefined') return
-    const perm = await Notification.requestPermission()
-    setNotifPermission(perm)
-    if (perm === 'granted') {
-      new Notification('🌱 CasaGrown Market', {
-        body: 'You\'ll be reminded before the next market opens!',
-        icon: '/logo.png',
-      })
+  // Fetch allowed categories from DB when address resolves
+  useEffect(() => {
+    if (!addressResolved) return
+    supabase.rpc('get_allowed_categories', { buyer_zip: zipCode || null })
+      .then(({ data }) => { if (data) setAllowedCategories(data) })
+  }, [addressResolved, zipCode]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Search booths
+  const searchBooths = useCallback(async () => {
+    if (!lat || !lng) return
+    setLoading(true)
+    const { data, error } = await supabase.rpc('nearby_booths', {
+      user_lat: lat, user_lng: lng,
+      max_miles: maxMiles,
+      fulfillment_filter: fulfillment,
+      product_search: search.trim() || null,
+      min_price: minPrice ? parseFloat(minPrice) : null,
+      max_price: maxPrice ? parseFloat(maxPrice) : null,
+      category_filter: category || null,
+    })
+    if (error) console.error('Search error:', error.message)
+    else setBooths(data || [])
+    setLoading(false)
+  }, [lat, lng, fulfillment, maxMiles, search, minPrice, maxPrice, category]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { if (lat && lng && addressResolved) searchBooths() }, [lat, lng, fulfillment, maxMiles, category]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Debounced search
+  useEffect(() => {
+    if (!lat || !lng || !addressResolved) return
+    const t = setTimeout(searchBooths, 500)
+    return () => clearTimeout(t)
+  }, [search, minPrice, maxPrice]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Realtime inventory updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('browse_inventory')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'market_products' },
+        (payload) => {
+          setBooths(prev => prev.map(b => ({
+            ...b,
+            matched_products: b.matched_products.map((p: any) =>
+              p.id === payload.new.id ? { ...p, inventory: payload.new.inventory } : p
+            ),
+          })))
+        }
+      ).subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleAddressSubmit = async () => {
+    if (!address.trim()) return
+    setLocationLoading(true); setLocationError('')
+    const geo = await geocodeAddress(address.trim())
+    if (geo) {
+      setLat(geo.lat); setLng(geo.lng)
+      // Extract zip code from display name (e.g. "...San Jose, CA 95120, USA")
+      const zipMatch = geo.display?.match(/\b(\d{5})\b/)
+      if (zipMatch) setZipCode(zipMatch[1])
+      setAddressResolved(true)
+    } else {
+      setLocationError('Could not find that address. Please include city and state.')
     }
+    setLocationLoading(false)
   }
 
-  const handleSetReminder = async () => {
-    if (notifPermission !== 'granted') {
-      requestNotifPermission()
-      return
-    }
-    if (!user) {
-      dispatch({ type: 'ADD_TOAST', payload: { message: 'Sign in to set a reminder', type: 'info' } })
-      router.push('/login?returnTo=/market')
-      return
-    }
-    if (!nextMarket) return
-
-    const minutes = parseInt(reminderTime)
-    const remindAt = new Date(nextMarket.date.getTime() - minutes * 60 * 1000)
-
-    // Upsert to database
-    const { error } = await supabase
-      .from('market_reminders')
-      .upsert({
-        user_id: user.id,
-        market_date: nextMarket.date.toISOString(),
-        remind_at: remindAt.toISOString(),
-        reminder_minutes: minutes,
-      }, { onConflict: 'user_id,market_date' })
-
-    if (error) {
-      console.error('Failed to save reminder:', error.message)
-      return
-    }
-
-    setReminderSet(true)
-
-    // Also schedule client-side notification as bonus (works while tab is open)
-    const notifTime = remindAt.getTime() - Date.now()
-    if (notifTime > 0) {
-      setTimeout(() => {
-        new Notification('🌱 Market opens soon!', {
-          body: `CasaGrown Market opens in ${reminderTime} minutes. Get your list ready!`,
-          icon: '/logo.png',
-        })
-      }, notifTime)
-    }
+  const handleUseMyLocation = () => {
+    if (!('geolocation' in navigator)) return
+    setLocationLoading(true); setLocationError('')
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        setLat(pos.coords.latitude); setLng(pos.coords.longitude)
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`)
+          const data = await res.json()
+          if (data?.address) {
+            const parts = [data.address.road, data.address.city || data.address.town || data.address.suburb, data.address.state].filter(Boolean)
+            setAddress(parts.join(', '))
+          }
+        } catch { /* ignore */ }
+        setAddressResolved(true); setLocationLoading(false)
+      },
+      () => { setLocationError('Location access denied. Please type your address.'); setLocationLoading(false) },
+      { timeout: 5000 }
+    )
   }
 
-  // ── Market Closed State ──
-  if (!open) {
-    const nextDateStr = nextMarket
-      ? nextMarket.date.toLocaleDateString('en-US', {
-          weekday: 'long',
-          month: 'long',
-          day: 'numeric',
-        })
-      : 'Saturday'
-    const nextTimeStr = nextMarket
-      ? `${nextMarket.openTime} – ${nextMarket.closeTime}`
-      : '8:00 AM – 11:00 AM'
+  const handleChangeAddress = () => {
+    setAddressResolved(false); setBooths([])
+  }
 
+  const isSearching = !!search.trim()
+  const totalProducts = booths.reduce((sum, b) => sum + (b.matched_products?.length || 0), 0)
+
+  // ── STATE 1: Loading profile ──
+  if (profileLoading) {
     return (
       <div className="container">
-        <div className={styles.closedPage}>
-          <div className={styles.closedBox}>
-            <div className={styles.closedIcon}>🌙</div>
-            <h1 className={styles.closedTitle}>Market is Closed</h1>
-            <p className={styles.closedDate}>
-              Opens <strong>{nextDateStr}</strong> at <strong>{nextTimeStr}</strong>
-            </p>
-
-            {/* Countdown Timer */}
-            <div className={styles.countdown}>
-              <div className={styles.countdownUnit}>
-                <span className={styles.countdownNumber}>{countdown.days}</span>
-                <span className={styles.countdownLabel}>days</span>
-              </div>
-              <span className={styles.countdownSep}>:</span>
-              <div className={styles.countdownUnit}>
-                <span className={styles.countdownNumber}>{String(countdown.hours).padStart(2, '0')}</span>
-                <span className={styles.countdownLabel}>hours</span>
-              </div>
-              <span className={styles.countdownSep}>:</span>
-              <div className={styles.countdownUnit}>
-                <span className={styles.countdownNumber}>{String(countdown.minutes).padStart(2, '0')}</span>
-                <span className={styles.countdownLabel}>mins</span>
-              </div>
-              <span className={styles.countdownSep}>:</span>
-              <div className={styles.countdownUnit}>
-                <span className={styles.countdownNumber}>{String(countdown.seconds).padStart(2, '0')}</span>
-                <span className={styles.countdownLabel}>secs</span>
-              </div>
-            </div>
-
-            <p className={styles.closedSubtext}>
-              While you wait, here&apos;s how you can get ready:
-            </p>
-
-            <div className={styles.actionGrid}>
-              {/* Action 1: List produce */}
-              <Link href="/my-booth" className={styles.actionCard}>
-                <div className={`${styles.actionIcon} ${styles.actionIconGreen}`}>🥬</div>
-                <h3 className={styles.actionTitle}>List Your Excess Produce</h3>
-                <p className={styles.actionDesc}>
-                  Prepare for market open — add photos, set prices, and quantities for the next market day.
-                </p>
-                <span className={styles.actionBtn}>Start Listing →</span>
-              </Link>
-
-              {/* Action 2: Invite neighbors */}
-              <button className={styles.actionCard} onClick={() => {
-                const url = `${window.location.origin}/get-started`
-                const text = 'Got a neighbor with fruit trees or a veggie garden? Their harvest could feed the block instead of going to waste. Join CasaGrown Market!'
-                if (navigator.share) {
-                  navigator.share({ title: 'CasaGrown Market', text, url })
-                } else {
-                  navigator.clipboard?.writeText(`${text}\n${url}`)
-                  alert('Link copied to clipboard!')
-                }
-              }}>
-                <div className={`${styles.actionIcon} ${styles.actionIconAmber}`}>📣</div>
-                <h3 className={styles.actionTitle}>Invite Your Neighbors</h3>
-                <p className={styles.actionDesc}>
-                  Know someone who grows produce or loves fresh food? Invite them to share or buy at the market!
-                </p>
-                <span className={styles.actionBtn}>Share an Invite →</span>
-              </button>
-
-              {/* Action 3: Remind me */}
-              <button className={styles.actionCard} onClick={() => setShowReminder(!showReminder)}>
-                <div className={`${styles.actionIcon} ${styles.actionIconBlue}`}>🔔</div>
-                <h3 className={styles.actionTitle}>Remind Me</h3>
-                <p className={styles.actionDesc}>
-                  Get a push notification before the market opens so you never miss fresh produce.
-                </p>
-                <span className={styles.actionBtn}>
-                  {reminderSet ? '✓ Reminder Set' : 'Set a Reminder →'}
-                </span>
-              </button>
-            </div>
-
-            {/* Reminder Panel */}
-            {showReminder && (
-              <div className={styles.reminderPanel}>
-                {notifPermission === 'unsupported' ? (
-                  <div className={styles.reminderInfo}>
-                    <p className={styles.reminderTitle}>📱 Enable Notifications</p>
-                    <p className={styles.reminderText}>
-                      Your browser doesn&apos;t support push notifications. For the best experience:
-                    </p>
-                    <div className={styles.pwaInstructions}>
-                      <div className={styles.pwaStep}>
-                        <strong>iOS Safari:</strong> Tap the share button (⬆️) → &quot;Add to Home Screen&quot; → Open from your home screen to enable notifications.
-                      </div>
-                      <div className={styles.pwaStep}>
-                        <strong>Android Chrome:</strong> Tap the menu (⋮) → &quot;Add to Home Screen&quot; or &quot;Install App&quot;.
-                      </div>
-                    </div>
-                  </div>
-                ) : notifPermission === 'denied' ? (
-                  <div className={styles.reminderInfo}>
-                    <p className={styles.reminderTitle}>🚫 Notifications Blocked</p>
-                    <p className={styles.reminderText}>
-                      You&apos;ve blocked notifications for this site. To enable them:
-                    </p>
-                    <div className={styles.pwaInstructions}>
-                      <div className={styles.pwaStep}>
-                        Open your browser settings → Site Settings → Notifications → Allow for this site.
-                      </div>
-                    </div>
-                  </div>
-                ) : notifPermission !== 'granted' ? (
-                  <div className={styles.reminderInfo}>
-                    <p className={styles.reminderTitle}>🔔 Allow Notifications</p>
-                    <p className={styles.reminderText}>
-                      Click below to allow notifications so we can remind you before the market opens.
-                    </p>
-                    <button className={styles.reminderPermBtn} onClick={requestNotifPermission}>
-                      Allow Notifications
-                    </button>
-                    <div className={styles.pwaInstructions}>
-                      <div className={styles.pwaStep}>
-                        <strong>💡 Tip for iPhone:</strong> Add this page to your Home Screen first (tap ⬆️ → &quot;Add to Home Screen&quot;), then open it from there to enable notifications.
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className={styles.reminderInfo}>
-                    <p className={styles.reminderTitle}>⏰ When should we remind you?</p>
-                    <div className={styles.reminderOptions}>
-                      {[
-                        { value: '15', label: '15 min before' },
-                        { value: '30', label: '30 min before' },
-                        { value: '60', label: '1 hour before' },
-                        { value: '1440', label: '1 day before' },
-                      ].map(opt => (
-                        <button
-                          key={opt.value}
-                          className={`${styles.reminderOption} ${reminderTime === opt.value ? styles.reminderOptionActive : ''}`}
-                          onClick={() => setReminderTime(opt.value)}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                    <button
-                      className={styles.reminderSetBtn}
-                      onClick={handleSetReminder}
-                      disabled={reminderSet}
-                    >
-                      {reminderSet ? '✓ Reminder Set!' : `Set Reminder for ${nextDateStr}`}
-                    </button>
-                    {reminderSet && (
-                      <p className={styles.reminderConfirm}>
-                        We&apos;ll notify you {reminderTime === '1440' ? '1 day' : `${reminderTime} minutes`} before the market opens. Keep this tab open for the notification to fire.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* How It Works — below the closed box */}
-          <div className={styles.howItWorks}>
-            <h2 className={styles.howTitle}>How CasaGrown Market Works</h2>
-            <div className={styles.howSteps}>
-              <div className={styles.howStep}>
-                <div className={styles.howStepNum}>1</div>
-                <div className={styles.howStepIcon}>📸</div>
-                <h3 className={styles.howStepTitle}>List Your Produce</h3>
-                <p className={styles.howStepDesc}>
-                  Snap photos of your excess fruits, veggies, or baked goods. Set your price and quantity.
-                </p>
-              </div>
-              <div className={styles.howArrow}>→</div>
-              <div className={styles.howStep}>
-                <div className={styles.howStepNum}>2</div>
-                <div className={styles.howStepIcon}>📅</div>
-                <h3 className={styles.howStepTitle}>Market Day</h3>
-                <p className={styles.howStepDesc}>
-                  Every Saturday 8–11 AM, the market opens. Neighbors browse your booth and place orders.
-                </p>
-              </div>
-              <div className={styles.howArrow}>→</div>
-              <div className={styles.howStep}>
-                <div className={styles.howStepNum}>3</div>
-                <div className={styles.howStepIcon}>📦</div>
-                <h3 className={styles.howStepTitle}>Deliver or Pickup</h3>
-                <p className={styles.howStepDesc}>
-                  Drop off at their porch or they pick up from you. Snap a photo as proof of delivery.
-                </p>
-              </div>
-              <div className={styles.howArrow}>→</div>
-              <div className={styles.howStep}>
-                <div className={styles.howStepNum}>4</div>
-                <div className={styles.howStepIcon}>💳</div>
-                <h3 className={styles.howStepTitle}>Get Paid</h3>
-                <p className={styles.howStepDesc}>
-                  Earnings are netted automatically. Redeem as gift cards, donate, or cash out via Venmo.
-                </p>
-              </div>
-            </div>
-          </div>
+        <div className="empty-state">
+          <div className="empty-state-icon">⏳</div>
+          <div className="empty-state-title">Loading...</div>
         </div>
       </div>
     )
   }
 
-  // ── Market Open State — existing booth browsing ──
+  // ── STATE 2: Need address ──
+  if (!addressResolved) {
+    return (
+      <div className="container">
+        <div className={styles.addressPrompt}>
+          <h2 className={styles.promptTitle}>Where should we look?</h2>
+          <p className={styles.promptText}>Tell us where you are and we'll show you fresh produce available for delivery or pickup nearby.</p>
 
-  const filteredBooths = (() => {
-    let booths = state.booths
-    if (search) {
-      const q = search.toLowerCase()
-      const matchingBoothIds = new Set<string>()
-      state.products.forEach(p => {
-        if (p.name.toLowerCase().includes(q) || p.category.includes(q)) {
-          matchingBoothIds.add(p.boothId)
-        }
-      })
-      booths = booths.filter(
-        b => b.name.toLowerCase().includes(q) || b.ownerName.toLowerCase().includes(q) || matchingBoothIds.has(b.id)
-      )
-    }
-    return booths
-  })()
-
-  const boothProducts = (boothId: string) => state.products.filter(p => p.boothId === boothId && p.isActive)
-
-  const themeEmoji: Record<string, string> = {
-    rustic: '🪵', tropical: '🌴', minimal: '✨', floral: '🌸', harvest: '🌾', cottage: '🏡',
+          <div className={styles.addressForm}>
+            <div className={styles.addressRow}>
+              <input
+                className="input"
+                placeholder="e.g. 123 Main St, San Jose, CA"
+                value={address}
+                onChange={e => setAddress(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleAddressSubmit()}
+                autoFocus
+              />
+              <button className="btn btn-primary" onClick={handleAddressSubmit}
+                disabled={locationLoading || !address.trim()}>
+                {locationLoading ? 'Finding...' : 'Find Produce'}
+              </button>
+            </div>
+            <div className={styles.geoRow}>
+              <button className={styles.geoLink} onClick={handleUseMyLocation} disabled={locationLoading}>
+                📍 Use My Location
+              </button>
+            </div>
+          </div>
+          {locationError && <p className="form-error" style={{ marginTop: 8 }}>{locationError}</p>}
+        </div>
+      </div>
+    )
   }
 
+  // ── STATE 3: Address resolved — show results ──
   return (
     <div className="container">
-      {/* Market Status */}
-      <div className={`${styles.statusBanner} ${styles.bannerOpen}`}>
-        <div className={styles.statusLeft}>
-          <span className={styles.statusDot} />
-          <strong>🟢 Market is Open!</strong>
-        </div>
-        <span className={styles.statusRight}>Closing at 11:00 AM</span>
+      {/* Address bar + change */}
+      <div className={styles.addressBar}>
+        <span className={styles.addressLabel}>📍 {address || 'Your location'}</span>
+        <button className="btn btn-xs btn-ghost" onClick={handleChangeAddress}>Change</button>
       </div>
 
-      <div className={styles.header}>
-        <h1 className="page-title">Browse Market</h1>
-        <p className="page-subtitle">Discover fresh produce from your neighbors</p>
-      </div>
-
-      {/* Search */}
-      <div className={styles.searchBar}>
+      {/* Search + Filters */}
+      <div className={styles.searchSection}>
         <input
           className="input"
-          placeholder="🔍 Search booths or produce..."
+          placeholder="Search products... (tomatoes, basil, honey)"
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
+        <div className={styles.filterRow}>
+          <div className={styles.pills}>
+            {(['all', 'delivery', 'pickup'] as const).map(f => (
+              <button key={f}
+                className={`${styles.pill} ${fulfillment === f ? styles.pillActive : ''}`}
+                onClick={() => setFulfillment(f)}>
+                {f === 'all' ? 'All' : f === 'delivery' ? '🚗 Delivery' : '📍 Pickup'}
+              </button>
+            ))}
+          </div>
+          <div className={styles.rangeWrap}>
+            <span className={styles.rangeLabel}>Within {maxMiles} mi</span>
+            <input type="range" min={1} max={25} value={maxMiles}
+              onChange={e => setMaxMiles(parseInt(e.target.value))} className={styles.slider} />
+          </div>
+          <select className={styles.categorySelect} value={category} onChange={e => setCategory(e.target.value)}>
+            <option value="">All Categories</option>
+            {allowedCategories.map(c => (
+              <option key={c.name} value={c.name}>
+                {c.name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+              </option>
+            ))}
+          </select>
+          <div className={styles.priceWrap}>
+            <span className={styles.priceLabel}>Price:</span>
+            <input className={styles.priceInput} type="number" placeholder="Min" min="0" step="0.50"
+              value={minPrice} onChange={e => setMinPrice(e.target.value)} />
+            <span style={{ color: 'var(--gray-400)' }}>–</span>
+            <input className={styles.priceInput} type="number" placeholder="Max" min="0" step="0.50"
+              value={maxPrice} onChange={e => setMaxPrice(e.target.value)} />
+          </div>
+        </div>
       </div>
 
-      {/* Booth Grid */}
-      {filteredBooths.length === 0 ? (
+      {/* Status */}
+      {!loading && booths.length > 0 && (
+        <p className={styles.statusText}>
+          {isSearching
+            ? `${totalProducts} result${totalProducts !== 1 ? 's' : ''} for "${search}" across ${booths.length} booth${booths.length !== 1 ? 's' : ''}`
+            : `${booths.length} booth${booths.length !== 1 ? 's' : ''} near you`}
+        </p>
+      )}
+
+      {/* Results */}
+      {loading ? (
         <div className="empty-state">
           <div className="empty-state-icon">🔍</div>
-          <div className="empty-state-title">No booths found</div>
-          <div className="empty-state-text">Try adjusting your search</div>
+          <div className="empty-state-title">Searching nearby...</div>
+        </div>
+      ) : booths.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-state-icon">🌱</div>
+          <div className="empty-state-title">{isSearching ? `No results for "${search}"` : 'No booths found'}</div>
+          <div className="empty-state-text">{isSearching ? 'Try a different product name' : 'Try increasing distance or changing your address'}</div>
         </div>
       ) : (
         <div className={styles.boothGrid}>
-          {filteredBooths.map(booth => {
-            const products = boothProducts(booth.id)
+          {booths.map(booth => {
+            const theme = themeColors[booth.decorative_theme] || themeColors.minimal
+            const products = booth.matched_products || []
             return (
-              <Link key={booth.id} href={`/market/booth/${booth.id}`} className={styles.boothCard}>
-                <div className={styles.boothHeader}>
-                  <span className={styles.boothTheme}>{themeEmoji[booth.decorativeTheme] || '🌿'}</span>
-                  <div>
-                    <h3 className={styles.boothName}>{booth.name}</h3>
-                    <p className={styles.boothOwner}>by {booth.ownerName}</p>
-                  </div>
-                </div>
-                <p className={styles.boothDesc}>{booth.description}</p>
-                <div className={styles.boothMeta}>
-                  <span className="badge badge-green">{products.length} products</span>
-                </div>
-                <div className={styles.boothFooter}>
-                  <span className={styles.boothRating}>⭐ {booth.rating}</span>
-                  <span className={styles.boothSales}>{booth.totalSales} sales</span>
-                </div>
-                {products.length > 0 && (
-                  <div className={styles.productPreview}>
-                    {products.slice(0, 4).map(p => (
-                      <div key={p.id} className={styles.previewThumb}>
-                        <img src={p.photos[0]} alt={p.name} />
+              <div key={booth.booth_id} className="card">
+                {/* Header → booth page */}
+                <Link href={`/market/booth/${booth.booth_id}`} className={styles.cardHeaderLink}>
+                  <div className={styles.cardHeader} style={{
+                    background: booth.header_image_url ? `url(${booth.header_image_url}) center/cover` : theme.gradient,
+                    borderBottom: `3px solid ${theme.border}`,
+                  }}>
+                    {booth.header_image_url && <div className={styles.headerOverlay} />}
+                    <div className={styles.headerContent}>
+                      <h3 className={styles.cardTitle} style={{ color: booth.header_image_url ? '#fff' : theme.border }}>
+                        {booth.booth_name}
+                      </h3>
+                      <div className={styles.cardMeta}>
+                        <span className="badge badge-green" style={{ fontSize: 11 }}>{booth.distance_miles} mi</span>
+                        <span style={{ color: 'var(--gray-400)' }}>·</span>
+                        <span>{booth.product_count} items</span>
                       </div>
-                    ))}
-                    {products.length > 4 && (
-                      <div className={styles.previewMore}>+{products.length - 4}</div>
+                    </div>
+                    {/* Seller avatar */}
+                    <div className={styles.sellerBadge}>
+                      <div className={styles.sellerAvatar}>
+                        {booth.seller_avatar_url
+                          ? <img src={booth.seller_avatar_url} alt="" />
+                          : <span>{booth.booth_name.charAt(0)}</span>
+                        }
+                      </div>
+                      {booth.seller_avg_rating && (
+                        <span className={styles.sellerRating}>⭐ {booth.seller_avg_rating}</span>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+
+                {/* Body */}
+                <div className={styles.cardBody}>
+                  {booth.description && <p className={styles.cardDesc}>{booth.description}</p>}
+
+                  <div className={styles.tagRow}>
+                    {booth.offers_delivery && (
+                      <span className="badge badge-green">🚗 Delivers {booth.delivery_radius_miles}mi</span>
+                    )}
+                    {booth.offers_pickup && (
+                      <span className="badge badge-blue">📍 Pickup</span>
                     )}
                   </div>
-                )}
-              </Link>
+
+                  {products.length > 0 && (
+                    <div className={styles.productList}>
+                      {products.slice(0, isSearching ? 6 : 4).map((p: any) => (
+                        <Link key={p.id} href={`/market/booth/${booth.booth_id}/product/${p.id}`} className={styles.productCard}>
+                          <div className={styles.productThumb}>
+                            {p.photo ? <img src={p.photo} alt={p.name} /> : <span>{categoryIcons[p.category] || '📦'}</span>}
+                          </div>
+                          <div className={styles.productInfo}>
+                            <span className={styles.productName}>{p.name}</span>
+                            <div className={styles.productMeta}>
+                              <span className={styles.productPrice}>{formatUsd(p.price_usd)}<span className={styles.unit}>/{p.unit}</span></span>
+                              <span className={styles.qty}>{p.inventory > 0 ? `${p.inventory} avail` : 'Sold out'}</span>
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                      {products.length > (isSearching ? 6 : 4) && (
+                        <Link href={`/market/booth/${booth.booth_id}`} className={styles.moreCard}>+{products.length - (isSearching ? 6 : 4)}</Link>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
             )
           })}
         </div>

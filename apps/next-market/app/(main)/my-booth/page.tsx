@@ -8,6 +8,7 @@ import { useAuth } from '../../../lib/useAuth'
 import { createClient } from '../../../lib/supabase'
 import CameraCapture from '../../../components/CameraCapture'
 import ImageCropper from '../../../components/ImageCropper'
+import { geocodeAddress, toPostgisPoint } from '../../../lib/geocode'
 import styles from './page.module.css'
 
 const THEMES: { id: Booth['decorativeTheme']; label: string; emoji: string }[] = [
@@ -321,7 +322,7 @@ export default function MyBoothPage() {
       return [...preset, ...custom]
     }
 
-    const dbRow = {
+    const dbRow: Record<string, any> = {
       owner_id: user.id,
       name: name.trim(),
       decorative_theme: theme,
@@ -336,6 +337,14 @@ export default function MyBoothPage() {
       venmo_handle: payoutDestination === 'venmo' ? venmoHandle.trim() || null : null,
       charity_name: payoutDestination === 'charity' ? charityName.trim() || null : null,
       helper_passcode: helperPasscode,
+    }
+
+    // Geocode pickup address for spatial search
+    if (pickupAddress.trim()) {
+      const geo = await geocodeAddress(pickupAddress.trim())
+      if (geo) {
+        dbRow.pickup_location = toPostgisPoint(geo.lat, geo.lng)
+      }
     }
 
     const { data, error } = await supabase

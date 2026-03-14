@@ -35,13 +35,13 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
     load()
   }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const themeColors: Record<string, { bg: string; border: string; accent: string }> = {
-    rustic: { bg: '#fef3c7', border: '#f59e0b', accent: '🪵' },
-    tropical: { bg: '#d1fae5', border: '#10b981', accent: '🌴' },
-    minimal: { bg: '#f3f4f6', border: '#6b7280', accent: '✨' },
-    floral: { bg: '#fce7f3', border: '#ec4899', accent: '🌸' },
-    harvest: { bg: '#fef3c7', border: '#d97706', accent: '🌾' },
-    cottage: { bg: '#e0f2fe', border: '#0ea5e9', accent: '🏡' },
+  const themeColors: Record<string, { bg: string; border: string }> = {
+    rustic: { bg: '#fef3c7', border: '#f59e0b' },
+    tropical: { bg: '#d1fae5', border: '#10b981' },
+    minimal: { bg: '#f3f4f6', border: '#6b7280' },
+    floral: { bg: '#fce7f3', border: '#ec4899' },
+    harvest: { bg: '#fef3c7', border: '#d97706' },
+    cottage: { bg: '#e0f2fe', border: '#0ea5e9' },
   }
 
   if (loading) {
@@ -67,7 +67,7 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
     <div className="container">
       {/* Booth Header */}
       <div className={styles.boothFrame} style={{ background: theme.bg, borderColor: theme.border }}>
-        <div className={styles.frameDecor}>{theme.accent} {theme.accent} {theme.accent}</div>
+
         {booth.header_image_url && (
           <div style={{ width: '100%', height: 160, overflow: 'hidden', borderRadius: '12px 12px 0 0' }}>
             <img src={booth.header_image_url} alt={booth.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -120,20 +120,6 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
               </div>
             )}
           </div>
-          {/* Payment Method */}
-          {booth.payment_method && (
-            <div style={{ marginTop: 16 }}>
-              <div className={styles.fulfillmentCard}>
-                <div style={{ fontSize: 28 }}>{booth.payment_method === 'automatic' ? '⚡' : '🖐️'}</div>
-                <strong>{booth.payment_method === 'automatic' ? 'Auto Payout' : 'Manual Payout'}</strong>
-                <span className={styles.fulfillmentDetail}>
-                  {booth.payment_method === 'automatic'
-                    ? 'Paid after end-of-day settlement'
-                    : 'Request payout after settlement'}
-                </span>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
