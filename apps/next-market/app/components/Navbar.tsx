@@ -38,9 +38,8 @@ export function Navbar() {
     { href: '/my-booth', label: 'My Booth', icon: '🏪', section: 'main' },
     { href: '/orders', label: 'Orders', icon: '🧾', section: 'main' },
     { href: '/chat', label: 'Chat', icon: '💬', section: 'main' },
-    { href: '/earnings', label: 'Earnings', icon: '💰', section: 'main' },
+    { href: '/earnings', label: 'Transactions', icon: '💰', section: 'main' },
     { href: '/following', label: 'Following', icon: '❤️', section: 'main' },
-    { href: '/notifications', label: 'Notifications', icon: '🔔', section: 'account', badge: unreadCount },
     { href: '/profile', label: 'Profile', icon: '👤', section: 'account' },
   ]
 
@@ -132,7 +131,6 @@ export function Navbar() {
                     <Link key={item.href} href={item.href} className={`${styles.menuItem} ${pathname === item.href ? styles.menuItemActive : ''}`}>
                       <span className={styles.menuItemIcon}>{item.icon}</span>
                       <span>{item.label}</span>
-                      {item.badge ? <span className={styles.menuBadge}>{item.badge}</span> : null}
                     </Link>
                   ))}
                 </div>
