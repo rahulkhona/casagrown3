@@ -1,0 +1,218 @@
+/* Order Detail Page */
+
+.breadcrumb { padding: 16px 0; font-size: 13px; }
+.breadcrumb a { color: var(--green-600); text-decoration: none; }
+.breadcrumb a:hover { text-decoration: underline; }
+
+/* Summary Card */
+.summaryCard {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.summaryHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.orderTitle { font-size: 22px; font-weight: 700; color: var(--gray-900); margin: 0; }
+.orderSub { font-size: 13px; color: var(--gray-500); margin: 4px 0 0; }
+.statusPill {
+  font-size: 12px; font-weight: 600; padding: 6px 14px;
+  border-radius: var(--radius-full); text-transform: capitalize;
+  white-space: nowrap;
+}
+.statusPill[data-status="pending"] { background: var(--amber-50, #fffbeb); color: var(--amber-700, #b45309); }
+.statusPill[data-status="delivering"] { background: var(--blue-50, #eff6ff); color: var(--blue-700, #1d4ed8); }
+.statusPill[data-status="delivered"] { background: var(--green-50); color: var(--green-700); }
+.statusPill[data-status="completed"] { background: var(--green-50); color: var(--green-700); }
+.statusPill[data-status="confirmed"] { background: var(--green-50); color: var(--green-700); }
+.statusPill[data-status="ready_for_pickup"] { background: var(--blue-50, #eff6ff); color: var(--blue-700, #1d4ed8); }
+.statusPill[data-status="declined"] { background: var(--gray-100); color: var(--gray-600); }
+.statusPill[data-status="cancelled"] { background: var(--gray-100); color: var(--gray-600); }
+.statusPill[data-status="pickup_declined"] { background: var(--gray-100); color: var(--gray-600); }
+.statusPill[data-status="disputed"] { background: var(--red-50, #fef2f2); color: var(--red-700, #b91c1c); }
+.statusPill[data-status="escalated"] { background: var(--red-50, #fef2f2); color: var(--red-700, #b91c1c); }
+.statusPill[data-status="resolved"] { background: var(--gray-100); color: var(--gray-600); }
+
+/* Parties */
+.partiesRow {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 16px; padding: 12px;
+  background: var(--gray-50); border-radius: var(--radius-lg);
+}
+.party { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.partyLabel { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-400); }
+.partyName { font-size: 14px; font-weight: 500; color: var(--gray-700); }
+.partySep { font-size: 16px; color: var(--gray-300); }
+
+/* Price grid */
+.priceGrid {
+  background: var(--gray-50); border-radius: var(--radius); padding: 12px 14px;
+}
+.priceRow {
+  display: flex; justify-content: space-between;
+  font-size: 13px; color: var(--gray-600); padding: 3px 0;
+}
+.priceTotal {
+  border-top: 1px solid var(--border); padding-top: 8px; margin-top: 4px;
+  font-weight: 700; font-size: 15px; color: var(--gray-900);
+}
+
+/* Sections */
+.section {
+  background: #fff; border: 1px solid var(--border);
+  border-radius: var(--radius-xl); padding: 20px;
+  margin-bottom: 20px;
+}
+.sectionTitle {
+  font-size: 15px; font-weight: 700; color: var(--gray-800);
+  margin: 0 0 12px;
+}
+.subTitle {
+  font-size: 13px; font-weight: 600; color: var(--gray-600);
+  margin: 0 0 8px;
+}
+
+/* Countdown */
+.countdownBar {
+  background: var(--amber-50, #fffbeb); border: 1px solid var(--amber-200, #fde68a);
+  border-radius: var(--radius-lg); padding: 12px 16px;
+  margin-bottom: 12px;
+  display: flex; flex-direction: column; gap: 2px;
+  font-size: 14px; color: var(--amber-800, #92400e);
+}
+.countdownSub { font-size: 12px; color: var(--amber-600, #d97706); }
+
+/* Info boxes */
+.infoBox {
+  padding: 12px 16px; border-radius: var(--radius-lg);
+  font-size: 13px; margin-bottom: 12px;
+}
+.infoBox[data-type="warning"] { background: var(--amber-50, #fffbeb); color: var(--amber-800, #92400e); border: 1px solid var(--amber-200, #fde68a); }
+.infoBox[data-type="success"] { background: var(--green-50); color: var(--green-800); border: 1px solid var(--green-200); }
+.infoBox[data-type="info"] { background: var(--blue-50, #eff6ff); color: var(--blue-800, #1e40af); border: 1px solid var(--blue-200, #bfdbfe); }
+
+/* Proof photos */
+.proofSection { margin-top: 12px; }
+.photoGrid { display: flex; gap: 8px; flex-wrap: wrap; }
+.proofPhoto {
+  width: 100px; height: 100px; border-radius: var(--radius);
+  overflow: hidden; position: relative;
+}
+.proofPhoto img { width: 100%; height: 100%; object-fit: cover; }
+.photoTime {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  font-size: 10px; color: #fff; background: rgba(0,0,0,0.5);
+  padding: 2px 4px; text-align: center;
+}
+
+/* Action panel */
+.actionPanel {
+  background: #fff; border: 1px solid var(--border);
+  border-radius: var(--radius-xl); padding: 20px;
+  margin-bottom: 20px;
+}
+.actionButtons { display: flex; gap: 10px; flex-wrap: wrap; }
+.actionHint { font-size: 13px; color: var(--gray-500); margin-bottom: 12px; }
+
+/* Passcode */
+.passcodeSection { display: flex; flex-direction: column; gap: 16px; }
+.passcodeDisplay {
+  background: var(--green-50); border: 1px solid var(--green-200);
+  border-radius: var(--radius-lg); padding: 16px; text-align: center;
+}
+.passcodeLabel { font-size: 12px; color: var(--gray-500); display: block; margin-bottom: 4px; }
+.passcodeValue {
+  font-size: 32px; font-weight: 700; font-family: monospace;
+  letter-spacing: 8px; color: var(--green-700);
+}
+.passcodeEntry {
+  background: var(--gray-50); border-radius: var(--radius-lg); padding: 16px;
+}
+.passcodeInputRow { display: flex; gap: 8px; margin-top: 8px; }
+.passcodeInput {
+  width: 120px; font-size: 24px; font-family: monospace;
+  text-align: center; letter-spacing: 6px;
+  padding: 8px; border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.passcodeInput:focus { outline: none; border-color: var(--green-400); }
+
+/* Dispute */
+.disputeCard {
+  background: var(--gray-50); border-radius: var(--radius-lg);
+  padding: 16px; margin-bottom: 16px;
+}
+.disputeHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.disputeStatus {
+  font-size: 11px; font-weight: 600; padding: 3px 10px;
+  border-radius: var(--radius-full); text-transform: capitalize;
+}
+.disputeStatus[data-status="open"] { background: var(--red-50, #fef2f2); color: var(--red-700, #b91c1c); }
+.disputeStatus[data-status="seller_responded"] { background: var(--amber-50, #fffbeb); color: var(--amber-700, #b45309); }
+.disputeStatus[data-status="buyer_accepted"] { background: var(--green-50); color: var(--green-700); }
+.disputeStatus[data-status="escalated"] { background: var(--red-50, #fef2f2); color: var(--red-700, #b91c1c); }
+.disputeStatus[data-status="staff_resolved"] { background: var(--blue-50, #eff6ff); color: var(--blue-700, #1d4ed8); }
+.disputeDate { font-size: 12px; color: var(--gray-400); }
+.disputeReason { font-size: 14px; color: var(--gray-700); margin: 0; }
+.refundOffer {
+  margin-top: 8px; padding: 10px; background: var(--green-50);
+  border: 1px solid var(--green-200); border-radius: var(--radius);
+  font-size: 13px; color: var(--green-700);
+}
+.pickupOfferNote { font-size: 12px; color: var(--gray-500); margin-top: 4px; }
+
+/* Messages */
+.messagesSection { margin-top: 12px; }
+.emptyMessages { font-size: 13px; color: var(--gray-400); text-align: center; padding: 16px; }
+.messageList { display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow-y: auto; margin-bottom: 12px; }
+.message {
+  padding: 10px 14px; border-radius: var(--radius-lg);
+  background: var(--gray-50); max-width: 80%;
+}
+.message p { margin: 0; font-size: 14px; color: var(--gray-700); }
+.messageMine { background: var(--green-50); align-self: flex-end; }
+.msgMeta { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px; font-size: 11px; color: var(--gray-400); }
+.msgMeta strong { color: var(--gray-600); }
+.messageInput {
+  display: flex; gap: 8px;
+}
+.messageInput input {
+  flex: 1; padding: 8px 12px; font-size: 14px;
+  border: 1px solid var(--border); border-radius: var(--radius-full);
+}
+.messageInput input:focus { outline: none; border-color: var(--green-400); }
+
+/* Modal */
+.modal {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.4); z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.modalContent {
+  background: #fff; border-radius: var(--radius-xl);
+  padding: 24px; max-width: 480px; width: 100%;
+  max-height: 90vh; overflow-y: auto;
+}
+.modalContent h3 { font-size: 18px; font-weight: 700; margin: 0 0 8px; }
+.modalContent p { font-size: 13px; color: var(--gray-500); margin: 0 0 16px; }
+.modalContent textarea, .modalContent input[type="number"] {
+  width: 100%; padding: 10px 12px; font-size: 14px; font-family: inherit;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  margin-bottom: 12px; resize: vertical;
+}
+.modalContent textarea:focus, .modalContent input:focus { outline: none; border-color: var(--green-400); }
+.modalActions { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* Form elements */
+.formGroup { margin-bottom: 12px; }
+.formGroup > label { display: block; font-size: 13px; font-weight: 600; color: var(--gray-700); margin-bottom: 6px; }
+.radioGroup { display: flex; flex-direction: column; gap: 6px; }
+.radioGroup label { font-size: 14px; color: var(--gray-600); cursor: pointer; display: flex; align-items: center; gap: 6px; }

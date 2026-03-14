@@ -898,4 +898,81 @@ BEGIN
     (s5,CURRENT_DATE,'Fresh Mint Bundle','Spearmint and peppermint, great for tea','herbs',2.50,'bunch',25,'{"/products/fresh-basil.png"}',now()),
     (s5,CURRENT_DATE,'Thai Basil','Aromatic Thai basil with purple stems','herbs',3.00,'bunch',18,'{"/products/fresh-basil.png"}',now()),
     (s5,CURRENT_DATE,'Lavender Sachets','Dried lavender from my garden, handmade sachets','flowers',4.00,'each',12,'{}',NULL);
+
+  -- ============================================================
+  --  Market Orders seed (so Orders page has data to display)
+  --  Use product IDs from inserts above via subqueries
+  -- ============================================================
+  -- Order 1: Pending delivery (buyer=seller@test, seller=Maria)
+  INSERT INTO market_orders (buyer_id, seller_id, booth_id, product_id, product_name,
+    quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
+    fulfillment_type, status)
+  SELECT
+    'a1111111-1111-1111-1111-111111111111', s1, b.id, p.id, 'Heritage Tomatoes',
+    2, 5.00, 10.00, 0.93, 10.93,
+    'delivery', 'pending'
+  FROM market_booths b, market_products p
+  WHERE b.owner_id = s1 AND p.seller_id = s1 AND p.name = 'Heritage Tomatoes'
+  LIMIT 1;
+
+  -- Order 2: Delivering (buyer=seller@test, seller=Raj)
+  INSERT INTO market_orders (buyer_id, seller_id, booth_id, product_id, product_name,
+    quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
+    fulfillment_type, status)
+  SELECT
+    'a1111111-1111-1111-1111-111111111111', s2, b.id, p.id, 'Meyer Lemons',
+    3, 3.50, 10.50, 0.97, 11.47,
+    'delivery', 'delivering'
+  FROM market_booths b, market_products p
+  WHERE b.owner_id = s2 AND p.seller_id = s2 AND p.name = 'Meyer Lemons'
+  LIMIT 1;
+
+  -- Order 3: Delivered (waiting for buyer confirm, auto-complete in 4h)
+  INSERT INTO market_orders (buyer_id, seller_id, booth_id, product_id, product_name,
+    quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
+    fulfillment_type, status, delivered_at, auto_complete_at)
+  SELECT
+    'a1111111-1111-1111-1111-111111111111', s3, b.id, p.id, 'Baby Bok Choy',
+    5, 3.50, 17.50, 1.62, 19.12,
+    'delivery', 'delivered', now() - interval '1 hour', now() + interval '3 hours'
+  FROM market_booths b, market_products p
+  WHERE b.owner_id = s3 AND p.seller_id = s3 AND p.name = 'Baby Bok Choy'
+  LIMIT 1;
+
+  -- Order 4: Pending pickup (buyer=buyer@test, seller=Sofia)
+  INSERT INTO market_orders (buyer_id, seller_id, booth_id, product_id, product_name,
+    quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
+    fulfillment_type, status)
+  SELECT
+    'b2222222-2222-2222-2222-222222222222', s4, b.id, p.id, 'Sourdough Loaf',
+    1, 8.00, 8.00, 0.74, 8.74,
+    'pickup', 'pending'
+  FROM market_booths b, market_products p
+  WHERE b.owner_id = s4 AND p.seller_id = s4 AND p.name = 'Sourdough Loaf'
+  LIMIT 1;
+
+  -- Order 5: Completed delivery (buyer=buyer@test, seller=James)
+  INSERT INTO market_orders (buyer_id, seller_id, booth_id, product_id, product_name,
+    quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
+    fulfillment_type, status, completed_at)
+  SELECT
+    'b2222222-2222-2222-2222-222222222222', s5, b.id, p.id, 'Raw Wildflower Honey',
+    1, 12.00, 12.00, 1.11, 13.11,
+    'delivery', 'completed', now() - interval '2 days'
+  FROM market_booths b, market_products p
+  WHERE b.owner_id = s5 AND p.seller_id = s5 AND p.name = 'Raw Wildflower Honey'
+  LIMIT 1;
+
+  -- Order 6: Seller is buyer@test, buyer is seller@test (seller view of pending)
+  INSERT INTO market_orders (buyer_id, seller_id, booth_id, product_id, product_name,
+    quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
+    fulfillment_type, status)
+  SELECT
+    'b2222222-2222-2222-2222-222222222222', s1, b.id, p.id, 'Fresh Basil Bunch',
+    3, 3.00, 9.00, 0.83, 9.83,
+    'pickup', 'pending'
+  FROM market_booths b, market_products p
+  WHERE b.owner_id = s1 AND p.seller_id = s1 AND p.name = 'Fresh Basil Bunch'
+  LIMIT 1;
+
 END $$;

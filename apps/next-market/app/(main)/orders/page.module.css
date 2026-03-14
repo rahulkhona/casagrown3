@@ -1,9 +1,93 @@
 .orderList { display: flex; flex-direction: column; gap: 12px; padding-bottom: 40px; }
-.orderCard { padding: 16px; border-radius: var(--radius-xl); border: 1px solid var(--border); background: #fff; }
-.orderHeader { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; gap: 8px; flex-wrap: wrap; }
-.orderItems { background: var(--gray-50); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 12px; }
-.orderItem { display: flex; justify-content: space-between; font-size: 13px; color: var(--gray-600); padding: 2px 0; }
-.orderFooter { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+
+.orderCard {
+  display: block;
+  padding: 16px;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border);
+  background: #fff;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  cursor: pointer;
+}
+.orderCard:hover {
+  border-color: var(--green-300);
+  box-shadow: var(--shadow-md);
+}
+
+.orderHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.productName {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--gray-800);
+  margin-bottom: 4px;
+}
+
+.orderMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--gray-500);
+  flex-wrap: wrap;
+}
+
+.roleBadge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+.statusBadge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  color: #fff;
+  white-space: nowrap;
+}
+
+.orderDetails {
+  background: var(--gray-50);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+}
+
+.detailRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--gray-600);
+  padding: 2px 0;
+}
+
+.totalPrice {
+  font-weight: 700;
+  color: var(--gray-800);
+}
+
+.hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--amber-700, #b45309);
+  background: var(--amber-50, #fffbeb);
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--amber-200, #fde68a);
+}
+
 .passcodeBox {
   display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px;
   background: var(--green-50); border-radius: var(--radius); border: 1px solid var(--green-200);
