@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
 import { useAuth } from '../../../lib/useAuth'
 import styles from './page.module.css'
@@ -56,6 +57,7 @@ function formatUsd(n: number) {
 
 export default function OrdersPage() {
   const supabase = createClient()
+  const router = useRouter()
   const { user, isAuthenticated, loading: authLoading } = useAuth()
   const [orders, setOrders] = useState<MarketOrder[]>([])
   const [tab, setTab] = useState<'active' | 'past' | 'disputed'>('active')
@@ -90,17 +92,17 @@ export default function OrdersPage() {
 
   useEffect(() => { loadOrders() }, [loadOrders])
 
-  if (authLoading || loading) {
+  if (authLoading) {
     return <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}><p>Loading...</p></div>
   }
 
   if (!isAuthenticated) {
-    return (
-      <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}>
-        <h2>Sign in to view orders</h2>
-        <Link href="/login" className="btn btn-primary" style={{ marginTop: 16 }}>Sign In</Link>
-      </div>
-    )
+    router.push('/login')
+    return null
+  }
+
+  if (loading) {
+    return <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}><p>Loading orders...</p></div>
   }
 
   const filtered = orders.filter(o => {
