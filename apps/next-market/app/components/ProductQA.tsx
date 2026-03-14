@@ -186,15 +186,14 @@ export function ProductQA({ productId, sellerId }: ProductQAProps) {
 
   const renderActions = (c: Comment, isReply = false) => (
     <div className={styles.actions}>
-      {isAuthenticated && (
+      {isAuthenticated ? (
         <button
           className={`${styles.likeBtn} ${c.liked_by_me ? styles.likeBtnActive : ''}`}
           onClick={() => toggleLike(c.id, c.liked_by_me)}
         >
-          {c.liked_by_me ? '👍' : '👍'} {c.like_count > 0 && <span>{c.like_count}</span>}
+          {c.liked_by_me ? '👍' : '👍'} <span>{c.like_count}</span>
         </button>
-      )}
-      {!c.liked_by_me && !isAuthenticated && c.like_count > 0 && (
+      ) : (
         <span className={styles.likeCount}>👍 {c.like_count}</span>
       )}
       {isAuthenticated && !isReply && (
