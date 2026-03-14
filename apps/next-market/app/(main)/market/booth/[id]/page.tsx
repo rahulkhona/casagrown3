@@ -201,6 +201,15 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
                   )}
                   {p.inventory === 0 && <span className={styles.outOfStock}>Sold Out</span>}
                 </div>
+                {isAuthenticated && user?.id !== booth?.owner_id && (
+                  <button
+                    className={styles.reportLink}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFlagProduct(p) }}
+                    disabled={flaggedIds.has(p.id)}
+                  >
+                    {flaggedIds.has(p.id) ? '✓ Reported' : 'Report'}
+                  </button>
+                )}
                 <div className={styles.productInfo}>
                   <h3 className={styles.productName}>{p.name}</h3>
                   {p.description && <p className={styles.productDesc}>{p.description}</p>}
@@ -216,10 +225,9 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
                       🌱 Harvested {new Date(p.harvested_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </p>
                   )}
-                  <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                    <button
+                  <button
                       className="btn btn-primary"
-                      style={{ flex: 1, fontSize: 13, padding: '6px 12px' }}
+                      style={{ width: '100%', fontSize: 13, padding: '6px 12px', marginTop: 8 }}
                       onClick={(e) => {
                         e.preventDefault(); e.stopPropagation()
                         if (!isAuthenticated) {
@@ -233,17 +241,6 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
                     >
                       {p.inventory === 0 ? 'Sold Out' : 'Buy'}
                     </button>
-                    {isAuthenticated && user?.id !== booth?.owner_id && (
-                      <button
-                        className={styles.flagBtn}
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFlagProduct(p) }}
-                        title="Flag this product"
-                        disabled={flaggedIds.has(p.id)}
-                      >
-                        {flaggedIds.has(p.id) ? '✓' : '🚩'}
-                      </button>
-                    )}
-                  </div>
                 </div>
               </Link>
             ))}

@@ -120,6 +120,15 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
               ))}
             </div>
           )}
+          {isAuthenticated && user?.id !== product.seller_id && (
+            <button
+              className={styles.reportLink}
+              onClick={() => setShowFlag(true)}
+              disabled={flagged}
+            >
+              {flagged ? '✓ Reported' : 'Report this product'}
+            </button>
+          )}
         </div>
 
         {/* Details */}
@@ -127,19 +136,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
           <div className="badge badge-green" style={{ marginBottom: 8 }}>
             {product.category?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
           </div>
-          <h1 className={styles.productName}>
-            {product.name}
-            {isAuthenticated && user?.id !== product.seller_id && (
-              <button
-                className={styles.flagBtn}
-                onClick={() => setShowFlag(true)}
-                title="Flag this product"
-                disabled={flagged}
-              >
-                {flagged ? '✓ Flagged' : '🚩'}
-              </button>
-            )}
-          </h1>
+          <h1 className={styles.productName}>{product.name}</h1>
           <p className={styles.productPrice}>
             <span className="price price-large">{formatUsd(product.price_usd)}</span>
             <span className={styles.unit}>/ {product.unit}</span>

@@ -448,7 +448,15 @@ const MOCK_NOTIFICATIONS: Notification[] = [
 ]
 
 const MARKET_SCHEDULE: MarketSchedule[] = [
-  { dayOfWeek: 6, dayName: 'Saturday', openTime: '08:00', closeTime: '11:00' },
+  // During development: open every day 6 AM – 11 PM
+  // In production, this would be loaded from a DB config (e.g., market_settings table)
+  { dayOfWeek: 0, dayName: 'Sunday', openTime: '06:00', closeTime: '23:00' },
+  { dayOfWeek: 1, dayName: 'Monday', openTime: '06:00', closeTime: '23:00' },
+  { dayOfWeek: 2, dayName: 'Tuesday', openTime: '06:00', closeTime: '23:00' },
+  { dayOfWeek: 3, dayName: 'Wednesday', openTime: '06:00', closeTime: '23:00' },
+  { dayOfWeek: 4, dayName: 'Thursday', openTime: '06:00', closeTime: '23:00' },
+  { dayOfWeek: 5, dayName: 'Friday', openTime: '06:00', closeTime: '23:00' },
+  { dayOfWeek: 6, dayName: 'Saturday', openTime: '06:00', closeTime: '23:00' },
 ]
 
 const initialState: MarketState = {
