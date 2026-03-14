@@ -41,6 +41,7 @@ export function Navbar() {
     { href: '/orders', label: 'Orders', icon: '🧾', section: 'main' },
     { href: '/chat', label: 'Chat', icon: '💬', section: 'main' },
     { href: '/earnings', label: 'Earnings', icon: '💰', section: 'main' },
+    { href: '/following', label: 'Following', icon: '❤️', section: 'main' },
     { href: '/notifications', label: 'Notifications', icon: '🔔', section: 'account', badge: unreadCount },
     { href: '/profile', label: 'Profile', icon: '👤', section: 'account' },
     { href: '/my-booth/customize', label: 'Booth Settings', icon: '🎨', section: 'account' },

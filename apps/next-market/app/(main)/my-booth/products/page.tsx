@@ -91,15 +91,17 @@ export default function ProductsListPage() {
           {products.map(p => {
             const isDraft = p.status === 'draft'
             const isHidden = !p.isActive
+            const isFlagged = (p as any).is_flagged || (p as any).isFlagged
             return (
               <div
                 key={p.id}
                 className={`${styles.productCard} ${isHidden ? styles.productHidden : ''}`}
               >
-                {(isDraft || isHidden) && (
+                {(isDraft || isHidden || isFlagged) && (
                   <div className={styles.badges}>
                     {isDraft && <span className={styles.badgeDraft}>Draft</span>}
-                    {isHidden && !isDraft && <span className={styles.badgeHidden}>Hidden</span>}
+                    {isFlagged && <span className={styles.badgeFlagged}>⚠️ Flagged — edit to resolve</span>}
+                    {isHidden && !isDraft && !isFlagged && <span className={styles.badgeHidden}>Hidden</span>}
                   </div>
                 )}
 

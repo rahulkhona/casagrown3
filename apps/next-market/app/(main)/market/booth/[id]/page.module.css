@@ -8,6 +8,16 @@
 .boothStats { display: flex; justify-content: center; gap: 8px; font-size: 14px; color: var(--gray-500); margin-bottom: 12px; }
 .boothDesc { font-size: 14px; color: var(--gray-700); line-height: 1.6; max-width: 500px; margin: 0 auto 16px; }
 .boothActions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.followBtn {
+  margin-top: 12px; padding: 8px 24px; font-size: 14px; font-weight: 600;
+  background: #fff; color: var(--gray-600); border: 2px solid var(--gray-200);
+  border-radius: var(--radius-full); cursor: pointer; transition: all 0.2s;
+}
+.followBtn:hover { border-color: var(--red-300); color: var(--red-500); }
+.followBtnActive {
+  background: var(--red-50); border-color: var(--red-300); color: var(--red-500);
+}
+.followerCount { font-size: 13px; color: var(--gray-400); margin-top: 6px; }
 
 .productsSection { padding: 32px 0; }
 .sectionTitle { font-size: 20px; font-weight: 700; color: var(--gray-800); margin-bottom: 20px; }

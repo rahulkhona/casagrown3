@@ -24,6 +24,8 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
   const [buyerAddress, setBuyerAddress] = useState('')
   const [flagProduct, setFlagProduct] = useState<any>(null)
   const [flaggedIds, setFlaggedIds] = useState<Set<string>>(new Set())
+  const [following, setFollowing] = useState(false)
+  const [followerCount, setFollowerCount] = useState(0)
 
   useEffect(() => {
     const load = async () => {
@@ -41,6 +43,24 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
           .eq('seller_id', boothData.owner_id)
           .order('created_at', { ascending: true })
         if (prods) setProducts(prods)
+
+        // Check follow status + count
+        const { count: fCount } = await supabase
+          .from('followers')
+          .select('*', { count: 'exact', head: true })
+          .eq('followed_id', boothData.owner_id)
+        setFollowerCount(fCount || 0)
+
+        const { data: session } = await supabase.auth.getUser()
+        if (session?.user) {
+          const { data: fRow } = await supabase
+            .from('followers')
+            .select('follower_id')
+            .eq('follower_id', session.user.id)
+            .eq('followed_id', boothData.owner_id)
+            .maybeSingle()
+          if (fRow) setFollowing(true)
+        }
       }
       setLoading(false)
     }
@@ -135,6 +155,28 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
           {booth.offers_pickup && <><span>•</span><span>📍 Pickup</span></>}
         </div>
         {booth.description && <p className={styles.boothDesc}>{booth.description}</p>}
+        {/* Follow button */}
+        {isAuthenticated && user?.id !== booth.owner_id && (
+          <button
+            className={`${styles.followBtn} ${following ? styles.followBtnActive : ''}`}
+            onClick={async () => {
+              if (following) {
+                await supabase.from('followers').delete().match({ follower_id: user!.id, followed_id: booth.owner_id })
+                setFollowing(false)
+                setFollowerCount(c => Math.max(0, c - 1))
+              } else {
+                await supabase.from('followers').insert({ follower_id: user!.id, followed_id: booth.owner_id })
+                setFollowing(true)
+                setFollowerCount(c => c + 1)
+              }
+            }}
+          >
+            {following ? '❤️ Following' : '🤍 Follow'}
+          </button>
+        )}
+        {followerCount > 0 && (
+          <p className={styles.followerCount}>{followerCount} follower{followerCount !== 1 ? 's' : ''}</p>
+        )}
       </div>
 
       {/* Fulfillment Options */}
