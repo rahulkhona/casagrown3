@@ -36,8 +36,6 @@ export function Navbar() {
   // Extended menu items (in hamburger)
   const menuItems = [
     { href: '/my-booth', label: 'My Booth', icon: '🏪', section: 'main' },
-    { href: '/my-booth/products', label: 'My Products', icon: '📦', section: 'main' },
-    { href: '/my-booth/products/new', label: 'Add Product', icon: '➕', section: 'main' },
     { href: '/orders', label: 'Orders', icon: '🧾', section: 'main' },
     { href: '/chat', label: 'Chat', icon: '💬', section: 'main' },
     { href: '/earnings', label: 'Earnings', icon: '💰', section: 'main' },
