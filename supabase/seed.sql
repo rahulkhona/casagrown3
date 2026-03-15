@@ -900,79 +900,101 @@ BEGIN
     (s5,CURRENT_DATE,'Lavender Sachets','Dried lavender from my garden, handmade sachets','flowers',4.00,'each',12,'{}',NULL);
 
   -- ============================================================
-  --  Market Orders seed (so Orders page has data to display)
-  --  Use product IDs from inserts above via subqueries
+  --  Market Orders seed — comprehensive test scenarios
+  --  seller@test = a1111111... , buyer@test = b2222222...
+  --  seller@test has a booth + "Heirloom Peppers" product
   -- ============================================================
-  -- Order 1: Pending delivery (buyer=seller@test, seller=Maria)
+
+  -- Give seller@test a booth + product
+  INSERT INTO market_booths (owner_id,name,description,decorative_theme,offers_delivery,offers_pickup,delivery_radius_miles,pickup_address,delivery_windows,pickup_windows,payment_method,pickup_location) VALUES
+    ('a1111111-1111-1111-1111-111111111111','Test Seller''s Garden','Fresh garden produce from local backyard','harvest',true,true,5,'123 Test St, San Jose',
+     '[{"id":"8-10","start":"08:00","end":"10:00"}]'::jsonb,
+     '[{"id":"8-10","start":"08:00","end":"10:00"}]'::jsonb,
+     'automatic',ST_SetSRID(ST_MakePoint(-121.88,37.23),4326))
+  ON CONFLICT (owner_id) DO UPDATE SET name=EXCLUDED.name;
+
+  INSERT INTO market_products (seller_id,market_date,name,description,category,price_usd,unit,inventory,photos,harvested_at) VALUES
+    ('a1111111-1111-1111-1111-111111111111',CURRENT_DATE,'Heirloom Peppers','Mixed hot and sweet peppers','vegetables',4.50,'basket',10,'{}',now())
+  ON CONFLICT DO NOTHING;
+
+  -- ── SELLER@TEST AS SELLER (login as seller@test to manage) ──
+
+  -- S1: Pending delivery — seller needs to mark delivered or decline
   INSERT INTO market_orders (buyer_id, seller_id, booth_id, product_id, product_name,
     quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
     fulfillment_type, status)
-  SELECT
-    'a1111111-1111-1111-1111-111111111111', s1, b.id, p.id, 'Heritage Tomatoes',
-    2, 5.00, 10.00, 0.93, 10.93,
-    'delivery', 'pending'
+  SELECT 'b2222222-2222-2222-2222-222222222222', 'a1111111-1111-1111-1111-111111111111', b.id, p.id, 'Heirloom Peppers',
+    3, 4.50, 13.50, 1.25, 14.75, 'delivery', 'pending'
   FROM market_booths b, market_products p
-  WHERE b.owner_id = s1 AND p.seller_id = s1 AND p.name = 'Heritage Tomatoes'
-  LIMIT 1;
+  WHERE b.owner_id = 'a1111111-1111-1111-1111-111111111111' AND p.name = 'Heirloom Peppers' LIMIT 1;
 
-  -- Order 2: Delivering (buyer=seller@test, seller=Raj)
+  -- S2: Pending pickup — seller needs to mark ready
   INSERT INTO market_orders (buyer_id, seller_id, booth_id, product_id, product_name,
     quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
     fulfillment_type, status)
-  SELECT
-    'a1111111-1111-1111-1111-111111111111', s2, b.id, p.id, 'Meyer Lemons',
-    3, 3.50, 10.50, 0.97, 11.47,
-    'delivery', 'pending'
+  SELECT 'b2222222-2222-2222-2222-222222222222', 'a1111111-1111-1111-1111-111111111111', b.id, p.id, 'Heirloom Peppers',
+    2, 4.50, 9.00, 0.83, 9.83, 'pickup', 'pending'
   FROM market_booths b, market_products p
-  WHERE b.owner_id = s2 AND p.seller_id = s2 AND p.name = 'Meyer Lemons'
-  LIMIT 1;
+  WHERE b.owner_id = 'a1111111-1111-1111-1111-111111111111' AND p.name = 'Heirloom Peppers' LIMIT 1;
 
-  -- Order 3: Delivered (waiting for buyer confirm, auto-complete in 4h)
+  -- ── SELLER@TEST AS BUYER (login as seller@test to confirm/dispute) ──
+
+  -- B1: Delivered — buyer can confirm delivery (test complete delivery)
   INSERT INTO market_orders (buyer_id, seller_id, booth_id, product_id, product_name,
     quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
     fulfillment_type, status, delivered_at, auto_complete_at)
-  SELECT
-    'a1111111-1111-1111-1111-111111111111', s3, b.id, p.id, 'Baby Bok Choy',
-    5, 3.50, 17.50, 1.62, 19.12,
-    'delivery', 'delivered', now() - interval '1 hour', now() + interval '3 hours'
+  SELECT 'a1111111-1111-1111-1111-111111111111', s1, b.id, p.id, 'Heritage Tomatoes',
+    2, 5.00, 10.00, 0.93, 10.93, 'delivery', 'delivered', now() - interval '30 min', now() + interval '3 hours 30 min'
   FROM market_booths b, market_products p
-  WHERE b.owner_id = s3 AND p.seller_id = s3 AND p.name = 'Baby Bok Choy'
-  LIMIT 1;
+  WHERE b.owner_id = s1 AND p.name = 'Heritage Tomatoes' LIMIT 1;
 
-  -- Order 4: Pending pickup (buyer=buyer@test, seller=Sofia)
+  -- B2: Delivered — buyer can dispute delivery (test dispute delivery)
+  INSERT INTO market_orders (buyer_id, seller_id, booth_id, product_id, product_name,
+    quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
+    fulfillment_type, status, delivered_at, auto_complete_at)
+  SELECT 'a1111111-1111-1111-1111-111111111111', s2, b.id, p.id, 'Meyer Lemons',
+    3, 3.50, 10.50, 0.97, 11.47, 'delivery', 'delivered', now() - interval '15 min', now() + interval '3 hours 45 min'
+  FROM market_booths b, market_products p
+  WHERE b.owner_id = s2 AND p.name = 'Meyer Lemons' LIMIT 1;
+
+  -- B3: Ready for pickup with passcodes — buyer can complete pickup
+  INSERT INTO market_orders (buyer_id, seller_id, booth_id, product_id, product_name,
+    quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
+    fulfillment_type, status, buyer_passcode, seller_passcode)
+  SELECT 'a1111111-1111-1111-1111-111111111111', s3, b.id, p.id, 'Baby Bok Choy',
+    5, 3.50, 17.50, 1.62, 19.12, 'pickup', 'ready_for_pickup', '4821', '7359'
+  FROM market_booths b, market_products p
+  WHERE b.owner_id = s3 AND p.name = 'Baby Bok Choy' LIMIT 1;
+
+  -- B4: Ready for pickup — buyer can decline pickup
+  INSERT INTO market_orders (buyer_id, seller_id, booth_id, product_id, product_name,
+    quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
+    fulfillment_type, status, buyer_passcode, seller_passcode)
+  SELECT 'a1111111-1111-1111-1111-111111111111', s4, b.id, p.id, 'Sourdough Loaf',
+    1, 8.00, 8.00, 0.74, 8.74, 'pickup', 'ready_for_pickup', '1234', '5678'
+  FROM market_booths b, market_products p
+  WHERE b.owner_id = s4 AND p.name = 'Sourdough Loaf' LIMIT 1;
+
+  -- ── BUYER@TEST AS BUYER (login as buyer@test to see buyer view) ──
+
+  -- C1: Pending delivery from seller Sofia
   INSERT INTO market_orders (buyer_id, seller_id, booth_id, product_id, product_name,
     quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
     fulfillment_type, status)
-  SELECT
-    'b2222222-2222-2222-2222-222222222222', s4, b.id, p.id, 'Sourdough Loaf',
-    1, 8.00, 8.00, 0.74, 8.74,
-    'pickup', 'pending'
+  SELECT 'b2222222-2222-2222-2222-222222222222', s4, b.id, p.id, 'Sourdough Loaf',
+    1, 8.00, 8.00, 0.74, 8.74, 'delivery', 'pending'
   FROM market_booths b, market_products p
-  WHERE b.owner_id = s4 AND p.seller_id = s4 AND p.name = 'Sourdough Loaf'
-  LIMIT 1;
+  WHERE b.owner_id = s4 AND p.name = 'Sourdough Loaf' LIMIT 1;
 
-  -- Order 5: Completed delivery (buyer=buyer@test, seller=James)
+  -- ── PAST ORDERS (for Past tab) ──
+
+  -- P1: Completed delivery
   INSERT INTO market_orders (buyer_id, seller_id, booth_id, product_id, product_name,
     quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
     fulfillment_type, status, completed_at)
-  SELECT
-    'b2222222-2222-2222-2222-222222222222', s5, b.id, p.id, 'Raw Wildflower Honey',
-    1, 12.00, 12.00, 1.11, 13.11,
-    'delivery', 'completed', now() - interval '2 days'
+  SELECT 'b2222222-2222-2222-2222-222222222222', s5, b.id, p.id, 'Raw Wildflower Honey',
+    1, 12.00, 12.00, 1.11, 13.11, 'delivery', 'completed', now() - interval '5 days'
   FROM market_booths b, market_products p
-  WHERE b.owner_id = s5 AND p.seller_id = s5 AND p.name = 'Raw Wildflower Honey'
-  LIMIT 1;
-
-  -- Order 6: Seller is buyer@test, buyer is seller@test (seller view of pending)
-  INSERT INTO market_orders (buyer_id, seller_id, booth_id, product_id, product_name,
-    quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
-    fulfillment_type, status)
-  SELECT
-    'b2222222-2222-2222-2222-222222222222', s1, b.id, p.id, 'Fresh Basil Bunch',
-    3, 3.00, 9.00, 0.83, 9.83,
-    'pickup', 'pending'
-  FROM market_booths b, market_products p
-  WHERE b.owner_id = s1 AND p.seller_id = s1 AND p.name = 'Fresh Basil Bunch'
-  LIMIT 1;
+  WHERE b.owner_id = s5 AND p.name = 'Raw Wildflower Honey' LIMIT 1;
 
 END $$;
