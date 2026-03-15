@@ -110,11 +110,34 @@ export default function OrdersPage() {
     return <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}><p>Loading orders...</p></div>
   }
 
-  const filtered = orders.filter(o => {
-    if (tab === 'active') return ACTIVE_STATUSES.includes(o.status)
-    if (tab === 'past') return PAST_STATUSES.includes(o.status)
-    return DISPUTED_STATUSES.includes(o.status)
-  })
+  // Priority sort: "needs your action" first within each tab
+  const getActionPriority = (o: MarketOrder): number => {
+    const isBuyer = o.buyer_id === user!.id
+    // Priority 0 = needs MY action (top), 1 = waiting on other party, 2 = informational
+    if (o.status === 'pending' && !isBuyer) return 0        // seller needs to process
+    if (o.status === 'delivered' && isBuyer) return 0        // buyer needs to confirm
+    if (o.status === 'ready_for_pickup' && isBuyer) return 0 // buyer needs to pick up
+    if (o.status === 'ready_for_pickup' && !isBuyer) return 0 // seller enters passcode
+    if (o.status === 'pending' && isBuyer) return 1          // waiting on seller
+    if (o.status === 'delivered' && !isBuyer) return 1       // waiting on buyer
+    if (o.status === 'disputed') return 0                    // needs attention
+    if (o.status === 'escalated') return 0                   // needs attention
+    return 2
+  }
+
+  const filtered = orders
+    .filter(o => {
+      if (tab === 'active') return ACTIVE_STATUSES.includes(o.status)
+      if (tab === 'past') return PAST_STATUSES.includes(o.status)
+      return DISPUTED_STATUSES.includes(o.status)
+    })
+    .sort((a, b) => {
+      // Within same tab: action priority first, then newest
+      const pa = getActionPriority(a)
+      const pb = getActionPriority(b)
+      if (pa !== pb) return pa - pb
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    })
 
   const activeCount = orders.filter(o => ACTIVE_STATUSES.includes(o.status)).length
   const disputedCount = orders.filter(o => DISPUTED_STATUSES.includes(o.status)).length
