@@ -1008,4 +1008,22 @@ BEGIN
   FROM market_booths b, market_products p
   WHERE b.owner_id = s5 AND p.name = 'Raw Wildflower Honey' LIMIT 1;
 
+  -- STALE1: Pending from yesterday — should be auto-cancelled by settle_stale_orders()
+  INSERT INTO market_orders (buyer_id, seller_id, booth_id, product_id, product_name,
+    quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
+    fulfillment_type, status, created_at)
+  SELECT 'a1111111-1111-1111-1111-111111111111', s5, b.id, p.id, 'Microgreens Mix',
+    2, 6.00, 12.00, 1.11, 13.11, 'delivery', 'pending', now() - interval '1 day'
+  FROM market_booths b, market_products p
+  WHERE b.owner_id = s5 AND p.name = 'Microgreens Mix' LIMIT 1;
+
+  -- STALE2: Ready for pickup from yesterday — should also be auto-cancelled
+  INSERT INTO market_orders (buyer_id, seller_id, booth_id, product_id, product_name,
+    quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
+    fulfillment_type, status, buyer_passcode, seller_passcode, created_at)
+  SELECT 'b2222222-2222-2222-2222-222222222222', s1, b.id, p.id, 'Fresh Basil Bunch',
+    1, 3.00, 3.00, 0.28, 3.28, 'pickup', 'ready_for_pickup', '9999', '8888', now() - interval '1 day'
+  FROM market_booths b, market_products p
+  WHERE b.owner_id = s1 AND p.name = 'Fresh Basil Bunch' LIMIT 1;
+
 END $$;

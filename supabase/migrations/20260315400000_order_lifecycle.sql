@@ -492,3 +492,45 @@ BEGIN
   RETURN v_count;
 END;
 $$;
+
+-- ============================================================
+-- 8. Midnight settling: auto-cancel stale orders
+--    Orders still pending or ready_for_pickup from before today
+--    are cancelled, inventory restored, parties notified.
+-- ============================================================
+CREATE OR REPLACE FUNCTION settle_stale_orders()
+RETURNS INTEGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_count INTEGER := 0;
+  v_rec RECORD;
+BEGIN
+  -- Cancel pending orders from before today
+  FOR v_rec IN
+    SELECT id, buyer_id, seller_id, product_id, product_name, quantity
+    FROM market_orders
+    WHERE status IN ('pending', 'ready_for_pickup')
+      AND created_at < CURRENT_DATE
+    FOR UPDATE
+  LOOP
+    UPDATE market_orders
+    SET status = 'cancelled',
+        decline_reason = 'Auto-cancelled: market day ended without completion',
+        updated_at = now()
+    WHERE id = v_rec.id;
+
+    -- Restore inventory
+    UPDATE market_products
+    SET inventory = inventory + v_rec.quantity, updated_at = now()
+    WHERE id = v_rec.product_id;
+
+    -- Notify both parties
+    INSERT INTO notifications (user_id, content, link_url) VALUES
+      (v_rec.buyer_id, 'Order for "' || v_rec.product_name || '" was auto-cancelled (market day ended). ✕', '/orders/' || v_rec.id),
+      (v_rec.seller_id, 'Order for "' || v_rec.product_name || '" was auto-cancelled (market day ended). ✕', '/orders/' || v_rec.id);
+
+    v_count := v_count + 1;
+  END LOOP;
+
+  RETURN v_count;
+END;
+$$;
