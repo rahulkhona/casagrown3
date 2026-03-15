@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase'
 import { useAuth } from '../../../../lib/useAuth'
+import CameraCapture, { CaptureResult } from '../../../../components/CameraCapture'
 import styles from './page.module.css'
 
 interface OrderDetail {
@@ -90,63 +91,10 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [newMessage, setNewMessage] = useState('')
   const [countdown, setCountdown] = useState('')
   const [showDeliveryProof, setShowDeliveryProof] = useState(false)
-  const [proofPhotos, setProofPhotos] = useState<{ blob: Blob; preview: string }[]>([])
+  const [showCamera, setShowCamera] = useState(false)
+  const [proofPhotos, setProofPhotos] = useState<{ preview: string; result: CaptureResult }[]>([])
   const [uploading, setUploading] = useState(false)
-  const [cameraActive, setCameraActive] = useState(false)
-  const [cameraError, setCameraError] = useState('')
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const streamRef = useRef<MediaStream | null>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-
-  // Start/stop camera when delivery proof modal opens/closes
-  useEffect(() => {
-    if (showDeliveryProof) {
-      setCameraError('')
-      navigator.mediaDevices?.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 960 } } })
-        .then(stream => {
-          streamRef.current = stream
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream
-            videoRef.current.play()
-          }
-          setCameraActive(true)
-        })
-        .catch(err => {
-          setCameraError('Camera access denied. Please allow camera permissions and try again.')
-          console.error('Camera error:', err)
-        })
-    } else {
-      // Stop camera
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(t => t.stop())
-        streamRef.current = null
-      }
-      setCameraActive(false)
-    }
-    return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(t => t.stop())
-        streamRef.current = null
-      }
-    }
-  }, [showDeliveryProof])
-
-  const capturePhoto = () => {
-    if (!videoRef.current || !canvasRef.current) return
-    const video = videoRef.current
-    const canvas = canvasRef.current
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    ctx.drawImage(video, 0, 0)
-    canvas.toBlob(blob => {
-      if (!blob) return
-      const preview = URL.createObjectURL(blob)
-      setProofPhotos(prev => [...prev, { blob, preview }])
-    }, 'image/jpeg', 0.85)
-  }
 
   const loadOrder = useCallback(async () => {
     if (!user) return
@@ -660,49 +608,13 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               proofPhotos.forEach(p => URL.revokeObjectURL(p.preview))
               setProofPhotos([])
               setShowDeliveryProof(false)
+              setShowCamera(false)
             }}>← Back</button>
             <h2>Delivery Proof</h2>
             <div style={{ width: 60 }} />
           </div>
 
           <div className={styles.modalBody}>
-            {/* Hidden canvas for capturing frames */}
-            <canvas ref={canvasRef} style={{ display: 'none' }} />
-
-            {cameraError ? (
-              <div className={styles.infoBox} data-type="warning" style={{ textAlign: 'center' }}>
-                {cameraError}
-              </div>
-            ) : (
-              <>
-                {/* Live camera view */}
-                <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', background: '#000', marginBottom: 16 }}>
-                  <video
-                    ref={videoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    style={{ width: '100%', display: 'block', maxHeight: 300, objectFit: 'cover' }}
-                  />
-                  {!cameraActive && (
-                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14 }}>
-                      Starting camera...
-                    </div>
-                  )}
-                </div>
-
-                {/* Shutter button */}
-                <button
-                  className="btn btn-outline"
-                  style={{ width: '100%', marginBottom: 16, fontSize: 16 }}
-                  onClick={capturePhoto}
-                  disabled={!cameraActive}
-                >
-                  📸 Capture Photo
-                </button>
-              </>
-            )}
-
             {/* Captured photos */}
             {proofPhotos.length > 0 && (
               <>
@@ -713,6 +625,11 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   {proofPhotos.map((p, i) => (
                     <div key={i} style={{ position: 'relative', borderRadius: 12, overflow: 'hidden' }}>
                       <img src={p.preview} alt={`Proof ${i + 1}`} style={{ width: '100%', height: 100, objectFit: 'cover' }} />
+                      {p.result.meta.latitude && (
+                        <span style={{ position: 'absolute', bottom: 2, left: 4, fontSize: 9, color: '#fff', background: 'rgba(0,0,0,0.5)', padding: '1px 4px', borderRadius: 4 }}>
+                          📍 {p.result.meta.latitude.toFixed(4)}
+                        </span>
+                      )}
                       <button
                         type="button"
                         onClick={() => {
@@ -727,6 +644,15 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               </>
             )}
 
+            {/* Take photo button */}
+            <button
+              className="btn btn-outline"
+              style={{ width: '100%', marginBottom: 12 }}
+              onClick={() => setShowCamera(true)}
+            >
+              📸 {proofPhotos.length > 0 ? 'Take Another Photo' : 'Take Photo'}
+            </button>
+
             {/* Submit */}
             <button
               className="btn btn-primary"
@@ -738,10 +664,13 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   const proofUrls: any[] = []
                   for (const photo of proofPhotos) {
                     const path = `${orderId}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`
-                    const { error } = await supabase.storage.from('order-evidence').upload(path, photo.blob)
+                    const { error } = await supabase.storage.from('order-evidence').upload(path, photo.result.file)
                     if (!error) {
                       const { data: urlData } = supabase.storage.from('order-evidence').getPublicUrl(path)
-                      proofUrls.push({ url: urlData.publicUrl, timestamp: new Date().toISOString() })
+                      proofUrls.push({
+                        url: urlData.publicUrl,
+                        ...photo.result.meta,
+                      })
                     }
                   }
                   await callRpc('seller_mark_delivered', { p_order_id: orderId, p_proof: JSON.stringify(proofUrls) })
@@ -757,6 +686,20 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             </button>
           </div>
         </div>
+      )}
+
+      {/* Camera overlay (shared component) */}
+      {showCamera && (
+        <CameraCapture
+          multiCapture
+          captureLabel="📸 Capture Photo"
+          closeLabel="✓ Done"
+          onCapture={(result) => {
+            const preview = URL.createObjectURL(result.file)
+            setProofPhotos(prev => [...prev, { preview, result }])
+          }}
+          onClose={() => setShowCamera(false)}
+        />
       )}
     </div>
   )
