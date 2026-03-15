@@ -24,6 +24,7 @@ export interface MarketReceiptData {
   sellerName: string
   boothName?: string
   sellerZip?: string
+  sellerState?: string
   // Buyer info
   buyerName: string
   buyerZip?: string
@@ -47,6 +48,8 @@ export interface MarketReceiptData {
   cardLast4?: string
   // Which view
   viewAs: 'buyer' | 'seller'
+  // Compliance
+  receiptFooter?: string
 }
 
 interface Props {
@@ -221,6 +224,26 @@ export function MarketReceiptSheet({ visible, data, onClose }: Props) {
                     <span className={styles.rowValue}>•••• {data.cardLast4}</span>
                   </div>
                 )}
+              </div>
+            </>
+          )}
+
+          {/* Cottage Food / Compliance Footer */}
+          {data.receiptFooter && (
+            <>
+              <div className={styles.divider} />
+              <div style={{
+                padding: '12px 0 4px',
+                textAlign: 'center',
+                fontSize: 10,
+                fontWeight: 700,
+                color: '#92400e',
+                background: '#fffbeb',
+                borderRadius: 6,
+                marginTop: 8,
+                lineHeight: 1.4,
+              }}>
+                {data.receiptFooter}
               </div>
             </>
           )}

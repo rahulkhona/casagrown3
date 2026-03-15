@@ -89,6 +89,8 @@ export default function EarningsPage() {
   const [hasMore, setHasMore] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [receiptData, setReceiptData] = useState<MarketReceiptData | null>(null)
+  const [ratingHover, setRatingHover] = useState<{ txId: string; star: number } | null>(null)
+  const [ratedOrders, setRatedOrders] = useState<Record<string, number>>({})
 
   const supabase = useMemo(() => createClient(), [])
 
@@ -183,6 +185,23 @@ export default function EarningsPage() {
       viewAs,
     })
   }, [])
+
+  // ── Rate order handler ──
+  const handleRate = useCallback(async (orderId: string, rating: number) => {
+    setRatedOrders(prev => ({ ...prev, [orderId]: rating }))
+    try {
+      const { data, error } = await supabase.rpc('rate_market_order', {
+        p_order_id: orderId,
+        p_rating: rating,
+      })
+      if (error || data?.error) {
+        console.error('Rating error:', error?.message || data?.error)
+        setRatedOrders(prev => { const next = { ...prev }; delete next[orderId]; return next })
+      }
+    } catch (e) {
+      console.error('Rating failed:', e)
+    }
+  }, [supabase])
 
   // ── Auth guards ──
   if (authLoading) return <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}><p>Loading...</p></div>
@@ -320,6 +339,41 @@ export default function EarningsPage() {
                           <div className={styles.txStatus}>{tx.status}</div>
                         </div>
                       </div>
+
+                      {/* Star rating prompt for completed sale/purchase */}
+                      {tx.status === 'completed' && (tx.tx_type === 'purchase' || tx.tx_type === 'sale') && tx.metadata?.order_id && (
+                        <div style={{
+                          padding: '6px 16px 10px 52px', display: 'flex', alignItems: 'center', gap: 8,
+                          borderBottom: '1px solid var(--border)', background: 'var(--green-50)',
+                        }}>
+                          {ratedOrders[tx.metadata.order_id] ? (
+                            <span style={{ fontSize: 12, color: 'var(--green-700)' }}>
+                              ⭐ Rated {ratedOrders[tx.metadata.order_id]}/5 — Thank you!
+                            </span>
+                          ) : (
+                            <>
+                              <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>Rate:</span>
+                              {[1, 2, 3, 4, 5].map(star => (
+                                <button
+                                  key={star}
+                                  onClick={(e) => { e.stopPropagation(); handleRate(tx.metadata.order_id, star) }}
+                                  onMouseEnter={() => setRatingHover({ txId: tx.tx_id, star })}
+                                  onMouseLeave={() => setRatingHover(null)}
+                                  style={{
+                                    background: 'none', border: 'none', cursor: 'pointer', padding: '2px 1px', fontSize: 18,
+                                    opacity: ratingHover?.txId === tx.tx_id && star <= ratingHover.star ? 1 : 0.3,
+                                    transform: ratingHover?.txId === tx.tx_id && star <= ratingHover.star ? 'scale(1.2)' : 'scale(1)',
+                                    transition: 'all 0.15s',
+                                  }}
+                                  title={`Rate ${star} star${star > 1 ? 's' : ''}`}
+                                >
+                                  ⭐
+                                </button>
+                              ))}
+                            </>
+                          )}
+                        </div>
+                      )}
 
                       {/* Expanded metadata */}
                       {isExpanded && tx.metadata && (
