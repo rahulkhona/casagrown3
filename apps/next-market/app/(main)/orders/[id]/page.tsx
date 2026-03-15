@@ -515,19 +515,30 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
             {/* Dispute photos */}
             {dispute.photos && dispute.photos.length > 0 && (
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-                {dispute.photos.map((p: any, i: number) => (
-                  <img key={i} src={p.url || p} alt={`Evidence ${i + 1}`}
-                    style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--gray-200)' }} />
-                ))}
+              <div style={{ marginTop: 10 }}>
+                <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-500)', marginBottom: 6 }}>📸 Evidence</p>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {dispute.photos.map((p: any, i: number) => (
+                    <img key={i} src={typeof p === 'string' ? p : p.url} alt={`Evidence ${i + 1}`}
+                      style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--gray-200)' }} />
+                  ))}
+                </div>
               </div>
             )}
 
             {/* Quantity info for quantity mismatch */}
             {dispute.dispute_type === 'quantity_mismatch' && dispute.quantity_received != null && (
-              <p style={{ fontSize: 13, color: 'var(--gray-600)', marginTop: 8 }}>
-                <strong>Ordered:</strong> {order.quantity} · <strong>Received:</strong> {dispute.quantity_received}
-              </p>
+              <div style={{
+                marginTop: 10, padding: '8px 12px', borderRadius: 'var(--radius-md)',
+                background: 'var(--gray-50)', fontSize: 13,
+                display: 'flex', gap: 16,
+              }}>
+                <span><strong>Ordered:</strong> {order.quantity}</span>
+                <span><strong>Received:</strong> {dispute.quantity_received}</span>
+                <span style={{ color: 'var(--red-600, #dc2626)', fontWeight: 600 }}>
+                  Missing: {(order.quantity || 0) - dispute.quantity_received}
+                </span>
+              </div>
             )}
 
             {/* Suggested refund (auto-calculated) */}
@@ -657,12 +668,15 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                 {/* Quantity mismatch: how many received */}
                 {disputeType === 'quantity_mismatch' && (
                   <div className={styles.formGroup} style={{ marginBottom: 12 }}>
-                    <label style={{ fontWeight: 600, fontSize: 13 }}>How many did you receive?</label>
+                    <div style={{ background: 'var(--blue-50, #eff6ff)', border: '1px solid var(--blue-200, #bfdbfe)', borderRadius: 8, padding: '8px 12px', marginBottom: 8, fontSize: 13 }}>
+                      <strong>Original order:</strong> {order.quantity} × {order.product_name}
+                    </div>
+                    <label style={{ fontWeight: 600, fontSize: 13 }}>How many did you actually receive?</label>
                     <input
                       type="number"
                       value={disputeQuantityReceived}
                       onChange={e => setDisputeQuantityReceived(e.target.value)}
-                      placeholder={`Ordered: ${order.quantity}`}
+                      placeholder="Enter quantity received"
                       min={0}
                       max={order.quantity}
                       style={{ marginTop: 4 }}

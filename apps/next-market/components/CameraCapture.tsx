@@ -64,7 +64,7 @@ export default function CameraCapture({
     streamRef.current = ms
     if (videoRef.current) {
       videoRef.current.srcObject = ms
-      videoRef.current.play()
+      videoRef.current.play().catch(() => { /* ignore AbortError when stream replaced */ })
     }
     return ms
   }, [facingMode])
