@@ -94,3 +94,94 @@
   font-size: 13px; color: var(--green-700);
 }
 .passcodeBox strong { font-family: monospace; font-size: 16px; letter-spacing: 2px; }
+
+/* ── Role Toggle (segmented control) ── */
+.roleToggle {
+  display: flex;
+  background: var(--gray-100);
+  border-radius: var(--radius-xl);
+  padding: 3px;
+  margin-bottom: 12px;
+  gap: 3px;
+}
+.roleBtn {
+  flex: 1;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 8px 12px;
+  border: none; border-radius: var(--radius-lg);
+  font-size: 13px; font-weight: 600;
+  cursor: pointer;
+  background: transparent; color: var(--gray-500);
+  transition: all 0.2s ease;
+}
+.roleBtn:hover { color: var(--gray-700); }
+.roleBtnActive {
+  background: #fff;
+  color: var(--green-700);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* ── Scrollable Status Tabs ── */
+.scrollTabsWrap {
+  position: relative;
+  margin-bottom: 16px;
+}
+.scrollTabsWrap::after {
+  content: '';
+  position: absolute; top: 0; right: 0; bottom: 0;
+  width: 40px;
+  background: linear-gradient(to right, transparent, #fff);
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.2s;
+}
+.scrollTabsWrap.scrollEnd::after { opacity: 0; }
+.scrollTabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;          /* Firefox */
+  padding-bottom: 2px;
+  padding-right: 32px;            /* space for fade */
+}
+.scrollTabs::-webkit-scrollbar { display: none; }  /* Chrome/Safari */
+
+.tabPill {
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: 4px;
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  font-size: 12px; font-weight: 500;
+  background: #fff; color: var(--gray-600);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.tabPill:hover { border-color: var(--green-300); color: var(--green-700); }
+.tabPillActive {
+  background: var(--green-600); color: #fff;
+  border-color: var(--green-600);
+}
+.tabPillActive:hover { background: var(--green-700); border-color: var(--green-700); color: #fff; }
+
+.tabCount {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px;
+  border-radius: 9px;
+  font-size: 10px; font-weight: 700;
+  background: rgba(0,0,0,0.15); color: inherit;
+}
+.tabPillActive .tabCount {
+  background: rgba(255,255,255,0.3);
+}
+
+/* Mobile: shorter labels */
+.tabLabelFull { display: inline; }
+.tabLabelShort { display: none; }
+@media (max-width: 600px) {
+  .tabLabelFull { display: none; }
+  .tabLabelShort { display: inline; }
+  .roleBtn { font-size: 12px; padding: 7px 8px; }
+}

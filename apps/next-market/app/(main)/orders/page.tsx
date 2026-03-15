@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
@@ -129,13 +129,13 @@ export default function OrdersPage() {
     .filter(o => tabMatchers[tab]?.(o) ?? false)
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
-  // Tab definitions — same for sales and purchases
+  // Tab definitions with short labels for mobile
   const tabDefs = [
-    { key: 'pending_delivery', label: 'Pending Delivery', icon: '🚗' },
-    { key: 'pending_pickup',   label: 'Pending Pickup',   icon: '📍' },
-    { key: 'pending_confirm',  label: 'Pending Confirmation', icon: '⏳' },
-    { key: 'disputed',         label: 'Disputed',         icon: '⚠️' },
-    { key: 'completed',        label: 'Completed',        icon: '✓' },
+    { key: 'pending_delivery', label: 'Pending Delivery', short: 'Delivery',  icon: '🚗' },
+    { key: 'pending_pickup',   label: 'Pending Pickup',   short: 'Pickup',    icon: '📍' },
+    { key: 'pending_confirm',  label: 'Pending Confirmation', short: 'Confirm', icon: '⏳' },
+    { key: 'disputed',         label: 'Disputed',         short: 'Disputed',  icon: '⚠️' },
+    { key: 'completed',        label: 'Completed',        short: 'Done',      icon: '✓' },
   ]
 
   const tabs = tabDefs.map(t => ({
@@ -146,44 +146,52 @@ export default function OrdersPage() {
   const sellingCount = orders.filter(o => o.seller_id === user!.id && ACTIVE_STATUSES.includes(o.status)).length
   const buyingCount = orders.filter(o => o.buyer_id === user!.id && ACTIVE_STATUSES.includes(o.status)).length
 
+  // Scroll fade: detect when scrolled to end
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [scrolledEnd, setScrolledEnd] = useState(false)
+  const handleTabScroll = () => {
+    const el = scrollRef.current
+    if (!el) return
+    setScrolledEnd(el.scrollLeft + el.clientWidth >= el.scrollWidth - 10)
+  }
+
   return (
     <div className="container">
       <div className="page-header"><h1 className="page-title">Orders</h1></div>
 
-      {/* Role toggle: My Sales / My Purchases */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+      {/* Role toggle: segmented control */}
+      <div className={styles.roleToggle}>
         <button
-          className={`btn ${role === 'selling' ? 'btn-primary' : 'btn-outline'}`}
-          style={{ flex: 1, fontSize: 14 }}
+          className={`${styles.roleBtn} ${role === 'selling' ? styles.roleBtnActive : ''}`}
           onClick={() => { setRole('selling'); setTab('pending_delivery') }}
         >
-          🏪 My Sales {sellingCount > 0 && <span className="badge badge-green" style={{ marginLeft: 6 }}>{sellingCount}</span>}
+          🏪 <span className={styles.tabLabelFull}>My Sales</span><span className={styles.tabLabelShort}>Sales</span>
+          {sellingCount > 0 && <span className={styles.tabCount}>{sellingCount}</span>}
         </button>
         <button
-          className={`btn ${role === 'buying' ? 'btn-primary' : 'btn-outline'}`}
-          style={{ flex: 1, fontSize: 14 }}
+          className={`${styles.roleBtn} ${role === 'buying' ? styles.roleBtnActive : ''}`}
           onClick={() => { setRole('buying'); setTab('pending_delivery') }}
         >
-          🛒 My Purchases {buyingCount > 0 && <span className="badge badge-green" style={{ marginLeft: 6 }}>{buyingCount}</span>}
+          🛒 <span className={styles.tabLabelFull}>My Purchases</span><span className={styles.tabLabelShort}>Purchases</span>
+          {buyingCount > 0 && <span className={styles.tabCount}>{buyingCount}</span>}
         </button>
       </div>
 
-      {/* Status tabs */}
-      <div className="tabs" style={{ flexWrap: 'wrap' }}>
-        {tabs.map(t => (
-          <button
-            key={t.key}
-            className={`tab ${tab === t.key ? 'tab-active' : ''}`}
-            onClick={() => setTab(t.key)}
-          >
-            {t.label}
-            {t.count > 0 && (
-              <span className={`badge ${t.key === 'disputed' ? 'badge-red' : 'badge-green'}`} style={{ marginLeft: 6 }}>
-                {t.count}
-              </span>
-            )}
-          </button>
-        ))}
+      {/* Status pills: horizontally scrollable with fade hint */}
+      <div className={`${styles.scrollTabsWrap} ${scrolledEnd ? styles.scrollEnd : ''}`}>
+        <div className={styles.scrollTabs} ref={scrollRef} onScroll={handleTabScroll}>
+          {tabs.map(t => (
+            <button
+              key={t.key}
+              className={`${styles.tabPill} ${tab === t.key ? styles.tabPillActive : ''}`}
+              onClick={() => setTab(t.key)}
+            >
+              <span className={styles.tabLabelFull}>{t.label}</span>
+              <span className={styles.tabLabelShort}>{t.short}</span>
+              {t.count > 0 && <span className={styles.tabCount}>{t.count}</span>}
+            </button>
+          ))}
+        </div>
       </div>
 
       {filtered.length === 0 ? (
