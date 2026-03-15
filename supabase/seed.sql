@@ -134,7 +134,7 @@ END $$;
 -- Deterministic UUIDs for reliable test references
 -- Passwords are hashed with bcrypt ('TestPassword123!')
 
--- Test Seller
+-- Sam Seller
 INSERT INTO auth.users (
   id, instance_id, aud, role,
   email, encrypted_password, email_confirmed_at,
@@ -150,7 +150,7 @@ INSERT INTO auth.users (
   '$2a$06$FbG0qaw0v4J3GOm/y5tduulnL0cYxDpju9ZoHH9mNJW.GgeaC.xve',
   now(),
   '{"provider":"email","providers":["email"]}',
-  '{"full_name":"Test Seller"}',
+  '{"full_name":"Sam Seller"}',
   now(), now(),
   '', '', '', ''
 ) ON CONFLICT (id) DO NOTHING;
@@ -167,7 +167,7 @@ INSERT INTO auth.identities (
   now(), now(), now()
 ) ON CONFLICT (provider_id, provider) DO NOTHING;
 
--- Test Buyer
+-- Beth Buyer
 INSERT INTO auth.users (
   id, instance_id, aud, role,
   email, encrypted_password, email_confirmed_at,
@@ -183,7 +183,7 @@ INSERT INTO auth.users (
   '$2a$06$FbG0qaw0v4J3GOm/y5tduulnL0cYxDpju9ZoHH9mNJW.GgeaC.xve',
   now(),
   '{"provider":"email","providers":["email"]}',
-  '{"full_name":"Test Buyer"}',
+  '{"full_name":"Beth Buyer"}',
   now(), now(),
   '', '', '', ''
 ) ON CONFLICT (id) DO NOTHING;
@@ -211,11 +211,11 @@ INSERT INTO public.profiles (
   nearby_community_h3_indices
 )
 VALUES
-  ('a1111111-1111-1111-1111-111111111111', 'seller@test.local', 'Test Seller',
+  ('a1111111-1111-1111-1111-111111111111', 'seller@test.local', 'Sam Seller',
    '89283470c2fffff', 'SELLER01', true, NOW(),
    '95125', '973 Wallace Dr', 'San Jose', 'CA', '+14085551234',
    ARRAY['89283470c6fffff', '89283470cafffff']),
-  ('b2222222-2222-2222-2222-222222222222', 'buyer@test.local', 'Test Buyer',
+  ('b2222222-2222-2222-2222-222222222222', 'buyer@test.local', 'Beth Buyer',
    '89283470c2fffff', 'BUYER01', false, NOW(),
    '95120', '123 Main St', 'San Jose', 'CA', '+14085555678',
    ARRAY['89283470c6fffff', '89283470cafffff'])
