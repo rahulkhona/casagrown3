@@ -256,7 +256,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         )}
 
         {/* Delivery proof photos */}
-        {order.delivery_proof && order.delivery_proof.length > 0 && (
+        {Array.isArray(order.delivery_proof) && order.delivery_proof.length > 0 && (
           <div className={styles.proofSection}>
             <h3 className={styles.subTitle}>Delivery Proof</h3>
             <div className={styles.photoGrid}>
