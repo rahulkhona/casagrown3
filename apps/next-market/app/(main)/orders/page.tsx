@@ -29,6 +29,8 @@ interface MarketOrder {
   // joined fields
   buyer_name?: string
   seller_name?: string
+  buyer_avatar?: string | null
+  seller_avatar?: string | null
   booth_name?: string
 }
 
@@ -62,6 +64,8 @@ export default function OrdersPage() {
   const [role, setRole] = useState<'selling' | 'buying'>('selling')
   const [tab, setTab] = useState('pending_delivery')
   const [loading, setLoading] = useState(true)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [scrolledEnd, setScrolledEnd] = useState(false)
 
   const loadOrders = useCallback(async () => {
     if (!user) return
@@ -72,8 +76,8 @@ export default function OrdersPage() {
       .from('market_orders')
       .select(`
         *,
-        buyer:buyer_id(full_name),
-        seller:seller_id(full_name),
+        buyer:buyer_id(full_name, avatar_url),
+        seller:seller_id(full_name, avatar_url),
         booth:booth_id(name)
       `)
       .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
@@ -84,6 +88,8 @@ export default function OrdersPage() {
         ...o,
         buyer_name: o.buyer?.full_name || 'Unknown',
         seller_name: o.seller?.full_name || 'Unknown',
+        buyer_avatar: o.buyer?.avatar_url || null,
+        seller_avatar: o.seller?.avatar_url || null,
         booth_name: o.booth?.name || 'Unknown Booth',
       })))
     }
@@ -147,8 +153,6 @@ export default function OrdersPage() {
   const buyingCount = orders.filter(o => o.buyer_id === user!.id && ACTIVE_STATUSES.includes(o.status)).length
 
   // Scroll fade: detect when scrolled to end
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const [scrolledEnd, setScrolledEnd] = useState(false)
   const handleTabScroll = () => {
     const el = scrollRef.current
     if (!el) return
@@ -210,8 +214,8 @@ export default function OrdersPage() {
           {filtered.map(order => {
             const config = STATUS_CONFIG[order.status] || { label: order.status, color: 'var(--gray-500)', icon: '•' }
             const isBuyer = order.buyer_id === user!.id
-            const role = isBuyer ? 'Buyer' : 'Seller'
-            const otherParty = isBuyer ? order.seller_name : order.buyer_name
+            const otherName = isBuyer ? order.seller_name : order.buyer_name
+            const otherAvatar = isBuyer ? order.seller_avatar : order.buyer_avatar
 
             return (
               <Link key={order.id} href={`/orders/${order.id}`} className={styles.orderCard}>
@@ -219,7 +223,14 @@ export default function OrdersPage() {
                   <div>
                     <div className={styles.productName}>{order.product_name}</div>
                     <div className={styles.orderMeta}>
-                      <span>{isBuyer ? `Bought from ${order.seller_name}` : `Selling to ${order.buyer_name}`}</span>
+                      {otherAvatar ? (
+                        <img src={otherAvatar} alt="" style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }} />
+                      ) : (
+                        <span style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--green-100)', color: 'var(--green-700)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
+                          {(otherName || '?').charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                      <span>{isBuyer ? `Bought from ${otherName}` : `Selling to ${otherName}`}</span>
                       <span>•</span>
                       <span>{order.fulfillment_type === 'delivery' ? '🚗 Delivery' : '📍 Pickup'}</span>
                       <span>•</span>
