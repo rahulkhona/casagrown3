@@ -86,8 +86,11 @@ export default function CameraCapture({
           const idx = videoDevices.findIndex(d => d.deviceId === activeId)
           setActiveCameraIdx(idx >= 0 ? idx : 0)
         }
-      } catch {
-        // Camera not accessible — close
+      } catch (err: any) {
+        // AbortError happens when React StrictMode double-mounts — ignore it
+        if (err?.name === 'AbortError') return
+        // Other errors (permission denied, no camera) — close
+        console.error('Camera init error:', err)
         if (mounted) onClose()
       }
     }
