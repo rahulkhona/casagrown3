@@ -13,16 +13,27 @@ export function Navbar() {
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
   const [hasSession, setHasSession] = useState(false)
+  const [profileName, setProfileName] = useState('')
+  const [profileEmail, setProfileEmail] = useState('')
   const unreadCount = state.notifications.filter(n => !n.read).length
   const menuRef = useRef<HTMLDivElement>(null)
 
   const open = isMarketOpen(state.marketSchedule)
 
-  // Check actual Supabase session
+  // Check actual Supabase session + fetch profile name
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       setHasSession(!!user)
+      if (user) {
+        setProfileEmail(user.email || '')
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .single()
+        if (profile?.full_name) setProfileName(profile.full_name)
+      }
     })
   }, [pathname])
 
@@ -89,10 +100,10 @@ export function Navbar() {
         {/* Right Section */}
         <div className={styles.right}>
           {/* Profile indicator (always visible for quick account identification) */}
-          {hasSession && state.user?.name && (
-            <Link href="/profile" className={styles.profileBadge} title={state.user.email || ''}>
-              <span className={styles.profileInitial}>{state.user.name.charAt(0).toUpperCase()}</span>
-              <span className={`${styles.profileName} hide-mobile`}>{state.user.name.split(' ')[0]}</span>
+          {hasSession && profileName && (
+            <Link href="/profile" className={styles.profileBadge} title={profileEmail}>
+              <span className={styles.profileInitial}>{profileName.charAt(0).toUpperCase()}</span>
+              <span className={`${styles.profileName} hide-mobile`}>{profileName.split(' ')[0]}</span>
             </Link>
           )}
 
