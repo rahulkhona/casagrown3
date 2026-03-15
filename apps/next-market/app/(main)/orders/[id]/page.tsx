@@ -303,10 +303,21 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
       {/* ===== ACTION PANELS ===== */}
 
-      {/* SELLER: Pending delivery order → Mark Delivered or Decline */}
+      {/* SELLER: Pending delivery order → Navigate, Mark Delivered or Decline */}
       {isSeller && order.status === 'pending' && order.fulfillment_type === 'delivery' && (
         <div className={styles.actionPanel}>
           <h2 className={styles.sectionTitle}>Seller Actions</h2>
+          {order.buyer_address && (
+            <a
+              href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(order.buyer_address)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-outline"
+              style={{ width: '100%', marginBottom: 8, textAlign: 'center', display: 'block' }}
+            >
+              🗺️ Navigate to Buyer
+            </a>
+          )}
           <div className={styles.actionButtons}>
             <button className="btn btn-primary" onClick={() => setShowDeliveryProof(true)}>
               📦 Mark Delivered
