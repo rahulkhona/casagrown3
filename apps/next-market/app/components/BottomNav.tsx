@@ -8,7 +8,6 @@ import styles from './BottomNav.module.css'
 const tabs = [
   { href: '/market', label: 'Market', icon: '🧺', hasStatus: true },
   { href: '/orders', label: 'Orders', icon: '📦' },
-  { href: '/chat', label: 'Chat', icon: '💬' },
 ]
 
 export function BottomNav() {
