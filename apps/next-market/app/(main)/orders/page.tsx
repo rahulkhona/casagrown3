@@ -131,10 +131,10 @@ export default function OrdersPage() {
     disputed:          o => ['disputed', 'escalated'].includes(o.status),
     completed:         o => [...PAST, 'delivered', 'ready_for_pickup', 'confirmed'].includes(o.status),
   } : {
-    // Buyers: delivered/ready_for_pickup need buyer action (confirm/dispute)
+    // Buyers: pickup orders stay in Pickup tab throughout; Confirmation only for deliveries
     pending_delivery:  o => o.status === 'pending' && o.fulfillment_type === 'delivery',
-    pending_pickup:    o => o.status === 'pending' && o.fulfillment_type === 'pickup',
-    pending_confirm:   o => ['delivered', 'ready_for_pickup', 'confirmed'].includes(o.status),
+    pending_pickup:    o => (o.status === 'pending' || o.status === 'ready_for_pickup') && o.fulfillment_type === 'pickup',
+    pending_confirm:   o => ['delivered', 'confirmed'].includes(o.status),
     disputed:          o => ['disputed', 'escalated'].includes(o.status),
     completed:         o => PAST.includes(o.status),
   }
