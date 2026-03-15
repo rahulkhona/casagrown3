@@ -15,7 +15,7 @@ export function Navbar() {
   const [hasSession, setHasSession] = useState(false)
   const [profileName, setProfileName] = useState('')
   const [profileEmail, setProfileEmail] = useState('')
-  const unreadCount = state.notifications.filter(n => !n.read).length
+  const [unreadCount, setUnreadCount] = useState(0)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const open = isMarketOpen(state.marketSchedule)
@@ -36,6 +36,25 @@ export function Navbar() {
       }
     })
   }, [pathname])
+
+  // Poll unread notification count every 60s
+  useEffect(() => {
+    if (!hasSession) return
+    const supabase = createClient()
+    const fetchCount = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { count } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('read', false)
+      setUnreadCount(count || 0)
+    }
+    fetchCount()
+    const id = setInterval(fetchCount, 60_000) // slow: 60s
+    return () => clearInterval(id)
+  }, [hasSession, pathname])
 
   // Primary nav tabs (always visible on desktop)
   const primaryNav = [

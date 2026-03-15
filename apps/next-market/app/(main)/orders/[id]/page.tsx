@@ -166,6 +166,13 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     }
   }, [order?.status, order?.auto_complete_at]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Fast poll: refresh order every 10s while on this page
+  useEffect(() => {
+    if (!user) return
+    const id = setInterval(loadOrder, 10_000)
+    return () => clearInterval(id)
+  }, [user?.id, loadOrder])
+
   const callRpc = async (fn: string, args: Record<string, any>) => {
     setActionLoading(true)
     const { data, error } = await supabase.rpc(fn, args)

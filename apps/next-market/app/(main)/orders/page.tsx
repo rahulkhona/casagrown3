@@ -91,6 +91,13 @@ export default function OrdersPage() {
 
   useEffect(() => { loadOrders() }, [loadOrders])
 
+  // Fast poll: refresh orders every 15s while on this page
+  useEffect(() => {
+    if (!user) return
+    const id = setInterval(loadOrders, 15_000)
+    return () => clearInterval(id)
+  }, [user?.id, loadOrders])
+
   useEffect(() => {
     if (!authLoading && !isAuthenticated) router.push('/login?redirect=/orders')
   }, [authLoading, isAuthenticated, router])
