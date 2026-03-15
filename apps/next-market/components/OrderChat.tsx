@@ -106,7 +106,9 @@ export default function OrderChat({ orderId, otherUserName, otherUserId, myAvata
         {messages.map((msg) => {
           const isMine = msg.sender_id === user.id
           const avatar = isMine ? myAvatar : otherAvatar
-          const initial = isMine ? 'Y' : otherUserName.charAt(0).toUpperCase()
+          const initial = isMine
+            ? ((user as any).user_metadata?.full_name?.charAt(0) || user.email?.charAt(0) || 'M').toUpperCase()
+            : otherUserName.charAt(0).toUpperCase()
           return (
             <div key={msg.id} className={`${styles.messageRow} ${isMine ? styles.mine : styles.theirs}`}>
               {!isMine && (

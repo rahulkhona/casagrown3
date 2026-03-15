@@ -3,7 +3,10 @@ ALTER TABLE order_disputes
   ADD COLUMN IF NOT EXISTS dispute_type TEXT,
   ADD COLUMN IF NOT EXISTS quantity_received INTEGER;
 
--- Update buyer_dispute_order RPC to accept dispute_type and quantity_received
+-- Drop old function (cannot CREATE OR REPLACE with different params)
+DROP FUNCTION IF EXISTS buyer_dispute_order(UUID, TEXT, JSONB);
+
+-- Recreate with dispute_type and quantity_received params
 CREATE OR REPLACE FUNCTION buyer_dispute_order(
   p_order_id UUID,
   p_reason TEXT,
