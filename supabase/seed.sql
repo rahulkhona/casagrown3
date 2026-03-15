@@ -975,6 +975,17 @@ BEGIN
   FROM market_booths b, market_products p
   WHERE b.owner_id = s4 AND p.name = 'Sourdough Loaf' LIMIT 1;
 
+  -- ── SELLER@TEST: DECLINE TEST ──
+
+  -- S3: Pending delivery — seller can decline this one
+  INSERT INTO market_orders (buyer_id, seller_id, booth_id, product_id, product_name,
+    quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
+    fulfillment_type, status)
+  SELECT 'b2222222-2222-2222-2222-222222222222', 'a1111111-1111-1111-1111-111111111111', b.id, p.id, 'Heirloom Peppers',
+    1, 4.50, 4.50, 0.42, 4.92, 'delivery', 'pending'
+  FROM market_booths b, market_products p
+  WHERE b.owner_id = 'a1111111-1111-1111-1111-111111111111' AND p.name = 'Heirloom Peppers' LIMIT 1;
+
   -- ── BUYER@TEST AS BUYER (login as buyer@test to see buyer view) ──
 
   -- C1: Pending delivery from seller Sofia
