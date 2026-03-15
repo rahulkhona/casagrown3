@@ -103,10 +103,6 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [disputePhotos, setDisputePhotos] = useState<{ preview: string; result: CaptureResult }[]>([])
   const [showDisputeCamera, setShowDisputeCamera] = useState(false)
   const [showChat, setShowChat] = useState(false)
-  const [showRefund, setShowRefund] = useState(false)
-  const [refundType, setRefundType] = useState<'full' | 'partial'>('full')
-  const [refundAmount, setRefundAmount] = useState('')
-  const [pickupOffered, setPickupOffered] = useState(false)
   const [passcodeInput, setPasscodeInput] = useState('')
   const [showPickupDecline, setShowPickupDecline] = useState(false)
   const [pickupDeclineReason, setPickupDeclineReason] = useState('')
@@ -147,6 +143,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         .eq('order_id', orderId)
         .maybeSingle()
       setDispute(disp)
+      // Auto-open chat for disputed orders
+      if (disp) setShowChat(true)
 
       if (disp) {
         const { data: msgs } = await supabase
