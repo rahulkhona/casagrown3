@@ -177,23 +177,23 @@ export default function OrderChat({ orderId, otherUserName, otherUserId, myAvata
         {messages.map((msg) => {
           const isMine = msg.sender_id === user.id
           const avatar = isMine ? myAvatar : otherAvatar
-          const initials = isMine ? '👤' : otherUserName.charAt(0).toUpperCase()
+          const initial = isMine ? 'Y' : otherUserName.charAt(0).toUpperCase()
           return (
             <div key={msg.id} className={`${styles.messageRow} ${isMine ? styles.mine : styles.theirs}`}>
               {!isMine && (
                 <div className={styles.avatar}>
-                  {avatar ? <img src={avatar} alt="" /> : <span>{initials}</span>}
+                  {avatar ? <img src={avatar} alt="" /> : <span>{initial}</span>}
                 </div>
               )}
               <div className={styles.messageBubble}>
-                <div className={styles.bubbleContent}>{msg.content}</div>
+                <div className={styles.bubbleContent} style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
                 <div className={styles.bubbleTime}>
                   {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
               {isMine && (
-                <div className={styles.avatar}>
-                  {avatar ? <img src={avatar} alt="" /> : <span>{'👤'}</span>}
+                <div className={`${styles.avatar} ${styles.avatarMine}`}>
+                  {avatar ? <img src={avatar} alt="" /> : <span>{initial}</span>}
                 </div>
               )}
             </div>
