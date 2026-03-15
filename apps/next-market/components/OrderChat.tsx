@@ -127,7 +127,26 @@ export default function OrderChat({ orderId, otherUserName, otherUserId, myAvata
                     borderBottomRightRadius: isMine ? 4 : 16,
                     borderBottomLeftRadius: isMine ? 16 : 4,
                   }}
-                >{msg.content}</div>
+                >
+                  {msg.content.split('\n').map((line, i) => {
+                    // Render URLs ending in image extensions as inline thumbnails
+                    if (/^https?:\/\/.+\.(jpg|jpeg|png|webp|gif)/i.test(line.trim())) {
+                      return (
+                        <img
+                          key={i}
+                          src={line.trim()}
+                          alt="Evidence"
+                          style={{
+                            display: 'block', maxWidth: '100%', maxHeight: 180,
+                            borderRadius: 8, marginTop: 4,
+                            objectFit: 'cover',
+                          }}
+                        />
+                      )
+                    }
+                    return <span key={i}>{line}{i < msg.content.split('\n').length - 1 ? '\n' : ''}</span>
+                  })}
+                </div>
                 <div className={styles.bubbleTime} style={{ textAlign: isMine ? 'right' : 'left' }}>
                   {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </div>

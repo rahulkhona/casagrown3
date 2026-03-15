@@ -757,9 +757,17 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                         p_quantity_received: disputeType === 'quantity_mismatch' ? parseInt(disputeQuantityReceived) : null,
                       })
 
-                      // Send dispute reason as first chat message
+                      // Send dispute reason as first chat message (include qty + photos)
                       const typeLabel = disputeType!.replace(/_/g, ' ')
-                      const chatMsg = `⚠️ Dispute filed: ${typeLabel.charAt(0).toUpperCase() + typeLabel.slice(1)}${reason !== typeLabel ? '\n' + reason : ''}`
+                      let chatMsg = `⚠️ Dispute filed: ${typeLabel.charAt(0).toUpperCase() + typeLabel.slice(1)}`
+                      if (reason !== typeLabel) chatMsg += '\n' + reason
+                      if (disputeType === 'quantity_mismatch' && disputeQuantityReceived) {
+                        chatMsg += `\nOrdered: ${order.quantity} · Received: ${disputeQuantityReceived}`
+                      }
+                      // Append photo URLs so they render inline
+                      for (const pu of photoUrls) {
+                        chatMsg += '\n' + pu.url
+                      }
                       await supabase.from('order_chat_messages').insert({
                         order_id: orderId,
                         sender_id: user!.id,
