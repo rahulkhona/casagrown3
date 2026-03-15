@@ -720,8 +720,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                 }
                 if (coords) {
                   const distM = haversineMeters(result.meta.latitude, result.meta.longitude!, coords.lat, coords.lng)
-                  const threshold = process.env.NODE_ENV === 'production' ? 50 : 5000 // 50m prod, 5km dev
-                  if (distM > threshold) {
+                  if (distM > 50) { // 50 meters
                     setLocationWarning(
                       `Your photo was taken ~${distM < 1000 ? Math.round(distM) + 'm' : (distM / 1000).toFixed(1) + 'km'} from the buyer's address.`
                     )
