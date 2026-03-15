@@ -89,6 +89,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [pickupDeclineReason, setPickupDeclineReason] = useState('')
   const [newMessage, setNewMessage] = useState('')
   const [countdown, setCountdown] = useState('')
+  const [showDeliveryProof, setShowDeliveryProof] = useState(false)
   const [proofPhotos, setProofPhotos] = useState<File[]>([])
   const [proofPreviews, setProofPreviews] = useState<string[]>([])
   const [uploading, setUploading] = useState(false)
@@ -277,79 +278,15 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
       {/* ===== ACTION PANELS ===== */}
 
-      {/* SELLER: Pending delivery order → Mark Delivered with proof or Decline */}
+      {/* SELLER: Pending delivery order → Mark Delivered or Decline */}
       {isSeller && order.status === 'pending' && order.fulfillment_type === 'delivery' && (
         <div className={styles.actionPanel}>
-          <h2 className={styles.sectionTitle}>Mark as Delivered</h2>
-          <p className={styles.actionHint}>Take photos as proof of delivery (at least 1 required — camera only, no uploads)</p>
-
-          {/* Camera capture only */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            style={{ display: 'none' }}
-            onChange={(e) => {
-              const files = Array.from(e.target.files || [])
-              if (files.length === 0) return
-              setProofPhotos(prev => [...prev, ...files])
-              const newPreviews = files.map(f => URL.createObjectURL(f))
-              setProofPreviews(prev => [...prev, ...newPreviews])
-              e.target.value = ''
-            }}
-          />
-
-          {/* Previews */}
-          {proofPreviews.length > 0 && (
-            <div className={styles.photoGrid} style={{ marginBottom: 12 }}>
-              {proofPreviews.map((url, i) => (
-                <div key={i} className={styles.proofPhoto} style={{ position: 'relative' }}>
-                  <img src={url} alt={`Proof ${i + 1}`} style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 8 }} />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      URL.revokeObjectURL(url)
-                      setProofPhotos(prev => prev.filter((_, j) => j !== i))
-                      setProofPreviews(prev => prev.filter((_, j) => j !== i))
-                    }}
-                    style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: '50%', background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                  >✕</button>
-                </div>
-              ))}
-            </div>
-          )}
-
+          <h2 className={styles.sectionTitle}>Seller Actions</h2>
           <div className={styles.actionButtons}>
-            <button className="btn btn-outline" onClick={() => fileInputRef.current?.click()}>
-              📸 {proofPhotos.length > 0 ? 'Take Another Photo' : 'Take Photo'}
+            <button className="btn btn-primary" onClick={() => setShowDeliveryProof(true)}>
+              📦 Mark Delivered
             </button>
-            <button className="btn btn-primary" disabled={proofPhotos.length === 0 || actionLoading || uploading}
-              onClick={async () => {
-                setUploading(true)
-                try {
-                  const proofUrls: any[] = []
-                  for (const file of proofPhotos) {
-                    const ext = file.name.split('.').pop() || 'jpg'
-                    const path = `${orderId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-                    const { error } = await supabase.storage.from('order-evidence').upload(path, file)
-                    if (!error) {
-                      const { data: urlData } = supabase.storage.from('order-evidence').getPublicUrl(path)
-                      proofUrls.push({ url: urlData.publicUrl, timestamp: new Date().toISOString() })
-                    }
-                  }
-                  await callRpc('seller_mark_delivered', { p_order_id: orderId, p_proof: JSON.stringify(proofUrls) })
-                  setProofPhotos([])
-                  setProofPreviews([])
-                } finally {
-                  setUploading(false)
-                }
-              }}>
-              {uploading ? 'Uploading...' : `📦 Mark Delivered (${proofPhotos.length} photo${proofPhotos.length !== 1 ? 's' : ''})`}
-            </button>
-          </div>
-          <div style={{ marginTop: 8 }}>
-            <button className="btn btn-outline btn-sm" onClick={() => setShowDecline(true)}>
+            <button className="btn btn-outline" onClick={() => setShowDecline(true)}>
               ✕ Decline Order
             </button>
           </div>
@@ -659,6 +596,101 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               </button>
               <button className="btn btn-outline" onClick={() => setShowPickupDecline(false)}>Cancel</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== DELIVERY PROOF MODAL ===== */}
+      {showDeliveryProof && (
+        <div className={styles.fullscreenModal}>
+          <div className={styles.modalHeader}>
+            <button className={styles.modalClose} onClick={() => {
+              proofPreviews.forEach(u => URL.revokeObjectURL(u))
+              setProofPhotos([])
+              setProofPreviews([])
+              setShowDeliveryProof(false)
+            }}>← Back</button>
+            <h2>Delivery Proof</h2>
+            <div style={{ width: 60 }} />
+          </div>
+
+          <div className={styles.modalBody}>
+            <p className={styles.actionHint} style={{ textAlign: 'center', marginBottom: 16 }}>
+              Take at least one photo of the delivered order as proof
+            </p>
+
+            {/* Hidden camera input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const files = Array.from(e.target.files || [])
+                if (files.length === 0) return
+                setProofPhotos(prev => [...prev, ...files])
+                const newPreviews = files.map(f => URL.createObjectURL(f))
+                setProofPreviews(prev => [...prev, ...newPreviews])
+                e.target.value = ''
+              }}
+            />
+
+            {/* Photo previews */}
+            {proofPreviews.length > 0 && (
+              <div className={styles.photoGrid} style={{ marginBottom: 16 }}>
+                {proofPreviews.map((url, i) => (
+                  <div key={i} style={{ position: 'relative', borderRadius: 12, overflow: 'hidden' }}>
+                    <img src={url} alt={`Proof ${i + 1}`} style={{ width: '100%', height: 140, objectFit: 'cover' }} />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        URL.revokeObjectURL(url)
+                        setProofPhotos(prev => prev.filter((_, j) => j !== i))
+                        setProofPreviews(prev => prev.filter((_, j) => j !== i))
+                      }}
+                      style={{ position: 'absolute', top: 6, right: 6, width: 26, height: 26, borderRadius: '50%', background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    >✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Take photo button */}
+            <button className="btn btn-outline" style={{ width: '100%', marginBottom: 12 }} onClick={() => fileInputRef.current?.click()}>
+              📸 {proofPhotos.length > 0 ? 'Take Another Photo' : 'Take Photo'}
+            </button>
+
+            {/* Submit */}
+            <button
+              className="btn btn-primary"
+              style={{ width: '100%' }}
+              disabled={proofPhotos.length === 0 || uploading}
+              onClick={async () => {
+                setUploading(true)
+                try {
+                  const proofUrls: any[] = []
+                  for (const file of proofPhotos) {
+                    const ext = file.name.split('.').pop() || 'jpg'
+                    const path = `${orderId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+                    const { error } = await supabase.storage.from('order-evidence').upload(path, file)
+                    if (!error) {
+                      const { data: urlData } = supabase.storage.from('order-evidence').getPublicUrl(path)
+                      proofUrls.push({ url: urlData.publicUrl, timestamp: new Date().toISOString() })
+                    }
+                  }
+                  await callRpc('seller_mark_delivered', { p_order_id: orderId, p_proof: JSON.stringify(proofUrls) })
+                  proofPreviews.forEach(u => URL.revokeObjectURL(u))
+                  setProofPhotos([])
+                  setProofPreviews([])
+                  setShowDeliveryProof(false)
+                } finally {
+                  setUploading(false)
+                }
+              }}
+            >
+              {uploading ? 'Uploading & marking delivered...' : `✓ Confirm Delivery (${proofPhotos.length} photo${proofPhotos.length !== 1 ? 's' : ''})`}
+            </button>
           </div>
         </div>
       )}
