@@ -347,7 +347,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               target="_blank"
               rel="noopener noreferrer"
               className="btn btn-outline"
-              style={{ width: '100%', marginBottom: 8, textAlign: 'center', display: 'block' }}
+              style={{ width: '100%', marginBottom: 8, textAlign: 'center', display: 'block', fontSize: 14 }}
             >
               🗺️ Navigate to Buyer
             </a>
@@ -371,8 +371,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(order.seller_address)}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="btn btn-primary"
-            style={{ width: '100%', textAlign: 'center', display: 'block' }}
+            className="btn btn-outline"
+            style={{ width: '100%', marginBottom: 8, textAlign: 'center', display: 'block', fontSize: 14 }}
           >
             🗺️ Navigate to Pickup
           </a>
