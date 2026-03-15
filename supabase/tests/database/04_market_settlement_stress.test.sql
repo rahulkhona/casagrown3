@@ -8,6 +8,16 @@ BEGIN;
 SELECT plan(42);
 
 -- ============================================================================
+-- Cleanup: Mark all existing seed orders as already settled
+-- so the tag-based settlement only picks up our test orders
+-- ============================================================================
+INSERT INTO market_settlements (id, market_date, status) VALUES
+  ('00000000-0000-0000-0000-ffffffffffff', '2020-01-01', 'cleared')
+ON CONFLICT (id) DO NOTHING;
+UPDATE market_orders SET settlement_id = '00000000-0000-0000-0000-ffffffffffff'
+WHERE settlement_id IS NULL;
+
+-- ============================================================================
 -- Setup: 8 users
 -- ============================================================================
 INSERT INTO auth.users (id, email, raw_user_meta_data, instance_id, aud, role, encrypted_password, confirmation_token, email_confirmed_at)

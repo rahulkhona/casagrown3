@@ -12,6 +12,16 @@ BEGIN;
 SELECT plan(58);
 
 -- ============================================================================
+-- Cleanup: Mark all existing seed orders as already settled
+-- so the tag-based settlement only picks up our test orders
+-- ============================================================================
+INSERT INTO market_settlements (id, market_date, status) VALUES
+  ('00000000-0000-0000-0000-ffffffffffff', '2020-01-01', 'cleared')
+ON CONFLICT (id) DO NOTHING;
+UPDATE market_orders SET settlement_id = '00000000-0000-0000-0000-ffffffffffff'
+WHERE settlement_id IS NULL;
+
+-- ============================================================================
 -- Setup: Create test users and data
 -- ============================================================================
 
@@ -340,13 +350,13 @@ SELECT ok(
 );
 
 -- ============================================================================
--- 13. Duplicate settlement prevention
+-- 13. Re-running settlement: all orders already tagged, nothing to process
 -- ============================================================================
 
 SELECT is(
   (SELECT (run_market_settlement(CURRENT_DATE))->>'error'),
-  'Settlement already exists for this date',
-  'Duplicate settlement rejected'
+  'No unsettled orders to process',
+  'Re-running settlement returns no unsettled orders (all already tagged)'
 );
 
 -- ============================================================================
