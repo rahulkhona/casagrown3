@@ -60,7 +60,7 @@ export default function OrdersPage() {
   const { user, isAuthenticated, loading: authLoading } = useAuth()
   const [orders, setOrders] = useState<MarketOrder[]>([])
   const [role, setRole] = useState<'selling' | 'buying'>('selling')
-  const [tab, setTab] = useState<'pending' | 'awaiting' | 'disputed' | 'past'>('pending')
+  const [tab, setTab] = useState('pending_delivery')
   const [loading, setLoading] = useState(true)
 
   const loadOrders = useCallback(async () => {
@@ -116,24 +116,32 @@ export default function OrdersPage() {
     role === 'selling' ? o.seller_id === user!.id : o.buyer_id === user!.id
   )
 
-  // Tab definitions with status filters
-  const TAB_FILTERS: Record<string, string[]> = {
-    pending: ['pending'],
-    awaiting: ['delivered', 'ready_for_pickup', 'confirmed'],
-    disputed: ['disputed', 'escalated'],
-    past: ['completed', 'resolved', 'declined', 'cancelled', 'pickup_declined'],
+  // Tab filter functions — filter by status AND fulfillment type
+  const tabMatchers: Record<string, (o: MarketOrder) => boolean> = {
+    pending_delivery:  o => o.status === 'pending' && o.fulfillment_type === 'delivery',
+    pending_pickup:    o => o.status === 'pending' && o.fulfillment_type === 'pickup',
+    pending_confirm:   o => ['delivered', 'ready_for_pickup', 'confirmed'].includes(o.status),
+    disputed:          o => ['disputed', 'escalated'].includes(o.status),
+    completed:         o => ['completed', 'resolved', 'declined', 'cancelled', 'pickup_declined'].includes(o.status),
   }
 
   const filtered = roleOrders
-    .filter(o => TAB_FILTERS[tab]?.includes(o.status))
+    .filter(o => tabMatchers[tab]?.(o) ?? false)
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
-  const tabs = [
-    { key: 'pending' as const,  label: 'Pending',                count: roleOrders.filter(o => TAB_FILTERS.pending.includes(o.status)).length },
-    { key: 'awaiting' as const, label: 'Awaiting Confirmation',  count: roleOrders.filter(o => TAB_FILTERS.awaiting.includes(o.status)).length },
-    { key: 'disputed' as const, label: 'Disputed',               count: roleOrders.filter(o => TAB_FILTERS.disputed.includes(o.status)).length },
-    { key: 'past' as const,     label: 'Past',                   count: roleOrders.filter(o => TAB_FILTERS.past.includes(o.status)).length },
+  // Tab definitions — same for sales and purchases
+  const tabDefs = [
+    { key: 'pending_delivery', label: 'Pending Delivery', icon: '🚗' },
+    { key: 'pending_pickup',   label: 'Pending Pickup',   icon: '📍' },
+    { key: 'pending_confirm',  label: 'Pending Confirmation', icon: '⏳' },
+    { key: 'disputed',         label: 'Disputed',         icon: '⚠️' },
+    { key: 'completed',        label: 'Completed',        icon: '✓' },
   ]
+
+  const tabs = tabDefs.map(t => ({
+    ...t,
+    count: roleOrders.filter(o => tabMatchers[t.key]?.(o) ?? false).length,
+  }))
 
   const sellingCount = orders.filter(o => o.seller_id === user!.id && ACTIVE_STATUSES.includes(o.status)).length
   const buyingCount = orders.filter(o => o.buyer_id === user!.id && ACTIVE_STATUSES.includes(o.status)).length
@@ -147,14 +155,14 @@ export default function OrdersPage() {
         <button
           className={`btn ${role === 'selling' ? 'btn-primary' : 'btn-outline'}`}
           style={{ flex: 1, fontSize: 14 }}
-          onClick={() => { setRole('selling'); setTab('pending') }}
+          onClick={() => { setRole('selling'); setTab('pending_delivery') }}
         >
           🏪 My Sales {sellingCount > 0 && <span className="badge badge-green" style={{ marginLeft: 6 }}>{sellingCount}</span>}
         </button>
         <button
           className={`btn ${role === 'buying' ? 'btn-primary' : 'btn-outline'}`}
           style={{ flex: 1, fontSize: 14 }}
-          onClick={() => { setRole('buying'); setTab('pending') }}
+          onClick={() => { setRole('buying'); setTab('pending_delivery') }}
         >
           🛒 My Purchases {buyingCount > 0 && <span className="badge badge-green" style={{ marginLeft: 6 }}>{buyingCount}</span>}
         </button>
@@ -181,12 +189,11 @@ export default function OrdersPage() {
       {filtered.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">📦</div>
-          <div className="empty-state-title">No {tab} orders</div>
+          <div className="empty-state-title">No orders here</div>
           <div className="empty-state-text">
-            {tab === 'pending' ? (role === 'selling' ? 'No orders waiting for you to process' : 'No pending orders from sellers') :
-             tab === 'disputed' ? 'No disputes — great!' :
-             tab === 'past' ? 'Completed orders will appear here' :
-             `No ${tab} orders`}
+            {tab === 'disputed' ? 'No disputes — great!' :
+             tab === 'completed' ? 'Completed orders will appear here' :
+             `No ${tabDefs.find(t => t.key === tab)?.label?.toLowerCase() || tab} orders`}
           </div>
           <Link href="/market" className="btn btn-primary">Browse Market</Link>
         </div>
