@@ -6,7 +6,17 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase'
 import { useAuth } from '../../../../lib/useAuth'
 import CameraCapture, { CaptureResult } from '../../../../components/CameraCapture'
+import { geocodeAddress } from '../../../../lib/geocode'
 import styles from './page.module.css'
+
+// Haversine distance in meters
+function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLng = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
 
 interface OrderDetail {
   id: string
@@ -38,6 +48,7 @@ interface OrderDetail {
   // joined
   buyer_name: string
   seller_name: string
+  buyer_address?: string
   booth_name: string
 }
 
@@ -94,13 +105,15 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [showCamera, setShowCamera] = useState(false)
   const [proofPhotos, setProofPhotos] = useState<{ preview: string; result: CaptureResult }[]>([])
   const [uploading, setUploading] = useState(false)
+  const [buyerCoords, setBuyerCoords] = useState<{ lat: number; lng: number } | null>(null)
+  const [locationWarning, setLocationWarning] = useState<string | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const loadOrder = useCallback(async () => {
     if (!user) return
     const { data } = await supabase
       .from('market_orders')
-      .select('*, buyer:buyer_id(full_name), seller:seller_id(full_name), booth:booth_id(name)')
+      .select('*, buyer:buyer_id(full_name, street_address), seller:seller_id(full_name), booth:booth_id(name)')
       .eq('id', orderId)
       .single()
 
@@ -109,6 +122,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         ...data,
         buyer_name: (data as any).buyer?.full_name || 'Unknown',
         seller_name: (data as any).seller?.full_name || 'Unknown',
+        buyer_address: (data as any).buyer?.street_address || undefined,
         booth_name: (data as any).booth?.name || 'Unknown Booth',
       } as OrderDetail)
 
@@ -569,7 +583,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       )}
 
-      {/* ===== DELIVERY PROOF MODAL ===== */}
+      {/* ===== DELIVERY/PICKUP PROOF MODAL ===== */}
       {showDeliveryProof && (
         <div className={styles.fullscreenModal}>
           <div className={styles.modalHeader}>
@@ -578,12 +592,23 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               setProofPhotos([])
               setShowDeliveryProof(false)
               setShowCamera(false)
+              setLocationWarning(null)
             }}>← Back</button>
-            <h2>Delivery Proof</h2>
+            <h2>{order.fulfillment_type === 'pickup' ? 'Pickup Proof' : 'Delivery Proof'}</h2>
             <div style={{ width: 60 }} />
           </div>
 
           <div className={styles.modalBody}>
+            {/* Location mismatch warning */}
+            {locationWarning && (
+              <div style={{ background: '#FFF3CD', border: '1px solid #FFECB5', borderRadius: 12, padding: '12px 14px', marginBottom: 16, fontSize: 13 }}>
+                <div style={{ fontWeight: 700, marginBottom: 4, color: '#856404' }}>⚠️ Location Mismatch</div>
+                <div style={{ color: '#664D03' }}>{locationWarning}</div>
+                <div style={{ marginTop: 6, color: '#856404', fontWeight: 600 }}>
+                  📸 Please take a photo of the door, gate, or house to help identify the drop-off location in case of a dispute.
+                </div>
+              </div>
+            )}
             {/* Captured photos */}
             {proofPhotos.length > 0 && (
               <>
@@ -665,10 +690,38 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         <CameraCapture
           captureLabel="📸 Capture Photo"
           closeLabel="✕ Cancel"
-          onCapture={(result) => {
+          onCapture={async (result) => {
             const preview = URL.createObjectURL(result.file)
             setProofPhotos(prev => [...prev, { preview, result }])
             setShowCamera(false)
+
+            // Check distance from buyer's address (delivery only)
+            if (order.fulfillment_type === 'delivery' && result.meta.latitude && order.buyer_address) {
+              try {
+                // Geocode buyer address if not cached
+                let coords = buyerCoords
+                if (!coords) {
+                  const geo = await geocodeAddress(order.buyer_address)
+                  if (geo) {
+                    coords = { lat: geo.lat, lng: geo.lng }
+                    setBuyerCoords(coords)
+                  }
+                }
+                if (coords) {
+                  const distM = haversineMeters(result.meta.latitude, result.meta.longitude!, coords.lat, coords.lng)
+                  const threshold = process.env.NODE_ENV === 'production' ? 50 : 5000 // 50m prod, 5km dev
+                  if (distM > threshold) {
+                    setLocationWarning(
+                      `Your photo was taken ~${distM < 1000 ? Math.round(distM) + 'm' : (distM / 1000).toFixed(1) + 'km'} from the buyer's address.`
+                    )
+                  } else {
+                    setLocationWarning(null)
+                  }
+                }
+              } catch {
+                // geocoding failed silently
+              }
+            }
           }}
           onClose={() => setShowCamera(false)}
         />
