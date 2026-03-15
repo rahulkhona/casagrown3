@@ -379,7 +379,7 @@ SELECT lives_ok(
   $$SELECT confirm_settlement_funds_received(
     (SELECT id FROM market_settlements WHERE market_date = CURRENT_DATE),
     'po_test_payout_123',
-    35.00
+    33.39
   )$$,
   'confirm_settlement_funds_received executes without error'
 );
@@ -400,8 +400,8 @@ SELECT is(
 
 SELECT is(
   (SELECT stripe_payout_amount_usd FROM market_settlements WHERE market_date = CURRENT_DATE),
-  35.00::NUMERIC(10,2),
-  'Stripe payout amount recorded = $35.00'
+  33.39::NUMERIC(10,2),
+  'Stripe payout amount recorded = $33.39 (after fees)'
 );
 
 -- Check 3 passed

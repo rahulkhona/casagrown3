@@ -500,6 +500,10 @@ DECLARE
   v_user RECORD;
   v_check3_pass BOOLEAN := true;
   v_stripe_mismatch NUMERIC(10,2) := 0;
+  v_capture_count INTEGER;
+  v_estimated_stripe_fees NUMERIC(10,2);
+  v_expected_after_fees NUMERIC(10,2);
+  v_tolerance NUMERIC(10,2);
 BEGIN
   SELECT * INTO v_settlement FROM market_settlements WHERE id = p_settlement_id FOR UPDATE;
   IF v_settlement IS NULL THEN RETURN jsonb_build_object('error', 'Settlement not found'); END IF;
@@ -508,12 +512,25 @@ BEGIN
   END IF;
 
   -- Check 3: Stripe amount reconciliation
+  -- Stripe charges ~2.9% + $0.30 per capture. We estimate fees and allow a 10% buffer.
   IF p_stripe_payout_amount_usd IS NOT NULL THEN
-    v_stripe_mismatch := ABS(p_stripe_payout_amount_usd - v_settlement.total_captured_usd);
-    -- Allow up to $0.02 rounding tolerance
-    v_check3_pass := v_stripe_mismatch <= 0.02;
+    -- Count captures and estimate Stripe processing fees
+    SELECT COUNT(*) INTO v_capture_count
+    FROM settlement_captures WHERE settlement_id = p_settlement_id AND capture_amount_usd > 0;
+
+    -- Estimated fees = 2.9% of total captured + $0.30 per capture
+    v_estimated_stripe_fees := (v_settlement.total_captured_usd * 0.029) + (v_capture_count * 0.30);
+    v_expected_after_fees := v_settlement.total_captured_usd - v_estimated_stripe_fees;
+
+    -- Tolerance: 10% of estimated fees (covers rounding, fee variations)
+    -- Minimum $0.50 tolerance to handle small transactions
+    v_tolerance := GREATEST(v_estimated_stripe_fees * 0.10, 0.50);
+
+    v_stripe_mismatch := ABS(p_stripe_payout_amount_usd - v_expected_after_fees);
+    v_check3_pass := v_stripe_mismatch <= v_tolerance;
+
     IF NOT v_check3_pass THEN
-      -- Log mismatch but don't block — flag for admin
+      -- Log mismatch and flag for admin
       UPDATE market_settlements
       SET status = 'reconciliation_failed',
           stripe_payout_id = p_stripe_payout_id,
@@ -521,16 +538,21 @@ BEGIN
           stripe_payout_received_at = now(),
           reconciliation_check = reconciliation_check || jsonb_build_object(
             'check3_stripe_reconciliation', false,
-            'expected_usd', v_settlement.total_captured_usd,
+            'total_captured_usd', v_settlement.total_captured_usd,
+            'estimated_stripe_fees', v_estimated_stripe_fees,
+            'expected_after_fees', v_expected_after_fees,
             'received_usd', p_stripe_payout_amount_usd,
-            'mismatch_usd', v_stripe_mismatch
+            'mismatch_usd', v_stripe_mismatch,
+            'tolerance_usd', v_tolerance
           ),
           updated_at = now()
       WHERE id = p_settlement_id;
-      RETURN jsonb_build_object('error', 'Stripe amount mismatch',
-        'expected', v_settlement.total_captured_usd,
+      RETURN jsonb_build_object('error', 'Stripe amount mismatch beyond tolerance',
+        'expected_after_fees', v_expected_after_fees,
         'received', p_stripe_payout_amount_usd,
-        'mismatch', v_stripe_mismatch);
+        'mismatch', v_stripe_mismatch,
+        'tolerance', v_tolerance,
+        'estimated_stripe_fees', v_estimated_stripe_fees);
     END IF;
   END IF;
 
