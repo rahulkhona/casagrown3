@@ -669,7 +669,9 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   for (const photo of proofPhotos) {
                     const path = `${orderId}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`
                     const { error } = await supabase.storage.from('order-evidence').upload(path, photo.result.file)
-                    if (!error) {
+                    if (error) {
+                      console.error('Storage upload error:', error)
+                    } else {
                       const { data: urlData } = supabase.storage.from('order-evidence').getPublicUrl(path)
                       proofUrls.push({
                         url: urlData.publicUrl,
@@ -677,7 +679,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                       })
                     }
                   }
-                  await callRpc('seller_mark_delivered', { p_order_id: orderId, p_proof: JSON.stringify(proofUrls) })
+                  await callRpc('seller_mark_delivered', { p_order_id: orderId, p_proof: proofUrls })
                   proofPhotos.forEach(p => URL.revokeObjectURL(p.preview))
                   setProofPhotos([])
                   setShowDeliveryProof(false)
