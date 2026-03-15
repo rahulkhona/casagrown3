@@ -363,6 +363,22 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       )}
 
+      {/* BUYER: Pending pickup → Navigate to seller */}
+      {isBuyer && order.status === 'pending' && order.fulfillment_type === 'pickup' && order.seller_address && (
+        <div className={styles.actionPanel}>
+          <h2 className={styles.sectionTitle}>Pickup</h2>
+          <a
+            href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(order.seller_address)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-primary"
+            style={{ width: '100%', textAlign: 'center', display: 'block' }}
+          >
+            🗺️ Navigate to Pickup
+          </a>
+        </div>
+      )}
+
       {/* SELLER: Pending pickup → Hand Off to Buyer (optional photo) */}
       {isSeller && order.status === 'pending' && order.fulfillment_type === 'pickup' && (
         <div className={styles.actionPanel}>
