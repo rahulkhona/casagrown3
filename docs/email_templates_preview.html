@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CasaGrown Market — Email Template Previews</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f3f4f6; padding: 40px 20px; margin: 0; }
+    h1 { text-align: center; color: #166534; margin-bottom: 8px; }
+    .subtitle { text-align: center; color: #6b7280; font-size: 14px; margin-bottom: 40px; }
+    .template-section { max-width: 520px; margin: 0 auto 60px; }
+    .template-label {
+      background: #1f2937; color: white; padding: 8px 16px; border-radius: 8px 8px 0 0;
+      font-size: 13px; font-weight: 600; letter-spacing: 0.5px;
+    }
+    .template-label span { color: #22c55e; }
+    .template-wrapper {
+      border: 1px solid #d1d5db; border-radius: 0 0 8px 8px; overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+    /* Email templates use inline styles so they render identically in real email clients */
+  </style>
+</head>
+<body>
+  <h1>🌱 CasaGrown Market — Email Templates</h1>
+  <p class="subtitle">Preview of all notification emails (a)-(l)</p>
+
+  <!-- ═══════════════ (a) ORDER PLACED ═══════════════ -->
+  <div class="template-section">
+    <div class="template-label"><span>(a)</span> Order Placed → Seller</div>
+    <div class="template-wrapper">
+      <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:480px;margin:0 auto;padding:24px;background:white">
+        <div style="text-align:center;padding:16px 0;border-bottom:2px solid #22c55e">
+          <h1 style="color:#166534;font-size:22px;margin:0">🌱 CasaGrown Market</h1>
+        </div>
+        <div style="padding:24px 0">
+          <p style="color:#374151;font-size:14px">Hi Maria,</p>
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:16px 0">
+            <p style="color:#166534;font-size:16px;margin:0;font-weight:600">🛒 New Order Received!</p>
+            <table style="width:100%;margin-top:12px;border-collapse:collapse">
+              <tr><td style="color:#374151;font-size:13px;padding:4px 0">Product</td><td style="color:#166534;font-size:13px;font-weight:600;text-align:right">3× Heirloom Tomatoes</td></tr>
+              <tr><td style="color:#374151;font-size:13px;padding:4px 0">Amount</td><td style="color:#166534;font-size:13px;font-weight:600;text-align:right">$12.50</td></tr>
+              <tr><td style="color:#374151;font-size:13px;padding:4px 0">Buyer</td><td style="color:#166534;font-size:13px;text-align:right">John D.</td></tr>
+              <tr><td style="color:#374151;font-size:13px;padding:4px 0">Fulfillment</td><td style="color:#166534;font-size:13px;text-align:right">Pickup — Sat 10am-12pm</td></tr>
+            </table>
+          </div>
+          <a href="#" style="display:inline-block;background:#22c55e;color:white;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">View Order</a>
+        </div>
+        <div style="border-top:1px solid #e5e7eb;padding-top:16px;color:#9ca3af;font-size:11px;text-align:center">
+          CasaGrown Market — Fresh from your neighbors
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ (b) ORDER DELIVERED ═══════════════ -->
+  <div class="template-section">
+    <div class="template-label"><span>(b)</span> Order Delivered → Buyer</div>
+    <div class="template-wrapper">
+      <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:480px;margin:0 auto;padding:24px;background:white">
+        <div style="text-align:center;padding:16px 0;border-bottom:2px solid #22c55e">
+          <h1 style="color:#166534;font-size:22px;margin:0">🌱 CasaGrown Market</h1>
+        </div>
+        <div style="padding:24px 0">
+          <p style="color:#374151;font-size:14px">Hi John,</p>
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:16px 0">
+            <p style="color:#166534;font-size:16px;margin:0;font-weight:600">🚚 Your Order Has Been Delivered!</p>
+            <p style="color:#374151;font-size:13px;margin:8px 0 0">
+              <strong>Heirloom Tomatoes</strong> from Maria's Garden has been delivered.
+              Please confirm receipt to complete the transaction.
+            </p>
+          </div>
+          <a href="#" style="display:inline-block;background:#22c55e;color:white;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">Confirm Delivery</a>
+          <a href="#" style="display:inline-block;background:#ef4444;color:white;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;margin-left:8px">Report Issue</a>
+        </div>
+        <div style="border-top:1px solid #e5e7eb;padding-top:16px;color:#9ca3af;font-size:11px;text-align:center">
+          CasaGrown Market — Fresh from your neighbors
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ (c) ORDER COMPLETED / DIGITAL RECEIPT ═══════════════ -->
+  <div class="template-section">
+    <div class="template-label"><span>(c)</span> Order Completed + Digital Receipt → Both</div>
+    <div class="template-wrapper">
+      <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:480px;margin:0 auto;padding:24px;background:white">
+        <div style="text-align:center;padding:16px 0;border-bottom:2px solid #22c55e">
+          <h1 style="color:#166534;font-size:22px;margin:0">🌱 CasaGrown Market</h1>
+          <p style="color:#6b7280;font-size:12px;margin:4px 0 0">Digital Receipt</p>
+        </div>
+        <div style="padding:24px 0">
+          <p style="color:#374151;font-size:14px">Hi John,</p>
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:16px 0">
+            <p style="color:#166534;font-size:16px;margin:0;font-weight:600">✅ Order Complete!</p>
+            <p style="color:#374151;font-size:13px;margin:8px 0 0">Your purchase from Maria's Garden is complete.</p>
+          </div>
+          <!-- Receipt table -->
+          <table style="width:100%;border-collapse:collapse;margin:16px 0;border:1px solid #e5e7eb;border-radius:8px">
+            <tr style="background:#f9fafb"><td style="padding:8px;font-size:12px;color:#6b7280" colspan="2"><strong>Order #ab3f-8c91</strong> · March 15, 2026</td></tr>
+            <tr><td style="padding:6px 8px;font-size:13px;color:#374151;border-bottom:1px solid #f3f4f6">3× Heirloom Tomatoes</td><td style="padding:6px 8px;font-size:13px;text-align:right;border-bottom:1px solid #f3f4f6">$12.50</td></tr>
+            <tr><td style="padding:6px 8px;font-size:13px;color:#6b7280;border-bottom:1px solid #f3f4f6">Tax (7%)</td><td style="padding:6px 8px;font-size:13px;text-align:right;border-bottom:1px solid #f3f4f6">$0.88</td></tr>
+            <tr><td style="padding:6px 8px;font-size:13px;color:#6b7280;border-bottom:1px solid #f3f4f6">Platform Fee (10%)</td><td style="padding:6px 8px;font-size:13px;text-align:right;border-bottom:1px solid #f3f4f6">$1.25</td></tr>
+            <tr style="background:#f0fdf4"><td style="padding:8px;font-size:14px;font-weight:600;color:#166534">Total</td><td style="padding:8px;font-size:14px;font-weight:600;color:#166534;text-align:right">$13.38</td></tr>
+          </table>
+          <p style="font-size:13px;color:#374151"><strong>Seller:</strong> Maria's Garden · <strong>Buyer:</strong> John D.</p>
+          <p style="font-size:13px;color:#374151"><strong>Fulfillment:</strong> Pickup · <strong>Settlement:</strong> STL-20260315</p>
+          <!-- Cottage food footer -->
+          <div style="background:#fffbeb;border:1px solid #fbbf24;border-radius:8px;padding:12px;margin:16px 0">
+            <p style="color:#92400e;font-size:11px;margin:0;font-weight:600">⚠️ MADE IN A COTTAGE FOOD OPERATION THAT IS NOT SUBJECT TO FLORIDA'S FOOD SAFETY REGULATIONS.</p>
+          </div>
+          <!-- Rate prompt -->
+          <div style="background:#f0f9ff;border:1px solid #93c5fd;border-radius:8px;padding:16px;margin:16px 0;text-align:center">
+            <p style="color:#1e40af;font-size:14px;margin:0 0 8px;font-weight:600">⭐ Rate Your Experience</p>
+            <p style="color:#374151;font-size:13px;margin:0">How was your transaction with Maria's Garden?</p>
+            <div style="margin-top:12px">
+              <a href="#" style="display:inline-block;background:#f59e0b;color:white;padding:8px 20px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">Rate Now</a>
+            </div>
+          </div>
+        </div>
+        <div style="border-top:1px solid #e5e7eb;padding-top:16px;color:#9ca3af;font-size:11px;text-align:center">
+          CasaGrown Market — Fresh from your neighbors
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ (d) DISPUTE OPENED ═══════════════ -->
+  <div class="template-section">
+    <div class="template-label"><span>(d)</span> Dispute Opened → Both</div>
+    <div class="template-wrapper">
+      <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:480px;margin:0 auto;padding:24px;background:white">
+        <div style="text-align:center;padding:16px 0;border-bottom:2px solid #ef4444">
+          <h1 style="color:#166534;font-size:22px;margin:0">🌱 CasaGrown Market</h1>
+        </div>
+        <div style="padding:24px 0">
+          <p style="color:#374151;font-size:14px">Hi Maria,</p>
+          <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:16px;margin:16px 0">
+            <p style="color:#991b1b;font-size:16px;margin:0;font-weight:600">⚠️ Dispute Opened</p>
+            <p style="color:#374151;font-size:13px;margin:8px 0 0">
+              A dispute has been opened for your <strong>Heirloom Tomatoes</strong> sale to John D.
+            </p>
+            <p style="color:#6b7280;font-size:12px;margin:8px 0 0">
+              <strong>Reason:</strong> Product quality not as described
+            </p>
+          </div>
+          <p style="color:#374151;font-size:13px">You can resolve this by offering a partial refund or discount in the chat. If unresolved, it may be escalated to admin review.</p>
+          <a href="#" style="display:inline-block;background:#22c55e;color:white;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">Respond to Dispute</a>
+        </div>
+        <div style="border-top:1px solid #e5e7eb;padding-top:16px;color:#9ca3af;font-size:11px;text-align:center">
+          CasaGrown Market — Fresh from your neighbors
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ (e) SELLER OFFERS REFUND ═══════════════ -->
+  <div class="template-section">
+    <div class="template-label"><span>(e)</span> Seller Offers Refund → Both</div>
+    <div class="template-wrapper">
+      <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:480px;margin:0 auto;padding:24px;background:white">
+        <div style="text-align:center;padding:16px 0;border-bottom:2px solid #f59e0b">
+          <h1 style="color:#166534;font-size:22px;margin:0">🌱 CasaGrown Market</h1>
+        </div>
+        <div style="padding:24px 0">
+          <p style="color:#374151;font-size:14px">Hi John,</p>
+          <div style="background:#fffbeb;border:1px solid #fbbf24;border-radius:8px;padding:16px;margin:16px 0">
+            <p style="color:#92400e;font-size:16px;margin:0;font-weight:600">💵 Refund Offer Received</p>
+            <p style="color:#374151;font-size:13px;margin:8px 0 0">
+              Maria's Garden has offered a <strong>$2.00 partial refund</strong> to resolve your dispute for <strong>Heirloom Tomatoes</strong>.
+            </p>
+          </div>
+          <a href="#" style="display:inline-block;background:#22c55e;color:white;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">Accept Offer</a>
+          <a href="#" style="display:inline-block;background:#6b7280;color:white;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;margin-left:8px">Decline</a>
+        </div>
+        <div style="border-top:1px solid #e5e7eb;padding-top:16px;color:#9ca3af;font-size:11px;text-align:center">
+          CasaGrown Market — Fresh from your neighbors
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ (f) DISPUTE RESOLVED ═══════════════ -->
+  <div class="template-section">
+    <div class="template-label"><span>(f)</span> Dispute Resolved → Both</div>
+    <div class="template-wrapper">
+      <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:480px;margin:0 auto;padding:24px;background:white">
+        <div style="text-align:center;padding:16px 0;border-bottom:2px solid #22c55e">
+          <h1 style="color:#166534;font-size:22px;margin:0">🌱 CasaGrown Market</h1>
+        </div>
+        <div style="padding:24px 0">
+          <p style="color:#374151;font-size:14px">Hi John,</p>
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:16px 0">
+            <p style="color:#166534;font-size:16px;margin:0;font-weight:600">✅ Dispute Resolved</p>
+            <p style="color:#374151;font-size:13px;margin:8px 0 0">
+              Your dispute for <strong>Heirloom Tomatoes</strong> with Maria's Garden has been resolved.
+            </p>
+            <p style="color:#166534;font-size:13px;margin:8px 0 0;font-weight:600">
+              Refund: $2.00 credited to your balance
+            </p>
+          </div>
+          <a href="#" style="display:inline-block;background:#22c55e;color:white;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">View Transaction</a>
+        </div>
+        <div style="border-top:1px solid #e5e7eb;padding-top:16px;color:#9ca3af;font-size:11px;text-align:center">
+          CasaGrown Market — Fresh from your neighbors
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ (g) MARKET OPEN REMINDER ═══════════════ -->
+  <div class="template-section">
+    <div class="template-label"><span>(g)</span> Market Open Reminder → All Users</div>
+    <div class="template-wrapper">
+      <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:480px;margin:0 auto;padding:24px;background:white">
+        <div style="text-align:center;padding:16px 0;border-bottom:2px solid #22c55e">
+          <h1 style="color:#166534;font-size:22px;margin:0">🌱 CasaGrown Market</h1>
+        </div>
+        <div style="padding:24px 0">
+          <p style="color:#374151;font-size:14px">Hi John,</p>
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:16px 0">
+            <p style="color:#166534;font-size:16px;margin:0;font-weight:600">🛒 The Market is Open Today!</p>
+            <p style="color:#374151;font-size:13px;margin:8px 0 0">
+              Maria's Garden, Green Acres Farm, and 3 more booths have fresh items listed.
+            </p>
+          </div>
+          <div style="background:#f9fafb;border-radius:8px;padding:12px;margin:16px 0">
+            <p style="font-size:13px;color:#374151;margin:0"><strong>🍅 Heirloom Tomatoes</strong> — $4.50/lb</p>
+            <p style="font-size:13px;color:#374151;margin:4px 0"><strong>🫑 Bell Peppers</strong> — $2.00/each</p>
+            <p style="font-size:13px;color:#374151;margin:4px 0"><strong>🥒 Cucumbers</strong> — $1.50/each</p>
+            <p style="font-size:12px;color:#6b7280;margin:8px 0 0">+ 12 more items</p>
+          </div>
+          <a href="#" style="display:inline-block;background:#22c55e;color:white;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">Browse Market</a>
+        </div>
+        <div style="border-top:1px solid #e5e7eb;padding-top:16px;color:#9ca3af;font-size:11px;text-align:center">
+          CasaGrown Market — Fresh from your neighbors<br>
+          <a href="#" style="color:#9ca3af;font-size:11px">Unsubscribe from market reminders</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ (h) FOLLOWED BOOTH ADDS ITEM ═══════════════ -->
+  <div class="template-section">
+    <div class="template-label"><span>(h)</span> Followed Seller Adds Item → Followers</div>
+    <div class="template-wrapper">
+      <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:480px;margin:0 auto;padding:24px;background:white">
+        <div style="text-align:center;padding:16px 0;border-bottom:2px solid #22c55e">
+          <h1 style="color:#166534;font-size:22px;margin:0">🌱 CasaGrown Market</h1>
+        </div>
+        <div style="padding:24px 0">
+          <p style="color:#374151;font-size:14px">Hi John,</p>
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:16px 0">
+            <p style="color:#166534;font-size:16px;margin:0;font-weight:600">🌱 Maria's Garden Added New Items!</p>
+            <p style="color:#374151;font-size:13px;margin:8px 0 0">
+              <strong>Fresh Basil</strong> — $3.00/bunch
+            </p>
+          </div>
+          <a href="#" style="display:inline-block;background:#22c55e;color:white;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">View Booth</a>
+        </div>
+        <div style="border-top:1px solid #e5e7eb;padding-top:16px;color:#9ca3af;font-size:11px;text-align:center">
+          CasaGrown Market — Fresh from your neighbors<br>
+          You're following Maria's Garden
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ (i) DAILY SETTLEMENT DIGEST ═══════════════ -->
+  <div class="template-section">
+    <div class="template-label"><span>(i)</span> Daily Settlement Digest → Sellers</div>
+    <div class="template-wrapper">
+      <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:520px;margin:0 auto;padding:24px;background:white">
+        <div style="text-align:center;padding:16px 0;border-bottom:2px solid #22c55e">
+          <h1 style="color:#166534;font-size:22px;margin:0">🌱 CasaGrown Market</h1>
+          <p style="color:#6b7280;font-size:12px;margin:4px 0 0">Daily Settlement Summary · March 15, 2026</p>
+        </div>
+        <div style="padding:24px 0">
+          <p style="color:#374151;font-size:14px">Hi Maria,</p>
+          <!-- Summary card -->
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:16px 0">
+            <table style="width:100%;border-collapse:collapse">
+              <tr><td style="color:#374151;font-size:13px;padding:4px 0">Gross Sales</td><td style="color:#166534;font-size:14px;font-weight:600;text-align:right">$85.78</td></tr>
+              <tr><td style="color:#92400e;font-size:13px;padding:4px 0">Platform Fees (10%)</td><td style="color:#92400e;font-size:13px;text-align:right">-$8.58</td></tr>
+              <tr><td style="color:#92400e;font-size:13px;padding:4px 0">Refunds</td><td style="color:#92400e;font-size:13px;text-align:right">-$2.00</td></tr>
+              <tr><td colspan="2" style="border-top:1px solid #bbf7d0;padding:4px 0"></td></tr>
+              <tr><td style="color:#166534;font-size:15px;font-weight:600;padding:4px 0">Net Cleared</td><td style="color:#166534;font-size:15px;font-weight:600;text-align:right">$75.20</td></tr>
+            </table>
+          </div>
+          <!-- Transaction table -->
+          <h3 style="color:#374151;font-size:14px;margin:20px 0 8px">📋 Transaction Details</h3>
+          <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:8px;font-size:12px">
+            <thead>
+              <tr style="background:#f9fafb">
+                <th style="padding:8px;text-align:left;color:#6b7280">Order ID</th>
+                <th style="padding:8px;text-align:left;color:#6b7280">Product</th>
+                <th style="padding:8px;text-align:right;color:#6b7280">Qty</th>
+                <th style="padding:8px;text-align:right;color:#6b7280">Amount</th>
+                <th style="padding:8px;text-align:center;color:#6b7280">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td style="padding:6px 8px;border-bottom:1px solid #f3f4f6">ab3f-8c91</td><td style="padding:6px 8px;border-bottom:1px solid #f3f4f6">Heirloom Tomatoes</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #f3f4f6">3</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #f3f4f6">$12.50</td><td style="padding:6px 8px;text-align:center;border-bottom:1px solid #f3f4f6"><span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:4px;font-size:11px">completed</span></td></tr>
+              <tr><td style="padding:6px 8px;border-bottom:1px solid #f3f4f6">cd52-9fa2</td><td style="padding:6px 8px;border-bottom:1px solid #f3f4f6">Fresh Basil</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #f3f4f6">2</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #f3f4f6">$6.00</td><td style="padding:6px 8px;text-align:center;border-bottom:1px solid #f3f4f6"><span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:4px;font-size:11px">completed</span></td></tr>
+              <tr><td style="padding:6px 8px;border-bottom:1px solid #f3f4f6">ef73-0ba3</td><td style="padding:6px 8px;border-bottom:1px solid #f3f4f6">Bell Peppers</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #f3f4f6">5</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #f3f4f6">$10.00</td><td style="padding:6px 8px;text-align:center;border-bottom:1px solid #f3f4f6"><span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:4px;font-size:11px">completed</span></td></tr>
+              <tr><td style="padding:6px 8px;border-bottom:1px solid #f3f4f6">gh84-1cb4</td><td style="padding:6px 8px;border-bottom:1px solid #f3f4f6">Cucumbers</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #f3f4f6">4</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #f3f4f6">$6.00</td><td style="padding:6px 8px;text-align:center;border-bottom:1px solid #f3f4f6"><span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:4px;font-size:11px">refunded</span></td></tr>
+              <tr><td style="padding:6px 8px">ij95-2dc5</td><td style="padding:6px 8px">Zucchini</td><td style="padding:6px 8px;text-align:right">6</td><td style="padding:6px 8px;text-align:right">$9.00</td><td style="padding:6px 8px;text-align:center"><span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:4px;font-size:11px">completed</span></td></tr>
+            </tbody>
+          </table>
+          <div style="margin-top:20px">
+            <a href="#" style="display:inline-block;background:#22c55e;color:white;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">View Full Details</a>
+          </div>
+        </div>
+        <div style="border-top:1px solid #e5e7eb;padding-top:16px;color:#9ca3af;font-size:11px;text-align:center">
+          CasaGrown Market — Fresh from your neighbors
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ (j) AUTO REMITTANCE ═══════════════ -->
+  <div class="template-section">
+    <div class="template-label"><span>(j)</span> Automated Remittance → User</div>
+    <div class="template-wrapper">
+      <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:480px;margin:0 auto;padding:24px;background:white">
+        <div style="text-align:center;padding:16px 0;border-bottom:2px solid #22c55e">
+          <h1 style="color:#166534;font-size:22px;margin:0">🌱 CasaGrown Market</h1>
+          <p style="color:#6b7280;font-size:12px;margin:4px 0 0">Automated Withdrawal</p>
+        </div>
+        <div style="padding:24px 0">
+          <p style="color:#374151;font-size:14px">Hi Maria,</p>
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:16px 0">
+            <p style="color:#166534;font-size:16px;margin:0;font-weight:600">⚡ Auto-Withdrawal Processed</p>
+            <p style="color:#374151;font-size:13px;margin:8px 0 0">Your earnings have been automatically sent to your PayPal account.</p>
+          </div>
+          <table style="width:100%;border-collapse:collapse;margin:16px 0;border:1px solid #e5e7eb;border-radius:8px">
+            <tr style="background:#f9fafb"><td style="padding:8px;font-size:12px;color:#6b7280" colspan="2"><strong>Withdrawal Receipt</strong></td></tr>
+            <tr><td style="padding:6px 8px;font-size:13px;color:#374151;border-bottom:1px solid #f3f4f6">Method</td><td style="padding:6px 8px;font-size:13px;text-align:right;border-bottom:1px solid #f3f4f6">PayPal (maria@email.com)</td></tr>
+            <tr><td style="padding:6px 8px;font-size:13px;color:#374151;border-bottom:1px solid #f3f4f6">Amount</td><td style="padding:6px 8px;font-size:14px;font-weight:600;color:#166534;text-align:right;border-bottom:1px solid #f3f4f6">$75.20</td></tr>
+            <tr><td style="padding:6px 8px;font-size:13px;color:#6b7280" colspan="2"><strong>From Transactions:</strong></td></tr>
+            <tr><td style="padding:4px 8px;font-size:12px;color:#374151">  • Order ab3f-8c91 (Tomatoes)</td><td style="padding:4px 8px;font-size:12px;text-align:right">$12.50</td></tr>
+            <tr><td style="padding:4px 8px;font-size:12px;color:#374151">  • Order cd52-9fa2 (Basil)</td><td style="padding:4px 8px;font-size:12px;text-align:right">$6.00</td></tr>
+            <tr><td style="padding:4px 8px;font-size:12px;color:#374151">  • Order ef73-0ba3 (Peppers)</td><td style="padding:4px 8px;font-size:12px;text-align:right">$10.00</td></tr>
+            <tr><td style="padding:4px 8px;font-size:12px;color:#374151">  • 2 more orders</td><td style="padding:4px 8px;font-size:12px;text-align:right">$46.70</td></tr>
+            <tr><td style="padding:6px 8px;font-size:12px;color:#92400e;border-top:1px solid #e5e7eb">  Platform Fees</td><td style="padding:6px 8px;font-size:12px;color:#92400e;text-align:right;border-top:1px solid #e5e7eb">-$8.58</td></tr>
+          </table>
+          <a href="#" style="display:inline-block;background:#22c55e;color:white;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">View in Earnings</a>
+        </div>
+        <div style="border-top:1px solid #e5e7eb;padding-top:16px;color:#9ca3af;font-size:11px;text-align:center">
+          CasaGrown Market — Fresh from your neighbors
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ (k) MANUAL REMITTANCE ═══════════════ -->
+  <div class="template-section">
+    <div class="template-label"><span>(k)</span> Manual Remittance — Gift Card → User</div>
+    <div class="template-wrapper">
+      <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:480px;margin:0 auto;padding:24px;background:white">
+        <div style="text-align:center;padding:16px 0;border-bottom:2px solid #22c55e">
+          <h1 style="color:#166534;font-size:22px;margin:0">🌱 CasaGrown Market</h1>
+          <p style="color:#6b7280;font-size:12px;margin:4px 0 0">Withdrawal Receipt</p>
+        </div>
+        <div style="padding:24px 0">
+          <p style="color:#374151;font-size:14px">Hi Maria,</p>
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:16px 0">
+            <p style="color:#166534;font-size:16px;margin:0;font-weight:600">🎁 Your Gift Card is Ready!</p>
+          </div>
+          <table style="width:100%;border-collapse:collapse;margin:16px 0;border:1px solid #e5e7eb;border-radius:8px">
+            <tr style="background:#f9fafb"><td style="padding:8px;font-size:12px;color:#6b7280" colspan="2"><strong>Gift Card Details</strong></td></tr>
+            <tr><td style="padding:6px 8px;font-size:13px;color:#374151;border-bottom:1px solid #f3f4f6">Brand</td><td style="padding:6px 8px;font-size:13px;font-weight:600;text-align:right;border-bottom:1px solid #f3f4f6">📦 Amazon</td></tr>
+            <tr><td style="padding:6px 8px;font-size:13px;color:#374151;border-bottom:1px solid #f3f4f6">Value</td><td style="padding:6px 8px;font-size:14px;font-weight:600;color:#166534;text-align:right;border-bottom:1px solid #f3f4f6">$25.00</td></tr>
+            <tr><td style="padding:6px 8px;font-size:13px;color:#374151;border-bottom:1px solid #f3f4f6">Provider</td><td style="padding:6px 8px;font-size:13px;text-align:right;border-bottom:1px solid #f3f4f6">Tremendous</td></tr>
+          </table>
+          <div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:16px;margin:16px 0;text-align:center">
+            <p style="color:#1e40af;font-size:13px;margin:0 0 8px">Your gift card redemption link:</p>
+            <a href="#" style="display:inline-block;background:#2563eb;color:white;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">Claim Gift Card →</a>
+          </div>
+          <p style="font-size:12px;color:#6b7280;margin:8px 0">Deducted from your CasaGrown Market balance. No processing fee.</p>
+        </div>
+        <div style="border-top:1px solid #e5e7eb;padding-top:16px;color:#9ca3af;font-size:11px;text-align:center">
+          CasaGrown Market — Fresh from your neighbors
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ (k) MANUAL REMITTANCE — CHARITY ═══════════════ -->
+  <div class="template-section">
+    <div class="template-label"><span>(k)</span> Manual Remittance — Charity Donation → User</div>
+    <div class="template-wrapper">
+      <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:480px;margin:0 auto;padding:24px;background:white">
+        <div style="text-align:center;padding:16px 0;border-bottom:2px solid #22c55e">
+          <h1 style="color:#166534;font-size:22px;margin:0">🌱 CasaGrown Market</h1>
+          <p style="color:#6b7280;font-size:12px;margin:4px 0 0">Donation Receipt</p>
+        </div>
+        <div style="padding:24px 0">
+          <p style="color:#374151;font-size:14px">Hi Maria,</p>
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:16px 0">
+            <p style="color:#166534;font-size:16px;margin:0;font-weight:600">💚 Thank You for Your Donation!</p>
+            <p style="color:#374151;font-size:13px;margin:8px 0 0">
+              Your <strong>$10.00</strong> donation to <strong>Feeding America</strong> has been processed.
+            </p>
+          </div>
+          <table style="width:100%;border-collapse:collapse;margin:16px 0;border:1px solid #e5e7eb;border-radius:8px">
+            <tr style="background:#f9fafb"><td style="padding:8px;font-size:12px;color:#6b7280" colspan="2"><strong>Donation Receipt — Tax Deductible</strong></td></tr>
+            <tr><td style="padding:6px 8px;font-size:13px;color:#374151;border-bottom:1px solid #f3f4f6">Organization</td><td style="padding:6px 8px;font-size:13px;font-weight:600;text-align:right;border-bottom:1px solid #f3f4f6">Feeding America</td></tr>
+            <tr><td style="padding:6px 8px;font-size:13px;color:#374151;border-bottom:1px solid #f3f4f6">Amount</td><td style="padding:6px 8px;font-size:14px;font-weight:600;color:#166534;text-align:right;border-bottom:1px solid #f3f4f6">$10.00</td></tr>
+            <tr><td style="padding:6px 8px;font-size:13px;color:#374151;border-bottom:1px solid #f3f4f6">Date</td><td style="padding:6px 8px;font-size:13px;text-align:right;border-bottom:1px solid #f3f4f6">March 15, 2026</td></tr>
+            <tr><td style="padding:6px 8px;font-size:13px;color:#374151">EIN</td><td style="padding:6px 8px;font-size:13px;text-align:right">36-3673599</td></tr>
+          </table>
+          <p style="font-size:12px;color:#6b7280;margin:8px 0">Keep this email as your tax-deductible donation receipt.</p>
+        </div>
+        <div style="border-top:1px solid #e5e7eb;padding-top:16px;color:#9ca3af;font-size:11px;text-align:center">
+          CasaGrown Market — Fresh from your neighbors
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ (l) 1099K THRESHOLD WARNING ═══════════════ -->
+  <div class="template-section">
+    <div class="template-label"><span>(l)</span> 1099-K Threshold Warning → Seller</div>
+    <div class="template-wrapper">
+      <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:480px;margin:0 auto;padding:24px;background:white">
+        <div style="text-align:center;padding:16px 0;border-bottom:2px solid #f59e0b">
+          <h1 style="color:#166534;font-size:22px;margin:0">🌱 CasaGrown Market</h1>
+          <p style="color:#92400e;font-size:12px;margin:4px 0 0;font-weight:600">Tax Information Notice</p>
+        </div>
+        <div style="padding:24px 0">
+          <p style="color:#374151;font-size:14px">Hi Maria,</p>
+          <div style="background:#fffbeb;border:1px solid #fbbf24;border-radius:8px;padding:16px;margin:16px 0">
+            <p style="color:#92400e;font-size:16px;margin:0;font-weight:600">📋 Approaching 1099-K Threshold</p>
+            <p style="color:#374151;font-size:13px;margin:8px 0 0">
+              Your year-to-date earnings are <strong>$420.00</strong> — you're approaching the
+              <strong>$600.00</strong> federal 1099-K reporting threshold.
+            </p>
+          </div>
+          <div style="background:#f9fafb;border-radius:8px;padding:12px;margin:16px 0">
+            <p style="font-size:13px;color:#374151;margin:0">
+              <strong>What this means:</strong> When your annual earnings reach $600, we are required to
+              report your earnings to the IRS via Form 1099-K. Please ensure your legal name,
+              address, and SSN/EIN are up to date in your profile.
+            </p>
+          </div>
+          <div style="display:flex;gap:8px;margin:16px 0">
+            <a href="#" style="display:inline-block;background:#22c55e;color:white;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">Update Tax Info</a>
+          </div>
+          <p style="font-size:12px;color:#6b7280;margin:8px 0">
+            📊 YTD: $420.00 / $600.00 (70% of threshold)
+          </p>
+        </div>
+        <div style="border-top:1px solid #e5e7eb;padding-top:16px;color:#9ca3af;font-size:11px;text-align:center">
+          CasaGrown Market — Fresh from your neighbors<br>
+          This is an automated compliance notification.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ RATING REMINDER ═══════════════ -->
+  <div class="template-section">
+    <div class="template-label"><span>Rating</span> Rate Your Recent Transaction</div>
+    <div class="template-wrapper">
+      <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:480px;margin:0 auto;padding:24px;background:white">
+        <div style="text-align:center;padding:16px 0;border-bottom:2px solid #22c55e">
+          <h1 style="color:#166534;font-size:22px;margin:0">🌱 CasaGrown Market</h1>
+        </div>
+        <div style="padding:24px 0">
+          <p style="color:#374151;font-size:14px">Hi John,</p>
+          <div style="background:#f0f9ff;border:1px solid #93c5fd;border-radius:8px;padding:20px;margin:16px 0;text-align:center">
+            <p style="font-size:32px;margin:0">⭐⭐⭐⭐⭐</p>
+            <p style="color:#1e40af;font-size:16px;margin:8px 0;font-weight:600">How was your order?</p>
+            <p style="color:#374151;font-size:13px;margin:0">
+              Rate your purchase of <strong>Heirloom Tomatoes</strong> from <strong>Maria's Garden</strong>
+            </p>
+            <div style="margin-top:16px">
+              <a href="#" style="display:inline-block;background:#f59e0b;color:white;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;margin:4px">Rate Now</a>
+              <a href="#" style="display:inline-block;background:#e5e7eb;color:#374151;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;margin:4px">Skip</a>
+            </div>
+          </div>
+        </div>
+        <div style="border-top:1px solid #e5e7eb;padding-top:16px;color:#9ca3af;font-size:11px;text-align:center">
+          CasaGrown Market — Fresh from your neighbors
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

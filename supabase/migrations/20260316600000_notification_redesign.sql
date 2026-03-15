@@ -351,12 +351,22 @@ BEGIN
   FROM redemption_merchandize WHERE id = NEW.item_id;
 
   IF NEW.status = 'completed' THEN
-    -- (j) Auto or (k) manual remittance completed
-    PERFORM notify_market_event(
-      NEW.user_id,
-      '🎁 Withdrawal complete: ' || coalesce(v_item_name, 'Your withdrawal') || ' is ready!',
-      '/earnings'
-    );
+    IF NEW.is_auto = true THEN
+      -- (j) Auto remittance: full notification (in-app + push + email)
+      PERFORM notify_market_event(
+        NEW.user_id,
+        '⚡ Auto-withdrawal complete: ' || coalesce(v_item_name, 'Your withdrawal') || ' is ready!',
+        '/earnings'
+      );
+    ELSE
+      -- (k) Manual remittance: email only (toast shown in UI, no push)
+      INSERT INTO notifications (user_id, content, link_url)
+      VALUES (
+        NEW.user_id,
+        '🎁 Withdrawal complete: ' || coalesce(v_item_name, 'Your withdrawal') || ' is ready!',
+        '/earnings'
+      );
+    END IF;
   ELSIF NEW.status = 'failed' THEN
     PERFORM notify_market_event(
       NEW.user_id,

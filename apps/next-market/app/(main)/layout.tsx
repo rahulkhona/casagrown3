@@ -3,6 +3,7 @@
 import { MarketProvider } from '../../lib/store'
 import { Navbar } from '../components/Navbar'
 import { BottomNav } from '../components/BottomNav'
+import { RatingReminder } from '../components/RatingReminder'
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -12,6 +13,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         {children}
       </main>
       <BottomNav />
+      <RatingReminder />
     </MarketProvider>
   )
 }
