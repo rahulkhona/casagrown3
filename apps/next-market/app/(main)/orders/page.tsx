@@ -122,21 +122,34 @@ export default function OrdersPage() {
     role === 'selling' ? o.seller_id === user!.id : o.buyer_id === user!.id
   )
 
-  // Tab filter functions — filter by status AND fulfillment type
-  const tabMatchers: Record<string, (o: MarketOrder) => boolean> = {
+  // Tab filter functions — vary by role
+  const PAST = ['completed', 'resolved', 'declined', 'cancelled', 'pickup_declined']
+  const tabMatchers: Record<string, (o: MarketOrder) => boolean> = role === 'selling' ? {
+    // Sellers: delivered/ready_for_pickup go to Completed (not actionable by seller)
+    pending_delivery:  o => o.status === 'pending' && o.fulfillment_type === 'delivery',
+    pending_pickup:    o => o.status === 'pending' && o.fulfillment_type === 'pickup',
+    disputed:          o => ['disputed', 'escalated'].includes(o.status),
+    completed:         o => [...PAST, 'delivered', 'ready_for_pickup', 'confirmed'].includes(o.status),
+  } : {
+    // Buyers: delivered/ready_for_pickup need buyer action (confirm/dispute)
     pending_delivery:  o => o.status === 'pending' && o.fulfillment_type === 'delivery',
     pending_pickup:    o => o.status === 'pending' && o.fulfillment_type === 'pickup',
     pending_confirm:   o => ['delivered', 'ready_for_pickup', 'confirmed'].includes(o.status),
     disputed:          o => ['disputed', 'escalated'].includes(o.status),
-    completed:         o => ['completed', 'resolved', 'declined', 'cancelled', 'pickup_declined'].includes(o.status),
+    completed:         o => PAST.includes(o.status),
   }
 
   const filtered = roleOrders
     .filter(o => tabMatchers[tab]?.(o) ?? false)
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
-  // Tab definitions — short labels for all screens
-  const tabDefs = [
+  // Tab definitions — role-aware
+  const tabDefs = role === 'selling' ? [
+    { key: 'pending_delivery', label: 'Delivery' },
+    { key: 'pending_pickup',   label: 'Pickup' },
+    { key: 'disputed',         label: 'Disputed' },
+    { key: 'completed',        label: 'Completed' },
+  ] : [
     { key: 'pending_delivery', label: 'Delivery' },
     { key: 'pending_pickup',   label: 'Pickup' },
     { key: 'pending_confirm',  label: 'Confirmation' },
