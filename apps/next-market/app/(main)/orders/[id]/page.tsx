@@ -557,15 +557,35 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               <p className={styles.emptyMessages}>No messages yet</p>
             ) : (
               <div className={styles.messageList}>
-                {disputeMessages.map(m => (
-                  <div key={m.id} className={`${styles.message} ${m.sender_id === user?.id ? styles.messageMine : ''}`}>
-                    <div className={styles.msgMeta}>
-                      <strong>{m.sender_name}</strong>
-                      <span>{new Date(m.created_at).toLocaleString()}</span>
+                {disputeMessages.map(m => {
+                  const isMine = m.sender_id === user?.id
+                  const initial = m.sender_name?.charAt(0).toUpperCase() || '?'
+                  const avatar = isMine
+                    ? (isSeller ? order.seller_avatar : order.buyer_avatar)
+                    : (isSeller ? order.buyer_avatar : order.seller_avatar)
+                  return (
+                    <div key={m.id} className={`${styles.message} ${isMine ? styles.messageMine : ''}`}>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                        <div style={{
+                          width: 30, height: 30, borderRadius: '50%', flexShrink: 0, overflow: 'hidden',
+                          background: isMine ? 'var(--gray-300)' : 'var(--primary)',
+                          color: isMine ? 'var(--gray-700)' : '#fff',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 13, fontWeight: 700,
+                        }}>
+                          {avatar ? <img src={avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initial}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className={styles.msgMeta}>
+                            <strong>{m.sender_name}</strong>
+                            <span>{new Date(m.created_at).toLocaleString()}</span>
+                          </div>
+                          <p>{m.body}</p>
+                        </div>
+                      </div>
                     </div>
-                    <p>{m.body}</p>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
             <div className={styles.messageInput}>
