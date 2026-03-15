@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase'
 import { useAuth } from '../../../../lib/useAuth'
 import CameraCapture, { CaptureResult } from '../../../../components/CameraCapture'
+import OrderChat from '../../../../components/OrderChat'
 import { geocodeAddress } from '../../../../lib/geocode'
 import styles from './page.module.css'
 
@@ -97,6 +98,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [disputeQuantityReceived, setDisputeQuantityReceived] = useState('')
   const [disputePhotos, setDisputePhotos] = useState<{ preview: string; result: CaptureResult }[]>([])
   const [showDisputeCamera, setShowDisputeCamera] = useState(false)
+  const [showChat, setShowChat] = useState(false)
   const [showRefund, setShowRefund] = useState(false)
   const [refundType, setRefundType] = useState<'full' | 'partial'>('full')
   const [refundAmount, setRefundAmount] = useState('')
@@ -338,6 +340,30 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           </div>
         )}
       </div>
+
+      {/* ===== CHAT BUTTON ===== */}
+      {!['completed', 'resolved', 'declined', 'cancelled'].includes(order.status) && (
+        <div className={styles.actionPanel}>
+          <button
+            className="btn btn-outline"
+            style={{ width: '100%', fontSize: 14 }}
+            onClick={() => setShowChat(prev => !prev)}
+          >
+            💬 {showChat ? 'Hide Chat' : 'Chat with ' + (isSeller ? order.buyer_name : order.seller_name)}
+          </button>
+        </div>
+      )}
+
+      {/* ===== CHAT PANEL ===== */}
+      {showChat && (
+        <div style={{ margin: '0 -4px' }}>
+          <OrderChat
+            orderId={orderId}
+            otherUserName={isSeller ? order.buyer_name : order.seller_name}
+            otherUserId={isSeller ? order.buyer_id : order.seller_id}
+          />
+        </div>
+      )}
 
       {/* ===== ACTION PANELS ===== */}
 
