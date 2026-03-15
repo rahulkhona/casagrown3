@@ -414,21 +414,32 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           </div>
 
           <div style={{ marginTop: 16 }}>
-            <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--gray-500)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Report an Issue</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--gray-500)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Report an Issue</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8 }}>
               {[
-                { id: 'not_delivered', label: '📦 Not Delivered' },
-                { id: 'quantity_mismatch', label: '🔢 Quantity Mismatch' },
-                { id: 'wrong_item', label: '❌ Wrong Item' },
-                { id: 'poor_quality', label: '👎 Poor Quality' },
+                { id: 'not_delivered', icon: '📦', label: 'Not Delivered', desc: 'Never received' },
+                { id: 'quantity_mismatch', icon: '🔢', label: 'Qty Mismatch', desc: 'Missing items' },
+                { id: 'wrong_item', icon: '❌', label: 'Wrong Item', desc: 'Different product' },
+                { id: 'poor_quality', icon: '👎', label: 'Poor Quality', desc: 'Damaged / spoiled' },
               ].map(t => (
                 <button
                   key={t.id}
-                  className="btn btn-outline btn-sm"
-                  style={{ textAlign: 'left', fontSize: 13 }}
                   onClick={() => { setDisputeType(t.id); setShowDispute(true) }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '10px 12px', borderRadius: 'var(--radius-lg)',
+                    border: '1px solid var(--gray-200)', background: 'var(--gray-50)',
+                    cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--gray-100)'; e.currentTarget.style.borderColor = 'var(--gray-300)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'var(--gray-50)'; e.currentTarget.style.borderColor = 'var(--gray-200)' }}
                 >
-                  {t.label}
+                  <span style={{ fontSize: 22, lineHeight: 1 }}>{t.icon}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--gray-800)' }}>{t.label}</div>
+                    <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 1 }}>{t.desc}</div>
+                  </div>
+                  <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>›</span>
                 </button>
               ))}
             </div>
