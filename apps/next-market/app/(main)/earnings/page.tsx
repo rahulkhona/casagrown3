@@ -161,10 +161,36 @@ export default function EarningsPage() {
   }, [isAuthenticated, userId, fetchTransactions, fetchSummary, fetchPending])
 
   // ── Open receipt ──
-  const openReceipt = useCallback((tx: TransactionEntry) => {
+  const openReceipt = useCallback(async (tx: TransactionEntry) => {
     if (tx.tx_type !== 'purchase' && tx.tx_type !== 'sale') return
     const m = tx.metadata
     const viewAs = tx.tx_type === 'sale' ? 'seller' : 'buyer'
+
+    // Look up compliance footer from seller zip
+    let receiptFooter: string | undefined
+    const sellerZip = m.seller_zip
+    if (sellerZip) {
+      try {
+        const zipInt = parseInt(sellerZip.substring(0, 5), 10)
+        // Map zip range → state code (simplified for major states)
+        let stateCode: string | null = null
+        if (zipInt >= 32000 && zipInt <= 34999) stateCode = 'FL'
+        else if (zipInt >= 90000 && zipInt <= 96199) stateCode = 'CA'
+        else if (zipInt >= 10000 && zipInt <= 14999) stateCode = 'NY'
+        else if (zipInt >= 73000 && zipInt <= 74999) stateCode = 'OK'
+        // Add more as needed
+
+        if (stateCode) {
+          const { data: footer } = await supabase
+            .from('receipt_footers')
+            .select('footer_text')
+            .eq('state_code', stateCode)
+            .maybeSingle()
+          if (footer?.footer_text) receiptFooter = footer.footer_text
+        }
+      } catch { /* skip footer */ }
+    }
+
     setReceiptData({
       orderId: m.order_id || tx.tx_id,
       date: tx.tx_date,
@@ -182,9 +208,12 @@ export default function EarningsPage() {
       total: m.total || tx.amount,
       fulfillment: m.fulfillment || 'pickup',
       settlementId: m.settlement_id,
+      sellerZip: m.seller_zip,
+      buyerZip: m.buyer_zip,
+      receiptFooter,
       viewAs,
     })
-  }, [])
+  }, [supabase])
 
   // ── Rate order handler ──
   const handleRate = useCallback(async (orderId: string, rating: number) => {

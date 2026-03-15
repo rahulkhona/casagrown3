@@ -67,7 +67,7 @@ export default function ChatConversationPage({ params }: { params: Promise<{ id:
   }
   const handleOfferDiscount = () => {
     const amount = 2.00
-    dispatch({ type: 'UPDATE_ORDER_STATUS', payload: { orderId: order!.id, discountOffer: amount } })
+    dispatch({ type: 'UPDATE_ORDER_STATUS', payload: { orderId: order!.id, status: 'disputed', discountOffer: amount } })
     sendSystemMessage(`${state.user!.name} offered a ${formatUsd(amount)} discount to settle the dispute.`)
   }
   const handleAcceptDiscount = () => {
