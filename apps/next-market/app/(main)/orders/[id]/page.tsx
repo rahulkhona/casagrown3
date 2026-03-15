@@ -104,6 +104,9 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [showDisputeCamera, setShowDisputeCamera] = useState(false)
   const [showChat, setShowChat] = useState(false)
   const [chatMessageCount, setChatMessageCount] = useState(0)
+  const [showRefund, setShowRefund] = useState(false)
+  const [refundType, setRefundType] = useState<'full' | 'partial'>('full')
+  const [refundAmount, setRefundAmount] = useState('')
   const [passcodeInput, setPasscodeInput] = useState('')
   const [showPickupDecline, setShowPickupDecline] = useState(false)
   const [pickupDeclineReason, setPickupDeclineReason] = useState('')
@@ -553,16 +556,54 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               </div>
             )}
 
-            {/* Suggested refund (auto-calculated) */}
+            {/* Status + seller resolution options */}
             {dispute.status === 'open' && (
-              <div style={{
-                marginTop: 12, padding: '10px 14px', borderRadius: 'var(--radius-md)',
-                background: 'var(--blue-50, #eff6ff)', border: '1px solid var(--blue-200, #bfdbfe)',
-                fontSize: 13, color: 'var(--blue-700, #1d4ed8)',
-              }}>
-                {isSeller
-                  ? '⏳ This dispute is being reviewed by CasaGrown staff. You can use chat to coordinate with the buyer.'
-                  : '⏳ Your dispute is being reviewed. We\'ll resolve it within 24–48 hours.'}
+              <div style={{ marginTop: 12 }}>
+                <div style={{
+                  padding: '10px 14px', borderRadius: 'var(--radius-md)',
+                  background: 'var(--blue-50, #eff6ff)', border: '1px solid var(--blue-200, #bfdbfe)',
+                  fontSize: 13, color: 'var(--blue-700, #1d4ed8)', marginBottom: isSeller ? 12 : 0,
+                }}>
+                  {isSeller
+                    ? '⏳ Under review by staff. You can resolve proactively by offering a refund below, or use chat to coordinate.'
+                    : '⏳ Your dispute is being reviewed. We\'ll resolve it within 24–48 hours.'}
+                </div>
+
+                {/* Seller refund buttons */}
+                {isSeller && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <button
+                      onClick={() => { setRefundType('full'); setRefundAmount(String(order.total_usd)); setShowRefund(true) }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '10px 12px', borderRadius: 'var(--radius-lg)',
+                        border: '1px solid var(--green-200, #bbf7d0)', background: 'var(--green-50, #f0fdf4)',
+                        cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
+                      }}
+                    >
+                      <span style={{ fontSize: 20 }}>💰</span>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 13 }}>Full Refund</div>
+                        <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>{formatUsd(order.total_usd)}</div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => { setRefundType('partial'); setRefundAmount(''); setShowRefund(true) }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '10px 12px', borderRadius: 'var(--radius-lg)',
+                        border: '1px solid var(--gray-200)', background: 'var(--gray-50)',
+                        cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
+                      }}
+                    >
+                      <span style={{ fontSize: 20 }}>🔢</span>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 13 }}>Partial Refund</div>
+                        <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>Specify amount</div>
+                      </div>
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -574,23 +615,51 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               </div>
             )}
 
-            {/* Refund applied */}
+            {/* Refund applied or offered */}
             {dispute.refund_type && (
               <div style={{
                 marginTop: 12, padding: '10px 14px', borderRadius: 'var(--radius-md)',
-                background: 'var(--green-50, #f0fdf4)', border: '1px solid var(--green-200, #bbf7d0)',
-                fontSize: 13, color: 'var(--green-700, #15803d)',
+                background: dispute.status === 'seller_responded'
+                  ? 'var(--yellow-50, #fefce8)' : 'var(--green-50, #f0fdf4)',
+                border: dispute.status === 'seller_responded'
+                  ? '1px solid var(--yellow-200, #fef08a)' : '1px solid var(--green-200, #bbf7d0)',
+                fontSize: 13,
+                color: dispute.status === 'seller_responded'
+                  ? 'var(--yellow-700, #a16207)' : 'var(--green-700, #15803d)',
               }}>
-                <strong>{dispute.refund_type === 'full' ? 'Full' : 'Partial'} refund applied</strong>
+                <strong>
+                  {dispute.status === 'seller_responded'
+                    ? `💰 Seller offered ${dispute.refund_type === 'full' ? 'full' : 'partial'} refund`
+                    : `${dispute.refund_type === 'full' ? 'Full' : 'Partial'} refund applied`
+                  }
+                </strong>
                 {dispute.refund_amount_usd && <span> — {formatUsd(dispute.refund_amount_usd)}</span>}
               </div>
             )}
 
-            {/* Buyer: Issue Resolved button (withdraw dispute) */}
-            {isBuyer && ['open', 'escalated'].includes(dispute.status) && (
+            {/* Buyer: Accept Refund (when seller has responded) */}
+            {isBuyer && dispute.status === 'seller_responded' && (
               <button
                 className="btn btn-primary btn-sm"
-                style={{ marginTop: 14, width: '100%' }}
+                style={{ marginTop: 10, width: '100%' }}
+                disabled={actionLoading}
+                onClick={async () => {
+                  await callRpc('buyer_accept_refund', { p_dispute_id: dispute.id })
+                  await supabase.from('order_chat_messages').insert({
+                    order_id: orderId, sender_id: user!.id,
+                    content: `✅ Refund accepted — ${formatUsd(dispute.refund_amount_usd || 0)} refund approved.`,
+                  })
+                }}
+              >
+                ✓ Accept Refund ({formatUsd(dispute.refund_amount_usd || 0)})
+              </button>
+            )}
+
+            {/* Buyer: Issue Resolved button (withdraw dispute) */}
+            {isBuyer && ['open', 'escalated', 'seller_responded'].includes(dispute.status) && (
+              <button
+                className="btn btn-outline btn-sm"
+                style={{ marginTop: 8, width: '100%' }}
                 disabled={actionLoading}
                 onClick={async () => {
                   await callRpc('buyer_resolve_dispute', { p_dispute_id: dispute.id })
@@ -600,7 +669,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   })
                 }}
               >
-                ✓ Issue Resolved
+                ✓ Issue Resolved (withdraw dispute)
               </button>
             )}
           </div>
@@ -795,6 +864,47 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Refund modal (seller) */}
+      {showRefund && dispute && (
+        <div className={styles.modal}>
+          <div className={styles.modalContent}>
+            <h3>{refundType === 'full' ? 'Full' : 'Partial'} Refund</h3>
+            {refundType === 'full' ? (
+              <p style={{ fontSize: 14, marginBottom: 12 }}>
+                Refund the full order amount of <strong>{formatUsd(order.total_usd)}</strong>.
+              </p>
+            ) : (
+              <div className={styles.formGroup}>
+                <label>Refund Amount (max {formatUsd(order.total_usd)})</label>
+                <input type="number" value={refundAmount} onChange={e => setRefundAmount(e.target.value)}
+                  placeholder="0.00" step="0.01" max={order.total_usd} />
+              </div>
+            )}
+            <div className={styles.modalActions}>
+              <button className="btn btn-primary" disabled={actionLoading || (refundType === 'partial' && !refundAmount)}
+                onClick={async () => {
+                  const amt = refundType === 'full' ? order.total_usd : parseFloat(refundAmount)
+                  await callRpc('seller_respond_dispute', {
+                    p_dispute_id: dispute.id,
+                    p_refund_type: refundType,
+                    p_refund_amount: amt,
+                    p_pickup_offered: false,
+                  })
+                  const msg = `💰 Refund offered: ${refundType === 'full' ? 'Full' : 'Partial'} refund of ${formatUsd(amt)}`
+                  await supabase.from('order_chat_messages').insert({
+                    order_id: orderId, sender_id: user!.id, content: msg,
+                  })
+                  setShowRefund(false)
+                  setShowChat(true)
+                }}>
+                Send Offer
+              </button>
+              <button className="btn btn-outline" onClick={() => setShowRefund(false)}>Cancel</button>
+            </div>
           </div>
         </div>
       )}
