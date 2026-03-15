@@ -60,7 +60,7 @@ export default function OrdersPage() {
   const { user, isAuthenticated, loading: authLoading } = useAuth()
   const [orders, setOrders] = useState<MarketOrder[]>([])
   const [role, setRole] = useState<'selling' | 'buying'>('selling')
-  const [tab, setTab] = useState<'pending' | 'delivered' | 'pickup' | 'disputed' | 'past'>('pending')
+  const [tab, setTab] = useState<'pending' | 'awaiting' | 'disputed' | 'past'>('pending')
   const [loading, setLoading] = useState(true)
 
   const loadOrders = useCallback(async () => {
@@ -119,36 +119,20 @@ export default function OrdersPage() {
   // Tab definitions with status filters
   const TAB_FILTERS: Record<string, string[]> = {
     pending: ['pending'],
-    delivered: ['delivered', 'confirmed'],
-    pickup: ['ready_for_pickup'],
+    awaiting: ['delivered', 'ready_for_pickup', 'confirmed'],
     disputed: ['disputed', 'escalated'],
     past: ['completed', 'resolved', 'declined', 'cancelled', 'pickup_declined'],
   }
 
-  // Priority sort: "needs your action" first within each tab
-  const getActionPriority = (o: MarketOrder): number => {
-    const isBuyer = o.buyer_id === user!.id
-    if (o.status === 'pending' && !isBuyer) return 0
-    if (o.status === 'delivered' && isBuyer) return 0
-    if (o.status === 'ready_for_pickup') return 0
-    return 1
-  }
-
   const filtered = roleOrders
     .filter(o => TAB_FILTERS[tab]?.includes(o.status))
-    .sort((a, b) => {
-      const pa = getActionPriority(a)
-      const pb = getActionPriority(b)
-      if (pa !== pb) return pa - pb
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    })
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
   const tabs = [
-    { key: 'pending' as const,   label: 'Pending',  count: roleOrders.filter(o => TAB_FILTERS.pending.includes(o.status)).length },
-    { key: 'delivered' as const, label: 'Delivered', count: roleOrders.filter(o => TAB_FILTERS.delivered.includes(o.status)).length },
-    { key: 'pickup' as const,    label: 'Pickup',   count: roleOrders.filter(o => TAB_FILTERS.pickup.includes(o.status)).length },
-    { key: 'disputed' as const,  label: 'Disputed', count: roleOrders.filter(o => TAB_FILTERS.disputed.includes(o.status)).length },
-    { key: 'past' as const,      label: 'Past',     count: roleOrders.filter(o => TAB_FILTERS.past.includes(o.status)).length },
+    { key: 'pending' as const,  label: 'Pending',                count: roleOrders.filter(o => TAB_FILTERS.pending.includes(o.status)).length },
+    { key: 'awaiting' as const, label: 'Awaiting Confirmation',  count: roleOrders.filter(o => TAB_FILTERS.awaiting.includes(o.status)).length },
+    { key: 'disputed' as const, label: 'Disputed',               count: roleOrders.filter(o => TAB_FILTERS.disputed.includes(o.status)).length },
+    { key: 'past' as const,     label: 'Past',                   count: roleOrders.filter(o => TAB_FILTERS.past.includes(o.status)).length },
   ]
 
   const sellingCount = orders.filter(o => o.seller_id === user!.id && ACTIVE_STATUSES.includes(o.status)).length
