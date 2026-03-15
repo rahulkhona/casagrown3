@@ -1,0 +1,167 @@
+.backLink { font-size: 14px; color: var(--green-600); font-weight: 500; text-decoration: none; }
+.backLink:hover { color: var(--green-800); }
+
+.pageHeader { display: flex; justify-content: space-between; align-items: center; margin: 16px 0 24px; }
+.pageTitle { font-size: 24px; font-weight: 700; color: var(--gray-900); }
+
+.balanceBadge {
+  background: var(--green-600); padding: 8px 16px; border-radius: var(--radius-lg);
+  text-align: center; display: flex; flex-direction: column; gap: 2px;
+}
+.balanceLabel { font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.8); }
+.balanceValue { font-size: 18px; font-weight: 700; color: #fff; }
+
+/* ── Tabs ── */
+.tabGrid {
+  display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap;
+}
+.tabBtn {
+  display: flex; align-items: center; gap: 8px; padding: 12px 16px;
+  border-radius: var(--radius-lg); border: 1px solid var(--gray-200);
+  background: #fff; cursor: pointer; flex: 1; min-width: 120px;
+  transition: all 0.15s;
+}
+.tabBtn:hover { border-color: var(--green-300); }
+.tabBtnActive {
+  background: var(--green-600); border-color: var(--green-600); color: #fff;
+}
+.tabIcon { font-size: 18px; }
+.tabLabel { font-size: 14px; font-weight: 600; }
+.tabBtnActive .tabLabel { color: #fff; }
+.tabBtnActive .tabIcon { filter: brightness(10); }
+
+.tabContent { }
+
+/* ── Search & Filter ── */
+.searchBar {
+  display: flex; align-items: center; gap: 8px;
+  background: #fff; border: 1px solid var(--gray-200); border-radius: var(--radius-lg);
+  padding: 0 14px; height: 44px; margin-bottom: 12px;
+}
+.searchIcon { font-size: 16px; color: var(--gray-400); flex-shrink: 0; }
+.searchInput {
+  flex: 1; border: none; outline: none; font-size: 14px; color: var(--gray-800);
+  background: transparent;
+}
+.searchSpinner { font-size: 14px; animation: spin 1s infinite; }
+@keyframes spin { from { opacity: 0.3; } 50% { opacity: 1; } to { opacity: 0.3; } }
+
+.filterRow { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.filterBtn {
+  padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 500;
+  border: 1px solid var(--gray-200); background: #fff; color: var(--gray-600);
+  cursor: pointer; white-space: nowrap; transition: all 0.15s;
+}
+.filterBtn:hover { border-color: var(--green-300); color: var(--green-700); }
+.filterBtnActive { background: var(--green-50); border-color: var(--green-500); color: var(--green-700); font-weight: 600; }
+
+/* ── Gift Card Grid ── */
+.cardGrid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+}
+.gcCard {
+  display: flex; flex-direction: column; align-items: center; padding: 16px 12px;
+  background: #fff; border: 1px solid var(--gray-200); border-radius: var(--radius-lg);
+  cursor: pointer; transition: all 0.15s; text-align: center;
+}
+.gcCard:hover { border-color: var(--green-400); box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.gcCardImg { width: 80px; height: 50px; object-fit: contain; margin-bottom: 8px; border-radius: 4px; }
+.gcCardName { font-size: 13px; font-weight: 600; color: var(--gray-800); }
+.gcCardRange { font-size: 11px; color: var(--gray-400); margin-top: 2px; }
+
+/* ── Charity List ── */
+.charityList { display: flex; flex-direction: column; gap: 12px; }
+.charityCard {
+  display: flex; gap: 12px; padding: 0; background: #fff; border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg); overflow: hidden; cursor: pointer; transition: all 0.15s; text-align: left;
+}
+.charityCard:hover { border-color: var(--green-400); }
+.charityImg { width: 120px; height: 120px; object-fit: cover; flex-shrink: 0; }
+.charityInfo { display: flex; flex-direction: column; padding: 12px; gap: 4px; flex: 1; min-width: 0; }
+.charityTitle { font-size: 14px; font-weight: 600; color: var(--gray-800); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.charityOrg { font-size: 12px; color: var(--gray-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.charitySummary { font-size: 11px; color: var(--gray-400); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.charityProgress { height: 4px; background: var(--gray-200); border-radius: 2px; overflow: hidden; margin-top: auto; }
+.charityProgressFill { height: 4px; background: var(--green-500); border-radius: 2px; }
+.charityStats { font-size: 10px; color: var(--gray-400); }
+
+/* ── Selection Card (detail view) ── */
+.selectionCard {
+  background: #fff; border: 1px solid var(--border); border-radius: var(--radius-xl);
+  padding: 24px;
+}
+.selectionHeader { text-align: center; margin-bottom: 20px; }
+.selectionHeader h3 { font-size: 20px; font-weight: 700; color: var(--gray-900); margin-top: 12px; }
+.selectionImg { width: 120px; height: 80px; object-fit: contain; border-radius: 8px; margin: 0 auto; display: block; }
+.selectionDesc { font-size: 13px; color: var(--gray-500); margin-top: 4px; }
+
+.backBtn {
+  background: none; border: none; color: var(--green-600); font-size: 14px; font-weight: 500;
+  cursor: pointer; padding: 0; margin-bottom: 16px;
+}
+.backBtn:hover { color: var(--green-800); }
+
+.amountGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.amountBtn {
+  padding: 12px; border-radius: var(--radius); border: 2px solid var(--gray-200);
+  background: #fff; font-size: 15px; font-weight: 600; color: var(--gray-700);
+  cursor: pointer; transition: all 0.15s;
+}
+.amountBtn:hover:not(:disabled) { border-color: var(--green-400); }
+.amountBtnActive { border-color: var(--green-500); background: var(--green-50); color: var(--green-700); }
+.amountBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Result Card (success) ── */
+.resultCard {
+  text-align: center; padding: 32px 24px;
+  background: linear-gradient(135deg, var(--green-50), #fff); border: 1px solid var(--green-200);
+  border-radius: var(--radius-xl); margin-bottom: 20px;
+}
+.resultIcon { font-size: 48px; margin-bottom: 12px; }
+.resultCard h3 { font-size: 20px; font-weight: 700; color: var(--gray-900); margin-bottom: 8px; }
+.resultBrand { font-size: 16px; color: var(--gray-700); }
+.resultCode { font-size: 14px; color: var(--gray-600); margin-top: 8px; background: var(--gray-50); padding: 8px 12px; border-radius: 8px; display: inline-block; }
+
+/* ── Warning ── */
+.warningBox {
+  background: var(--amber-50); border: 1px solid var(--amber-200); border-radius: 8px;
+  padding: 10px 14px; font-size: 12px; color: var(--amber-800); margin-top: 12px; line-height: 1.5;
+}
+
+/* ── Alerts ── */
+.alertError {
+  background: var(--red-50, #fef2f2); border: 1px solid var(--red-200, #fecaca); border-radius: 8px;
+  padding: 10px 14px; font-size: 13px; color: var(--red-700, #b91c1c); margin-bottom: 16px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.alertSuccess {
+  background: var(--green-50); border: 1px solid var(--green-200); border-radius: 8px;
+  padding: 10px 14px; font-size: 13px; color: var(--green-700); margin-bottom: 16px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.alertClose { background: none; border: none; cursor: pointer; font-size: 16px; color: inherit; }
+
+/* ── Empty State ── */
+.emptyState { text-align: center; padding: 40px 20px; color: var(--gray-400); }
+.emptyIcon { font-size: 40px; display: block; margin-bottom: 8px; }
+
+/* ── Loading overlay ── */
+.loadingOverlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center; z-index: 9998;
+}
+.loadingContent { text-align: center; color: #fff; }
+.spinner {
+  width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.3);
+  border-top-color: #fff; border-radius: 50%; margin: 0 auto 12px;
+  animation: spinAnim 0.8s linear infinite;
+}
+@keyframes spinAnim { to { transform: rotate(360deg); } }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .cardGrid { grid-template-columns: repeat(2, 1fr); }
+  .amountGrid { grid-template-columns: repeat(2, 1fr); }
+  .tabGrid { gap: 8px; }
+  .tabBtn { min-width: 0; padding: 10px 12px; }
+}

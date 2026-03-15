@@ -1,0 +1,82 @@
+.backLink { font-size: 14px; color: var(--green-600); font-weight: 500; text-decoration: none; }
+.backLink:hover { color: var(--green-800); }
+
+.header {
+  display: flex; gap: 16px; align-items: center; margin: 16px 0 24px;
+}
+.headerIcon { font-size: 40px; }
+.headerTitle { font-size: 24px; font-weight: 700; color: var(--gray-900); margin: 0; }
+.headerDesc { font-size: 14px; color: var(--gray-500); margin-top: 4px; }
+
+.card {
+  background: #fff; border: 1px solid var(--border); border-radius: var(--radius-xl);
+  padding: 20px; margin-bottom: 16px;
+}
+
+.sectionTitle { font-size: 16px; font-weight: 700; color: var(--gray-900); margin: 0 0 12px; }
+.hint { font-size: 13px; color: var(--gray-400); margin: 0; line-height: 1.5; }
+
+/* ── Toggle ── */
+.toggleRow { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.toggle { position: relative; display: inline-block; width: 48px; height: 26px; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggleSlider {
+  position: absolute; cursor: pointer; inset: 0;
+  background: var(--gray-300); border-radius: 26px; transition: 0.3s;
+}
+.toggleSlider::before {
+  content: ''; position: absolute; height: 20px; width: 20px;
+  left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: 0.3s;
+}
+.toggle input:checked + .toggleSlider { background: var(--green-500); }
+.toggle input:checked + .toggleSlider::before { transform: translateX(22px); }
+
+/* ── Method Grid ── */
+.methodGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.methodBtn {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 16px 8px; border-radius: var(--radius-lg); border: 2px solid var(--gray-200);
+  background: #fff; cursor: pointer; transition: all 0.15s; text-align: center;
+}
+.methodBtn:hover { border-color: var(--green-300); }
+.methodBtnActive { border-color: var(--green-500); background: var(--green-50); }
+.methodIcon { font-size: 24px; }
+.methodLabel { font-size: 14px; font-weight: 600; color: var(--gray-800); }
+.methodDesc { font-size: 11px; color: var(--gray-400); }
+
+/* ── Threshold ── */
+.thresholdGrid { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.thresholdBtn {
+  padding: 8px 18px; border-radius: 20px; font-size: 14px; font-weight: 600;
+  border: 2px solid var(--gray-200); background: #fff; color: var(--gray-700);
+  cursor: pointer; transition: all 0.15s;
+}
+.thresholdBtn:hover { border-color: var(--green-300); }
+.thresholdBtnActive { border-color: var(--green-500); background: var(--green-50); color: var(--green-700); }
+.customThreshold { display: flex; align-items: center; }
+.thresholdInput {
+  width: 90px; padding: 7px 12px; border: 2px solid var(--gray-200); border-radius: 20px;
+  font-size: 14px; text-align: center; color: var(--gray-700); outline: none;
+}
+.thresholdInput:focus { border-color: var(--green-400); }
+
+/* ── Info Card ── */
+.infoCard {
+  background: var(--green-50); border: 1px solid var(--green-200); border-radius: var(--radius-xl);
+  padding: 16px 20px; margin-bottom: 16px; font-size: 14px; color: var(--gray-700); line-height: 1.6;
+}
+.infoCard strong { display: block; margin-bottom: 8px; color: var(--gray-800); }
+.infoCard ol { padding-left: 20px; margin: 0; }
+.infoCard li { margin-bottom: 4px; }
+
+/* ── Alerts ── */
+.alertError {
+  background: var(--red-50, #fef2f2); border: 1px solid var(--red-200, #fecaca); border-radius: 8px;
+  padding: 10px 14px; font-size: 13px; color: var(--red-700, #b91c1c); margin-top: 12px;
+}
+.alertSuccess {
+  background: var(--green-50); border: 1px solid var(--green-200); border-radius: 8px;
+  padding: 10px 14px; font-size: 13px; color: var(--green-700); margin-top: 12px;
+}
+
+@media (max-width: 768px) { .methodGrid { grid-template-columns: 1fr; } }

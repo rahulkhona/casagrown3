@@ -1,3 +1,24 @@
+.pageWrap { padding-bottom: 60px; }
+
+/* ── Date filter bar ── */
+.dateBar {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;
+}
+.dateBtn {
+  padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 500;
+  border: 1px solid var(--gray-200); background: #fff; color: var(--gray-600);
+  cursor: pointer; white-space: nowrap; transition: all 0.15s;
+}
+.dateBtn:hover { border-color: var(--green-300); color: var(--green-700); }
+.dateBtnActive {
+  background: var(--green-50); border-color: var(--green-500); color: var(--green-700); font-weight: 600;
+}
+.dateInput {
+  padding: 5px 10px; border-radius: 8px; border: 1px solid var(--gray-200);
+  font-size: 13px; color: var(--gray-700); background: #fff;
+}
+
+/* ── Summary cards ── */
 .summaryGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
 .summaryCard {
   padding: 20px; border-radius: var(--radius-xl); border: 1px solid var(--border);
@@ -7,12 +28,83 @@
 .summaryValue { font-size: 28px; font-weight: 700; color: var(--gray-800); }
 .summaryHint { font-size: 12px; color: var(--gray-400); display: block; margin-top: 2px; }
 
+/* ── Tabs ── */
+.tabBar {
+  display: flex; gap: 0; border-bottom: 2px solid var(--gray-100); margin-bottom: 20px;
+}
+.tab {
+  padding: 10px 20px; font-size: 14px; font-weight: 600; color: var(--gray-500);
+  border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent;
+  margin-bottom: -2px; transition: all 0.15s;
+}
+.tab:hover { color: var(--gray-700); }
+.tabActive { color: var(--green-700); border-bottom-color: var(--green-600); }
+
+/* ── Transaction list ── */
+.txList { display: flex; flex-direction: column; }
+
+.txRow {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 0; border-bottom: 1px solid var(--gray-50); cursor: pointer;
+  transition: background 0.15s;
+}
+.txRow:hover { background: var(--gray-25, #fafafa); border-radius: 8px; margin: 0 -8px; padding: 14px 8px; }
+
+.txIcon {
+  width: 36px; height: 36px; border-radius: 10px; display: flex;
+  align-items: center; justify-content: center; font-size: 18px;
+  flex-shrink: 0; margin-right: 12px;
+}
+
+.txLeft { display: flex; align-items: center; flex: 1; min-width: 0; }
+.txInfo { display: flex; flex-direction: column; min-width: 0; }
+.txTitle { font-size: 14px; font-weight: 600; color: var(--gray-800); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.txSub { font-size: 12px; color: var(--gray-400); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.txRight { text-align: right; flex-shrink: 0; margin-left: 12px; }
+.txAmount { font-size: 14px; font-weight: 700; }
+.txAmountCredit { color: var(--green-700); }
+.txAmountDebit { color: var(--gray-700); }
+.txStatus { font-size: 11px; color: var(--gray-400); margin-top: 2px; }
+
+/* ── Type-specific icon colors ── */
+.iconPurchase { background: var(--blue-50); }
+.iconSale { background: var(--green-50); }
+.iconCharge { background: var(--purple-50, #f3e8ff); }
+.iconFee { background: var(--amber-50); }
+.iconGiftCard { background: var(--pink-50, #fdf2f8); }
+.iconCharity { background: var(--red-50, #fef2f2); }
+.iconCashout { background: var(--green-50); }
+.iconCredit { background: var(--green-50); }
+.iconRefund { background: var(--amber-50); }
+.iconPayment { background: var(--blue-50); }
+
+/* ── Metadata row (expandable) ── */
+.txMeta {
+  padding: 10px 16px; margin: -1px 0 0; background: var(--gray-50);
+  border-bottom: 1px solid var(--gray-100); font-size: 12px; color: var(--gray-600);
+  display: flex; flex-wrap: wrap; gap: 12px;
+  animation: fadeIn 0.15s;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.metaItem { display: flex; gap: 4px; }
+.metaLabel { font-weight: 600; color: var(--gray-500); }
+.metaLink { color: var(--green-600); text-decoration: underline; cursor: pointer; }
+
+/* ── Empty state ── */
+.emptyState {
+  text-align: center; padding: 60px 20px; color: var(--gray-400);
+}
+.emptyIcon { font-size: 48px; margin-bottom: 12px; display: block; }
+
+/* ── Info box ── */
 .infoBox {
   background: var(--green-50); border: 1px solid var(--green-200); border-radius: var(--radius-xl);
   padding: 16px 20px; margin-bottom: 20px; font-size: 14px; color: var(--gray-700); line-height: 1.6;
 }
 .infoBox strong { color: var(--gray-800); display: block; margin-bottom: 6px; }
 
+/* ── Tax tracker ── */
 .taxTracker {
   background: #fff; border: 1px solid var(--border); border-radius: var(--radius-xl);
   padding: 20px; margin-bottom: 24px;
@@ -23,11 +115,30 @@
   padding: 10px 14px; font-size: 13px; color: var(--amber-700);
 }
 
-.historySection { padding-bottom: 40px; }
-.historyList { display: flex; flex-direction: column; }
-.historyRow {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 12px 0; border-bottom: 1px solid var(--gray-100);
+/* ── Load more ── */
+.loadMore {
+  display: flex; justify-content: center; padding: 16px;
 }
+.loadMoreBtn {
+  padding: 8px 24px; border-radius: 20px; font-size: 13px; font-weight: 600;
+  border: 1px solid var(--gray-200); background: #fff; color: var(--gray-600);
+  cursor: pointer; transition: all 0.15s;
+}
+.loadMoreBtn:hover { border-color: var(--green-300); color: var(--green-700); }
 
-@media (max-width: 768px) { .summaryGrid { grid-template-columns: repeat(2, 1fr); } .summaryValue { font-size: 22px; } }
+/* ── Auto-redeem card ── */
+.autoRedeemCard {
+  background: linear-gradient(135deg, var(--green-50) 0%, var(--blue-50, #eff6ff) 100%);
+  border: 1px solid var(--green-200); border-radius: var(--radius-xl);
+  padding: 16px 20px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px;
+  cursor: pointer; transition: all 0.15s;
+}
+.autoRedeemCard:hover { border-color: var(--green-400); }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .summaryGrid { grid-template-columns: repeat(2, 1fr); }
+  .summaryValue { font-size: 22px; }
+  .dateBar { gap: 6px; }
+  .dateBtn { padding: 5px 10px; font-size: 12px; }
+}

@@ -1,0 +1,93 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.2s ease;
+}
+
+.sheet {
+  background: #fff;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  max-height: 90vh;
+  width: 100%;
+  max-width: 500px;
+  overflow: auto;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.headerTitle { font-size: 18px; font-weight: 700; color: var(--gray-900); }
+
+.closeBtn {
+  width: 32px; height: 32px; border-radius: 16px;
+  background: var(--gray-100); border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; color: var(--gray-600);
+}
+.closeBtn:hover { background: var(--gray-200); }
+
+.body { padding: 0 24px 24px; }
+
+.section { margin-top: 16px; }
+.sectionLabel {
+  font-size: 11px; font-weight: 600; color: var(--gray-400);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.divider { height: 1px; background: var(--green-200); margin: 12px 0; }
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+}
+
+.rowLabel { font-size: 13px; color: var(--gray-500); }
+.rowValue { font-size: 13px; color: var(--gray-800); font-weight: 500; text-align: right; max-width: 60%; }
+
+.totalRow { margin-top: 4px; }
+.totalLabel { font-size: 14px; font-weight: 700; color: var(--gray-800); }
+.totalValue { font-size: 14px; font-weight: 700; color: var(--gray-800); }
+
+.feeRow { }
+.feeLabel { font-size: 13px; color: var(--amber-700); }
+.feeValue { font-size: 13px; color: var(--amber-700); }
+
+.payoutRow { margin-top: 4px; }
+.payoutLabel { font-size: 14px; font-weight: 700; color: var(--green-700); }
+.payoutValue { font-size: 14px; font-weight: 700; color: var(--green-700); }
+
+.receiptTitle {
+  font-size: 12px; font-weight: 700; color: var(--green-800);
+  text-align: center; padding: 12px 0 4px;
+}
+
+.statusBadge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 600;
+  padding: 3px 10px; border-radius: 12px;
+}
+.statusCompleted { background: var(--green-50); color: var(--green-700); }
+.statusPending { background: var(--amber-50); color: var(--amber-700); }
+.statusDelivered { background: var(--blue-50); color: var(--blue-700); }
+
+@media (max-width: 768px) {
+  .sheet { max-height: 95vh; }
+}
