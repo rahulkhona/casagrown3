@@ -11,7 +11,7 @@
 }
 .video {
   width: 100%; display: block;
-  max-height: 60vh; object-fit: cover;
+  max-height: 70vh; object-fit: contain;
 }
 .controls {
   display: flex; align-items: center; justify-content: center; gap: 12px;

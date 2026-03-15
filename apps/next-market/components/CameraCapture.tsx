@@ -57,8 +57,8 @@ export default function CameraCapture({
 
     const constraints: MediaStreamConstraints = {
       video: deviceId
-        ? { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
-        : { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }
+        ? { deviceId: { exact: deviceId }, width: { ideal: 720 }, height: { ideal: 1280 } }
+        : { facingMode, width: { ideal: 720 }, height: { ideal: 1280 } }
     }
     const ms = await navigator.mediaDevices.getUserMedia(constraints)
     streamRef.current = ms
@@ -131,14 +131,41 @@ export default function CameraCapture({
       canvas.getContext('2d')!.drawImage(video, 0, 0)
     }
 
+    const now = new Date()
     const meta: CaptureMetadata = {
-      timestamp: new Date().toISOString(),
+      timestamp: now.toISOString(),
     }
     if (geoPosition) {
       meta.latitude = geoPosition.coords.latitude
       meta.longitude = geoPosition.coords.longitude
       meta.accuracy = geoPosition.coords.accuracy
     }
+
+    // Burn timestamp + location onto the photo
+    const ctx = canvas.getContext('2d')!
+    const fontSize = Math.max(14, Math.round(canvas.width / 40))
+    ctx.font = `bold ${fontSize}px monospace`
+    const lines: string[] = [
+      `🕐 ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`,
+    ]
+    if (meta.latitude) {
+      lines.push(`📍 ${meta.latitude.toFixed(5)}, ${meta.longitude!.toFixed(5)} ±${Math.round(meta.accuracy || 0)}m`)
+    }
+    const lineHeight = fontSize * 1.4
+    const padding = fontSize * 0.6
+    const boxHeight = lines.length * lineHeight + padding * 2
+    const boxY = canvas.height - boxHeight
+
+    // Semi-transparent background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'
+    ctx.fillRect(0, boxY, canvas.width, boxHeight)
+
+    // White text
+    ctx.fillStyle = '#ffffff'
+    ctx.textBaseline = 'top'
+    lines.forEach((line, i) => {
+      ctx.fillText(line, padding, boxY + padding + i * lineHeight)
+    })
 
     canvas.toBlob((blob) => {
       if (!blob) return
