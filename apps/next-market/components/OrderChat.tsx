@@ -16,9 +16,11 @@ interface OrderChatProps {
   orderId: string
   otherUserName: string
   otherUserId: string
+  myAvatar?: string
+  otherAvatar?: string
 }
 
-export default function OrderChat({ orderId, otherUserName, otherUserId }: OrderChatProps) {
+export default function OrderChat({ orderId, otherUserName, otherUserId, myAvatar, otherAvatar }: OrderChatProps) {
   const supabase = useMemo(() => createClient(), [])
   const { user } = useAuth()
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -174,19 +176,38 @@ export default function OrderChat({ orderId, otherUserName, otherUserId }: Order
         )}
         {messages.map((msg) => {
           const isMine = msg.sender_id === user.id
+          const avatar = isMine ? myAvatar : otherAvatar
+          const initials = isMine ? '👤' : otherUserName.charAt(0).toUpperCase()
           return (
-            <div key={msg.id} className={`${styles.messageBubble} ${isMine ? styles.mine : styles.theirs}`}>
-              <div className={styles.bubbleContent}>{msg.content}</div>
-              <div className={styles.bubbleTime}>
-                {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            <div key={msg.id} className={`${styles.messageRow} ${isMine ? styles.mine : styles.theirs}`}>
+              {!isMine && (
+                <div className={styles.avatar}>
+                  {avatar ? <img src={avatar} alt="" /> : <span>{initials}</span>}
+                </div>
+              )}
+              <div className={styles.messageBubble}>
+                <div className={styles.bubbleContent}>{msg.content}</div>
+                <div className={styles.bubbleTime}>
+                  {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </div>
               </div>
+              {isMine && (
+                <div className={styles.avatar}>
+                  {avatar ? <img src={avatar} alt="" /> : <span>{'👤'}</span>}
+                </div>
+              )}
             </div>
           )
         })}
         {isTyping && (
-          <div className={`${styles.messageBubble} ${styles.theirs}`}>
-            <div className={styles.typingIndicator}>
-              <span /><span /><span />
+          <div className={`${styles.messageRow} ${styles.theirs}`}>
+            <div className={styles.avatar}>
+              {otherAvatar ? <img src={otherAvatar} alt="" /> : <span>{otherUserName.charAt(0).toUpperCase()}</span>}
+            </div>
+            <div className={styles.messageBubble}>
+              <div className={styles.typingIndicator}>
+                <span /><span /><span />
+              </div>
             </div>
           </div>
         )}

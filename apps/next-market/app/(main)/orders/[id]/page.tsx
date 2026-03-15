@@ -51,6 +51,8 @@ interface OrderDetail {
   seller_name: string
   buyer_address?: string
   seller_address?: string
+  buyer_avatar?: string
+  seller_avatar?: string
   booth_name: string
 }
 
@@ -120,7 +122,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     if (!user) return
     const { data } = await supabase
       .from('market_orders')
-      .select('*, buyer:buyer_id(full_name, street_address), seller:seller_id(full_name, street_address), booth:booth_id(name)')
+      .select('*, buyer:buyer_id(full_name, street_address, avatar_url), seller:seller_id(full_name, street_address, avatar_url), booth:booth_id(name)')
       .eq('id', orderId)
       .single()
 
@@ -131,6 +133,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         seller_name: (data as any).seller?.full_name || 'Unknown',
         buyer_address: (data as any).buyer?.street_address || undefined,
         seller_address: (data as any).seller?.street_address || undefined,
+        buyer_avatar: (data as any).buyer?.avatar_url || undefined,
+        seller_avatar: (data as any).seller?.avatar_url || undefined,
         booth_name: (data as any).booth?.name || 'Unknown Booth',
       } as OrderDetail)
 
@@ -361,6 +365,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             orderId={orderId}
             otherUserName={isSeller ? order.buyer_name : order.seller_name}
             otherUserId={isSeller ? order.buyer_id : order.seller_id}
+            myAvatar={isSeller ? order.seller_avatar : order.buyer_avatar}
+            otherAvatar={isSeller ? order.buyer_avatar : order.seller_avatar}
           />
         </div>
       )}
