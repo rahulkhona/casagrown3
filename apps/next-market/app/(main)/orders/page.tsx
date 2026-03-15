@@ -125,16 +125,16 @@ export default function OrdersPage() {
   // Tab filter functions — vary by role
   const PAST = ['completed', 'resolved', 'declined', 'cancelled', 'pickup_declined']
   const tabMatchers: Record<string, (o: MarketOrder) => boolean> = role === 'selling' ? {
-    // Sellers: delivered/ready_for_pickup go to Completed (not actionable by seller)
+    // Sellers: delivered orders go to Completed (not actionable by seller)
     pending_delivery:  o => o.status === 'pending' && o.fulfillment_type === 'delivery',
     pending_pickup:    o => o.status === 'pending' && o.fulfillment_type === 'pickup',
     disputed:          o => ['disputed', 'escalated'].includes(o.status),
-    completed:         o => [...PAST, 'delivered', 'ready_for_pickup', 'confirmed'].includes(o.status),
+    completed:         o => [...PAST, 'delivered', 'confirmed'].includes(o.status),
   } : {
-    // Buyers: pickup orders stay in Pickup tab throughout; Confirmation only for deliveries
+    // Buyers: delivered pickup orders stay in Pickup tab; Confirmation only for deliveries
     pending_delivery:  o => o.status === 'pending' && o.fulfillment_type === 'delivery',
-    pending_pickup:    o => (o.status === 'pending' || o.status === 'ready_for_pickup') && o.fulfillment_type === 'pickup',
-    pending_confirm:   o => ['delivered', 'confirmed'].includes(o.status),
+    pending_pickup:    o => ['pending', 'delivered'].includes(o.status) && o.fulfillment_type === 'pickup',
+    pending_confirm:   o => ['delivered', 'confirmed'].includes(o.status) && o.fulfillment_type === 'delivery',
     disputed:          o => ['disputed', 'escalated'].includes(o.status),
     completed:         o => PAST.includes(o.status),
   }

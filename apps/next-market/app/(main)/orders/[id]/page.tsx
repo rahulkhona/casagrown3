@@ -304,14 +304,17 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       )}
 
-      {/* SELLER: Pending pickup → Mark Ready */}
+      {/* SELLER: Pending pickup → Hand Off to Buyer (optional photo) */}
       {isSeller && order.status === 'pending' && order.fulfillment_type === 'pickup' && (
         <div className={styles.actionPanel}>
           <h2 className={styles.sectionTitle}>Actions</h2>
           <div className={styles.actionButtons}>
+            <button className="btn btn-primary" onClick={() => setShowDeliveryProof(true)}>
+              📍 Hand Off with Photo
+            </button>
             <button className="btn btn-primary" disabled={actionLoading}
-              onClick={() => callRpc('seller_mark_ready_pickup', { p_order_id: orderId })}>
-              📍 Mark Ready for Pickup
+              onClick={() => callRpc('seller_mark_ready_pickup', { p_order_id: orderId, p_proof: [] })}>
+              ✓ Mark Handed Off
             </button>
             <button className="btn btn-outline" onClick={() => setShowDecline(true)}>
               ✕ Decline Order
@@ -320,64 +323,19 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       )}
 
-      {/* BUYER: Delivered → Confirm or Dispute */}
+      {/* BUYER: Delivered (delivery or pickup) → Confirm or Dispute */}
       {isBuyer && order.status === 'delivered' && (
         <div className={styles.actionPanel}>
-          <h2 className={styles.sectionTitle}>Confirm Receipt</h2>
+          <h2 className={styles.sectionTitle}>{order.fulfillment_type === 'pickup' ? 'Confirm Pickup' : 'Confirm Receipt'}</h2>
           <div className={styles.actionButtons}>
             <button className="btn btn-primary" disabled={actionLoading}
               onClick={() => callRpc('buyer_confirm_delivery', { p_order_id: orderId })}>
-              ✓ Confirm Delivery
+              ✓ {order.fulfillment_type === 'pickup' ? 'Confirm Pickup' : 'Confirm Delivery'}
             </button>
             <button className="btn btn-danger" onClick={() => setShowDispute(true)}>
               ⚠️ Dispute
             </button>
           </div>
-        </div>
-      )}
-
-      {/* PICKUP: Passcode exchange */}
-      {order.status === 'ready_for_pickup' && (
-        <div className={styles.actionPanel}>
-          <h2 className={styles.sectionTitle}>Pickup Exchange</h2>
-          <div className={styles.passcodeSection}>
-            <div className={styles.passcodeDisplay}>
-              <span className={styles.passcodeLabel}>Your passcode (show to {isBuyer ? 'seller' : 'buyer'})</span>
-              <div className={styles.passcodeValue}>{isBuyer ? order.buyer_passcode : order.seller_passcode}</div>
-            </div>
-
-            {((isBuyer && !order.buyer_passcode_entered) || (isSeller && !order.seller_passcode_entered)) ? (
-              <div className={styles.passcodeEntry}>
-                <span className={styles.passcodeLabel}>Enter {isBuyer ? "seller's" : "buyer's"} passcode</span>
-                <div className={styles.passcodeInputRow}>
-                  <input
-                    type="text"
-                    className={styles.passcodeInput}
-                    value={passcodeInput}
-                    onChange={e => setPasscodeInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                    placeholder="0000"
-                    maxLength={4}
-                    inputMode="numeric"
-                  />
-                  <button className="btn btn-primary" disabled={passcodeInput.length !== 4 || actionLoading}
-                    onClick={() => callRpc('enter_pickup_passcode', { p_order_id: orderId, p_passcode: passcodeInput })}>
-                    Verify
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className={styles.infoBox} data-type="success">
-                ✓ You've entered the passcode. Waiting for {isBuyer ? 'seller' : 'buyer'}.
-              </div>
-            )}
-          </div>
-
-          {isBuyer && (
-            <button className="btn btn-outline btn-sm" style={{ marginTop: 12 }}
-              onClick={() => setShowPickupDecline(true)}>
-              ✕ Decline Pickup
-            </button>
-          )}
         </div>
       )}
 
@@ -686,7 +644,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                       })
                     }
                   }
-                  await callRpc('seller_mark_delivered', { p_order_id: orderId, p_proof: proofUrls })
+                  const rpc = order.fulfillment_type === 'pickup' ? 'seller_mark_ready_pickup' : 'seller_mark_delivered'
+                  await callRpc(rpc, { p_order_id: orderId, p_proof: proofUrls })
                   proofPhotos.forEach(p => URL.revokeObjectURL(p.preview))
                   setProofPhotos([])
                   setShowDeliveryProof(false)
