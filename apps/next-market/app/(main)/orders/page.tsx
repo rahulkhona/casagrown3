@@ -135,13 +135,13 @@ export default function OrdersPage() {
     .filter(o => tabMatchers[tab]?.(o) ?? false)
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
-  // Tab definitions with short labels for mobile
+  // Tab definitions — short labels for all screens
   const tabDefs = [
-    { key: 'pending_delivery', label: 'Pending Delivery', short: 'Delivery',  icon: '🚗' },
-    { key: 'pending_pickup',   label: 'Pending Pickup',   short: 'Pickup',    icon: '📍' },
-    { key: 'pending_confirm',  label: 'Pending Confirmation', short: 'Confirm', icon: '⏳' },
-    { key: 'disputed',         label: 'Disputed',         short: 'Disputed',  icon: '⚠️' },
-    { key: 'completed',        label: 'Completed',        short: 'Done',      icon: '✓' },
+    { key: 'pending_delivery', label: 'Delivery' },
+    { key: 'pending_pickup',   label: 'Pickup' },
+    { key: 'pending_confirm',  label: 'Confirmation' },
+    { key: 'disputed',         label: 'Disputed' },
+    { key: 'completed',        label: 'Completed' },
   ]
 
   const tabs = tabDefs.map(t => ({
@@ -169,14 +169,14 @@ export default function OrdersPage() {
           className={`${styles.roleBtn} ${role === 'selling' ? styles.roleBtnActive : ''}`}
           onClick={() => { setRole('selling'); setTab('pending_delivery') }}
         >
-          🏪 <span className={styles.tabLabelFull}>My Sales</span><span className={styles.tabLabelShort}>Sales</span>
+          🏪 Sales
           {sellingCount > 0 && <span className={styles.tabCount}>{sellingCount}</span>}
         </button>
         <button
           className={`${styles.roleBtn} ${role === 'buying' ? styles.roleBtnActive : ''}`}
           onClick={() => { setRole('buying'); setTab('pending_delivery') }}
         >
-          🛒 <span className={styles.tabLabelFull}>My Purchases</span><span className={styles.tabLabelShort}>Purchases</span>
+          🛒 Purchases
           {buyingCount > 0 && <span className={styles.tabCount}>{buyingCount}</span>}
         </button>
       </div>
@@ -190,8 +190,7 @@ export default function OrdersPage() {
               className={`${styles.tabPill} ${tab === t.key ? styles.tabPillActive : ''}`}
               onClick={() => setTab(t.key)}
             >
-              <span className={styles.tabLabelFull}>{t.label}</span>
-              <span className={styles.tabLabelShort}>{t.short}</span>
+              {t.label}
               {t.count > 0 && <span className={styles.tabCount}>{t.count}</span>}
             </button>
           ))}

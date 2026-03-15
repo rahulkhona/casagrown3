@@ -177,11 +177,4 @@
   background: rgba(255,255,255,0.3);
 }
 
-/* Mobile: shorter labels */
-.tabLabelFull { display: inline; }
-.tabLabelShort { display: none; }
-@media (max-width: 600px) {
-  .tabLabelFull { display: none; }
-  .tabLabelShort { display: inline; }
-  .roleBtn { font-size: 12px; padding: 7px 8px; }
-}
+
