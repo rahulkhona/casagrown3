@@ -314,6 +314,21 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           <div className={styles.priceRow}><span>{order.quantity} × {formatUsd(order.unit_price_usd)}</span><span>{formatUsd(order.subtotal_usd)}</span></div>
           {order.tax_amount_usd > 0 && <div className={styles.priceRow}><span>Tax ({order.tax_rate_pct}%)</span><span>{formatUsd(order.tax_amount_usd)}</span></div>}
           <div className={`${styles.priceRow} ${styles.priceTotal}`}><span>Total</span><span>{formatUsd(order.total_usd)}</span></div>
+
+          {/* Seller-only: platform fee & net payout */}
+          {isSeller && order.platform_fee_usd > 0 && (
+            <>
+              <div style={{ borderTop: '1px dashed var(--gray-200, #e5e7eb)', margin: '8px 0' }} />
+              <div className={styles.priceRow} style={{ color: 'var(--gray-500)', fontSize: 13 }}>
+                <span>Platform Fee ({order.platform_fee_pct}%)</span>
+                <span>−{formatUsd(order.platform_fee_usd)}</span>
+              </div>
+              <div className={`${styles.priceRow} ${styles.priceTotal}`} style={{ color: 'var(--green-600, #16a34a)' }}>
+                <span>Your Payout</span>
+                <span>{formatUsd(order.total_usd - order.platform_fee_usd)}</span>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
