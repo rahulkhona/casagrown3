@@ -90,11 +90,63 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [newMessage, setNewMessage] = useState('')
   const [countdown, setCountdown] = useState('')
   const [showDeliveryProof, setShowDeliveryProof] = useState(false)
-  const [proofPhotos, setProofPhotos] = useState<File[]>([])
-  const [proofPreviews, setProofPreviews] = useState<string[]>([])
+  const [proofPhotos, setProofPhotos] = useState<{ blob: Blob; preview: string }[]>([])
   const [uploading, setUploading] = useState(false)
+  const [cameraActive, setCameraActive] = useState(false)
+  const [cameraError, setCameraError] = useState('')
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  // Start/stop camera when delivery proof modal opens/closes
+  useEffect(() => {
+    if (showDeliveryProof) {
+      setCameraError('')
+      navigator.mediaDevices?.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 960 } } })
+        .then(stream => {
+          streamRef.current = stream
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream
+            videoRef.current.play()
+          }
+          setCameraActive(true)
+        })
+        .catch(err => {
+          setCameraError('Camera access denied. Please allow camera permissions and try again.')
+          console.error('Camera error:', err)
+        })
+    } else {
+      // Stop camera
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop())
+        streamRef.current = null
+      }
+      setCameraActive(false)
+    }
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop())
+        streamRef.current = null
+      }
+    }
+  }, [showDeliveryProof])
+
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.drawImage(video, 0, 0)
+    canvas.toBlob(blob => {
+      if (!blob) return
+      const preview = URL.createObjectURL(blob)
+      setProofPhotos(prev => [...prev, { blob, preview }])
+    }, 'image/jpeg', 0.85)
+  }
 
   const loadOrder = useCallback(async () => {
     if (!user) return
@@ -605,9 +657,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         <div className={styles.fullscreenModal}>
           <div className={styles.modalHeader}>
             <button className={styles.modalClose} onClick={() => {
-              proofPreviews.forEach(u => URL.revokeObjectURL(u))
+              proofPhotos.forEach(p => URL.revokeObjectURL(p.preview))
               setProofPhotos([])
-              setProofPreviews([])
               setShowDeliveryProof(false)
             }}>← Back</button>
             <h2>Delivery Proof</h2>
@@ -615,51 +666,66 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           </div>
 
           <div className={styles.modalBody}>
-            <p className={styles.actionHint} style={{ textAlign: 'center', marginBottom: 16 }}>
-              Take at least one photo of the delivered order as proof
-            </p>
+            {/* Hidden canvas for capturing frames */}
+            <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-            {/* Hidden camera input */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              style={{ display: 'none' }}
-              onChange={(e) => {
-                const files = Array.from(e.target.files || [])
-                if (files.length === 0) return
-                setProofPhotos(prev => [...prev, ...files])
-                const newPreviews = files.map(f => URL.createObjectURL(f))
-                setProofPreviews(prev => [...prev, ...newPreviews])
-                e.target.value = ''
-              }}
-            />
-
-            {/* Photo previews */}
-            {proofPreviews.length > 0 && (
-              <div className={styles.photoGrid} style={{ marginBottom: 16 }}>
-                {proofPreviews.map((url, i) => (
-                  <div key={i} style={{ position: 'relative', borderRadius: 12, overflow: 'hidden' }}>
-                    <img src={url} alt={`Proof ${i + 1}`} style={{ width: '100%', height: 140, objectFit: 'cover' }} />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        URL.revokeObjectURL(url)
-                        setProofPhotos(prev => prev.filter((_, j) => j !== i))
-                        setProofPreviews(prev => prev.filter((_, j) => j !== i))
-                      }}
-                      style={{ position: 'absolute', top: 6, right: 6, width: 26, height: 26, borderRadius: '50%', background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                    >✕</button>
-                  </div>
-                ))}
+            {cameraError ? (
+              <div className={styles.infoBox} data-type="warning" style={{ textAlign: 'center' }}>
+                {cameraError}
               </div>
+            ) : (
+              <>
+                {/* Live camera view */}
+                <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', background: '#000', marginBottom: 16 }}>
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    style={{ width: '100%', display: 'block', maxHeight: 300, objectFit: 'cover' }}
+                  />
+                  {!cameraActive && (
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14 }}>
+                      Starting camera...
+                    </div>
+                  )}
+                </div>
+
+                {/* Shutter button */}
+                <button
+                  className="btn btn-outline"
+                  style={{ width: '100%', marginBottom: 16, fontSize: 16 }}
+                  onClick={capturePhoto}
+                  disabled={!cameraActive}
+                >
+                  📸 Capture Photo
+                </button>
+              </>
             )}
 
-            {/* Take photo button */}
-            <button className="btn btn-outline" style={{ width: '100%', marginBottom: 12 }} onClick={() => fileInputRef.current?.click()}>
-              📸 {proofPhotos.length > 0 ? 'Take Another Photo' : 'Take Photo'}
-            </button>
+            {/* Captured photos */}
+            {proofPhotos.length > 0 && (
+              <>
+                <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--gray-600)', marginBottom: 8 }}>
+                  {proofPhotos.length} photo{proofPhotos.length !== 1 ? 's' : ''} captured
+                </p>
+                <div className={styles.photoGrid} style={{ marginBottom: 16 }}>
+                  {proofPhotos.map((p, i) => (
+                    <div key={i} style={{ position: 'relative', borderRadius: 12, overflow: 'hidden' }}>
+                      <img src={p.preview} alt={`Proof ${i + 1}`} style={{ width: '100%', height: 100, objectFit: 'cover' }} />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          URL.revokeObjectURL(p.preview)
+                          setProofPhotos(prev => prev.filter((_, j) => j !== i))
+                        }}
+                        style={{ position: 'absolute', top: 4, right: 4, width: 24, height: 24, borderRadius: '50%', background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      >✕</button>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
 
             {/* Submit */}
             <button
@@ -670,19 +736,17 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                 setUploading(true)
                 try {
                   const proofUrls: any[] = []
-                  for (const file of proofPhotos) {
-                    const ext = file.name.split('.').pop() || 'jpg'
-                    const path = `${orderId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-                    const { error } = await supabase.storage.from('order-evidence').upload(path, file)
+                  for (const photo of proofPhotos) {
+                    const path = `${orderId}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`
+                    const { error } = await supabase.storage.from('order-evidence').upload(path, photo.blob)
                     if (!error) {
                       const { data: urlData } = supabase.storage.from('order-evidence').getPublicUrl(path)
                       proofUrls.push({ url: urlData.publicUrl, timestamp: new Date().toISOString() })
                     }
                   }
                   await callRpc('seller_mark_delivered', { p_order_id: orderId, p_proof: JSON.stringify(proofUrls) })
-                  proofPreviews.forEach(u => URL.revokeObjectURL(u))
+                  proofPhotos.forEach(p => URL.revokeObjectURL(p.preview))
                   setProofPhotos([])
-                  setProofPreviews([])
                   setShowDeliveryProof(false)
                 } finally {
                   setUploading(false)
