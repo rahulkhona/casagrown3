@@ -281,14 +281,13 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       {isSeller && order.status === 'pending' && order.fulfillment_type === 'delivery' && (
         <div className={styles.actionPanel}>
           <h2 className={styles.sectionTitle}>Mark as Delivered</h2>
-          <p className={styles.actionHint}>Upload geotagged photos as proof of delivery (at least 1 required)</p>
+          <p className={styles.actionHint}>Take photos as proof of delivery (at least 1 required — camera only, no uploads)</p>
 
-          {/* Photo picker */}
+          {/* Camera capture only */}
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            multiple
             capture="environment"
             style={{ display: 'none' }}
             onChange={(e) => {
@@ -323,7 +322,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
           <div className={styles.actionButtons}>
             <button className="btn btn-outline" onClick={() => fileInputRef.current?.click()}>
-              📷 {proofPhotos.length > 0 ? 'Add More Photos' : 'Take / Upload Photos'}
+              📸 {proofPhotos.length > 0 ? 'Take Another Photo' : 'Take Photo'}
             </button>
             <button className="btn btn-primary" disabled={proofPhotos.length === 0 || actionLoading || uploading}
               onClick={async () => {
