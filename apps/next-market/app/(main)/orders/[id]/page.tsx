@@ -692,15 +692,15 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       )}
 
-      {/* Camera overlay (shared component) */}
+      {/* Camera overlay (shared component) — single capture, returns to proof view */}
       {showCamera && (
         <CameraCapture
-          multiCapture
           captureLabel="📸 Capture Photo"
-          closeLabel="✓ Done"
+          closeLabel="✕ Cancel"
           onCapture={(result) => {
             const preview = URL.createObjectURL(result.file)
             setProofPhotos(prev => [...prev, { preview, result }])
+            setShowCamera(false)
           }}
           onClose={() => setShowCamera(false)}
         />

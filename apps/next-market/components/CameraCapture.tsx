@@ -57,8 +57,8 @@ export default function CameraCapture({
 
     const constraints: MediaStreamConstraints = {
       video: deviceId
-        ? { deviceId: { exact: deviceId }, width: { ideal: 720 }, height: { ideal: 1280 } }
-        : { facingMode, width: { ideal: 720 }, height: { ideal: 1280 } }
+        ? { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 960 } }
+        : { facingMode, width: { ideal: 1280 }, height: { ideal: 960 } }
     }
     const ms = await navigator.mediaDevices.getUserMedia(constraints)
     streamRef.current = ms
@@ -127,63 +127,70 @@ export default function CameraCapture({
       return
     }
 
+    // Set canvas size
+    let w = video.videoWidth
+    let h = video.videoHeight
+    if (cropSquare) {
+      const size = Math.min(w, h)
+      w = size; h = size
+    }
+    canvas.width = w
+    canvas.height = h
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) { console.error('Cannot get canvas context'); return }
+
+    // Draw video frame
     if (cropSquare) {
       const size = Math.min(video.videoWidth, video.videoHeight)
-      canvas.width = size; canvas.height = size
-      const ctx = canvas.getContext('2d')!
       const sx = (video.videoWidth - size) / 2
       const sy = (video.videoHeight - size) / 2
       ctx.drawImage(video, sx, sy, size, size, 0, 0, size, size)
     } else {
-      canvas.width = video.videoWidth
-      canvas.height = video.videoHeight
-      canvas.getContext('2d')!.drawImage(video, 0, 0)
+      ctx.drawImage(video, 0, 0, w, h)
     }
 
+    // Build metadata
     const now = new Date()
-    const meta: CaptureMetadata = {
-      timestamp: now.toISOString(),
-    }
+    const meta: CaptureMetadata = { timestamp: now.toISOString() }
     if (geoPosition) {
       meta.latitude = geoPosition.coords.latitude
       meta.longitude = geoPosition.coords.longitude
       meta.accuracy = geoPosition.coords.accuracy
     }
 
-    // Burn timestamp + location onto the photo (no emoji — Safari canvas issue)
-    const ctx = canvas.getContext('2d')!
-    const fontSize = Math.max(14, Math.round(canvas.width / 40))
+    // Burn timestamp + location text onto the photo
+    const fontSize = Math.max(16, Math.round(w / 35))
     ctx.font = `bold ${fontSize}px monospace`
-    const lines: string[] = [
-      `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`,
+    const stampLines: string[] = [
+      `Date: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`,
     ]
-    if (meta.latitude) {
-      lines.push(`GPS: ${meta.latitude.toFixed(5)}, ${meta.longitude!.toFixed(5)} +/-${Math.round(meta.accuracy || 0)}m`)
+    if (meta.latitude != null) {
+      stampLines.push(`Loc: ${meta.latitude.toFixed(5)}, ${meta.longitude!.toFixed(5)} +/-${Math.round(meta.accuracy || 0)}m`)
+    } else {
+      stampLines.push('Loc: GPS unavailable')
     }
-    const lineHeight = fontSize * 1.4
-    const padding = fontSize * 0.6
-    const boxHeight = lines.length * lineHeight + padding * 2
-    const boxY = canvas.height - boxHeight
+    const lh = fontSize * 1.5
+    const pad = fontSize * 0.7
+    const boxH = stampLines.length * lh + pad * 2
+    const boxY = h - boxH
 
-    // Semi-transparent background
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'
-    ctx.fillRect(0, boxY, canvas.width, boxHeight)
-
-    // White text
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.65)'
+    ctx.fillRect(0, boxY, w, boxH)
     ctx.fillStyle = '#ffffff'
     ctx.textBaseline = 'top'
-    lines.forEach((line, i) => {
-      ctx.fillText(line, padding, boxY + padding + i * lineHeight)
+    stampLines.forEach((line, i) => {
+      ctx.fillText(line, pad, boxY + pad + i * lh)
     })
 
+    // Create blob — stop stream AFTER blob is ready
     canvas.toBlob((blob) => {
       if (!blob) return
-      const file = new File([blob], `capture-${Date.now()}.jpg`, { type: 'image/jpeg' })
+      const file = new File([blob], `proof-${Date.now()}.jpg`, { type: 'image/jpeg' })
       if (!multiCapture) {
         streamRef.current?.getTracks().forEach(t => t.stop())
       }
       onCapture({ file, meta })
-      // Visual feedback
       setCaptureCount(c => c + 1)
       setFlash(true)
       setTimeout(() => setFlash(false), 200)
