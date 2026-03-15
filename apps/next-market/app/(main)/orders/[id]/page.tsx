@@ -92,7 +92,11 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [showDecline, setShowDecline] = useState(false)
   const [declineReason, setDeclineReason] = useState('')
   const [showDispute, setShowDispute] = useState(false)
+  const [disputeType, setDisputeType] = useState<string | null>(null)
   const [disputeReason, setDisputeReason] = useState('')
+  const [disputeQuantityReceived, setDisputeQuantityReceived] = useState('')
+  const [disputePhotos, setDisputePhotos] = useState<{ preview: string; result: CaptureResult }[]>([])
+  const [showDisputeCamera, setShowDisputeCamera] = useState(false)
   const [showRefund, setShowRefund] = useState(false)
   const [refundType, setRefundType] = useState<'full' | 'partial'>('full')
   const [refundAmount, setRefundAmount] = useState('')
@@ -550,25 +554,141 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       {/* Dispute form modal */}
       {showDispute && (
         <div className={styles.modal}>
-          <div className={styles.modalContent}>
+          <div className={styles.modalContent} style={{ maxWidth: 440 }}>
             <h3>File a Dispute</h3>
-            <p>Describe the issue with your delivery. You can upload photos as evidence.</p>
-            <textarea
-              value={disputeReason}
-              onChange={e => setDisputeReason(e.target.value)}
-              placeholder="What's wrong with the delivery?"
-              rows={3}
-            />
-            <div className={styles.modalActions}>
-              <button className="btn btn-danger" disabled={!disputeReason.trim() || actionLoading}
-                onClick={async () => {
-                  await callRpc('buyer_dispute_order', { p_order_id: orderId, p_reason: disputeReason, p_photos: JSON.stringify([]) })
-                  setShowDispute(false)
-                }}>
-                Submit Dispute
-              </button>
-              <button className="btn btn-outline" onClick={() => setShowDispute(false)}>Cancel</button>
-            </div>
+
+            {/* Step 1: Pick type */}
+            {!disputeType ? (
+              <>
+                <p style={{ fontSize: 14, color: 'var(--gray-600)', marginBottom: 12 }}>What's the issue?</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {[
+                    { id: 'not_delivered', label: '📦 Not Delivered', desc: 'I never received this order' },
+                    { id: 'quantity_mismatch', label: '🔢 Quantity Mismatch', desc: 'Received fewer items than ordered' },
+                    { id: 'wrong_item', label: '❌ Wrong Item', desc: 'Received something different than ordered' },
+                    { id: 'poor_quality', label: '👎 Poor Quality', desc: 'Items are damaged, spoiled, or low quality' },
+                  ].map(t => (
+                    <button
+                      key={t.id}
+                      className="btn btn-outline"
+                      style={{ textAlign: 'left', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 2 }}
+                      onClick={() => setDisputeType(t.id)}
+                    >
+                      <span style={{ fontWeight: 600 }}>{t.label}</span>
+                      <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>{t.desc}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className={styles.modalActions} style={{ marginTop: 12 }}>
+                  <button className="btn btn-outline" onClick={() => setShowDispute(false)}>Cancel</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ background: 'var(--gray-50)', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 13 }}>
+                  <strong>{disputeType.replace(/_/g, ' ')}</strong>
+                  <button style={{ marginLeft: 8, fontSize: 12, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer' }}
+                    onClick={() => { setDisputeType(null); setDisputePhotos([]); setDisputeQuantityReceived('') }}>
+                    Change
+                  </button>
+                </div>
+
+                {/* Quantity mismatch: how many received */}
+                {disputeType === 'quantity_mismatch' && (
+                  <div className={styles.formGroup} style={{ marginBottom: 12 }}>
+                    <label style={{ fontWeight: 600, fontSize: 13 }}>How many did you receive?</label>
+                    <input
+                      type="number"
+                      value={disputeQuantityReceived}
+                      onChange={e => setDisputeQuantityReceived(e.target.value)}
+                      placeholder={`Ordered: ${order.quantity}`}
+                      min={0}
+                      max={order.quantity}
+                      style={{ marginTop: 4 }}
+                    />
+                  </div>
+                )}
+
+                {/* Photo required for: quantity_mismatch, wrong_item, poor_quality */}
+                {['quantity_mismatch', 'wrong_item', 'poor_quality'].includes(disputeType) && (
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ fontWeight: 600, fontSize: 13 }}>
+                      📸 Photo evidence {disputeType !== 'poor_quality' ? '(required)' : '(recommended)'}
+                    </label>
+                    {disputePhotos.length > 0 && (
+                      <div className={styles.photoGrid} style={{ marginTop: 8, marginBottom: 8 }}>
+                        {disputePhotos.map((p, i) => (
+                          <div key={i} style={{ position: 'relative', borderRadius: 8, overflow: 'hidden' }}>
+                            <img src={p.preview} alt={`Evidence ${i + 1}`} style={{ width: '100%', maxHeight: 120, objectFit: 'cover' }} />
+                            <button type="button" onClick={() => {
+                              URL.revokeObjectURL(p.preview)
+                              setDisputePhotos(prev => prev.filter((_, j) => j !== i))
+                            }} style={{ position: 'absolute', top: 2, right: 2, width: 20, height: 20, borderRadius: '50%', background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <button className="btn btn-outline btn-sm" onClick={() => setShowDisputeCamera(true)} style={{ width: '100%' }}>
+                      📸 {disputePhotos.length > 0 ? 'Take Another Photo' : 'Take Photo'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Optional notes */}
+                <textarea
+                  value={disputeReason}
+                  onChange={e => setDisputeReason(e.target.value)}
+                  placeholder="Additional details (optional)..."
+                  rows={2}
+                  style={{ marginBottom: 12 }}
+                />
+
+                <div className={styles.modalActions}>
+                  <button
+                    className="btn btn-danger"
+                    disabled={actionLoading
+                      || (disputeType === 'quantity_mismatch' && (!disputeQuantityReceived || disputePhotos.length === 0))
+                      || (disputeType === 'wrong_item' && disputePhotos.length === 0)
+                    }
+                    onClick={async () => {
+                      // Upload evidence photos
+                      const photoUrls: any[] = []
+                      for (const photo of disputePhotos) {
+                        const path = `disputes/${orderId}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`
+                        const { error } = await supabase.storage.from('order-evidence').upload(path, photo.result.file)
+                        if (!error) {
+                          const { data: urlData } = supabase.storage.from('order-evidence').getPublicUrl(path)
+                          photoUrls.push({ url: urlData.publicUrl, ...photo.result.meta })
+                        }
+                      }
+                      const reason = disputeReason.trim() || disputeType!.replace(/_/g, ' ')
+                      await callRpc('buyer_dispute_order', {
+                        p_order_id: orderId,
+                        p_reason: reason,
+                        p_photos: photoUrls,
+                        p_dispute_type: disputeType,
+                        p_quantity_received: disputeType === 'quantity_mismatch' ? parseInt(disputeQuantityReceived) : null,
+                      })
+                      disputePhotos.forEach(p => URL.revokeObjectURL(p.preview))
+                      setDisputePhotos([])
+                      setDisputeType(null)
+                      setDisputeReason('')
+                      setDisputeQuantityReceived('')
+                      setShowDispute(false)
+                    }}
+                  >
+                    Submit Dispute
+                  </button>
+                  <button className="btn btn-outline" onClick={() => {
+                    disputePhotos.forEach(p => URL.revokeObjectURL(p.preview))
+                    setDisputePhotos([])
+                    setDisputeType(null)
+                    setDisputeReason('')
+                    setShowDispute(false)
+                  }}>Cancel</button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -784,6 +904,20 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             }
           }}
           onClose={() => setShowCamera(false)}
+        />
+      )}
+
+      {/* Camera overlay for dispute evidence */}
+      {showDisputeCamera && (
+        <CameraCapture
+          captureLabel="📸 Capture Evidence"
+          closeLabel="✕ Cancel"
+          onCapture={(result) => {
+            const preview = URL.createObjectURL(result.file)
+            setDisputePhotos(prev => [...prev, { preview, result }])
+            setShowDisputeCamera(false)
+          }}
+          onClose={() => setShowDisputeCamera(false)}
         />
       )}
     </div>
