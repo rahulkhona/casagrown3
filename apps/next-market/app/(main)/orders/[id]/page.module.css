@@ -111,6 +111,13 @@
   font-size: 10px; color: #fff; background: rgba(0,0,0,0.5);
   padding: 2px 4px; text-align: center;
 }
+.proofMeta {
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 4px 6px; background: var(--gray-50);
+  font-size: 10px; color: var(--gray-500); line-height: 1.3;
+  border-bottom-left-radius: var(--radius);
+  border-bottom-right-radius: var(--radius);
+}
 
 /* Action panel */
 .actionPanel {

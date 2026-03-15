@@ -268,7 +268,11 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               {order.delivery_proof.map((p: any, i: number) => (
                 <div key={i} className={styles.proofPhoto}>
                   <img src={typeof p === 'string' ? p : p.url} alt={`Proof ${i + 1}`} />
-                  {p.timestamp && <span className={styles.photoTime}>{new Date(p.timestamp).toLocaleTimeString()}</span>}
+                  <div className={styles.proofMeta}>
+                    {p.timestamp && <span>🕐 {new Date(p.timestamp).toLocaleString()}</span>}
+                    {p.latitude && <span>📍 {Number(p.latitude).toFixed(5)}, {Number(p.longitude).toFixed(5)}</span>}
+                    {p.accuracy && <span>±{Math.round(p.accuracy)}m</span>}
+                  </div>
                 </div>
               ))}
             </div>
