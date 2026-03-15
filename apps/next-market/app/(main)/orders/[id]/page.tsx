@@ -411,9 +411,27 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               onClick={() => callRpc('buyer_confirm_delivery', { p_order_id: orderId })}>
               ✓ {order.fulfillment_type === 'pickup' ? 'Confirm Pickup' : 'Confirm Delivery'}
             </button>
-            <button className="btn btn-danger" onClick={() => setShowDispute(true)}>
-              ⚠️ Dispute
-            </button>
+          </div>
+
+          <div style={{ marginTop: 16 }}>
+            <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--gray-500)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Report an Issue</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {[
+                { id: 'not_delivered', label: '📦 Not Delivered' },
+                { id: 'quantity_mismatch', label: '🔢 Quantity Mismatch' },
+                { id: 'wrong_item', label: '❌ Wrong Item' },
+                { id: 'poor_quality', label: '👎 Poor Quality' },
+              ].map(t => (
+                <button
+                  key={t.id}
+                  className="btn btn-outline btn-sm"
+                  style={{ textAlign: 'left', fontSize: 13 }}
+                  onClick={() => { setDisputeType(t.id); setShowDispute(true) }}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
