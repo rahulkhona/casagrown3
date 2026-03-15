@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { createClient } from '../lib/supabase'
 import { useAuth } from '../lib/useAuth'
 import styles from './OrderChat.module.css'
@@ -19,7 +19,7 @@ interface OrderChatProps {
 }
 
 export default function OrderChat({ orderId, otherUserName, otherUserId }: OrderChatProps) {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const { user } = useAuth()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [newMsg, setNewMsg] = useState('')
@@ -29,9 +29,16 @@ export default function OrderChat({ orderId, otherUserName, otherUserId }: Order
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const channelRef = useRef<any>(null)
+  const mountedRef = useRef(true)
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [])
+
+  // Track mount status
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
   }, [])
 
   // Load existing messages
@@ -44,17 +51,19 @@ export default function OrderChat({ orderId, otherUserName, otherUserId }: Order
         .select('*')
         .eq('order_id', orderId)
         .order('created_at', { ascending: true })
-      if (data) setMessages(data)
+      if (data && mountedRef.current) setMessages(data)
     }
     loadMessages()
   }, [user, orderId, supabase])
 
-  // Subscribe to new messages via Realtime
+  // Subscribe to new messages + presence + typing on ONE channel
   useEffect(() => {
     if (!user) return
 
-    const msgChannel = supabase
-      .channel(`order-chat-${orderId}`)
+    const channel = supabase
+      .channel(`order-chat-${orderId}`, {
+        config: { presence: { key: user.id } },
+      })
       .on(
         'postgres_changes',
         {
@@ -64,52 +73,46 @@ export default function OrderChat({ orderId, otherUserName, otherUserId }: Order
           filter: `order_id=eq.${orderId}`,
         },
         (payload: any) => {
+          if (!mountedRef.current) return
           setMessages(prev => {
-            // Avoid duplicates
             if (prev.find(m => m.id === payload.new.id)) return prev
             return [...prev, payload.new as ChatMessage]
           })
         }
       )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(msgChannel)
-    }
-  }, [user, orderId, supabase])
-
-  // Presence + Typing channel
-  useEffect(() => {
-    if (!user) return
-
-    const channel = supabase.channel(`order-presence-${orderId}`, {
-      config: { presence: { key: user.id } },
-    })
-
-    channel
       .on('presence', { event: 'sync' }, () => {
+        if (!mountedRef.current) return
         const state = channel.presenceState()
-        // Check if other user is present
         setIsOnline(!!state[otherUserId])
       })
       .on('broadcast', { event: 'typing' }, (payload: any) => {
+        if (!mountedRef.current) return
         if (payload.payload?.user_id !== user.id) {
           setIsTyping(true)
-          // Clear after 2s
           if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
-          typingTimerRef.current = setTimeout(() => setIsTyping(false), 2000)
+          typingTimerRef.current = setTimeout(() => {
+            if (mountedRef.current) setIsTyping(false)
+          }, 2000)
         }
       })
       .subscribe(async (status: string) => {
-        if (status === 'SUBSCRIBED') {
-          await channel.track({ user_id: user.id, user_name: (user as any).user_metadata?.full_name || 'User' })
+        if (status === 'SUBSCRIBED' && mountedRef.current) {
+          try {
+            await channel.track({ user_id: user.id })
+          } catch {
+            // Ignore AbortError on unmount
+          }
         }
       })
 
     channelRef.current = channel
 
     return () => {
-      supabase.removeChannel(channel)
+      try {
+        supabase.removeChannel(channel)
+      } catch {
+        // Ignore errors during cleanup
+      }
       if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
     }
   }, [user, orderId, otherUserId, supabase])
@@ -121,11 +124,15 @@ export default function OrderChat({ orderId, otherUserName, otherUserId }: Order
 
   const broadcastTyping = useCallback(() => {
     if (channelRef.current && user) {
-      channelRef.current.send({
-        type: 'broadcast',
-        event: 'typing',
-        payload: { user_id: user.id },
-      })
+      try {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'typing',
+          payload: { user_id: user.id },
+        })
+      } catch {
+        // Ignore if channel is closed
+      }
     }
   }, [user])
 
@@ -141,7 +148,7 @@ export default function OrderChat({ orderId, otherUserName, otherUserId }: Order
       content,
     })
 
-    setSending(false)
+    if (mountedRef.current) setSending(false)
   }
 
   if (!user) return null
