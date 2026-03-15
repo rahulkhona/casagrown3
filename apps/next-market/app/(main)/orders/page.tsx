@@ -59,7 +59,8 @@ export default function OrdersPage() {
   const router = useRouter()
   const { user, isAuthenticated, loading: authLoading } = useAuth()
   const [orders, setOrders] = useState<MarketOrder[]>([])
-  const [tab, setTab] = useState<'active' | 'past' | 'disputed'>('active')
+  const [role, setRole] = useState<'selling' | 'buying'>('selling')
+  const [tab, setTab] = useState<'pending' | 'delivered' | 'pickup' | 'disputed' | 'past'>('pending')
   const [loading, setLoading] = useState(true)
 
   const loadOrders = useCallback(async () => {
@@ -110,48 +111,74 @@ export default function OrdersPage() {
     return <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}><p>Loading orders...</p></div>
   }
 
+  // Filter by role first (selling vs buying)
+  const roleOrders = orders.filter(o =>
+    role === 'selling' ? o.seller_id === user!.id : o.buyer_id === user!.id
+  )
+
+  // Tab definitions with status filters
+  const TAB_FILTERS: Record<string, string[]> = {
+    pending: ['pending'],
+    delivered: ['delivered', 'confirmed'],
+    pickup: ['ready_for_pickup'],
+    disputed: ['disputed', 'escalated'],
+    past: ['completed', 'resolved', 'declined', 'cancelled', 'pickup_declined'],
+  }
+
   // Priority sort: "needs your action" first within each tab
   const getActionPriority = (o: MarketOrder): number => {
     const isBuyer = o.buyer_id === user!.id
-    // Priority 0 = needs MY action (top), 1 = waiting on other party, 2 = informational
-    if (o.status === 'pending' && !isBuyer) return 0        // seller needs to process
-    if (o.status === 'delivered' && isBuyer) return 0        // buyer needs to confirm
-    if (o.status === 'ready_for_pickup' && isBuyer) return 0 // buyer needs to pick up
-    if (o.status === 'ready_for_pickup' && !isBuyer) return 0 // seller enters passcode
-    if (o.status === 'pending' && isBuyer) return 1          // waiting on seller
-    if (o.status === 'delivered' && !isBuyer) return 1       // waiting on buyer
-    if (o.status === 'disputed') return 0                    // needs attention
-    if (o.status === 'escalated') return 0                   // needs attention
-    return 2
+    if (o.status === 'pending' && !isBuyer) return 0
+    if (o.status === 'delivered' && isBuyer) return 0
+    if (o.status === 'ready_for_pickup') return 0
+    return 1
   }
 
-  const filtered = orders
-    .filter(o => {
-      if (tab === 'active') return ACTIVE_STATUSES.includes(o.status)
-      if (tab === 'past') return PAST_STATUSES.includes(o.status)
-      return DISPUTED_STATUSES.includes(o.status)
-    })
+  const filtered = roleOrders
+    .filter(o => TAB_FILTERS[tab]?.includes(o.status))
     .sort((a, b) => {
-      // Within same tab: action priority first, then newest
       const pa = getActionPriority(a)
       const pb = getActionPriority(b)
       if (pa !== pb) return pa - pb
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     })
 
-  const activeCount = orders.filter(o => ACTIVE_STATUSES.includes(o.status)).length
-  const disputedCount = orders.filter(o => DISPUTED_STATUSES.includes(o.status)).length
+  const tabs = [
+    { key: 'pending' as const,   label: 'Pending',  count: roleOrders.filter(o => TAB_FILTERS.pending.includes(o.status)).length },
+    { key: 'delivered' as const, label: 'Delivered', count: roleOrders.filter(o => TAB_FILTERS.delivered.includes(o.status)).length },
+    { key: 'pickup' as const,    label: 'Pickup',   count: roleOrders.filter(o => TAB_FILTERS.pickup.includes(o.status)).length },
+    { key: 'disputed' as const,  label: 'Disputed', count: roleOrders.filter(o => TAB_FILTERS.disputed.includes(o.status)).length },
+    { key: 'past' as const,      label: 'Past',     count: roleOrders.filter(o => TAB_FILTERS.past.includes(o.status)).length },
+  ]
+
+  const sellingCount = orders.filter(o => o.seller_id === user!.id && ACTIVE_STATUSES.includes(o.status)).length
+  const buyingCount = orders.filter(o => o.buyer_id === user!.id && ACTIVE_STATUSES.includes(o.status)).length
 
   return (
     <div className="container">
       <div className="page-header"><h1 className="page-title">Orders</h1></div>
 
-      <div className="tabs">
-        {([
-          { key: 'active', label: 'Active', count: activeCount },
-          { key: 'past', label: 'Past', count: 0 },
-          { key: 'disputed', label: 'Disputed', count: disputedCount },
-        ] as const).map(t => (
+      {/* Role toggle: My Sales / My Purchases */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <button
+          className={`btn ${role === 'selling' ? 'btn-primary' : 'btn-outline'}`}
+          style={{ flex: 1, fontSize: 14 }}
+          onClick={() => { setRole('selling'); setTab('pending') }}
+        >
+          🏪 My Sales {sellingCount > 0 && <span className="badge badge-green" style={{ marginLeft: 6 }}>{sellingCount}</span>}
+        </button>
+        <button
+          className={`btn ${role === 'buying' ? 'btn-primary' : 'btn-outline'}`}
+          style={{ flex: 1, fontSize: 14 }}
+          onClick={() => { setRole('buying'); setTab('pending') }}
+        >
+          🛒 My Purchases {buyingCount > 0 && <span className="badge badge-green" style={{ marginLeft: 6 }}>{buyingCount}</span>}
+        </button>
+      </div>
+
+      {/* Status tabs */}
+      <div className="tabs" style={{ flexWrap: 'wrap' }}>
+        {tabs.map(t => (
           <button
             key={t.key}
             className={`tab ${tab === t.key ? 'tab-active' : ''}`}
@@ -172,9 +199,10 @@ export default function OrdersPage() {
           <div className="empty-state-icon">📦</div>
           <div className="empty-state-title">No {tab} orders</div>
           <div className="empty-state-text">
-            {tab === 'active' ? 'Orders you place or receive will appear here' : 
-             tab === 'disputed' ? 'No disputes — great!' : 
-             'Completed orders will appear here'}
+            {tab === 'pending' ? (role === 'selling' ? 'No orders waiting for you to process' : 'No pending orders from sellers') :
+             tab === 'disputed' ? 'No disputes — great!' :
+             tab === 'past' ? 'Completed orders will appear here' :
+             `No ${tab} orders`}
           </div>
           <Link href="/market" className="btn btn-primary">Browse Market</Link>
         </div>
