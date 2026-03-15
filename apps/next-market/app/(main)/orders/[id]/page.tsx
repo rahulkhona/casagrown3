@@ -255,6 +255,17 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           </div>
         </div>
 
+        {/* Delivery address — shown to seller for delivery orders */}
+        {order.fulfillment_type === 'delivery' && order.buyer_address && (
+          <div style={{ background: 'var(--gray-50)', borderRadius: 'var(--radius-lg)', padding: '10px 14px', marginTop: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>📍</span>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Delivery Address</div>
+              <div style={{ color: 'var(--gray-800)' }}>{order.buyer_address}</div>
+            </div>
+          </div>
+        )}
+
         <div className={styles.priceGrid}>
           <div className={styles.priceRow}><span>{order.quantity} × {formatUsd(order.unit_price_usd)}</span><span>{formatUsd(order.subtotal_usd)}</span></div>
           {order.tax_amount_usd > 0 && <div className={styles.priceRow}><span>Tax ({order.tax_rate_pct}%)</span><span>{formatUsd(order.tax_amount_usd)}</span></div>}
