@@ -48,7 +48,7 @@ INSERT INTO market_products (id, seller_id, market_date, name, category, price_u
   ('33333333-aaaa-0001-0001-000000000002', '11111111-aaaa-bbbb-cccc-000000000001', '2026-03-14', 'Peppers', 'vegetables', 3.50, 'lb', 100, true),
   ('33333333-aaaa-0001-0001-000000000003', '11111111-aaaa-bbbb-cccc-000000000003', '2026-03-14', 'Cookies', 'baked', 12.00, 'dozen', 30, true),
   ('33333333-aaaa-0001-0001-000000000004', '11111111-aaaa-bbbb-cccc-000000000003', '2026-03-14', 'Bread', 'baked', 6.00, 'loaf', 50, true),
-  ('33333333-aaaa-0001-0001-000000000005', '11111111-aaaa-bbbb-cccc-000000000005', '2026-03-14', 'Microgreens', 'herbs', 0.50, 'tray', 100, true),
+  ('33333333-aaaa-0001-0001-000000000005', '11111111-aaaa-bbbb-cccc-000000000005', '2026-03-14', 'Microgreens', 'herbs', 1.00, 'tray', 100, true),
   ('33333333-aaaa-0001-0001-000000000006', '11111111-aaaa-bbbb-cccc-000000000006', '2026-03-14', 'Beef', 'dairy', 45.00, 'lb', 20, true),
   ('33333333-aaaa-0001-0001-000000000007', '11111111-aaaa-bbbb-cccc-000000000007', '2026-03-14', 'Basil', 'herbs', 4.00, 'bunch', 40, true),
   ('33333333-aaaa-0001-0001-000000000008', '11111111-aaaa-bbbb-cccc-000000000007', '2026-03-14', 'Mint', 'herbs', 3.00, 'bunch', 60, true)
@@ -99,10 +99,10 @@ VALUES
   ('44444444-0001-0001-0001-000000000009', '11111111-aaaa-bbbb-cccc-000000000008', '11111111-aaaa-bbbb-cccc-000000000007',
    '22222222-aaaa-bbbb-cccc-000000000007', '33333333-aaaa-0001-0001-000000000008', 'Mint',
    2, 3.00, 6.00, 0, 0, 10, 0.60, 6.00, 'delivery', 'completed', '2026-03-14'::timestamptz),
-  -- Carol → Alice: 1 lb peppers = $3.50 (mixed user buying)
+  -- Carol → Alice: 2 lb peppers = $7 (mixed user buying, meets $5 min)
   ('44444444-0001-0001-0001-000000000010', '11111111-aaaa-bbbb-cccc-000000000003', '11111111-aaaa-bbbb-cccc-000000000001',
    '22222222-aaaa-bbbb-cccc-000000000001', '33333333-aaaa-0001-0001-000000000002', 'Peppers',
-   1, 3.50, 3.50, 0, 0, 10, 0.35, 3.50, 'pickup', 'completed', '2026-03-14'::timestamptz),
+   2, 3.50, 7.00, 0, 0, 10, 0.70, 7.00, 'pickup', 'completed', '2026-03-14'::timestamptz),
   -- Alice (seller who also buys) → Carol: 1 dozen cookies = $12
   ('44444444-0001-0001-0001-000000000011', '11111111-aaaa-bbbb-cccc-000000000001', '11111111-aaaa-bbbb-cccc-000000000003',
    '22222222-aaaa-bbbb-cccc-000000000003', '33333333-aaaa-0001-0001-000000000003', 'Cookies',
@@ -111,18 +111,18 @@ VALUES
   ('44444444-0001-0001-0001-000000000012', '11111111-aaaa-bbbb-cccc-000000000001', '11111111-aaaa-bbbb-cccc-000000000007',
    '22222222-aaaa-bbbb-cccc-000000000007', '33333333-aaaa-0001-0001-000000000007', 'Basil',
    5, 4.00, 20.00, 0, 0, 10, 2.00, 20.00, 'delivery', 'completed', '2026-03-14'::timestamptz),
-  -- Eve → Alice: tiny! 1 tray microgreens = $0.50 (edge: very small)
+  -- Eve → Alice: 1 lb tomatoes = $5 (meets $5 min)
   ('44444444-0001-0001-0001-000000000013', '11111111-aaaa-bbbb-cccc-000000000005', '11111111-aaaa-bbbb-cccc-000000000001',
    '22222222-aaaa-bbbb-cccc-000000000001', '33333333-aaaa-0001-0001-000000000001', 'Tomatoes',
-   1, 0.50, 0.50, 0, 0, 10, 0.05, 0.50, 'pickup', 'completed', '2026-03-14'::timestamptz),
-  -- Bob → Eve: 10 trays microgreens = $5 (Eve is also selling)
+   1, 5.00, 5.00, 0, 0, 10, 0.50, 5.00, 'pickup', 'completed', '2026-03-14'::timestamptz),
+  -- Bob → Eve: 5 trays microgreens = $5 (Eve is also selling)
   ('44444444-0001-0001-0001-000000000014', '11111111-aaaa-bbbb-cccc-000000000002', '11111111-aaaa-bbbb-cccc-000000000005',
    '22222222-aaaa-bbbb-cccc-000000000005', '33333333-aaaa-0001-0001-000000000005', 'Microgreens',
-   10, 0.50, 5.00, 0, 0, 10, 0.50, 5.00, 'pickup', 'completed', '2026-03-14'::timestamptz),
-  -- Dan → Eve: 6 trays microgreens = $3
+   5, 1.00, 5.00, 0, 0, 10, 0.50, 5.00, 'pickup', 'completed', '2026-03-14'::timestamptz),
+  -- Dan → Eve: 5 trays microgreens = $5 (meets $5 min)
   ('44444444-0001-0001-0001-000000000015', '11111111-aaaa-bbbb-cccc-000000000004', '11111111-aaaa-bbbb-cccc-000000000005',
    '22222222-aaaa-bbbb-cccc-000000000005', '33333333-aaaa-0001-0001-000000000005', 'Microgreens',
-   6, 0.50, 3.00, 0, 0, 10, 0.30, 3.00, 'pickup', 'completed', '2026-03-14'::timestamptz),
+   5, 1.00, 5.00, 0, 0, 10, 0.50, 5.00, 'pickup', 'completed', '2026-03-14'::timestamptz),
   -- Hank → Carol: 3 loaves bread = $18
   ('44444444-0001-0001-0001-000000000016', '11111111-aaaa-bbbb-cccc-000000000008', '11111111-aaaa-bbbb-cccc-000000000003',
    '22222222-aaaa-bbbb-cccc-000000000003', '33333333-aaaa-0001-0001-000000000004', 'Bread',
@@ -145,16 +145,16 @@ VALUES
    5, 5.00, 25.00, 0, 0, 10, 2.50, 25.00, 'pickup', 'pending', '2026-03-14'::timestamptz);
 
 -- ============================================================================
--- Expected settlement (only completed/delivered orders):
+-- Expected settlement (only completed/delivered orders, all >= $5 minimum):
 --
--- Alice:  sold: $30+14+10+15+3.50+0.50 = $73    bought: $12+20 = $32   fees: $7.30  net: $33.70
--- Bob:    sold: $0                                 bought: $30+14+24+5+90 = $163  fees: $0  net: -$163
--- Carol:  sold: $24+6+12+18 = $60                  bought: $3.50+45 = $48.50  fees: $6.00  net: $5.50
--- Dan:    sold: $0                                 bought: $10+6+12+3 = $31   fees: $0  net: -$31
--- Eve:    sold: $5+3 = $8                          bought: $0.50       fees: $0.80  net: $6.70
--- Frank:  sold: $45+90+45 = $180                   bought: $0          fees: $18.00  net: $162
--- Grace:  sold: $12+6+20 = $38                     bought: $0          fees: $3.80  net: $34.20
--- Hank:   sold: $0                                 bought: $15+45+6+18 = $84  fees: $0  net: -$84
+-- Alice:  sold: $30+14+10+15+7+5 = $81         bought: $12+20 = $32   fees: $8.10  net: $40.90
+-- Bob:    sold: $0                               bought: $30+14+24+5+90 = $163  fees: $0  net: -$163
+-- Carol:  sold: $24+6+12+18 = $60                bought: $7+45 = $52   fees: $6.00  net: $2.00
+-- Dan:    sold: $0                               bought: $10+6+12+5 = $33   fees: $0  net: -$33
+-- Eve:    sold: $5+5 = $10                       bought: $5          fees: $1.00  net: $4.00
+-- Frank:  sold: $45+90+45 = $180                 bought: $0          fees: $18.00  net: $162
+-- Grace:  sold: $12+6+20 = $38                   bought: $0          fees: $3.80  net: $34.20
+-- Hank:   sold: $0                               bought: $15+45+6+18 = $84  fees: $0  net: -$84
 -- ============================================================================
 
 -- Create holds for all buyers
@@ -162,9 +162,9 @@ INSERT INTO market_holds (id, buyer_id, stripe_payment_intent_id, stripe_client_
 VALUES
   ('55555555-aaaa-0001-0001-000000000001', '11111111-aaaa-bbbb-cccc-000000000001', 'pi_alice', 'sec_alice', 5000, 3200, 'active'),
   ('55555555-aaaa-0001-0001-000000000002', '11111111-aaaa-bbbb-cccc-000000000002', 'pi_bob', 'sec_bob', 20000, 16300, 'active'),
-  ('55555555-aaaa-0001-0001-000000000003', '11111111-aaaa-bbbb-cccc-000000000003', 'pi_carol', 'sec_carol', 6000, 4850, 'active'),
-  ('55555555-aaaa-0001-0001-000000000004', '11111111-aaaa-bbbb-cccc-000000000004', 'pi_dan', 'sec_dan', 4000, 3100, 'active'),
-  ('55555555-aaaa-0001-0001-000000000005', '11111111-aaaa-bbbb-cccc-000000000005', 'pi_eve', 'sec_eve', 100, 50, 'active'),
+  ('55555555-aaaa-0001-0001-000000000003', '11111111-aaaa-bbbb-cccc-000000000003', 'pi_carol', 'sec_carol', 6000, 5200, 'active'),
+  ('55555555-aaaa-0001-0001-000000000004', '11111111-aaaa-bbbb-cccc-000000000004', 'pi_dan', 'sec_dan', 4000, 3300, 'active'),
+  ('55555555-aaaa-0001-0001-000000000005', '11111111-aaaa-bbbb-cccc-000000000005', 'pi_eve', 'sec_eve', 700, 500, 'active'),
   ('55555555-aaaa-0001-0001-000000000008', '11111111-aaaa-bbbb-cccc-000000000008', 'pi_hank', 'sec_hank', 10000, 8400, 'active');
 -- Grace and Frank have no holds (pure sellers)
 
@@ -202,12 +202,12 @@ SELECT is(
 -- Verify individual user nets
 -- ============================================================================
 
--- Alice: sold $73, bought $32, fees $7.30, net = $33.70
+-- Alice: sold $81, bought $32, fees $8.10, net = $40.90
 SELECT is(
   (SELECT gross_sales_usd FROM user_settlements us JOIN market_settlements ms ON ms.id = us.settlement_id
    WHERE us.user_id = '11111111-aaaa-bbbb-cccc-000000000001' AND ms.market_date = '2026-03-14'),
-  73.00::NUMERIC(10,2),
-  'Alice: gross_sales = $73.00 (heavy seller)'
+  81.00::NUMERIC(10,2),
+  'Alice: gross_sales = $81.00 (heavy seller)'
 );
 SELECT is(
   (SELECT total_purchases_usd FROM user_settlements us JOIN market_settlements ms ON ms.id = us.settlement_id
@@ -218,8 +218,8 @@ SELECT is(
 SELECT is(
   (SELECT net_payout_usd FROM user_settlements us JOIN market_settlements ms ON ms.id = us.settlement_id
    WHERE us.user_id = '11111111-aaaa-bbbb-cccc-000000000001' AND ms.market_date = '2026-03-14'),
-  33.70::NUMERIC(10,2),
-  'Alice: net = $33.70'
+  40.90::NUMERIC(10,2),
+  'Alice: net = $40.90'
 );
 
 -- Bob: pure heavy buyer, sold $0, bought $163, net = -$163
@@ -242,7 +242,7 @@ SELECT is(
   'Bob: net = -$163.00'
 );
 
--- Carol: mixed, sold $60, bought $48.50, fees $6.00, net = $5.50
+-- Carol: mixed, sold $60, bought $52, fees $6.00, net = $2.00
 SELECT is(
   (SELECT gross_sales_usd FROM user_settlements us JOIN market_settlements ms ON ms.id = us.settlement_id
    WHERE us.user_id = '11111111-aaaa-bbbb-cccc-000000000003' AND ms.market_date = '2026-03-14'),
@@ -252,30 +252,30 @@ SELECT is(
 SELECT is(
   (SELECT net_payout_usd FROM user_settlements us JOIN market_settlements ms ON ms.id = us.settlement_id
    WHERE us.user_id = '11111111-aaaa-bbbb-cccc-000000000003' AND ms.market_date = '2026-03-14'),
-  5.50::NUMERIC(10,2),
-  'Carol: net = $5.50 (mixed, slight net seller)'
+  2.00::NUMERIC(10,2),
+  'Carol: net = $2.00 (mixed, slight net seller)'
 );
 
--- Dan: bought $31, sold $0, net = -$31
+-- Dan: bought $33, sold $0, net = -$33
 SELECT is(
   (SELECT net_payout_usd FROM user_settlements us JOIN market_settlements ms ON ms.id = us.settlement_id
    WHERE us.user_id = '11111111-aaaa-bbbb-cccc-000000000004' AND ms.market_date = '2026-03-14'),
-  (-31.00)::NUMERIC(10,2),
-  'Dan: net = -$31.00 (mixed, more buyer than seller)'
+  (-33.00)::NUMERIC(10,2),
+  'Dan: net = -$33.00 (mixed, more buyer than seller)'
 );
 
--- Eve: tiny transactions, sold $8, bought $0.50, fees $0.80, net = $6.70
+-- Eve: sold $10, bought $5, fees $1.00, net = $4.00
 SELECT is(
   (SELECT gross_sales_usd FROM user_settlements us JOIN market_settlements ms ON ms.id = us.settlement_id
    WHERE us.user_id = '11111111-aaaa-bbbb-cccc-000000000005' AND ms.market_date = '2026-03-14'),
-  8.00::NUMERIC(10,2),
-  'Eve: gross_sales = $8.00 (tiny transactions)'
+  10.00::NUMERIC(10,2),
+  'Eve: gross_sales = $10.00'
 );
 SELECT is(
   (SELECT net_payout_usd FROM user_settlements us JOIN market_settlements ms ON ms.id = us.settlement_id
    WHERE us.user_id = '11111111-aaaa-bbbb-cccc-000000000005' AND ms.market_date = '2026-03-14'),
-  6.70::NUMERIC(10,2),
-  'Eve: net = $6.70'
+  4.00::NUMERIC(10,2),
+  'Eve: net = $4.00'
 );
 
 -- Frank: large seller only, sold $180, fees $18, net = $162
@@ -324,9 +324,6 @@ SELECT is(
 -- Global invariants
 -- ============================================================================
 
--- Total seller payouts = total_captured. (Platform fees come from seller side)
--- Sum of all positive nets + fees should equal sum of all negative nets (what buyers paid)
--- SUM(net_payout) + SUM(fees) should = 0  (market is zero-sum)
 SELECT is(
   (SELECT ROUND(SUM(net_payout_usd + platform_fees_usd)::NUMERIC, 2) FROM user_settlements us
    JOIN market_settlements ms ON ms.id = us.settlement_id WHERE ms.market_date = '2026-03-14'),
@@ -334,12 +331,12 @@ SELECT is(
   'INVARIANT: SUM(net + fees) = 0 (market is zero-sum)'
 );
 
--- Total platform fees collected
+-- Total platform fees = 10% of $369 total sales = $36.90
 SELECT is(
   (SELECT SUM(platform_fees_usd) FROM user_settlements us
    JOIN market_settlements ms ON ms.id = us.settlement_id WHERE ms.market_date = '2026-03-14'),
-  35.90::NUMERIC(10,2),
-  'Total platform fees = $35.90 (10% of all sales)'
+  36.90::NUMERIC(10,2),
+  'Total platform fees = $36.90 (10% of all sales)'
 );
 
 -- Total gross sales should equal total purchases
@@ -374,11 +371,11 @@ SELECT is(
   'Bob: $37 released back'
 );
 
--- Eve's tiny capture: $0.50 from $1 hold
+-- Eve: $5 captured from $7 hold
 SELECT is(
   (SELECT capture_amount_usd FROM settlement_captures WHERE buyer_id = '11111111-aaaa-bbbb-cccc-000000000005'),
-  0.50::NUMERIC(10,2),
-  'Eve: $0.50 captured from $1 hold (tiny transaction)'
+  5.00::NUMERIC(10,2),
+  'Eve: $5.00 captured from $7 hold'
 );
 
 -- ============================================================================
@@ -447,16 +444,15 @@ SELECT ok(
 -- ============================================================================
 -- Confirm funds → cleared
 -- ============================================================================
--- Total captured: estimated from holds
--- Alice=$32, Bob=$163, Carol=$48.50, Dan=$31, Eve=$0.50, Hank=$84 = $359
--- Stripe fees: 2.9% of 359 + 6 × $0.30 = $10.41 + $1.80 = $12.21
--- Expected payout: $359 - $12.21 = $346.79
+-- Total captured: Alice=$32, Bob=$163, Carol=$52, Dan=$33, Eve=$5, Hank=$84 = $369
+-- Stripe fees: 2.9% of 369 + 6 × $0.30 = $10.70 + $1.80 = $12.50
+-- Expected payout: $369 - $12.50 = $356.50
 
 SELECT lives_ok(
   $$SELECT confirm_settlement_funds_received(
     (SELECT id FROM market_settlements WHERE market_date = '2026-03-14'),
     'po_stress_test',
-    346.79
+    356.50
   )$$,
   'Funds confirmation with realistic Stripe payout succeeds'
 );

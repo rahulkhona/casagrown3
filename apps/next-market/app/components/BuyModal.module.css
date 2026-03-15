@@ -224,3 +224,10 @@
   margin-bottom: 14px; border: 1px solid var(--red-100);
   font-weight: 500;
 }
+
+.minimumWarning {
+  background: var(--amber-50); color: var(--amber-700);
+  padding: 10px 14px; border-radius: var(--radius); font-size: 13px;
+  margin-bottom: 14px; border: 1px solid var(--amber-200);
+  font-weight: 500; line-height: 1.5;
+}

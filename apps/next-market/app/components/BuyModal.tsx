@@ -41,12 +41,16 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
   const stripeRef = useRef<any>(null)
   const [existingHold, setExistingHold] = useState<{ holdAmountCents: number; spentAmountCents: number } | null>(null)
 
+  const MINIMUM_ORDER_USD = 5.00
   const subtotal = currentPrice * qty
   const computedTax = +(subtotal * (taxInfo?.rate || 0) / 100).toFixed(2)
   const total = +(subtotal + computedTax).toFixed(2)
   const isTaxExempt = (taxInfo?.rate || 0) === 0
   const totalCents = Math.round(total * 100)
   const priceChanged = currentPrice !== product.price_usd
+  const belowMinimum = subtotal < MINIMUM_ORDER_USD
+  const minQtyForOrder = Math.ceil(MINIMUM_ORDER_USD / (currentPrice || 1))
+  const canReachMinimum = currentPrice * available >= MINIMUM_ORDER_USD
 
   // Hold calculations
   const holdRemaining = existingHold
@@ -214,6 +218,11 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
           setLoading(false)
           return
         }
+        if (orderResult.code === 'minimum_order') {
+          setError(`Minimum order is $5.00. Add ${orderResult.suggested_quantity - qty} more ${product.unit}(s) to proceed.`)
+          setLoading(false)
+          return
+        }
         setError(orderResult.error); setLoading(false); return
       }
 
@@ -280,6 +289,16 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
 
         <div className={styles.body}>
           {error && <div className={styles.error}>{error}</div>}
+
+          {/* Minimum order warning */}
+          {belowMinimum && (
+            <div className={styles.minimumWarning}>
+              {canReachMinimum
+                ? `⚠️ Minimum order is $${MINIMUM_ORDER_USD.toFixed(2)}. Add at least ${minQtyForOrder} ${product.unit}(s) ($${(currentPrice * minQtyForOrder).toFixed(2)}).`
+                : `⚠️ This product can't reach the $${MINIMUM_ORDER_USD.toFixed(2)} minimum — only ${available} available at ${formatUsd(currentPrice)}/${product.unit}.`
+              }
+            </div>
+          )}
 
           {/* Quantity */}
           <div className={styles.section}>
@@ -440,7 +459,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
 
         {/* Footer */}
         <div className={styles.footer}>
-          <button className={styles.orderBtn} disabled={loading || available === 0 || (needsCard && !stripeReady)} onClick={handleOrder}>
+          <button className={styles.orderBtn} disabled={loading || available === 0 || belowMinimum || (needsCard && !stripeReady)} onClick={handleOrder}>
             {loading ? 'Processing...' : available === 0 ? 'Sold Out' : `Place Order — ${formatUsd(total)}`}
           </button>
           <p className={styles.holdNotice}>

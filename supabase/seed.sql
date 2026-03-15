@@ -982,7 +982,7 @@ BEGIN
     quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
     fulfillment_type, status)
   SELECT 'b2222222-2222-2222-2222-222222222222', 'a1111111-1111-1111-1111-111111111111', b.id, p.id, 'Heirloom Peppers',
-    1, 4.50, 4.50, 0.42, 4.92, 'delivery', 'pending'
+    2, 4.50, 9.00, 0.83, 9.83, 'delivery', 'pending'
   FROM market_booths b, market_products p
   WHERE b.owner_id = 'a1111111-1111-1111-1111-111111111111' AND p.name = 'Heirloom Peppers' LIMIT 1;
 
@@ -1022,7 +1022,7 @@ BEGIN
     quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
     fulfillment_type, status, buyer_passcode, seller_passcode, created_at)
   SELECT 'b2222222-2222-2222-2222-222222222222', s1, b.id, p.id, 'Fresh Basil Bunch',
-    1, 3.00, 3.00, 0.28, 3.28, 'pickup', 'ready_for_pickup', '9999', '8888', now() - interval '1 day'
+    2, 3.00, 6.00, 0.56, 6.56, 'pickup', 'ready_for_pickup', '9999', '8888', now() - interval '1 day'
   FROM market_booths b, market_products p
   WHERE b.owner_id = s1 AND p.name = 'Fresh Basil Bunch' LIMIT 1;
 
