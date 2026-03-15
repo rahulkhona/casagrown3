@@ -113,10 +113,19 @@ export default function CameraCapture({
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [captureCount, setCaptureCount] = useState(0)
+  const [flash, setFlash] = useState(false)
+
   const handleCapture = () => {
     const video = videoRef.current
     const canvas = canvasRef.current
     if (!video || !canvas) return
+
+    // Defensive: ensure video has dimensions
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      console.warn('Video not ready yet — no dimensions')
+      return
+    }
 
     if (cropSquare) {
       const size = Math.min(video.videoWidth, video.videoHeight)
@@ -141,15 +150,15 @@ export default function CameraCapture({
       meta.accuracy = geoPosition.coords.accuracy
     }
 
-    // Burn timestamp + location onto the photo
+    // Burn timestamp + location onto the photo (no emoji — Safari canvas issue)
     const ctx = canvas.getContext('2d')!
     const fontSize = Math.max(14, Math.round(canvas.width / 40))
     ctx.font = `bold ${fontSize}px monospace`
     const lines: string[] = [
-      `🕐 ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`,
+      `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`,
     ]
     if (meta.latitude) {
-      lines.push(`📍 ${meta.latitude.toFixed(5)}, ${meta.longitude!.toFixed(5)} ±${Math.round(meta.accuracy || 0)}m`)
+      lines.push(`GPS: ${meta.latitude.toFixed(5)}, ${meta.longitude!.toFixed(5)} +/-${Math.round(meta.accuracy || 0)}m`)
     }
     const lineHeight = fontSize * 1.4
     const padding = fontSize * 0.6
@@ -174,6 +183,10 @@ export default function CameraCapture({
         streamRef.current?.getTracks().forEach(t => t.stop())
       }
       onCapture({ file, meta })
+      // Visual feedback
+      setCaptureCount(c => c + 1)
+      setFlash(true)
+      setTimeout(() => setFlash(false), 200)
     }, 'image/jpeg', 0.9)
   }
 
@@ -206,6 +219,18 @@ export default function CameraCapture({
           )}
           <canvas ref={canvasRef} style={{ display: 'none' }} />
 
+          {/* Flash overlay */}
+          {flash && (
+            <div style={{ position: 'absolute', inset: 0, background: '#fff', opacity: 0.7, pointerEvents: 'none', transition: 'opacity 0.2s' }} />
+          )}
+
+          {/* Photo count badge (multi-capture) */}
+          {multiCapture && captureCount > 0 && (
+            <div style={{ position: 'absolute', top: 8, right: 8, background: 'var(--green-500, #22c55e)', color: '#fff', fontWeight: 700, fontSize: 14, width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {captureCount}
+            </div>
+          )}
+
           {/* Geo indicator */}
           <div className={styles.geoIndicator}>
             {geoPosition
@@ -216,7 +241,7 @@ export default function CameraCapture({
         </div>
         <div className={styles.controls}>
           <button type="button" className={styles.cancelBtn} onClick={handleClose}>
-            {closeLabel}
+            {multiCapture && captureCount > 0 ? `✓ Done (${captureCount})` : closeLabel}
           </button>
 
           {cameras.length > 1 && (
