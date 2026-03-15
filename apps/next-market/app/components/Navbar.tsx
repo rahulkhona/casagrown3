@@ -88,6 +88,14 @@ export function Navbar() {
 
         {/* Right Section */}
         <div className={styles.right}>
+          {/* Profile indicator (always visible for quick account identification) */}
+          {hasSession && state.user?.name && (
+            <Link href="/profile" className={styles.profileBadge} title={state.user.email || ''}>
+              <span className={styles.profileInitial}>{state.user.name.charAt(0).toUpperCase()}</span>
+              <span className={`${styles.profileName} hide-mobile`}>{state.user.name.split(' ')[0]}</span>
+            </Link>
+          )}
+
           {/* Notifications (quick access) */}
           <Link href="/notifications" className={styles.iconBtn}>
             🔔
