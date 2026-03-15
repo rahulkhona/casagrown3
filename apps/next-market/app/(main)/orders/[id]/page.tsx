@@ -103,6 +103,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [disputePhotos, setDisputePhotos] = useState<{ preview: string; result: CaptureResult }[]>([])
   const [showDisputeCamera, setShowDisputeCamera] = useState(false)
   const [showChat, setShowChat] = useState(false)
+  const [chatMessageCount, setChatMessageCount] = useState(0)
   const [passcodeInput, setPasscodeInput] = useState('')
   const [showPickupDecline, setShowPickupDecline] = useState(false)
   const [pickupDeclineReason, setPickupDeclineReason] = useState('')
@@ -145,6 +146,13 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       setDispute(disp)
       // Auto-open chat for disputed orders
       if (disp) setShowChat(true)
+
+      // Count chat messages for badge
+      const { count } = await supabase
+        .from('order_chat_messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('order_id', orderId)
+      setChatMessageCount(count || 0)
 
       if (disp) {
         const { data: msgs } = await supabase
@@ -346,17 +354,23 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       </div>
 
       {/* ===== CHAT BUTTON ===== */}
-      {!['completed', 'resolved', 'declined', 'cancelled'].includes(order.status) && (
         <div className={styles.actionPanel}>
           <button
             className="btn btn-outline"
-            style={{ width: '100%', fontSize: 14 }}
+            style={{ width: '100%', fontSize: 14, position: 'relative' }}
             onClick={() => setShowChat(prev => !prev)}
           >
             💬 {showChat ? 'Hide Chat' : 'Chat with ' + (isSeller ? order.buyer_name : order.seller_name)}
+            {!showChat && chatMessageCount > 0 && (
+              <span style={{
+                marginLeft: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                background: 'var(--red-500, #ef4444)', color: '#fff',
+                fontSize: 11, fontWeight: 700, minWidth: 20, height: 20,
+                borderRadius: 10, padding: '0 6px',
+              }}>{chatMessageCount}</span>
+            )}
           </button>
         </div>
-      )}
 
       {/* ===== CHAT PANEL ===== */}
       {showChat && (

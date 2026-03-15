@@ -117,8 +117,18 @@ export default function OrderChat({ orderId, otherUserName, otherUserId, myAvata
                 </div>
               )}
               <div className={styles.messageBubble}>
-                <div className={styles.bubbleContent} style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
-                <div className={styles.bubbleTime}>
+                <div
+                  className={styles.bubbleContent}
+                  style={{
+                    whiteSpace: 'pre-wrap',
+                    background: isMine ? 'var(--primary, #16a34a)' : '#fff',
+                    color: isMine ? '#fff' : 'var(--gray-800, #1f2937)',
+                    border: isMine ? 'none' : '1px solid var(--gray-200, #e5e7eb)',
+                    borderBottomRightRadius: isMine ? 4 : 16,
+                    borderBottomLeftRadius: isMine ? 16 : 4,
+                  }}
+                >{msg.content}</div>
+                <div className={styles.bubbleTime} style={{ textAlign: isMine ? 'right' : 'left' }}>
                   {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
