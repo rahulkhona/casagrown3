@@ -514,7 +514,13 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             {isBuyer && dispute.status === 'seller_responded' && (
               <div className={styles.actionButtons} style={{ marginTop: 12 }}>
                 <button className="btn btn-primary" disabled={actionLoading}
-                  onClick={() => callRpc('buyer_accept_refund', { p_dispute_id: dispute.id })}>
+                  onClick={async () => {
+                    await callRpc('buyer_accept_refund', { p_dispute_id: dispute.id })
+                    await supabase.from('order_chat_messages').insert({
+                      order_id: orderId, sender_id: user!.id,
+                      content: '✅ Refund accepted. Dispute resolved.',
+                    })
+                  }}>
                   ✓ Accept Refund
                 </button>
                 <button className="btn btn-danger" disabled={actionLoading}
@@ -524,12 +530,48 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               </div>
             )}
 
-            {/* Seller responds */}
+            {/* Seller responds with refund options */}
             {isSeller && dispute.status === 'open' && (
-              <div style={{ marginTop: 12 }}>
-                <button className="btn btn-primary btn-sm" onClick={() => setShowRefund(true)}>
-                  Respond to Dispute
-                </button>
+              <div style={{ marginTop: 16 }}>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--gray-500)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Resolve This Dispute</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8 }}>
+                  <button
+                    onClick={() => { setRefundType('full'); setRefundAmount(String(order.total_usd)); setShowRefund(true) }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '10px 12px', borderRadius: 'var(--radius-lg)',
+                      border: '1px solid var(--green-200, #bbf7d0)', background: 'var(--green-50, #f0fdf4)',
+                      cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--green-100, #dcfce7)' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'var(--green-50, #f0fdf4)' }}
+                  >
+                    <span style={{ fontSize: 22, lineHeight: 1 }}>💰</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--gray-800)' }}>Full Refund</div>
+                      <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 1 }}>{formatUsd(order.total_usd)}</div>
+                    </div>
+                    <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>›</span>
+                  </button>
+                  <button
+                    onClick={() => { setRefundType('partial'); setRefundAmount(''); setShowRefund(true) }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '10px 12px', borderRadius: 'var(--radius-lg)',
+                      border: '1px solid var(--gray-200)', background: 'var(--gray-50)',
+                      cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--gray-100)' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'var(--gray-50)' }}
+                  >
+                    <span style={{ fontSize: 22, lineHeight: 1 }}>🔢</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--gray-800)' }}>Partial Refund</div>
+                      <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 1 }}>Specify amount</div>
+                    </div>
+                    <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>›</span>
+                  </button>
+                </div>
               </div>
             )}
 
@@ -820,7 +862,13 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                     p_refund_amount: amt,
                     p_pickup_offered: pickupOffered,
                   })
+                  // Auto-send chat message with refund offer
+                  const msg = `💰 Refund offered: ${refundType === 'full' ? 'Full' : 'Partial'} refund of ${formatUsd(amt)}${pickupOffered ? '\n📦 I can also pick up the item.' : ''}`
+                  await supabase.from('order_chat_messages').insert({
+                    order_id: orderId, sender_id: user!.id, content: msg,
+                  })
                   setShowRefund(false)
+                  setShowChat(true)
                 }}>
                 Send Offer
               </button>
