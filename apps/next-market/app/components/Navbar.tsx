@@ -67,6 +67,7 @@ export function Navbar() {
     { href: '/my-booth', label: 'My Booth', icon: '🏪', section: 'main' },
     { href: '/orders', label: 'Orders', icon: '🧾', section: 'main' },
     { href: '/earnings', label: 'Transactions', icon: '💰', section: 'main' },
+    { href: '/earnings/redeem', label: 'Withdraw', icon: '💸', section: 'main' },
     { href: '/following', label: 'Following', icon: '❤️', section: 'main' },
     { href: '/profile', label: 'Profile', icon: '👤', section: 'account' },
   ]

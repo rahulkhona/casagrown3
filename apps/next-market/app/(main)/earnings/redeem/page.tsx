@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * Redeem Earnings — Gift Cards, Donate, Cashout, 529 Savings
+ * Withdraw Earnings — Gift Cards, Donate, Cashout, 529 Savings
  *
  * Web equivalent of community app's RedemptionStore.
  * Uses real edge functions: fetch-gift-cards, fetch-donation-projects,
@@ -46,7 +46,8 @@ const POINTS_PER_DOLLAR = 100
 
 export default function RedeemPage() {
   const router = useRouter()
-  const { isAuthenticated, loading: authLoading, userId } = useAuth()
+  const { isAuthenticated, loading: authLoading, user } = useAuth()
+  const userId = user?.id
   const supabase = useMemo(() => createClient(), [])
 
   // ── Tab state ──
@@ -299,13 +300,33 @@ export default function RedeemPage() {
     if (!error) {
       setWaitlistJoined(true)
       setSuccessMsg('You\'re on the list! We\'ll notify you when 529 plans become available. 🎉')
+      setTimeout(() => setSuccessMsg(null), 5000)
     }
   }, [userId, supabase])
+
+  // Auto-dismiss success states
+  useEffect(() => {
+    if (!redemptionResult) return
+    const t = setTimeout(() => setRedemptionResult(null), 8000)
+    return () => clearTimeout(t)
+  }, [redemptionResult])
+
+  useEffect(() => {
+    if (!completedDonation) return
+    const t = setTimeout(() => setCompletedDonation(null), 8000)
+    return () => clearTimeout(t)
+  }, [completedDonation])
+
+  useEffect(() => {
+    if (!cashoutResult) return
+    const t = setTimeout(() => setCashoutResult(null), 8000)
+    return () => clearTimeout(t)
+  }, [cashoutResult])
 
   // ── Auth guards ──
   if (authLoading) return <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}><p>Loading...</p></div>
   if (!isAuthenticated) {
-    return <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}><h2>Sign in to redeem</h2><Link href="/login" className="btn btn-primary" style={{ marginTop: 16 }}>Sign In</Link></div>
+    return <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}><h2>Sign in to withdraw</h2><Link href="/login" className="btn btn-primary" style={{ marginTop: 16 }}>Sign In</Link></div>
   }
 
   const maxPoints = Math.floor(availableUsd * POINTS_PER_DOLLAR)
@@ -315,7 +336,7 @@ export default function RedeemPage() {
       <Link href="/earnings" className={styles.backLink}>← Back to Earnings</Link>
 
       <div className={styles.pageHeader}>
-        <h1 className={styles.pageTitle}>Redeem Earnings</h1>
+        <h1 className={styles.pageTitle}>Withdraw Earnings</h1>
         <div className={styles.balanceBadge}>
           <span className={styles.balanceLabel}>Available</span>
           <span className={styles.balanceValue}>{formatUsd(availableUsd)}</span>
@@ -324,7 +345,7 @@ export default function RedeemPage() {
 
       {/* Error / Success */}
       {error && <div className={styles.alertError}>❌ {error} <button onClick={() => setError(null)} className={styles.alertClose}>✕</button></div>}
-      {successMsg && <div className={styles.alertSuccess}>✅ {successMsg} <button onClick={() => setSuccessMsg(null)} className={styles.alertClose}>✕</button></div>}
+      {successMsg && <div className={styles.alertSuccess}>✅ {successMsg}</div>}
 
       {/* Tabs */}
       <div className={styles.tabGrid}>
@@ -353,7 +374,7 @@ export default function RedeemPage() {
                 </a>
               )}
               {redemptionResult.code && <p className={styles.resultCode}>Code: <strong>{redemptionResult.code}</strong></p>}
-              <button className="btn btn-sm" style={{ marginTop: 12 }} onClick={() => setRedemptionResult(null)}>Close</button>
+              <p style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 12 }}>This will dismiss automatically</p>
             </div>
           )}
 
@@ -431,7 +452,7 @@ export default function RedeemPage() {
                   📄 View Receipt
                 </a>
               )}
-              <button className="btn btn-sm" style={{ marginTop: 12 }} onClick={() => setCompletedDonation(null)}>Close</button>
+              <p style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 12 }}>This will dismiss automatically</p>
             </div>
           )}
 

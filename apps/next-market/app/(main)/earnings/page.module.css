@@ -19,7 +19,7 @@
 }
 
 /* ── Summary cards ── */
-.summaryGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+.summaryGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; }
 .summaryCard {
   padding: 20px; border-radius: var(--radius-xl); border: 1px solid var(--border);
   background: #fff; text-align: center;

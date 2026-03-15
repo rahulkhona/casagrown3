@@ -75,7 +75,8 @@ function getDateRange(range: DateRange, customStart?: string, customEnd?: string
 }
 
 export default function EarningsPage() {
-  const { isAuthenticated, loading: authLoading, userId } = useAuth()
+  const { isAuthenticated, loading: authLoading, user } = useAuth()
+  const userId = user?.id
   const [tab, setTab] = useState<Tab>('activity')
   const [dateRange, setDateRange] = useState<DateRange>('month')
   const [customStart, setCustomStart] = useState('')
@@ -226,7 +227,7 @@ export default function EarningsPage() {
           <div className={styles.summaryCard} style={{ borderColor: 'var(--green-300)' }}>
             <span className={styles.summaryLabel}>Available</span>
             <span className={styles.summaryValue} style={{ color: 'var(--green-700)' }}>{formatUsd(summary?.available_usd || 0)}</span>
-            <Link href="/earnings/redeem" className="btn btn-primary btn-sm" style={{ marginTop: 8 }}>Redeem →</Link>
+            <Link href="/earnings/redeem" className="btn btn-primary btn-sm" style={{ marginTop: 8 }}>Withdraw →</Link>
           </div>
           <div className={styles.summaryCard}>
             <span className={styles.summaryLabel}>Pending</span>
@@ -235,21 +236,31 @@ export default function EarningsPage() {
           </div>
           <div className={styles.summaryCard}>
             <span className={styles.summaryLabel}>Total Sales</span>
-            <span className={styles.summaryValue}>{formatUsd(summary?.total_sales || 0)}</span>
-            <span className={styles.summaryHint}>{summary?.sales_count || 0} orders</span>
+            <span className={styles.summaryValue} style={{ color: 'var(--green-700)' }}>{formatUsd(summary?.total_sales || 0)}</span>
+            <span className={styles.summaryHint}>{summary?.sales_count || 0} orders sold</span>
           </div>
           <div className={styles.summaryCard}>
-            <span className={styles.summaryLabel}>Net Earnings</span>
-            <span className={styles.summaryValue}>{formatUsd(summary?.net_earnings || 0)}</span>
-            <span className={styles.summaryHint}>After fees & refunds</span>
+            <span className={styles.summaryLabel}>Total Purchases</span>
+            <span className={styles.summaryValue} style={{ color: 'var(--blue-600, #2563eb)' }}>{formatUsd(summary?.total_purchases || 0)}</span>
+            <span className={styles.summaryHint}>{summary?.purchase_count || 0} orders bought</span>
+          </div>
+          <div className={styles.summaryCard}>
+            <span className={styles.summaryLabel}>Cash Spent (CC)</span>
+            <span className={styles.summaryValue}>{formatUsd(summary?.total_cc_charged || 0)}</span>
+            <span className={styles.summaryHint}>Net card charges after netting</span>
+          </div>
+          <div className={styles.summaryCard} style={{ borderColor: 'var(--green-300)', background: 'var(--green-50)' }}>
+            <span className={styles.summaryLabel}>🌱 Grocery Savings</span>
+            <span className={styles.summaryValue} style={{ color: 'var(--green-700)' }}>{formatUsd(Math.max(0, (summary?.total_sales || 0) - (summary?.total_cc_charged || 0)))}</span>
+            <span className={styles.summaryHint}>Sales offset your purchases</span>
           </div>
         </div>
 
-        {/* ── Auto-Redeem CTA ── */}
+        {/* ── Auto-Withdraw CTA ── */}
         <Link href="/earnings/auto-redeem" className={styles.autoRedeemCard}>
           <span style={{ fontSize: 24 }}>⚡</span>
           <div>
-            <strong style={{ fontSize: 14, color: 'var(--gray-800)' }}>Set up Auto-Redemption</strong>
+            <strong style={{ fontSize: 14, color: 'var(--gray-800)' }}>Set up Auto-Withdrawal</strong>
             <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>Automatically convert earnings to gift cards, cashout, or charity</div>
           </div>
         </Link>

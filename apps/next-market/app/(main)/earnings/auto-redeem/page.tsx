@@ -28,7 +28,8 @@ interface AutoRedeemConfig {
 const THRESHOLD_PRESETS = [25, 50, 100, 250]
 
 export default function AutoRedeemPage() {
-  const { isAuthenticated, loading: authLoading, userId } = useAuth()
+  const { isAuthenticated, loading: authLoading, user } = useAuth()
+  const userId = user?.id
   const supabase = useMemo(() => createClient(), [])
 
   const [config, setConfig] = useState<AutoRedeemConfig>({
