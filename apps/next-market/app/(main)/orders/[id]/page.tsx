@@ -60,6 +60,8 @@ interface Dispute {
   id: string
   reason: string
   photos: any[]
+  dispute_type: string | null
+  quantity_received: number | null
   refund_type: string | null
   refund_amount_usd: number | null
   pickup_offered: boolean
@@ -487,18 +489,57 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           <div className={styles.disputeCard}>
             <div className={styles.disputeHeader}>
               <span className={styles.disputeStatus} data-status={dispute.status}>
-                {dispute.status.replace(/_/g, ' ')}
+                {dispute.status === 'open' ? '🔍 Under Review' : dispute.status.replace(/_/g, ' ')}
               </span>
               <span className={styles.disputeDate}>{new Date(dispute.created_at).toLocaleDateString()}</span>
             </div>
+
+            {/* Dispute type label */}
+            {dispute.dispute_type && (
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '4px 10px', borderRadius: 12,
+                background: 'var(--amber-50, #fffbeb)', border: '1px solid var(--amber-200, #fde68a)',
+                fontSize: 12, fontWeight: 600, color: 'var(--amber-700, #b45309)',
+                marginBottom: 8,
+              }}>
+                {dispute.dispute_type === 'not_delivered' && '📦'}
+                {dispute.dispute_type === 'quantity_mismatch' && '🔢'}
+                {dispute.dispute_type === 'wrong_item' && '❌'}
+                {dispute.dispute_type === 'poor_quality' && '👎'}
+                {' '}{dispute.dispute_type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
+              </div>
+            )}
+
             <p className={styles.disputeReason}><strong>Reason:</strong> {dispute.reason}</p>
 
-            {/* Seller's refund offer */}
-            {dispute.refund_type && (
-              <div className={styles.refundOffer}>
-                <strong>{dispute.refund_type === 'full' ? 'Full' : 'Partial'} refund offered</strong>
-                {dispute.refund_amount_usd && <span> — {formatUsd(dispute.refund_amount_usd)}</span>}
-                {dispute.pickup_offered && <div className={styles.pickupOfferNote}>Seller offered to pick up the item</div>}
+            {/* Dispute photos */}
+            {dispute.photos && dispute.photos.length > 0 && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                {dispute.photos.map((p: any, i: number) => (
+                  <img key={i} src={p.url || p} alt={`Evidence ${i + 1}`}
+                    style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--gray-200)' }} />
+                ))}
+              </div>
+            )}
+
+            {/* Quantity info for quantity mismatch */}
+            {dispute.dispute_type === 'quantity_mismatch' && dispute.quantity_received != null && (
+              <p style={{ fontSize: 13, color: 'var(--gray-600)', marginTop: 8 }}>
+                <strong>Ordered:</strong> {order.quantity} · <strong>Received:</strong> {dispute.quantity_received}
+              </p>
+            )}
+
+            {/* Suggested refund (auto-calculated) */}
+            {dispute.status === 'open' && (
+              <div style={{
+                marginTop: 12, padding: '10px 14px', borderRadius: 'var(--radius-md)',
+                background: 'var(--blue-50, #eff6ff)', border: '1px solid var(--blue-200, #bfdbfe)',
+                fontSize: 13, color: 'var(--blue-700, #1d4ed8)',
+              }}>
+                {isSeller
+                  ? '⏳ This dispute is being reviewed by CasaGrown staff. You can use chat to coordinate with the buyer.'
+                  : '⏳ Your dispute is being reviewed. We\'ll resolve it within 24–48 hours.'}
               </div>
             )}
 
@@ -510,138 +551,35 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               </div>
             )}
 
-            {/* Buyer accepts refund */}
-            {isBuyer && dispute.status === 'seller_responded' && (
-              <div className={styles.actionButtons} style={{ marginTop: 12 }}>
-                <button className="btn btn-primary" disabled={actionLoading}
-                  onClick={async () => {
-                    await callRpc('buyer_accept_refund', { p_dispute_id: dispute.id })
-                    await supabase.from('order_chat_messages').insert({
-                      order_id: orderId, sender_id: user!.id,
-                      content: '✅ Refund accepted. Dispute resolved.',
-                    })
-                  }}>
-                  ✓ Accept Refund
-                </button>
-                <button className="btn btn-danger" disabled={actionLoading}
-                  onClick={() => callRpc('escalate_dispute', { p_dispute_id: dispute.id })}>
-                  🔺 Escalate to Staff
-                </button>
+            {/* Refund applied */}
+            {dispute.refund_type && (
+              <div style={{
+                marginTop: 12, padding: '10px 14px', borderRadius: 'var(--radius-md)',
+                background: 'var(--green-50, #f0fdf4)', border: '1px solid var(--green-200, #bbf7d0)',
+                fontSize: 13, color: 'var(--green-700, #15803d)',
+              }}>
+                <strong>{dispute.refund_type === 'full' ? 'Full' : 'Partial'} refund applied</strong>
+                {dispute.refund_amount_usd && <span> — {formatUsd(dispute.refund_amount_usd)}</span>}
               </div>
             )}
 
-            {/* Seller responds with refund options */}
-            {isSeller && dispute.status === 'open' && (
-              <div style={{ marginTop: 16 }}>
-                <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--gray-500)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Resolve This Dispute</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8 }}>
-                  <button
-                    onClick={() => { setRefundType('full'); setRefundAmount(String(order.total_usd)); setShowRefund(true) }}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      padding: '10px 12px', borderRadius: 'var(--radius-lg)',
-                      border: '1px solid var(--green-200, #bbf7d0)', background: 'var(--green-50, #f0fdf4)',
-                      cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--green-100, #dcfce7)' }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'var(--green-50, #f0fdf4)' }}
-                  >
-                    <span style={{ fontSize: 22, lineHeight: 1 }}>💰</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--gray-800)' }}>Full Refund</div>
-                      <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 1 }}>{formatUsd(order.total_usd)}</div>
-                    </div>
-                    <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>›</span>
-                  </button>
-                  <button
-                    onClick={() => { setRefundType('partial'); setRefundAmount(''); setShowRefund(true) }}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      padding: '10px 12px', borderRadius: 'var(--radius-lg)',
-                      border: '1px solid var(--gray-200)', background: 'var(--gray-50)',
-                      cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--gray-100)' }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'var(--gray-50)' }}
-                  >
-                    <span style={{ fontSize: 22, lineHeight: 1 }}>🔢</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--gray-800)' }}>Partial Refund</div>
-                      <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 1 }}>Specify amount</div>
-                    </div>
-                    <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>›</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Buyer resolves */}
+            {/* Buyer: Issue Resolved button (withdraw dispute) */}
             {isBuyer && ['open', 'escalated'].includes(dispute.status) && (
-              <button className="btn btn-outline btn-sm" style={{ marginTop: 8 }} disabled={actionLoading}
-                onClick={() => callRpc('buyer_resolve_dispute', { p_dispute_id: dispute.id })}>
-                Resolve Dispute
+              <button
+                className="btn btn-primary btn-sm"
+                style={{ marginTop: 14, width: '100%' }}
+                disabled={actionLoading}
+                onClick={async () => {
+                  await callRpc('buyer_resolve_dispute', { p_dispute_id: dispute.id })
+                  await supabase.from('order_chat_messages').insert({
+                    order_id: orderId, sender_id: user!.id,
+                    content: '✅ Issue resolved — dispute withdrawn.',
+                  })
+                }}
+              >
+                ✓ Issue Resolved
               </button>
             )}
-
-            {/* Either party escalates */}
-            {['open', 'seller_responded'].includes(dispute.status) && (
-              <button className="btn btn-outline btn-sm" style={{ marginTop: 8 }} disabled={actionLoading}
-                onClick={() => callRpc('escalate_dispute', { p_dispute_id: dispute.id })}>
-                🔺 Escalate to CasaGrown Staff
-              </button>
-            )}
-          </div>
-
-          {/* Dispute Messages */}
-          <div className={styles.messagesSection}>
-            <h3 className={styles.subTitle}>Discussion</h3>
-            {disputeMessages.length === 0 ? (
-              <p className={styles.emptyMessages}>No messages yet</p>
-            ) : (
-              <div className={styles.messageList}>
-                {disputeMessages.map(m => {
-                  const isMine = m.sender_id === user?.id
-                  const initial = m.sender_name?.charAt(0).toUpperCase() || '?'
-                  const avatar = isMine
-                    ? (isSeller ? order.seller_avatar : order.buyer_avatar)
-                    : (isSeller ? order.buyer_avatar : order.seller_avatar)
-                  return (
-                    <div key={m.id} className={`${styles.message} ${isMine ? styles.messageMine : ''}`}>
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                        <div style={{
-                          width: 30, height: 30, borderRadius: '50%', flexShrink: 0, overflow: 'hidden',
-                          background: isMine ? 'var(--gray-300)' : 'var(--primary)',
-                          color: isMine ? 'var(--gray-700)' : '#fff',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 13, fontWeight: 700,
-                        }}>
-                          {avatar ? <img src={avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initial}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div className={styles.msgMeta}>
-                            <strong>{m.sender_name}</strong>
-                            <span>{new Date(m.created_at).toLocaleString()}</span>
-                          </div>
-                          <p>{m.body}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-            <div className={styles.messageInput}>
-              <input
-                type="text"
-                value={newMessage}
-                onChange={e => setNewMessage(e.target.value)}
-                placeholder="Type a message..."
-                onKeyDown={e => { if (e.key === 'Enter') sendDisputeMessage() }}
-              />
-              <button className="btn btn-primary btn-sm" onClick={sendDisputeMessage} disabled={!newMessage.trim()}>
-                Send
-              </button>
-            </div>
           </div>
         </div>
       )}
@@ -823,57 +761,6 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                 </div>
               </>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* Refund response modal */}
-      {showRefund && dispute && (
-        <div className={styles.modal}>
-          <div className={styles.modalContent}>
-            <h3>Respond to Dispute</h3>
-            <div className={styles.formGroup}>
-              <label>Refund Type</label>
-              <div className={styles.radioGroup}>
-                <label><input type="radio" checked={refundType === 'full'} onChange={() => setRefundType('full')} /> Full Refund ({formatUsd(order.total_usd)})</label>
-                <label><input type="radio" checked={refundType === 'partial'} onChange={() => setRefundType('partial')} /> Partial Refund</label>
-              </div>
-            </div>
-            {refundType === 'partial' && (
-              <div className={styles.formGroup}>
-                <label>Refund Amount</label>
-                <input type="number" value={refundAmount} onChange={e => setRefundAmount(e.target.value)}
-                  placeholder="0.00" step="0.01" max={order.total_usd} />
-              </div>
-            )}
-            <div className={styles.formGroup}>
-              <label>
-                <input type="checkbox" checked={pickupOffered} onChange={e => setPickupOffered(e.target.checked)} />
-                {' '}Offer to pick up the item
-              </label>
-            </div>
-            <div className={styles.modalActions}>
-              <button className="btn btn-primary" disabled={actionLoading || (refundType === 'partial' && !refundAmount)}
-                onClick={async () => {
-                  const amt = refundType === 'full' ? order.total_usd : parseFloat(refundAmount)
-                  await callRpc('seller_respond_dispute', {
-                    p_dispute_id: dispute.id,
-                    p_refund_type: refundType,
-                    p_refund_amount: amt,
-                    p_pickup_offered: pickupOffered,
-                  })
-                  // Auto-send chat message with refund offer
-                  const msg = `💰 Refund offered: ${refundType === 'full' ? 'Full' : 'Partial'} refund of ${formatUsd(amt)}${pickupOffered ? '\n📦 I can also pick up the item.' : ''}`
-                  await supabase.from('order_chat_messages').insert({
-                    order_id: orderId, sender_id: user!.id, content: msg,
-                  })
-                  setShowRefund(false)
-                  setShowChat(true)
-                }}>
-                Send Offer
-              </button>
-              <button className="btn btn-outline" onClick={() => setShowRefund(false)}>Cancel</button>
-            </div>
           </div>
         </div>
       )}

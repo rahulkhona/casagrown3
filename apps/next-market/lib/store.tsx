@@ -653,6 +653,9 @@ export function useMarket() {
 // ============================================================================
 
 export function isMarketOpen(schedule: MarketSchedule[]): boolean {
+  // TODO: re-enable with timezone support for production
+  return true
+  /*
   const now = new Date()
   const day = now.getDay()
   const time = now.getHours() * 100 + now.getMinutes()
@@ -662,6 +665,7 @@ export function isMarketOpen(schedule: MarketSchedule[]): boolean {
     const [ch, cm] = s.closeTime.split(':').map(Number)
     return time >= oh * 100 + om && time < ch * 100 + cm
   })
+  */
 }
 
 export function getNextMarketOpen(schedule: MarketSchedule[]): { dayName: string; openTime: string } | null {
