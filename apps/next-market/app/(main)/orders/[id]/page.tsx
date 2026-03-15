@@ -49,6 +49,7 @@ interface OrderDetail {
   buyer_name: string
   seller_name: string
   buyer_address?: string
+  seller_address?: string
   booth_name: string
 }
 
@@ -113,7 +114,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     if (!user) return
     const { data } = await supabase
       .from('market_orders')
-      .select('*, buyer:buyer_id(full_name, street_address), seller:seller_id(full_name), booth:booth_id(name)')
+      .select('*, buyer:buyer_id(full_name, street_address), seller:seller_id(full_name, street_address), booth:booth_id(name)')
       .eq('id', orderId)
       .single()
 
@@ -123,6 +124,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         buyer_name: (data as any).buyer?.full_name || 'Unknown',
         seller_name: (data as any).seller?.full_name || 'Unknown',
         buyer_address: (data as any).buyer?.street_address || undefined,
+        seller_address: (data as any).seller?.street_address || undefined,
         booth_name: (data as any).booth?.name || 'Unknown Booth',
       } as OrderDetail)
 
@@ -255,7 +257,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           </div>
         </div>
 
-        {/* Delivery address — shown to seller for delivery orders */}
+        {/* Delivery address — shown for delivery orders */}
         {order.fulfillment_type === 'delivery' && order.buyer_address && (
           <div style={{ background: 'var(--gray-50)', borderRadius: 'var(--radius-lg)', padding: '10px 14px', marginTop: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
             <span>📍</span>
@@ -263,6 +265,27 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Delivery Address</div>
               <div style={{ color: 'var(--gray-800)' }}>{order.buyer_address}</div>
             </div>
+          </div>
+        )}
+
+        {/* Pickup address — shown for pickup orders */}
+        {order.fulfillment_type === 'pickup' && order.seller_address && (
+          <div style={{ background: 'var(--gray-50)', borderRadius: 'var(--radius-lg)', padding: '10px 14px', marginTop: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>📍</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Pickup Address</div>
+              <div style={{ color: 'var(--gray-800)' }}>{order.seller_address}</div>
+            </div>
+            {isBuyer && (
+              <a
+                href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(order.seller_address)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: 12, fontWeight: 600, color: 'var(--primary)', whiteSpace: 'nowrap', textDecoration: 'none' }}
+              >
+                🗺️ Navigate
+              </a>
+            )}
           </div>
         )}
 
