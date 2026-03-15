@@ -6,7 +6,7 @@ import styles from './BottomNav.module.css'
 
 const tabs = [
   { href: '/', label: 'Home', icon: '🏠', exact: true },
-  { href: '/market', label: 'Browse', icon: '🏪' },
+  { href: '/market', label: 'Browse', icon: '🧺' },
   { href: '/my-booth', label: 'My Booth', icon: '🌱' },
   { href: '/orders', label: 'Orders', icon: '📦' },
   { href: '/chat', label: 'Chat', icon: '💬' },
