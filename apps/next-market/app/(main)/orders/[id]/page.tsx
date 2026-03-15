@@ -628,7 +628,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                 <div className={styles.photoGrid} style={{ marginBottom: 16 }}>
                   {proofPhotos.map((p, i) => (
                     <div key={i} style={{ position: 'relative', borderRadius: 12, overflow: 'hidden' }}>
-                      <img src={p.preview} alt={`Proof ${i + 1}`} style={{ width: '100%', height: 100, objectFit: 'cover' }} />
+                      <img src={p.preview} alt={`Proof ${i + 1}`} style={{ width: '100%', maxHeight: 200, objectFit: 'contain', background: '#f0f0f0' }} />
                       {p.result.meta.latitude && (
                         <span style={{ position: 'absolute', bottom: 2, left: 4, fontSize: 9, color: '#fff', background: 'rgba(0,0,0,0.5)', padding: '1px 4px', borderRadius: 4 }}>
                           📍 {p.result.meta.latitude.toFixed(4)}

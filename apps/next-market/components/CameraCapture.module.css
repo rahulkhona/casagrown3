@@ -1,16 +1,18 @@
 /* ── Camera Capture Overlay ── */
 .overlay {
   position: fixed; inset: 0; z-index: 3000;
-  background: #000;
-  display: flex; flex-direction: column;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex; align-items: center; justify-content: center;
 }
 .modal {
-  flex: 1; display: flex; flex-direction: column;
-  overflow: hidden; background: #000;
+  width: 96vw; max-width: 800px;
+  border-radius: 16px; overflow: hidden;
+  background: #000; box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  max-height: 95vh; display: flex; flex-direction: column;
 }
 .video {
-  width: 100%; flex: 1; display: block;
-  object-fit: contain; background: #000;
+  width: 100%; display: block;
+  max-height: 75vh; object-fit: contain;
 }
 .controls {
   display: flex; align-items: center; justify-content: center; gap: 12px;
