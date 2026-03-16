@@ -77,7 +77,7 @@ export interface Product {
   deliveryWindows?: string[]
   pickupWindows?: string[]
   isActive: boolean
-  status?: 'active' | 'draft'
+  status?: 'active' | 'draft' | 'expired' | 'inactive'
   harvestedAt?: string  // ISO datetime — when produce was harvested
   marketDate?: string // ISO date — products are scoped to a specific market session
 }

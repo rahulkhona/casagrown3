@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useMarket, formatUsd, type Booth } from '../../../lib/store'
+import { useMarket, formatUsd, getNextMarketDate, type Booth } from '../../../lib/store'
 import { useAuth } from '../../../lib/useAuth'
 import { createClient } from '../../../lib/supabase'
 import CameraCapture from '../../../components/CameraCapture'
@@ -273,8 +273,8 @@ export default function MyBoothPage() {
           pickupAddress: '',
           deliveryWindows: [],
           pickupWindows: [],
-          isActive: true,
-          status: 'active' as const,
+          isActive: p.is_active,
+          status: (!p.is_active ? 'inactive' : p.market_date < new Date().toISOString().split('T')[0] ? 'expired' : 'active') as any,
           marketDate: p.market_date,
           harvestedAt: p.harvested_at,
         })))
@@ -815,12 +815,22 @@ export default function MyBoothPage() {
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleRemoveProduct(slot.product!.id) }}
                   title="Remove product"
                 >✕</button>
-                <div onClick={() => router.push(`/my-booth/products/${slot.product!.id}`)} style={{ cursor: 'pointer' }}>
+              <div onClick={() => router.push(`/my-booth/products/${slot.product!.id}`)} style={{ cursor: 'pointer' }}>
                   <div className={styles.productSlotImage}>
                     {slot.product.photos[0] ? (
                       <img src={slot.product.photos[0]} alt={slot.product.name} />
                     ) : (
                       <span className={styles.productSlotEmoji}>🥬</span>
+                    )}
+                    {/* Expired / Flagged overlay */}
+                    {(slot.product.status === 'expired' || !slot.product.isActive) && (
+                      <div style={{
+                        position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        borderRadius: 'var(--radius-md)', color: '#fff', fontWeight: 700, fontSize: 12,
+                      }}>
+                        {slot.product.status === 'expired' ? '⏰ Expired' : '⚠️ Inactive'}
+                      </div>
                     )}
                   </div>
                   <div className={styles.productSlotInfo}>
@@ -829,8 +839,38 @@ export default function MyBoothPage() {
                     <span className={styles.productSlotStock}>
                       {slot.product.inventory > 0 ? `${slot.product.inventory} in stock` : 'Sold out'}
                     </span>
+                    {slot.product.status === 'expired' && (
+                      <span style={{ fontSize: 11, color: 'var(--gray-400)' }}>
+                        Listed for {slot.product.marketDate}
+                      </span>
+                    )}
                   </div>
                 </div>
+                {/* Re-list button for expired products */}
+                {slot.product.status === 'expired' && (
+                  <button
+                    className="btn btn-primary btn-sm"
+                    style={{ margin: '8px 8px 4px', fontSize: 12 }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={async (e) => {
+                      e.preventDefault(); e.stopPropagation()
+                      const nextMarket = getNextMarketDate(state.marketSchedule)
+                      const newDate = nextMarket?.date.toISOString().split('T')[0] || new Date().toISOString().split('T')[0]
+                      const { error } = await supabase.from('market_products')
+                        .update({ market_date: newDate, is_active: true, updated_at: new Date().toISOString() })
+                        .eq('id', slot.product!.id)
+                      if (!error) {
+                        setDbProducts(prev => prev.map(p =>
+                          p.id === slot.product!.id
+                            ? { ...p, marketDate: newDate, isActive: true, status: 'active' as const }
+                            : p
+                        ))
+                      }
+                    }}
+                  >
+                    🔄 Re-list for Next Market
+                  </button>
+                )}
               </div>
             ) : (
               <Link
