@@ -275,12 +275,12 @@ export default function EarningsPage() {
           <div className={styles.summaryCard} style={{ borderColor: 'var(--green-300)' }}>
             <span className={styles.summaryLabel}>Available</span>
             <span className={styles.summaryValue} style={{ color: 'var(--green-700)' }}>{formatUsd(summary?.available_usd || 0)}</span>
-            <Link href="/earnings/redeem" className="btn btn-primary btn-sm" style={{ marginTop: 8 }}>Withdraw →</Link>
+            <Link href="/earnings/payout" className="btn btn-primary btn-sm" style={{ marginTop: 8 }}>Payout →</Link>
           </div>
           <div className={styles.summaryCard}>
-            <span className={styles.summaryLabel}>Pending</span>
+            <span className={styles.summaryLabel}>Unsettled</span>
             <span className={styles.summaryValue}>{formatUsd(summary?.pending_usd || 0)}</span>
-            <span className={styles.summaryHint}>{pending.length} orders awaiting settlement</span>
+            <span className={styles.summaryHint}>{pending.length} orders awaiting clearance</span>
           </div>
           <div className={styles.summaryCard}>
             <span className={styles.summaryLabel}>Total Sales</span>
@@ -305,10 +305,10 @@ export default function EarningsPage() {
         </div>
 
         {/* ── Auto-Withdraw CTA ── */}
-        <Link href="/earnings/auto-redeem" className={styles.autoRedeemCard}>
+        <Link href="/earnings/payout" className={styles.autoRedeemCard}>
           <span style={{ fontSize: 24 }}>⚡</span>
           <div>
-            <strong style={{ fontSize: 14, color: 'var(--gray-800)' }}>Set up Auto-Withdrawal</strong>
+            <strong style={{ fontSize: 14, color: 'var(--gray-800)' }}>Set up Auto-Payout</strong>
             <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>Automatically convert earnings to gift cards, cashout, or charity</div>
           </div>
         </Link>
@@ -317,7 +317,7 @@ export default function EarningsPage() {
         <div className={styles.tabBar}>
           {([
             { key: 'activity' as Tab, label: '📋 Activity' },
-            { key: 'pending' as Tab, label: `⏳ Pending (${pending.length})` },
+            { key: 'pending' as Tab, label: `⏳ Unsettled (${pending.length})` },
             { key: 'summary' as Tab, label: '📊 Summary' },
           ]).map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
@@ -456,17 +456,17 @@ export default function EarningsPage() {
           </>
         )}
 
-        {/* ── Pending Tab ── */}
+        {/* ── Unsettled Tab ── */}
         {tab === 'pending' && (
           <>
             <div className={styles.infoBox}>
-              <strong>⏳ Pending Transactions</strong>
-              <p>These orders are awaiting the next market settlement. Once the market closes and netting is complete, they&apos;ll appear in your Activity tab.</p>
+              <strong>⏳ Unsettled Transactions</strong>
+              <p>These orders are awaiting the next market clearance. Once the market closes and netting is complete, they&apos;ll appear in your Activity tab.</p>
             </div>
             {pending.length === 0 ? (
               <div className={styles.emptyState}>
                 <span className={styles.emptyIcon}>✅</span>
-                <p>No pending transactions — everything has been settled!</p>
+                <p>No unsettled transactions — everything has been cleared!</p>
               </div>
             ) : (
               <div className={styles.txList}>

@@ -45,10 +45,18 @@ export function computeNetFee(
     return Math.max(0, totalFee - discountSavings);
 }
 
+const OPEN_CARD_NETWORKS = ["visa", "mastercard", "amex", "american express", "discover"];
+
 export function mapCategory(
     tremendousCategory?: string,
     reloadlyCategory?: string,
+    brandName?: string,
 ): string {
+    // Detect open-loop network cards by brand name
+    if (brandName) {
+        const lower = brandName.toLowerCase();
+        if (OPEN_CARD_NETWORKS.some((n) => lower.includes(n))) return "Prepaid Cards";
+    }
     const cat = (tremendousCategory || reloadlyCategory || "").toLowerCase();
     if (cat.includes("food") || cat.includes("restaurant")) return "Food";
     if (cat.includes("gaming") || cat.includes("game")) return "Gaming";
@@ -60,11 +68,9 @@ export function mapCategory(
 }
 
 const OPEN_LOOP_KEYWORDS = [
-    "visa",
-    "mastercard",
-    "amex",
-    "american express",
-    "discover",
+    // Card networks are now allowed (Visa, Mastercard, Amex, Discover)
+    // since we use USD-based payouts, not a points system.
+    // Still block cash-equivalent and problematic cards:
     "prepaid",
     "virtual card",
     "virtual debit",
@@ -85,4 +91,10 @@ const OPEN_LOOP_KEYWORDS = [
 export function isOpenLoopCard(brandName: string): boolean {
     const lower = brandName.toLowerCase();
     return OPEN_LOOP_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
+/** Check if card is a major network-branded prepaid (Visa, MC, Amex, Discover) */
+export function isNetworkPrepaid(brandName: string): boolean {
+    const lower = brandName.toLowerCase();
+    return OPEN_CARD_NETWORKS.some((n) => lower.includes(n));
 }

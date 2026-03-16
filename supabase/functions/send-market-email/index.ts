@@ -34,12 +34,14 @@ serve(async (req) => {
       )
     }
 
-    const smtpHost = Deno.env.get('SMTP_HOST') || 'localhost'
+    // In local Docker dev, edge functions run in a separate container.
+    // Mailpit is at 'supabase_inbucket_<project>' on the Docker network.
+    // In production, set SMTP_HOST to your SMTP provider.
+    const smtpHost = Deno.env.get('SMTP_HOST') || 'supabase_inbucket_casagrown3'
     const smtpPort = parseInt(Deno.env.get('SMTP_PORT') || '1025', 10)
     const smtpFrom = Deno.env.get('SMTP_FROM') || 'market@casagrown.com'
 
-    // Use Mailpit HTTP API in development (port 8025)
-    // Mailpit accepts standard SMTP on port 1025 and has an API on 8025
+    // Mailpit HTTP API (port 8025) for local dev
     const mailpitApiUrl = `http://${smtpHost}:8025/api/v1/send`
     
     const emailPayload = {

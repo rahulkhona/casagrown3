@@ -5,7 +5,7 @@
  *
  * Web equivalent of community app's RedemptionStore.
  * Uses real edge functions: fetch-gift-cards, fetch-donation-projects,
- * redeem-gift-card, donate-points, redeem-paypal-payout
+ * market-purchase-gift-card, market-donate-earnings, market-cashout-paypal
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
@@ -222,7 +222,7 @@ export default function RedeemPage() {
     setRedeeming(true)
     const pointsCost = gcAmount * POINTS_PER_DOLLAR
     try {
-      const { data, error } = await supabase.functions.invoke('redeem-gift-card', {
+      const { data, error } = await supabase.functions.invoke('market-purchase-gift-card', {
         body: { brandName: selectedCard.brandName, faceValueCents: Math.round(gcAmount * 100), pointsCost },
       })
       if (error) throw error
@@ -245,7 +245,7 @@ export default function RedeemPage() {
     setDonating(true)
     const pts = parseInt(donateAmount) || 0
     try {
-      const { data, error } = await supabase.functions.invoke('donate-points', {
+      const { data, error } = await supabase.functions.invoke('market-donate-earnings', {
         body: {
           projectId: selectedCharity.id,
           projectTitle: selectedCharity.title,
@@ -281,7 +281,7 @@ export default function RedeemPage() {
     setCashingOut(true)
     const pts = parseInt(cashoutAmount) || 0
     try {
-      const { data, error } = await supabase.functions.invoke('redeem-paypal-payout', {
+      const { data, error } = await supabase.functions.invoke('market-cashout-paypal', {
         body: { pointsToRedeem: pts, payoutId: payoutId.trim() },
       })
       if (error) throw error

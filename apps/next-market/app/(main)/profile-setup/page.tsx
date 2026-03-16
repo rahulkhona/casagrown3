@@ -245,7 +245,7 @@ export default function ProfileSetupPage() {
             <CameraCapture
               facingMode="user"
               onClose={() => setShowCamera(false)}
-              onCapture={(file) => {
+              onCapture={({ file }) => {
                 setShowCamera(false)
                 const reader = new FileReader()
                 reader.onload = (ev) => setCropSrc(ev.target?.result as string)

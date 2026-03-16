@@ -1027,3 +1027,79 @@ BEGIN
   WHERE b.owner_id = s1 AND p.name = 'Fresh Basil Bunch' LIMIT 1;
 
 END $$;
+
+-- =============================================================================
+-- PAYOUT FLOW TEST DATA
+-- Seeds settlement + ledger + user_balances so the Payout page has real balance
+-- Login as seller@test.local (Sam Seller) → /earnings/payout to test
+-- =============================================================================
+
+-- 1. Create a cleared settlement for yesterday
+INSERT INTO market_settlements (id, market_date, status, total_orders, total_captured_usd,
+  total_payouts_usd, total_fees_usd, total_refunds_usd, total_released_usd,
+  reconciliation_check, created_at, updated_at)
+VALUES (
+  'e0000001-0000-0000-0000-000000000001',
+  CURRENT_DATE - interval '2 days',
+  'cleared',
+  5, 65.00, 52.50, 2.50, 0.00, 10.00,
+  '{"check1_ledger_consistency": true, "check2_settlement_balance": true}'::jsonb,
+  now() - interval '1 day', now() - interval '1 day'
+) ON CONFLICT (market_date) DO NOTHING;
+
+-- 2. User settlements
+INSERT INTO user_settlements (id, settlement_id, user_id, gross_sales_usd,
+  total_purchases_usd, refunds_issued_usd, refunds_received_usd,
+  platform_fees_usd, hold_captured_usd, hold_released_usd, net_payout_usd, status)
+VALUES
+  ('e0000010-0000-0000-0000-000000000001',
+   'e0000001-0000-0000-0000-000000000001',
+   'a1111111-1111-1111-1111-111111111111',
+   50.00, 0.00, 0.00, 0.00, 2.50, 0.00, 0.00, 47.50, 'available'),
+  ('e0000010-0000-0000-0000-000000000002',
+   'e0000001-0000-0000-0000-000000000001',
+   'b2222222-2222-2222-2222-222222222222',
+   15.00, 0.00, 0.00, 0.00, 0.75, 0.00, 0.00, 14.25, 'available')
+ON CONFLICT DO NOTHING;
+
+-- 3. Market ledger: settlement credits for both users → funds_cleared
+INSERT INTO market_ledger (event_type, user_id, settlement_id, amount_usd, direction, balance_after, metadata)
+VALUES
+  -- Sam Seller: $50 sales credit
+  ('settlement_credit', 'a1111111-1111-1111-1111-111111111111',
+   'e0000001-0000-0000-0000-000000000001', 50.00, 'credit', 50.00,
+   '{"type":"gross_sales"}'::jsonb),
+  -- Sam Seller: $2.50 fee
+  ('fee_charged', 'a1111111-1111-1111-1111-111111111111',
+   'e0000001-0000-0000-0000-000000000001', 2.50, 'debit', 47.50,
+   '{}'::jsonb),
+  -- Sam Seller: funds cleared ($47.50 available)
+  ('funds_cleared', 'a1111111-1111-1111-1111-111111111111',
+   'e0000001-0000-0000-0000-000000000001', 47.50, 'credit', 95.00,
+   '{"type":"funds_available"}'::jsonb),
+  -- Beth Buyer: $15 sales credit
+  ('settlement_credit', 'b2222222-2222-2222-2222-222222222222',
+   'e0000001-0000-0000-0000-000000000001', 15.00, 'credit', 15.00,
+   '{"type":"gross_sales"}'::jsonb),
+  -- Beth Buyer: $0.75 fee
+  ('fee_charged', 'b2222222-2222-2222-2222-222222222222',
+   'e0000001-0000-0000-0000-000000000001', 0.75, 'debit', 14.25,
+   '{}'::jsonb),
+  -- Beth Buyer: funds cleared ($14.25 available)
+  ('funds_cleared', 'b2222222-2222-2222-2222-222222222222',
+   'e0000001-0000-0000-0000-000000000001', 14.25, 'credit', 28.50,
+   '{"type":"funds_available"}'::jsonb);
+
+-- 4. User balances ($47.50 for Sam, $14.25 for Beth, available for payout)
+INSERT INTO user_balances (user_id, available_usd, pending_usd, total_earned_usd, total_spent_usd, total_withdrawn_usd)
+VALUES
+  ('a1111111-1111-1111-1111-111111111111', 47.50, 0.00, 50.00, 0.00, 0.00),
+  ('b2222222-2222-2222-2222-222222222222', 14.25, 0.00, 15.00, 0.00, 0.00)
+ON CONFLICT (user_id) DO UPDATE SET
+  available_usd = EXCLUDED.available_usd,
+  pending_usd = EXCLUDED.pending_usd,
+  total_earned_usd = EXCLUDED.total_earned_usd,
+  total_spent_usd = EXCLUDED.total_spent_usd,
+  total_withdrawn_usd = EXCLUDED.total_withdrawn_usd,
+  updated_at = now();
+

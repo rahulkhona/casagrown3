@@ -18,6 +18,11 @@ export function useAuth() {
     supabase.auth.getUser().then(({ data: { user: u } }) => {
       setUser(u ? { id: u.id, email: u.email ?? undefined } : null)
       setLoading(false)
+
+      // Stamp last_active_at for 90-day sweep tracking
+      if (u) {
+        supabase.from('profiles').update({ last_active_at: new Date().toISOString() }).eq('id', u.id).then(() => {})
+      }
     })
   }, [])
 

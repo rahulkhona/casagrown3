@@ -46,18 +46,18 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
 
         // Check follow status + count
         const { count: fCount } = await supabase
-          .from('followers')
+          .from('market_followers')
           .select('*', { count: 'exact', head: true })
-          .eq('followed_id', boothData.owner_id)
+          .eq('booth_id', boothData.id)
         setFollowerCount(fCount || 0)
 
         const { data: session } = await supabase.auth.getUser()
         if (session?.user) {
           const { data: fRow } = await supabase
-            .from('followers')
+            .from('market_followers')
             .select('follower_id')
             .eq('follower_id', session.user.id)
-            .eq('followed_id', boothData.owner_id)
+            .eq('booth_id', boothData.id)
             .maybeSingle()
           if (fRow) setFollowing(true)
         }
@@ -161,11 +161,11 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
             className={`${styles.followBtn} ${following ? styles.followBtnActive : ''}`}
             onClick={async () => {
               if (following) {
-                await supabase.from('followers').delete().match({ follower_id: user!.id, followed_id: booth.owner_id })
+                await supabase.from('market_followers').delete().match({ follower_id: user!.id, booth_id: booth.id })
                 setFollowing(false)
                 setFollowerCount(c => Math.max(0, c - 1))
               } else {
-                await supabase.from('followers').insert({ follower_id: user!.id, followed_id: booth.owner_id })
+                await supabase.from('market_followers').insert({ follower_id: user!.id, booth_id: booth.id })
                 setFollowing(true)
                 setFollowerCount(c => c + 1)
               }

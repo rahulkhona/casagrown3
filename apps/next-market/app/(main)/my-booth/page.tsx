@@ -8,6 +8,8 @@ import { useAuth } from '../../../lib/useAuth'
 import { createClient } from '../../../lib/supabase'
 import CameraCapture from '../../../components/CameraCapture'
 import ImageCropper from '../../../components/ImageCropper'
+
+
 import { geocodeAddress, toPostgisPoint } from '../../../lib/geocode'
 import styles from './page.module.css'
 
@@ -234,8 +236,9 @@ export default function MyBoothPage() {
         .eq('booth_id', booth.id)
       if (dbHelpers) {
         setHelpers(dbHelpers.map((h: any) => ({
-          email: h.profiles?.full_name || h.helper_id,
-          status: h.status === 'accepted' ? 'accepted' : 'pending',
+          helperId: h.helper_id,
+          name: h.profiles?.full_name || 'Unknown',
+          status: h.status as 'pending' | 'accepted' | 'revoked',
         })))
       }
       // Load seller's products from DB
@@ -281,7 +284,7 @@ export default function MyBoothPage() {
   const [customEnd, setCustomEnd] = useState('11:00')
 
   // Helpers
-  const [helpers, setHelpers] = useState<Array<{ email: string; status: 'pending' | 'accepted' }>>(myBooth?.helpers || [])
+  const [helpers, setHelpers] = useState<Array<{ helperId: string; name: string; status: 'pending' | 'accepted' | 'revoked' }>>([])
   const genPasscode = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
     return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
@@ -842,7 +845,7 @@ export default function MyBoothPage() {
       </div>
 
       {/* ── Helpers ── */}
-      <div className={styles.boothSection}>
+      {<div className={styles.boothSection}>
         <h2 className={styles.sectionTitle}>🤝 Helpers</h2>
         <p style={{ fontSize: 14, color: 'var(--gray-500)', marginBottom: 16 }}>
           Share the link and passcode so others can help manage your booth.
@@ -863,8 +866,8 @@ export default function MyBoothPage() {
           <button
             className="btn btn-secondary"
             onClick={() => {
-              const boothUrl = typeof window !== 'undefined' ? `${window.location.origin}/market/booth/${myBooth?.id || 'new'}` : ''
-              const text = `Join my booth on CasaGrown!\n\nLink: ${boothUrl}\nPasscode: ${helperPasscode}`
+              const joinUrl = typeof window !== 'undefined' ? `${window.location.origin}/join-booth/${encodeURIComponent(helperPasscode)}` : ''
+              const text = `🤝 Hey! I could use your help with my booth "${name}" on CasaGrown.\n\nAs a helper you can:\n• See pending orders and deliver them\n• Chat with buyers on my behalf\n• Help with pickup handoffs\n\nJoin here: ${joinUrl}\nPasscode: ${helperPasscode}`
               navigator.clipboard?.writeText(text)
               setInviteCopied(true)
               setTimeout(() => setInviteCopied(false), 2000)
@@ -876,10 +879,10 @@ export default function MyBoothPage() {
           <button
             className="btn btn-secondary"
             onClick={() => {
-              const boothUrl = typeof window !== 'undefined' ? `${window.location.origin}/market/booth/${myBooth?.id || 'new'}` : ''
-              const text = `Join my booth on CasaGrown!\n\nLink: ${boothUrl}\nPasscode: ${helperPasscode}`
+              const joinUrl = typeof window !== 'undefined' ? `${window.location.origin}/join-booth/${encodeURIComponent(helperPasscode)}` : ''
+              const text = `🤝 Hey! I could use your help with my booth "${name}" on CasaGrown.\n\nAs a helper you can:\n• See pending orders and deliver them\n• Chat with buyers on my behalf\n• Help with pickup handoffs\n\nJoin here: ${joinUrl}\nPasscode: ${helperPasscode}`
               if (navigator.share) {
-                navigator.share({ title: 'Join my booth', text })
+                navigator.share({ title: `Help with ${name} on CasaGrown`, text })
               } else {
                 navigator.clipboard?.writeText(text)
                 dispatch({ type: 'ADD_TOAST', payload: { message: 'Copied! 📋', type: 'success' } })
@@ -893,24 +896,37 @@ export default function MyBoothPage() {
         {/* Current helpers */}
         {helpers.length > 0 && (
           <div className={styles.helperList} style={{ marginTop: 16 }}>
-            {helpers.map((h, i) => (
-              <div key={i} className={styles.helperRow}>
-                <span className={styles.helperEmail}>{h.email}</span>
-                <span className={`badge ${h.status === 'accepted' ? 'badge-green' : 'badge-amber'} badge-sm`}>
+            {helpers.map((h) => (
+              <div key={h.helperId} className={styles.helperRow}>
+                <span className={styles.helperEmail}>{h.name}</span>
+                <span className={`badge ${h.status === 'accepted' ? 'badge-green' : h.status === 'revoked' ? 'badge-red' : 'badge-amber'} badge-sm`}>
                   {h.status}
                 </span>
-                <button
-                  className={styles.helperRemove}
-                  onClick={() => {
-                    setHelpers(helpers.filter((_, j) => j !== i))
-                    setSaved(false)
-                  }}
-                >×</button>
+                {h.status !== 'revoked' && (
+                  <button
+                    className={styles.helperRemove}
+                    title="Revoke helper access"
+                    onClick={async () => {
+                      if (!savedBoothId) return
+                      const { error } = await supabase
+                        .from('booth_helpers')
+                        .update({ status: 'revoked', updated_at: new Date().toISOString() })
+                        .eq('booth_id', savedBoothId)
+                        .eq('helper_id', h.helperId)
+                      if (error) {
+                        dispatch({ type: 'ADD_TOAST', payload: { message: 'Failed to revoke — ' + error.message, type: 'error' } })
+                        return
+                      }
+                      setHelpers(prev => prev.map(x => x.helperId === h.helperId ? { ...x, status: 'revoked' } : x))
+                      dispatch({ type: 'ADD_TOAST', payload: { message: 'Helper access revoked', type: 'success' } })
+                    }}
+                  >×</button>
+                )}
               </div>
             ))}
           </div>
         )}
-      </div>
+      </div>}
 
       {/* ── Quick Actions (only if booth exists) ── */}
       {myBooth && (
@@ -1001,7 +1017,7 @@ export default function MyBoothPage() {
         <CameraCapture
           facingMode="environment"
           onClose={() => setShowCamera(false)}
-          onCapture={(file) => {
+          onCapture={({ file }) => {
             setShowCamera(false)
             const reader = new FileReader()
             reader.onload = (ev) => setCropSrc(ev.target?.result as string)

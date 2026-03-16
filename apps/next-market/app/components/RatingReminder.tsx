@@ -21,13 +21,11 @@ export function RatingReminder() {
   const [submitted, setSubmitted] = useState(false)
   const [dismissed, setDismissed] = useState(false)
 
-  // Check for unrated orders on mount
+  // Check for unrated orders once auth is ready
   useEffect(() => {
-    const check = async () => {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+    const supabase = createClient()
 
+    const check = async (userId: string) => {
       // Check dismissed cache (don't show again for 24h after skip)
       const skipUntil = localStorage.getItem('rating_skip_until')
       if (skipUntil && new Date(skipUntil) > new Date()) return
@@ -37,7 +35,7 @@ export function RatingReminder() {
       const { data: buyerOrder } = await supabase
         .from('market_orders')
         .select('id, product_name, seller_id')
-        .eq('buyer_id', user.id)
+        .eq('buyer_id', userId)
         .eq('status', 'completed')
         .is('buyer_rating', null)
         .order('created_at', { ascending: false })
@@ -65,7 +63,7 @@ export function RatingReminder() {
       const { data: sellerOrder } = await supabase
         .from('market_orders')
         .select('id, product_name, buyer_id')
-        .eq('seller_id', user.id)
+        .eq('seller_id', userId)
         .eq('status', 'completed')
         .is('seller_rating', null)
         .order('created_at', { ascending: false })
@@ -87,7 +85,13 @@ export function RatingReminder() {
         })
       }
     }
-    check()
+
+    // Listen for auth state — fires when session is restored from storage
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user) check(session.user.id)
+    })
+
+    return () => subscription.unsubscribe()
   }, [])
 
   const handleRate = useCallback(async (stars: number) => {

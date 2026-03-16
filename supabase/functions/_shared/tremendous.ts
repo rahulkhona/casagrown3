@@ -1,4 +1,5 @@
 import {
+    isNetworkPrepaid,
     isOpenLoopCard,
     mapCategory,
     ProviderOption,
@@ -8,6 +9,7 @@ import {
 
 export async function fetchTremendousCatalog(
     apiKey: string,
+    allowPrepaid = false,
 ): Promise<UnifiedGiftCard[]> {
     if (!apiKey) return [];
 
@@ -28,10 +30,17 @@ export async function fetchTremendousCatalog(
     const cards: UnifiedGiftCard[] = [];
 
     for (const product of products) {
-        // filter out open-loop cards if needed
         const brandName = (product.name as string) || "";
-        if (isOpenLoopCard(brandName)) continue;
-        if ((product.category as string) !== "merchant_card") continue;
+        const productCategory = (product.category as string) || "";
+        // Community app: block open-loop/prepaid cards. Market app: allow them.
+        if (!allowPrepaid) {
+            if (isOpenLoopCard(brandName)) continue;
+            if (productCategory !== "merchant_card") continue;
+        } else {
+            // Market: still block truly problematic cards (vanilla, netspend, etc.)
+            // but allow network-branded prepaid (Visa, MC, Amex, Discover)
+            if (isOpenLoopCard(brandName) && !isNetworkPrepaid(brandName)) continue;
+        }
         if (!(product.currency_codes as string[])?.includes("USD")) continue;
 
         const isFixed = (product.currency_format as string) === "fixed";
@@ -42,7 +51,7 @@ export async function fetchTremendousCatalog(
             logoUrl: (product.images as { src?: string }[])?.[0]?.src || "",
             cardImageUrl: (product.images as { src?: string }[])?.[0]?.src ||
                 "",
-            category: mapCategory(String(product.category), undefined),
+            category: mapCategory(String(product.category), undefined, brandName),
             denominationType: isFixed ? "fixed" : "range",
             fixedDenominations: isFixed
                 ? (product.skus as { face_value?: number }[])?.map((s) =>

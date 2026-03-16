@@ -2,7 +2,7 @@
 
 import { use, useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase'
 import { useAuth } from '../../../../lib/useAuth'
 import CameraCapture, { CaptureResult } from '../../../../components/CameraCapture'
@@ -92,6 +92,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [disputeMessages, setDisputeMessages] = useState<DisputeMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
+  const [isHelper, setIsHelper] = useState(false)
 
   // Form states
   const [showDecline, setShowDecline] = useState(false)
@@ -102,7 +103,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [disputeQuantityReceived, setDisputeQuantityReceived] = useState('')
   const [disputePhotos, setDisputePhotos] = useState<{ preview: string; result: CaptureResult }[]>([])
   const [showDisputeCamera, setShowDisputeCamera] = useState(false)
-  const [showChat, setShowChat] = useState(false)
+  const searchParams = useSearchParams()
+  const [showChat, setShowChat] = useState(searchParams.get('chat') === 'open')
   const [chatMessageCount, setChatMessageCount] = useState(0)
   const [showRefund, setShowRefund] = useState(false)
   const [refundType, setRefundType] = useState<'full' | 'partial'>('full')
@@ -139,6 +141,17 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         seller_avatar: (data as any).seller?.avatar_url || undefined,
         booth_name: (data as any).booth?.name || 'Unknown Booth',
       } as OrderDetail)
+
+      // Check if current user is a helper for this booth
+      if (data.buyer_id !== user.id && data.seller_id !== user.id) {
+        const { count } = await supabase
+          .from('booth_helpers')
+          .select('id', { count: 'exact', head: true })
+          .eq('booth_id', data.booth_id)
+          .eq('helper_id', user.id)
+          .eq('status', 'accepted')
+        setIsHelper((count || 0) > 0)
+      }
 
       // Load dispute if exists
       const { data: disp } = await supabase
@@ -245,6 +258,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
   const isBuyer = order.buyer_id === user?.id
   const isSeller = order.seller_id === user?.id
+  const isSellerOrHelper = isSeller || isHelper
 
   return (
     <div className="container">
@@ -274,7 +288,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           <div className={styles.partySep}>→</div>
           <div className={styles.party}>
             <span className={styles.partyLabel}>Seller</span>
-            <span className={styles.partyName}>{order.seller_name} {isSeller && '(you)'}</span>
+            <span className={styles.partyName}>{order.seller_name} {isSeller && '(you)'}{isHelper && ' — 🤝 You are helping'}</span>
           </div>
         </div>
 
@@ -378,7 +392,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             style={{ width: '100%', fontSize: 14, position: 'relative' }}
             onClick={() => setShowChat(prev => !prev)}
           >
-            💬 {showChat ? 'Hide Chat' : 'Chat with ' + (isSeller ? order.buyer_name : order.seller_name)}
+            💬 {showChat ? 'Hide Chat' : 'Chat with ' + (isSellerOrHelper ? order.buyer_name : order.seller_name)}
             {!showChat && chatMessageCount > 0 && (
               <span style={{
                 marginLeft: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -395,10 +409,10 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         <div style={{ margin: '0 -4px' }}>
           <OrderChat
             orderId={orderId}
-            otherUserName={isSeller ? order.buyer_name : order.seller_name}
-            otherUserId={isSeller ? order.buyer_id : order.seller_id}
-            myAvatar={isSeller ? order.seller_avatar : order.buyer_avatar}
-            otherAvatar={isSeller ? order.buyer_avatar : order.seller_avatar}
+            otherUserName={isSellerOrHelper ? order.buyer_name : order.seller_name}
+            otherUserId={isSellerOrHelper ? order.buyer_id : order.seller_id}
+            myAvatar={isSellerOrHelper ? order.seller_avatar : order.buyer_avatar}
+            otherAvatar={isSellerOrHelper ? order.buyer_avatar : order.seller_avatar}
           />
         </div>
       )}
@@ -406,7 +420,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       {/* ===== ACTION PANELS ===== */}
 
       {/* SELLER: Pending delivery order → Navigate, Mark Delivered or Decline */}
-      {isSeller && order.status === 'pending' && order.fulfillment_type === 'delivery' && (
+      {isSellerOrHelper && order.status === 'pending' && order.fulfillment_type === 'delivery' && (
         <div className={styles.actionPanel}>
           <h2 className={styles.sectionTitle}>Seller Actions</h2>
           {order.buyer_address && (
@@ -447,8 +461,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       )}
 
-      {/* SELLER: Pending pickup → Hand Off to Buyer (optional photo) */}
-      {isSeller && order.status === 'pending' && order.fulfillment_type === 'pickup' && (
+      {/* SELLER/HELPER: Pending pickup → Hand Off to Buyer (optional photo) */}
+      {isSellerOrHelper && order.status === 'pending' && order.fulfillment_type === 'pickup' && (
         <div className={styles.actionPanel}>
           <h2 className={styles.sectionTitle}>Actions</h2>
           <div className={styles.actionButtons}>

@@ -1,0 +1,59 @@
+.backLink { font-size: 14px; color: var(--green-600); font-weight: 500; text-decoration: none; }
+.backLink:hover { color: var(--green-800); }
+
+.pageHeader { margin: 16px 0 24px; }
+.pageTitle { font-size: 24px; font-weight: 700; color: var(--gray-900); }
+
+/* Info card */
+.infoCard {
+  text-align: center;
+  background: linear-gradient(135deg, var(--amber-50, #fffbeb), #fff);
+  border: 1px solid var(--amber-200, #fde68a);
+  border-radius: var(--radius-xl, 16px);
+  padding: 32px 24px;
+  margin-bottom: 20px;
+}
+.infoIcon { font-size: 48px; margin-bottom: 12px; }
+.infoHeading { font-size: 20px; font-weight: 700; color: var(--gray-900); margin: 0 0 12px; }
+.infoText { font-size: 14px; color: var(--gray-600); line-height: 1.6; margin: 0; }
+
+/* Status / checklist card */
+.statusCard {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl, 16px);
+  padding: 24px;
+  margin-bottom: 20px;
+}
+.statusTitle { font-size: 16px; font-weight: 600; color: var(--gray-800); margin: 0 0 12px; }
+.checklist {
+  margin: 0; padding: 0; list-style: none;
+}
+.checklist li {
+  position: relative;
+  padding: 8px 0 8px 28px;
+  font-size: 14px;
+  color: var(--gray-600);
+  border-bottom: 1px solid var(--gray-100);
+}
+.checklist li:last-child { border-bottom: none; }
+.checklist li::before {
+  content: '☐';
+  position: absolute;
+  left: 0;
+  color: var(--gray-400);
+  font-size: 16px;
+}
+
+/* Coming soon */
+.comingSoon {
+  text-align: center;
+  background: var(--gray-50);
+  border: 2px dashed var(--gray-300);
+  border-radius: var(--radius-xl, 16px);
+  padding: 32px 24px;
+}
+.comingSoonIcon { font-size: 40px; margin-bottom: 12px; }
+.comingSoon h3 { font-size: 17px; font-weight: 700; color: var(--gray-700); margin: 0 0 12px; }
+.comingSoon p { font-size: 14px; color: var(--gray-500); line-height: 1.6; margin: 0 0 8px; }
+.comingSoonNote { font-size: 12px; color: var(--gray-400); font-style: italic; }

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useMarket } from '../../../lib/store'
 import { createClient } from '../../../lib/supabase'
+import { needsTosAcceptance } from '../../../lib/legal'
 import styles from './page.module.css'
 
 export default function LoginPage() {
@@ -31,7 +32,7 @@ export default function LoginPage() {
         .eq('id', user.id)
         .single()
 
-      if (!profile?.tos_accepted_at) {
+      if (needsTosAcceptance(profile?.tos_accepted_at)) {
         router.replace('/terms')
       } else if (!profile?.full_name || !profile?.street_address) {
         router.replace('/profile-setup')
@@ -91,7 +92,7 @@ export default function LoginPage() {
 
       const redirectParam = redirectTo ? `redirect=${encodeURIComponent(redirectTo)}` : ''
 
-      if (!profile?.tos_accepted_at) {
+      if (needsTosAcceptance(profile?.tos_accepted_at)) {
         const termsUrl = template ? `/terms?template=${template}` : `/terms${redirectParam ? `?${redirectParam}` : ''}`
         router.push(termsUrl)
       } else if (!profile?.full_name || !profile?.street_address) {

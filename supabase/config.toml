@@ -531,3 +531,13 @@ entrypoint = "./functions/resolve-usps-address/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/market-hold/index.ts"
+
+[functions.send-market-email]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/send-market-email/index.ts"
+
+[functions.market-cron]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/market-cron/index.ts"

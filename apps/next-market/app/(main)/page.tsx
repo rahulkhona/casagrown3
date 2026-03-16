@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '../../lib/supabase'
+import { needsTosAcceptance } from '../../lib/legal'
 import styles from './page.module.css'
 
 export default function HomePage() {
@@ -26,7 +27,7 @@ export default function HomePage() {
         .eq('id', user.id)
         .single()
 
-      if (!profile?.tos_accepted_at) {
+      if (needsTosAcceptance(profile?.tos_accepted_at)) {
         router.replace('/terms')
       } else if (!profile?.full_name || !profile?.street_address) {
         router.replace('/profile-setup')

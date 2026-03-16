@@ -15,21 +15,21 @@ export default function FollowingPage() {
   useEffect(() => {
     if (!user) return
     const load = async () => {
-      // Get all users I follow
+      // Get all booths I follow via market_followers
       const { data: follows } = await supabase
-        .from('followers')
-        .select('followed_id, created_at')
+        .from('market_followers')
+        .select('booth_id, created_at')
         .eq('follower_id', user.id)
 
       if (!follows || follows.length === 0) { setLoading(false); return }
 
-      const followedIds = follows.map((f: any) => f.followed_id)
+      const boothIds = follows.map((f: any) => f.booth_id)
 
-      // Get their booths
+      // Get booth details
       const { data: boothData } = await supabase
         .from('market_booths')
         .select('id, owner_id, name, description, decorative_theme')
-        .in('owner_id', followedIds)
+        .in('id', boothIds)
 
       if (boothData) {
         // For each booth, get product count
@@ -39,7 +39,7 @@ export default function FollowingPage() {
             .select('*', { count: 'exact', head: true })
             .eq('seller_id', b.owner_id)
             .eq('is_active', true)
-          return { ...b, productCount: count || 0, followedAt: follows.find((f: any) => f.followed_id === b.owner_id)?.created_at }
+          return { ...b, productCount: count || 0, followedAt: follows.find((f: any) => f.booth_id === b.id)?.created_at }
         }))
         setBooths(enriched)
       }
@@ -48,9 +48,9 @@ export default function FollowingPage() {
     load()
   }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleUnfollow = async (ownerId: string) => {
-    await supabase.from('followers').delete().match({ follower_id: user!.id, followed_id: ownerId })
-    setBooths(prev => prev.filter(b => b.owner_id !== ownerId))
+  const handleUnfollow = async (boothId: string) => {
+    await supabase.from('market_followers').delete().match({ follower_id: user!.id, booth_id: boothId })
+    setBooths(prev => prev.filter(b => b.id !== boothId))
   }
 
   if (loading) return <div className="container"><div className="loading-spinner" /></div>
@@ -78,7 +78,7 @@ export default function FollowingPage() {
                 {b.description && <p className={styles.boothDesc}>{b.description}</p>}
                 <span className={styles.productCount}>{b.productCount} active products</span>
               </Link>
-              <button className={styles.unfollowBtn} onClick={() => handleUnfollow(b.owner_id)}>
+              <button className={styles.unfollowBtn} onClick={() => handleUnfollow(b.id)}>
                 Unfollow
               </button>
             </div>

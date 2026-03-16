@@ -1,4 +1,5 @@
 import {
+    isNetworkPrepaid,
     isOpenLoopCard,
     mapCategory,
     ProviderOption,
@@ -10,6 +11,7 @@ export async function fetchReloadlyCatalog(
     clientId: string,
     clientSecret: string,
     isSandbox: boolean,
+    allowPrepaid = false,
 ): Promise<UnifiedGiftCard[]> {
     if (!clientId || !clientSecret) return [];
 
@@ -57,7 +59,11 @@ export async function fetchReloadlyCatalog(
 
     for (const product of allProducts) {
         const brandName = product.productName || product.brand?.brandName || "";
-        if (isOpenLoopCard(brandName)) continue;
+        if (!allowPrepaid) {
+            if (isOpenLoopCard(brandName)) continue;
+        } else {
+            if (isOpenLoopCard(brandName) && !isNetworkPrepaid(brandName)) continue;
+        }
 
         const isFixed = product.denominationType === "FIXED";
         const fixedDenoms = product.fixedRecipientDenominations || [];
@@ -68,7 +74,7 @@ export async function fetchReloadlyCatalog(
             brandKey: "",
             logoUrl: product.logoUrls?.[0] || product.brand?.logoUrls?.[0] ||
                 "",
-            category: mapCategory(undefined, product.category?.name),
+            category: mapCategory(undefined, product.category?.name, product.productName || product.brand?.brandName || ""),
             denominationType: isFixed ? "fixed" : "range",
             fixedDenominations: fixedDenoms,
             minDenomination: isFixed

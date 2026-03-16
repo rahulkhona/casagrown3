@@ -4,11 +4,12 @@
  * Notifications Page — In-app notification center
  * 
  * Reads from Supabase `notifications` table (shared with community app).
- * Polls every 30s for new notifications. Supports mark as read, mark all, clear all.
+ * Polls every 30s for new notifications. Supports dismiss (delete) and clear all.
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '../../../lib/useAuth'
 import { createClient } from '../../../lib/supabase'
 
@@ -36,6 +37,7 @@ function formatTimeAgo(dateStr: string) {
 export default function NotificationsPage() {
   const { isAuthenticated, loading: authLoading, user } = useAuth()
   const userId = user?.id
+  const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
 
   const [notifications, setNotifications] = useState<Notification[]>([])
@@ -44,7 +46,7 @@ export default function NotificationsPage() {
   const fetchNotifications = useCallback(async () => {
     if (!userId) return
     const { data } = await supabase
-      .from('notifications')
+      .from('market_notifications')
       .select('id, user_id, content, link_url, read_at, created_at')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
@@ -61,25 +63,17 @@ export default function NotificationsPage() {
     return () => clearInterval(id)
   }, [userId, fetchNotifications])
 
-  const markAsRead = useCallback(async (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read_at: new Date().toISOString() } : n))
-    await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', id)
-  }, [supabase])
-
-  const markAllAsRead = useCallback(async () => {
-    if (!userId) return
-    const now = new Date().toISOString()
-    setNotifications(prev => prev.map(n => n.read_at ? n : { ...n, read_at: now }))
-    await supabase.from('notifications').update({ read_at: now }).eq('user_id', userId).is('read_at', null)
-  }, [userId, supabase])
+  const dismissNotification = useCallback(async (notif: Notification) => {
+    setNotifications(prev => prev.filter(n => n.id !== notif.id))
+    await supabase.from('market_notifications').delete().eq('id', notif.id)
+    if (notif.link_url) router.push(notif.link_url)
+  }, [supabase, router])
 
   const clearAll = useCallback(async () => {
     if (!userId) return
     setNotifications([])
-    await supabase.from('notifications').delete().eq('user_id', userId)
+    await supabase.from('market_notifications').delete().eq('user_id', userId)
   }, [userId, supabase])
-
-  const unreadCount = notifications.filter(n => !n.read_at).length
 
   if (authLoading) return <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}><p>Loading...</p></div>
   if (!isAuthenticated) {
@@ -95,11 +89,6 @@ export default function NotificationsPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <h1 className="page-title">Notifications</h1>
           <div style={{ display: 'flex', gap: 8 }}>
-            {unreadCount > 0 && (
-              <button className="btn btn-sm" onClick={markAllAsRead}>
-                ✓ Mark all read ({unreadCount})
-              </button>
-            )}
             {notifications.length > 0 && (
               <button className="btn btn-sm btn-outline" onClick={clearAll}>Clear all</button>
             )}
@@ -120,19 +109,17 @@ export default function NotificationsPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {notifications.map(n => {
               const isUnread = !n.read_at
-              const Wrapper = n.link_url ? Link : 'div'
-              const wrapperProps = n.link_url ? { href: n.link_url } : {}
               return (
-                <Wrapper
+                <button
                   key={n.id}
-                  {...(wrapperProps as any)}
-                  onClick={() => { if (isUnread) markAsRead(n.id) }}
+                  onClick={() => dismissNotification(n)}
                   style={{
                     display: 'flex', gap: 12, padding: '12px 16px',
                     borderRadius: 'var(--radius-lg)', textDecoration: 'none',
                     background: isUnread ? 'var(--green-50)' : '#fff',
                     border: `1px solid ${isUnread ? 'var(--green-200)' : 'var(--border)'}`,
                     cursor: 'pointer', transition: 'background 0.15s',
+                    width: '100%', textAlign: 'left',
                   }}
                 >
                   <div style={{ flex: 1 }}>
@@ -153,7 +140,7 @@ export default function NotificationsPage() {
                       background: 'var(--green-500)', flexShrink: 0, marginTop: 6,
                     }} />
                   )}
-                </Wrapper>
+                </button>
               )
             })}
           </div>

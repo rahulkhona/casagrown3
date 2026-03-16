@@ -54,7 +54,7 @@ export interface Booth {
   charityName?: string
   helperPasscode?: string
   // Helpers
-  helpers?: { email: string; status: 'pending' | 'accepted' }[]
+  helpers?: { helperId?: string; email?: string; name?: string; status: 'pending' | 'accepted' | 'revoked' }[]
   // Product catalog (what they typically sell — names only)
   catalogItems?: string[]
 }

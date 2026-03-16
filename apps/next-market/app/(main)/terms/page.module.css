@@ -67,10 +67,10 @@
 
 /* Accept bar */
 .acceptBar {
-  position: fixed; bottom: 0; left: 0; right: 0;
+  position: fixed; bottom: 64px; left: 0; right: 0;
   background: #fff; border-top: 1px solid var(--gray-200);
   padding: 14px 24px; display: flex; align-items: center;
-  justify-content: center; gap: 20px; z-index: 100;
+  justify-content: center; gap: 20px; z-index: 200;
   box-shadow: 0 -4px 12px rgba(0,0,0,0.08);
 }
 .acceptRow {

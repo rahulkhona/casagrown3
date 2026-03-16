@@ -116,12 +116,12 @@ BEGIN
       PERFORM notify_market_event(
         NEW.buyer_id,
         '✅ Order completed: ' || NEW.product_name || '. Rate your experience!',
-        '/earnings'
+        '/orders/' || NEW.id
       );
       PERFORM notify_market_event(
         NEW.seller_id,
         '💰 Sale completed: ' || NEW.product_name || ' — $' || NEW.subtotal_usd || ' earned. Rate the buyer!',
-        '/earnings'
+        '/orders/' || NEW.id
       );
 
     -- Order declined
@@ -133,18 +133,34 @@ BEGIN
         '/orders'
       );
 
-    -- (d) Order disputed — notify BOTH
+    -- (d) Order disputed — notify BOTH with dispute type
     WHEN 'disputed' THEN
-      PERFORM notify_market_event(
-        NEW.buyer_id,
-        '⚠️ A dispute has been opened for your ' || NEW.product_name || ' order.',
-        '/orders'
-      );
-      PERFORM notify_market_event(
-        NEW.seller_id,
-        '⚠️ A dispute has been opened for your ' || NEW.product_name || ' sale.',
-        '/orders'
-      );
+      DECLARE
+        v_dispute_label TEXT;
+      BEGIN
+        SELECT CASE d.dispute_type
+          WHEN 'not_delivered' THEN 'Order Not Delivered'
+          WHEN 'wrong_item' THEN 'Wrong Item Received'
+          WHEN 'poor_quality' THEN 'Quality Issue Reported'
+          WHEN 'quantity_mismatch' THEN 'Quantity Mismatch'
+          ELSE 'Dispute Opened'
+        END INTO v_dispute_label
+        FROM order_disputes d WHERE d.order_id = NEW.id
+        ORDER BY d.created_at DESC LIMIT 1;
+
+        v_dispute_label := coalesce(v_dispute_label, 'Dispute Opened');
+
+        PERFORM notify_market_event(
+          NEW.buyer_id,
+          '⚠️ ' || v_dispute_label || ' for your ' || NEW.product_name || ' order.',
+          '/orders'
+        );
+        PERFORM notify_market_event(
+          NEW.seller_id,
+          '⚠️ ' || v_dispute_label || ' for your ' || NEW.product_name || ' sale.',
+          '/orders'
+        );
+      END;
 
     -- (e) Escalated — admin involvement
     WHEN 'escalated' THEN
@@ -253,24 +269,25 @@ BEGIN
     ),
     body := jsonb_build_object(
       'to', v_email,
-      'subject', 'CasaGrown Market — ' || left(NEW.content, 80),
+      'subject', 'CasaGrown — ' || left(NEW.content, 80),
       'html',
-        '<div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:480px;margin:0 auto;padding:24px">' ||
-        '<div style="text-align:center;padding:16px 0;border-bottom:2px solid #22c55e">' ||
-          '<h1 style="color:#166534;font-size:22px;margin:0">🌱 CasaGrown Market</h1>' ||
+        '<div style="font-family:Inter,ui-sans-serif,system-ui,-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#1f2937">' ||
+        '<div style="text-align:center;padding:20px 0;border-bottom:2px solid #16a34a">' ||
+          '<img src="https://market.casagrown.com/logo.png" alt="CasaGrown" style="height:40px;width:40px;vertical-align:middle;margin-right:8px">' ||
+          '<span style="color:#166534;font-size:22px;font-weight:700;vertical-align:middle">CasaGrown</span>' ||
+          '<p style="color:#4b5563;font-size:11px;letter-spacing:2px;margin:4px 0 0;font-weight:500">FRESH • LOCAL • TRUSTED</p>' ||
         '</div>' ||
         '<div style="padding:24px 0">' ||
-          '<p style="color:#374151;font-size:14px">Hi ' || v_full_name || ',</p>' ||
-          '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:16px 0">' ||
+          '<p style="font-size:14px">Hi ' || v_full_name || ',</p>' ||
+          '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px;margin:16px 0">' ||
             '<p style="color:#166534;font-size:14px;margin:0">' || NEW.content || '</p>' ||
           '</div>' ||
           CASE WHEN NEW.link_url IS NOT NULL THEN
-            '<a href="https://market.casagrown.com' || NEW.link_url || '" style="display:inline-block;background:#22c55e;color:white;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">View Details</a>'
+            '<a href="https://market.casagrown.com' || NEW.link_url || '" style="display:inline-block;background:#16a34a;color:white;padding:10px 24px;border-radius:12px;text-decoration:none;font-weight:600;font-size:14px">View Details</a>'
           ELSE '' END ||
         '</div>' ||
         '<div style="border-top:1px solid #e5e7eb;padding-top:16px;color:#9ca3af;font-size:11px;text-align:center">' ||
-          'CasaGrown Market — Fresh from your neighbors<br>' ||
-          'You received this email because of activity on your account.' ||
+          'CasaGrown — Fresh. Local. Trusted.' ||
         '</div>' ||
       '</div>'
     )

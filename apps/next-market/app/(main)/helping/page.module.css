@@ -1,0 +1,198 @@
+.pageWrap {
+  padding: 24px 0 60px;
+}
+
+/* Empty state */
+.emptyState {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--gray-500);
+}
+.emptyIcon {
+  display: block;
+  font-size: 40px;
+  margin-bottom: 12px;
+}
+
+/* Booth group */
+.boothGroup {
+  margin-bottom: 28px;
+}
+
+.boothHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  background: var(--green-50);
+  border: 1px solid var(--green-200);
+  border-radius: 12px 12px 0 0;
+}
+
+.boothName {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--gray-800);
+  margin: 0;
+}
+
+.boothSeller {
+  font-size: 13px;
+  color: var(--gray-500);
+}
+
+.orderCount {
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--green-100);
+  color: var(--green-700);
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+/* Order list */
+.orderList {
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  overflow: hidden;
+}
+
+.orderCard {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--gray-50);
+  transition: background 0.15s;
+}
+.orderCard:last-child {
+  border-bottom: none;
+}
+.orderCard:hover {
+  background: var(--gray-50);
+}
+
+/* Order top row */
+.orderTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.orderInfo {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.fulfillmentBadge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--blue-50, #eff6ff);
+  color: var(--blue-700, #1d4ed8);
+}
+.fulfillmentBadge[data-type="pickup"] {
+  background: var(--amber-50, #fffbeb);
+  color: var(--amber-700, #b45309);
+}
+
+.statusBadge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: capitalize;
+}
+.status_pending {
+  background: var(--amber-100);
+  color: var(--amber-800);
+}
+.status_confirmed {
+  background: var(--green-100);
+  color: var(--green-800);
+}
+.status_delivering {
+  background: var(--blue-100, #dbeafe);
+  color: var(--blue-800, #1e40af);
+}
+.status_delivered {
+  background: var(--green-200);
+  color: var(--green-900);
+}
+
+.orderTotal {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--gray-700);
+}
+
+/* Order body */
+.orderBody {
+  margin-bottom: 10px;
+}
+
+.productName {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--gray-800);
+  margin: 0 0 4px;
+}
+.qty {
+  font-weight: 400;
+  color: var(--gray-500);
+  font-size: 13px;
+}
+
+.buyerName {
+  font-size: 13px;
+  color: var(--gray-500);
+  margin: 0;
+}
+
+.deliveredBy {
+  font-size: 12px;
+  color: var(--green-600);
+  margin: 4px 0 0;
+}
+
+/* Actions */
+.orderActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.chatBtn, .viewBtn {
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: var(--gray-100);
+  color: var(--gray-700);
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+.chatBtn:hover, .viewBtn:hover {
+  background: var(--gray-200);
+}
+
+.deliverBtn {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 8px;
+  background: var(--green-600);
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.deliverBtn:hover {
+  background: var(--green-700);
+}
+.deliverBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
