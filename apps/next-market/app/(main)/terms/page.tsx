@@ -100,7 +100,9 @@ export default function TermsPage() {
   const { dispatch } = useMarket()
   const template = searchParams.get('template')
   const redirectTo = searchParams.get('redirect')
-  const [activeTab, setActiveTab] = useState<DocTab>('terms')
+  const [activeTab, setActiveTab] = useState<DocTab>(
+    searchParams.get('tab') === 'privacy' ? 'privacy' : 'terms'
+  )
   const [agreedTerms, setAgreedTerms] = useState(false)
   const [agreedPrivacy, setAgreedPrivacy] = useState(false)
 

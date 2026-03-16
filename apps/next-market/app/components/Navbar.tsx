@@ -389,6 +389,36 @@ export function Navbar() {
                   ))}
                 </div>
 
+                {/* Voice — feedback, bugs, feature requests */}
+                <div className={styles.menuSection}>
+                  <div className={styles.menuSectionLabel}>Voice</div>
+                  <a href={`${process.env.NEXT_PUBLIC_VOICE_URL || '/voice'}/submit?type=bug`} className={styles.menuItem}>
+                    <span className={styles.menuItemIcon}>🐛</span>
+                    <span>Report a Bug</span>
+                  </a>
+                  <a href={`${process.env.NEXT_PUBLIC_VOICE_URL || '/voice'}/submit?type=feature`} className={styles.menuItem}>
+                    <span className={styles.menuItemIcon}>💡</span>
+                    <span>Request a Feature</span>
+                  </a>
+                  <a href={`${process.env.NEXT_PUBLIC_VOICE_URL || '/voice'}/board`} className={styles.menuItem}>
+                    <span className={styles.menuItemIcon}>📋</span>
+                    <span>Feedback Board</span>
+                  </a>
+                </div>
+
+                {/* Legal */}
+                <div className={styles.menuSection}>
+                  <div className={styles.menuSectionLabel}>Legal</div>
+                  <Link href="/terms" className={`${styles.menuItem} ${pathname === '/terms' ? styles.menuItemActive : ''}`}>
+                    <span className={styles.menuItemIcon}>📄</span>
+                    <span>Terms of Use</span>
+                  </Link>
+                  <Link href="/terms?tab=privacy" className={styles.menuItem}>
+                    <span className={styles.menuItemIcon}>🔒</span>
+                    <span>Privacy Policy</span>
+                  </Link>
+                </div>
+
                 {/* Auth */}
                 <div className={styles.menuSection}>
                   {hasSession ? (
