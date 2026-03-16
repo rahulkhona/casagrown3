@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '../../lib/supabase'
 import { useAuth } from '../../lib/useAuth'
 import { formatUsd } from '../../lib/store'
+import { trackClick, trackError } from '../../lib/analytics'
 import styles from './BuyModal.module.css'
 
 interface BuyModalProps {
@@ -214,6 +215,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
 
     setLoading(true)
     setError('')
+    trackClick('place_order', { productId: product.id, qty, total, fulfillment })
 
     try {
       // Step 1: Place order (atomic)
@@ -277,6 +279,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
         isTopUp: holdResult.isTopUp,
       })
     } catch (err: any) {
+      trackError('order_failed', { productId: product.id, error: err.message })
       setError(err.message || 'Something went wrong')
     } finally {
       setLoading(false)

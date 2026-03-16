@@ -5,6 +5,7 @@ import { useAuth } from '../../lib/useAuth'
 import { Navbar } from '../components/Navbar'
 import { BottomNav } from '../components/BottomNav'
 import { RatingReminder } from '../components/RatingReminder'
+import { AnalyticsTracker } from '../components/AnalyticsTracker'
 
 function BannedOverlay({ reason }: { reason: string | null }) {
   return (
@@ -44,6 +45,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <MarketProvider>
+      <AnalyticsTracker />
       <Navbar />
       <main className="page-wrapper">
         {children}
@@ -54,3 +56,4 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     </MarketProvider>
   )
 }
+
