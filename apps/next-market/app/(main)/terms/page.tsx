@@ -107,6 +107,7 @@ export default function TermsPage() {
   const [agreedPrivacy, setAgreedPrivacy] = useState(false)
 
   const allAgreed = agreedTerms && agreedPrivacy
+  const isOnboarding = !!(template || redirectTo)
   const supabase = createClient()
 
   const handleAccept = async () => {
@@ -153,7 +154,7 @@ export default function TermsPage() {
         <div className={styles.header}>
           <img src="/logo.png" alt="CasaGrown" className={styles.headerLogo} />
           <h1 className={styles.headerTitle}>Legal Agreements</h1>
-          <p className={styles.headerDate}>Please review and accept both documents to continue</p>
+          {isOnboarding && <p className={styles.headerDate}>Please review and accept both documents to continue</p>}
         </div>
 
         {/* Tabs */}
@@ -163,14 +164,14 @@ export default function TermsPage() {
             onClick={() => setActiveTab('terms')}
           >
             📜 Terms of Use
-            {agreedTerms && <span className={styles.tabCheck}>✓</span>}
+            {isOnboarding && agreedTerms && <span className={styles.tabCheck}>✓</span>}
           </button>
           <button
             className={`${styles.tab} ${activeTab === 'privacy' ? styles.tabActive : ''}`}
             onClick={() => setActiveTab('privacy')}
           >
             🔒 Privacy Policy
-            {agreedPrivacy && <span className={styles.tabCheck}>✓</span>}
+            {isOnboarding && agreedPrivacy && <span className={styles.tabCheck}>✓</span>}
           </button>
         </div>
 
@@ -198,40 +199,42 @@ export default function TermsPage() {
         </div>
       </div>
 
-      {/* Sticky accept bar */}
-      <div className={styles.acceptBar}>
-        <div className={styles.acceptRow}>
-          <input
-            type="checkbox"
-            id="agree-terms"
-            className={styles.checkbox}
-            checked={agreedTerms}
-            onChange={e => setAgreedTerms(e.target.checked)}
-          />
-          <label htmlFor="agree-terms" className={styles.checkboxLabel}>
-            Terms of Use
-          </label>
+      {/* Sticky accept bar — only during onboarding */}
+      {isOnboarding && (
+        <div className={styles.acceptBar}>
+          <div className={styles.acceptRow}>
+            <input
+              type="checkbox"
+              id="agree-terms"
+              className={styles.checkbox}
+              checked={agreedTerms}
+              onChange={e => setAgreedTerms(e.target.checked)}
+            />
+            <label htmlFor="agree-terms" className={styles.checkboxLabel}>
+              Terms of Use
+            </label>
+          </div>
+          <div className={styles.acceptRow}>
+            <input
+              type="checkbox"
+              id="agree-privacy"
+              className={styles.checkbox}
+              checked={agreedPrivacy}
+              onChange={e => setAgreedPrivacy(e.target.checked)}
+            />
+            <label htmlFor="agree-privacy" className={styles.checkboxLabel}>
+              Privacy Policy
+            </label>
+          </div>
+          <button
+            className={`btn btn-primary ${styles.acceptBtn}`}
+            disabled={!allAgreed}
+            onClick={handleAccept}
+          >
+            Accept & Continue →
+          </button>
         </div>
-        <div className={styles.acceptRow}>
-          <input
-            type="checkbox"
-            id="agree-privacy"
-            className={styles.checkbox}
-            checked={agreedPrivacy}
-            onChange={e => setAgreedPrivacy(e.target.checked)}
-          />
-          <label htmlFor="agree-privacy" className={styles.checkboxLabel}>
-            Privacy Policy
-          </label>
-        </div>
-        <button
-          className={`btn btn-primary ${styles.acceptBtn}`}
-          disabled={!allAgreed}
-          onClick={handleAccept}
-        >
-          Accept & Continue →
-        </button>
-      </div>
+      )}
     </div>
   )
 }
