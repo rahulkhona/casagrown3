@@ -389,18 +389,13 @@ export function Navbar() {
                   ))}
                 </div>
 
-                {/* Voice — feedback, bugs, feature requests */}
+                {/* Support & Legal */}
                 <div className={styles.menuSection}>
-                  <div className={styles.menuSectionLabel}>Voice</div>
+                  <div className={styles.menuSectionLabel}>Support & Legal</div>
                   <Link href="/voice/board" className={`${styles.menuItem} ${pathname.startsWith('/voice') ? styles.menuItemActive : ''}`}>
                     <span className={styles.menuItemIcon}>📋</span>
-                    <span>Feedback Board</span>
+                    <span>Contact Support</span>
                   </Link>
-                </div>
-
-                {/* Legal */}
-                <div className={styles.menuSection}>
-                  <div className={styles.menuSectionLabel}>Legal</div>
                   <Link href="/terms" className={`${styles.menuItem} ${pathname === '/terms' ? styles.menuItemActive : ''}`}>
                     <span className={styles.menuItemIcon}>📄</span>
                     <span>Terms of Use</span>
