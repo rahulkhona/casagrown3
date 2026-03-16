@@ -4,15 +4,19 @@
  * Creates or tops up a Stripe PaymentIntent with capture_method: 'manual'
  * for the market buy flow (authorize-then-capture).
  *
+ * BALANCE-FIRST: Before creating/topping up a Stripe hold, the buyer's
+ * available balance is debited first. The Stripe hold is only for the
+ * remainder. If balance fully covers the purchase, no Stripe PI is created.
+ *
  * Flow:
- *   1. Check if buyer has an active hold (market_holds.status = 'active')
- *   2. If yes: cancel old PI, create new PI with old_hold + new_amount (top-up)
- *   3. If no: create new PI with amount (or buyer's suggested higher amount)
- *   4. Record/update market_holds row
- *   5. Link order to hold
+ *   1. Check buyer's available balance via debit_buyer_balance RPC (atomic, locked)
+ *   2. Compute remainder after balance applied
+ *   3. If remainder > 0: create/top-up Stripe PaymentIntent
+ *   4. If remainder = 0: skip Stripe entirely (fully covered by balance)
+ *   5. Record balance_applied_cents on market_holds and market_orders
  *
  * Request: { order_id, amount_cents, suggested_hold_cents? }
- * Response: { clientSecret, holdId, holdAmountCents, isTopUp }
+ * Response: { clientSecret?, holdId?, holdAmountCents, balanceAppliedCents, isTopUp, requiresCardEntry }
  */
 
 import {
@@ -51,7 +55,83 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         return jsonError("Order not found", corsHeaders);
     }
 
-    // Check for existing active hold
+    // ══════════════════════════════════════════════════════════
+    // Step 1: Debit buyer's available balance (atomic, locked)
+    // ══════════════════════════════════════════════════════════
+    const { data: balanceDebitedCents, error: debitErr } = await supabase.rpc(
+        "debit_buyer_balance",
+        {
+            p_buyer_id: buyerId,
+            p_max_amount_cents: amount_cents,
+        },
+    );
+
+    if (debitErr) {
+        console.error("Balance debit failed:", debitErr);
+        // Non-fatal — proceed with full card hold
+    }
+
+    const balanceAppliedCents = balanceDebitedCents || 0;
+    const remainderCents = amount_cents - balanceAppliedCents;
+
+    // Update order with balance applied
+    await supabase
+        .from("market_orders")
+        .update({ balance_applied_usd: balanceAppliedCents / 100 })
+        .eq("id", order_id);
+
+    console.log(
+        `[MARKET-HOLD] Balance applied: $${(balanceAppliedCents / 100).toFixed(2)}, ` +
+        `remainder for card: $${(remainderCents / 100).toFixed(2)}`,
+    );
+
+    // ══════════════════════════════════════════════════════════
+    // Step 2: If balance fully covers, skip Stripe
+    // ══════════════════════════════════════════════════════════
+    if (remainderCents <= 0) {
+        // Check for existing hold to link order
+        const { data: existingHold } = await supabase
+            .from("market_holds")
+            .select("id")
+            .eq("buyer_id", buyerId)
+            .eq("status", "active")
+            .single();
+
+        if (existingHold) {
+            // Update existing hold with more balance applied
+            await supabase
+                .from("market_holds")
+                .update({
+                    balance_applied_cents: supabase.rpc ? balanceAppliedCents : balanceAppliedCents,
+                    spent_amount_cents: existingHold.spent_amount_cents + amount_cents,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq("id", existingHold.id);
+
+            await supabase
+                .from("market_orders")
+                .update({ hold_id: existingHold.id })
+                .eq("id", order_id);
+        }
+
+        console.log(
+            `✅ [MARKET-HOLD] Fully covered by balance: $${(balanceAppliedCents / 100).toFixed(2)}`,
+        );
+
+        return jsonOk({
+            clientSecret: null,
+            holdId: existingHold?.id || null,
+            holdAmountCents: 0,
+            balanceAppliedCents,
+            spentAmountCents: amount_cents,
+            isTopUp: false,
+            requiresCardEntry: false,
+        }, corsHeaders);
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // Step 3: Remainder needs card — check for existing hold
+    // ══════════════════════════════════════════════════════════
     const { data: existingHold } = await supabase
         .from("market_holds")
         .select("*")
@@ -63,14 +143,14 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     let isTopUp = false;
 
     if (existingHold) {
-        // Top-up: cancel old PI, create new with old_hold + new_amount
+        // Top-up: cancel old PI, create new PI with old_hold + new_remainder
         isTopUp = true;
         const newSpent = existingHold.spent_amount_cents + amount_cents;
-        // Hold amount is the max of: new spent total, or buyer's suggested amount
+        const newBalanceApplied = existingHold.balance_applied_cents + balanceAppliedCents;
         holdAmountCents = Math.max(
-            newSpent,
+            existingHold.hold_amount_cents + remainderCents,
             suggested_hold_cents || 0,
-            existingHold.hold_amount_cents, // don't reduce the hold
+            existingHold.hold_amount_cents,
         );
 
         // Cancel old Stripe PI
@@ -85,7 +165,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             },
         );
 
-        // Create new PI with larger amount
+        // Create new PI with the card-only amount
         const piResponse = await fetch(
             "https://api.stripe.com/v1/payment_intents",
             {
@@ -101,7 +181,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                     "metadata[user_id]": buyerId,
                     "metadata[type]": "market_hold",
                     "metadata[order_ids]": order_id,
-                    description: `CasaGrown Market Hold — $${(holdAmountCents / 100).toFixed(2)}`,
+                    "metadata[balance_applied_cents]": String(newBalanceApplied),
+                    description: `CasaGrown Market Hold — $${(holdAmountCents / 100).toFixed(2)} (card portion)`,
                 }),
             },
         );
@@ -109,6 +190,12 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         if (!piResponse.ok) {
             const error = await piResponse.json();
             console.error("Stripe PI create error:", error);
+            // Refund the balance we just debited
+            await supabase.rpc("refund_buyer_balance", {
+                p_buyer_id: buyerId,
+                p_amount_cents: balanceAppliedCents,
+                p_reason: "stripe_hold_failed",
+            });
             return jsonError(
                 error?.error?.message || "Failed to create payment hold",
                 corsHeaders,
@@ -125,6 +212,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                 stripe_client_secret: piData.client_secret,
                 hold_amount_cents: holdAmountCents,
                 spent_amount_cents: newSpent,
+                balance_applied_cents: newBalanceApplied,
                 updated_at: new Date().toISOString(),
             })
             .eq("id", existingHold.id);
@@ -141,22 +229,27 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             .eq("id", order_id);
 
         console.log(
-            `✅ [MARKET-HOLD] Top-up: hold ${existingHold.id}, new PI: ${piData.id}, ` +
-            `amount: $${(holdAmountCents / 100).toFixed(2)}, spent: $${(newSpent / 100).toFixed(2)}`,
+            `✅ [MARKET-HOLD] Top-up: hold ${existingHold.id}, PI: ${piData.id}, ` +
+            `card: $${(holdAmountCents / 100).toFixed(2)}, balance: $${(newBalanceApplied / 100).toFixed(2)}`,
         );
 
         return jsonOk({
             clientSecret: piData.client_secret,
             holdId: existingHold.id,
             holdAmountCents,
+            balanceAppliedCents,
             spentAmountCents: newSpent,
             isTopUp: true,
-            requiresCardEntry: true, // New PI needs card confirmation
+            requiresCardEntry: true,
         }, corsHeaders);
     }
 
-    // No existing hold — create fresh
-    holdAmountCents = Math.max(amount_cents, suggested_hold_cents || 0);
+    // ══════════════════════════════════════════════════════════
+    // No existing hold — create fresh (card-only portion)
+    // ══════════════════════════════════════════════════════════
+    holdAmountCents = Math.max(remainderCents, (suggested_hold_cents || 0) - balanceAppliedCents);
+    // Ensure hold is at least the remainder
+    holdAmountCents = Math.max(holdAmountCents, remainderCents);
 
     const piResponse = await fetch(
         "https://api.stripe.com/v1/payment_intents",
@@ -173,7 +266,9 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                 "metadata[user_id]": buyerId,
                 "metadata[type]": "market_hold",
                 "metadata[order_ids]": order_id,
-                description: `CasaGrown Market Hold — $${(holdAmountCents / 100).toFixed(2)}`,
+                "metadata[balance_applied_cents]": String(balanceAppliedCents),
+                description: `CasaGrown Market Hold — $${(holdAmountCents / 100).toFixed(2)} (card portion, ` +
+                    `$${(balanceAppliedCents / 100).toFixed(2)} from balance)`,
             }),
         },
     );
@@ -181,6 +276,12 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     if (!piResponse.ok) {
         const error = await piResponse.json();
         console.error("Stripe PI create error:", error);
+        // Refund the balance we just debited
+        await supabase.rpc("refund_buyer_balance", {
+            p_buyer_id: buyerId,
+            p_amount_cents: balanceAppliedCents,
+            p_reason: "stripe_hold_failed",
+        });
         return jsonError(
             error?.error?.message || "Failed to create payment hold",
             corsHeaders,
@@ -198,6 +299,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             stripe_client_secret: piData.client_secret,
             hold_amount_cents: holdAmountCents,
             spent_amount_cents: amount_cents,
+            balance_applied_cents: balanceAppliedCents,
             status: "active",
         })
         .select("id")
@@ -216,13 +318,14 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
     console.log(
         `✅ [MARKET-HOLD] New hold: ${hold.id}, PI: ${piData.id}, ` +
-        `amount: $${(holdAmountCents / 100).toFixed(2)}`,
+        `card: $${(holdAmountCents / 100).toFixed(2)}, balance: $${(balanceAppliedCents / 100).toFixed(2)}`,
     );
 
     return jsonOk({
         clientSecret: piData.client_secret,
         holdId: hold.id,
         holdAmountCents,
+        balanceAppliedCents,
         spentAmountCents: amount_cents,
         isTopUp: false,
         requiresCardEntry: true,

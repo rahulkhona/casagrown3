@@ -40,6 +40,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
   const cardElementRef = useRef<any>(null)
   const stripeRef = useRef<any>(null)
   const [existingHold, setExistingHold] = useState<{ holdAmountCents: number; spentAmountCents: number } | null>(null)
+  const [availableBalance, setAvailableBalance] = useState(0) // buyer's available USD balance
 
   const MINIMUM_ORDER_USD = 5.00
   const subtotal = currentPrice * qty
@@ -52,13 +53,16 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
   const minQtyForOrder = Math.ceil(MINIMUM_ORDER_USD / (currentPrice || 1))
   const canReachMinimum = currentPrice * available >= MINIMUM_ORDER_USD
 
-  // Hold calculations
+  // Balance vs card split calculation
+  const balanceApplied = Math.min(availableBalance, total)
+  const cardAmount = Math.max(0, total - balanceApplied)
+  const cardCents = Math.round(cardAmount * 100)
   const holdRemaining = existingHold
     ? existingHold.holdAmountCents - existingHold.spentAmountCents
     : 0
-  const needsCard = !existingHold || holdRemaining < totalCents
-  const additionalNeeded = needsCard ? (totalCents - holdRemaining) / 100 : 0
-  const suggestedAdditional = needsCard ? Math.max(total * 3, additionalNeeded) : 0
+  const needsCard = cardCents > 0 && (!existingHold || holdRemaining < cardCents)
+  const additionalNeeded = needsCard ? (cardCents - holdRemaining) / 100 : 0
+  const suggestedAdditional = needsCard ? Math.max(cardAmount * 3, additionalNeeded) : 0
 
   // Fetch fresh price + inventory when buy form opens
   useEffect(() => {
@@ -95,6 +99,18 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
       }
     }
     fetchHold()
+  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch buyer's available balance
+  useEffect(() => {
+    if (!user) return
+    const fetchBalance = async () => {
+      const { data } = await supabase.rpc('get_transaction_summary', {})
+      if (data?.available_usd) {
+        setAvailableBalance(Number(data.available_usd))
+      }
+    }
+    fetchBalance()
   }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Initialize Stripe Elements
@@ -238,7 +254,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
 
       if (holdErr) { setError(holdErr.message || 'Failed to create payment hold'); setLoading(false); return }
 
-      // Step 3: Confirm with Stripe Elements
+      // Step 3: Confirm with Stripe Elements (only if card entry is needed)
       if (holdResult.requiresCardEntry && stripeRef.current && cardElementRef.current) {
         const { error: stripeErr } = await stripeRef.current.confirmCardPayment(
           holdResult.clientSecret,
@@ -256,7 +272,8 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
         orderId: orderResult.order_id,
         quantity: qty,
         total: orderResult.total_usd,
-        holdAmount: holdResult.holdAmountCents / 100,
+        holdAmount: (holdResult.holdAmountCents || 0) / 100,
+        balanceApplied: (holdResult.balanceAppliedCents || 0) / 100,
         isTopUp: holdResult.isTopUp,
       })
     } catch (err: any) {
@@ -380,6 +397,18 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
                 <span>Total</span>
                 <span>{formatUsd(total)}</span>
               </div>
+              {balanceApplied > 0 && (
+                <>
+                  <div className={styles.breakdownRow} style={{ color: '#16a34a', fontWeight: 500 }}>
+                    <span>💰 From Balance</span>
+                    <span>−{formatUsd(balanceApplied)}</span>
+                  </div>
+                  <div className={styles.breakdownRow} style={{ fontWeight: 600 }}>
+                    <span>💳 {cardAmount > 0 ? 'Card Hold' : 'No card needed'}</span>
+                    <span>{cardAmount > 0 ? formatUsd(cardAmount) : '$0.00'}</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -464,8 +493,10 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
           </button>
           <p className={styles.holdNotice}>
             {needsCard
-              ? `Your card will be authorized for ${holdAmountStr ? `$${parseFloat(holdAmountStr).toFixed(2)}` : formatUsd(total)}. At end of day, only your actual net total is charged.`
-              : `This order is covered by your existing hold. No additional card authorization needed.`
+              ? `Your card will be authorized for ${holdAmountStr ? `$${parseFloat(holdAmountStr).toFixed(2)}` : formatUsd(cardAmount)}${balanceApplied > 0 ? ` (${formatUsd(balanceApplied)} from balance)` : ''}. At end of day, only your actual net total is charged.`
+              : balanceApplied > 0
+                ? `${formatUsd(balanceApplied)} will be applied from your balance. No card authorization needed.`
+                : `This order is covered by your existing hold. No additional card authorization needed.`
             }
           </p>
         </div>

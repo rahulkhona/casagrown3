@@ -79,6 +79,7 @@ export default function PayoutPage() {
 
   // ── Balance ──
   const [availableUsd, setAvailableUsd] = useState(0)
+  const [heldBalanceUsd, setHeldBalanceUsd] = useState(0)
 
   // ── Active methods ──
   const [activeMethods, setActiveMethods] = useState<{ method: string; is_active: boolean; instruments: { instrument: string; is_active: boolean }[] }[]>([])
@@ -144,7 +145,10 @@ export default function PayoutPage() {
   useEffect(() => {
     if (!userId) return
     supabase.rpc('get_transaction_summary', {}).then(({ data }) => {
-      if (data) setAvailableUsd(data.available_usd || 0)
+      if (data) {
+        setAvailableUsd(data.available_usd || 0)
+        setHeldBalanceUsd(data.held_balance_usd || 0)
+      }
     })
   }, [userId, supabase])
 
@@ -442,6 +446,12 @@ export default function PayoutPage() {
           <span className={styles.balanceLabel}>Available</span>
           <span className={styles.balanceValue}>{formatUsd(availableUsd)}</span>
         </div>
+        {heldBalanceUsd > 0 && (
+          <div className={styles.balanceBadge} style={{ background: 'var(--amber-50)', borderColor: 'var(--amber-200)', marginLeft: 8 }}>
+            <span className={styles.balanceLabel} style={{ color: 'var(--amber-600)' }}>Held for Purchases</span>
+            <span className={styles.balanceValue} style={{ color: 'var(--amber-700)' }}>{formatUsd(heldBalanceUsd)}</span>
+          </div>
+        )}
       </div>
 
       {/* $500 max balance warning */}
