@@ -4,6 +4,9 @@ import { useState } from 'react'
 
 import Link from 'next/link'
 import { useMarket, isMarketOpen, getNextMarketOpen } from '../../../lib/store'
+import { useNotificationPrompt } from '../../../lib/useNotificationPrompt'
+import { NotificationPromptModal } from '../../../components/NotificationPromptModal'
+import { useAuth } from '../../../lib/useAuth'
 import styles from './page.module.css'
 
 /** Booth themes — visual styles for the booth. */
@@ -69,82 +72,11 @@ export default function GetStartedPage() {
   const open = isMarketOpen(state.marketSchedule)
   const next = getNextMarketOpen(state.marketSchedule)
   const [reminderSet, setReminderSet] = useState(false)
-  const [showIOSPrompt, setShowIOSPrompt] = useState<false | 'safari' | 'chrome'>(false)
+  const { user } = useAuth()
+  const { showPrompt, modalProps } = useNotificationPrompt(user?.id)
 
-  const isIOS = () => {
-    if (typeof navigator === 'undefined') return false
-    return /iPad|iPhone|iPod/.test(navigator.userAgent)
-      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-  }
-
-  const isIOSChrome = () => typeof navigator !== 'undefined' && /CriOS/.test(navigator.userAgent)
-
-  const isStandalone = () => {
-    if (typeof window === 'undefined') return false
-    return window.matchMedia('(display-mode: standalone)').matches
-      || (navigator as any).standalone === true
-  }
-
-  const requestReminder = async () => {
-    // iOS (any browser) not in PWA mode — show "Add to Home Screen" instructions
-    if (isIOS() && !isStandalone()) {
-      setShowIOSPrompt(isIOSChrome() ? 'chrome' : 'safari')
-      return
-    }
-
-    // Desktop / Android / iOS PWA — request notification permission
-    if ('Notification' in window && 'serviceWorker' in navigator) {
-      const permission = await Notification.requestPermission()
-      if (permission === 'granted') {
-        // Register push subscription
-        try {
-          const registration = await navigator.serviceWorker.ready
-          await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            // VAPID key will be set via env when backend is ready
-            // applicationServerKey: urlBase64ToUint8Array(VAPID_KEY)
-          })
-        } catch (e) {
-          console.log('[Push] Subscription not available yet (VAPID key needed)', e)
-        }
-        new Notification('CasaGrown Market Reminder Set! 🛒', {
-          body: next
-            ? `We'll remind you when the market opens — ${next.dayName} at ${next.openTime} AM`
-            : 'We\'ll notify you when the market opens!',
-          icon: '/logo.png',
-        })
-        try { localStorage.setItem('casagrown_market_reminder', 'push') } catch {}
-        setReminderSet(true)
-        return
-      }
-    }
-    // Fallback: download calendar file
-    if (!next) return
-    const now = new Date()
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-    const targetDay = dayNames.indexOf(next.dayName)
-    const daysAhead = (targetDay - now.getDay() + 7) % 7 || 7
-    const eventDate = new Date(now)
-    eventDate.setDate(now.getDate() + daysAhead)
-    const [h] = (next.openTime || '8').split(':').map(Number)
-    eventDate.setHours(h, 0, 0, 0)
-    const endDate = new Date(eventDate)
-    endDate.setHours(h + 4)
-    const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
-    const ics = [
-      'BEGIN:VCALENDAR', 'VERSION:2.0', 'BEGIN:VEVENT',
-      `DTSTART:${fmt(eventDate)}`, `DTEND:${fmt(endDate)}`,
-      'SUMMARY:CasaGrown Market is Open!',
-      'DESCRIPTION:Browse and order fresh produce from your neighbors at CasaGrown Market.',
-      `URL:${window.location.origin}/market`,
-      'END:VEVENT', 'END:VCALENDAR'
-    ].join('\r\n')
-    const blob = new Blob([ics], { type: 'text/calendar' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = 'casagrown-market.ics'; a.click()
-    URL.revokeObjectURL(url)
-    setReminderSet(true)
+  const requestReminder = () => {
+    showPrompt()
   }
 
   return (
@@ -169,35 +101,10 @@ export default function GetStartedPage() {
             🔔 I don&apos;t grow produce — remind me when the market opens →
           </button>
         )}
-
-        {/* iOS "Add to Home Screen" instructions */}
-        {showIOSPrompt && (
-          <div className={styles.iosPrompt}>
-            <button className={styles.iosClose} onClick={() => setShowIOSPrompt(false)}>✕</button>
-            <p className={styles.iosTitle}>📱 Add to Home Screen for Notifications</p>
-            <p className={styles.iosDesc}>
-              To receive reminders when the market opens, add CasaGrown to your home screen:
-            </p>
-            {showIOSPrompt === 'safari' ? (
-              <ol className={styles.iosSteps}>
-                <li>Tap the <strong>Share</strong> button <span style={{ fontSize: 18 }}>⬆️</span> at the bottom of Safari</li>
-                <li>Scroll down and tap <strong>&quot;Add to Home Screen&quot;</strong></li>
-                <li>Tap <strong>&quot;Add&quot;</strong> in the top right</li>
-                <li>Open <strong>CasaGrown Market</strong> from your home screen</li>
-                <li>Come back here and tap <strong>&quot;Remind me&quot;</strong> again</li>
-              </ol>
-            ) : (
-              <ol className={styles.iosSteps}>
-                <li>Tap the <strong>Share</strong> button <span style={{ fontSize: 18 }}>📤</span> (or <strong>⋯</strong> menu)</li>
-                <li>Tap <strong>&quot;Add to Home Screen&quot;</strong></li>
-                <li>Tap <strong>&quot;Add&quot;</strong> to confirm</li>
-                <li>Open <strong>CasaGrown Market</strong> from your home screen</li>
-                <li>Come back here and tap <strong>&quot;Remind me&quot;</strong> again</li>
-              </ol>
-            )}
-          </div>
-        )}
       </section>
+
+      {/* Notification Prompt Modal */}
+      <NotificationPromptModal {...modalProps} />
 
       {/* Theme Grid */}
       <section className={styles.grid}>

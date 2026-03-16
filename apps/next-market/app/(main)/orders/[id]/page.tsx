@@ -7,6 +7,7 @@ import { createClient } from '../../../../lib/supabase'
 import { useAuth } from '../../../../lib/useAuth'
 import CameraCapture, { CaptureResult } from '../../../../components/CameraCapture'
 import OrderChat from '../../../../components/OrderChat'
+import { NotificationBanner } from '../../../../components/NotificationBanner'
 import { geocodeAddress } from '../../../../lib/geocode'
 import styles from './page.module.css'
 
@@ -265,6 +266,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       <div className={styles.breadcrumb}>
         <Link href="/orders">← Orders</Link>
       </div>
+
+      <NotificationBanner context="order updates and messages" />
 
       {/* Order Summary */}
       <div className={styles.summaryCard}>

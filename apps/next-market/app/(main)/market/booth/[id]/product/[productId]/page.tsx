@@ -9,6 +9,8 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import BuyModal from '../../../../../../components/BuyModal'
 import { FlagModal } from '../../../../../../components/FlagModal'
 import { ProductQA } from '../../../../../../components/ProductQA'
+import { NotificationPromptModal } from '../../../../../../components/NotificationPromptModal'
+import { useNotificationPrompt } from '../../../../../../../lib/useNotificationPrompt'
 import styles from './page.module.css'
 
 export default function ProductDetailPage({ params }: { params: Promise<{ id: string; productId: string }> }) {
@@ -28,6 +30,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   const [buyerAddress, setBuyerAddress] = useState('')
   const [showFlag, setShowFlag] = useState(false)
   const [flagged, setFlagged] = useState(false)
+  const { showPrompt, modalProps } = useNotificationPrompt(user?.id)
 
   useEffect(() => {
     const load = async () => {
@@ -217,11 +220,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
           onSuccess={(order) => {
             setShowBuy(false)
             alert(`Order placed! Hold: $${order.holdAmount.toFixed(2)}. You'll only be charged the net amount at end of day.`)
-            // Prompt push notifications if not already granted
-            if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-              Notification.requestPermission()
-            }
-            // Navigate back to the booth page so user can continue browsing
+            showPrompt()
             router.push(`/market/booth/${boothId}`)
           }}
         />
@@ -236,6 +235,9 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
           onFlagged={() => setFlagged(true)}
         />
       )}
+
+      {/* Notification Prompt Modal */}
+      <NotificationPromptModal {...modalProps} />
     </div>
   )
 }

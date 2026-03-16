@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useMarket } from '../../../../../lib/store'
 import { useAuth } from '../../../../../lib/useAuth'
 import { createClient } from '../../../../../lib/supabase'
+import { useNotificationPrompt } from '../../../../../lib/useNotificationPrompt'
+import { NotificationPromptModal } from '../../../../../components/NotificationPromptModal'
 import CameraCapture from '../../../../../components/CameraCapture'
 import ImageCropper from '../../../../../components/ImageCropper'
 import styles from './page.module.css'
@@ -92,6 +94,7 @@ export default function NewProductPage() {
 
   // Validation
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const { showPrompt, modalProps } = useNotificationPrompt(authUser?.id)
 
   // Load existing product in edit mode
   useEffect(() => {
@@ -348,6 +351,7 @@ export default function NewProductPage() {
     // Store boothId for share URL
     setBoothIdForShare(boothId)
     setShowShareModal(true)
+    showPrompt()
   }
 
   const boothLabel = state.booths.find(b => b.ownerId === authUser?.id)?.name || 'my booth'
@@ -624,6 +628,9 @@ export default function NewProductPage() {
           </>
         )}
       </div>
+
+      {/* Notification Prompt Modal */}
+      <NotificationPromptModal {...modalProps} />
     </div>
   )
 }

@@ -8,6 +8,8 @@ import { useAuth } from '../../../../../lib/useAuth'
 import { useRouter, usePathname } from 'next/navigation'
 import BuyModal from '../../../../components/BuyModal'
 import { FlagModal } from '../../../../components/FlagModal'
+import { NotificationPromptModal } from '../../../../components/NotificationPromptModal'
+import { useNotificationPrompt } from '../../../../../lib/useNotificationPrompt'
 import styles from './page.module.css'
 
 export default function BoothDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -26,6 +28,7 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
   const [flaggedIds, setFlaggedIds] = useState<Set<string>>(new Set())
   const [following, setFollowing] = useState(false)
   const [followerCount, setFollowerCount] = useState(0)
+  const { showPrompt, modalProps } = useNotificationPrompt(user?.id)
 
   useEffect(() => {
     const load = async () => {
@@ -302,9 +305,7 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
             setBuyProduct(null)
             setProducts(prev => prev.map(p => p.id === buyProduct.id ? { ...p, inventory: Math.max(0, p.inventory - order.quantity) } : p))
             alert(`Order placed! Hold: $${order.holdAmount.toFixed(2)}. You'll only be charged the net amount at end of day.`)
-            if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-              Notification.requestPermission()
-            }
+            showPrompt()
           }}
         />
       )}
@@ -321,6 +322,9 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
           }}
         />
       )}
+
+      {/* Notification Prompt Modal */}
+      <NotificationPromptModal {...modalProps} />
     </div>
   )
 }

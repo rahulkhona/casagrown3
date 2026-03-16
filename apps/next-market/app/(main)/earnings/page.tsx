@@ -6,6 +6,7 @@ import { formatUsd } from '../../../lib/store'
 import { useAuth } from '../../../lib/useAuth'
 import { createClient } from '../../../lib/supabase'
 import { MarketReceiptSheet, type MarketReceiptData } from '../../components/MarketReceiptSheet'
+import { NotificationBanner } from '../../components/NotificationBanner'
 import styles from './page.module.css'
 
 // ── Types ──
@@ -254,6 +255,8 @@ export default function EarningsPage() {
           <h1 className="page-title">Earnings & Activity</h1>
           <p className="page-subtitle">Your market transactions, receipts, and payouts</p>
         </div>
+
+        <NotificationBanner context="payout and activity alerts" />
 
         {/* ── Date Filter ── */}
         <div className={styles.dateBar}>

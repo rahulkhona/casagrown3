@@ -11,6 +11,7 @@ import ImageCropper from '../../../components/ImageCropper'
 
 
 import { geocodeAddress, toPostgisPoint } from '../../../lib/geocode'
+import { NotificationBanner } from '../../components/NotificationBanner'
 import styles from './page.module.css'
 
 const THEMES: { id: Booth['decorativeTheme']; label: string; emoji: string }[] = [
@@ -450,6 +451,7 @@ export default function MyBoothPage() {
   return (
     <div className={styles.boothPreviewPage}>
 
+      <NotificationBanner context="new order alerts and buyer messages" />
       {/* ── Compact Booth Header ── */}
       <div className={styles.boothHeader}>
         {/* Banner — always shows something (gradient default or uploaded image) */}
