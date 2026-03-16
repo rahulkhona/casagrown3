@@ -126,7 +126,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     if (!user) return
     const { data } = await supabase
       .from('market_orders')
-      .select('*, buyer:buyer_id(full_name, street_address, avatar_url), seller:seller_id(full_name, street_address, avatar_url), booth:booth_id(name)')
+      .select('*, delivery_address, buyer:buyer_id(full_name, street_address, avatar_url), seller:seller_id(full_name, street_address, avatar_url), booth:booth_id(name, pickup_address)')
       .eq('id', orderId)
       .single()
 
@@ -135,8 +135,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         ...data,
         buyer_name: (data as any).buyer?.full_name || 'Unknown',
         seller_name: (data as any).seller?.full_name || 'Unknown',
-        buyer_address: (data as any).buyer?.street_address || undefined,
-        seller_address: (data as any).seller?.street_address || undefined,
+        buyer_address: (data as any).delivery_address || (data as any).buyer?.street_address || undefined,
+        seller_address: (data as any).booth?.pickup_address || (data as any).seller?.street_address || undefined,
         buyer_avatar: (data as any).buyer?.avatar_url || undefined,
         seller_avatar: (data as any).seller?.avatar_url || undefined,
         booth_name: (data as any).booth?.name || 'Unknown Booth',
