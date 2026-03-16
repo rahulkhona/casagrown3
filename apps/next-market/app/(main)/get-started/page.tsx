@@ -5,7 +5,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useMarket, isMarketOpen, getNextMarketOpen } from '../../../lib/store'
 import { useNotificationPrompt } from '../../../lib/useNotificationPrompt'
-import { NotificationPromptModal } from '../../../components/NotificationPromptModal'
+import { NotificationPromptModal } from '../../components/NotificationPromptModal'
 import { useAuth } from '../../../lib/useAuth'
 import styles from './page.module.css'
 

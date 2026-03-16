@@ -7,7 +7,7 @@ import { createClient } from '../../../../lib/supabase'
 import { useAuth } from '../../../../lib/useAuth'
 import CameraCapture, { CaptureResult } from '../../../../components/CameraCapture'
 import OrderChat from '../../../../components/OrderChat'
-import { NotificationBanner } from '../../../../components/NotificationBanner'
+import { NotificationBanner } from '../../../components/NotificationBanner'
 import { geocodeAddress } from '../../../../lib/geocode'
 import styles from './page.module.css'
 

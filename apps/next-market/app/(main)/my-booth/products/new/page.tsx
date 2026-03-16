@@ -7,7 +7,7 @@ import { useMarket } from '../../../../../lib/store'
 import { useAuth } from '../../../../../lib/useAuth'
 import { createClient } from '../../../../../lib/supabase'
 import { useNotificationPrompt } from '../../../../../lib/useNotificationPrompt'
-import { NotificationPromptModal } from '../../../../../components/NotificationPromptModal'
+import { NotificationPromptModal } from '../../../../components/NotificationPromptModal'
 import CameraCapture from '../../../../../components/CameraCapture'
 import ImageCropper from '../../../../../components/ImageCropper'
 import styles from './page.module.css'
@@ -244,7 +244,21 @@ export default function NewProductPage() {
       boothId = newBooth.id
     }
 
-    // ── 2. Insert or update the product ──
+    // ── 2. Check if product name is blocked ──
+    const { data: blocked } = await supabase
+      .from('blocked_products')
+      .select('id')
+      .ilike('product_name', name.trim())
+      .limit(1)
+
+    if (blocked && blocked.length > 0) {
+      setValidating(false)
+      setErrors({ name: 'This product is not allowed in your area. Please choose a different name.' })
+      dispatch({ type: 'ADD_TOAST', payload: { message: 'This product name is not allowed in your area', type: 'error' } })
+      return
+    }
+
+    // ── 3. Insert or update the product ──
     if (isEditMode) {
       // Edit mode: update existing product
       const { error } = await supabase
@@ -266,6 +280,10 @@ export default function NewProductPage() {
         dispatch({ type: 'ADD_TOAST', payload: { message: 'Failed to update product — ' + error.message, type: 'error' } })
         return
       }
+
+      // Clear any community flags (reactivates the product if it was flagged)
+      try { await supabase.rpc('clear_product_flags', { p_product_id: editId }) } catch { /* ignore if no flags */ }
+
       router.push('/my-booth')
       return
     }
