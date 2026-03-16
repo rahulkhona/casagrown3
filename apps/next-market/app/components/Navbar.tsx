@@ -392,18 +392,18 @@ export function Navbar() {
                 {/* Voice — feedback, bugs, feature requests */}
                 <div className={styles.menuSection}>
                   <div className={styles.menuSectionLabel}>Voice</div>
-                  <a href={`${process.env.NEXT_PUBLIC_VOICE_URL || '/voice'}/submit?type=bug`} className={styles.menuItem}>
+                  <Link href="/voice/submit?type=bug" className={styles.menuItem}>
                     <span className={styles.menuItemIcon}>🐛</span>
                     <span>Report a Bug</span>
-                  </a>
-                  <a href={`${process.env.NEXT_PUBLIC_VOICE_URL || '/voice'}/submit?type=feature`} className={styles.menuItem}>
+                  </Link>
+                  <Link href="/voice/submit?type=feature" className={styles.menuItem}>
                     <span className={styles.menuItemIcon}>💡</span>
                     <span>Request a Feature</span>
-                  </a>
-                  <a href={`${process.env.NEXT_PUBLIC_VOICE_URL || '/voice'}/board`} className={styles.menuItem}>
+                  </Link>
+                  <Link href="/voice/board" className={`${styles.menuItem} ${pathname === '/voice/board' ? styles.menuItemActive : ''}`}>
                     <span className={styles.menuItemIcon}>📋</span>
                     <span>Feedback Board</span>
-                  </a>
+                  </Link>
                 </div>
 
                 {/* Legal */}
