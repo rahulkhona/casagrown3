@@ -3,6 +3,12 @@
   background: rgba(255,255,255,0.95); backdrop-filter: blur(12px);
   border-top: 1px solid var(--gray-200);
   display: flex; justify-content: space-around; padding: 6px 0 env(safe-area-inset-bottom, 8px);
+  transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+}
+.bottomNavHidden {
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none;
 }
 @media (min-width: 769px) { .bottomNav { display: none; } }
 

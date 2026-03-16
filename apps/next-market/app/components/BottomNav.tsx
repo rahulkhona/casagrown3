@@ -1,9 +1,32 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useMarket, isMarketOpen } from '../../lib/store'
 import styles from './BottomNav.module.css'
+
+/** Detect mobile keyboard via visualViewport shrinkage */
+function useKeyboardVisible() {
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null
+    if (!vv) return
+
+    const initialHeight = vv.height
+    const THRESHOLD = 150 // keyboard is typically 250-350px
+
+    const onResize = () => {
+      setVisible(initialHeight - vv.height > THRESHOLD)
+    }
+
+    vv.addEventListener('resize', onResize)
+    return () => vv.removeEventListener('resize', onResize)
+  }, [])
+
+  return visible
+}
 
 const tabs = [
   { href: '/market', label: 'Market', icon: '🧺', hasStatus: true },
@@ -14,11 +37,12 @@ export function BottomNav() {
   const pathname = usePathname()
   const { state } = useMarket()
   const open = isMarketOpen(state.marketSchedule)
+  const keyboardOpen = useKeyboardVisible()
 
   const isActive = (href: string) => pathname.startsWith(href)
 
   return (
-    <nav className={styles.bottomNav}>
+    <nav className={`${styles.bottomNav} ${keyboardOpen ? styles.bottomNavHidden : ''}`}>
       {tabs.map(tab => (
         <Link
           key={tab.href}
@@ -41,3 +65,4 @@ export function BottomNav() {
     </nav>
   )
 }
+
