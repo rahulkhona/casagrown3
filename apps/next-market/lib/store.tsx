@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useReducer, type ReactNode } from 'react'
+import React, { createContext, useContext, useReducer, useEffect, type ReactNode } from 'react'
 
 // ============================================================================
 // Types
@@ -203,6 +203,7 @@ export interface MarketState {
   notifications: Notification[]
   earnings: Earnings
   marketSchedule: MarketSchedule[]
+  productsNeverExpire: boolean
   toasts: { id: string; message: string; type: 'success' | 'error' | 'info' }[]
 }
 
@@ -472,6 +473,7 @@ const initialState: MarketState = {
   notifications: MOCK_NOTIFICATIONS,
   earnings: { available: 245.80, pending: 13.71, totalSales: 892.50, salesCount: 67, redeemed: 632.99 },
   marketSchedule: MARKET_SCHEDULE,
+  productsNeverExpire: false,
   toasts: [],
 }
 
@@ -498,6 +500,7 @@ type Action =
   | { type: 'REMOVE_TOAST'; payload: string }
   | { type: 'MARK_NOTIFICATION_READ'; payload: string }
   | { type: 'ACCEPT_TERMS' }
+  | { type: 'LOAD_MARKET_CONFIG'; payload: { schedule: MarketSchedule[]; productsNeverExpire: boolean } }
 
 let idCounter = 100
 
@@ -609,6 +612,13 @@ function reducer(state: MarketState, action: Action): MarketState {
     case 'MARK_NOTIFICATION_READ':
       return { ...state, notifications: state.notifications.map(n => n.id === action.payload ? { ...n, read: true } : n) }
 
+    case 'LOAD_MARKET_CONFIG':
+      return {
+        ...state,
+        marketSchedule: action.payload.schedule.length > 0 ? action.payload.schedule : state.marketSchedule,
+        productsNeverExpire: action.payload.productsNeverExpire,
+      }
+
     default:
       return state
   }
@@ -625,6 +635,28 @@ const MarketContext = createContext<{
 
 export function MarketProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState)
+
+  // Load market config from DB on mount
+  useEffect(() => {
+    import('../lib/supabase').then(({ createClient }) => {
+      const supabase = createClient()
+      supabase.rpc('get_market_config').then(({ data }) => {
+        if (data) {
+          const schedule: MarketSchedule[] = (data.schedule || []).map((s: any) => ({
+            dayOfWeek: s.dayOfWeek,
+            dayName: s.dayName,
+            openTime: s.openTime,
+            closeTime: s.closeTime,
+          }))
+          dispatch({
+            type: 'LOAD_MARKET_CONFIG',
+            payload: { schedule, productsNeverExpire: data.productsNeverExpire || false }
+          })
+        }
+      })
+    })
+  }, [])
+
   return (
     <MarketContext.Provider value={{ state, dispatch }}>
       {children}
