@@ -36,7 +36,7 @@ const tabs = [
 export function BottomNav() {
   const pathname = usePathname()
   const { state } = useMarket()
-  const open = isMarketOpen(state.marketSchedule)
+  const open = isMarketOpen(state.marketSchedule, state.marketNeverCloses)
   const keyboardOpen = useKeyboardVisible()
 
   const isActive = (href: string) => pathname.startsWith(href)

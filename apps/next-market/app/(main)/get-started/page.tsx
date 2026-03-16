@@ -69,7 +69,7 @@ const BOOTH_THEMES = [
 
 export default function GetStartedPage() {
   const { state } = useMarket()
-  const open = isMarketOpen(state.marketSchedule)
+  const open = isMarketOpen(state.marketSchedule, state.marketNeverCloses)
   const next = getNextMarketOpen(state.marketSchedule)
   const [reminderSet, setReminderSet] = useState(false)
   const { user } = useAuth()

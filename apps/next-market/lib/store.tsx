@@ -204,6 +204,7 @@ export interface MarketState {
   earnings: Earnings
   marketSchedule: MarketSchedule[]
   productsNeverExpire: boolean
+  marketNeverCloses: boolean
   toasts: { id: string; message: string; type: 'success' | 'error' | 'info' }[]
 }
 
@@ -449,15 +450,9 @@ const MOCK_NOTIFICATIONS: Notification[] = [
 ]
 
 const MARKET_SCHEDULE: MarketSchedule[] = [
-  // During development: open every day 6 AM – 11 PM
-  // In production, this would be loaded from a DB config (e.g., market_settings table)
-  { dayOfWeek: 0, dayName: 'Sunday', openTime: '06:00', closeTime: '23:00' },
-  { dayOfWeek: 1, dayName: 'Monday', openTime: '06:00', closeTime: '23:00' },
-  { dayOfWeek: 2, dayName: 'Tuesday', openTime: '06:00', closeTime: '23:00' },
-  { dayOfWeek: 3, dayName: 'Wednesday', openTime: '06:00', closeTime: '23:00' },
-  { dayOfWeek: 4, dayName: 'Thursday', openTime: '06:00', closeTime: '23:00' },
-  { dayOfWeek: 5, dayName: 'Friday', openTime: '06:00', closeTime: '23:00' },
-  { dayOfWeek: 6, dayName: 'Saturday', openTime: '06:00', closeTime: '23:00' },
+  // Default: Saturday 8 AM – 11 AM (production)
+  // Admin can override via market_schedule_policies table
+  { dayOfWeek: 6, dayName: 'Saturday', openTime: '08:00', closeTime: '11:00' },
 ]
 
 const initialState: MarketState = {
@@ -474,6 +469,7 @@ const initialState: MarketState = {
   earnings: { available: 245.80, pending: 13.71, totalSales: 892.50, salesCount: 67, redeemed: 632.99 },
   marketSchedule: MARKET_SCHEDULE,
   productsNeverExpire: false,
+  marketNeverCloses: false,
   toasts: [],
 }
 
@@ -500,7 +496,7 @@ type Action =
   | { type: 'REMOVE_TOAST'; payload: string }
   | { type: 'MARK_NOTIFICATION_READ'; payload: string }
   | { type: 'ACCEPT_TERMS' }
-  | { type: 'LOAD_MARKET_CONFIG'; payload: { schedule: MarketSchedule[]; productsNeverExpire: boolean } }
+  | { type: 'LOAD_MARKET_CONFIG'; payload: { schedule: MarketSchedule[]; productsNeverExpire: boolean; marketNeverCloses: boolean } }
 
 let idCounter = 100
 
@@ -617,6 +613,7 @@ function reducer(state: MarketState, action: Action): MarketState {
         ...state,
         marketSchedule: action.payload.schedule.length > 0 ? action.payload.schedule : state.marketSchedule,
         productsNeverExpire: action.payload.productsNeverExpire,
+        marketNeverCloses: action.payload.marketNeverCloses,
       }
 
     default:
@@ -650,7 +647,11 @@ export function MarketProvider({ children }: { children: ReactNode }) {
           }))
           dispatch({
             type: 'LOAD_MARKET_CONFIG',
-            payload: { schedule, productsNeverExpire: data.productsNeverExpire || false }
+            payload: {
+              schedule,
+              productsNeverExpire: data.productsNeverExpire || false,
+              marketNeverCloses: data.marketNeverCloses || false,
+            }
           })
         }
       })
@@ -684,10 +685,8 @@ export function useMarket() {
 // Helpers
 // ============================================================================
 
-export function isMarketOpen(schedule: MarketSchedule[]): boolean {
-  // TODO: re-enable with timezone support for production
-  return true
-  /*
+export function isMarketOpen(schedule: MarketSchedule[], neverCloses?: boolean): boolean {
+  if (neverCloses) return true
   const now = new Date()
   const day = now.getDay()
   const time = now.getHours() * 100 + now.getMinutes()
@@ -697,7 +696,6 @@ export function isMarketOpen(schedule: MarketSchedule[]): boolean {
     const [ch, cm] = s.closeTime.split(':').map(Number)
     return time >= oh * 100 + om && time < ch * 100 + cm
   })
-  */
 }
 
 export function getNextMarketOpen(schedule: MarketSchedule[]): { dayName: string; openTime: string } | null {

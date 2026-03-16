@@ -50,7 +50,7 @@ export function Navbar() {
   const [ratingHover, setRatingHover] = useState(0)
   const [ratingSubmitted, setRatingSubmitted] = useState(false)
 
-  const open = isMarketOpen(state.marketSchedule)
+  const open = isMarketOpen(state.marketSchedule, state.marketNeverCloses)
 
   // Check actual Supabase session + fetch profile name
   useEffect(() => {
