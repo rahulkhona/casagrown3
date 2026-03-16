@@ -38,6 +38,7 @@ export interface MarketReceiptData {
   taxAmount: number
   // Fees (seller view)
   platformFee?: number
+  platformFeePct?: number
   netPayout?: number
   // Total
   total: number
@@ -193,7 +194,7 @@ export function MarketReceiptSheet({ visible, data, onClose }: Props) {
               <div className={styles.divider} />
               <div className={styles.section}>
                 <div className={`${styles.row} ${styles.feeRow}`}>
-                  <span className={styles.feeLabel}>Platform Fee (10%)</span>
+                  <span className={styles.feeLabel}>Platform Fee ({data.platformFeePct ?? (data.subtotal > 0 ? Math.round(data.platformFee! / data.subtotal * 100) : 10)}%)</span>
                   <span className={styles.feeValue}>-{formatUsd(data.platformFee)}</span>
                 </div>
                 {data.netPayout != null && (

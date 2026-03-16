@@ -104,6 +104,13 @@ export default function MyBoothPage() {
   const [dragIdx, setDragIdx] = useState<number | null>(null)
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
 
+  // Platform fee rate (loaded from DB)
+  const [platformFeePct, setPlatformFeePct] = useState(10)
+  useEffect(() => {
+    supabase.from('platform_fees').select('fees').eq('country_code', 'USA').single()
+      .then(({ data }) => { if (data?.fees) setPlatformFeePct(Math.round(data.fees * 100)) })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Time windows (pre-defined 2-hour slots)
   const [deliveryWindows, setDeliveryWindows] = useState<string[]>(
     myBooth?.deliveryWindows?.map(w => `${w.start.replace(':00', '')}-${parseInt(w.start) + 2}`) || []
@@ -787,7 +794,7 @@ export default function MyBoothPage() {
           Drag to reorder. First product is your hero item. Tap + to add.
         </p>
         <div style={{ background: 'var(--blue-50, #eff6ff)', border: '1px solid var(--blue-200, #bfdbfe)', borderRadius: 'var(--radius-md)', padding: '10px 14px', marginBottom: 16, fontSize: 13, color: 'var(--blue-700, #1d4ed8)' }}>
-          💡 <strong>Platform fee:</strong> 10% of each sale is retained as a platform fee. This is shown to buyers at checkout.
+          💡 <strong>Platform fee:</strong> {platformFeePct}% of each sale is retained as a platform fee. This is shown to buyers at checkout.
         </div>
         <div className={styles.productGrid}>
           {slots.map(slot => (

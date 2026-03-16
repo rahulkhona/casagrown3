@@ -96,6 +96,10 @@ export default function EarningsPage() {
   const [ratingHover, setRatingHover] = useState<{ txId: string; star: number } | null>(null)
   const [ratedOrders, setRatedOrders] = useState<Record<string, number>>({})
 
+  // 1099 Tax Reporting thresholds
+  const [taxThreshold, setTaxThreshold] = useState<{ amount: number; minTxns: number; warnPct: number } | null>(null)
+  const [userState, setUserState] = useState<string | null>(null)
+
   const supabase = useMemo(() => createClient(), [])
 
   const dates = useMemo(() => getDateRange(dateRange, customStart, customEnd), [dateRange, customStart, customEnd])
@@ -161,6 +165,29 @@ export default function EarningsPage() {
       fetchTransactions()
       fetchSummary()
       fetchPending()
+
+      // Load user state and tax reporting threshold
+      supabase.from('profiles').select('state_code').eq('id', userId).single()
+        .then(async ({ data: profile }) => {
+          const sc = profile?.state_code || null
+          setUserState(sc)
+          // Try state-specific threshold, fall back to _default
+          const { data: stateRow } = await supabase
+            .from('tax_reporting_thresholds')
+            .select('amount, min_txns, warn_pct')
+            .eq('state_code', sc || '_default')
+            .single()
+          if (stateRow) {
+            setTaxThreshold({ amount: stateRow.amount, minTxns: stateRow.min_txns, warnPct: stateRow.warn_pct })
+          } else {
+            const { data: defaultRow } = await supabase
+              .from('tax_reporting_thresholds')
+              .select('amount, min_txns, warn_pct')
+              .eq('state_code', '_default')
+              .single()
+            if (defaultRow) setTaxThreshold({ amount: defaultRow.amount, minTxns: defaultRow.min_txns, warnPct: defaultRow.warn_pct })
+          }
+        })
     }
   }, [isAuthenticated, userId, fetchTransactions, fetchSummary, fetchPending])
 
@@ -243,10 +270,14 @@ export default function EarningsPage() {
   }
 
   // ── 1099 thresholds ──
-  const federalThreshold = 600
-  const totalSales = summary?.total_sales || 0
-  const progress1099 = Math.min(100, (totalSales / federalThreshold) * 100)
-  const approaching = totalSales >= federalThreshold * 0.8
+  const ytdSales = summary?.total_sales || 0
+  const ytdSalesCount = summary?.sales_count || 0
+  const thresholdAmount = taxThreshold?.amount || 20000
+  const thresholdMinTxns = taxThreshold?.minTxns || 200
+  const warnPct = taxThreshold?.warnPct || 0.75
+  const thresholdBreached = ytdSales >= thresholdAmount && (thresholdMinTxns === 0 || ytdSalesCount >= thresholdMinTxns)
+  const approachingThreshold = !thresholdBreached && ytdSales >= thresholdAmount * warnPct
+  const progress1099 = Math.min(100, (ytdSales / thresholdAmount) * 100)
 
   return (
     <div className="container">
@@ -257,6 +288,48 @@ export default function EarningsPage() {
         </div>
 
         <NotificationBanner context="payout and activity alerts" />
+
+        {/* ── 1099 Threshold Warning ── */}
+        {thresholdBreached && (
+          <div style={{
+            background: '#fef2f2', border: '2px solid #fca5a5', borderRadius: 12,
+            padding: '16px 20px', marginBottom: 16, display: 'flex', gap: 12, alignItems: 'flex-start',
+          }}>
+            <span style={{ fontSize: 28 }}>🚨</span>
+            <div>
+              <strong style={{ color: '#991b1b', fontSize: 15 }}>1099-K Reporting Threshold Reached</strong>
+              <p style={{ color: '#7f1d1d', fontSize: 13, margin: '6px 0 0', lineHeight: 1.5 }}>
+                Your year-to-date sales ({formatUsd(ytdSales)}) have reached the
+                {userState ? ` ${userState}` : ' federal'} reporting threshold of {formatUsd(thresholdAmount)}.
+                You will receive a 1099-K tax form. Please consult a tax advisor. 
+                New sales may be paused until next calendar year.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {approachingThreshold && (
+          <div style={{
+            background: '#fffbeb', border: '2px solid #fde68a', borderRadius: 12,
+            padding: '16px 20px', marginBottom: 16, display: 'flex', gap: 12, alignItems: 'flex-start',
+          }}>
+            <span style={{ fontSize: 28 }}>⚠️</span>
+            <div style={{ flex: 1 }}>
+              <strong style={{ color: '#92400e', fontSize: 15 }}>Approaching 1099-K Reporting Threshold</strong>
+              <p style={{ color: '#78350f', fontSize: 13, margin: '6px 0 8px', lineHeight: 1.5 }}>
+                Your year-to-date sales ({formatUsd(ytdSales)}) are approaching the
+                {userState ? ` ${userState}` : ' federal'} reporting threshold of {formatUsd(thresholdAmount)}.
+                Once reached, you will receive a 1099-K tax form for this calendar year.
+              </p>
+              <div style={{ height: 6, background: '#fef3c7', borderRadius: 3, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${progress1099}%`, background: progress1099 >= 90 ? '#ef4444' : '#f59e0b', borderRadius: 3, transition: 'width 0.5s' }} />
+              </div>
+              <div style={{ fontSize: 11, color: '#92400e', marginTop: 4 }}>
+                {formatUsd(ytdSales)} / {formatUsd(thresholdAmount)} ({Math.round(progress1099)}%)
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── Date Filter ── */}
         <div className={styles.dateBar}>
@@ -556,18 +629,20 @@ export default function EarningsPage() {
             <div className={styles.taxTracker}>
               <div className={styles.taxHeader}>
                 <strong>📋 1099 Threshold Tracker</strong>
-                <span style={{ fontSize: 13, color: 'var(--gray-500)' }}>{formatUsd(totalSales)} / {formatUsd(federalThreshold)}</span>
+                <span style={{ fontSize: 13, color: 'var(--gray-500)' }}>{formatUsd(ytdSales)} / {formatUsd(thresholdAmount)}</span>
               </div>
               <div className="progress-bar" style={{ marginBottom: 8 }}>
-                <div className="progress-fill" style={{ width: `${progress1099}%`, background: approaching ? 'var(--amber-500)' : 'var(--green-500)' }} />
+                <div className="progress-fill" style={{ width: `${progress1099}%`, background: approachingThreshold || thresholdBreached ? 'var(--amber-500)' : 'var(--green-500)' }} />
               </div>
-              {approaching && (
+              {(approachingThreshold || thresholdBreached) && (
                 <div className={styles.taxWarning}>
-                  ⚠️ You&apos;re approaching the federal 1099 reporting threshold ({formatUsd(federalThreshold)}). A 1099-K will be generated if you exceed this amount.
+                  {thresholdBreached ? '🚨' : '⚠️'} You{thresholdBreached ? "'ve reached" : "'re approaching"} the {userState || 'federal'} 1099-K reporting threshold ({formatUsd(thresholdAmount)}).
+                  {thresholdBreached ? ' A 1099-K will be generated for this calendar year.' : ' A 1099-K will be generated if you exceed this amount.'}
                 </div>
               )}
               <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 4 }}>
-                CA state threshold: {formatUsd(200)} • Federal threshold: {formatUsd(federalThreshold)}
+                {userState ? `${userState} threshold` : 'Federal threshold'}: {formatUsd(thresholdAmount)}
+                {thresholdMinTxns > 0 ? ` • Min transactions: ${thresholdMinTxns}` : ''}
               </div>
             </div>
 
