@@ -1,6 +1,11 @@
 # CasaGrown Deployment Runbook
 
-Exact step-by-step commands and instructions for deploying market, admin, and voice apps.
+Exact step-by-step commands and instructions for deploying market, admin, voice, and metrics apps.
+
+> **Related docs:**
+> - `docs/production_ddl.sql` — Consolidated DDL for first-time DB setup
+> - `docs/baseline_migration_history.sql` — Seeds migration history after DDL
+> - `docs/database_deployment_strategy.md` — Backward compatibility rules & migration workflow
 
 ---
 
@@ -46,13 +51,32 @@ Run these from your repo root (`/Users/rkhona/development/market/casagrown3`):
 
 ### 2.1 Push to staging
 
+> [!IMPORTANT]
+> For **first-time deployment**, use the consolidated DDL instead of running 104 migrations.
+> For subsequent deployments, `supabase db push` applies only new migrations.
+
 ```bash
-# Link to staging project
+# Get the staging DB connection string from:
+# Supabase Dashboard → Settings → Database → Connection string → URI
+export STAGING_DB_URL="postgresql://postgres.xxxx:YOUR_PASSWORD@xxxx.supabase.co:5432/postgres"
+
+# ── FIRST TIME ONLY: Run the consolidated DDL ──
+# This creates all 109 tables, 165 functions, 81 indices, 33 triggers, 246 RLS policies
+psql "$STAGING_DB_URL" -f docs/production_ddl.sql
+
+# Mark all 104 existing migrations as "already applied"
+psql "$STAGING_DB_URL" -f docs/baseline_migration_history.sql
+
+# Verify: should show ~109 tables and 104 migration entries
+psql "$STAGING_DB_URL" -c "SELECT count(*) AS tables FROM information_schema.tables WHERE table_schema = 'public';"
+psql "$STAGING_DB_URL" -c "SELECT count(*) AS migrations FROM supabase_migrations.schema_migrations;"
+
+# ── Link CLI to staging ──
 supabase link --project-ref <STAGING_REF>
 # Enter your staging DB password when prompted
 
-# Push all 100+ migrations (NOT a reset — it runs migrations incrementally)
-supabase db push
+# Verify no pending migrations (should say "nothing to push")
+supabase db push --dry-run
 
 # Deploy all edge functions
 supabase functions deploy
@@ -77,12 +101,19 @@ supabase secrets set --project-ref <STAGING_REF> \
 ### 2.3 Push to production
 
 ```bash
+# Get the production DB connection string
+export PROD_DB_URL="postgresql://postgres.xxxx:YOUR_PASSWORD@xxxx.supabase.co:5432/postgres"
+
+# ── FIRST TIME ONLY: Same DDL + baseline as staging ──
+psql "$PROD_DB_URL" -f docs/production_ddl.sql
+psql "$PROD_DB_URL" -f docs/baseline_migration_history.sql
+
 # Link to production project (overwrites the previous link)
 supabase link --project-ref <PROD_REF>
 # Enter your production DB password when prompted
 
-# Push migrations
-supabase db push
+# Verify
+supabase db push --dry-run
 
 # Deploy edge functions
 supabase functions deploy
@@ -101,18 +132,37 @@ supabase secrets set --project-ref <PROD_REF> \
   RELOADLY_SANDBOX="false"
 ```
 
-### 2.5 Import waitlist data from old Supabase
+### 2.5 Seed initial data
 
 ```bash
-# Export from old project
-supabase db dump --project-ref <OLD_REF> --data-only --table waitlist > waitlist_data.sql
+# Add yourself as a staff member (required for admin/voice/metrics login)
+psql "$STAGING_DB_URL" -c "
+INSERT INTO public.staff_members (email, role) VALUES
+  ('your-email@example.com', 'admin')
+ON CONFLICT DO NOTHING;
+"
 
-# Import into new production project
-psql "postgresql://postgres:<PROD_PASSWORD>@db.<PROD_REF>.supabase.co:5432/postgres" < waitlist_data.sql
+# Add platform settings
+psql "$STAGING_DB_URL" -c "
+INSERT INTO public.platform_settings (id, platform_fee_percent, min_order_points)
+VALUES (1, 5.0, 100)
+ON CONFLICT DO NOTHING;
+"
+
+# Add market settings
+psql "$STAGING_DB_URL" -c "
+INSERT INTO public.market_settings (id, market_open)
+VALUES (1, true)
+ON CONFLICT DO NOTHING;
+"
+
+# Repeat for production with $PROD_DB_URL
 ```
 
 > [!NOTE]
-> Adjust the table name (`waitlist`) to match your actual table. If it's just a small table, you can also export as CSV from the Supabase dashboard and import via the Table Editor.
+> If you need to import waitlist data from an old Supabase project:
+> `supabase db dump --project-ref <OLD_REF> --data-only --table waitlist > waitlist_data.sql`
+> Then: `psql "$PROD_DB_URL" < waitlist_data.sql`
 
 ---
 
@@ -180,6 +230,19 @@ psql "postgresql://postgres:<PROD_PASSWORD>@db.<PROD_REF>.supabase.co:5432/postg
 
 2. Add env vars, deploy
 
+### 3.5 Create `casagrown-metrics` project
+1. Same process, configure:
+
+| Setting | Value |
+|---|---|
+| **Project Name** | `casagrown-metrics` |
+| **Root Directory** | `.` |
+| **Build Command** | `yarn build && yarn workspace next-metrics build` |
+| **Output Directory** | `apps/next-metrics/.next` |
+| **Install Command** | `yarn set version 4 && yarn install` |
+
+2. Add env vars, deploy
+
 ---
 
 ## Step 4: Configure Domains
@@ -204,6 +267,10 @@ psql "postgresql://postgres:<PROD_PASSWORD>@db.<PROD_REF>.supabase.co:5432/postg
 1. Add `voice.casagrown.com` (production)
 2. Add `staging-voice.casagrown.com` (assign to `main` branch)
 
+**In `casagrown-metrics` project:**
+1. Add `metrics.casagrown.com` (production)
+2. Add `staging-metrics.casagrown.com` (assign to `main` branch)
+
 ### 4.3 Update DNS
 
 Vercel will show you the required DNS records. Go to your domain registrar and set:
@@ -214,9 +281,11 @@ Vercel will show you the required DNS records. Go to your domain registrar and s
 | `CNAME` | `www` | `cname.vercel-dns.com` |
 | `CNAME` | `admin` | `cname.vercel-dns.com` |
 | `CNAME` | `voice` | `cname.vercel-dns.com` |
+| `CNAME` | `metrics` | `cname.vercel-dns.com` |
 | `CNAME` | `staging` | `cname.vercel-dns.com` |
 | `CNAME` | `staging-admin` | `cname.vercel-dns.com` |
 | `CNAME` | `staging-voice` | `cname.vercel-dns.com` |
+| `CNAME` | `staging-metrics` | `cname.vercel-dns.com` |
 
 Alternatively, point nameservers to Vercel and it manages all records automatically.
 
@@ -224,26 +293,26 @@ Alternatively, point nameservers to Vercel and it manages all records automatica
 
 ## Step 5: Configure Git Branches
 
-### 5.1 Create the production branch
+### 5.1 Create the release branch
 
 ```bash
 git checkout main
-git checkout -b production
-git push origin production
+git checkout -b release/v0.1
+git push origin release/v0.1
 ```
 
 ### 5.2 Configure Vercel branch mapping
 
-For **each** of the 3 Vercel projects:
+For **each** of the 4 Vercel projects:
 
-1. Settings → Git → Production Branch → set to `production`
+1. Settings → Git → Production Branch → set to `release/v0.1`
 2. The staging domains (e.g., `staging.casagrown.com`) should be assigned to the `main` branch:
    - Settings → Domains → click the staging domain → Git Branch → type `main`
 
 | Branch | Deploys to |
 |---|---|
-| `main` | `staging.casagrown.com` / `staging-admin.casagrown.com` / `staging-voice.casagrown.com` |
-| `production` | `casagrown.com` / `admin.casagrown.com` / `voice.casagrown.com` |
+| `main` | `staging.casagrown.com` / `staging-admin.casagrown.com` / `staging-voice.casagrown.com` / `staging-metrics.casagrown.com` |
+| `release/v0.1` | `casagrown.com` / `admin.casagrown.com` / `voice.casagrown.com` / `metrics.casagrown.com` |
 | `feature/*` | Random preview URL (auto-generated) |
 
 ---
@@ -386,7 +455,7 @@ git push origin feature/my-feature
 ### Deploying to staging:
 ```bash
 # 1. Merge PR into main
-# → Vercel auto-deploys all 3 apps to staging domains
+# → Vercel auto-deploys all 4 apps to staging domains
 # → GitHub Action auto-pushes migrations + functions to staging Supabase
 
 # 2. Test on staging.casagrown.com, staging-admin.casagrown.com, etc.
@@ -394,12 +463,17 @@ git push origin feature/my-feature
 
 ### Promoting to production:
 ```bash
-# 1. When staging is verified, merge main → production
-git checkout production
+# 1. When staging is verified, merge main → release branch
+git checkout release/v0.1
 git merge main
-git push origin production
+git push origin release/v0.1
 # → Vercel auto-deploys to production domains
 # → GitHub Action auto-pushes migrations + functions to production Supabase
+
+# 2. For a new release cycle:
+git checkout -b release/v0.2 main
+git push origin release/v0.2
+# Update Vercel production branch to release/v0.2
 ```
 
 ---
@@ -413,7 +487,7 @@ name: Deploy Supabase
 
 on:
   push:
-    branches: [main, production]
+    branches: [main, 'release/**']
     paths:
       - 'supabase/migrations/**'
       - 'supabase/functions/**'
@@ -431,7 +505,7 @@ jobs:
 
       - name: Set environment
         run: |
-          if [ "${{ github.ref_name }}" = "production" ]; then
+          if [[ "${{ github.ref_name }}" == release/* ]]; then
             echo "PROJECT_REF=${{ secrets.SUPABASE_PROD_PROJECT_REF }}" >> $GITHUB_ENV
             echo "DB_PASSWORD=${{ secrets.SUPABASE_PROD_DB_PASSWORD }}" >> $GITHUB_ENV
           else
