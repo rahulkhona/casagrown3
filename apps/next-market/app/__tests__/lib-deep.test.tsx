@@ -5,6 +5,12 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
+// Unmock so we test the real implementations (setup.ts mocks these for rendering tests)
+vi.unmock('../../lib/legal')
+vi.unmock('../../lib/geocode')
+vi.unmock('../../lib/feedback-service')
+vi.unmock('../../lib/analytics')
+
 // ===================== legal.ts =====================
 describe('legal.ts — needsTosAcceptance', () => {
   let needsTosAcceptance: typeof import('../../lib/legal').needsTosAcceptance

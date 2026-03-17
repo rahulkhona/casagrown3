@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// We need to test the reducer directly, but it's not exported.
+// Unmock store so we test the real reducer (setup.ts mocks it for rendering tests)
+vi.unmock('../../lib/store')
 // We'll test via the MarketProvider + useMarket hook instead.
 // For pure reducer logic, we can test the exported helpers + state transitions.
 

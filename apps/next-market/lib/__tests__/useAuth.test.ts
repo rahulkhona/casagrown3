@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// Unmock useAuth so we test the real implementation (setup.ts mocks it for rendering tests)
+vi.unmock('../../lib/useAuth')
+
 // Mock supabase before importing useAuth
 const mockGetUser = vi.fn()
 const mockSelect = vi.fn()

@@ -1,4 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+// Unmock analytics so we test the real implementation (setup.ts mocks it for rendering tests)
+vi.unmock('../../lib/analytics')
+
 import { getSessionId, getTransactionId, resetTransactionId, setAnalyticsUser, trackEvent } from '../analytics'
 
 describe('analytics', () => {

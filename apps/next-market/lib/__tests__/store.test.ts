@@ -1,4 +1,8 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+
+// Unmock store so we test the real implementation (setup.ts mocks it for rendering tests)
+vi.unmock('../../lib/store')
+
 import { isMarketOpen, getNextMarketDate, getNextMarketOpen, formatUsd, generatePasscode, type MarketSchedule } from '../store'
 
 // ============================================================================

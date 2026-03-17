@@ -8,6 +8,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 
+// Unmock so we test the real implementation (setup.ts mocks it for rendering tests)
+vi.unmock('../../lib/useNotificationPrompt')
+
 // ── Supabase mock ──
 vi.mock('../../lib/supabase', () => ({
   createClient: () => ({

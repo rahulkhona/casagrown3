@@ -6,6 +6,9 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// Unmock so we test the real implementation (setup.ts mocks it for rendering tests)
+vi.unmock('../../lib/feedback-service')
+
 // ── Supabase mock ──
 function chain(data: any = [], error: any = null) {
   const result = { data: data ?? [], error, count: Array.isArray(data) ? data.length : 0 }

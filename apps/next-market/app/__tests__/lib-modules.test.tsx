@@ -14,6 +14,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import React from 'react'
 import { render, act } from '@testing-library/react'
 
+// Unmock so we test the real implementations (setup.ts mocks these for rendering tests)
+vi.unmock('../../lib/store')
+vi.unmock('../../lib/legal')
+vi.unmock('../../lib/useAuth')
+vi.unmock('../../lib/analytics')
+
 // ── Navigation mocks (needed by store's MarketProvider) ──
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn(), prefetch: vi.fn() }),

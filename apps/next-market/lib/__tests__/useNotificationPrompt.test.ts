@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-// We test the exported utility functions, not the hook (which needs full React context)
+// Unmock so we test the real implementation (setup.ts mocks it for rendering tests)
+vi.unmock('../../lib/useNotificationPrompt')
 import {
   detectPlatform,
   getPermissionStatus,

@@ -1,6 +1,10 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// Unmock so we test the real implementations (setup.ts mocks these for rendering tests)
+vi.unmock('../../lib/legal')
+vi.unmock('../../lib/geocode')
+
 import { needsTosAcceptance, TOS_EFFECTIVE_DATE } from '../../lib/legal'
 import { toPostgisPoint } from '../../lib/geocode'
 

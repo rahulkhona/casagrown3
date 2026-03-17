@@ -9,6 +9,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import React from 'react'
 import { render, cleanup, fireEvent, act } from '@testing-library/react'
 
+// Unmock so we test the real components (setup.ts mocks these for rendering tests)
+vi.unmock('../../components/CameraCapture')
+vi.unmock('../../components/ImageCropper')
+vi.unmock('../../components/OrderChat')
+vi.unmock('../../lib/useAuth')
+
 // jsdom doesn't implement scrollIntoView or setPointerCapture
 Element.prototype.scrollIntoView = vi.fn()
 Element.prototype.setPointerCapture = vi.fn()
