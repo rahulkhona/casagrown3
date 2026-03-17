@@ -107,15 +107,30 @@ echo ""
 
 echo "━━━ Phase 1: Unit Tests ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-echo "📋 [1/5] Community App unit tests (jest)..."
-yarn workspace @casagrown/app jest --passWithNoTests --bail 2>&1 || {
-    echo "❌ Community App unit tests failed — push aborted."
+echo "📋 [1/8] Market App unit tests (vitest)..."
+cd apps/next-market && npx vitest run --reporter=dot 2>&1 || {
+    echo "❌ Market App unit tests failed — push aborted."
     exit 1
 }
+cd "$ROOT_DIR"
 
-echo "📋 [2/5] Community Voice unit tests (vitest)..."
+echo "📋 [2/8] Community Voice unit tests (vitest)..."
 cd apps/next-community-voice && npx vitest run --reporter=dot 2>&1 || {
     echo "❌ Community Voice unit tests failed — push aborted."
+    exit 1
+}
+cd "$ROOT_DIR"
+
+echo "📋 [3/8] Admin App unit tests (vitest)..."
+cd apps/next-admin && npx vitest run --reporter=dot 2>&1 || {
+    echo "❌ Admin App unit tests failed — push aborted."
+    exit 1
+}
+cd "$ROOT_DIR"
+
+echo "📋 [4/8] Metrics App unit tests (vitest)..."
+cd apps/next-metrics && npx vitest run --reporter=dot 2>&1 || {
+    echo "❌ Metrics App unit tests failed — push aborted."
     exit 1
 }
 cd "$ROOT_DIR"
@@ -219,7 +234,7 @@ else
     wait_for_port 3002 "Community Voice" 90
 fi
 
-echo "🎭 [3/5] Community Voice Playwright E2E tests..."
+echo "🎭 [5/8] Community Voice Playwright E2E tests..."
 
 # Seed Community Voice feedback data (idempotent — safe to re-run)
 echo "   Seeding Community Voice test data..."
@@ -227,6 +242,23 @@ docker exec -i supabase_db_casagrown3 psql -U postgres -d postgres < "$ROOT_DIR/
 
 cd apps/next-community-voice && npx playwright test --reporter=dot 2>&1 || {
     echo "❌ Community Voice Playwright tests failed — push aborted."
+    exit 1
+}
+cd "$ROOT_DIR"
+
+# --- Start Market dev server (port 3001) if not running ---
+if is_port_in_use 3001; then
+    echo "   ✓ Market dev server already running on 3001"
+else
+    echo "   Starting Market dev server (port 3001)..."
+    yarn web:market > /dev/null 2>&1 &
+    PIDS_TO_KILL="$PIDS_TO_KILL $!"
+    wait_for_port 3001 "Market" 90
+fi
+
+echo "🎭 [6/8] Market Playwright E2E tests..."
+cd apps/next-market && npx playwright test --reporter=dot 2>&1 || {
+    echo "❌ Market Playwright tests failed — push aborted."
     exit 1
 }
 cd "$ROOT_DIR"
@@ -251,11 +283,28 @@ else
     wait_for_port 3003 "Admin" 90
 fi
 
-echo "🎭 [4/5] Community Web + Admin Playwright E2E tests..."
+echo "🎭 [7/8] Community Web + Admin Playwright E2E tests..."
 npx playwright test --config=e2e/playwright/playwright.config.ts --reporter=dot 2>&1 || {
     echo "❌ Community Web + Admin Playwright tests failed — push aborted."
     exit 1
 }
+
+# --- Start Metrics dev server (port 3004) if not running ---
+if is_port_in_use 3004; then
+    echo "   ✓ Metrics dev server already running on 3004"
+else
+    echo "   Starting Metrics dev server (port 3004)..."
+    yarn web:metrics > /dev/null 2>&1 &
+    PIDS_TO_KILL="$PIDS_TO_KILL $!"
+    wait_for_port 3004 "Metrics" 90
+fi
+
+echo "🎭 [8/8] Metrics Playwright E2E tests..."
+cd apps/next-metrics && npx playwright test --reporter=dot 2>&1 || {
+    echo "❌ Metrics Playwright tests failed — push aborted."
+    exit 1
+}
+cd "$ROOT_DIR"
 
 # ═══════════════════════════════════════════════════════════════════
 # PHASE 3: Maestro Mobile E2E (Android Emulator)

@@ -90,10 +90,6 @@
     "pg": "^8.18.0",
     "postinstall-postinstall": "^2.1.0"
   },
-  "lint-staged": {
-    "packages/app/**/*.{ts,tsx}": [
-      "yarn workspace @casagrown/app jest --findRelatedTests --passWithNoTests"
-    ]
-  },
+  "lint-staged": {},
   "version": "1.0.0"
 }

@@ -1,23 +1,43 @@
 #!/bin/sh
 
-# Pre-commit hook: Run unit tests before committing
+# Pre-commit hook: Run unit tests for all apps before committing
 # Ensures service logic is not broken across apps.
 
 echo "🔍 Running pre-commit checks..."
 
-# 1. Run Community Voice unit tests (vitest, ~300ms)
-echo "📋 Running Community Voice unit tests..."
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+cd "$ROOT_DIR"
+
+# 1. Market App unit tests (vitest, ~6s)
+echo "📋 [1/4] Market App unit tests..."
+cd apps/next-market && npx vitest run --reporter=dot 2>&1 || {
+    echo "❌ Market App unit tests failed — commit aborted."
+    exit 1
+}
+cd "$ROOT_DIR"
+
+# 2. Community Voice unit tests (vitest, ~300ms)
+echo "📋 [2/4] Community Voice unit tests..."
 cd apps/next-community-voice && npx vitest run --reporter=dot 2>&1 || {
     echo "❌ Community Voice unit tests failed — commit aborted."
     exit 1
 }
-cd ../..
+cd "$ROOT_DIR"
 
-# 2. Run Community App unit tests (jest, ~10s)
-echo "📋 Running Community App unit tests..."
-yarn workspace @casagrown/app jest --passWithNoTests --bail 2>&1 || {
-    echo "❌ Community App unit tests failed — commit aborted."
+# 3. Admin App unit tests (vitest)
+echo "📋 [3/4] Admin App unit tests..."
+cd apps/next-admin && npx vitest run --reporter=dot 2>&1 || {
+    echo "❌ Admin App unit tests failed — commit aborted."
     exit 1
 }
+cd "$ROOT_DIR"
+
+# 4. Metrics App unit tests (vitest)
+echo "📋 [4/4] Metrics App unit tests..."
+cd apps/next-metrics && npx vitest run --reporter=dot 2>&1 || {
+    echo "❌ Metrics App unit tests failed — commit aborted."
+    exit 1
+}
+cd "$ROOT_DIR"
 
 echo "✅ All pre-commit checks passed!"
