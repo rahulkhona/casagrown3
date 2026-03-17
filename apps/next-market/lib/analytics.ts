@@ -70,6 +70,10 @@ export async function trackEvent(
       page_path: window.location.pathname,
       metadata: metadata || {},
       user_agent: navigator.userAgent,
+      // Columns used by metrics dashboard RPCs
+      element_id: metadata?.elementId || null,
+      element_label: metadata?.elementLabel || null,
+      stack_trace: metadata?.stackTrace || null,
     })
   } catch {
     // Silently fail — analytics should never break the app
@@ -84,7 +88,11 @@ export function trackPageView(path: string): void {
 
 /** Track a button click */
 export function trackClick(buttonName: string, metadata?: Record<string, any>): void {
-  trackEvent('button_click', buttonName, metadata)
+  trackEvent('button_click', buttonName, {
+    ...metadata,
+    elementId: metadata?.elementId || buttonName,
+    elementLabel: metadata?.elementLabel || buttonName,
+  })
 }
 
 /** Track a form submission */
@@ -94,5 +102,8 @@ export function trackFormSubmit(formName: string, metadata?: Record<string, any>
 
 /** Track an error */
 export function trackError(errorName: string, metadata?: Record<string, any>): void {
-  trackEvent('error', errorName, metadata)
+  trackEvent('error', errorName, {
+    ...metadata,
+    stackTrace: metadata?.stackTrace || metadata?.stack || null,
+  })
 }

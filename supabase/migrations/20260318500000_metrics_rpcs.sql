@@ -2,6 +2,10 @@
 -- Metrics Dashboard RPCs
 -- SECURITY DEFINER functions for staff-only analytics queries.
 -- Each function checks is_staff(auth.uid()) and returns JSONB.
+--
+-- Response shapes are aligned 1:1 with the TypeScript interfaces in
+-- apps/next-metrics/lib/metrics-service.ts so the service layer can
+-- pass RPC data through without transformation.
 -- ============================================================================
 
 -- ============================================================
@@ -16,12 +20,8 @@ CREATE INDEX IF NOT EXISTS idx_analytics_session ON user_analytics(session_id, c
 CREATE INDEX IF NOT EXISTS idx_analytics_page ON user_analytics(page_path, created_at);
 
 -- ============================================================
--- Helper: geo filter CTE builder
--- Resolves a user's geo from profiles → communities → zip → city → state → country
--- ============================================================
-
--- ============================================================
 -- 1. metrics_user_growth
+--    → UserGrowthData { timeSeries, cumulative, byGeo, total, newInPeriod }
 -- ============================================================
 CREATE OR REPLACE FUNCTION metrics_user_growth(
   p_start DATE,
@@ -33,12 +33,11 @@ CREATE OR REPLACE FUNCTION metrics_user_growth(
 ) RETURNS JSONB
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
-  v_result JSONB;
-  v_total_users BIGINT;
-  v_new_users BIGINT;
-  v_active_7d BIGINT;
-  v_active_30d BIGINT;
-  v_series JSONB;
+  v_total BIGINT;
+  v_new_in_period BIGINT;
+  v_time_series JSONB;
+  v_cumulative JSONB;
+  v_by_geo JSONB;
   v_date_trunc TEXT;
 BEGIN
   IF NOT is_staff(auth.uid()) THEN
@@ -52,7 +51,7 @@ BEGIN
   END;
 
   -- Total users (with geo filter)
-  SELECT COUNT(*) INTO v_total_users
+  SELECT COUNT(*) INTO v_total
   FROM profiles p
   LEFT JOIN communities co ON co.id = p.community_id
   LEFT JOIN zip_codes zc ON zc.zip_code = co.zip_code AND zc.country_iso_3 = co.country_iso_3
@@ -63,7 +62,7 @@ BEGIN
     AND (p_zip IS NULL OR co.zip_code = p_zip);
 
   -- New users in range
-  SELECT COUNT(*) INTO v_new_users
+  SELECT COUNT(*) INTO v_new_in_period
   FROM profiles p
   LEFT JOIN communities co ON co.id = p.community_id
   LEFT JOIN zip_codes zc ON zc.zip_code = co.zip_code AND zc.country_iso_3 = co.country_iso_3
@@ -74,39 +73,15 @@ BEGIN
     AND (p_city IS NULL OR ci.name ILIKE p_city)
     AND (p_zip IS NULL OR co.zip_code = p_zip);
 
-  -- Active in last 7 days
-  SELECT COUNT(DISTINCT ua.user_id) INTO v_active_7d
-  FROM user_analytics ua
-  JOIN profiles p ON p.id = ua.user_id
-  LEFT JOIN communities co ON co.id = p.community_id
-  LEFT JOIN zip_codes zc ON zc.zip_code = co.zip_code AND zc.country_iso_3 = co.country_iso_3
-  LEFT JOIN cities ci ON ci.id = zc.city_id
-  LEFT JOIN states st ON st.id = ci.state_id
-  WHERE ua.created_at >= (now() - interval '7 days')
-    AND (p_state IS NULL OR st.code = p_state)
-    AND (p_city IS NULL OR ci.name ILIKE p_city)
-    AND (p_zip IS NULL OR co.zip_code = p_zip);
-
-  -- Active in last 30 days
-  SELECT COUNT(DISTINCT ua.user_id) INTO v_active_30d
-  FROM user_analytics ua
-  JOIN profiles p ON p.id = ua.user_id
-  LEFT JOIN communities co ON co.id = p.community_id
-  LEFT JOIN zip_codes zc ON zc.zip_code = co.zip_code AND zc.country_iso_3 = co.country_iso_3
-  LEFT JOIN cities ci ON ci.id = zc.city_id
-  LEFT JOIN states st ON st.id = ci.state_id
-  WHERE ua.created_at >= (now() - interval '30 days')
-    AND (p_state IS NULL OR st.code = p_state)
-    AND (p_city IS NULL OR ci.name ILIKE p_city)
-    AND (p_zip IS NULL OR co.zip_code = p_zip);
-
-  -- Time series: signups per period with running cumulative
-  SELECT COALESCE(jsonb_agg(row_to_json(t)::jsonb ORDER BY t.d), '[]'::jsonb) INTO v_series
+  -- timeSeries: [{date, value}]
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'date', t.d::text,
+    'value', t.cnt
+  ) ORDER BY t.d), '[]'::jsonb) INTO v_time_series
   FROM (
     SELECT
       date_trunc(v_date_trunc, p.created_at)::date AS d,
-      COUNT(*) AS signups,
-      SUM(COUNT(*)) OVER (ORDER BY date_trunc(v_date_trunc, p.created_at)::date) AS cumulative
+      COUNT(*) AS cnt
     FROM profiles p
     LEFT JOIN communities co ON co.id = p.community_id
     LEFT JOIN zip_codes zc ON zc.zip_code = co.zip_code AND zc.country_iso_3 = co.country_iso_3
@@ -119,18 +94,68 @@ BEGIN
     GROUP BY date_trunc(v_date_trunc, p.created_at)::date
   ) t;
 
+  -- cumulative: [{date, value}]
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'date', t.d::text,
+    'value', t.running
+  ) ORDER BY t.d), '[]'::jsonb) INTO v_cumulative
+  FROM (
+    SELECT
+      d,
+      SUM(cnt) OVER (ORDER BY d) AS running
+    FROM (
+      SELECT
+        date_trunc(v_date_trunc, p.created_at)::date AS d,
+        COUNT(*) AS cnt
+      FROM profiles p
+      LEFT JOIN communities co ON co.id = p.community_id
+      LEFT JOIN zip_codes zc ON zc.zip_code = co.zip_code AND zc.country_iso_3 = co.country_iso_3
+      LEFT JOIN cities ci ON ci.id = zc.city_id
+      LEFT JOIN states st ON st.id = ci.state_id
+      WHERE p.created_at::date BETWEEN p_start AND p_end
+        AND (p_state IS NULL OR st.code = p_state)
+        AND (p_city IS NULL OR ci.name ILIKE p_city)
+        AND (p_zip IS NULL OR co.zip_code = p_zip)
+      GROUP BY date_trunc(v_date_trunc, p.created_at)::date
+    ) sub
+  ) t;
+
+  -- byGeo: [{region, count}]
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'region', t.region,
+    'count', t.cnt
+  ) ORDER BY t.cnt DESC), '[]'::jsonb) INTO v_by_geo
+  FROM (
+    SELECT
+      COALESCE(st.name, 'Unknown') AS region,
+      COUNT(*) AS cnt
+    FROM profiles p
+    LEFT JOIN communities co ON co.id = p.community_id
+    LEFT JOIN zip_codes zc ON zc.zip_code = co.zip_code AND zc.country_iso_3 = co.country_iso_3
+    LEFT JOIN cities ci ON ci.id = zc.city_id
+    LEFT JOIN states st ON st.id = ci.state_id
+    WHERE p.created_at::date BETWEEN p_start AND p_end
+      AND (p_state IS NULL OR st.code = p_state)
+      AND (p_city IS NULL OR ci.name ILIKE p_city)
+      AND (p_zip IS NULL OR co.zip_code = p_zip)
+    GROUP BY COALESCE(st.name, 'Unknown')
+  ) t;
+
   RETURN jsonb_build_object(
-    'totalUsers', v_total_users,
-    'newUsers', v_new_users,
-    'activeLast7d', v_active_7d,
-    'activeLast30d', v_active_30d,
-    'timeSeries', v_series
+    'timeSeries', v_time_series,
+    'cumulative', v_cumulative,
+    'byGeo', v_by_geo,
+    'total', v_total,
+    'newInPeriod', v_new_in_period
   );
 END;
 $$;
 
 -- ============================================================
 -- 2. metrics_sales_summary
+--    → SalesSummaryData { gmvTimeSeries, orderCountTimeSeries, avgOrderValue,
+--      totalGMV, totalOrders, totalTax, totalFees, fulfillmentSplit,
+--      topProducts, topSellers }
 -- ============================================================
 CREATE OR REPLACE FUNCTION metrics_sales_summary(
   p_start DATE,
@@ -142,12 +167,16 @@ CREATE OR REPLACE FUNCTION metrics_sales_summary(
 ) RETURNS JSONB
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
-  v_total_revenue NUMERIC;
+  v_total_gmv NUMERIC;
   v_total_orders BIGINT;
   v_avg_order NUMERIC;
-  v_revenue_trend JSONB;
-  v_category_breakdown JSONB;
-  v_fulfillment_split JSONB;
+  v_total_tax NUMERIC;
+  v_total_fees NUMERIC;
+  v_gmv_series JSONB;
+  v_order_series JSONB;
+  v_fulfillment JSONB;
+  v_top_products JSONB;
+  v_top_sellers JSONB;
   v_date_trunc TEXT;
 BEGIN
   IF NOT is_staff(auth.uid()) THEN
@@ -164,8 +193,10 @@ BEGIN
   SELECT
     COALESCE(SUM(o.total_usd), 0),
     COUNT(*),
-    COALESCE(AVG(o.total_usd), 0)
-  INTO v_total_revenue, v_total_orders, v_avg_order
+    COALESCE(AVG(o.total_usd), 0),
+    COALESCE(SUM(o.tax_usd), 0),
+    COALESCE(SUM(o.platform_fee_usd), 0)
+  INTO v_total_gmv, v_total_orders, v_avg_order, v_total_tax, v_total_fees
   FROM market_orders o
   JOIN profiles p ON p.id = o.buyer_id
   LEFT JOIN communities co ON co.id = p.community_id
@@ -178,67 +209,96 @@ BEGIN
     AND (p_city IS NULL OR ci.name ILIKE p_city)
     AND (p_zip IS NULL OR co.zip_code = p_zip);
 
-  -- Revenue trend
-  SELECT COALESCE(jsonb_agg(row_to_json(t)::jsonb ORDER BY t.d), '[]'::jsonb) INTO v_revenue_trend
+  -- gmvTimeSeries: [{date, value}]
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'date', t.d::text, 'value', t.rev
+  ) ORDER BY t.d), '[]'::jsonb) INTO v_gmv_series
   FROM (
-    SELECT
-      date_trunc(v_date_trunc, o.created_at)::date AS d,
-      SUM(o.total_usd) AS revenue,
-      COUNT(*) AS order_count
+    SELECT date_trunc(v_date_trunc, o.created_at)::date AS d, SUM(o.total_usd) AS rev
     FROM market_orders o
     JOIN profiles p ON p.id = o.buyer_id
     LEFT JOIN communities co ON co.id = p.community_id
     LEFT JOIN zip_codes zc ON zc.zip_code = co.zip_code AND zc.country_iso_3 = co.country_iso_3
     LEFT JOIN cities ci ON ci.id = zc.city_id
     LEFT JOIN states st ON st.id = ci.state_id
-    WHERE o.status != 'cancelled'
-      AND o.created_at::date BETWEEN p_start AND p_end
+    WHERE o.status != 'cancelled' AND o.created_at::date BETWEEN p_start AND p_end
       AND (p_state IS NULL OR st.code = p_state)
       AND (p_city IS NULL OR ci.name ILIKE p_city)
       AND (p_zip IS NULL OR co.zip_code = p_zip)
-    GROUP BY date_trunc(v_date_trunc, o.created_at)::date
+    GROUP BY 1
   ) t;
 
-  -- Category breakdown
-  SELECT COALESCE(jsonb_agg(row_to_json(t)::jsonb), '[]'::jsonb) INTO v_category_breakdown
+  -- orderCountTimeSeries: [{date, value}]
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'date', t.d::text, 'value', t.cnt
+  ) ORDER BY t.d), '[]'::jsonb) INTO v_order_series
   FROM (
-    SELECT
-      o.product_name AS category,
-      SUM(o.total_usd) AS revenue,
-      COUNT(*) AS order_count
+    SELECT date_trunc(v_date_trunc, o.created_at)::date AS d, COUNT(*) AS cnt
     FROM market_orders o
-    WHERE o.status != 'cancelled'
-      AND o.created_at::date BETWEEN p_start AND p_end
-    GROUP BY o.product_name
-    ORDER BY SUM(o.total_usd) DESC
-    LIMIT 10
+    JOIN profiles p ON p.id = o.buyer_id
+    LEFT JOIN communities co ON co.id = p.community_id
+    LEFT JOIN zip_codes zc ON zc.zip_code = co.zip_code AND zc.country_iso_3 = co.country_iso_3
+    LEFT JOIN cities ci ON ci.id = zc.city_id
+    LEFT JOIN states st ON st.id = ci.state_id
+    WHERE o.status != 'cancelled' AND o.created_at::date BETWEEN p_start AND p_end
+      AND (p_state IS NULL OR st.code = p_state)
+      AND (p_city IS NULL OR ci.name ILIKE p_city)
+      AND (p_zip IS NULL OR co.zip_code = p_zip)
+    GROUP BY 1
   ) t;
 
-  -- Fulfillment split
-  SELECT COALESCE(jsonb_agg(row_to_json(t)::jsonb), '[]'::jsonb) INTO v_fulfillment_split
+  -- fulfillmentSplit: [{type, count}]
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'type', t.ft, 'count', t.cnt
+  )), '[]'::jsonb) INTO v_fulfillment
   FROM (
-    SELECT
-      o.fulfillment_type AS type,
-      COUNT(*) AS count
+    SELECT o.fulfillment_type AS ft, COUNT(*) AS cnt
     FROM market_orders o
-    WHERE o.status != 'cancelled'
-      AND o.created_at::date BETWEEN p_start AND p_end
+    WHERE o.status != 'cancelled' AND o.created_at::date BETWEEN p_start AND p_end
     GROUP BY o.fulfillment_type
   ) t;
 
+  -- topProducts: [{name, revenue, orders}]
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'name', t.pname, 'revenue', t.rev, 'orders', t.cnt
+  )), '[]'::jsonb) INTO v_top_products
+  FROM (
+    SELECT o.product_name AS pname, SUM(o.total_usd) AS rev, COUNT(*) AS cnt
+    FROM market_orders o
+    WHERE o.status != 'cancelled' AND o.created_at::date BETWEEN p_start AND p_end
+    GROUP BY o.product_name ORDER BY SUM(o.total_usd) DESC LIMIT 5
+  ) t;
+
+  -- topSellers: [{name, revenue, orders}]
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'name', t.sname, 'revenue', t.rev, 'orders', t.cnt
+  )), '[]'::jsonb) INTO v_top_sellers
+  FROM (
+    SELECT sp.full_name AS sname, SUM(o.total_usd) AS rev, COUNT(*) AS cnt
+    FROM market_orders o
+    JOIN profiles sp ON sp.id = o.seller_id
+    WHERE o.status != 'cancelled' AND o.created_at::date BETWEEN p_start AND p_end
+    GROUP BY sp.full_name ORDER BY SUM(o.total_usd) DESC LIMIT 5
+  ) t;
+
   RETURN jsonb_build_object(
-    'totalRevenue', v_total_revenue,
-    'totalOrders', v_total_orders,
+    'gmvTimeSeries', v_gmv_series,
+    'orderCountTimeSeries', v_order_series,
     'avgOrderValue', ROUND(v_avg_order, 2),
-    'revenueTrend', v_revenue_trend,
-    'categoryBreakdown', v_category_breakdown,
-    'fulfillmentSplit', v_fulfillment_split
+    'totalGMV', v_total_gmv,
+    'totalOrders', v_total_orders,
+    'totalTax', v_total_tax,
+    'totalFees', v_total_fees,
+    'fulfillmentSplit', v_fulfillment,
+    'topProducts', v_top_products,
+    'topSellers', v_top_sellers
   );
 END;
 $$;
 
 -- ============================================================
 -- 3. metrics_payout_trends
+--    → PayoutData { methodTrends, methodTotals, instrumentTotals, successRates }
 -- ============================================================
 CREATE OR REPLACE FUNCTION metrics_payout_trends(
   p_start DATE,
@@ -258,8 +318,10 @@ BEGIN
     RETURN jsonb_build_object('error', 'Unauthorized');
   END IF;
 
-  -- Method totals: group by redemption_merchandize.type
-  SELECT COALESCE(jsonb_agg(row_to_json(t)::jsonb), '[]'::jsonb) INTO v_method_totals
+  -- methodTotals: [{method, amount, count}]
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'method', t.method, 'amount', t.amt, 'count', t.cnt
+  )), '[]'::jsonb) INTO v_method_totals
   FROM (
     SELECT
       CASE rm.type
@@ -267,8 +329,8 @@ BEGIN
         WHEN 'donation' THEN 'Charity Donation'
         ELSE 'Cash Out ($)'
       END AS method,
-      SUM(r.point_cost) AS amount,
-      COUNT(*) AS count
+      SUM(r.point_cost) AS amt,
+      COUNT(*) AS cnt
     FROM redemptions r
     JOIN redemption_merchandize rm ON rm.id = r.item_id
     JOIN profiles p ON p.id = r.user_id
@@ -280,15 +342,13 @@ BEGIN
       AND (p_state IS NULL OR st.code = p_state)
       AND (p_city IS NULL OR ci.name ILIKE p_city)
       AND (p_zip IS NULL OR co.zip_code = p_zip)
-    GROUP BY CASE rm.type
-        WHEN 'gift_card' THEN 'Gift Cards'
-        WHEN 'donation' THEN 'Charity Donation'
-        ELSE 'Cash Out ($)'
-      END
+    GROUP BY 1
   ) t;
 
-  -- Instrument totals: break down gift cards by provider (Reloadly / Tremendous)
-  SELECT COALESCE(jsonb_agg(row_to_json(t)::jsonb), '[]'::jsonb) INTO v_instrument_totals
+  -- instrumentTotals: [{method, instrument, amount, count}]
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'method', t.method, 'instrument', t.instrument, 'amount', t.amt, 'count', t.cnt
+  )), '[]'::jsonb) INTO v_instrument_totals
   FROM (
     SELECT
       CASE rm.type
@@ -303,8 +363,8 @@ BEGIN
           ELSE 'Stripe Payout'
         END
       ) AS instrument,
-      SUM(r.point_cost) AS amount,
-      COUNT(*) AS count
+      SUM(r.point_cost) AS amt,
+      COUNT(*) AS cnt
     FROM redemptions r
     JOIN redemption_merchandize rm ON rm.id = r.item_id
     JOIN profiles p ON p.id = r.user_id
@@ -319,22 +379,26 @@ BEGIN
     GROUP BY 1, 2
   ) t;
 
-  -- Method trends (daily)
-  SELECT COALESCE(jsonb_agg(row_to_json(t)::jsonb ORDER BY t.d), '[]'::jsonb) INTO v_method_trends
+  -- methodTrends: [{date, giftcards, charity, cashout}]
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'date', t.d::text, 'giftcards', t.gc, 'charity', t.ch, 'cashout', t.co
+  ) ORDER BY t.d), '[]'::jsonb) INTO v_method_trends
   FROM (
     SELECT
       r.created_at::date AS d,
-      COUNT(*) FILTER (WHERE rm.type = 'gift_card') AS giftcards,
-      COUNT(*) FILTER (WHERE rm.type = 'donation') AS charity,
-      COUNT(*) FILTER (WHERE rm.type NOT IN ('gift_card', 'donation')) AS cashout
+      COUNT(*) FILTER (WHERE rm.type = 'gift_card') AS gc,
+      COUNT(*) FILTER (WHERE rm.type = 'donation') AS ch,
+      COUNT(*) FILTER (WHERE rm.type NOT IN ('gift_card', 'donation')) AS co
     FROM redemptions r
     JOIN redemption_merchandize rm ON rm.id = r.item_id
     WHERE r.created_at::date BETWEEN p_start AND p_end
     GROUP BY r.created_at::date
   ) t;
 
-  -- Success rates by method
-  SELECT COALESCE(jsonb_agg(row_to_json(t)::jsonb), '[]'::jsonb) INTO v_success_rates
+  -- successRates: [{method, success, failure}]
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'method', t.method, 'success', t.succ, 'failure', t.fail
+  )), '[]'::jsonb) INTO v_success_rates
   FROM (
     SELECT
       CASE rm.type
@@ -342,22 +406,18 @@ BEGIN
         WHEN 'donation' THEN 'Charity Donation'
         ELSE 'Cash Out ($)'
       END AS method,
-      ROUND(100.0 * COUNT(*) FILTER (WHERE r.status = 'completed') / GREATEST(COUNT(*), 1)) AS success,
-      ROUND(100.0 * COUNT(*) FILTER (WHERE r.status = 'failed') / GREATEST(COUNT(*), 1)) AS failure
+      ROUND(100.0 * COUNT(*) FILTER (WHERE r.status = 'completed') / GREATEST(COUNT(*), 1)) AS succ,
+      ROUND(100.0 * COUNT(*) FILTER (WHERE r.status = 'failed') / GREATEST(COUNT(*), 1)) AS fail
     FROM redemptions r
     JOIN redemption_merchandize rm ON rm.id = r.item_id
     WHERE r.created_at::date BETWEEN p_start AND p_end
-    GROUP BY CASE rm.type
-        WHEN 'gift_card' THEN 'Gift Cards'
-        WHEN 'donation' THEN 'Charity Donation'
-        ELSE 'Cash Out ($)'
-      END
+    GROUP BY 1
   ) t;
 
   RETURN jsonb_build_object(
+    'methodTrends', v_method_trends,
     'methodTotals', v_method_totals,
     'instrumentTotals', v_instrument_totals,
-    'methodTrends', v_method_trends,
     'successRates', v_success_rates
   );
 END;
@@ -365,6 +425,7 @@ $$;
 
 -- ============================================================
 -- 4. metrics_page_analytics
+--    → PageAnalyticsData { routes, dropOffDistribution, errorHotspots, sessionDurations }
 -- ============================================================
 CREATE OR REPLACE FUNCTION metrics_page_analytics(
   p_start DATE,
@@ -384,8 +445,16 @@ BEGIN
     RETURN jsonb_build_object('error', 'Unauthorized');
   END IF;
 
-  -- Per-route analytics
-  SELECT COALESCE(jsonb_agg(row_to_json(t)::jsonb), '[]'::jsonb) INTO v_routes
+  -- routes: [{route, pageLoads, uniqueUsers, avgDwellTime, bounceRate, dropOffRate, errors}]
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'route', t.route,
+    'pageLoads', t.page_loads,
+    'uniqueUsers', t.unique_users,
+    'avgDwellTime', 0,
+    'bounceRate', t.bounce_rate,
+    'dropOffRate', t.drop_off_rate,
+    'errors', t.errors
+  )), '[]'::jsonb) INTO v_routes
   FROM (
     WITH page_sessions AS (
       SELECT
@@ -412,12 +481,11 @@ BEGIN
     )
     SELECT
       ps.page_path AS route,
-      SUM(ps.event_count) AS "pageLoads",
-      COUNT(DISTINCT ps.session_id) AS "uniqueUsers",
-      0 AS "avgDwellTime",
-      ROUND(100.0 * COUNT(*) FILTER (WHERE ps.event_count = 1) / GREATEST(COUNT(*), 1)) AS "bounceRate",
-      ROUND(100.0 * COUNT(*) FILTER (WHERE lp.last_path = ps.page_path) / GREATEST(COUNT(*), 1)) AS "dropOffRate",
-      COALESCE((SELECT COUNT(*) FROM user_analytics ua2 WHERE ua2.page_path = ps.page_path AND ua2.event_type = 'error' AND ua2.created_at::date BETWEEN p_start AND p_end), 0) AS errors
+      SUM(ps.event_count)::bigint AS page_loads,
+      COUNT(DISTINCT ps.session_id)::bigint AS unique_users,
+      ROUND(100.0 * COUNT(*) FILTER (WHERE ps.event_count = 1) / GREATEST(COUNT(*), 1))::int AS bounce_rate,
+      ROUND(100.0 * COUNT(*) FILTER (WHERE lp.last_path = ps.page_path) / GREATEST(COUNT(*), 1))::int AS drop_off_rate,
+      COALESCE((SELECT COUNT(*) FROM user_analytics ua2 WHERE ua2.page_path = ps.page_path AND ua2.event_type = 'error' AND ua2.created_at::date BETWEEN p_start AND p_end), 0)::bigint AS errors
     FROM page_sessions ps
     LEFT JOIN last_page lp ON lp.session_id = ps.session_id
     GROUP BY ps.page_path
@@ -425,10 +493,12 @@ BEGIN
     LIMIT 20
   ) t;
 
-  -- Drop-off distribution (top routes where sessions end)
-  SELECT COALESCE(jsonb_agg(row_to_json(t)::jsonb), '[]'::jsonb) INTO v_drop_off
+  -- dropOffDistribution: [{route, count}]
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'route', t.route, 'count', t.cnt
+  )), '[]'::jsonb) INTO v_drop_off
   FROM (
-    SELECT page_path AS route, COUNT(*) AS count
+    SELECT page_path AS route, COUNT(*) AS cnt
     FROM (
       SELECT DISTINCT ON (session_id) session_id, page_path
       FROM user_analytics
@@ -440,10 +510,12 @@ BEGIN
     LIMIT 8
   ) t;
 
-  -- Session duration distribution (bucketed)
-  SELECT COALESCE(jsonb_agg(row_to_json(t)::jsonb), '[]'::jsonb) INTO v_session_durations
+  -- sessionDurations: [{bucket, count}]
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'bucket', t.bucket, 'count', t.cnt
+  )), '[]'::jsonb) INTO v_session_durations
   FROM (
-    SELECT bucket, COUNT(*) AS count FROM (
+    SELECT bucket, COUNT(*) AS cnt FROM (
       SELECT
         CASE
           WHEN dur < 30 THEN '0-30s'
@@ -466,10 +538,12 @@ BEGIN
       WHEN '1-3m' THEN 3 WHEN '3-10m' THEN 4 ELSE 5 END)
   ) t;
 
-  -- Error hotspots
-  SELECT COALESCE(jsonb_agg(row_to_json(t)::jsonb), '[]'::jsonb) INTO v_error_hotspots
+  -- errorHotspots: [{route, errorName, count}]
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'route', t.route, 'errorName', t.err_name, 'count', t.cnt
+  )), '[]'::jsonb) INTO v_error_hotspots
   FROM (
-    SELECT page_path AS route, event_name AS "errorName", COUNT(*) AS count
+    SELECT page_path AS route, event_name AS err_name, COUNT(*) AS cnt
     FROM user_analytics
     WHERE event_type = 'error'
       AND created_at::date BETWEEN p_start AND p_end
@@ -489,6 +563,8 @@ $$;
 
 -- ============================================================
 -- 5. metrics_marketplace_health
+--    → MarketplaceHealthData { activeSellers, activeBuyers, newBooths,
+--      productListings, flagActivity, avgSellerRating }
 -- ============================================================
 CREATE OR REPLACE FUNCTION metrics_marketplace_health(
   p_start DATE,
@@ -499,82 +575,96 @@ CREATE OR REPLACE FUNCTION metrics_marketplace_health(
 ) RETURNS JSONB
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
-  v_total_orders BIGINT;
-  v_completed_orders BIGINT;
-  v_order_complete_rate NUMERIC;
-  v_dispute_count BIGINT;
-  v_dispute_rate NUMERIC;
+  v_active_sellers JSONB;
+  v_active_buyers JSONB;
+  v_new_booths JSONB;
+  v_product_active BIGINT;
+  v_product_inactive BIGINT;
+  v_flag_activity JSONB;
   v_avg_seller_rating NUMERIC;
-  v_active_booths BIGINT;
-  v_flagged_posts BIGINT;
-  v_top_categories JSONB;
 BEGIN
   IF NOT is_staff(auth.uid()) THEN
     RETURN jsonb_build_object('error', 'Unauthorized');
   END IF;
 
-  -- Order stats
-  SELECT COUNT(*), COUNT(*) FILTER (WHERE status = 'confirmed')
-  INTO v_total_orders, v_completed_orders
-  FROM market_orders
-  WHERE created_at::date BETWEEN p_start AND p_end;
+  -- activeSellers: [{date, value}] — sellers who had an order each day
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'date', t.d::text, 'value', t.cnt
+  ) ORDER BY t.d), '[]'::jsonb) INTO v_active_sellers
+  FROM (
+    SELECT o.created_at::date AS d, COUNT(DISTINCT o.seller_id) AS cnt
+    FROM market_orders o
+    WHERE o.created_at::date BETWEEN p_start AND p_end
+    GROUP BY o.created_at::date
+  ) t;
 
-  v_order_complete_rate := CASE WHEN v_total_orders > 0
-    THEN ROUND(100.0 * v_completed_orders / v_total_orders, 1) ELSE 0 END;
+  -- activeBuyers: [{date, value}]
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'date', t.d::text, 'value', t.cnt
+  ) ORDER BY t.d), '[]'::jsonb) INTO v_active_buyers
+  FROM (
+    SELECT o.created_at::date AS d, COUNT(DISTINCT o.buyer_id) AS cnt
+    FROM market_orders o
+    WHERE o.created_at::date BETWEEN p_start AND p_end
+    GROUP BY o.created_at::date
+  ) t;
 
-  -- Dispute rate (escalations vs orders)
-  SELECT COUNT(*) INTO v_dispute_count
-  FROM escalations WHERE created_at::date BETWEEN p_start AND p_end;
+  -- newBooths: [{date, value}]
+  BEGIN
+    SELECT COALESCE(jsonb_agg(jsonb_build_object(
+      'date', t.d::text, 'value', t.cnt
+    ) ORDER BY t.d), '[]'::jsonb) INTO v_new_booths
+    FROM (
+      SELECT created_at::date AS d, COUNT(*) AS cnt
+      FROM market_booths
+      WHERE created_at::date BETWEEN p_start AND p_end
+      GROUP BY created_at::date
+    ) t;
+  EXCEPTION WHEN undefined_table THEN
+    v_new_booths := '[]'::jsonb;
+  END;
 
-  v_dispute_rate := CASE WHEN v_total_orders > 0
-    THEN ROUND(100.0 * v_dispute_count / v_total_orders, 1) ELSE 0 END;
+  -- productListings: {active, inactive}
+  BEGIN
+    SELECT COUNT(*) FILTER (WHERE is_active), COUNT(*) FILTER (WHERE NOT is_active)
+    INTO v_product_active, v_product_inactive
+    FROM market_products;
+  EXCEPTION WHEN undefined_table THEN
+    v_product_active := 0;
+    v_product_inactive := 0;
+  END;
 
-  -- Average seller rating
+  -- flagActivity: [{date, value}]
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'date', t.d::text, 'value', t.cnt
+  ) ORDER BY t.d), '[]'::jsonb) INTO v_flag_activity
+  FROM (
+    SELECT created_at::date AS d, COUNT(*) AS cnt
+    FROM post_flags
+    WHERE created_at::date BETWEEN p_start AND p_end
+    GROUP BY created_at::date
+  ) t;
+
+  -- avgSellerRating
   SELECT COALESCE(AVG(seller_rating::int), 0) INTO v_avg_seller_rating
   FROM orders
   WHERE seller_rating IS NOT NULL
     AND created_at::date BETWEEN p_start AND p_end;
 
-  -- Active booths (exists check for market_booths)
-  BEGIN
-    SELECT COUNT(*) INTO v_active_booths
-    FROM market_booths WHERE is_active = true;
-  EXCEPTION WHEN undefined_table THEN
-    v_active_booths := 0;
-  END;
-
-  -- Flagged posts
-  SELECT COUNT(DISTINCT post_id) INTO v_flagged_posts
-  FROM post_flags
-  WHERE created_at::date BETWEEN p_start AND p_end;
-
-  -- Top categories by revenue
-  SELECT COALESCE(jsonb_agg(row_to_json(t)::jsonb), '[]'::jsonb) INTO v_top_categories
-  FROM (
-    SELECT product_name AS category, SUM(total_usd) AS revenue, COUNT(*) AS orders
-    FROM market_orders
-    WHERE status != 'cancelled'
-      AND created_at::date BETWEEN p_start AND p_end
-    GROUP BY product_name
-    ORDER BY SUM(total_usd) DESC
-    LIMIT 5
-  ) t;
-
   RETURN jsonb_build_object(
-    'orderCompleteRate', v_order_complete_rate,
-    'disputeRate', v_dispute_rate,
-    'avgSellerRating', ROUND(v_avg_seller_rating, 1),
-    'activeBooths', v_active_booths,
-    'flaggedPosts', v_flagged_posts,
-    'totalOrders', v_total_orders,
-    'disputeCount', v_dispute_count,
-    'topCategories', v_top_categories
+    'activeSellers', v_active_sellers,
+    'activeBuyers', v_active_buyers,
+    'newBooths', v_new_booths,
+    'productListings', jsonb_build_object('active', v_product_active, 'inactive', v_product_inactive),
+    'flagActivity', v_flag_activity,
+    'avgSellerRating', ROUND(v_avg_seller_rating, 1)
   );
 END;
 $$;
 
 -- ============================================================
 -- 6. metrics_settlement_summary
+--    → SettlementData { dailySummary, payoutTotals, recentSettlements }
 -- ============================================================
 CREATE OR REPLACE FUNCTION metrics_settlement_summary(
   p_start DATE,
@@ -582,50 +672,68 @@ CREATE OR REPLACE FUNCTION metrics_settlement_summary(
 ) RETURNS JSONB
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
-  v_settlements JSONB;
-  v_totals JSONB;
+  v_daily JSONB;
+  v_payout_totals NUMERIC;
+  v_recent JSONB;
 BEGIN
   IF NOT is_staff(auth.uid()) THEN
     RETURN jsonb_build_object('error', 'Unauthorized');
   END IF;
 
-  -- Settlement list
-  SELECT COALESCE(jsonb_agg(row_to_json(t)::jsonb ORDER BY t.market_date DESC), '[]'::jsonb) INTO v_settlements
+  -- dailySummary: [{date, captured, released, refunded}]
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'date', t.d::text,
+    'captured', t.captured,
+    'released', t.released,
+    'refunded', t.refunded
+  ) ORDER BY t.d), '[]'::jsonb) INTO v_daily
   FROM (
     SELECT
-      id,
-      market_date,
-      status,
-      total_orders AS "totalOrders",
-      total_captured_usd AS "capturedUsd",
-      total_payouts_usd AS "payoutsUsd",
-      total_fees_usd AS "feesUsd",
-      total_refunds_usd AS "refundsUsd",
-      total_released_usd AS "releasedUsd"
+      market_date AS d,
+      total_captured_usd AS captured,
+      total_released_usd AS released,
+      total_refunds_usd AS refunded
     FROM market_settlements
     WHERE market_date BETWEEN p_start AND p_end
   ) t;
 
-  -- Aggregate totals
-  SELECT jsonb_build_object(
-    'totalCaptured', COALESCE(SUM(total_captured_usd), 0),
-    'totalPayouts', COALESCE(SUM(total_payouts_usd), 0),
-    'totalFees', COALESCE(SUM(total_fees_usd), 0),
-    'totalRefunds', COALESCE(SUM(total_refunds_usd), 0),
-    'settlementCount', COUNT(*)
-  ) INTO v_totals
+  -- payoutTotals: total released amount
+  SELECT COALESCE(SUM(total_payouts_usd), 0) INTO v_payout_totals
   FROM market_settlements
   WHERE market_date BETWEEN p_start AND p_end;
 
+  -- recentSettlements: [{date, status, orders, captured, payouts}]
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'date', t.d::text,
+    'status', t.status,
+    'orders', t.orders,
+    'captured', t.captured,
+    'payouts', t.payouts
+  ) ORDER BY t.d DESC), '[]'::jsonb) INTO v_recent
+  FROM (
+    SELECT
+      market_date AS d,
+      status,
+      total_orders AS orders,
+      total_captured_usd AS captured,
+      total_payouts_usd AS payouts
+    FROM market_settlements
+    WHERE market_date BETWEEN p_start AND p_end
+    ORDER BY market_date DESC
+    LIMIT 10
+  ) t;
+
   RETURN jsonb_build_object(
-    'settlements', v_settlements,
-    'totals', v_totals
+    'dailySummary', v_daily,
+    'payoutTotals', v_payout_totals,
+    'recentSettlements', v_recent
   );
 END;
 $$;
 
 -- ============================================================
 -- 7. metrics_search_logs
+--    → LogSearchResult { entries: LogEntry[], totalCount }
 -- ============================================================
 CREATE OR REPLACE FUNCTION metrics_search_logs(
   p_query TEXT DEFAULT '',
@@ -666,22 +774,29 @@ BEGIN
     AND (p_city IS NULL OR ci.name ILIKE p_city)
     AND (p_zip IS NULL OR co.zip_code = p_zip);
 
-  -- Paginated entries
-  SELECT COALESCE(jsonb_agg(row_to_json(t)::jsonb), '[]'::jsonb) INTO v_entries
+  -- Paginated entries → matches LogEntry interface
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'id', t.id::text,
+    'timestamp', t.ts,
+    'userId', t.user_id::text,
+    'userIdShort', 'usr_' || SUBSTRING(md5(t.user_id::text), 1, 5),
+    'userName', null,
+    'eventType', t.event_type,
+    'eventName', t.event_name,
+    'pagePath', t.page_path,
+    'sessionId', t.session_id,
+    'txnId', t.txn_id,
+    'elementId', t.element_id,
+    'elementLabel', t.element_label,
+    'stackTrace', t.stack_trace,
+    'metadata', t.metadata
+  )), '[]'::jsonb) INTO v_entries
   FROM (
     SELECT
-      ua.id,
-      ua.created_at AS timestamp,
-      ua.user_id AS "userId",
-      SUBSTRING(md5(ua.user_id::text), 1, 8) AS "userIdShort",
-      ua.event_type AS "eventType",
-      ua.event_name AS "eventName",
-      ua.page_path AS "pagePath",
-      ua.session_id AS "sessionId",
-      ua.txn_id AS "txnId",
-      ua.element_id AS "elementId",
-      ua.element_label AS "elementLabel",
-      ua.stack_trace AS "stackTrace",
+      ua.id, ua.created_at AS ts, ua.user_id,
+      ua.event_type, ua.event_name, ua.page_path,
+      ua.session_id, ua.txn_id,
+      ua.element_id, ua.element_label, ua.stack_trace,
       ua.metadata
     FROM user_analytics ua
     JOIN profiles p ON p.id = ua.user_id
@@ -721,21 +836,28 @@ BEGIN
     RETURN jsonb_build_object('error', 'Unauthorized');
   END IF;
 
-  SELECT COALESCE(jsonb_agg(row_to_json(t)::jsonb ORDER BY t.timestamp), '[]'::jsonb) INTO v_entries
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'id', t.id::text,
+    'timestamp', t.ts,
+    'userId', t.user_id::text,
+    'userIdShort', 'usr_' || SUBSTRING(md5(t.user_id::text), 1, 5),
+    'userName', null,
+    'eventType', t.event_type,
+    'eventName', t.event_name,
+    'pagePath', t.page_path,
+    'sessionId', t.session_id,
+    'txnId', t.txn_id,
+    'elementId', t.element_id,
+    'elementLabel', t.element_label,
+    'stackTrace', t.stack_trace,
+    'metadata', t.metadata
+  ) ORDER BY t.ts), '[]'::jsonb) INTO v_entries
   FROM (
     SELECT
-      ua.id,
-      ua.created_at AS timestamp,
-      ua.user_id AS "userId",
-      SUBSTRING(md5(ua.user_id::text), 1, 8) AS "userIdShort",
-      ua.event_type AS "eventType",
-      ua.event_name AS "eventName",
-      ua.page_path AS "pagePath",
-      ua.session_id AS "sessionId",
-      ua.txn_id AS "txnId",
-      ua.element_id AS "elementId",
-      ua.element_label AS "elementLabel",
-      ua.stack_trace AS "stackTrace",
+      ua.id, ua.created_at AS ts, ua.user_id,
+      ua.event_type, ua.event_name, ua.page_path,
+      ua.session_id, ua.txn_id,
+      ua.element_id, ua.element_label, ua.stack_trace,
       ua.metadata
     FROM user_analytics ua
     WHERE ua.session_id = p_session_id

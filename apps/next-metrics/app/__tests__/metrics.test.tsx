@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * Unit tests for the CasaGrown Metrics App.
- * Tests: chart components, metrics service, login page, dashboard pages.
+ * Tests: chart components, metrics service (demo + RPC), login page, dashboard pages.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import React from 'react'
@@ -145,9 +145,9 @@ describe('Chart Components', () => {
 })
 
 // ============================================================================
-// METRICS SERVICE
+// METRICS SERVICE — Demo Data Fallback
 // ============================================================================
-describe('Metrics Service', () => {
+describe('Metrics Service — Demo Data Fallback', () => {
   it('fetchUserGrowth returns demo data when RPC fails', async () => {
     const { fetchUserGrowth, getIsDemoMode, resetDemoMode } = await import('../../lib/metrics-service')
     resetDemoMode()
@@ -182,10 +182,8 @@ describe('Metrics Service', () => {
     expect(result.methodTotals.length).toBe(3)
     expect(result.successRates.length).toBe(3)
     expect(result.methodTrends.length).toBeGreaterThan(0)
-    // Should use correct $ terminology, not "points"
     expect(result.methodTotals.some(m => m.method.includes('Cash Out'))).toBe(true)
     expect(result.methodTotals.some(m => m.method.includes('Gift Cards'))).toBe(true)
-    // Instrument breakdown
     expect(result.instrumentTotals.length).toBeGreaterThanOrEqual(4)
     expect(result.instrumentTotals.some(i => i.instrument === 'Reloadly')).toBe(true)
     expect(result.instrumentTotals.some(i => i.instrument === 'Tremendous')).toBe(true)
@@ -225,7 +223,7 @@ describe('Metrics Service', () => {
     expect(result.recentSettlements.length).toBeGreaterThan(0)
   })
 
-  it('searchLogs returns paginated entries', async () => {
+  it('searchLogs returns paginated entries with PII protection', async () => {
     const { searchLogs } = await import('../../lib/metrics-service')
     const result = await searchLogs(
       '', '', { start: '2026-02-15', end: '2026-03-16' }, 1, 10
@@ -234,19 +232,15 @@ describe('Metrics Service', () => {
     expect(result.totalCount).toBe(500)
     expect(result.entries[0]).toHaveProperty('eventType')
     expect(result.entries[0]).toHaveProperty('sessionId')
-    // PII protection: userIdShort shown, userName null by default
-    expect(result.entries[0]).toHaveProperty('userIdShort')
     expect(result.entries[0]!.userIdShort).toMatch(/^usr_/)
     expect(result.entries[0]!.userName).toBeNull()
     expect(result.entries[0]).toHaveProperty('elementLabel')
     expect(result.entries[0]).toHaveProperty('stackTrace')
-    // Error events should have stack traces
     const errorEntry = result.entries.find(e => e.eventType === 'error')
     if (errorEntry) {
       expect(errorEntry.stackTrace).toBeTruthy()
       expect(errorEntry.stackTrace).toContain('Error:')
     }
-    // Button clicks should have element info
     const clickEntry = result.entries.find(e => e.eventType === 'button_click')
     if (clickEntry) {
       expect(clickEntry.elementId).toBeTruthy()
@@ -262,6 +256,164 @@ describe('Metrics Service', () => {
     expect(result[0]!.userIdShort).toMatch(/^usr_/)
     expect(result[0]!.userName).toBeNull()
     expect(result[result.length - 1]!.eventType).toBe('form_submit')
+  })
+})
+
+// ============================================================================
+// METRICS SERVICE — RPC Success (data from real analytics tables)
+// Verifies service correctly passes through RPC responses shaped to match
+// the tables: user_analytics, profiles, market_orders, redemptions,
+// market_settlements, post_flags, etc.
+// ============================================================================
+describe('Metrics Service — RPC Success', () => {
+  it('fetchUserGrowth uses RPC data matching user_analytics + profiles schema', async () => {
+    const rpcResponse = {
+      timeSeries: [{ date: '2026-03-01', value: 5 }, { date: '2026-03-02', value: 8 }],
+      cumulative: [{ date: '2026-03-01', value: 105 }, { date: '2026-03-02', value: 113 }],
+      byGeo: [{ region: 'California', count: 42 }, { region: 'Texas', count: 28 }],
+      total: 113,
+      newInPeriod: 13,
+    }
+    mockSupabase.rpc.mockResolvedValueOnce({ data: rpcResponse, error: null })
+
+    const { fetchUserGrowth, getIsDemoMode, resetDemoMode } = await import('../../lib/metrics-service')
+    resetDemoMode()
+    const result = await fetchUserGrowth({ start: '2026-03-01', end: '2026-03-02' }, 'daily')
+
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('metrics_user_growth', expect.objectContaining({
+      p_start: '2026-03-01', p_end: '2026-03-02', p_granularity: 'daily',
+    }))
+    expect(result.timeSeries).toEqual(rpcResponse.timeSeries)
+    expect(result.cumulative).toEqual(rpcResponse.cumulative)
+    expect(result.byGeo).toEqual(rpcResponse.byGeo)
+    expect(result.total).toBe(113)
+    expect(result.newInPeriod).toBe(13)
+    expect(getIsDemoMode()).toBe(false)
+  })
+
+  it('fetchSalesSummary uses RPC data matching market_orders schema', async () => {
+    const rpcResponse = {
+      gmvTimeSeries: [{ date: '2026-03-01', value: 2400 }],
+      orderCountTimeSeries: [{ date: '2026-03-01', value: 35 }],
+      avgOrderValue: 68.57,
+      totalGMV: 2400,
+      totalOrders: 35,
+      totalTax: 196.8,
+      totalFees: 69.6,
+      fulfillmentSplit: [{ type: 'Delivery', count: 16 }, { type: 'Pickup', count: 19 }],
+      topProducts: [{ name: 'Organic Tomatoes', revenue: 450, orders: 12 }],
+      topSellers: [{ name: 'Green Valley Farm', revenue: 800, orders: 20 }],
+    }
+    mockSupabase.rpc.mockResolvedValueOnce({ data: rpcResponse, error: null })
+
+    const { fetchSalesSummary, resetDemoMode } = await import('../../lib/metrics-service')
+    resetDemoMode()
+    const result = await fetchSalesSummary({ start: '2026-03-01', end: '2026-03-01' }, 'daily')
+
+    expect(result.totalGMV).toBe(2400)
+    expect(result.totalOrders).toBe(35)
+    expect(result.totalTax).toBe(196.8)
+    expect(result.totalFees).toBe(69.6)
+    expect(result.fulfillmentSplit).toEqual(rpcResponse.fulfillmentSplit)
+    expect(result.topProducts[0]!.name).toBe('Organic Tomatoes')
+    expect(result.topSellers[0]!.name).toBe('Green Valley Farm')
+  })
+
+  it('fetchPayoutTrends uses RPC data matching redemptions schema', async () => {
+    const rpcResponse = {
+      methodTrends: [{ date: '2026-03-01', giftcards: 5, charity: 2, cashout: 3 }],
+      methodTotals: [{ method: 'Gift Cards', amount: 1200, count: 48 }],
+      instrumentTotals: [{ method: 'Gift Cards', instrument: 'Reloadly', amount: 700, count: 28 }],
+      successRates: [{ method: 'Gift Cards', success: 96, failure: 4 }],
+    }
+    mockSupabase.rpc.mockResolvedValueOnce({ data: rpcResponse, error: null })
+
+    const { fetchPayoutTrends, resetDemoMode } = await import('../../lib/metrics-service')
+    resetDemoMode()
+    const result = await fetchPayoutTrends({ start: '2026-03-01', end: '2026-03-01' })
+
+    expect(result.methodTotals[0]!.method).toBe('Gift Cards')
+    expect(result.instrumentTotals[0]!.instrument).toBe('Reloadly')
+    expect(result.successRates[0]!.success).toBe(96)
+  })
+
+  it('fetchMarketplaceHealth uses RPC data matching market_orders + booths', async () => {
+    const rpcResponse = {
+      activeSellers: [{ date: '2026-03-01', value: 12 }],
+      activeBuyers: [{ date: '2026-03-01', value: 45 }],
+      newBooths: [{ date: '2026-03-01', value: 2 }],
+      productListings: { active: 150, inactive: 30 },
+      flagActivity: [{ date: '2026-03-01', value: 1 }],
+      avgSellerRating: 4.5,
+    }
+    mockSupabase.rpc.mockResolvedValueOnce({ data: rpcResponse, error: null })
+
+    const { fetchMarketplaceHealth, resetDemoMode } = await import('../../lib/metrics-service')
+    resetDemoMode()
+    const result = await fetchMarketplaceHealth({ start: '2026-03-01', end: '2026-03-01' })
+
+    expect(result.activeSellers).toEqual(rpcResponse.activeSellers)
+    expect(result.activeBuyers).toEqual(rpcResponse.activeBuyers)
+    expect(result.productListings).toEqual({ active: 150, inactive: 30 })
+    expect(result.avgSellerRating).toBe(4.5)
+  })
+
+  it('fetchSettlementSummary uses RPC data matching market_settlements', async () => {
+    const rpcResponse = {
+      dailySummary: [{ date: '2026-03-01', captured: 3200, released: 2720, refunded: 96 }],
+      payoutTotals: 2720,
+      recentSettlements: [{ date: '2026-03-01', status: 'completed', orders: 40, captured: 3200, payouts: 2856 }],
+    }
+    mockSupabase.rpc.mockResolvedValueOnce({ data: rpcResponse, error: null })
+
+    const { fetchSettlementSummary, resetDemoMode } = await import('../../lib/metrics-service')
+    resetDemoMode()
+    const result = await fetchSettlementSummary({ start: '2026-03-01', end: '2026-03-01' })
+
+    expect(result.dailySummary).toEqual(rpcResponse.dailySummary)
+    expect(result.payoutTotals).toBe(2720)
+    expect(result.recentSettlements[0]!.status).toBe('completed')
+  })
+
+  it('searchLogs uses RPC data matching user_analytics columns', async () => {
+    const rpcResponse = {
+      entries: [{
+        id: 'abc-123',
+        timestamp: '2026-03-01T10:00:00Z',
+        userId: 'user-42',
+        userIdShort: 'usr_a7f3c',
+        userName: null,
+        eventType: 'button_click',
+        eventName: 'Add to Cart',
+        pagePath: '/market/product/12',
+        sessionId: 'sess-99',
+        txnId: null,
+        elementId: 'btn-add-to-cart',
+        elementLabel: 'Add to Cart',
+        stackTrace: null,
+        metadata: {},
+      }],
+      totalCount: 1,
+    }
+    mockSupabase.rpc.mockResolvedValueOnce({ data: rpcResponse, error: null })
+
+    const { searchLogs, resetDemoMode } = await import('../../lib/metrics-service')
+    resetDemoMode()
+    const result = await searchLogs('cart', '', { start: '2026-03-01', end: '2026-03-01' }, 1, 50)
+
+    expect(result.entries[0]!.eventName).toBe('Add to Cart')
+    expect(result.entries[0]!.elementId).toBe('btn-add-to-cart')
+    expect(result.entries[0]!.userName).toBeNull()
+    expect(result.totalCount).toBe(1)
+  })
+
+  it('pseudonymize produces deterministic usr_ prefixed IDs', async () => {
+    const { pseudonymize } = await import('../../lib/metrics-service')
+    const id1 = pseudonymize('user-42')
+    const id2 = pseudonymize('user-42')
+    expect(id1).toBe(id2)
+    expect(id1).toMatch(/^usr_/)
+    expect(pseudonymize('user-alice-smith')).not.toBe(pseudonymize('user-bob-jones'))
   })
 })
 
