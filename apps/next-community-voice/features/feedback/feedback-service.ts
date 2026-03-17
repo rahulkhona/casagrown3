@@ -254,7 +254,7 @@ export async function fetchTickets(
             .in("feedback_id", ticketIds);
 
         if (votes) {
-            const votedIds = new Set(votes.map((v) => v.feedback_id));
+            const votedIds = new Set(votes.map((v: { feedback_id: string }) => v.feedback_id));
             tickets = tickets.map((t) => ({
                 ...t,
                 is_voted: votedIds.has(t.id),
@@ -272,7 +272,7 @@ export async function fetchTickets(
 
         if (flags) {
             const flagCounts: Record<string, number> = {};
-            flags.forEach((f) => {
+            flags.forEach((f: { feedback_id: string }) => {
                 flagCounts[f.feedback_id] = (flagCounts[f.feedback_id] || 0) +
                     1;
             });
@@ -290,7 +290,7 @@ export async function fetchTickets(
                 .eq("user_id", currentUserId)
                 .in("feedback_id", ticketIds);
             if (userFlags) {
-                const flaggedIds = new Set(userFlags.map((f) => f.feedback_id));
+                const flaggedIds = new Set(userFlags.map((f: { feedback_id: string }) => f.feedback_id));
                 tickets = tickets.map((t) => ({
                     ...t,
                     is_flagged: flaggedIds.has(t.id),
@@ -436,7 +436,7 @@ export async function fetchTicketById(
     if (flags) {
         result.flag_count = flags.length;
         if (currentUserId) {
-            result.is_flagged = flags.some((f) => f.user_id === currentUserId);
+            result.is_flagged = flags.some((f: { user_id: string }) => f.user_id === currentUserId);
         }
     }
 
@@ -974,7 +974,7 @@ export async function fetchReportStats(
     ];
     const voteBuckets = buckets.map((b) => ({
         range: b.range,
-        count: voteCounts.filter((v) => v >= b.min && v <= b.max).length,
+        count: voteCounts.filter((v: number) => v >= b.min && v <= b.max).length,
     }));
 
     return {
@@ -1067,4 +1067,85 @@ export async function dismissAllFlags(feedbackId: string): Promise<boolean> {
         return false;
     }
     return true;
+}
+
+// =============================================================================
+// User management (staff-only, via SECURITY DEFINER RPCs)
+// =============================================================================
+
+export interface UserEntry {
+    id: string;
+    email: string;
+    fullName: string;
+    avatarUrl: string | null;
+    isBanned: boolean;
+    banReason: string | null;
+    bannedAt: string | null;
+    createdAt: string;
+}
+
+export interface FetchUsersResult {
+    users: UserEntry[];
+    totalCount: number;
+}
+
+export async function fetchUsers(
+    search: string = "",
+    page: number = 1,
+    pageSize: number = 25,
+): Promise<FetchUsersResult> {
+    const { data, error } = await supabase.rpc("staff_fetch_users", {
+        search_text: search,
+        p_page: page,
+        p_page_size: pageSize,
+    });
+
+    if (error || !data) {
+        console.error("fetchUsers error:", error);
+        return { users: [], totalCount: 0 };
+    }
+
+    return data as FetchUsersResult;
+}
+
+export async function banUser(
+    userId: string,
+    reason: string,
+): Promise<{ success: boolean; error?: string }> {
+    const { data, error } = await supabase.rpc("staff_ban_user", {
+        target_user_id: userId,
+        banned: true,
+        reason,
+    });
+
+    if (error) {
+        console.error("banUser error:", error);
+        return { success: false, error: error.message };
+    }
+
+    if (data?.error) {
+        return { success: false, error: data.error };
+    }
+
+    return { success: true };
+}
+
+export async function unbanUser(
+    userId: string,
+): Promise<{ success: boolean; error?: string }> {
+    const { data, error } = await supabase.rpc("staff_ban_user", {
+        target_user_id: userId,
+        banned: false,
+    });
+
+    if (error) {
+        console.error("unbanUser error:", error);
+        return { success: false, error: error.message };
+    }
+
+    if (data?.error) {
+        return { success: false, error: data.error };
+    }
+
+    return { success: true };
 }

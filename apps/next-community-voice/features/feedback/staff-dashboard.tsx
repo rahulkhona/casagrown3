@@ -19,7 +19,7 @@ export function StaffDashboard() {
   useEffect(() => {
     if (!user) return
     supabase.from('profiles').select('avatar_url').eq('id', user.id).single()
-      .then(({ data }) => { if (data?.avatar_url) setAvatarUrl(data.avatar_url) })
+      .then(({ data }: { data: { avatar_url: string | null } | null }) => { if (data?.avatar_url) setAvatarUrl(data.avatar_url) })
   }, [user])
 
   return (
@@ -40,6 +40,9 @@ export function StaffDashboard() {
               </Button>
               <Button icon={Users} size="$3" backgroundColor={colors.green[100]} onPress={() => router.push('/staff/manage')}>
                 <Text color={colors.green[700]} fontSize="$2" fontWeight="600">Manage Staff</Text>
+              </Button>
+              <Button icon={Users} size="$3" backgroundColor={colors.amber[100]} onPress={() => router.push('/staff/users')}>
+                <Text color={colors.amber[700]} fontSize="$2" fontWeight="600">Manage Users</Text>
               </Button>
               <Button icon={BarChart3} size="$3" backgroundColor={colors.green[100]} onPress={() => router.push('/staff/reports')}>
                 <Text color={colors.green[700]} fontSize="$2" fontWeight="600">Reports</Text>

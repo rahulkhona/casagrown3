@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '@casagrown/app/features/auth/auth-hook'
+import { supabase } from '@casagrown/app/utils/supabase'
 import { YStack, Spinner, Text } from 'tamagui'
 import { colors } from '@casagrown/app/design-tokens'
 
@@ -38,6 +39,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
   const [authorized, setAuthorized] = useState(false)
+  const [banned, setBanned] = useState(false)
 
   // Fast-path: if on a protected route with no session tokens, redirect immediately
   const [fastRedirected, setFastRedirected] = useState(false)
@@ -65,7 +67,25 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       return
     }
 
-    setAuthorized(true)
+    // Check if user is banned
+    supabase
+      .from('profiles')
+      .select('is_banned')
+      .eq('id', user.id)
+      .single()
+      .then(({ data }: { data: { is_banned: boolean } | null }) => {
+        if (data?.is_banned) {
+          setBanned(true)
+          setAuthorized(false)
+        } else {
+          setBanned(false)
+          setAuthorized(true)
+        }
+      })
+      .catch(() => {
+        // If profile check fails, allow access (fail-open for auth)
+        setAuthorized(true)
+      })
   }, [user, authLoading, pathname, router])
 
   // If we already fast-redirected, show the redirecting state
@@ -88,6 +108,17 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       <YStack flex={1} alignItems="center" justifyContent="center" backgroundColor={colors.green[50]} minHeight="100vh">
         <Spinner size="large" color={colors.green[600]} />
         <Text marginTop="$4" color={colors.gray[600]}>Loading...</Text>
+      </YStack>
+    )
+  }
+
+  if (banned) {
+    return (
+      <YStack flex={1} alignItems="center" justifyContent="center" backgroundColor={colors.green[50]} minHeight="100vh" padding="$4">
+        <Text fontSize="$7" fontWeight="700" color={colors.red[600]} marginBottom="$3">Account Suspended</Text>
+        <Text fontSize="$4" color={colors.gray[600]} textAlign="center" maxWidth={400}>
+          Your account has been suspended. If you believe this is an error, please contact support.
+        </Text>
       </YStack>
     )
   }
