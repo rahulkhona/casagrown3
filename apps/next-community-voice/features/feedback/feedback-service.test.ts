@@ -57,12 +57,14 @@ vi.mock("@casagrown/app/utils/supabase", () => {
     return {
         supabase: {
             from: vi.fn().mockReturnValue(fromChain),
+            rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
         },
     };
 });
 
 import {
     addComment,
+    banUser,
     checkIsStaff,
     createTicket,
     deleteFeedback,
@@ -71,8 +73,10 @@ import {
     fetchReportStats,
     fetchTicketById,
     fetchTickets,
+    fetchUsers,
     flagTicket,
     toggleVote,
+    unbanUser,
     unflagTicket,
     updateTicketStatus,
 } from "./feedback-service";
@@ -592,6 +596,146 @@ describe("Feedback Service", () => {
 
             const result = await dismissAllFlags("ticket-1");
             expect(result).toBe(false);
+        });
+    });
+
+    // =========================================================================
+    // fetchUsers (via RPC)
+    // =========================================================================
+    describe("fetchUsers", () => {
+        it("should call staff_fetch_users RPC and return users", async () => {
+            const mockResult = {
+                users: [
+                    { id: "u1", email: "alice@example.com", fullName: "Alice", avatarUrl: null, isBanned: false, banReason: null, bannedAt: null, createdAt: "2026-01-01" },
+                    { id: "u2", email: "bob@example.com", fullName: "Bob", avatarUrl: null, isBanned: true, banReason: "Spam", bannedAt: "2026-02-15", createdAt: "2026-01-05" },
+                ],
+                totalCount: 2,
+            };
+            (supabase.rpc as any).mockResolvedValue({ data: mockResult, error: null });
+
+            const result = await fetchUsers("alice", 1, 25);
+
+            expect(supabase.rpc).toHaveBeenCalledWith("staff_fetch_users", {
+                search_text: "alice",
+                p_page: 1,
+                p_page_size: 25,
+            });
+            expect(result.users).toHaveLength(2);
+            expect(result.users[0].fullName).toBe("Alice");
+            expect(result.users[1].isBanned).toBe(true);
+            expect(result.totalCount).toBe(2);
+        });
+
+        it("should return empty on error", async () => {
+            (supabase.rpc as any).mockResolvedValue({ data: null, error: { message: "Unauthorized" } });
+
+            const result = await fetchUsers();
+            expect(result.users).toHaveLength(0);
+            expect(result.totalCount).toBe(0);
+        });
+    });
+
+    // =========================================================================
+    // banUser (via RPC)
+    // =========================================================================
+    describe("banUser", () => {
+        it("should call staff_ban_user with banned=true and return success", async () => {
+            (supabase.rpc as any).mockResolvedValue({ data: { success: true, userId: "u1", banned: true }, error: null });
+
+            const result = await banUser("u1", "Spamming");
+
+            expect(supabase.rpc).toHaveBeenCalledWith("staff_ban_user", {
+                target_user_id: "u1",
+                banned: true,
+                reason: "Spamming",
+            });
+            expect(result.success).toBe(true);
+        });
+
+        it("should return error from RPC response", async () => {
+            (supabase.rpc as any).mockResolvedValue({ data: { error: "Cannot ban yourself" }, error: null });
+
+            const result = await banUser("self-id", "test");
+            expect(result.success).toBe(false);
+            expect(result.error).toBe("Cannot ban yourself");
+        });
+
+        it("should handle supabase error", async () => {
+            (supabase.rpc as any).mockResolvedValue({ data: null, error: { message: "DB error" } });
+
+            const result = await banUser("u1", "Reason");
+            expect(result.success).toBe(false);
+            expect(result.error).toBe("DB error");
+        });
+    });
+
+    // =========================================================================
+    // unbanUser (via RPC)
+    // =========================================================================
+    describe("unbanUser", () => {
+        it("should call staff_ban_user with banned=false and return success", async () => {
+            (supabase.rpc as any).mockResolvedValue({ data: { success: true, userId: "u1", banned: false }, error: null });
+
+            const result = await unbanUser("u1");
+
+            expect(supabase.rpc).toHaveBeenCalledWith("staff_ban_user", {
+                target_user_id: "u1",
+                banned: false,
+            });
+            expect(result.success).toBe(true);
+        });
+
+        it("should handle unauthorized error", async () => {
+            (supabase.rpc as any).mockResolvedValue({ data: { error: "Unauthorized — admin or moderator role required" }, error: null });
+
+            const result = await unbanUser("u1");
+            expect(result.success).toBe(false);
+            expect(result.error).toContain("Unauthorized");
+        });
+    });
+
+    // =========================================================================
+    // fetchReportStats — data computation
+    // =========================================================================
+    describe("fetchReportStats", () => {
+        it("should compute stats from ticket data", async () => {
+            const now = new Date();
+            const threeDaysAgo = new Date(now.getTime() - 3 * 86400000);
+            const chain = chainable({
+                data: [
+                    { id: "t1", type: "bug_report", status: "completed", created_at: threeDaysAgo.toISOString(), resolved_at: now.toISOString(), feedback_votes: [{ count: 10 }] },
+                    { id: "t2", type: "feature_request", status: "open", created_at: now.toISOString(), resolved_at: null, feedback_votes: [{ count: 3 }] },
+                    { id: "t3", type: "bug_report", status: "rejected", created_at: now.toISOString(), resolved_at: now.toISOString(), feedback_votes: [{ count: 0 }] },
+                ],
+                error: null,
+                count: 3,
+            });
+            (supabase.from as any).mockReturnValue(chain);
+
+            const stats = await fetchReportStats();
+
+            expect(stats.totalSubmissions).toBe(3);
+            // 2 of 3 are closed (completed + rejected)
+            expect(stats.closureRate).toBe(67); // Math.round(2/3 * 100)
+            // Average votes: (10 + 3 + 0) / 3 = 4.3
+            expect(stats.avgVotes).toBe(4.3);
+            // Status breakdown should have 3 entries
+            expect(stats.statusBreakdown.length).toBeGreaterThanOrEqual(2);
+            // Weekly trend should have entries
+            expect(stats.weeklyTrend.length).toBeGreaterThanOrEqual(1);
+            // Vote buckets should exist
+            expect(stats.voteBuckets.length).toBe(6);
+        });
+
+        it("should return zeros on error", async () => {
+            const chain = chainable({ data: null, error: { message: "Error" }, count: 0 });
+            (supabase.from as any).mockReturnValue(chain);
+
+            const stats = await fetchReportStats();
+            expect(stats.totalSubmissions).toBe(0);
+            expect(stats.closureRate).toBe(0);
+            expect(stats.avgVotes).toBe(0);
+            expect(stats.weeklyTrend).toEqual([]);
         });
     });
 });
