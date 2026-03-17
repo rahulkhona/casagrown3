@@ -388,7 +388,7 @@ export default function RedeemPage() {
                 {selectedCard.description && <p className={styles.selectionDesc}>{selectedCard.description}</p>}
               </div>
               <div className={styles.amountGrid}>
-                {selectedCard.denominations.map(d => (
+                {(selectedCard.denominations || []).map(d => (
                   <button key={d} onClick={() => setGcAmount(d)}
                     className={`${styles.amountBtn} ${gcAmount === d ? styles.amountBtnActive : ''}`}
                     disabled={d > availableUsd}
@@ -427,7 +427,12 @@ export default function RedeemPage() {
                       {card.imageUrl && <img src={card.imageUrl} alt={card.brandName} className={styles.gcCardImg} />}
                       <span className={styles.gcCardName}>{card.brandName}</span>
                       <span className={styles.gcCardRange}>
-                        {card.denominations.length > 1 ? `${formatUsd(card.minPrice)} – ${formatUsd(card.maxPrice)}` : formatUsd(card.minPrice)}
+                        {(() => {
+                          const denoms = card.denominations || []
+                          const min = card.minPrice ?? (denoms.length > 0 ? Math.min(...denoms) : 0)
+                          const max = card.maxPrice ?? (denoms.length > 0 ? Math.max(...denoms) : 0)
+                          return denoms.length > 1 ? `${formatUsd(min)} – ${formatUsd(max)}` : formatUsd(min || max)
+                        })()}
                       </span>
                     </button>
                   ))}

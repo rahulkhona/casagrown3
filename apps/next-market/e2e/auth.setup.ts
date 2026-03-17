@@ -12,9 +12,9 @@ const SUPABASE_URL = 'http://127.0.0.1:54321'
 const SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
 
-// Use the seeded seller user (from community seed.sql)
-const TEST_EMAIL = 'seller@example.com'
-const TEST_PASSWORD = 'password123'
+// Use the seeded buyer user (from seed.sql — passwords hashed with bcrypt 'TestPassword123!')
+const TEST_EMAIL = 'buyer@test.local'
+const TEST_PASSWORD = 'TestPassword123!'
 
 const authFile = 'e2e/.auth/user.json'
 

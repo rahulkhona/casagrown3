@@ -5,7 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { YStack, XStack, Text, Button, Sheet, ScrollView, Separator } from 'tamagui'
 import { useMedia } from 'tamagui'
-import { Menu, LogOut, Users, ShoppingBag, Settings, Award, CreditCard, Receipt, ChevronRight } from '@tamagui/lucide-icons'
+import { Menu, LogOut, Users, ShoppingBag, Settings, Award, CreditCard, Receipt, ChevronRight, Store, FileSpreadsheet } from '@tamagui/lucide-icons'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@casagrown/app/features/auth/auth-hook'
 import { colors } from '@casagrown/app/design-tokens'
@@ -41,6 +41,14 @@ const MENU_GROUPS: MenuGroup[] = [
     ]
   },
   {
+    title: 'MARKET OPERATIONS',
+    icon: Store,
+    items: [
+      { label: 'Market Settings & Hours', path: '/market-operations' },
+      { label: 'Receipt Footers', path: '/receipt-footers' },
+    ]
+  },
+  {
     title: 'PLATFORM SETTINGS',
     icon: Settings,
     items: [
@@ -67,6 +75,7 @@ const MENU_GROUPS: MenuGroup[] = [
     icon: Receipt,
     items: [
       { label: 'Tax Rules', path: '/tax-rules' },
+      { label: '1099 Thresholds', path: '/tax-reporting' },
     ]
   },
   {
