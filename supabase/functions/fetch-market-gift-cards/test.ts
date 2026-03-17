@@ -37,7 +37,7 @@ Deno.test("fetch-market-gift-cards — supports refresh parameter", async () => 
   assertEquals(status, 200);
   assertExists(data.count !== undefined);
   // When refreshing, cached should be false
-  if (data.count > 0) {
+  if ((data.count as number) > 0) {
     assertEquals(data.cached, false);
   }
 });
@@ -62,7 +62,7 @@ Deno.test("fetch-market-gift-cards — returns cards with expected fields", asyn
   );
   assertEquals(status, 200);
   if (data.cards && (data.cards as unknown[]).length > 0) {
-    const card = (data.cards as Record<string, unknown>[])[0];
+    const card = (data.cards as Record<string, unknown>[])[0]!;
     // Each card should have these fields
     assertExists(card.brandName);
     assertExists(card.brandKey);

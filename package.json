@@ -83,6 +83,7 @@
     "@testing-library/dom": "^10.4.1",
     "@types/babel__preset-env": "^7",
     "@types/pg": "^8.16.0",
+    "@vitest/coverage-v8": "2.1.9",
     "lint-staged": "15",
     "patch-package": "^8.0.1",
     "pg": "^8.18.0",
