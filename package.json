@@ -19,6 +19,7 @@
     "web:voice": "yarn workspace next-community-voice run dev",
     "web:admin": "yarn workspace next-admin run dev",
     "web:market": "yarn workspace next-market run dev",
+    "web:metrics": "yarn workspace next-metrics run dev",
     "web:extract": "DISABLE_EXTRACTION=false yarn workspace next-community dev",
     "web:prod": "yarn workspace next-community build",
     "web:prod:voice": "yarn workspace next-community-voice build",
