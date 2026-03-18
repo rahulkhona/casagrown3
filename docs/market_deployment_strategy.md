@@ -293,26 +293,22 @@ Alternatively, point nameservers to Vercel and it manages all records automatica
 
 ## Step 5: Configure Git Branches
 
-### 5.1 Create the release branch
+### 5.1 Production branch (already created)
 
-```bash
-git checkout main
-git checkout -b release/v0.1
-git push origin release/v0.1
-```
+The `production` branch already exists and is in sync with `main`.
 
 ### 5.2 Configure Vercel branch mapping
 
 For **each** of the 4 Vercel projects:
 
-1. Settings → Git → Production Branch → set to `release/v0.1`
+1. Settings → Git → Production Branch → set to `production`
 2. The staging domains (e.g., `staging.casagrown.com`) should be assigned to the `main` branch:
    - Settings → Domains → click the staging domain → Git Branch → type `main`
 
 | Branch | Deploys to |
 |---|---|
 | `main` | `staging.casagrown.com` / `staging-admin.casagrown.com` / `staging-voice.casagrown.com` / `staging-metrics.casagrown.com` |
-| `release/v0.1` | `casagrown.com` / `admin.casagrown.com` / `voice.casagrown.com` / `metrics.casagrown.com` |
+| `production` | `casagrown.com` / `admin.casagrown.com` / `voice.casagrown.com` / `metrics.casagrown.com` |
 | `feature/*` | Random preview URL (auto-generated) |
 
 ---
@@ -463,17 +459,16 @@ git push origin feature/my-feature
 
 ### Promoting to production:
 ```bash
-# 1. When staging is verified, merge main → release branch
-git checkout release/v0.1
+# 1. When staging is verified, merge main → production
+git checkout production
 git merge main
-git push origin release/v0.1
+git push origin production
 # → Vercel auto-deploys to production domains
 # → GitHub Action auto-pushes migrations + functions to production Supabase
 
-# 2. For a new release cycle:
-git checkout -b release/v0.2 main
-git push origin release/v0.2
-# Update Vercel production branch to release/v0.2
+# 2. Tag the release for tracking
+git tag v0.1.0
+git push origin v0.1.0
 ```
 
 ---
@@ -487,7 +482,7 @@ name: Deploy Supabase
 
 on:
   push:
-    branches: [main, 'release/**']
+    branches: [main, production]
     paths:
       - 'supabase/migrations/**'
       - 'supabase/functions/**'
@@ -505,7 +500,7 @@ jobs:
 
       - name: Set environment
         run: |
-          if [[ "${{ github.ref_name }}" == release/* ]]; then
+          if [ "${{ github.ref_name }}" = "production" ]; then
             echo "PROJECT_REF=${{ secrets.SUPABASE_PROD_PROJECT_REF }}" >> $GITHUB_ENV
             echo "DB_PASSWORD=${{ secrets.SUPABASE_PROD_DB_PASSWORD }}" >> $GITHUB_ENV
           else
@@ -540,4 +535,21 @@ jobs:
 ```
 
 > [!NOTE]
-> This replaces the per-app `vercel.json` files in `apps/next-admin/` and `apps/next-community/`. Since all 3 Vercel projects use Root Directory `.`, they all read this root config.
+> This replaces the per-app `vercel.json` files in `apps/next-admin/` and `apps/next-community/`. Since all 4 Vercel projects use Root Directory `.`, they all read this root config.
+
+---
+
+## Step 8: Set Up Branch Protection on GitHub
+
+1. Go to your repo → **Settings** → **Branches** → **Add branch protection rule**
+2. For the `production` branch:
+   - Branch name pattern: `production`
+   - ✅ Require a pull request before merging
+   - ✅ Require approvals (1)
+   - ✅ Dismiss stale pull request approvals when new commits are pushed
+   - ✅ Do not allow bypassing the above settings
+3. For the `main` branch (optional, for team growth):
+   - Branch name pattern: `main`
+   - ✅ Require a pull request before merging
+
+This prevents accidental direct pushes to production.

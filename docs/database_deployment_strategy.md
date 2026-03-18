@@ -21,7 +21,7 @@
 - [ ] Supabase CLI installed (`npm i -g supabase`)
 - [ ] Two Supabase projects created at [supabase.com/dashboard](https://supabase.com/dashboard):
   - **Staging project** (linked to `main` branch)
-  - **Production project** (linked to `release/` branch)
+  - **Production project** (linked to `production` branch)
 - [ ] Note down each project's **Project Ref** and **Database URL** (Settings → Database → Connection string → URI)
 
 ---
@@ -130,7 +130,7 @@ Then deploy:
 
 > **Repeat the exact same Steps 1–7 above**, but:
 > - Use the **production** Supabase project's DB URL and project ref
-> - Use the **`release/v0.1`** branch (create it first: `git checkout -b release/v0.1 main`)
+> - Use the **`production`** branch
 > - Point app environment variables to the production Supabase URL/key
 
 ---
@@ -146,7 +146,7 @@ Developer writes new migration file
 git push to main ──────► supabase db push on STAGING (auto)
      │
      ▼ (when ready for release)
-Cherry-pick to release/vX.Y ──► supabase db push on PRODUCTION (manual approval)
+git merge main into production ──► supabase db push on PRODUCTION (manual approval)
 ```
 
 **You never run the DDL or baseline scripts again.** New migrations are applied incrementally by `supabase db push`.
@@ -283,7 +283,7 @@ Developer writes migration
 │  Staging DB     │  ← supabase db push --linked (applies new migrations)
 │  (Supabase)     │  ← Staging apps auto-deploy, QA testing
 └────────┬────────┘
-         │ cherry-pick / merge to release/vX.Y
+         │ merge to production
          ▼
 ┌─────────────────┐
 │  Production DB  │  ← supabase db push --linked (applies new migrations)
@@ -312,14 +312,17 @@ Migrations always flow: `dev → staging → production`. Never apply a migratio
 
 #### Rule 4: Release branch cherry-picks migrations
 
-When cutting a release:
+When promoting to production:
 
 ```bash
-# Create release branch from main
-git checkout -b release/v0.2 main
+# Merge main into production
+git checkout production
+git merge main
+git push origin production
 
-# OR cherry-pick specific migrations into existing release
-git cherry-pick <commit-with-migration>
+# Tag the release for tracking
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 #### Rule 5: One migration per feature/PR
@@ -338,8 +341,8 @@ supabase migration new my_feature           # Create new migration file
 supabase link --project-ref <staging-ref>
 supabase db push                            # Apply pending migrations
 
-# === PRODUCTION (release branch) ===
-git checkout release/v0.1
+# === PRODUCTION (production branch) ===
+git checkout production
 supabase link --project-ref <prod-ref>
 supabase db push                            # Apply only migrations in this branch
 ```
