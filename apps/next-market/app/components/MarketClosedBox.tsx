@@ -188,23 +188,48 @@ export default function MarketClosedBox({ nextOpenDate, todaySchedule }: MarketC
             While you wait, here&apos;s how you can get ready:
           </p>
 
-          {/* Action Cards (matching original actionGrid) */}
-          <div style={{
-            display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-            gap: 16,
-          }}>
+          {/* Action Cards — 3-col grid on desktop, compact horizontal rows on mobile */}
+          <style>{`
+            .market-closed-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+            .market-closed-actions .mc-card { min-height: 220px; }
+            @media (max-width: 640px) {
+              .market-closed-actions { grid-template-columns: 1fr; gap: 10px; }
+              .market-closed-actions .mc-card {
+                flex-direction: row !important; min-height: auto !important;
+                padding: 14px 16px !important; gap: 14px !important; text-align: left !important;
+              }
+              .market-closed-actions .mc-card .mc-icon { width: 44px; height: 44px; min-width: 44px; font-size: 20px; border-radius: 12px; }
+              .market-closed-actions .mc-card .mc-body { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+              .market-closed-actions .mc-card .mc-desc { display: none; }
+            }
+          `}</style>
+          <div className="market-closed-actions">
             {/* Action 1: List produce */}
-            <Link href="/my-booth" style={actionCardStyle}>
-              <div style={{ ...actionIconStyle, background: 'var(--green-100, #dcfce7)' }}>🥬</div>
-              <h3 style={actionTitleStyle}>List Your Excess Produce</h3>
-              <p style={actionDescStyle}>
-                Prepare for market open — add photos, set prices, and quantities for the next market day.
-              </p>
-              <span style={actionBtnStyle}>Start Listing →</span>
+            <Link href="/my-booth" style={actionCardStyle} className="mc-card">
+              <div style={{ ...actionIconStyle, background: 'var(--green-100, #dcfce7)' }} className="mc-icon">🥬</div>
+              <div className="mc-body">
+                <h3 style={actionTitleStyle}>List Your Excess Produce</h3>
+                <p style={actionDescStyle} className="mc-desc">
+                  Prepare for market open — add photos, set prices, and quantities for the next market day.
+                </p>
+                <span style={actionBtnStyle}>Start Listing →</span>
+              </div>
             </Link>
 
-            {/* Action 2: Invite neighbors */}
-            <button style={{ ...actionCardStyle, cursor: 'pointer' }} onClick={() => {
+            {/* Action 2: Join Community Buzz */}
+            <Link href="/community" style={actionCardStyle} className="mc-card">
+              <div style={{ ...actionIconStyle, background: 'var(--blue-100, #dbeafe)' }} className="mc-icon">💬</div>
+              <div className="mc-body">
+                <h3 style={actionTitleStyle}>Join the Community</h3>
+                <p style={actionDescStyle} className="mc-desc">
+                  Connect with neighbors on Buzz — share gardening tips, coordinate harvests, and build community!
+                </p>
+                <span style={actionBtnStyle}>Open Buzz →</span>
+              </div>
+            </Link>
+
+            {/* Action 3: Invite neighbors */}
+            <button style={{ ...actionCardStyle, cursor: 'pointer' }} className="mc-card" onClick={() => {
               const url = `${window.location.origin}/get-started`
               const text = 'Got a neighbor with fruit trees or a veggie garden? Their harvest could feed the block instead of going to waste. Join CasaGrown Market!'
               if (navigator.share) {
@@ -214,27 +239,16 @@ export default function MarketClosedBox({ nextOpenDate, todaySchedule }: MarketC
                 alert('Link copied to clipboard!')
               }
             }}>
-              <div style={{ ...actionIconStyle, background: 'var(--amber-100, #fef3c7)' }}>📣</div>
-              <h3 style={actionTitleStyle}>Invite Your Neighbors</h3>
-              <p style={actionDescStyle}>
-                Know someone who grows produce or loves fresh food? Invite them to share or buy at the market!
-              </p>
-              <span style={actionBtnStyle}>Share an Invite →</span>
+              <div style={{ ...actionIconStyle, background: 'var(--amber-100, #fef3c7)' }} className="mc-icon">📣</div>
+              <div className="mc-body">
+                <h3 style={actionTitleStyle}>Invite Your Neighbors</h3>
+                <p style={actionDescStyle} className="mc-desc">
+                  Know someone who grows produce or loves fresh food? Invite them to share or buy at the market!
+                </p>
+                <span style={actionBtnStyle}>Share an Invite →</span>
+              </div>
             </button>
-
-            {/* Action 3: Join Community (hidden on small screens) */}
-            <Link href="/community" style={actionCardStyle} className="market-closed-buzz-card">
-              <div style={{ ...actionIconStyle, background: 'var(--blue-100, #dbeafe)' }}>💬</div>
-              <h3 style={actionTitleStyle}>Join the Community</h3>
-              <p style={actionDescStyle}>
-                Connect with neighbors on Buzz — share gardening tips, coordinate harvests, and build community!
-              </p>
-              <span style={actionBtnStyle}>Open Buzz →</span>
-            </Link>
           </div>
-
-          {/* Responsive: hide Buzz card on small screens */}
-          <style>{`@media (max-width: 640px) { .market-closed-buzz-card { display: none !important; } }`}</style>
 
           {/* ── Remind Me section (full-width, below action cards) ── */}
           <div style={{

@@ -11,7 +11,8 @@ test.describe('Terms of Service Page', () => {
   test('accept button is disabled until both checkboxes are checked', async ({
     page,
   }) => {
-    await page.goto('/terms')
+    // Checkboxes and accept button only render in onboarding mode (with redirect param)
+    await page.goto('/terms?redirect=/market')
     const acceptBtn = page.getByRole('button', { name: /accept.*continue/i })
     await expect(acceptBtn).toBeDisabled()
 
@@ -27,9 +28,9 @@ test.describe('Terms of Service Page', () => {
   test('switching tabs shows different content', async ({ page }) => {
     await page.goto('/terms')
 
-    // Terms tab should show amendments
+    // Terms tab should show amendments or seller representations
     await expect(
-      page.getByText('Amendments and Modifications')
+      page.getByText('Seller Representations')
     ).toBeVisible()
 
     // Switch to privacy tab
@@ -40,7 +41,8 @@ test.describe('Terms of Service Page', () => {
   })
 
   test('checkboxes show check marks on tabs', async ({ page }) => {
-    await page.goto('/terms')
+    // Checkboxes only render in onboarding mode
+    await page.goto('/terms?redirect=/market')
     await page.check('#agree-terms')
     // The ✓ should appear on the terms tab
     await expect(page.locator('text=✓')).toBeVisible()

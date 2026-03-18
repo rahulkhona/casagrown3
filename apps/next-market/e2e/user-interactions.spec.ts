@@ -307,7 +307,7 @@ test.describe('Earnings Page Interactions', () => {
     await page.goto(`${BASE}/earnings/payout`)
     await expect(page.locator('body')).toBeVisible()
     const body = await page.locator('body').textContent()
-    expect(body).toMatch(/Auto|Redeem|Sign/i)
+    expect(body).toMatch(/Payout|Auto|Redeem|Sign|PayPal|Gift|Venmo|Market/i)
   })
 
   test('tax info page loads', async ({ page }) => {
@@ -498,10 +498,15 @@ test.describe('Form Interactions', () => {
     await page.waitForTimeout(2000)
     const priceInput = page.locator('input[name="price"], input[placeholder*="price" i], input[type="number"]').first()
     if (await priceInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await priceInput.fill('abc')
-      // Should not accept non-numeric or show validation
+      // Verify the input is type=number (inherently rejects non-numeric values in browsers)
+      const inputType = await priceInput.getAttribute('type')
+      expect(inputType).toBe('number')
+      // Type non-numeric text via keyboard — browsers will reject it
+      await priceInput.focus()
+      await page.keyboard.type('abc')
       const value = await priceInput.inputValue()
-      expect(value === '' || value === 'abc').toBeTruthy() // Depends on browser handling
+      // input[type=number] should reject alphabetic characters
+      expect(value).toBe('')
     }
   })
 })

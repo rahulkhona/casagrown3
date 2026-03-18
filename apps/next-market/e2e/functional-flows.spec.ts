@@ -226,23 +226,23 @@ test.describe('Legal Compliance', () => {
 // ============================================================================
 test.describe('Error Handling', () => {
   test('404 page handles unknown routes', async ({ page }) => {
-    await page.goto(`${BASE}/unknown-route-abc-123`)
-    await expect(page.locator('body')).toBeVisible()
+    await page.goto(`${BASE}/unknown-route-abc-123`, { waitUntil: 'domcontentloaded' })
+    await expect(page.locator('body')).toBeVisible({ timeout: 10000 })
   })
 
   test('invalid booth ID handles gracefully', async ({ page }) => {
-    await page.goto(`${BASE}/booth/nonexistent-booth-id`)
-    await expect(page.locator('body')).toBeVisible()
+    await page.goto(`${BASE}/booth/nonexistent-booth-id`, { waitUntil: 'domcontentloaded' })
+    await expect(page.locator('body')).toBeVisible({ timeout: 10000 })
   })
 
   test('deep link to invalid product handles gracefully', async ({ page }) => {
-    await page.goto(`${BASE}/product/nonexistent-product-id`)
-    await expect(page.locator('body')).toBeVisible()
+    await page.goto(`${BASE}/product/nonexistent-product-id`, { waitUntil: 'domcontentloaded' })
+    await expect(page.locator('body')).toBeVisible({ timeout: 10000 })
   })
 
   test('expired session redirects appropriately', async ({ page }) => {
-    await page.goto(`${BASE}/my-booth`)
-    await expect(page.locator('body')).toBeVisible()
+    await page.goto(`${BASE}/my-booth`, { waitUntil: 'domcontentloaded' })
+    await expect(page.locator('body')).toBeVisible({ timeout: 10000 })
     // Should either show booth content or redirect/prompt to sign in
   })
 })

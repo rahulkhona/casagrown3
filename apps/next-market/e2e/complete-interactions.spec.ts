@@ -431,26 +431,30 @@ test.describe('My Booth Management', () => {
 test.describe('Product Management', () => {
   test('add product form has all required fields', async ({ page }) => {
     await page.goto(`${BASE}/my-booth/products/new`)
-    await page.waitForTimeout(2000)
-    const nameInput = page.locator('input[placeholder*="name" i], input[name="name"]').first()
-    if (await nameInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await nameInput.fill('Fresh Tomatoes')
-      const priceInput = page.locator('input[type="number"], input[placeholder*="price" i]').first()
-      if (await priceInput.isVisible()) {
-        await priceInput.fill('5.99')
-      }
-      const unitInput = page.locator('input[placeholder*="unit" i], select[name="unit"]').first()
-      if (await unitInput.isVisible()) {
-        await unitInput.fill('lb')
+    await page.waitForLoadState('networkidle')
+    // Page may show form fields or redirect to login/sign-up
+    const body = await page.locator('body').textContent()
+    if (body?.match(/Name|Product|Sign|Create|Market/i)) {
+      const nameInput = page.locator('input[placeholder*="name" i], input[name="name"]').first()
+      if (await nameInput.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await nameInput.fill('Fresh Tomatoes')
+        const priceInput = page.locator('input[type="number"], input[placeholder*="price" i]').first()
+        if (await priceInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+          await priceInput.fill('5.99')
+        }
+        const unitInput = page.locator('input[placeholder*="unit" i], select[name="unit"]').first()
+        if (await unitInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+          await unitInput.fill('lb')
+        }
       }
     }
   })
 
   test('product category selector works', async ({ page }) => {
     await page.goto(`${BASE}/my-booth/products/new`)
-    await page.waitForTimeout(2000)
+    await page.waitForLoadState('networkidle')
     const catSelect = page.locator('select[name="category"], button[class*="category"]').first()
-    if (await catSelect.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await catSelect.isVisible({ timeout: 5000 }).catch(() => false)) {
       await catSelect.click()
       await page.waitForTimeout(300)
     }
