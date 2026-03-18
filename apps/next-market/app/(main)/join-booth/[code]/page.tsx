@@ -6,6 +6,8 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '../../../../lib/useAuth'
 import { createClient } from '../../../../lib/supabase'
 import { useMarket } from '../../../../lib/store'
+import { useNotificationPrompt } from '../../../../lib/useNotificationPrompt'
+import { NotificationPromptModal } from '../../../components/NotificationPromptModal'
 import styles from './page.module.css'
 
 
@@ -27,6 +29,7 @@ function JoinBoothPageInner() {
   const { isAuthenticated, loading: authLoading, user } = useAuth()
   const { dispatch } = useMarket()
   const supabase = createClient()
+  const { showPrompt, modalProps } = useNotificationPrompt(user?.id)
 
   const code = decodeURIComponent(params.code as string)
 
@@ -158,6 +161,7 @@ function JoinBoothPageInner() {
 
       setPageState('success')
       dispatch({ type: 'ADD_TOAST', payload: { message: '🎉 You\'re now a booth helper!', type: 'success' } })
+      showPrompt() // Prompt for push notifications — they'll want order alerts
     } catch (err: any) {
       setErrorMsg(err.message || 'Something went wrong')
     }
@@ -309,6 +313,7 @@ function JoinBoothPageInner() {
           <button className={styles.backLink} onClick={() => router.push('/market')}>
             Browse Market
           </button>
+          <NotificationPromptModal {...modalProps} />
         </div>
       </div>
     )

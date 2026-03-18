@@ -9,6 +9,8 @@ import { useAuth } from '../../../../lib/useAuth'
 import CameraCapture, { CaptureResult } from '../../../../components/CameraCapture'
 import OrderChat from '../../../../components/OrderChat'
 import { NotificationBanner } from '../../../components/NotificationBanner'
+import { useNotificationPrompt } from '../../../../lib/useNotificationPrompt'
+import { NotificationPromptModal } from '../../../components/NotificationPromptModal'
 import { geocodeAddress } from '../../../../lib/geocode'
 import styles from './page.module.css'
 
@@ -123,6 +125,7 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
   const [buyerCoords, setBuyerCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [locationWarning, setLocationWarning] = useState<string | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const { showPrompt, modalProps } = useNotificationPrompt(user?.id)
 
   const loadOrder = useCallback(async () => {
     if (!user) return
@@ -417,6 +420,7 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
             otherUserId={isSellerOrHelper ? order.buyer_id : order.seller_id}
             myAvatar={isSellerOrHelper ? order.seller_avatar : order.buyer_avatar}
             otherAvatar={isSellerOrHelper ? order.buyer_avatar : order.seller_avatar}
+            onMessageSent={showPrompt}
           />
         </div>
       )}
@@ -883,6 +887,7 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
                       setDisputeQuantityReceived('')
                       setShowDispute(false)
                       setShowChat(true) // Auto-open chat
+                      showPrompt() // Prompt for push notifications
                     }}
                   >
                     Submit Dispute
@@ -1124,6 +1129,7 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
           onClose={() => setShowDisputeCamera(false)}
         />
       )}
+      <NotificationPromptModal {...modalProps} />
     </div>
   )
 }

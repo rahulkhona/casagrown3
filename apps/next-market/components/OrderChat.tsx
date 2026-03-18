@@ -18,9 +18,10 @@ interface OrderChatProps {
   otherUserId: string
   myAvatar?: string
   otherAvatar?: string
+  onMessageSent?: () => void
 }
 
-export default function OrderChat({ orderId, otherUserName, otherUserId, myAvatar, otherAvatar }: OrderChatProps) {
+export default function OrderChat({ orderId, otherUserName, otherUserId, myAvatar, otherAvatar, onMessageSent }: OrderChatProps) {
   const supabase = useMemo(() => createClient(), [])
   const { user } = useAuth()
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -82,6 +83,7 @@ export default function OrderChat({ orderId, otherUserName, otherUserId, myAvata
     // Immediately load to show own message
     await loadMessages()
     setSending(false)
+    onMessageSent?.()
   }
 
   if (!user) return null

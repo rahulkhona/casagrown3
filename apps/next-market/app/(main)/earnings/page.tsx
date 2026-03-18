@@ -287,7 +287,7 @@ export default function EarningsPage() {
           <p className="page-subtitle">Your market transactions, receipts, and payouts</p>
         </div>
 
-        <NotificationBanner context="payout and activity alerts" />
+        <NotificationBanner context="payout updates and order alerts" />
 
         {/* ── 1099 Threshold Warning ── */}
         {thresholdBreached && (

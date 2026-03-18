@@ -60,6 +60,10 @@ vi.mock('../../../lib/useNotificationPrompt', () => ({
 }))
 vi.mock('../BuyModal.module.css', () => ({ default: new Proxy({}, { get: (_, key) => key }) }))
 vi.mock('../NotificationPrompt.module.css', () => ({ default: new Proxy({}, { get: (_, key) => key }) }))
+vi.mock('../../../lib/useMarketStatus', () => ({
+  useMarketStatus: () => ({ isOpen: true, todaySchedule: null, productsNeverExpire: false, loading: false }),
+  isProductExpired: () => false,
+}))
 
 // Mock Stripe
 vi.mock('@stripe/stripe-js', () => ({
@@ -80,6 +84,7 @@ describe('NotificationBanner — desktop', () => {
       isIOSBrowser: () => false,
       detectPlatform: () => 'desktop-web',
       getPermissionStatus: () => 'default',
+      useNotificationPrompt: () => ({ showPrompt: vi.fn(), modalProps: {} }),
     }))
     const { NotificationBanner } = await import('../NotificationBanner')
     const { container } = render(React.createElement(NotificationBanner, { context: 'order updates' }))
@@ -94,6 +99,7 @@ describe('NotificationBanner — desktop', () => {
       isIOSBrowser: () => false,
       detectPlatform: () => 'desktop-web',
       getPermissionStatus: () => 'default',
+      useNotificationPrompt: () => ({ showPrompt: vi.fn(), modalProps: {} }),
     }))
     const { NotificationBanner } = await import('../NotificationBanner')
     const { container } = render(React.createElement(NotificationBanner, { context: 'new orders' }))
@@ -131,6 +137,7 @@ describe('NotificationBanner — desktop', () => {
       isIOSBrowser: () => false,
       detectPlatform: () => 'desktop-web',
       getPermissionStatus: () => 'granted',
+      useNotificationPrompt: () => ({ showPrompt: vi.fn(), modalProps: {} }),
     }))
     vi.resetModules()
     const { NotificationBanner } = await import('../NotificationBanner')
