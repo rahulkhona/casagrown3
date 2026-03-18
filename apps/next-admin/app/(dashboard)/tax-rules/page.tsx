@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { YStack, XStack, Text, Button, ScrollView, Separator, Spinner, Input, Label } from 'tamagui'
 import { Plus, Edit3, Trash2, Receipt } from '@tamagui/lucide-icons'
 import { supabase } from '@casagrown/app/features/auth/auth-hook'
-import { adminSupabase } from '../../../lib/adminSupabase'
+import { adminApi } from '../../../lib/adminApi'
 import { colors } from '@casagrown/app/design-tokens'
 
 type TaxRule = {
@@ -95,16 +95,14 @@ export default function TaxRulesPage() {
     try {
       // If editing, soft-delete the old rule first
       if (editingId) {
-        const { error: retireError } = await adminSupabase
-          .from('category_tax_rules')
-          .update({ effective_until: new Date().toISOString().split('T')[0] })
-          .eq('id', editingId)
-        if (retireError) throw retireError
+        const { error: retireError } = await adminApi.update('category_tax_rules',
+          { effective_until: new Date().toISOString().split('T')[0] },
+          { eq: { id: editingId } }
+        )
+        if (retireError) throw new Error(retireError)
       }
 
-      const { error } = await adminSupabase
-        .from('category_tax_rules')
-        .insert({
+      const { error } = await adminApi.insert('category_tax_rules', {
           state_code: formStateCode,
           category_name: formCategoryName,
           rule_type: 'fixed',
@@ -113,7 +111,7 @@ export default function TaxRulesPage() {
           effective_from: new Date().toISOString().split('T')[0],
         })
       
-      if (error) throw error
+      if (error) throw new Error(error)
       
       setIsAdding(false)
       resetForm()
@@ -129,13 +127,13 @@ export default function TaxRulesPage() {
 
   const handleDelete = async (rule: TaxRule) => {
     setErrorMessage('')
-    const { error } = await adminSupabase
-      .from('category_tax_rules')
-      .update({ effective_until: new Date().toISOString().split('T')[0] })
-      .eq('id', rule.id)
+    const { error } = await adminApi.update('category_tax_rules',
+      { effective_until: new Date().toISOString().split('T')[0] },
+      { eq: { id: rule.id } }
+    )
     
     if (error) {
-      setErrorMessage(`Failed to retire rule: ${error.message}`)
+      setErrorMessage(`Failed to retire rule: ${error}`)
     } else {
       setSuccessMessage(`Retired: ${rule.category_name} in ${rule.state_code}`)
       setTimeout(() => setSuccessMessage(''), 3000)

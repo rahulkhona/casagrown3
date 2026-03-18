@@ -10,7 +10,7 @@ import { AdminDataGrid, ColumnDef } from '../../../../../packages/app/features/a
 import { AdminDataForm, FormFieldDef } from '../../../../../packages/app/features/admin/components/AdminDataForm'
 import { useAdminQuery } from '../../../../../packages/app/features/admin/hooks/useAdminQuery'
 import { supabase } from '@casagrown/app/utils/supabase'
-import { adminSupabase } from '../../../lib/adminSupabase'
+import { adminApi } from '../../../lib/adminApi'
 
 export default function SalesCategoriesPage() {
   const { data, loading, next, prev, hasMore, hasPrev, page, refresh } = useAdminQuery({ 
@@ -56,7 +56,7 @@ export default function SalesCategoriesPage() {
       }))
 
       for (const map of updates) {
-        await adminSupabase.from('sales_categories').update({ display_order: map.display_order }).eq('name', map.name)
+        await adminApi.update('sales_categories', { display_order: map.display_order }, { eq: { name: map.name } })
       }
       
       refresh()
@@ -95,8 +95,8 @@ export default function SalesCategoriesPage() {
           chromeless 
           icon={<Trash2 size={16} color={colors.red[500]} />} 
           onPress={async () => {
-            const { error } = await adminSupabase.from('sales_categories').delete().eq('name', item.name)
-            if (error) console.error(error.message)
+            const { error } = await adminApi.delete('sales_categories', { eq: { name: item.name } })
+            if (error) console.error(error)
             refresh()
           }} 
         />
@@ -113,13 +113,13 @@ export default function SalesCategoriesPage() {
     setErrorMessage('')
     try {
       const nextOrder = data && data.length > 0 ? Math.max(...data.map((d: any) => d.display_order)) + 1 : 1
-      const { error } = await adminSupabase.from('sales_categories').insert({
+      const { error } = await adminApi.insert('sales_categories', {
         name: values.name.toLowerCase().replace(/\s+/g, '_'),
         display_order: nextOrder
       })
       if (error) {
-        console.error(error.message)
-        setErrorMessage(`Failed to create category: ${error.message}`)
+        console.error(error)
+        setErrorMessage(`Failed to create category: ${error}`)
       } else {
         setIsAdding(false)
         refresh()
@@ -225,10 +225,10 @@ export default function SalesCategoriesPage() {
                               icon={<Trash2 size={16} color={colors.red[500]} />}
                               onPress={async () => {
                                 setErrorMessage('')
-                                const { error } = await adminSupabase.from('sales_categories').delete().eq('name', item.name)
+                                const { error } = await adminApi.delete('sales_categories', { eq: { name: item.name } })
                                 if (error) {
-                                  console.error(error.message)
-                                  setErrorMessage(`Cannot delete "${item.name}". It may be in use by active listings. (${error.message})`)
+                                  console.error(error)
+                                  setErrorMessage(`Cannot delete "${item.name}". It may be in use by active listings. (${error})`)
                                 } else {
                                   refresh()
                                 }

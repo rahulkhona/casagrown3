@@ -6,7 +6,8 @@ import { colors } from '@casagrown/app/design-tokens'
 import { Plus, Trash2, Shield, ChevronDown } from '@tamagui/lucide-icons'
 import { AdminDataGrid, ColumnDef } from '../../../../../packages/app/features/admin/components/AdminDataGrid'
 import { useAdminQuery } from '../../../../../packages/app/features/admin/hooks/useAdminQuery'
-import { adminSupabase } from '../../../lib/adminSupabase'
+import { adminApi } from '../../../lib/adminApi'
+import { supabase } from '@casagrown/app/features/auth/auth-hook'
 
 export default function MarketAvailabilityPage() {
   const { data, loading, page, next, prev, hasMore, hasPrev, refresh } = useAdminQuery({
@@ -28,7 +29,7 @@ export default function MarketAvailabilityPage() {
   const [states, setStates] = useState<{ id: string; code: string; name: string }[]>([])
 
   useEffect(() => {
-    adminSupabase
+    supabase
       .from('states')
       .select('id, code, name')
       .eq('country_iso_3', 'USA')
@@ -89,9 +90,9 @@ export default function MarketAvailabilityPage() {
           chromeless
           icon={<Trash2 size={16} color={colors.red[500]} />}
           onPress={async () => {
-            const { error } = await adminSupabase.from('market_state_blocks').delete().eq('id', item.id)
+            const { error } = await adminApi.delete('market_state_blocks', { eq: { id: item.id } })
             if (error) {
-              setErrorMessage(`Failed to remove: ${error.message}`)
+              setErrorMessage(`Failed to remove: ${error}`)
             } else {
               setSuccessMessage(`Removed ${item.states?.code || 'state'} from blocked list`)
               setTimeout(() => setSuccessMessage(''), 3000)
@@ -118,11 +119,11 @@ export default function MarketAvailabilityPage() {
     setSubmitting(true)
     setErrorMessage('')
     try {
-      const { error } = await adminSupabase.from('market_state_blocks').insert({
+      const { error } = await adminApi.insert('market_state_blocks', {
         state_id: formStateId,
         reason: formReason.trim() || null,
       })
-      if (error) throw error
+      if (error) throw new Error(error)
 
       const st = states.find(s => s.id === formStateId)
       setIsAdding(false)
@@ -271,9 +272,6 @@ export default function MarketAvailabilityPage() {
         <Text fontWeight="bold" color="#1e40af">How Market Availability Works</Text>
         <Text fontSize={13} color="#3b82f6" marginTop="$2">
           When a state is added here, sellers in that state can only list products at $0 (free). The database trigger enforces this automatically.
-        </Text>
-        <Text fontSize={13} color="#3b82f6" marginTop="$1">
-          <Text fontWeight="bold">State Isolation:</Text> Buyers only see booths from sellers in their own state, preventing interstate transaction complications.
         </Text>
         <Text fontSize={13} color="#3b82f6" marginTop="$1">
           <Text fontWeight="bold">Removing a state</Text> re-enables paid transactions for that state's sellers immediately.

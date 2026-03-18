@@ -7,7 +7,7 @@ import { Plus, Trash2, Settings, Percent } from '@tamagui/lucide-icons'
 import { AdminDataGrid, ColumnDef } from '../../../../../packages/app/features/admin/components/AdminDataGrid'
 import { useAdminQuery } from '../../../../../packages/app/features/admin/hooks/useAdminQuery'
 import { supabase } from '@casagrown/app/utils/supabase'
-import { adminSupabase } from '../../../lib/adminSupabase'
+import { adminApi } from '../../../lib/adminApi'
 
 export default function PlatformSettingsPage() {
   const { data: feesData, loading: feesLoading, page, next, prev, hasMore, hasPrev, refresh: refreshFees } = useAdminQuery({
@@ -43,12 +43,12 @@ export default function PlatformSettingsPage() {
     if (!settings) return
     setSavingSettings(true)
     const ms = parseInt(gracePeriod) * 60000
-    const { error } = await adminSupabase.from('platform_settings').update({
+    const { error } = await adminApi.update('platform_settings', {
       provider_grace_period_ms: ms,
       updated_at: new Date().toISOString()
-    }).eq('id', settings.id)
+    }, { eq: { id: settings.id } })
     
-    if (error) console.error(error.message)
+    if (error) console.error(error)
     else console.log('Platform settings updated successfully!')
     setSavingSettings(false)
   }
@@ -61,11 +61,11 @@ export default function PlatformSettingsPage() {
     setSubmittingFee(true)
     setFeeError('')
     try {
-      const { error } = await adminSupabase.from('platform_fees').insert({
+      const { error } = await adminApi.insert('platform_fees', {
         country_code: 'USA',
         fees: parseFloat(feePercentage) / 100
       })
-      if (error) throw error
+      if (error) throw new Error(error)
       setIsAddingFee(false)
       setFeePercentage('')
       setFeeError('')

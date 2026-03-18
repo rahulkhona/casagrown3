@@ -4,7 +4,7 @@ import React, { useState, useCallback } from 'react'
 import { YStack, XStack, Text, Button, Card, Input, Spinner } from 'tamagui'
 import { colors } from '@casagrown/app/design-tokens'
 import { Search, AlertTriangle, Ghost, Shield, User as UserIcon } from '@tamagui/lucide-icons'
-import { adminSupabase } from '../../../lib/adminSupabase'
+import { adminApi } from '../../../lib/adminApi'
 
 type MemberResult = {
   id: string
@@ -33,31 +33,40 @@ export default function MembersPage() {
     setError('')
     try {
       // Search profiles by email (partial match)
-      const { data: profiles, error: profileErr } = await adminSupabase
-        .from('profiles')
-        .select('id, email, full_name, avatar_url, is_ghosted')
-        .ilike('email', `%${searchEmail.trim()}%`)
-        .limit(20)
+      const { data: profiles, error: profileErr } = await adminApi.select(
+        'profiles',
+        'id, email, full_name, avatar_url, is_ghosted',
+        { ilike: { email: `%${searchEmail.trim()}%` } },
+        { limit: 20 }
+      )
 
-      if (profileErr) throw profileErr
+      if (profileErr) throw new Error(profileErr)
 
       // For each profile, get post count and flag count
       const results: MemberResult[] = await Promise.all(
-        (profiles || []).map(async (profile) => {
-          const { count: postCount } = await adminSupabase
-            .from('posts')
-            .select('id', { count: 'exact', head: true })
-            .eq('author_id', profile.id)
+        (profiles || []).map(async (profile: any) => {
+          const { count: postCount } = await adminApi.select(
+            'posts',
+            'id',
+            { eq: { author_id: profile.id } }
+          )
 
-          const { count: flagCount } = await adminSupabase
-            .from('post_flags')
-            .select('post_id', { count: 'exact', head: true })
-            .in('post_id', (
-              await adminSupabase
-                .from('posts')
-                .select('id')
-                .eq('author_id', profile.id)
-            ).data?.map(p => p.id) || [])
+          // Get post ids for this author, then count flags
+          const { data: authorPosts } = await adminApi.select(
+            'posts',
+            'id',
+            { eq: { author_id: profile.id } }
+          )
+          const postIds = (authorPosts || []).map((p: any) => p.id)
+          let flagCount = 0
+          if (postIds.length > 0) {
+            const { count: fc } = await adminApi.select(
+              'post_flags',
+              'post_id',
+              { in: { post_id: postIds } }
+            )
+            flagCount = fc || 0
+          }
 
           return {
             id: profile.id,
@@ -66,7 +75,7 @@ export default function MembersPage() {
             avatar_url: profile.avatar_url,
             is_ghosted: profile.is_ghosted ?? false,
             post_count: postCount || 0,
-            flag_count: flagCount || 0,
+            flag_count: flagCount,
           }
         })
       )
@@ -87,12 +96,13 @@ export default function MembersPage() {
       const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
 
       // Get flags from the last 24 hours, grouped by post author
-      const { data: recentFlags, error: flagErr } = await adminSupabase
-        .from('post_flags')
-        .select('post_id, posts!inner(author_id)')
-        .gte('created_at', oneDayAgo)
+      const { data: recentFlags, error: flagErr } = await adminApi.select(
+        'post_flags',
+        'post_id, posts!inner(author_id)',
+        { gte: { created_at: oneDayAgo } }
+      )
 
-      if (flagErr) throw flagErr
+      if (flagErr) throw new Error(flagErr)
 
       // Count flags per author
       const authorFlagCounts = new Map<string, number>()
@@ -115,12 +125,13 @@ export default function MembersPage() {
       }
 
       // Fetch their profiles
-      const { data: profiles } = await adminSupabase
-        .from('profiles')
-        .select('id, email, full_name, avatar_url, is_ghosted')
-        .in('id', highFlagAuthors)
+      const { data: profiles } = await adminApi.select(
+        'profiles',
+        'id, email, full_name, avatar_url, is_ghosted',
+        { in: { id: highFlagAuthors } }
+      )
 
-      const results: MemberResult[] = (profiles || []).map((profile) => ({
+      const results: MemberResult[] = (profiles || []).map((profile: any) => ({
         id: profile.id,
         email: profile.email || '',
         full_name: profile.full_name,
@@ -142,12 +153,13 @@ export default function MembersPage() {
   const toggleGhost = useCallback(async (userId: string, currentStatus: boolean) => {
     setTogglingId(userId)
     try {
-      const { error: updateErr } = await adminSupabase
-        .from('profiles')
-        .update({ is_ghosted: !currentStatus })
-        .eq('id', userId)
+      const { error: updateErr } = await adminApi.update(
+        'profiles',
+        { is_ghosted: !currentStatus },
+        { eq: { id: userId } }
+      )
 
-      if (updateErr) throw updateErr
+      if (updateErr) throw new Error(updateErr)
 
       // Update local state in both lists
       const updateUser = (user: MemberResult) =>

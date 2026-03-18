@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { YStack, XStack, Text, Button, ScrollView, Separator, Checkbox, Spinner } from 'tamagui'
 import { RefreshCw, Check } from '@tamagui/lucide-icons'
 import { supabase } from '@casagrown/app/features/auth/auth-hook'
-import { adminSupabase } from '../../../lib/adminSupabase'
+import { adminApi } from '../../../lib/adminApi'
 import { colors } from '@casagrown/app/design-tokens'
 
 const METHOD_LABELS: Record<string, { label: string; description: string }> = {
@@ -84,10 +84,10 @@ export default function MethodsPage() {
       m.method === methodName ? { ...m, is_active: !currentStatus } : m
     ))
     
-    const { error } = await adminSupabase
-      .from('available_redemption_methods')
-      .update({ is_active: !currentStatus })
-      .eq('method', methodName)
+    const { error } = await adminApi.update('available_redemption_methods',
+      { is_active: !currentStatus },
+      { eq: { method: methodName } }
+    )
       
     if (error) {
       console.error('Failed to update method:', error)
@@ -110,10 +110,10 @@ export default function MethodsPage() {
     
     const table = field === 'is_active' ? 'available_redemption_method_instruments' : 'instrument_queuing_status'
     
-    const { error } = await adminSupabase
-      .from(table)
-      .update({ [field]: !currentStatus })
-      .eq('instrument', instrumentName)
+    const { error } = await adminApi.update(table,
+      { [field]: !currentStatus },
+      { eq: { instrument: instrumentName } }
+    )
       
     if (error) {
       console.error(`Failed to update ${field}:`, error)

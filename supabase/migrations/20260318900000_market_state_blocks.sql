@@ -9,6 +9,9 @@
 -- so paid transactions cannot occur. Free sharing is allowed.
 -- ============================================================================
 
+-- Ensure PostGIS types are visible (extension may live in 'extensions' schema)
+SET search_path TO public, extensions;
+
 -- 0. Update minimum-order constraint to allow free ($0) products
 --    The existing chk_minimum_product_potential blocks $0 products, but free
 --    sharing mode needs them. Allow $0 prices (exempt from minimum order check).

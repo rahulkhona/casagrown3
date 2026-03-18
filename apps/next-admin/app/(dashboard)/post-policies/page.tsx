@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { YStack, XStack, Text, Button, Input } from 'tamagui'
 import { colors } from '@casagrown/app/design-tokens'
 import { CalendarClock, Save } from '@tamagui/lucide-icons'
-import { adminSupabase } from '../../../lib/adminSupabase'
+import { adminApi } from '../../../lib/adminApi'
 
 const POST_TYPE_LABELS: Record<string, string> = {
   want_to_sell: 'Want to Sell',
@@ -30,10 +30,9 @@ export default function PostPoliciesPage() {
 
   const loadPolicies = async () => {
     setLoading(true)
-    const { data } = await adminSupabase
-      .from('post_type_policies')
-      .select('*')
-      .order('expiration_days', { ascending: true })
+    const { data } = await adminApi.select('post_type_policies', '*', undefined, {
+      order: { column: 'expiration_days', ascending: true }
+    })
     if (data) {
       setPolicies(data)
       const days: Record<string, string> = {}
@@ -50,10 +49,10 @@ export default function PostPoliciesPage() {
     if (isNaN(days) || days < 1) return
 
     setSaving(postType)
-    const { error } = await adminSupabase
-      .from('post_type_policies')
-      .update({ expiration_days: days, updated_at: new Date().toISOString() })
-      .eq('post_type', postType)
+    const { error } = await adminApi.update('post_type_policies',
+      { expiration_days: days, updated_at: new Date().toISOString() },
+      { eq: { post_type: postType } }
+    )
 
     if (!error) {
       setSuccessMsg(`Updated ${POST_TYPE_LABELS[postType]} to ${days} days`)

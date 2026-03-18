@@ -6,7 +6,7 @@ import { colors } from '@casagrown/app/design-tokens'
 import { Plus, Trash2, FileText, ChevronDown } from '@tamagui/lucide-icons'
 import { AdminDataGrid, ColumnDef } from '../../../../../packages/app/features/admin/components/AdminDataGrid'
 import { useAdminQuery } from '../../../../../packages/app/features/admin/hooks/useAdminQuery'
-import { adminSupabase } from '../../../lib/adminSupabase'
+import { adminApi } from '../../../lib/adminApi'
 
 const US_STATES = [
   'AL','AK','AZ','AR','CA','CO','CT','DE','DC','FL','GA','HI','ID','IL','IN','IA',
@@ -66,9 +66,9 @@ export default function ReceiptFootersPage() {
           chromeless
           icon={<Trash2 size={16} color={colors.red[500]} />}
           onPress={async () => {
-            const { error } = await adminSupabase.from('receipt_footers').delete().eq('id', item.id)
+            const { error } = await adminApi.delete('receipt_footers', { eq: { id: item.id } })
             if (error) {
-              setErrorMessage(`Failed to delete: ${error.message}`)
+              setErrorMessage(`Failed to delete: ${error}`)
             } else {
               refresh()
             }
@@ -103,13 +103,13 @@ export default function ReceiptFootersPage() {
     setSubmitting(true)
     setErrorMessage('')
     try {
-      const { error } = await adminSupabase.from('receipt_footers').insert({
+      const { error } = await adminApi.insert('receipt_footers', {
         country_iso_3: 'USA',
         state_code: formStateCode,
         footer_text: formFooterText.trim(),
         font_size_pt: fontSize,
       })
-      if (error) throw error
+      if (error) throw new Error(error)
 
       setIsAdding(false)
       resetForm()

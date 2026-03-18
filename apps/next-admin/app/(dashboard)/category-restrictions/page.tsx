@@ -7,7 +7,7 @@ import { Plus, Trash2, Ban, ChevronDown } from '@tamagui/lucide-icons'
 import { AdminDataGrid, ColumnDef } from '../../../../../packages/app/features/admin/components/AdminDataGrid'
 import { useAdminQuery } from '../../../../../packages/app/features/admin/hooks/useAdminQuery'
 import { supabase } from '@casagrown/app/utils/supabase'
-import { adminSupabase } from '../../../lib/adminSupabase'
+import { adminApi } from '../../../lib/adminApi'
 
 // Jurisdiction level labels
 const SCOPE_LABELS: Record<string, string> = {
@@ -184,9 +184,9 @@ export default function CategoryRestrictionsPage() {
           chromeless 
           icon={<Trash2 size={16} color={colors.red[500]} />} 
           onPress={async () => {
-            const { error } = await adminSupabase.from('category_restrictions').delete().eq('id', item.id)
+            const { error } = await adminApi.delete('category_restrictions', { eq: { id: item.id } })
             if (error) {
-              setErrorMessage(`Failed to delete: ${error.message}`)
+              setErrorMessage(`Failed to delete: ${error}`)
             } else {
               refresh()
             }
@@ -259,8 +259,8 @@ export default function CategoryRestrictionsPage() {
         row.city_id = selectedCity
       }
 
-      const { error } = await adminSupabase.from('category_restrictions').insert(row)
-      if (error) throw error
+      const { error } = await adminApi.insert('category_restrictions', row)
+      if (error) throw new Error(error)
       
       setIsAdding(false)
       resetForm()

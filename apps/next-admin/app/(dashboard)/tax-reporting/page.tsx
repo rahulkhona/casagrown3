@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { YStack, XStack, Text, Button, Input, Label, ScrollView, Separator, Spinner } from 'tamagui'
 import { Plus, Edit3, Trash2, FileSpreadsheet, ChevronDown } from '@tamagui/lucide-icons'
 import { supabase } from '@casagrown/app/features/auth/auth-hook'
-import { adminSupabase } from '../../../lib/adminSupabase'
+import { adminApi } from '../../../lib/adminApi'
 import { colors } from '@casagrown/app/design-tokens'
 
 type Threshold = {
@@ -88,30 +88,25 @@ export default function TaxReportingPage() {
     try {
       if (editingState) {
         // Update existing
-        const { error } = await adminSupabase
-          .from('tax_reporting_thresholds')
-          .update({
+        const { error } = await adminApi.update('tax_reporting_thresholds', {
             amount,
             min_txns: minTxns,
             warn_pct: warnPct,
             updated_at: new Date().toISOString(),
-          })
-          .eq('state_code', editingState)
+          }, { eq: { state_code: editingState } })
 
-        if (error) throw error
+        if (error) throw new Error(error)
         setSuccessMessage(`Updated threshold for ${editingState}`)
       } else {
         // Insert new
-        const { error } = await adminSupabase
-          .from('tax_reporting_thresholds')
-          .insert({
+        const { error } = await adminApi.insert('tax_reporting_thresholds', {
             state_code: formStateCode,
             amount,
             min_txns: minTxns,
             warn_pct: warnPct,
           })
 
-        if (error) throw error
+        if (error) throw new Error(error)
         setSuccessMessage(`Created threshold for ${formStateCode}`)
       }
 
@@ -128,13 +123,12 @@ export default function TaxReportingPage() {
 
   const handleDelete = async (stateCode: string) => {
     setErrorMessage('')
-    const { error } = await adminSupabase
-      .from('tax_reporting_thresholds')
-      .delete()
-      .eq('state_code', stateCode)
+    const { error } = await adminApi.delete('tax_reporting_thresholds',
+      { eq: { state_code: stateCode } }
+    )
 
     if (error) {
-      setErrorMessage(`Failed to delete: ${error.message}`)
+      setErrorMessage(`Failed to delete: ${error}`)
     } else {
       setSuccessMessage(`Removed threshold for ${stateCode}`)
       setTimeout(() => setSuccessMessage(''), 3000)

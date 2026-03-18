@@ -7,7 +7,7 @@ import { Plus, Trash2, ShieldAlert, ChevronDown } from '@tamagui/lucide-icons'
 import { AdminDataGrid, ColumnDef } from '../../../../../packages/app/features/admin/components/AdminDataGrid'
 import { useAdminQuery } from '../../../../../packages/app/features/admin/hooks/useAdminQuery'
 import { supabase } from '@casagrown/app/utils/supabase'
-import { adminSupabase } from '../../../lib/adminSupabase'
+import { adminApi } from '../../../lib/adminApi'
 
 const SCOPE_LABELS: Record<string, string> = {
   country: 'Country-wide',
@@ -162,9 +162,9 @@ export default function ProductRestrictionsPage() {
           chromeless 
           icon={<Trash2 size={16} color={colors.red[500]} />} 
           onPress={async () => {
-            const { error } = await adminSupabase.from('blocked_products').delete().eq('id', item.id)
+            const { error } = await adminApi.delete('blocked_products', { eq: { id: item.id } })
             if (error) {
-              setErrorMessage(`Failed to delete: ${error.message}`)
+              setErrorMessage(`Failed to delete: ${error}`)
             } else {
               refresh()
             }
@@ -227,8 +227,8 @@ export default function ProductRestrictionsPage() {
         row.city_id = selectedCity
       }
 
-      const { error } = await adminSupabase.from('blocked_products').insert(row)
-      if (error) throw error
+      const { error } = await adminApi.insert('blocked_products', row)
+      if (error) throw new Error(error)
       
       setIsAdding(false)
       resetForm()

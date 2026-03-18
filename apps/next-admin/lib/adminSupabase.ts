@@ -1,8 +1,20 @@
 /**
  * Admin Supabase client using the service_role key.
- * This bypasses RLS so the admin dashboard can write to all tables.
- * ONLY used in the admin app (next-admin) — never in community apps.
+ * ⚠️  SERVER-SIDE ONLY — must never be imported from client components.
+ *
+ * All admin dashboard operations now go through /api/admin (route.ts),
+ * which uses this client internally. This file is kept for backward
+ * compatibility but will throw at runtime if loaded in the browser.
  */
+
+if (typeof window !== 'undefined') {
+  throw new Error(
+    'adminSupabase must NOT be used in client-side code. ' +
+    'Use the adminApi helper (lib/adminApi.ts) instead, which calls ' +
+    'the server-side /api/admin route.'
+  )
+}
+
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321'

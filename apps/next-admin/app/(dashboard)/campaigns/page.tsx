@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { YStack, XStack, Text, Button, ScrollView, Separator, Checkbox, Spinner, Input, TextArea, Label } from 'tamagui'
 import { Plus, Edit3, Trash2, Award, Check, X, MapPin } from '@tamagui/lucide-icons'
 import { supabase } from '@casagrown/app/features/auth/auth-hook'
-import { adminSupabase } from '../../../lib/adminSupabase'
+import { adminApi } from '../../../lib/adminApi'
 import { colors } from '@casagrown/app/design-tokens'
 import dynamic from 'next/dynamic'
 
@@ -124,10 +124,10 @@ export default function CampaignsPage() {
       c.id === id ? { ...c, is_active: !currentStatus } : c
     ))
     
-    const { error } = await adminSupabase
-      .from('incentive_campaigns')
-      .update({ is_active: !currentStatus })
-      .eq('id', id)
+    const { error } = await adminApi.update('incentive_campaigns',
+      { is_active: !currentStatus },
+      { eq: { id } }
+    )
       
     if (error) {
       console.error('Failed to update:', error)
@@ -144,19 +144,17 @@ export default function CampaignsPage() {
     setSubmitting(true)
     setErrorMessage('')
     try {
-      const { data: campaign, error } = await adminSupabase
-        .from('incentive_campaigns')
-        .insert({
+      const { data: campaigns, error } = await adminApi.insert<Campaign[]>('incentive_campaigns', {
           name: formName.trim(),
           description: formDescription.trim() || null,
           starts_at: new Date(formStartsAt).toISOString(),
           ends_at: new Date(formEndsAt).toISOString(),
           is_active: formIsActive,
         })
-        .select()
-        .single()
 
-      if (error) throw error
+      if (error) throw new Error(error)
+      const campaign = campaigns?.[0]
+      if (!campaign) throw new Error('Campaign creation returned no data')
 
       // Insert rewards
       const validRewards = formRewards.filter(r => r.behavior && r.points)
@@ -166,10 +164,8 @@ export default function CampaignsPage() {
           behavior: r.behavior,
           points: parseInt(r.points),
         }))
-        const { error: rewardError } = await adminSupabase
-          .from('campaign_rewards')
-          .insert(rewardRows)
-        if (rewardError) throw rewardError
+        const { error: rewardError } = await adminApi.insert('campaign_rewards', rewardRows)
+        if (rewardError) throw new Error(rewardError)
       }
 
       // Insert zones
@@ -178,10 +174,8 @@ export default function CampaignsPage() {
           campaign_id: campaign.id,
           community_h3_index: h3,
         }))
-        const { error: zoneError } = await adminSupabase
-          .from('campaign_zones')
-          .insert(zoneRows)
-        if (zoneError) throw zoneError
+        const { error: zoneError } = await adminApi.insert('campaign_zones', zoneRows)
+        if (zoneError) throw new Error(zoneError)
       }
 
       setIsAdding(false)
@@ -198,13 +192,10 @@ export default function CampaignsPage() {
 
   const handleDelete = async (id: string) => {
     setErrorMessage('')
-    const { error } = await adminSupabase
-      .from('incentive_campaigns')
-      .delete()
-      .eq('id', id)
+    const { error } = await adminApi.delete('incentive_campaigns', { eq: { id } })
     
     if (error) {
-      setErrorMessage(`Failed to delete: ${error.message}`)
+      setErrorMessage(`Failed to delete: ${error}`)
     } else {
       fetchCampaigns()
     }
@@ -224,34 +215,26 @@ export default function CampaignsPage() {
     setSubmitting(true)
     setErrorMessage('')
     try {
-      const { error } = await adminSupabase
-        .from('incentive_campaigns')
-        .update({
+      const { error } = await adminApi.update('incentive_campaigns', {
           name: editName.trim(),
           description: editDescription.trim() || null,
           starts_at: new Date(editStartsAt).toISOString(),
           ends_at: new Date(editEndsAt).toISOString(),
           updated_at: new Date().toISOString(),
-        })
-        .eq('id', editingId)
+        }, { eq: { id: editingId } })
       
-      if (error) throw error
+      if (error) throw new Error(error)
 
       // Replace zones: delete old, insert new
-      await adminSupabase
-        .from('campaign_zones')
-        .delete()
-        .eq('campaign_id', editingId)
+      await adminApi.delete('campaign_zones', { eq: { campaign_id: editingId } })
 
       if (editZones.length > 0) {
         const zoneRows = editZones.map(h3 => ({
           campaign_id: editingId,
           community_h3_index: h3,
         }))
-        const { error: zoneError } = await adminSupabase
-          .from('campaign_zones')
-          .insert(zoneRows)
-        if (zoneError) throw zoneError
+        const { error: zoneError } = await adminApi.insert('campaign_zones', zoneRows)
+        if (zoneError) throw new Error(zoneError)
       }
 
       setEditingId(null)
