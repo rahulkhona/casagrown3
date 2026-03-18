@@ -1,6 +1,7 @@
 'use client'
 
-import { use, useState, useEffect } from 'react'
+
+import { use, useState, useEffect , Suspense } from 'react'
 import Link from 'next/link'
 import { createClient } from '../../../../../../../lib/supabase'
 import { formatUsd } from '../../../../../../../lib/store'
@@ -13,7 +14,7 @@ import { NotificationPromptModal } from '../../../../../../components/Notificati
 import { useNotificationPrompt } from '../../../../../../../lib/useNotificationPrompt'
 import styles from './page.module.css'
 
-export default function ProductDetailPage({ params }: { params: Promise<{ id: string; productId: string }> }) {
+function ProductDetailPageInner({ params }: { params: Promise<{ id: string; productId: string }> }) {
   const { id: boothId, productId } = use(params)
   const supabase = createClient()
   const router = useRouter()
@@ -239,5 +240,13 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
       {/* Notification Prompt Modal */}
       <NotificationPromptModal {...modalProps} />
     </div>
+  )
+}
+
+export default function ProductDetailPage({ params }: { params: Promise<{ id: string; productId: string }> }) {
+  return (
+    <Suspense fallback={<div style={{ padding: 80, textAlign: 'center' }}>Loading...</div>}>
+      <ProductDetailPageInner params={params} />
+    </Suspense>
   )
 }

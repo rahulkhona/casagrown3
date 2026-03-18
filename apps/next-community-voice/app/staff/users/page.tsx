@@ -5,7 +5,7 @@ import { YStack, XStack, Text, Card, ScrollView, Spinner, Button, Image, useMedi
 import { colors } from '@casagrown/app/design-tokens'
 import { ArrowLeft, Search, ShieldAlert, ShieldCheck, User } from '@tamagui/lucide-icons'
 import { useRouter } from 'next/navigation'
-import { fetchUsers, banUser, unbanUser, type UserEntry } from '../../features/feedback/feedback-service'
+import { fetchUsers, banUser, unbanUser, type UserEntry } from '../../../features/feedback/feedback-service'
 
 export default function StaffUsersPage() {
   const router = useRouter()

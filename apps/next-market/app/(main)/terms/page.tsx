@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+
+import { useState , Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useMarket } from '../../../lib/store'
 import { createClient } from '../../../lib/supabase'
@@ -94,7 +95,7 @@ const PRIVACY_SECTIONS = [
 
 type DocTab = 'terms' | 'privacy'
 
-export default function TermsPage() {
+function TermsPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { dispatch } = useMarket()
@@ -236,5 +237,13 @@ export default function TermsPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function TermsPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 80, textAlign: 'center' }}>Loading...</div>}>
+      <TermsPageInner />
+    </Suspense>
   )
 }

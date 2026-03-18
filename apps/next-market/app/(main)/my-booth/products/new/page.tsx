@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useMarket } from '../../../../../lib/store'
@@ -51,7 +51,7 @@ function formatTime(t: string): string {
   return m ? `${hour}:${m.toString().padStart(2, '0')} ${ampm}` : `${hour} ${ampm}`
 }
 
-export default function NewProductPage() {
+function NewProductPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const editId = searchParams.get('edit')
@@ -650,5 +650,13 @@ export default function NewProductPage() {
       {/* Notification Prompt Modal */}
       <NotificationPromptModal {...modalProps} />
     </div>
+  )
+}
+
+export default function NewProductPage() {
+  return (
+    <Suspense fallback={<div className="container" style={{ padding: 80, textAlign: 'center' }}><p>Loading...</p></div>}>
+      <NewProductPageInner />
+    </Suspense>
   )
 }

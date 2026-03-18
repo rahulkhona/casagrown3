@@ -1,13 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+
+import { useState, useEffect , Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useMarket } from '../../../lib/store'
 import { createClient } from '../../../lib/supabase'
 import { needsTosAcceptance } from '../../../lib/legal'
 import styles from './page.module.css'
 
-export default function LoginPage() {
+function LoginPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { dispatch } = useMarket()
@@ -183,5 +184,13 @@ export default function LoginPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 80, textAlign: 'center' }}>Loading...</div>}>
+      <LoginPageInner />
+    </Suspense>
   )
 }

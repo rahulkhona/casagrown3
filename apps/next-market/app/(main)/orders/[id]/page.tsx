@@ -1,6 +1,7 @@
 'use client'
 
-import { use, useState, useEffect, useCallback, useRef } from 'react'
+
+import { use, useState, useEffect, useCallback, useRef , Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase'
@@ -83,7 +84,7 @@ interface DisputeMessage {
 
 function formatUsd(n: number) { return '$' + n.toFixed(2) }
 
-export default function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
+function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
   const { id: orderId } = use(params)
   const router = useRouter()
   const supabase = createClient()
@@ -1124,5 +1125,13 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         />
       )}
     </div>
+  )
+}
+
+export default function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  return (
+    <Suspense fallback={<div style={{ padding: 80, textAlign: 'center' }}>Loading...</div>}>
+      <OrderDetailPageInner params={params} />
+    </Suspense>
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+
+import { useState, useEffect , Suspense } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '../../../../lib/useAuth'
 import { createClient } from '../../../../lib/supabase'
@@ -19,7 +20,7 @@ type BoothInfo = {
 
 type PageState = 'loading' | 'enter-passcode' | 'confirm' | 'success' | 'declined' | 'error'
 
-export default function JoinBoothPage() {
+function JoinBoothPageInner() {
   const params = useParams()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -351,5 +352,13 @@ export default function JoinBoothPage() {
         </button>
       </div>
     </div>
+  )
+}
+
+export default function JoinBoothPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 80, textAlign: 'center' }}>Loading...</div>}>
+      <JoinBoothPageInner />
+    </Suspense>
   )
 }

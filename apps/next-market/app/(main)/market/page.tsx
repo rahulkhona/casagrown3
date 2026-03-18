@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+
+import { useState, useEffect, useCallback , Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
@@ -42,7 +43,7 @@ const categoryIcons: Record<string, string> = {
   produce: '🥬', baked: '🍞', preserved: '🫙', other: '📦',
 }
 
-export default function BrowseMarketPage() {
+function BrowseMarketPageInner() {
   const supabase = createClient()
   const { user } = useAuth()
   const router = useRouter()
@@ -420,5 +421,13 @@ export default function BrowseMarketPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function BrowseMarketPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 80, textAlign: 'center' }}>Loading...</div>}>
+      <BrowseMarketPageInner />
+    </Suspense>
   )
 }

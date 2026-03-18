@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+
+import { useState, useEffect , Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase'
 import { fetchTicketById, toggleVote, addComment, flagTicket, unflagTicket, type FeedbackDetail } from '../../../../lib/feedback-service'
@@ -28,7 +29,7 @@ function timeAgo(dateStr: string) {
   return new Date(dateStr).toLocaleDateString()
 }
 
-export default function VoiceTicketPage() {
+function VoiceTicketPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const ticketId = searchParams.get('id') || ''
@@ -207,5 +208,13 @@ export default function VoiceTicketPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function VoiceTicketPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 80, textAlign: 'center' }}>Loading...</div>}>
+      <VoiceTicketPageInner />
+    </Suspense>
   )
 }

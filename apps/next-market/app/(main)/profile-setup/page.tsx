@@ -1,13 +1,14 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+
+import { useState, useRef, useEffect, useCallback , Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
 import CameraCapture from '../../../components/CameraCapture'
 import ImageCropper from '../../../components/ImageCropper'
 import styles from './page.module.css'
 
-export default function ProfileSetupPage() {
+function ProfileSetupPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirectTo = searchParams.get('redirect')
@@ -329,5 +330,13 @@ export default function ProfileSetupPage() {
         </form>
       </div>
     </div>
+  )
+}
+
+export default function ProfileSetupPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 80, textAlign: 'center' }}>Loading...</div>}>
+      <ProfileSetupPageInner />
+    </Suspense>
   )
 }

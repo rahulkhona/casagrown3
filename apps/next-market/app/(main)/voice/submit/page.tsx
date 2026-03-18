@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+
+import { useState, useEffect, useRef , Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase'
 import { createTicket, type FeedbackType } from '../../../../lib/feedback-service'
@@ -18,7 +19,7 @@ const SUBTITLES: Record<string, string> = {
   support: 'Get help from the CasaGrown team.',
 }
 
-export default function VoiceSubmitPage() {
+function VoiceSubmitPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const initialType = searchParams.get('type') || ''
@@ -171,5 +172,13 @@ export default function VoiceSubmitPage() {
         </button>
       </div>
     </div>
+  )
+}
+
+export default function VoiceSubmitPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 80, textAlign: 'center' }}>Loading...</div>}>
+      <VoiceSubmitPageInner />
+    </Suspense>
   )
 }
