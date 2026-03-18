@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@casagrown/app": "*",
+    "@hello-pangea/dnd": "^18.0.1",
     "@tamagui/config": "^2.0.0-rc.0",
     "@tamagui/next-theme": "^2.0.0-rc.0",
     "next": "16.1.1",
