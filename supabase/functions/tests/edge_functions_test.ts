@@ -217,8 +217,10 @@ Deno.test('[stripe-webhook] handles payment_intent.payment_failed event structur
     body,
   })
   if (![200, 401, 500].includes(res.status)) {
+    await res.body?.cancel()
     throw new Error(`Unexpected status ${res.status}`)
   }
+  await res.text() // consume body to avoid resource leak
 })
 
 Deno.test('[stripe-webhook] handles unrecognized event types gracefully', async () => {
@@ -236,8 +238,10 @@ Deno.test('[stripe-webhook] handles unrecognized event types gracefully', async 
     body,
   })
   if (![200, 401, 500].includes(res.status)) {
+    await res.body?.cancel()
     throw new Error(`Unexpected status ${res.status}`)
   }
+  await res.text() // consume body to avoid resource leak
 })
 
 // ============================================================================

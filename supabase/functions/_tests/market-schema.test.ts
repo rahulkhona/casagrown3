@@ -20,14 +20,27 @@ const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ??
 // Service role client for setup/teardown
 const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
 
+/** Ensure at least one user exists (needed after supabase start resets DB) */
+async function ensureTestUser(): Promise<string> {
+  const { data: users } = await adminClient.auth.admin.listUsers()
+  if (users?.users?.length) return users.users[0].id
+
+  // Create a test user
+  const { data: newUser, error } = await adminClient.auth.admin.createUser({
+    email: 'market-schema-test@test.local',
+    password: 'testpass123',
+    email_confirm: true,
+  })
+  if (error) throw new Error(`Failed to create test user: ${error.message}`)
+  return newUser.user.id
+}
+
 Deno.test({
   name: 'market_booths: insert and verify',
   sanitizeResources: false,
   sanitizeOps: false,
   async fn() {
-    const { data: users } = await adminClient.auth.admin.listUsers()
-    assertExists(users?.users?.[0], 'Need at least one user in auth.users')
-    const userId = users.users[0].id
+    const userId = await ensureTestUser()
 
     await adminClient.from('market_booths').delete().eq('owner_id', userId)
 
@@ -57,8 +70,7 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
   async fn() {
-    const { data: users } = await adminClient.auth.admin.listUsers()
-    const userId = users!.users[0].id
+    const userId = await ensureTestUser()
 
     await adminClient.from('market_booths').delete().eq('owner_id', userId)
 
@@ -86,8 +98,7 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
   async fn() {
-    const { data: users } = await adminClient.auth.admin.listUsers()
-    const userId = users!.users[0].id
+    const userId = await ensureTestUser()
 
     await adminClient.from('market_booths').delete().eq('owner_id', userId)
 
@@ -128,8 +139,7 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
   async fn() {
-    const { data: users } = await adminClient.auth.admin.listUsers()
-    const userId = users!.users[0].id
+    const userId = await ensureTestUser()
 
     await adminClient.from('market_booths').delete().eq('owner_id', userId)
 
