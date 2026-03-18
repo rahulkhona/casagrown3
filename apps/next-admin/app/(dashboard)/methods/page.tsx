@@ -40,18 +40,12 @@ export default function MethodsPage() {
   const fetchMethods = async () => {
     setLoading(true)
     
-    const { data: methods } = await supabase
-      .from('available_redemption_methods')
-      .select('*')
-      .order('method')
+    const { data: methods } = await adminApi.select('available_redemption_methods', '*',
+      undefined, { order: { column: 'method' } })
       
-    const { data: instruments } = await supabase
-      .from('available_redemption_method_instruments')
-      .select('*')
+    const { data: instruments } = await adminApi.select('available_redemption_method_instruments', '*')
       
-    const { data: queues } = await supabase
-      .from('instrument_queuing_status')
-      .select('*')
+    const { data: queues } = await adminApi.select('instrument_queuing_status', '*')
 
     if (methods && instruments) {
       const formatted = methods.map((m: any) => {
