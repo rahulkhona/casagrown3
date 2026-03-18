@@ -5,12 +5,15 @@ import { createClient } from '../../lib/supabase'
 import { useAuth } from '../../lib/useAuth'
 import { formatUsd } from '../../lib/store'
 import { trackClick, trackError } from '../../lib/analytics'
+import { useNotificationPrompt } from '../../lib/useNotificationPrompt'
+import { useMarketStatus, isProductExpired } from '../../lib/useMarketStatus'
+import { NotificationPromptModal } from './NotificationPromptModal'
 import styles from './BuyModal.module.css'
 
 interface BuyModalProps {
   product: {
     id: string; name: string; price_usd: number; unit: string;
-    inventory: number; category: string; photos?: string[]
+    inventory: number; category: string; photos?: string[]; market_date?: string
   }
   booth: {
     id: string; name: string; offers_delivery: boolean; offers_pickup: boolean;
@@ -42,6 +45,14 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
   const stripeRef = useRef<any>(null)
   const [existingHold, setExistingHold] = useState<{ holdAmountCents: number; spentAmountCents: number } | null>(null)
   const [availableBalance, setAvailableBalance] = useState(0) // buyer's available USD balance
+
+  // Push notification prompt
+  const { showPrompt, modalProps } = useNotificationPrompt(user?.id)
+
+  // Market hours + product expiry
+  const { isOpen: marketIsOpen, todaySchedule, productsNeverExpire, loading: marketLoading } = useMarketStatus()
+  const productExpired = product.market_date ? isProductExpired(product.market_date, productsNeverExpire) : false
+  const canOrder = marketIsOpen && !productExpired
 
   const MINIMUM_ORDER_USD = 5.00
   const subtotal = currentPrice * qty
@@ -278,6 +289,9 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
         balanceApplied: (holdResult.balanceAppliedCents || 0) / 100,
         isTopUp: holdResult.isTopUp,
       })
+
+      // Prompt for push notifications after successful order
+      showPrompt()
     } catch (err: any) {
       trackError('order_failed', { productId: product.id, error: err.message })
       setError(err.message || 'Something went wrong')
@@ -309,6 +323,23 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
 
         <div className={styles.body}>
           {error && <div className={styles.error}>{error}</div>}
+
+          {/* Market closed banner */}
+          {!marketLoading && !marketIsOpen && (
+            <div className={styles.error} style={{ background: '#fef3c7', color: '#92400e', borderColor: '#fcd34d' }}>
+              🕐 <strong>Market is currently closed.</strong>
+              {todaySchedule
+                ? ` Hours today: ${todaySchedule.open_time} – ${todaySchedule.close_time}.`
+                : ' The market is not open today. Check back on a market day!'}
+            </div>
+          )}
+
+          {/* Expired product banner */}
+          {productExpired && (
+            <div className={styles.error} style={{ background: '#fef2f2', color: '#991b1b', borderColor: '#fca5a5' }}>
+              ⏰ <strong>This product was listed for a previous market day</strong> ({product.market_date}) and is no longer available.
+            </div>
+          )}
 
           {/* Minimum order warning */}
           {belowMinimum && (
@@ -491,8 +522,8 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
 
         {/* Footer */}
         <div className={styles.footer}>
-          <button className={styles.orderBtn} disabled={loading || available === 0 || belowMinimum || (needsCard && !stripeReady)} onClick={handleOrder}>
-            {loading ? 'Processing...' : available === 0 ? 'Sold Out' : `Place Order — ${formatUsd(total)}`}
+          <button className={styles.orderBtn} disabled={loading || available === 0 || belowMinimum || !canOrder || (needsCard && !stripeReady)} onClick={handleOrder}>
+            {loading ? 'Processing...' : !marketIsOpen ? '🔒 Market Closed' : productExpired ? '⏰ Product Expired' : available === 0 ? 'Sold Out' : `Place Order — ${formatUsd(total)}`}
           </button>
           <p className={styles.holdNotice}>
             {needsCard
@@ -504,6 +535,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
           </p>
         </div>
       </div>
+      <NotificationPromptModal {...modalProps} />
     </div>
   )
 }

@@ -16,8 +16,8 @@ Create a test that enumerates all expected routes and verifies they resolve:
 ```
 /market, /market/booth/:id, /market/booth/:id/product/:productId,
 /market/booth/:id/about, /orders, /orders/:id, /earnings,
-/earnings/payout, /earnings/redeem, /earnings/auto-redeem,
-/earnings/tax-info, /my-booth, /my-booth/products, /my-booth/products/new,
+/earnings/payout, /earnings/tax-info,
+/my-booth, /my-booth/products, /my-booth/products/new,
 /my-booth/products/:id, /my-booth/orders, /my-booth/coupons,
 /my-booth/customize, /my-booth/invitations, /chat, /chat/:id,
 /community, /following, /notifications, /get-started, /get-started/:template,
@@ -77,7 +77,7 @@ CI check: if any `page.tsx` file loses >30% of its lines in a single commit, fla
 
 ---
 
-## All Screens by Feature Area (37 Pages)
+## All Screens by Feature Area (35 Pages)
 
 ---
 
@@ -197,16 +197,6 @@ CI check: if any `page.tsx` file loses >30% of its lines in a single commit, fla
 - **Key Elements**: PayPal, gift card, donation payout options; threshold rules; auto-payout toggle
 - **Auth**: Required
 - **Validation**: Available balance shown, payout method cards render
-
-#### `/earnings/redeem` — Redeem (616 lines)
-- **Route**: `app/(main)/earnings/redeem/page.tsx`
-- **Key Elements**: Gift card catalog, denomination picker, checkout flow
-- **Auth**: Required
-
-#### `/earnings/auto-redeem` — Auto-Payout Settings (241 lines)
-- **Route**: `app/(main)/earnings/auto-redeem/page.tsx`
-- **Key Elements**: Toggle auto-payout, threshold config, method selection
-- **Auth**: Required
 
 #### `/earnings/tax-info` — Tax Info (73 lines)
 - **Route**: `app/(main)/earnings/tax-info/page.tsx`

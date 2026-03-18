@@ -752,7 +752,7 @@ test.describe('Payout Method Flows', () => {
 // ============================================================================
 test.describe('Auto-Redeem', () => {
   test('auto-redeem page: toggle, method, threshold, save', async ({ page }) => {
-    await page.goto('/earnings/auto-redeem')
+    await page.goto('/earnings/payout')
     await dismissRating(page)
     await page.waitForTimeout(2000)
     const body = await page.locator('body').textContent() || ''

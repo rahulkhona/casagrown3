@@ -377,30 +377,6 @@ describe('earnings/payout (authed)', () => {
 })
 
 // ===========================================================================
-// EARNINGS/REDEEM — Gift card catalog
-// ===========================================================================
-describe('earnings/redeem (authed)', () => {
-  it('renders gift card catalog', async () => {
-    const mod = await import('../(main)/earnings/redeem/page')
-    const c = renderPage(mod)
-    await act(async () => { await new Promise(r => setTimeout(r, 100)) })
-    expect(c).toBeTruthy()
-  })
-})
-
-// ===========================================================================
-// EARNINGS/AUTO-REDEEM — Configuration
-// ===========================================================================
-describe('earnings/auto-redeem (authed)', () => {
-  it('renders auto-redeem config', async () => {
-    const mod = await import('../(main)/earnings/auto-redeem/page')
-    const c = renderPage(mod)
-    await act(async () => { await new Promise(r => setTimeout(r, 100)) })
-    expect(c).toBeTruthy()
-  })
-})
-
-// ===========================================================================
 // MY-BOOTH — Full booth management with data
 // ===========================================================================
 describe('my-booth/page (authed with booth)', () => {

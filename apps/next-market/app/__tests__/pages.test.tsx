@@ -230,30 +230,6 @@ describe('earnings/payout/page.tsx', () => {
 })
 
 // ============================================================================
-// EARNINGS REDEEM (611 lines) — Gift card redemption
-// ============================================================================
-describe('earnings/redeem/page.tsx', () => {
-  it('renders redeem or auth prompt', async () => {
-    const mod = await import('../(main)/earnings/redeem/page')
-    const c = renderPage(mod)
-    expect(c).toBeTruthy()
-    expect(c.textContent).toMatch(/Loading|Redeem|Gift|Sign/)
-  })
-})
-
-// ============================================================================
-// EARNINGS AUTO-REDEEM (241 lines) — Auto payout config
-// ============================================================================
-describe('earnings/auto-redeem/page.tsx', () => {
-  it('renders auto-redeem or auth prompt', async () => {
-    const mod = await import('../(main)/earnings/auto-redeem/page')
-    const c = renderPage(mod)
-    expect(c).toBeTruthy()
-    expect(c.textContent).toMatch(/Loading|Auto|Redeem|Sign/)
-  })
-})
-
-// ============================================================================
 // EARNINGS TAX-INFO — Tax info form
 // ============================================================================
 describe('earnings/tax-info/page.tsx', () => {

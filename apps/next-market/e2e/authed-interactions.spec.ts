@@ -424,14 +424,14 @@ test.describe('Payout Page Interactions', () => {
 // ============================================================================
 test.describe('Redeem Page Interactions', () => {
   test('redeem page loads without crash', async ({ page }) => {
-    await page.goto('/earnings/redeem')
+    await page.goto('/earnings/payout')
     await page.waitForTimeout(3000)
     const body = await page.locator('body').textContent()
     expect(body).toMatch(/Withdraw|Gift Cards|Donate|Cashout/i)
   })
 
   test('gift card tabs switch content', async ({ page }) => {
-    await page.goto('/earnings/redeem')
+    await page.goto('/earnings/payout')
     await page.waitForTimeout(3000)
     for (const tab of ['Donate', 'Cashout', '529', 'Gift Cards']) {
       const btn = page.locator(`button:has-text("${tab}")`).first()
@@ -443,7 +443,7 @@ test.describe('Redeem Page Interactions', () => {
   })
 
   test('gift card search works', async ({ page }) => {
-    await page.goto('/earnings/redeem')
+    await page.goto('/earnings/payout')
     await page.waitForTimeout(3000)
     const search = page.locator('input[placeholder*="Search gift cards"]').first()
     if (await search.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -453,7 +453,7 @@ test.describe('Redeem Page Interactions', () => {
   })
 
   test('gift card category filters work', async ({ page }) => {
-    await page.goto('/earnings/redeem')
+    await page.goto('/earnings/payout')
     await page.waitForTimeout(3000)
     const filter = page.locator('button:has-text("Entertainment"), button:has-text("Shopping"), button:has-text("Gaming")').first()
     if (await filter.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -463,7 +463,7 @@ test.describe('Redeem Page Interactions', () => {
   })
 
   test('gift card is selectable', async ({ page }) => {
-    await page.goto('/earnings/redeem')
+    await page.goto('/earnings/payout')
     await page.waitForTimeout(3000)
     const card = page.locator('[class*="gcCard"], button:has-text("Amazon"), button:has-text("Target")').first()
     if (await card.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -476,7 +476,7 @@ test.describe('Redeem Page Interactions', () => {
   })
 
   test('cashout tab shows PayPal/Venmo form', async ({ page }) => {
-    await page.goto('/earnings/redeem')
+    await page.goto('/earnings/payout')
     await page.waitForTimeout(3000)
     const cashoutTab = page.locator('button:has-text("Cashout")').first()
     if (await cashoutTab.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -494,7 +494,7 @@ test.describe('Redeem Page Interactions', () => {
   })
 
   test('529 tab shows waitlist', async ({ page }) => {
-    await page.goto('/earnings/redeem')
+    await page.goto('/earnings/payout')
     await page.waitForTimeout(3000)
     const tab529 = page.locator('button:has-text("529")').first()
     if (await tab529.isVisible({ timeout: 3000 }).catch(() => false)) {

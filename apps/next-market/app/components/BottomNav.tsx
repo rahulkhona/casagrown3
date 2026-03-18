@@ -31,6 +31,7 @@ function useKeyboardVisible() {
 const tabs = [
   { href: '/market', label: 'Market', icon: '🧺', hasStatus: true },
   { href: '/orders', label: 'Orders', icon: '📦' },
+  { href: '/community', label: 'Buzz', icon: '🐝' },
 ]
 
 export function BottomNav() {

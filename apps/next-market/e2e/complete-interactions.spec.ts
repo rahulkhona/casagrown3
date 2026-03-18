@@ -223,14 +223,14 @@ test.describe('Payout Flow Interactions', () => {
 // ============================================================================
 test.describe('Redeem Flow Interactions', () => {
   test('redeem page shows gift card categories', async ({ page }) => {
-    await page.goto(`${BASE}/earnings/redeem`)
+    await page.goto(`${BASE}/earnings/payout`)
     await page.waitForTimeout(2000)
     const body = await page.locator('body').textContent()
     expect(body).toMatch(/Redeem|Gift|Card|Sign|Points/i)
   })
 
   test('gift card category filters are clickable', async ({ page }) => {
-    await page.goto(`${BASE}/earnings/redeem`)
+    await page.goto(`${BASE}/earnings/payout`)
     await page.waitForTimeout(2000)
     const categoryBtn = page.locator('button[class*="category"], button[class*="filter"], button[class*="chip"]').first()
     if (await categoryBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -240,7 +240,7 @@ test.describe('Redeem Flow Interactions', () => {
   })
 
   test('gift card is selectable', async ({ page }) => {
-    await page.goto(`${BASE}/earnings/redeem`)
+    await page.goto(`${BASE}/earnings/payout`)
     await page.waitForTimeout(2000)
     const giftCard = page.locator('button[class*="gcCard"], button[class*="card"], [class*="gcCard"]').first()
     if (await giftCard.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -253,7 +253,7 @@ test.describe('Redeem Flow Interactions', () => {
   })
 
   test('denomination buttons are clickable', async ({ page }) => {
-    await page.goto(`${BASE}/earnings/redeem`)
+    await page.goto(`${BASE}/earnings/payout`)
     await page.waitForTimeout(2000)
     const giftCard = page.locator('button[class*="gcCard"], button[class*="card"]').first()
     if (await giftCard.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -268,7 +268,7 @@ test.describe('Redeem Flow Interactions', () => {
   })
 
   test('charity section is accessible', async ({ page }) => {
-    await page.goto(`${BASE}/earnings/redeem`)
+    await page.goto(`${BASE}/earnings/payout`)
     await page.waitForTimeout(2000)
     const charityBtn = page.locator('button:has-text("Donat"), text=Charit, button:has-text("Charit")').first()
     if (await charityBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -283,7 +283,7 @@ test.describe('Redeem Flow Interactions', () => {
 // ============================================================================
 test.describe('Auto-Redeem Interactions', () => {
   test('auto-redeem toggle switches', async ({ page }) => {
-    await page.goto(`${BASE}/earnings/auto-redeem`)
+    await page.goto(`${BASE}/earnings/payout`)
     await page.waitForTimeout(2000)
     const toggle = page.locator('input[type="checkbox"], button[class*="toggle"], [role="switch"]').first()
     if (await toggle.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -293,7 +293,7 @@ test.describe('Auto-Redeem Interactions', () => {
   })
 
   test('threshold input accepts values', async ({ page }) => {
-    await page.goto(`${BASE}/earnings/auto-redeem`)
+    await page.goto(`${BASE}/earnings/payout`)
     await page.waitForTimeout(2000)
     const thresholdInput = page.locator('input[type="number"], input[placeholder*="threshold" i], input[placeholder*="amount" i]').first()
     if (await thresholdInput.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -302,7 +302,7 @@ test.describe('Auto-Redeem Interactions', () => {
   })
 
   test('auto-redeem method selection', async ({ page }) => {
-    await page.goto(`${BASE}/earnings/auto-redeem`)
+    await page.goto(`${BASE}/earnings/payout`)
     await page.waitForTimeout(2000)
     const methodBtn = page.locator('button:has-text("Gift Card"), button:has-text("PayPal"), button:has-text("Venmo")').first()
     if (await methodBtn.isVisible({ timeout: 3000 }).catch(() => false)) {

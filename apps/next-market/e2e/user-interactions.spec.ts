@@ -297,14 +297,14 @@ test.describe('Earnings Page Interactions', () => {
   })
 
   test('redeem page shows gift card catalog', async ({ page }) => {
-    await page.goto(`${BASE}/earnings/redeem`)
+    await page.goto(`${BASE}/earnings/payout`)
     await expect(page.locator('body')).toBeVisible()
     const body = await page.locator('body').textContent()
     expect(body).toMatch(/Redeem|Gift|Card|Sign/i)
   })
 
   test('auto-redeem page shows configuration', async ({ page }) => {
-    await page.goto(`${BASE}/earnings/auto-redeem`)
+    await page.goto(`${BASE}/earnings/payout`)
     await expect(page.locator('body')).toBeVisible()
     const body = await page.locator('body').textContent()
     expect(body).toMatch(/Auto|Redeem|Sign/i)

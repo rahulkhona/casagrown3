@@ -22,7 +22,7 @@ test.describe('Earnings Deep', () => {
   })
 
   test('should navigate to redeem page', async ({ page }) => {
-    await page.goto('/earnings/redeem')
+    await page.goto('/earnings/payout')
     await page.waitForTimeout(3000)
 
     const body = await page.textContent('body')
@@ -30,7 +30,7 @@ test.describe('Earnings Deep', () => {
   })
 
   test('should navigate to auto-redeem settings', async ({ page }) => {
-    await page.goto('/earnings/auto-redeem')
+    await page.goto('/earnings/payout')
     await page.waitForTimeout(3000)
 
     const body = await page.textContent('body')

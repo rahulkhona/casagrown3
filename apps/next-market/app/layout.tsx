@@ -16,6 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="CasaGrown Market" />
         <meta name="theme-color" content="#16a34a" />
+        <link rel="apple-touch-icon" href="/icon-192.png" />
         {/* Service Worker registration for Web Push */}
         <script dangerouslySetInnerHTML={{ __html: `
           if ('serviceWorker' in navigator) {

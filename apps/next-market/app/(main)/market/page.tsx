@@ -8,6 +8,8 @@ import { createClient } from '../../../lib/supabase'
 import { useAuth } from '../../../lib/useAuth'
 import { geocodeAddress } from '../../../lib/geocode'
 import { formatUsd } from '../../../lib/store'
+import { useMarketStatus } from '../../../lib/useMarketStatus'
+import MarketClosedBox from '../../components/MarketClosedBox'
 import styles from './page.module.css'
 
 interface BoothResult {
@@ -72,6 +74,9 @@ function BrowseMarketPageInner() {
   const [booths, setBooths] = useState<BoothResult[]>([])
   const [loading, setLoading] = useState(false)
   const [profileLoading, setProfileLoading] = useState(true)
+
+  // Market hours status
+  const { isOpen: marketIsOpen, todaySchedule, nextOpenDate, loading: marketLoading } = useMarketStatus()
 
   // Sync state to URL and localStorage
   const syncUrl = useCallback(() => {
@@ -222,8 +227,8 @@ function BrowseMarketPageInner() {
   const isSearching = !!search.trim()
   const totalProducts = booths.reduce((sum, b) => sum + (b.matched_products?.length || 0), 0)
 
-  // ── STATE 1: Loading profile ──
-  if (profileLoading) {
+  // ── STATE 1: Loading profile or market status ──
+  if (profileLoading || marketLoading) {
     return (
       <div className="container">
         <div className="empty-state">
@@ -232,6 +237,11 @@ function BrowseMarketPageInner() {
         </div>
       </div>
     )
+  }
+
+  // ── STATE 1.5: Market is closed — full-page takeover ──
+  if (!marketIsOpen) {
+    return <MarketClosedBox nextOpenDate={nextOpenDate} todaySchedule={todaySchedule} />
   }
 
   // ── STATE 2: Need address ──

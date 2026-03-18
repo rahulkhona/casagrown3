@@ -106,6 +106,7 @@ const NAV_ITEMS = [
   { href: '/activity', label: 'Page Analytics', icon: '📱' },
   { href: '/health', label: 'Marketplace Health', icon: '🏪' },
   { href: '/settlements', label: 'Settlements', icon: '🏦' },
+  { href: '/community', label: 'Community Chat', icon: '💬' },
   { href: '/logs', label: 'Log Search', icon: '🔍' },
 ]
 

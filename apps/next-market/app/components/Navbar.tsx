@@ -168,10 +168,12 @@ export function Navbar() {
   const primaryNav = [
     { href: '/market', label: open ? 'Market Open' : 'Market Closed', icon: '🧺', hasStatus: true },
     { href: '/orders', label: 'Orders', icon: '📦' },
+    { href: '/community', label: 'Buzz', icon: '🐝' },
   ]
 
   // Extended menu items (in hamburger)
   const menuItems = [
+    { href: '/community', label: 'Buzz', icon: '🐝', section: 'main' },
     { href: '/my-booth', label: 'My Booth', icon: '🏪', section: 'main' },
     { href: '/orders', label: 'Orders', icon: '🧾', section: 'main' },
     { href: '/helping', label: 'Helping', icon: '🤝', section: 'main' },

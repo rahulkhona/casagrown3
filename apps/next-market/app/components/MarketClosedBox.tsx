@@ -1,0 +1,454 @@
+'use client'
+
+/**
+ * MarketClosedBox — Full-page takeover shown on the market page when the market is closed.
+ * 
+ * Restored from the original market page (git commit 33d4ec4).
+ * Original design: white card, dark countdown bar, green accents, 3 action cards,
+ * 4-step "How It Works" section.
+ */
+
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import { createClient } from '../../lib/supabase'
+import { useAuth } from '../../lib/useAuth'
+
+interface MarketClosedBoxProps {
+  nextOpenDate: Date | null
+  todaySchedule: { open_time: string; close_time: string } | null
+}
+
+// ── Countdown Timer Hook (from original) ──
+function useCountdown(targetDate: Date | null) {
+  const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 })
+  const targetMs = targetDate?.getTime() ?? 0
+
+  useEffect(() => {
+    if (!targetMs) return
+    const tick = () => {
+      const diff = targetMs - Date.now()
+      if (diff <= 0) {
+        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 })
+        return
+      }
+      setTimeLeft({
+        days: Math.floor(diff / (1000 * 60 * 60 * 24)),
+        hours: Math.floor((diff / (1000 * 60 * 60)) % 24),
+        minutes: Math.floor((diff / (1000 * 60)) % 60),
+        seconds: Math.floor((diff / 1000) % 60),
+      })
+    }
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [targetMs])
+
+  return timeLeft
+}
+
+function pad(n: number) { return String(n).padStart(2, '0') }
+
+export default function MarketClosedBox({ nextOpenDate, todaySchedule }: MarketClosedBoxProps) {
+  const countdown = useCountdown(nextOpenDate)
+  const supabase = createClient()
+  const { user } = useAuth()
+
+  // Reminder state (from original)
+  const [showReminder, setShowReminder] = useState(false)
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission | 'unsupported'>('default')
+  const [reminderSet, setReminderSet] = useState(false)
+  const [reminderTime, setReminderTime] = useState('30')
+
+  const nextDateStr = nextOpenDate
+    ? nextOpenDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+    : 'the next market day'
+  const nextTimeStr = todaySchedule
+    ? `${todaySchedule.open_time} – ${todaySchedule.close_time}`
+    : nextOpenDate
+      ? nextOpenDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+      : ''
+
+  useEffect(() => {
+    if (typeof Notification !== 'undefined') {
+      setNotifPermission(Notification.permission)
+    } else {
+      setNotifPermission('unsupported')
+    }
+  }, [])
+
+  // Check if user already has a reminder for next market
+  useEffect(() => {
+    if (!user || !nextOpenDate) return
+    supabase
+      .from('market_reminders')
+      .select('id, reminder_minutes')
+      .eq('user_id', user.id)
+      .eq('market_date', nextOpenDate.toISOString())
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          setReminderSet(true)
+          setReminderTime(String(data.reminder_minutes))
+        }
+      })
+  }, [user, nextOpenDate?.getTime()]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const requestNotifPermission = async () => {
+    if (typeof Notification === 'undefined') return
+    const perm = await Notification.requestPermission()
+    setNotifPermission(perm)
+    if (perm === 'granted') {
+      new Notification('🌱 CasaGrown Market', {
+        body: 'You\'ll be reminded before the next market opens!',
+        icon: '/logo.png',
+      })
+    }
+  }
+
+  const handleSetReminder = async () => {
+    if (notifPermission !== 'granted') {
+      requestNotifPermission()
+      return
+    }
+    if (!user || !nextOpenDate) return
+
+    const minutes = parseInt(reminderTime)
+    const remindAt = new Date(nextOpenDate.getTime() - minutes * 60 * 1000)
+
+    const { error } = await supabase
+      .from('market_reminders')
+      .upsert({
+        user_id: user.id,
+        market_date: nextOpenDate.toISOString(),
+        remind_at: remindAt.toISOString(),
+        reminder_minutes: minutes,
+      }, { onConflict: 'user_id,market_date' })
+
+    if (error) {
+      console.error('Failed to save reminder:', error.message)
+      return
+    }
+    setReminderSet(true)
+  }
+
+  return (
+    <div className="container">
+      {/* ── Closed Page layout (matching original closedPage class) ── */}
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        padding: '40px 0 60px', gap: 48,
+      }}>
+        {/* ── Closed Box (white card, matching original closedBox) ── */}
+        <div style={{
+          textAlign: 'center', maxWidth: 720, width: '100%',
+          background: '#fff', borderRadius: 'var(--radius-xl, 16px)',
+          boxShadow: 'var(--shadow-lg, 0 10px 40px rgba(0,0,0,0.08))',
+          padding: '48px 32px',
+          border: '1px solid var(--gray-100, #f3f4f6)',
+        }}>
+          <div style={{ fontSize: 56, marginBottom: 16 }}>🌙</div>
+          <h1 style={{
+            fontSize: 28, fontWeight: 800, color: 'var(--gray-900, #111827)',
+            marginBottom: 8, letterSpacing: '-0.02em',
+          }}>
+            Market is Closed
+          </h1>
+          <p style={{
+            fontSize: 16, color: 'var(--gray-600, #4b5563)',
+            marginBottom: 12, lineHeight: 1.6,
+          }}>
+            Opens <strong style={{ color: 'var(--green-700, #15803d)' }}>{nextDateStr}</strong>
+            {nextTimeStr && <> at <strong style={{ color: 'var(--green-700, #15803d)' }}>{nextTimeStr}</strong></>}
+          </p>
+
+          {/* Countdown Timer (dark bar, matching original) */}
+          {nextOpenDate && (
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              background: 'var(--gray-900, #111827)', borderRadius: 'var(--radius-xl, 16px)',
+              padding: '16px 28px', marginBottom: 24,
+            }}>
+              {countdown.days > 0 && (
+                <>
+                  <CountdownUnit value={countdown.days} label="days" />
+                  <span style={sepStyle}>:</span>
+                </>
+              )}
+              <CountdownUnit value={pad(countdown.hours)} label="hours" />
+              <span style={sepStyle}>:</span>
+              <CountdownUnit value={pad(countdown.minutes)} label="mins" />
+              <span style={sepStyle}>:</span>
+              <CountdownUnit value={pad(countdown.seconds)} label="secs" />
+            </div>
+          )}
+
+          <p style={{
+            fontSize: 14, color: 'var(--gray-400, #9ca3af)', marginBottom: 28,
+          }}>
+            While you wait, here&apos;s how you can get ready:
+          </p>
+
+          {/* Action Cards (matching original actionGrid) */}
+          <div style={{
+            display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+            gap: 16,
+          }}>
+            {/* Action 1: List produce */}
+            <Link href="/my-booth" style={actionCardStyle}>
+              <div style={{ ...actionIconStyle, background: 'var(--green-100, #dcfce7)' }}>🥬</div>
+              <h3 style={actionTitleStyle}>List Your Excess Produce</h3>
+              <p style={actionDescStyle}>
+                Prepare for market open — add photos, set prices, and quantities for the next market day.
+              </p>
+              <span style={actionBtnStyle}>Start Listing →</span>
+            </Link>
+
+            {/* Action 2: Invite neighbors */}
+            <button style={{ ...actionCardStyle, cursor: 'pointer' }} onClick={() => {
+              const url = `${window.location.origin}/get-started`
+              const text = 'Got a neighbor with fruit trees or a veggie garden? Their harvest could feed the block instead of going to waste. Join CasaGrown Market!'
+              if (navigator.share) {
+                navigator.share({ title: 'CasaGrown Market', text, url })
+              } else {
+                navigator.clipboard?.writeText(`${text}\n${url}`)
+                alert('Link copied to clipboard!')
+              }
+            }}>
+              <div style={{ ...actionIconStyle, background: 'var(--amber-100, #fef3c7)' }}>📣</div>
+              <h3 style={actionTitleStyle}>Invite Your Neighbors</h3>
+              <p style={actionDescStyle}>
+                Know someone who grows produce or loves fresh food? Invite them to share or buy at the market!
+              </p>
+              <span style={actionBtnStyle}>Share an Invite →</span>
+            </button>
+
+            {/* Action 3: Join Community (hidden on small screens) */}
+            <Link href="/community" style={actionCardStyle} className="market-closed-buzz-card">
+              <div style={{ ...actionIconStyle, background: 'var(--blue-100, #dbeafe)' }}>💬</div>
+              <h3 style={actionTitleStyle}>Join the Community</h3>
+              <p style={actionDescStyle}>
+                Connect with neighbors on Buzz — share gardening tips, coordinate harvests, and build community!
+              </p>
+              <span style={actionBtnStyle}>Open Buzz →</span>
+            </Link>
+          </div>
+
+          {/* Responsive: hide Buzz card on small screens */}
+          <style>{`@media (max-width: 640px) { .market-closed-buzz-card { display: none !important; } }`}</style>
+
+          {/* ── Remind Me section (full-width, below action cards) ── */}
+          <div style={{
+            marginTop: 24, padding: '20px 24px',
+            borderRadius: 'var(--radius-xl, 16px)',
+            background: 'var(--gray-50, #f9fafb)',
+            border: '1px solid var(--gray-200, #e5e7eb)',
+            textAlign: 'center',
+          }}>
+            <button
+              onClick={() => setShowReminder(!showReminder)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 15, fontWeight: 700, color: 'var(--gray-800, #1f2937)',
+              }}
+            >
+              🔔 {reminderSet ? '✓ Reminder Set' : 'Remind Me When Market Opens'}
+              <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>{showReminder ? '▲' : '▼'}</span>
+            </button>
+
+            {showReminder && (
+              <div style={{ marginTop: 16, textAlign: 'left' }}>
+                {notifPermission === 'unsupported' ? (
+                  <div>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-800)', margin: '0 0 8px' }}>📱 Enable Notifications</p>
+                    <p style={{ fontSize: 13, color: 'var(--gray-600)', margin: '0 0 12px', lineHeight: 1.5 }}>
+                      Your browser doesn&apos;t support push notifications. For the best experience:
+                    </p>
+                    <div style={{
+                      padding: 12, background: 'var(--amber-50, #fffbeb)', borderRadius: 'var(--radius, 8px)',
+                      border: '1px solid var(--amber-200, #fde68a)', fontSize: 13, color: 'var(--gray-700)', lineHeight: 1.6,
+                    }}>
+                      <div><strong>iOS Safari:</strong> Tap the share button (⬆️) → &quot;Add to Home Screen&quot; → Open from your home screen to enable notifications.</div>
+                      <div style={{ marginTop: 8 }}><strong>Android Chrome:</strong> Tap the menu (⋮) → &quot;Add to Home Screen&quot; or &quot;Install App&quot;.</div>
+                    </div>
+                  </div>
+                ) : notifPermission === 'denied' ? (
+                  <div>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-800)', margin: '0 0 8px' }}>🚫 Notifications Blocked</p>
+                    <p style={{ fontSize: 13, color: 'var(--gray-600)', margin: 0, lineHeight: 1.5 }}>
+                      You&apos;ve blocked notifications for this site. To enable them, open your browser settings → Site Settings → Notifications → Allow for this site.
+                    </p>
+                  </div>
+                ) : notifPermission !== 'granted' ? (
+                  <div style={{ textAlign: 'center' }}>
+                    <p style={{ fontSize: 14, color: 'var(--gray-600)', margin: '0 0 12px', lineHeight: 1.5 }}>
+                      Allow notifications so we can remind you before the market opens.
+                    </p>
+                    <button onClick={requestNotifPermission} style={{
+                      padding: '10px 24px', borderRadius: 'var(--radius-full, 999px)',
+                      background: 'var(--green-600, #16a34a)', color: '#fff', border: 'none',
+                      fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                    }}>
+                      Allow Notifications
+                    </button>
+                    <div style={{
+                      marginTop: 12, padding: 12, background: 'var(--amber-50, #fffbeb)',
+                      borderRadius: 'var(--radius, 8px)', border: '1px solid var(--amber-200, #fde68a)',
+                      fontSize: 13, color: 'var(--gray-700)', lineHeight: 1.6,
+                    }}>
+                      <strong>💡 Tip for iPhone:</strong> Add this page to your Home Screen first (tap ⬆️ → &quot;Add to Home Screen&quot;), then open it from there to enable notifications.
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center' }}>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-800)', margin: '0 0 12px' }}>
+                      ⏰ When should we remind you?
+                    </p>
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+                      {[
+                        { value: '15', label: '15 min before' },
+                        { value: '30', label: '30 min before' },
+                        { value: '60', label: '1 hour before' },
+                        { value: '1440', label: '1 day before' },
+                      ].map(opt => (
+                        <button key={opt.value} onClick={() => setReminderTime(opt.value)} style={{
+                          padding: '8px 16px', borderRadius: 'var(--radius-full, 999px)',
+                          border: `1px solid ${reminderTime === opt.value ? 'var(--green-600, #16a34a)' : 'var(--gray-300, #d1d5db)'}`,
+                          background: reminderTime === opt.value ? 'var(--green-600, #16a34a)' : '#fff',
+                          color: reminderTime === opt.value ? '#fff' : 'var(--gray-600, #4b5563)',
+                          fontSize: 13, fontWeight: 500, cursor: 'pointer',
+                        }}>
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    <button onClick={handleSetReminder} disabled={reminderSet} style={{
+                      padding: '10px 28px', borderRadius: 'var(--radius-full, 999px)',
+                      background: reminderSet ? 'var(--gray-300, #d1d5db)' : 'var(--green-600, #16a34a)',
+                      color: '#fff', border: 'none', fontSize: 14, fontWeight: 700,
+                      cursor: reminderSet ? 'default' : 'pointer',
+                    }}>
+                      {reminderSet ? '✓ Reminder Set!' : `Set Reminder for ${nextDateStr}`}
+                    </button>
+                    {reminderSet && (
+                      <p style={{ fontSize: 13, color: 'var(--green-600, #16a34a)', marginTop: 8, lineHeight: 1.5 }}>
+                        We&apos;ll notify you {reminderTime === '1440' ? '1 day' : `${reminderTime} minutes`} before the market opens.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── How It Works (matching original howItWorks) ── */}
+        <div style={{ maxWidth: 720, width: '100%', textAlign: 'center' }}>
+          <h2 style={{
+            fontSize: 24, fontWeight: 800, color: 'var(--gray-900, #111827)',
+            marginBottom: 32, letterSpacing: '-0.02em',
+          }}>
+            How CasaGrown Market Works
+          </h2>
+          <div style={{
+            display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+            gap: 8, flexWrap: 'wrap',
+          }}>
+            <HowStep num={1} icon="📸" title="List Your Produce"
+              desc="Snap photos of your excess fruits, veggies, or baked goods. Set your price and quantity." />
+            <Arrow />
+            <HowStep num={2} icon="📅" title="Market Day"
+              desc="When the market opens, neighbors browse your booth and place orders." />
+            <Arrow />
+            <HowStep num={3} icon="📦" title="Deliver or Pickup"
+              desc="Drop off at their porch or they pick up from you. Snap a photo as proof of delivery." />
+            <Arrow />
+            <HowStep num={4} icon="💳" title="Get Paid"
+              desc="Earnings are netted automatically. Redeem as gift cards, donate, or cash out via Venmo." />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Sub-components ──
+
+function CountdownUnit({ value, label }: { value: string | number; label: string }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 48 }}>
+      <div style={{
+        fontSize: 28, fontWeight: 800, color: '#fff',
+        fontVariantNumeric: 'tabular-nums', lineHeight: 1,
+      }}>
+        {value}
+      </div>
+      <div style={{
+        fontSize: 10, color: 'var(--gray-400, #9ca3af)',
+        textTransform: 'uppercase', letterSpacing: 1, marginTop: 4,
+      }}>
+        {label}
+      </div>
+    </div>
+  )
+}
+
+function Arrow() {
+  return (
+    <span style={{
+      fontSize: 20, color: 'var(--green-400, #4ade80)', fontWeight: 700,
+      marginTop: 40, flexShrink: 0,
+    }}>→</span>
+  )
+}
+
+function HowStep({ num, icon, title, desc }: { num: number; icon: string; title: string; desc: string }) {
+  return (
+    <div style={{
+      flex: 1, minWidth: 140, maxWidth: 170, display: 'flex',
+      flexDirection: 'column', alignItems: 'center', gap: 8, padding: '16px 8px',
+    }}>
+      <div style={{
+        width: 28, height: 28, borderRadius: '50%',
+        background: 'var(--green-600, #16a34a)', color: '#fff',
+        fontSize: 13, fontWeight: 700,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>{num}</div>
+      <div style={{ fontSize: 28 }}>{icon}</div>
+      <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-800, #1f2937)' }}>{title}</h3>
+      <p style={{ fontSize: 12, color: 'var(--gray-500, #6b7280)', lineHeight: 1.5, margin: 0 }}>{desc}</p>
+    </div>
+  )
+}
+
+// ── Styles (matching original CSS) ──
+
+const sepStyle: React.CSSProperties = {
+  fontSize: 24, fontWeight: 700, color: 'var(--green-500, #22c55e)',
+  lineHeight: 1.2, marginBottom: 12,
+}
+
+const actionCardStyle: React.CSSProperties = {
+  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
+  padding: '24px 16px', borderRadius: 'var(--radius-xl, 16px)',
+  border: '1px solid var(--gray-200, #e5e7eb)', background: 'var(--gray-50, #f9fafb)',
+  textDecoration: 'none', cursor: 'pointer', transition: 'all 0.2s',
+  textAlign: 'center', color: 'inherit',
+}
+
+const actionIconStyle: React.CSSProperties = {
+  width: 52, height: 52, borderRadius: 'var(--radius-lg, 12px)',
+  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24,
+}
+
+const actionTitleStyle: React.CSSProperties = {
+  fontSize: 15, fontWeight: 700, color: 'var(--gray-800, #1f2937)', margin: 0,
+}
+
+const actionDescStyle: React.CSSProperties = {
+  fontSize: 13, color: 'var(--gray-500, #6b7280)', lineHeight: 1.5, flex: 1, margin: 0,
+}
+
+const actionBtnStyle: React.CSSProperties = {
+  fontSize: 13, fontWeight: 700, color: 'var(--green-600, #16a34a)', marginTop: 'auto',
+}

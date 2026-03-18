@@ -269,18 +269,6 @@ describe('my-booth/products/new/page.tsx', () => {
 })
 
 // ============================================================================
-// EARNINGS REDEEM — 616 lines, 40% coverage
-// ============================================================================
-describe('earnings/redeem/page.tsx', () => {
-  it('renders redeem page', async () => {
-    const mod = await import('../(main)/earnings/redeem/page')
-    const c = renderPage(mod)
-    await act(async () => { await new Promise(r => setTimeout(r, 100)) })
-    expect(c).toBeTruthy()
-  })
-})
-
-// ============================================================================
 // GET STARTED TEMPLATE — 535 lines, 46% coverage
 // ============================================================================
 describe('get-started/[template]/page.tsx', () => {
@@ -314,19 +302,6 @@ describe('profile-setup/page.tsx', () => {
     await act(async () => { await new Promise(r => setTimeout(r, 100)) })
     expect(c).toBeTruthy()
     expect(c.textContent).toMatch(/Profile|Setup|Welcome|Loading/i)
-  })
-})
-
-// ============================================================================
-// AUTO REDEEM — 241 lines, 33% coverage
-// ============================================================================
-describe('earnings/auto-redeem/page.tsx', () => {
-  it('renders auto-redeem config page', async () => {
-    const mod = await import('../(main)/earnings/auto-redeem/page')
-    const c = renderPage(mod)
-    await act(async () => { await new Promise(r => setTimeout(r, 100)) })
-    expect(c).toBeTruthy()
-    expect(c.textContent).toMatch(/Auto|Redeem|Loading/i)
   })
 })
 

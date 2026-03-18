@@ -118,14 +118,6 @@ describe('Page imports — earnings', () => {
     const { default: P } = await import('../(main)/earnings/payout/page')
     expect(P).toBeDefined()
   })
-  it('earnings/redeem/page.tsx', async () => {
-    const { default: P } = await import('../(main)/earnings/redeem/page')
-    expect(P).toBeDefined()
-  })
-  it('earnings/auto-redeem/page.tsx', async () => {
-    const { default: P } = await import('../(main)/earnings/auto-redeem/page')
-    expect(P).toBeDefined()
-  })
   it('earnings/tax-info/page.tsx', async () => {
     const { default: P } = await import('../(main)/earnings/tax-info/page')
     expect(P).toBeDefined()

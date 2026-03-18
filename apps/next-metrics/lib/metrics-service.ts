@@ -96,6 +96,13 @@ export interface MarketplaceHealthData {
   avgSellerRating: number
 }
 
+export interface CommunityChatData {
+  dailyActiveUsers: TimeSeriesPoint[]
+  userGrowth: TimeSeriesPoint[]
+  totalMessages: number
+  avgDailyActiveUsers: number
+}
+
 export interface SettlementData {
   dailySummary: { date: string; captured: number; released: number; refunded: number }[]
   payoutTotals: number
@@ -409,6 +416,33 @@ export async function fetchMarketplaceHealth(
     productListings: { active: 342, inactive: 89 },
     flagActivity: generateTimeSeries(days, 4, 3, -0.01),
     avgSellerRating: 4.3,
+  }
+}
+
+export async function fetchCommunityChatMetrics(
+  dateRange: DateRange,
+  granularity: Granularity,
+  geoFilter?: GeoFilter
+): Promise<CommunityChatData> {
+  try {
+    const { data, error } = await supabase.rpc('metrics_community_chat', {
+      p_start: dateRange.start,
+      p_end: dateRange.end,
+      p_granularity: granularity,
+      p_state: geoFilter?.state_code || null,
+      p_city: geoFilter?.city || null,
+      p_zip: geoFilter?.zip_code || null,
+    })
+    if (!error && data) return data as CommunityChatData
+  } catch {}
+
+  markDemo()
+  const days = 30
+  return {
+    dailyActiveUsers: generateTimeSeries(days, 18, 5, 0.05),
+    userGrowth: generateCumulative(generateTimeSeries(days, 8, 3, 0.02), 120),
+    totalMessages: 3450,
+    avgDailyActiveUsers: 22,
   }
 }
 
