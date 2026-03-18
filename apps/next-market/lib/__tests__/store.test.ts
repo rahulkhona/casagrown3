@@ -15,8 +15,8 @@ describe('formatUsd', () => {
   it('formats cents correctly', () => {
     expect(formatUsd(4.5)).toBe('$4.50')
   })
-  it('formats zero', () => {
-    expect(formatUsd(0)).toBe('$0.00')
+  it('formats zero as Free', () => {
+    expect(formatUsd(0)).toBe('Free')
   })
   it('formats large amounts with commas', () => {
     expect(formatUsd(1234.56)).toBe('$1,234.56')

@@ -443,12 +443,23 @@ SELECT is(
   'Hank pending = 0 (pure buyer)'
 );
 
--- Nobody should have available yet (not cleared)
+-- Nobody in this test should have available yet (not cleared)
 SELECT ok(
   NOT EXISTS (
-    SELECT 1 FROM user_balances WHERE available_usd > 0
+    SELECT 1 FROM user_balances
+    WHERE available_usd > 0
+      AND user_id IN (
+        '11111111-aaaa-bbbb-cccc-000000000001',
+        '11111111-aaaa-bbbb-cccc-000000000002',
+        '11111111-aaaa-bbbb-cccc-000000000003',
+        '11111111-aaaa-bbbb-cccc-000000000004',
+        '11111111-aaaa-bbbb-cccc-000000000005',
+        '11111111-aaaa-bbbb-cccc-000000000006',
+        '11111111-aaaa-bbbb-cccc-000000000007',
+        '11111111-aaaa-bbbb-cccc-000000000008'
+      )
   ),
-  'No available balances before funds received'
+  'No available balances for test users before funds received'
 );
 
 -- ============================================================================

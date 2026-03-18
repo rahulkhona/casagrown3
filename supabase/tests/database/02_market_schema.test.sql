@@ -30,7 +30,7 @@ SELECT has_column('market_booths', 'market_day_of_week',  'booths: market_day_of
 -- 3. Columns Exist — market_products
 -- ============================================================================
 SELECT has_column('market_products', 'id',            'products: id');
-SELECT has_column('market_products', 'booth_id',      'products: booth_id');
+SELECT has_column('market_products', 'seller_id',    'products: seller_id');
 SELECT has_column('market_products', 'market_date',   'products: market_date');
 SELECT has_column('market_products', 'name',          'products: name');
 SELECT has_column('market_products', 'price_usd',     'products: price_usd');

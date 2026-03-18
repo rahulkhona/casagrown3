@@ -52,9 +52,9 @@ describe('store utility functions', () => {
       expect(formatUsd(5.99)).toBe('$5.99')
     })
 
-    it('formats zero', async () => {
+    it('formats zero as Free', async () => {
       const { formatUsd } = await import('../../lib/store')
-      expect(formatUsd(0)).toBe('$0.00')
+      expect(formatUsd(0)).toBe('Free')
     })
 
     it('formats large amounts', async () => {

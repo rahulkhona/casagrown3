@@ -45,6 +45,7 @@ const MENU_GROUPS: MenuGroup[] = [
     icon: Store,
     items: [
       { label: 'Market Settings & Hours', path: '/market-operations' },
+      { label: 'Market Availability', path: '/market-availability' },
       { label: 'Receipt Footers', path: '/receipt-footers' },
     ]
   },

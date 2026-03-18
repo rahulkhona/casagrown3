@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useMarket, formatUsd, getNextMarketDate, type Booth } from '../../../lib/store'
 import { useAuth } from '../../../lib/useAuth'
 import { createClient } from '../../../lib/supabase'
+import { useMarketRestriction } from '../../../lib/useMarketRestriction'
 import CameraCapture from '../../../components/CameraCapture'
 import ImageCropper from '../../../components/ImageCropper'
 
@@ -59,6 +60,7 @@ export default function MyBoothPage() {
   const { state, dispatch } = useMarket()
   const { isAuthenticated, loading: authLoading, user } = useAuth()
   const supabase = createClient()
+  const restriction = useMarketRestriction()
   const router = useRouter()
   const bannerRef = useRef<HTMLInputElement>(null)
   const myBooth = state.booths.find(b => b.ownerId === state.user?.id)
@@ -681,6 +683,15 @@ export default function MyBoothPage() {
       </div>
 
       {/* ── Payment ── */}
+      {restriction.isFreeOnly ? (
+        <div className={styles.boothSection}>
+          <h2 className={styles.sectionTitle}>🏛️ Free Sharing Mode</h2>
+          <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12, padding: '16px 20px', fontSize: 14, color: '#1e40af', lineHeight: 1.6 }}>
+            <p style={{ margin: 0, fontWeight: 600 }}>Your state ({restriction.stateName}) requires produce to be shared at no cost.</p>
+            <p style={{ margin: '8px 0 0', color: '#3b82f6' }}>All your products will be listed as <strong>Free</strong>. Buyers can claim produce without payment. We&apos;re actively working on enabling paid transactions in your area.</p>
+          </div>
+        </div>
+      ) : (
       <div className={styles.boothSection}>
         <h2 className={styles.sectionTitle}>💳 Payout Method</h2>
         <div className={styles.toggleGrid}>
@@ -786,6 +797,7 @@ export default function MyBoothPage() {
           </div>
         )}
       </div>
+      )}
 
       {/* ── Product Slots ── */}
       <div className={styles.boothSection}>

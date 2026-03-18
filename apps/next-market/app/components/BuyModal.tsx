@@ -61,9 +61,10 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
   const isTaxExempt = (taxInfo?.rate || 0) === 0
   const totalCents = Math.round(total * 100)
   const priceChanged = currentPrice !== product.price_usd
-  const belowMinimum = subtotal < MINIMUM_ORDER_USD
+  const isFreeProduct = currentPrice === 0
+  const belowMinimum = !isFreeProduct && subtotal < MINIMUM_ORDER_USD
   const minQtyForOrder = Math.ceil(MINIMUM_ORDER_USD / (currentPrice || 1))
-  const canReachMinimum = currentPrice * available >= MINIMUM_ORDER_USD
+  const canReachMinimum = isFreeProduct || currentPrice * available >= MINIMUM_ORDER_USD
 
   // Balance vs card split calculation
   const balanceApplied = Math.min(availableBalance, total)
@@ -72,7 +73,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
   const holdRemaining = existingHold
     ? existingHold.holdAmountCents - existingHold.spentAmountCents
     : 0
-  const needsCard = cardCents > 0 && (!existingHold || holdRemaining < cardCents)
+  const needsCard = !isFreeProduct && cardCents > 0 && (!existingHold || holdRemaining < cardCents)
   const additionalNeeded = needsCard ? (cardCents - holdRemaining) / 100 : 0
   const suggestedAdditional = needsCard ? Math.max(cardAmount * 3, additionalNeeded) : 0
 
@@ -125,8 +126,9 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
     fetchBalance()
   }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Initialize Stripe Elements
+  // Initialize Stripe Elements (skip for free products)
   useEffect(() => {
+    if (isFreeProduct) return
     const initStripe = async () => {
       try {
         const { loadStripe } = await import('@stripe/stripe-js')
@@ -167,10 +169,11 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
         try { cardElementRef.current.unmount() } catch {}
       }
     }
-  }, [])
+  }, [isFreeProduct])
 
-  // Fetch tax rate
+  // Fetch tax rate (skip for free products)
   useEffect(() => {
+    if (isFreeProduct) { setTaxInfo({ rate: 0, amount: 0 }); return }
     const fetchTax = async () => {
       if (!buyerZip || !product.category) { setTaxInfo({ rate: 0, amount: 0 }); return }
 
@@ -415,7 +418,8 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
             )}
           </div>
 
-          {/* Price Breakdown */}
+          {/* Price Breakdown — hidden for free products */}
+          {!isFreeProduct && (
           <div className={styles.section}>
             <div className={styles.sectionLabel}>Price Breakdown</div>
             <div className={styles.breakdown}>
@@ -445,6 +449,16 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
               )}
             </div>
           </div>
+          )}
+
+          {/* Free product info */}
+          {isFreeProduct && (
+            <div className={styles.section}>
+              <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 8, padding: '12px 16px', fontSize: 14, color: '#065f46' }}>
+                🌱 <strong>Free sharing</strong> — This produce is being shared at no cost in compliance with local regulations. No payment required.
+              </div>
+            </div>
+          )}
 
           {/* Existing hold info */}
           {existingHold && (
@@ -522,9 +536,10 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
 
         {/* Footer */}
         <div className={styles.footer}>
-          <button className={styles.orderBtn} disabled={loading || available === 0 || belowMinimum || !canOrder || (needsCard && !stripeReady)} onClick={handleOrder}>
-            {loading ? 'Processing...' : !marketIsOpen ? '🔒 Market Closed' : productExpired ? '⏰ Product Expired' : available === 0 ? 'Sold Out' : `Place Order — ${formatUsd(total)}`}
+          <button className={styles.orderBtn} disabled={loading || available === 0 || belowMinimum || !canOrder || (!isFreeProduct && needsCard && !stripeReady)} onClick={handleOrder}>
+            {loading ? 'Processing...' : !marketIsOpen ? '🔒 Market Closed' : productExpired ? '⏰ Product Expired' : available === 0 ? 'Sold Out' : isFreeProduct ? `🌱 Claim (Free) — ${qty} ${product.unit}${qty > 1 ? 's' : ''}` : `Place Order — ${formatUsd(total)}`}
           </button>
+          {!isFreeProduct && (
           <p className={styles.holdNotice}>
             {needsCard
               ? `Your card will be authorized for ${holdAmountStr ? `$${parseFloat(holdAmountStr).toFixed(2)}` : formatUsd(cardAmount)}${balanceApplied > 0 ? ` (${formatUsd(balanceApplied)} from balance)` : ''}. At end of day, only your actual net total is charged.`
@@ -533,6 +548,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
                 : `This order is covered by your existing hold. No additional card authorization needed.`
             }
           </p>
+          )}
         </div>
       </div>
       <NotificationPromptModal {...modalProps} />

@@ -74,6 +74,7 @@ function BrowseMarketPageInner() {
   const [booths, setBooths] = useState<BoothResult[]>([])
   const [loading, setLoading] = useState(false)
   const [profileLoading, setProfileLoading] = useState(true)
+  const [buyerStateCode, setBuyerStateCode] = useState<string | null>(null)
 
   // Market hours status
   const { isOpen: marketIsOpen, todaySchedule, nextOpenDate, loading: marketLoading } = useMarketStatus()
@@ -106,6 +107,7 @@ function BrowseMarketPageInner() {
     supabase.from('profiles').select('street_address, city, state_code, zip_code')
       .eq('id', user.id).single()
       .then(async ({ data: profile }) => {
+        if (profile?.state_code) setBuyerStateCode(profile.state_code)
         if (profile?.street_address) {
           const addr = [profile.street_address, profile.city, profile.state_code].filter(Boolean).join(', ')
           setAddress(addr)
@@ -136,11 +138,12 @@ function BrowseMarketPageInner() {
       min_price: minPrice ? parseFloat(minPrice) : null,
       max_price: maxPrice ? parseFloat(maxPrice) : null,
       category_filter: category || null,
+      buyer_state_code: buyerStateCode,
     })
     if (error) console.error('Search error:', error.message)
     else setBooths(data || [])
     setLoading(false)
-  }, [lat, lng, fulfillment, maxMiles, search, minPrice, maxPrice, category]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [lat, lng, fulfillment, maxMiles, search, minPrice, maxPrice, category, buyerStateCode]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (lat && lng && addressResolved) searchBooths() }, [lat, lng, fulfillment, maxMiles, category]) // eslint-disable-line react-hooks/exhaustive-deps
 

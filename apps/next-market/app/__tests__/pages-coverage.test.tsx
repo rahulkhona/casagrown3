@@ -92,7 +92,17 @@ const mockSupabase: any = {
       default: return chain([])
     }
   }),
-  rpc: vi.fn().mockResolvedValue({ data: { available_usd: 125.50 }, error: null }),
+  rpc: vi.fn().mockImplementation((name: string) => {
+    switch (name) {
+      case 'get_helper_queue':
+        return Promise.resolve({ data: [], error: null })
+      case 'get_transaction_log':
+      case 'get_pending_transactions':
+        return Promise.resolve({ data: [], error: null })
+      default:
+        return Promise.resolve({ data: { available_usd: 125.50 }, error: null })
+    }
+  }),
   auth: {
     getUser: vi.fn().mockResolvedValue({ data: { user: mockUser }, error: null }),
     getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 'tok', user: mockUser } }, error: null }),

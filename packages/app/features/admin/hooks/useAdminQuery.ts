@@ -3,6 +3,7 @@ import { supabase } from "@casagrown/app/utils/supabase";
 
 export interface UseAdminQueryOptions {
     table: string;
+    select?: string;
     pageSize?: number;
     defaultSortParams?: { column: string; ascending: boolean };
     filterColumn?: string;
@@ -11,6 +12,7 @@ export interface UseAdminQueryOptions {
 
 export function useAdminQuery<T = any>({
     table,
+    select: selectClause = '*',
     pageSize = 20,
     defaultSortParams,
     filterColumn,
@@ -31,7 +33,7 @@ export function useAdminQuery<T = any>({
         try {
             let query = supabase
                 .from(table)
-                .select("*", { count: "exact" });
+                .select(selectClause, { count: "exact" });
 
             if (filterColumn && filterValue) {
                 // Simple ilike text filter for search
@@ -63,7 +65,7 @@ export function useAdminQuery<T = any>({
         } finally {
             setLoading(false);
         }
-    }, [table, pageSize, sortColumn, sortAscending, filterColumn, filterValue]);
+    }, [table, selectClause, pageSize, sortColumn, sortAscending, filterColumn, filterValue]);
 
     useEffect(() => {
         fetchData(page);

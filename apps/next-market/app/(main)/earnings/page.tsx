@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { formatUsd } from '../../../lib/store'
 import { useAuth } from '../../../lib/useAuth'
 import { createClient } from '../../../lib/supabase'
+import { useMarketRestriction } from '../../../lib/useMarketRestriction'
 import { MarketReceiptSheet, type MarketReceiptData } from '../../components/MarketReceiptSheet'
 import { NotificationBanner } from '../../components/NotificationBanner'
 import styles from './page.module.css'
@@ -80,6 +81,7 @@ function getDateRange(range: DateRange, customStart?: string, customEnd?: string
 
 export default function EarningsPage() {
   const { isAuthenticated, loading: authLoading, user } = useAuth()
+  const restriction = useMarketRestriction()
   const userId = user?.id
   const [tab, setTab] = useState<Tab>('activity')
   const [dateRange, setDateRange] = useState<DateRange>('month')
@@ -288,6 +290,24 @@ export default function EarningsPage() {
         </div>
 
         <NotificationBanner context="payout updates and order alerts" />
+
+        {/* ── Free sharing mode banner ── */}
+        {restriction.isFreeOnly && (
+          <div style={{
+            background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12,
+            padding: '16px 20px', marginBottom: 16, display: 'flex', gap: 12, alignItems: 'flex-start',
+          }}>
+            <span style={{ fontSize: 28 }}>🏛️</span>
+            <div>
+              <strong style={{ color: '#1e40af', fontSize: 15 }}>Free Sharing Mode</strong>
+              <p style={{ color: '#3b82f6', fontSize: 13, margin: '6px 0 0', lineHeight: 1.5 }}>
+                Your state ({restriction.stateName}) requires produce to be shared at no cost.
+                All transactions are free claims &mdash; no financial earnings will accrue.
+                We&apos;re working on enabling paid transactions in your area.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ── 1099 Threshold Warning ── */}
         {thresholdBreached && (

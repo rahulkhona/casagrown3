@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useMarket } from '../../../../../lib/store'
 import { useAuth } from '../../../../../lib/useAuth'
 import { createClient } from '../../../../../lib/supabase'
+import { useMarketRestriction } from '../../../../../lib/useMarketRestriction'
 import { useNotificationPrompt } from '../../../../../lib/useNotificationPrompt'
 import { NotificationPromptModal } from '../../../../components/NotificationPromptModal'
 import CameraCapture from '../../../../../components/CameraCapture'
@@ -59,6 +60,7 @@ function NewProductPageInner() {
   const { state, dispatch } = useMarket()
   const { isAuthenticated, loading: authLoading, user: authUser } = useAuth()
   const supabase = createClient()
+  const restriction = useMarketRestriction()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Market day — computed, not selectable
@@ -173,13 +175,13 @@ function NewProductPageInner() {
     const newErrors: Record<string, string> = {}
     if (photos.length === 0) newErrors.photo = 'Please add at least one photo'
     if (!name.trim()) newErrors.name = 'Name is required'
-    if (!priceUsd || parseFloat(priceUsd) <= 0) newErrors.price = 'Set a price'
+    if (!priceUsd || (!restriction.isFreeOnly && parseFloat(priceUsd) <= 0)) newErrors.price = restriction.isFreeOnly ? 'Price must be 0 in free sharing mode' : 'Set a price'
     if (!quantity || parseInt(quantity) <= 0) newErrors.quantity = 'How many do you have?'
 
-    // $5 minimum product potential check
+    // $5 minimum product potential check (skip for free sharing mode)
     const price = parseFloat(priceUsd) || 0
     const qty = parseInt(quantity) || 0
-    if (price > 0 && qty > 0 && price * qty < 5.00) {
+    if (!restriction.isFreeOnly && price > 0 && qty > 0 && price * qty < 5.00) {
       newErrors.minimum = `At $${price.toFixed(2)} × ${qty} = $${(price * qty).toFixed(2)}, buyers can't reach the $5.00 minimum order. Increase price or quantity.`
     }
 
@@ -522,9 +524,16 @@ function NewProductPageInner() {
 
           {/* ===== Price & Quantity ===== */}
           <div className={styles.section}>
+            {restriction.isFreeOnly && (
+              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 13, color: '#1e40af' }}>
+                🏛️ Free sharing mode — all products in {restriction.stateName} are listed at no cost.
+              </div>
+            )}
             <div className={styles.row2}>
               <div className={styles.field}>
-                <label className={styles.label}>Price <span className={styles.required}>*</span></label>
+                <label className={styles.label}>
+                  Price {restriction.isFreeOnly ? <span style={{ color: '#16a34a', fontWeight: 600 }}>(Free)</span> : <span className={styles.required}>*</span>}
+                </label>
                 <div className={styles.priceInput}>
                   <span className={styles.priceCurrency}>$</span>
                   <input
@@ -532,9 +541,11 @@ function NewProductPageInner() {
                     type="number"
                     step="0.01"
                     min="0"
-                    value={priceUsd}
-                    onChange={e => { setPriceUsd(e.target.value); setErrors(p => ({ ...p, price: '' })) }}
-                    placeholder="4.50"
+                    value={restriction.isFreeOnly ? '0' : priceUsd}
+                    onChange={e => { if (!restriction.isFreeOnly) { setPriceUsd(e.target.value); setErrors(p => ({ ...p, price: '' })) } }}
+                    placeholder={restriction.isFreeOnly ? '0.00' : '4.50'}
+                    disabled={restriction.isFreeOnly}
+                    style={restriction.isFreeOnly ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
                   />
                 </div>
                 {errors.price && <span className={styles.error}>{errors.price}</span>}
@@ -553,8 +564,8 @@ function NewProductPageInner() {
               <input className={`${styles.input} ${errors.quantity ? styles.inputError : ''}`} type="number" min="1" value={quantity} onChange={e => { setQuantity(e.target.value); setErrors(p => ({ ...p, quantity: '', minimum: '' })) }} placeholder="10" />
               {errors.quantity && <span className={styles.error}>{errors.quantity}</span>}
               {errors.minimum && <span className={styles.error}>{errors.minimum}</span>}
-              {/* Live $5 minimum hint */}
-              {!errors.minimum && priceUsd && quantity && parseFloat(priceUsd) > 0 && parseInt(quantity) > 0 && parseFloat(priceUsd) * parseInt(quantity) < 5.00 && (
+              {/* Live $5 minimum hint — hidden in free sharing mode */}
+              {!restriction.isFreeOnly && !errors.minimum && priceUsd && quantity && parseFloat(priceUsd) > 0 && parseInt(quantity) > 0 && parseFloat(priceUsd) * parseInt(quantity) < 5.00 && (
                 <span className={styles.hint} style={{ color: 'var(--amber-600)' }}>
                   ⚠️ Max order value is ${(parseFloat(priceUsd) * parseInt(quantity)).toFixed(2)} — below $5 minimum
                 </span>

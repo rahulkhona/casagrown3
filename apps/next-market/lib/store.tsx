@@ -753,6 +753,7 @@ export function getNextMarketDate(schedule: MarketSchedule[]): { date: Date; day
 }
 
 export function formatUsd(amount: number): string {
+  if (amount === 0) return 'Free'
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
 }
 
