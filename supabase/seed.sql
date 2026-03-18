@@ -66,7 +66,7 @@ INSERT INTO public.campaign_rewards (campaign_id, behavior, points) VALUES
 -- No category restrictions by default.
 -- Uncomment below to test category restriction behavior:
 -- insert into public.category_restrictions (category_name, country_iso_3, state_id, county_id, city_id, reason)
--- values ('herbs', NULL, NULL, NULL, NULL, 'Controlled substance regulations');
+-- values ('produce', NULL, NULL, NULL, NULL, 'Controlled substance regulations');
 
 -- Blocked products (globally or by jurisdiction)
 -- Global blocks (all jurisdiction columns NULL) are also filtered from the feed
@@ -255,7 +255,7 @@ VALUES (
 );
 
 INSERT INTO public.want_to_sell_details (post_id, category, produce_name, unit, total_quantity_available, points_per_unit, is_produce, harvest_date)
-VALUES ('c3333333-3333-3333-3333-333333333333', 'vegetables', 'Tomatoes', 'box', 10, 25, true, CURRENT_DATE);
+VALUES ('c3333333-3333-3333-3333-333333333333', 'produce', 'Tomatoes', 'box', 10, 25, true, CURRENT_DATE);
 
 INSERT INTO public.delivery_dates (post_id, delivery_date)
 VALUES
@@ -273,7 +273,7 @@ VALUES (
 );
 
 INSERT INTO public.want_to_sell_details (post_id, category, produce_name, unit, total_quantity_available, points_per_unit, is_produce, harvest_date)
-VALUES ('c9999999-9999-9999-9999-999999999999', 'herbs', 'Tobacco', 'bag', 5, 10, false, CURRENT_DATE);
+VALUES ('c9999999-9999-9999-9999-999999999999', 'produce', 'Tobacco', 'bag', 5, 10, false, CURRENT_DATE);
 
 INSERT INTO public.delivery_dates (post_id, delivery_date)
 VALUES
@@ -291,7 +291,7 @@ VALUES (
 );
 
 INSERT INTO public.want_to_sell_details (post_id, category, produce_name, unit, total_quantity_available, points_per_unit, is_produce, harvest_date)
-VALUES ('d4444444-4444-4444-4444-444444444444', 'fruits', 'Strawberries', 'box', 5, 40, true, CURRENT_DATE);
+VALUES ('d4444444-4444-4444-4444-444444444444', 'produce', 'Strawberries', 'box', 5, 40, true, CURRENT_DATE);
 
 INSERT INTO public.delivery_dates (post_id, delivery_date)
 VALUES ('d4444444-4444-4444-4444-444444444444', CURRENT_DATE + interval '5 days');
@@ -307,7 +307,7 @@ VALUES (
 );
 
 INSERT INTO public.want_to_buy_details (post_id, category, produce_names, desired_quantity, desired_unit, need_by_date)
-VALUES ('e5555555-5555-5555-5555-555555555555', 'herbs', ARRAY['Basil', 'Thai Basil'], 3, 'bag', CURRENT_DATE + interval '14 days');
+VALUES ('e5555555-5555-5555-5555-555555555555', 'produce', ARRAY['Basil', 'Thai Basil'], 3, 'bag', CURRENT_DATE + interval '14 days');
 
 INSERT INTO public.delivery_dates (post_id, delivery_date)
 VALUES
@@ -338,7 +338,7 @@ VALUES (
 );
 
 INSERT INTO public.want_to_sell_details (post_id, category, produce_name, unit, total_quantity_available, points_per_unit, is_produce, harvest_date)
-VALUES ('a7777777-7777-7777-7777-777777777777', 'vegetables', 'Peppers', 'bag', 8, 15, true, CURRENT_DATE);
+VALUES ('a7777777-7777-7777-7777-777777777777', 'produce', 'Peppers', 'bag', 8, 15, true, CURRENT_DATE);
 
 INSERT INTO public.delivery_dates (post_id, delivery_date)
 VALUES
@@ -378,7 +378,7 @@ VALUES (
   'c9999999-9999-9999-9999-999999999999',
   'a1111111-1111-1111-1111-111111111111',
   'b2222222-2222-2222-2222-222222222222',
-  'vegetables', 'Peppers',
+  'produce', 'Peppers',
   3, 15, CURRENT_DATE + interval '2 days',
   'b8888888-8888-8888-8888-888888888888',
   'pending', 1
@@ -425,11 +425,11 @@ ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.want_to_sell_details (post_id, category, produce_name, unit, total_quantity_available, points_per_unit, is_produce, harvest_date)
 VALUES
-  ('f0000002-0000-0000-0000-000000000002', 'vegetables', 'Tomatoes', 'box', 10, 25, true, CURRENT_DATE),
-  ('f0000003-0000-0000-0000-000000000003', 'fruits', 'Strawberries', 'box', 5, 50, true, CURRENT_DATE),
-  ('f0000004-0000-0000-0000-000000000004', 'herbs', 'Basil', 'bag', 10, 8, true, CURRENT_DATE),
-  ('f0000005-0000-0000-0000-000000000005', 'fruits', 'Lemons', 'bag', 8, 20, true, CURRENT_DATE),
-  ('f0000006-0000-0000-0000-000000000006', 'herbs', 'Herbs Mix', 'bag', 6, 12, false, null);
+  ('f0000002-0000-0000-0000-000000000002', 'produce', 'Tomatoes', 'box', 10, 25, true, CURRENT_DATE),
+  ('f0000003-0000-0000-0000-000000000003', 'produce', 'Strawberries', 'box', 5, 50, true, CURRENT_DATE),
+  ('f0000004-0000-0000-0000-000000000004', 'produce', 'Basil', 'bag', 10, 8, true, CURRENT_DATE),
+  ('f0000005-0000-0000-0000-000000000005', 'produce', 'Lemons', 'bag', 8, 20, true, CURRENT_DATE),
+  ('f0000006-0000-0000-0000-000000000006', 'produce', 'Herbs Mix', 'bag', 6, 12, false, null);
 
 -- Conversations for additional orders (each uses its own post_id → unique constraint satisfied)
 INSERT INTO public.conversations (id, post_id, buyer_id, seller_id)
@@ -472,7 +472,7 @@ VALUES (
   'c9999999-9999-9999-9999-999999999902',
   'b2222222-2222-2222-2222-222222222222',
   'a1111111-1111-1111-1111-111111111111',
-  'vegetables', 'Tomatoes',
+  'produce', 'Tomatoes',
   2, 25, CURRENT_DATE + interval '3 days', '456 Elm Street',
   'b8888888-8888-8888-8888-888888888802',
   'accepted', 1
@@ -489,7 +489,7 @@ VALUES (
   'c9999999-9999-9999-9999-999999999903',
   'b2222222-2222-2222-2222-222222222222',
   'a1111111-1111-1111-1111-111111111111',
-  'fruits', 'Strawberries',
+  'produce', 'Strawberries',
   1, 50, CURRENT_DATE - interval '1 day', '789 Pine Road',
   'b8888888-8888-8888-8888-888888888803',
   'delivered', 2
@@ -506,7 +506,7 @@ VALUES (
   'c9999999-9999-9999-9999-999999999904',
   'a1111111-1111-1111-1111-111111111111',
   'b2222222-2222-2222-2222-222222222222',
-  'herbs', 'Basil',
+  'produce', 'Basil',
   5, 8, CURRENT_DATE - interval '3 days', '321 Maple Lane',
   'b8888888-8888-8888-8888-888888888804',
   'disputed', 3
@@ -524,7 +524,7 @@ VALUES (
   'c9999999-9999-9999-9999-999999999905',
   'b2222222-2222-2222-2222-222222222222',
   'a1111111-1111-1111-1111-111111111111',
-  'fruits', 'Lemons',
+  'produce', 'Lemons',
   4, 20, CURRENT_DATE - interval '7 days', '555 Oak Avenue',
   'b8888888-8888-8888-8888-888888888805',
   'completed', 4,
@@ -542,7 +542,7 @@ VALUES (
   'c9999999-9999-9999-9999-999999999906',
   'b2222222-2222-2222-2222-222222222222',
   'a1111111-1111-1111-1111-111111111111',
-  'herbs', 'Herbs Mix',
+  'produce', 'Herbs Mix',
   3, 12, CURRENT_DATE + interval '5 days',
   'b8888888-8888-8888-8888-888888888806',
   'cancelled', 2
@@ -565,7 +565,7 @@ VALUES (
 ) ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.want_to_buy_details (post_id, category, produce_names, desired_quantity, desired_unit, need_by_date)
-VALUES ('e5550001-0000-0000-0000-000000000001', 'herbs', ARRAY['Cilantro'], 5, 'bag', CURRENT_DATE + interval '7 days')
+VALUES ('e5550001-0000-0000-0000-000000000001', 'produce', ARRAY['Cilantro'], 5, 'bag', CURRENT_DATE + interval '7 days')
 ON CONFLICT (post_id) DO NOTHING;
 
 -- Buy Post 3: Looking for Mint (by Test Buyer)
@@ -579,7 +579,7 @@ VALUES (
 ) ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.want_to_buy_details (post_id, category, produce_names, desired_quantity, desired_unit, need_by_date)
-VALUES ('e5550002-0000-0000-0000-000000000002', 'herbs', ARRAY['Mint'], 3, 'bag', CURRENT_DATE + interval '10 days')
+VALUES ('e5550002-0000-0000-0000-000000000002', 'produce', ARRAY['Mint'], 3, 'bag', CURRENT_DATE + interval '10 days')
 ON CONFLICT (post_id) DO NOTHING;
 
 -- Buy Post 4: Looking for Rosemary (by Test Buyer)
@@ -593,7 +593,7 @@ VALUES (
 ) ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.want_to_buy_details (post_id, category, produce_names, desired_quantity, desired_unit, need_by_date)
-VALUES ('e5550003-0000-0000-0000-000000000003', 'herbs', ARRAY['Rosemary'], 2, 'bag', CURRENT_DATE + interval '5 days')
+VALUES ('e5550003-0000-0000-0000-000000000003', 'produce', ARRAY['Rosemary'], 2, 'bag', CURRENT_DATE + interval '5 days')
 ON CONFLICT (post_id) DO NOTHING;
 
 -- Conversations for standalone offers (seller=Test Seller acting as offer maker)
@@ -614,7 +614,7 @@ VALUES (
   'b8880001-0000-0000-0000-000000000001',
   'a1111111-1111-1111-1111-111111111111',
   'e5550001-0000-0000-0000-000000000001',
-  5, 10, 'herbs', 'Cilantro', 'bunch',
+  5, 10, 'produce', 'Cilantro', 'bunch',
   CURRENT_DATE + interval '5 days',
   'pending', 1
 ) ON CONFLICT (id) DO NOTHING;
@@ -626,7 +626,7 @@ VALUES (
   'b8880002-0000-0000-0000-000000000002',
   'a1111111-1111-1111-1111-111111111111',
   'e5550002-0000-0000-0000-000000000002',
-  3, 15, 'herbs', 'Mint', 'bunch',
+  3, 15, 'produce', 'Mint', 'bunch',
   CURRENT_DATE + interval '7 days',
   'rejected', 1
 ) ON CONFLICT (id) DO NOTHING;
@@ -638,7 +638,7 @@ VALUES (
   'b8880003-0000-0000-0000-000000000003',
   'a1111111-1111-1111-1111-111111111111',
   'e5550003-0000-0000-0000-000000000003',
-  2, 20, 'herbs', 'Rosemary', 'bunch',
+  2, 20, 'produce', 'Rosemary', 'bunch',
   CURRENT_DATE + interval '3 days',
   'withdrawn', 1
 ) ON CONFLICT (id) DO NOTHING;
@@ -874,29 +874,29 @@ BEGIN
 
   -- Products (with photos from /public/products/)
   INSERT INTO market_products (seller_id,market_date,name,description,category,price_usd,unit,inventory,photos,harvested_at) VALUES
-    (s1,CURRENT_DATE,'Heritage Tomatoes','Mix of Brandywine, Cherokee Purple, and Green Zebra','vegetables',5.00,'basket',20,'{"/products/heritage-tomatoes.png"}',now()-interval '1 day'),
-    (s1,CURRENT_DATE,'Fresh Basil Bunch','Fragrant Genovese basil, just picked','herbs',3.00,'bunch',15,'{"/products/fresh-basil.png"}',now()),
-    (s1,CURRENT_DATE,'Organic Zucchini','Tender young zucchini from raised beds','vegetables',4.00,'bag',12,'{"/products/organic-zucchini.png"}',now()-interval '6 hours'),
-    (s1,CURRENT_DATE,'Bell Pepper Mix','Red, yellow, and orange sweet peppers','vegetables',4.50,'bag',10,'{"/products/bell-peppers.png"}',now()-interval '1 day'),
-    (s1,CURRENT_DATE,'Cherry Tomato Pint','Sweet Sungold and chocolate cherry tomatoes','vegetables',4.00,'pint',25,'{"/products/heritage-tomatoes.png"}',now()),
-    (s2,CURRENT_DATE,'Meyer Lemons','Sweet-tart Meyer lemons, tree-ripened','fruits',3.50,'bag',30,'{"/products/meyer-lemons.png"}',now()-interval '2 days'),
-    (s2,CURRENT_DATE,'Valencia Oranges','Juicy Valencia oranges, perfect for juicing','fruits',4.00,'bag',25,'{"/products/valencia-oranges.png"}',now()-interval '1 day'),
-    (s2,CURRENT_DATE,'Persian Limes','Bright green limes from my backyard tree','fruits',3.00,'bag',20,'{"/products/persian-limes.png"}',now()),
-    (s2,CURRENT_DATE,'Ruby Grapefruit','Deep red flesh, naturally sweet','fruits',5.00,'each',15,'{"/products/ruby-grapefruit.png"}',now()-interval '3 days'),
-    (s2,CURRENT_DATE,'Kumquats','Tiny, zesty kumquats — eat them whole!','fruits',6.00,'pint',8,'{"/products/meyer-lemons.png"}',now()),
-    (s3,CURRENT_DATE,'Baby Bok Choy','Tender baby bok choy, perfect for stir-fry','vegetables',3.50,'bunch',20,'{}',now()),
-    (s3,CURRENT_DATE,'Chinese Long Beans','Crisp yard-long beans, freshly picked','vegetables',4.00,'bunch',15,'{}',now()-interval '6 hours'),
-    (s3,CURRENT_DATE,'Daikon Radish','Large white daikon, great for soups and salads','vegetables',2.50,'each',12,'{}',now()-interval '1 day'),
-    (s3,CURRENT_DATE,'Japanese Eggplant','Slender purple eggplant, no bitterness','vegetables',5.00,'bag',10,'{}',now()-interval '12 hours'),
-    (s4,CURRENT_DATE,'Sourdough Loaf','Artisan sourdough, 24-hour ferment, crispy crust','baked',8.00,'loaf',6,'{"/products/sourdough-loaf.png"}',NULL),
-    (s4,CURRENT_DATE,'Focaccia with Rosemary','Fluffy Italian focaccia topped with garden rosemary','baked',7.00,'half',8,'{"/products/herb-focaccia.png"}',NULL),
-    (s4,CURRENT_DATE,'Strawberry Jam','Small-batch jam from local strawberries','preserved',6.50,'jar',10,'{"/products/strawberry-jam.png"}',NULL),
-    (s4,CURRENT_DATE,'Fresh Rosemary','Woody sprigs of fragrant rosemary','herbs',2.00,'bunch',20,'{"/products/fresh-basil.png"}',now()),
-    (s4,CURRENT_DATE,'Apple Cinnamon Pie','Homemade pie with Granny Smith apples','baked',12.00,'pie',3,'{"/products/apple-pie.png"}',NULL),
+    (s1,CURRENT_DATE,'Heritage Tomatoes','Mix of Brandywine, Cherokee Purple, and Green Zebra','produce',5.00,'basket',20,'{"/products/heritage-tomatoes.png"}',now()-interval '1 day'),
+    (s1,CURRENT_DATE,'Fresh Basil Bunch','Fragrant Genovese basil, just picked','produce',3.00,'bunch',15,'{"/products/fresh-basil.png"}',now()),
+    (s1,CURRENT_DATE,'Organic Zucchini','Tender young zucchini from raised beds','produce',4.00,'bag',12,'{"/products/organic-zucchini.png"}',now()-interval '6 hours'),
+    (s1,CURRENT_DATE,'Bell Pepper Mix','Red, yellow, and orange sweet peppers','produce',4.50,'bag',10,'{"/products/bell-peppers.png"}',now()-interval '1 day'),
+    (s1,CURRENT_DATE,'Cherry Tomato Pint','Sweet Sungold and chocolate cherry tomatoes','produce',4.00,'pint',25,'{"/products/heritage-tomatoes.png"}',now()),
+    (s2,CURRENT_DATE,'Meyer Lemons','Sweet-tart Meyer lemons, tree-ripened','produce',3.50,'bag',30,'{"/products/meyer-lemons.png"}',now()-interval '2 days'),
+    (s2,CURRENT_DATE,'Valencia Oranges','Juicy Valencia oranges, perfect for juicing','produce',4.00,'bag',25,'{"/products/valencia-oranges.png"}',now()-interval '1 day'),
+    (s2,CURRENT_DATE,'Persian Limes','Bright green limes from my backyard tree','produce',3.00,'bag',20,'{"/products/persian-limes.png"}',now()),
+    (s2,CURRENT_DATE,'Ruby Grapefruit','Deep red flesh, naturally sweet','produce',5.00,'each',15,'{"/products/ruby-grapefruit.png"}',now()-interval '3 days'),
+    (s2,CURRENT_DATE,'Kumquats','Tiny, zesty kumquats — eat them whole!','produce',6.00,'pint',8,'{"/products/meyer-lemons.png"}',now()),
+    (s3,CURRENT_DATE,'Baby Bok Choy','Tender baby bok choy, perfect for stir-fry','produce',3.50,'bunch',20,'{}',now()),
+    (s3,CURRENT_DATE,'Chinese Long Beans','Crisp yard-long beans, freshly picked','produce',4.00,'bunch',15,'{}',now()-interval '6 hours'),
+    (s3,CURRENT_DATE,'Daikon Radish','Large white daikon, great for soups and salads','produce',2.50,'each',12,'{}',now()-interval '1 day'),
+    (s3,CURRENT_DATE,'Japanese Eggplant','Slender purple eggplant, no bitterness','produce',5.00,'bag',10,'{}',now()-interval '12 hours'),
+    (s4,CURRENT_DATE,'Sourdough Loaf','Artisan sourdough, 24-hour ferment, crispy crust','produce',8.00,'loaf',6,'{"/products/sourdough-loaf.png"}',NULL),
+    (s4,CURRENT_DATE,'Focaccia with Rosemary','Fluffy Italian focaccia topped with garden rosemary','produce',7.00,'half',8,'{"/products/herb-focaccia.png"}',NULL),
+    (s4,CURRENT_DATE,'Strawberry Jam','Small-batch jam from local strawberries','produce',6.50,'jar',10,'{"/products/strawberry-jam.png"}',NULL),
+    (s4,CURRENT_DATE,'Fresh Rosemary','Woody sprigs of fragrant rosemary','produce',2.00,'bunch',20,'{"/products/fresh-basil.png"}',now()),
+    (s4,CURRENT_DATE,'Apple Cinnamon Pie','Homemade pie with Granny Smith apples','produce',12.00,'pie',3,'{"/products/apple-pie.png"}',NULL),
     (s5,CURRENT_DATE,'Raw Wildflower Honey','Pure raw honey from local hives, unfiltered','honey',12.00,'jar',8,'{"/products/strawberry-jam.png"}',NULL),
-    (s5,CURRENT_DATE,'Microgreens Mix','Sunflower, radish, and pea shoot mix','herbs',5.00,'box',15,'{"/products/fresh-basil.png"}',now()),
-    (s5,CURRENT_DATE,'Fresh Mint Bundle','Spearmint and peppermint, great for tea','herbs',2.50,'bunch',25,'{"/products/fresh-basil.png"}',now()),
-    (s5,CURRENT_DATE,'Thai Basil','Aromatic Thai basil with purple stems','herbs',3.00,'bunch',18,'{"/products/fresh-basil.png"}',now()),
+    (s5,CURRENT_DATE,'Microgreens Mix','Sunflower, radish, and pea shoot mix','produce',5.00,'box',15,'{"/products/fresh-basil.png"}',now()),
+    (s5,CURRENT_DATE,'Fresh Mint Bundle','Spearmint and peppermint, great for tea','produce',2.50,'bunch',25,'{"/products/fresh-basil.png"}',now()),
+    (s5,CURRENT_DATE,'Thai Basil','Aromatic Thai basil with purple stems','produce',3.00,'bunch',18,'{"/products/fresh-basil.png"}',now()),
     (s5,CURRENT_DATE,'Lavender Sachets','Dried lavender from my garden, handmade sachets','flowers',4.00,'each',12,'{}',NULL);
 
   -- ============================================================
@@ -914,7 +914,7 @@ BEGIN
   ON CONFLICT (owner_id) DO UPDATE SET name=EXCLUDED.name;
 
   INSERT INTO market_products (seller_id,market_date,name,description,category,price_usd,unit,inventory,photos,harvested_at) VALUES
-    ('a1111111-1111-1111-1111-111111111111',CURRENT_DATE,'Heirloom Peppers','Mixed hot and sweet peppers','vegetables',4.50,'basket',10,'{}',now())
+    ('a1111111-1111-1111-1111-111111111111',CURRENT_DATE,'Heirloom Peppers','Mixed hot and sweet peppers','produce',4.50,'basket',10,'{}',now())
   ON CONFLICT DO NOTHING;
 
   -- ── SELLER@TEST AS SELLER (login as seller@test to manage) ──
