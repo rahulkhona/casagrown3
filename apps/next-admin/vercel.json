@@ -1,6 +1,5 @@
 {
   "installCommand": "cd ../.. && YARN_ENABLE_IMMUTABLE_INSTALLS=false yarn install",
-  "buildCommand": "cd ../.. && yarn build && yarn workspace next-admin build",
-  "outputDirectory": ".next",
-  "framework": "nextjs"
+  "buildCommand": "npx next build",
+  "outputDirectory": ".next"
 }
