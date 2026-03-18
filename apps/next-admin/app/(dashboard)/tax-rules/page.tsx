@@ -47,10 +47,13 @@ export default function TaxRulesPage() {
 
   const fetchRules = async () => {
     setLoading(true)
-    const { data } = await adminApi.select('category_tax_rules', '*',
-      { is: { effective_until: null }, eq: { rule_type: 'fixed' } },
-      { order: { column: 'state_code' } }
-    )
+    const { data } = await supabase
+      .from('category_tax_rules')
+      .select('*')
+      .is('effective_until', null)
+      .eq('rule_type', 'fixed')
+      .order('state_code')
+      .order('category_name')
     
     if (data) setRules(data)
     setLoading(false)
@@ -58,7 +61,7 @@ export default function TaxRulesPage() {
 
   useEffect(() => {
     fetchRules()
-    adminApi.select('sales_categories', 'name', undefined, { order: { column: 'display_order' } }).then(({ data }: any) => {
+    supabase.from('sales_categories').select('name').order('display_order').then(({ data }: any) => {
       if (data) setCategories(data)
     })
   }, [])
