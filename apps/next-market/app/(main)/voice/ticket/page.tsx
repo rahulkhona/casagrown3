@@ -5,6 +5,7 @@ import { useState, useEffect , Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase'
 import { fetchTicketById, toggleVote, addComment, flagTicket, unflagTicket, type FeedbackDetail } from '../../../../lib/feedback-service'
+import { LoadingSpinner } from '../../../components/LoadingSpinner'
 import styles from '../voice.module.css'
 
 const STATUS_COLORS: Record<string, string> = {
@@ -98,7 +99,7 @@ function VoiceTicketPageInner() {
   }
 
   if (loading) {
-    return <div className={styles.voicePage}><div className={styles.spinner}>⏳ Loading...</div></div>
+    return <div className={styles.voicePage}><div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}><LoadingSpinner /></div></div>
   }
 
   if (!ticket) {
@@ -214,7 +215,7 @@ function VoiceTicketPageInner() {
 
 export default function VoiceTicketPage() {
   return (
-    <Suspense fallback={<div style={{ padding: 80, textAlign: 'center' }}>Loading...</div>}>
+    <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', padding: 80 }}><LoadingSpinner /></div>}>
       <VoiceTicketPageInner />
     </Suspense>
   )

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase'
 import { fetchTickets, toggleVote, type FeedbackTicket } from '../../../../lib/feedback-service'
+import { LoadingSpinner } from '../../../components/LoadingSpinner'
 import styles from '../voice.module.css'
 
 const STATUS_COLORS: Record<string, string> = {
@@ -161,7 +162,7 @@ export default function VoiceBoardPage() {
       <div className={styles.resultCount}>{loading ? 'Searching...' : `${totalCount} results`}</div>
 
       {loading ? (
-        <div className={styles.spinner}>⏳ Loading...</div>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}><LoadingSpinner /></div>
       ) : tickets.length === 0 ? (
         <div className={styles.emptyState}>
           <div className={styles.emptyIcon}>📋</div>
