@@ -170,35 +170,25 @@ export default function MyBoothPage() {
     return () => clearTimeout(t)
   }, [name, theme, offersDelivery, offersPickup, deliveryRadius, pickupAddress, paymentMethod, venmoHandle, charityName, deliveryWindows, pickupWindows, bannerPreview, saved])
 
-  // Fetch profile address from DB for pickup default
+  // Load booth + profile data from Supabase on mount (single auth call)
   useEffect(() => {
-    if (pickupAddress) return // already set
-    const fetchAddr = async () => {
+    const loadData = async () => {
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (!authUser) return
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('street_address, city, state_code')
-        .eq('id', authUser.id)
-        .single()
-      if (profile?.street_address) {
-        const addr = [profile.street_address, profile.city].filter(Boolean).join(', ')
+
+      // Fetch profile address AND booth in parallel
+      const [profileRes, boothRes] = await Promise.all([
+        supabase.from('profiles').select('street_address, city, state_code').eq('id', authUser.id).single(),
+        supabase.from('market_booths').select('*').eq('owner_id', authUser.id).single(),
+      ])
+
+      // Set pickup address from profile
+      if (!pickupAddress && profileRes.data?.street_address) {
+        const addr = [profileRes.data.street_address, profileRes.data.city].filter(Boolean).join(', ')
         setPickupAddress(addr)
       }
-    }
-    fetchAddr()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load booth from Supabase on mount
-  useEffect(() => {
-    const loadBooth = async () => {
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      if (!authUser) return
-      const { data: booth } = await supabase
-        .from('market_booths')
-        .select('*')
-        .eq('owner_id', authUser.id)
-        .single()
+      const booth = boothRes.data
       if (!booth) return
 
       // Populate state from DB
@@ -247,26 +237,22 @@ export default function MyBoothPage() {
         })
       }
 
-      // Load helpers
-      const { data: dbHelpers } = await supabase
-        .from('booth_helpers')
-        .select('helper_id, status, profiles!booth_helpers_helper_id_fkey(full_name)')
-        .eq('booth_id', booth.id)
-      if (dbHelpers) {
-        setHelpers(dbHelpers.map((h: any) => ({
+      // Load helpers AND products in parallel
+      const [helpersRes, productsRes] = await Promise.all([
+        supabase.from('booth_helpers').select('helper_id, status, profiles!booth_helpers_helper_id_fkey(full_name)').eq('booth_id', booth.id),
+        supabase.from('market_products').select('*').eq('seller_id', authUser.id).order('created_at', { ascending: false }),
+      ])
+
+      if (helpersRes.data) {
+        setHelpers(helpersRes.data.map((h: any) => ({
           helperId: h.helper_id,
           name: h.profiles?.full_name || 'Unknown',
           status: h.status as 'pending' | 'accepted' | 'revoked',
         })))
       }
-      // Load seller's products from DB
-      const { data: products } = await supabase
-        .from('market_products')
-        .select('*')
-        .eq('seller_id', authUser.id)
-        .order('created_at', { ascending: false })
-      if (products && products.length > 0) {
-        setDbProducts(products.map((p: any) => ({
+
+      if (productsRes.data && productsRes.data.length > 0) {
+        setDbProducts(productsRes.data.map((p: any) => ({
           id: p.id,
           boothId: p.seller_id,
           boothName: booth?.name || name || '',
@@ -290,7 +276,7 @@ export default function MyBoothPage() {
         })))
       }
     }
-    loadBooth()
+    loadData()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Custom time slots
