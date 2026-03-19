@@ -3,7 +3,10 @@
 -- Supports bug reports AND feature improvement requests
 -- =============================================================================
 
-create table if not exists public.user_feedback (
+-- Drop and recreate to fix any partial applies
+drop table if exists public.user_feedback cascade;
+
+create table public.user_feedback (
   id            uuid primary key default gen_random_uuid(),
   reporter_id   uuid references auth.users(id) on delete set null,
   type          text not null default 'bug' check (type in ('bug','feature','improvement','other')),
