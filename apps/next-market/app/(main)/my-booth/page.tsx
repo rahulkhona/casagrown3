@@ -412,8 +412,6 @@ export default function MyBoothPage() {
     if (data) setSavedBoothId(data.id)
     setSaved(true)
     try { localStorage.removeItem(BOOTH_DRAFT_KEY) } catch { /* ignore */ }
-    setBoothShareMsg(getBoothShareText(data?.id))
-    setShowBoothShareModal(true)
     } catch (err: any) {
       console.error('Booth save error:', err)
       alert('Booth save failed: ' + (err.message || 'Unknown error'))
@@ -959,21 +957,22 @@ export default function MyBoothPage() {
         </div>
       )}
 
-      {/* ── Save / Share Button ── */}
-      {saved ? (
+      {/* ── Save + Share Buttons ── */}
+      <button
+        className={styles.saveBtn}
+        onClick={handleSaveBooth}
+        disabled={!name.trim()}
+      >
+        {saved ? '✓ Saved' : 'Save Booth'}
+      </button>
+
+      {saved && (
         <button
           className={styles.saveBtn}
+          style={{ marginTop: 8, background: 'var(--white)', color: 'var(--green-700)', border: '2px solid var(--green-200)' }}
           onClick={() => { setBoothShareMsg(getBoothShareText()); setShowBoothShareModal(true) }}
         >
-          📤 Share Booth
-        </button>
-      ) : (
-        <button
-          className={styles.saveBtn}
-          onClick={handleSaveBooth}
-          disabled={!name.trim()}
-        >
-          Save Booth
+          📤 Share My Booth
         </button>
       )}
 
