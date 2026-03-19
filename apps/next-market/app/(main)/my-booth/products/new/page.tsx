@@ -177,6 +177,7 @@ function NewProductPageInner() {
     if (!name.trim()) newErrors.name = 'Name is required'
     if (priceUsd === '' || priceUsd === undefined) newErrors.price = 'Set a price (or 0 for free)'
     if (priceUsd !== '' && parseFloat(priceUsd) < 0) newErrors.price = 'Price cannot be negative'
+    if (restriction.isFreeOnly && parseFloat(priceUsd || '0') !== 0) newErrors.price = 'Your state requires free sharing — price must be $0'
     if (!quantity || parseInt(quantity) <= 0) newErrors.quantity = 'How many do you have?'
 
     // $5 minimum product potential check (skip for free sharing mode)
