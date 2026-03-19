@@ -1,7 +1,6 @@
 'use client'
 
 import { LoadingSpinner } from '../../../components/LoadingSpinner'
-import { LoadingSpinner } from '../../../components/LoadingSpinner'
 
 /**
  * Tax Information — 1099-K Collection
