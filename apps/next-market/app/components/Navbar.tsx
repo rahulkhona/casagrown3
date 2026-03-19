@@ -456,10 +456,10 @@ export function Navbar() {
                   {hasSession ? (
                     <button className={styles.menuItem} onClick={async () => {
                       const supabase = createClient()
-                      await supabase.auth.signOut()
+                      await supabase.auth.signOut({ scope: 'global' })
                       dispatch({ type: 'LOGOUT' })
                       setMenuOpen(false)
-                      router.push('/')
+                      window.location.href = '/'
                     }}>
                       <span className={styles.menuItemIcon}>🚪</span>
                       <span>Log Out</span>
