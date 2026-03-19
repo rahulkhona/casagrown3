@@ -333,6 +333,7 @@ export default function MyBoothPage() {
   const handleSaveBooth = async () => {
     if (!name.trim() || !user) return
 
+    try {
     // Map time window IDs to structured objects for DB
     const mapWindows = (ids: string[], customs: Array<{ start: string; end: string }>) => {
       const preset = ids.map(id => {
@@ -376,7 +377,7 @@ export default function MyBoothPage() {
 
     if (error) {
       console.warn('Save failed:', error.message)
-      dispatch({ type: 'ADD_TOAST', payload: { message: 'Save failed — ' + error.message, type: 'error' } })
+      alert('Booth save failed: ' + error.message)
       return
     }
 
@@ -413,6 +414,10 @@ export default function MyBoothPage() {
     try { localStorage.removeItem(BOOTH_DRAFT_KEY) } catch { /* ignore */ }
     setBoothShareMsg(getBoothShareText(data?.id))
     setShowBoothShareModal(true)
+    } catch (err: any) {
+      console.error('Booth save error:', err)
+      alert('Booth save failed: ' + (err.message || 'Unknown error'))
+    }
   }
 
   // Remove a product (optimistic — remove from UI first, restore on failure)
