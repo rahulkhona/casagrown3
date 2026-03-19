@@ -164,7 +164,7 @@ export default function ProfilePage() {
             const reader = new FileReader()
             reader.onload = (ev) => setAvatarPreview(ev.target?.result as string)
             reader.readAsDataURL(file)
-            const path = `${user.id}.jpg`
+            const path = `${user.id}/avatar.jpg`
             const { error: uploadErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
             if (uploadErr) {
               console.warn('Upload failed:', uploadErr.message)
