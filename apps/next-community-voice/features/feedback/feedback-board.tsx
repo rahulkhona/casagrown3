@@ -332,6 +332,16 @@ export function FeedbackBoard({ isStaff = false, hideHeader = false }: { isStaff
           >
               <Text color="white">Suggest Feature</Text>
           </Button>
+          <Button 
+              backgroundColor={colors.blue[100]}
+              borderColor={colors.blue[600]}
+              borderWidth={1}
+              size="$3" 
+              icon={<Headphones size={14} color={colors.blue[700]} />}
+              onPress={() => router.push(user ? '/submit?type=support' : '/login?returnTo=/submit%3Ftype%3Dsupport')}
+          >
+              <Text color={colors.blue[700]}>Support</Text>
+          </Button>
       </XStack>
       </>)}
 

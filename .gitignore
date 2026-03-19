@@ -82,3 +82,4 @@ e2e/.auth/
 test-results/
 playwright-report/
 apps/next-admin/.env.vercel
+.vercel
