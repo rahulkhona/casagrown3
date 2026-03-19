@@ -1,5 +1,8 @@
 'use client'
 
+import { LoadingSpinner } from '../../../components/LoadingSpinner'
+import { LoadingSpinner } from '../../../components/LoadingSpinner'
+
 /**
  * Tax Information — 1099-K Collection
  *
@@ -16,7 +19,7 @@ export default function TaxInfoPage() {
   const { isAuthenticated, loading: authLoading } = useAuth()
 
   if (authLoading) {
-    return <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}><p>Loading...</p></div>
+    return <LoadingSpinner />
   }
 
   if (!isAuthenticated) {

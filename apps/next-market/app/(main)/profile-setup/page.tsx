@@ -2,6 +2,7 @@
 
 
 import { useState, useRef, useEffect, useCallback , Suspense } from 'react'
+import { LoadingSpinner } from '../../components/LoadingSpinner'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
 import CameraCapture from '../../../components/CameraCapture'

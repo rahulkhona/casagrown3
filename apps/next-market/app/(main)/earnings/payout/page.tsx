@@ -1,5 +1,6 @@
 'use client'
 
+import { LoadingSpinner } from '../../../components/LoadingSpinner'
 /**
  * Payout — Gift Cards, Donate, Cashout
  *
@@ -429,7 +430,7 @@ export default function PayoutPage() {
   useEffect(() => { if (cashoutResult) { const t = setTimeout(() => setCashoutResult(null), 8000); return () => clearTimeout(t) } }, [cashoutResult])
 
   // ── Auth guards ──
-  if (authLoading) return <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}><p>Loading...</p></div>
+  if (authLoading) return <LoadingSpinner />
   if (!isAuthenticated) {
     return <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}><h2>Sign in to manage payouts</h2><Link href="/login" className="btn btn-primary" style={{ marginTop: 16 }}>Sign In</Link></div>
   }

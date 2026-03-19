@@ -1,5 +1,6 @@
 'use client'
 
+import { LoadingSpinner } from '../../components/LoadingSpinner'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -110,7 +111,7 @@ export default function OrdersPage() {
   }, [authLoading, isAuthenticated, router])
 
   if (authLoading || !isAuthenticated) {
-    return <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}><p>Loading...</p></div>
+    return <LoadingSpinner />
   }
 
   if (loading) {

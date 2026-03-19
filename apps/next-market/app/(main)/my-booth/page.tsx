@@ -1,5 +1,7 @@
 'use client'
 
+import { LoadingSpinner } from '../../components/LoadingSpinner'
+
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -317,7 +319,7 @@ export default function MyBoothPage() {
   const themeInfo = THEMES.find(t => t.id === theme)!
 
   if (authLoading) {
-    return <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}><p>Loading...</p></div>
+    return <LoadingSpinner />
   }
 
   if (!isAuthenticated) {

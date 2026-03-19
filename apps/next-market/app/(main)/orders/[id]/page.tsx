@@ -1,5 +1,8 @@
 'use client'
 
+import { LoadingSpinner } from '../../../components/LoadingSpinner'
+import { LoadingSpinner } from '../../../components/LoadingSpinner'
+
 
 import { use, useState, useEffect, useCallback, useRef , Suspense } from 'react'
 import Link from 'next/link'
@@ -251,7 +254,7 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
   }
 
   if (authLoading || !isAuthenticated) {
-    return <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}><p>Loading...</p></div>
+    return <LoadingSpinner />
   }
 
   if (loading) {

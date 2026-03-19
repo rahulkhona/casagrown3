@@ -1,5 +1,6 @@
 'use client'
 
+import { LoadingSpinner } from '../../components/LoadingSpinner'
 import Link from 'next/link'
 import { useMarket } from '../../../lib/store'
 import { useAuth } from '../../../lib/useAuth'
@@ -12,7 +13,7 @@ export default function ChatListPage() {
 
   const { isAuthenticated, loading: authLoading } = useAuth()
 
-  if (authLoading) return <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}><p>Loading...</p></div>
+  if (authLoading) return <LoadingSpinner />
 
   if (!isAuthenticated) {
     return <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}><h2>Sign in to view chats</h2><Link href="/login" className="btn btn-primary" style={{ marginTop: 16 }}>Sign In</Link></div>

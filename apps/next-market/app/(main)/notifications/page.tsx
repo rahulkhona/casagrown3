@@ -1,5 +1,6 @@
 'use client'
 
+import { LoadingSpinner } from '../../components/LoadingSpinner'
 /**
  * Notifications Page — In-app notification center
  * 
@@ -75,7 +76,7 @@ export default function NotificationsPage() {
     await supabase.from('market_notifications').delete().eq('user_id', userId)
   }, [userId, supabase])
 
-  if (authLoading) return <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}><p>Loading...</p></div>
+  if (authLoading) return <LoadingSpinner />
   if (!isAuthenticated) {
     return <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}>
       <h2>Sign in to view notifications</h2>

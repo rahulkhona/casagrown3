@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useMarket, isMarketOpen } from '../../lib/store'
 import { createClient } from '../../lib/supabase'
+import html2canvas from 'html2canvas'
 import styles from './Navbar.module.css'
 
 interface Notification {
@@ -50,6 +51,15 @@ export function Navbar() {
   const [ratingNotif, setRatingNotif] = useState<Notification | null>(null)
   const [ratingHover, setRatingHover] = useState(0)
   const [ratingSubmitted, setRatingSubmitted] = useState(false)
+
+  // Bug report state
+  const [bugOpen, setBugOpen] = useState(false)
+  const [bugType, setBugType] = useState<'bug' | 'feature' | 'improvement'>('bug')
+  const [bugMessage, setBugMessage] = useState('')
+  const [bugSending, setBugSending] = useState(false)
+  const [bugSent, setBugSent] = useState(false)
+  const [bugScreenshot, setBugScreenshot] = useState<string | null>(null)
+  const bugRef = useRef<HTMLDivElement>(null)
 
   const open = isMarketOpen(state.marketSchedule, state.marketNeverCloses)
 
@@ -206,6 +216,7 @@ export function Navbar() {
   const accountItems = menuItems.filter(i => i.section === 'account')
 
   return (
+    <>
     <nav className={styles.navbar}>
       <div className={styles.inner}>
         {/* Logo */}
@@ -244,6 +255,26 @@ export function Navbar() {
               )}
               <span className={`${styles.profileName} hide-mobile`}>{profileName.split(' ')[0]}</span>
             </Link>
+          )}
+          {/* Bug Report Button */}
+          {hasSession && (
+            <button
+              className={styles.iconBtn}
+              onClick={async () => {
+                // Capture screenshot before opening modal
+                try {
+                  const canvas = await html2canvas(document.body, { useCORS: true, scale: 0.5, logging: false })
+                  setBugScreenshot(canvas.toDataURL('image/jpeg', 0.6))
+                } catch { setBugScreenshot(null) }
+                setBugOpen(true)
+                if (notifOpen) setNotifOpen(false)
+                if (menuOpen) setMenuOpen(false)
+              }}
+              aria-label="Report Bug"
+              title="Report a bug or send feedback"
+            >
+              🐛
+            </button>
           )}
 
           {/* Notifications dropdown */}
@@ -448,5 +479,142 @@ export function Navbar() {
         </div>
       </div>
     </nav>
+
+    {/* ── Bug Report Modal ── */}
+    {bugOpen && (
+      <>
+        <div onClick={() => { setBugOpen(false); setBugSent(false) }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 9991 }} />
+        <div ref={bugRef} style={{
+          position: 'fixed', top: 60, right: 16, zIndex: 9992,
+          width: 'min(92vw, 380px)',
+          background: '#fff', borderRadius: 16,
+          boxShadow: '0 8px 40px rgba(0,0,0,0.2)',
+          overflow: 'hidden',
+        }}>
+          {/* Header */}
+          <div style={{
+            padding: '14px 16px 10px', background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+            color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          }}>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>🐛 Report a Bug</div>
+              <div style={{ fontSize: 11, opacity: 0.8 }}>Help us improve CasaGrown</div>
+            </div>
+            <button onClick={() => { setBugOpen(false); setBugSent(false) }} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer', opacity: 0.8 }}>✕</button>
+          </div>
+
+          {bugSent ? (
+            <div style={{ padding: 32, textAlign: 'center' }}>
+              <div style={{ fontSize: 40, marginBottom: 8 }}>🎉</div>
+              <h3 style={{ margin: '0 0 4px', fontSize: 16, color: '#166534' }}>Thank you!</h3>
+              <p style={{ margin: 0, fontSize: 13, color: '#6b7280' }}>Your report has been submitted with a screenshot.</p>
+            </div>
+          ) : (
+            <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {/* Type selector chips */}
+              <div style={{ display: 'flex', gap: 6 }}>
+                {([
+                  { id: 'bug' as const, icon: '🐛', label: 'Bug', color: '#dc2626' },
+                  { id: 'feature' as const, icon: '💡', label: 'Feature', color: '#7c3aed' },
+                  { id: 'improvement' as const, icon: '✨', label: 'Improve', color: '#0891b2' },
+                ]).map(t => (
+                  <button key={t.id} onClick={() => setBugType(t.id)} style={{
+                    flex: 1, padding: '8px 6px', borderRadius: 10,
+                    border: `1.5px solid ${bugType === t.id ? t.color : '#e5e7eb'}`,
+                    background: bugType === t.id ? `${t.color}10` : '#fff',
+                    cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', gap: 2, transition: 'all 0.15s',
+                  }}>
+                    <span style={{ fontSize: 18 }}>{t.icon}</span>
+                    <span style={{ fontSize: 10, fontWeight: 600, color: bugType === t.id ? t.color : '#6b7280' }}>{t.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Screenshot preview */}
+              {bugScreenshot && (
+                <div style={{ borderRadius: 8, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+                  <img src={bugScreenshot} alt="Screenshot" style={{ width: '100%', height: 120, objectFit: 'cover', objectPosition: 'top' }} />
+                  <div style={{ fontSize: 10, color: '#9ca3af', padding: '4px 8px', background: '#f9fafb' }}>📸 Screenshot auto-captured</div>
+                </div>
+              )}
+
+              {/* Message input */}
+              <textarea
+                placeholder={bugType === 'bug' ? "What went wrong? Describe what happened..." : bugType === 'feature' ? "What feature would you like to see?" : "What could work better?"}
+                value={bugMessage}
+                onChange={e => setBugMessage(e.target.value)}
+                rows={3}
+                autoFocus
+                style={{
+                  width: '100%', padding: '10px 12px', border: '1px solid #e5e7eb',
+                  borderRadius: 10, fontSize: 13, fontFamily: 'inherit',
+                  resize: 'vertical', outline: 'none', lineHeight: 1.45,
+                  boxSizing: 'border-box',
+                }}
+              />
+
+              {/* Context hint */}
+              <div style={{ fontSize: 11, color: '#9ca3af', display: 'flex', alignItems: 'center', gap: 4 }}>
+                📍 Page URL + screenshot attached automatically
+              </div>
+
+              {/* Submit */}
+              <button
+                onClick={async () => {
+                  if (!userId || !bugMessage.trim()) return
+                  setBugSending(true)
+                  try {
+                    const supabase = createClient()
+                    // Upload screenshot if available
+                    let screenshotUrl: string | null = null
+                    if (bugScreenshot) {
+                      const blob = await (await fetch(bugScreenshot)).blob()
+                      const path = `feedback/${userId}/${Date.now()}.jpg`
+                      const { data: upload } = await supabase.storage.from('feedback-screenshots').upload(path, blob, { contentType: 'image/jpeg' })
+                      if (upload) {
+                        const { data: urlData } = supabase.storage.from('feedback-screenshots').getPublicUrl(path)
+                        screenshotUrl = urlData?.publicUrl || null
+                      }
+                    }
+                    await supabase.from('user_feedback').insert({
+                      reporter_id: userId,
+                      type: bugType,
+                      message: bugMessage,
+                      page_url: window.location.href,
+                      user_agent: navigator.userAgent,
+                      extra_context: {
+                        viewport: `${window.innerWidth}x${window.innerHeight}`,
+                        timestamp: new Date().toISOString(),
+                        platform: navigator.platform,
+                        screenshot_url: screenshotUrl,
+                      },
+                    })
+                    setBugSent(true)
+                    setBugMessage('')
+                    setTimeout(() => { setBugOpen(false); setBugSent(false) }, 2000)
+                  } catch (err: any) {
+                    alert('Failed: ' + (err.message || 'Unknown error'))
+                  } finally {
+                    setBugSending(false)
+                  }
+                }}
+                disabled={!bugMessage.trim() || bugSending}
+                style={{
+                  width: '100%', padding: '10px 16px', borderRadius: 10,
+                  background: bugSending || !bugMessage.trim() ? '#e5e7eb' : 'linear-gradient(135deg, #dc2626, #b91c1c)',
+                  border: 'none', color: bugSending || !bugMessage.trim() ? '#9ca3af' : '#fff',
+                  cursor: bugSending || !bugMessage.trim() ? 'not-allowed' : 'pointer',
+                  fontSize: 14, fontWeight: 600, transition: 'all 0.15s',
+                }}
+              >
+                {bugSending ? '⏳ Sending...' : 'Submit Report'}
+              </button>
+            </div>
+          )}
+        </div>
+      </>
+    )}
+    </>
   )
 }

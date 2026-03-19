@@ -1,5 +1,6 @@
 'use client'
 
+import { LoadingSpinner } from '../../components/LoadingSpinner'
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { formatUsd } from '../../../lib/store'
@@ -272,7 +273,7 @@ export default function EarningsPage() {
   }, [supabase])
 
   // ── Auth guards ──
-  if (authLoading) return <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}><p>Loading...</p></div>
+  if (authLoading) return <LoadingSpinner />
   if (!isAuthenticated) {
     return <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}><h2>Sign in to view earnings</h2><Link href="/login" className="btn btn-primary" style={{ marginTop: 16 }}>Sign In</Link></div>
   }

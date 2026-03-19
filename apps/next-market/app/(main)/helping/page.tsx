@@ -1,5 +1,6 @@
 'use client'
 
+import { LoadingSpinner } from '../../components/LoadingSpinner'
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -68,7 +69,7 @@ export default function HelpingPage() {
     }
   }, [supabase, fetchQueue])
 
-  if (authLoading) return <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}><p>Loading...</p></div>
+  if (authLoading) return <LoadingSpinner />
   if (!isAuthenticated) {
     return (
       <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}>
