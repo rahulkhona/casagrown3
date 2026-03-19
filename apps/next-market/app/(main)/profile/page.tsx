@@ -14,6 +14,7 @@ export default function ProfilePage() {
     city: '',
     state: '',
     zip: '',
+    avatarUrl: '',
   })
   const [loading, setLoading] = useState(true)
   const [saved, setSaved] = useState(false)
@@ -24,7 +25,7 @@ export default function ProfilePage() {
     const supabase = createClient()
     supabase
       .from('profiles')
-      .select('full_name, street_address, city, state, zip')
+      .select('full_name, street_address, city, state_code, zip_plus4, avatar_url')
       .eq('id', user.id)
       .single()
       .then(({ data }) => {
@@ -33,8 +34,9 @@ export default function ProfilePage() {
           email: user.email || '',
           street: data?.street_address || '',
           city: data?.city || '',
-          state: data?.state || '',
-          zip: data?.zip || '',
+          state: data?.state_code || '',
+          zip: data?.zip_plus4 || '',
+          avatarUrl: data?.avatar_url || '',
         })
         setLoading(false)
       })
@@ -50,8 +52,8 @@ export default function ProfilePage() {
         full_name: form.name,
         street_address: form.street,
         city: form.city,
-        state: form.state,
-        zip: form.zip,
+        state_code: form.state,
+        zip_plus4: form.zip,
       })
       .eq('id', user.id)
     setSaved(true)
@@ -72,7 +74,11 @@ export default function ProfilePage() {
   return (
     <div className="container-sm">
       <div className={styles.header}>
-        <div className={styles.avatar}>{form.name?.charAt(0) || '?'}</div>
+        {form.avatarUrl ? (
+          <img src={form.avatarUrl} alt="" className={styles.avatar} style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover' }} />
+        ) : (
+          <div className={styles.avatar}>{form.name?.charAt(0) || '?'}</div>
+        )}
         <h1 className="page-title">My Profile</h1>
         <p className="page-subtitle">Manage your personal information</p>
       </div>
@@ -108,7 +114,7 @@ export default function ProfilePage() {
           </div>
           <div className="form-group" style={{ maxWidth: 120 }}>
             <label className="label" htmlFor="zip">ZIP</label>
-            <input id="zip" className="input" value={form.zip} onChange={e => setForm({ ...form, zip: e.target.value })} placeholder="95112" maxLength={5} />
+            <input id="zip" className="input" value={form.zip} onChange={e => setForm({ ...form, zip: e.target.value })} placeholder="95112" maxLength={10} />
           </div>
         </div>
 
@@ -119,4 +125,3 @@ export default function ProfilePage() {
     </div>
   )
 }
-
