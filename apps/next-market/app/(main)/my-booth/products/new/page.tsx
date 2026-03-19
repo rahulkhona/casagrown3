@@ -180,13 +180,6 @@ function NewProductPageInner() {
     if (restriction.isFreeOnly && parseFloat(priceUsd || '0') !== 0) newErrors.price = 'Your state requires free sharing — price must be $0'
     if (!quantity || parseInt(quantity) <= 0) newErrors.quantity = 'How many do you have?'
 
-    // $5 minimum product potential check (skip for free sharing mode)
-    const price = parseFloat(priceUsd) || 0
-    const qty = parseInt(quantity) || 0
-    if (!restriction.isFreeOnly && price > 0 && qty > 0 && price * qty < 5.00) {
-      newErrors.minimum = `At $${price.toFixed(2)} × ${qty} = $${(price * qty).toFixed(2)}, buyers can't reach the $5.00 minimum order. Increase price or quantity.`
-    }
-
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
       return
@@ -623,13 +616,6 @@ function NewProductPageInner() {
               <label className={styles.label}>Available Quantity <span className={styles.required}>*</span></label>
               <input className={`${styles.input} ${errors.quantity ? styles.inputError : ''}`} type="number" min="1" value={quantity} onChange={e => { setQuantity(e.target.value); setErrors(p => ({ ...p, quantity: '', minimum: '' })) }} placeholder="10" />
               {errors.quantity && <span className={styles.error}>{errors.quantity}</span>}
-              {errors.minimum && <span className={styles.error}>{errors.minimum}</span>}
-              {/* Live $5 minimum hint — hidden in free sharing mode */}
-              {!restriction.isFreeOnly && !errors.minimum && priceUsd && quantity && parseFloat(priceUsd) > 0 && parseInt(quantity) > 0 && parseFloat(priceUsd) * parseInt(quantity) < 5.00 && (
-                <span className={styles.hint} style={{ color: 'var(--amber-600)' }}>
-                  ⚠️ Max order value is ${(parseFloat(priceUsd) * parseInt(quantity)).toFixed(2)} — below $5 minimum
-                </span>
-              )}
             </div>
           </div>
 
