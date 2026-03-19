@@ -772,7 +772,9 @@ export default function MyBoothPage() {
                 <button
                   className={styles.productRemoveBtn}
                   onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleRemoveProduct(slot.product!.id) }}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); if (confirm('Remove this product?')) handleRemoveProduct(slot.product!.id) }}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (confirm('Remove this product?')) handleRemoveProduct(slot.product!.id) }}
                   title="Remove product"
                 >✕</button>
               <div onClick={() => router.push(`/my-booth/products/${slot.product!.id}`)} style={{ cursor: 'pointer' }}>
@@ -795,7 +797,7 @@ export default function MyBoothPage() {
                   </div>
                   <div className={styles.productSlotInfo}>
                     <strong>{slot.product.name}</strong>
-                    <span className="price">{formatUsd(slot.product.priceUsd)}/{slot.product.unit}</span>
+                    <span className="price">{slot.product.priceUsd === 0 ? 'Free' : `${formatUsd(slot.product.priceUsd)}/${slot.product.unit}`}</span>
                     <span className={styles.productSlotStock}>
                       {slot.product.inventory > 0 ? `${slot.product.inventory} in stock` : 'Sold out'}
                     </span>

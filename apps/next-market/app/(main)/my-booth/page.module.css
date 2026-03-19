@@ -122,7 +122,13 @@
 .productRemoveBtn:hover { background: var(--red-500); }
 /* Always show delete button on touch devices (no hover support) */
 @media (hover: none) {
-  .productRemoveBtn { opacity: 0.8; }
+  .productRemoveBtn {
+    opacity: 1;
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+    background: rgba(220, 38, 38, 0.85);
+  }
 }
 
 /* Drag-over */
