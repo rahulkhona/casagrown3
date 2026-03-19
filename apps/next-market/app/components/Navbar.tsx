@@ -195,7 +195,6 @@ export function Navbar() {
     { href: '/earnings/payout', label: 'Payout', icon: '💸', section: 'main' },
     { href: '/following', label: 'Following', icon: '❤️', section: 'main' },
     { href: '/profile', label: 'Profile', icon: '👤', section: 'account' },
-    { href: '/settings', label: 'Settings', icon: '⚙️', section: 'account' },
     { href: '/logout', label: 'Log Out', icon: '🚪', section: 'account' },
   ]
 
