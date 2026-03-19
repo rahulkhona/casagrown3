@@ -62,13 +62,14 @@ export function Navbar() {
 
   const open = isMarketOpen(state.marketSchedule, state.marketNeverCloses)
 
-  // Check actual Supabase session + fetch profile name
+  // Check actual Supabase session + fetch profile name (ONCE on mount)
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       const user = session?.user
       setHasSession(!!user)
       if (user) {
+        setUserId(user.id)
         setProfileEmail(user.email || '')
         const { data: profile } = await supabase
           .from('profiles')
@@ -79,28 +80,24 @@ export function Navbar() {
         if (profile?.avatar_url) setProfileAvatar(profile.avatar_url)
       }
     })
-  }, [pathname])
+  }, []) // only on mount — profile data doesn't change between pages
 
-  // Poll unread notification count every 60s
+  // Poll unread notification count every 60s (separate from profile fetch)
   useEffect(() => {
-    if (!hasSession) return
+    if (!userId) return
     const supabase = createClient()
     const fetchCount = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      const user = session?.user
-      if (!user) return
-      setUserId(user.id)
       const { count } = await supabase
         .from('market_notifications')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .is('read_at', null)
       setUnreadCount(count || 0)
     }
     fetchCount()
-    const id = setInterval(fetchCount, 60_000) // slow: 60s
+    const id = setInterval(fetchCount, 60_000)
     return () => clearInterval(id)
-  }, [hasSession, pathname])
+  }, [userId])
 
   // Fetch notifications when panel opens
   const fetchNotifications = useCallback(async () => {
@@ -215,7 +212,7 @@ export function Navbar() {
     <nav className={styles.navbar}>
       <div className={styles.inner}>
         {/* Logo */}
-        <Link href="/" className={styles.logo}>
+        <Link href={hasSession ? '/market' : '/'} className={styles.logo}>
           <img src="/logo.png" alt="CasaGrown" className={styles.logoImg} />
           <div className={styles.logoTextWrap}>
             <span className={styles.logoText}>CasaGrown</span>
