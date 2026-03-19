@@ -6,6 +6,7 @@ import { Navbar } from '../components/Navbar'
 import { BottomNav } from '../components/BottomNav'
 import { RatingReminder } from '../components/RatingReminder'
 import { AnalyticsTracker } from '../components/AnalyticsTracker'
+import { ErrorToastProvider } from '../components/ErrorToast'
 
 function BannedOverlay({ reason }: { reason: string | null }) {
   return (
@@ -41,18 +42,20 @@ function BannedOverlay({ reason }: { reason: string | null }) {
 }
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
-  const { isBanned, banReason } = useAuth()
+  const { isBanned, banReason, user } = useAuth()
 
   return (
     <MarketProvider>
-      <AnalyticsTracker />
-      <Navbar />
-      <main className="page-wrapper">
-        {children}
-      </main>
-      <BottomNav />
-      <RatingReminder />
-      {isBanned && <BannedOverlay reason={banReason} />}
+      <ErrorToastProvider userId={user?.id}>
+        <AnalyticsTracker />
+        <Navbar />
+        <main className="page-wrapper">
+          {children}
+        </main>
+        <BottomNav />
+        <RatingReminder />
+        {isBanned && <BannedOverlay reason={banReason} />}
+      </ErrorToastProvider>
     </MarketProvider>
   )
 }
