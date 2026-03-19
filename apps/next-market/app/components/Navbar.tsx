@@ -212,7 +212,7 @@ export function Navbar() {
     <nav className={styles.navbar}>
       <div className={styles.inner}>
         {/* Logo */}
-        <Link href={hasSession ? '/market' : '/'} className={styles.logo}>
+        <Link href="/" className={styles.logo}>
           <img src="/logo.png" alt="CasaGrown" className={styles.logoImg} />
           <div className={styles.logoTextWrap}>
             <span className={styles.logoText}>CasaGrown</span>

@@ -31,11 +31,13 @@ export default function HomePage() {
 
       if (needsTosAcceptance(profile?.tos_accepted_at)) {
         router.replace('/terms')
+        return
       } else if (!profile?.full_name || !profile?.street_address) {
         router.replace('/profile-setup')
-      } else {
-        router.replace('/market')
+        return
       }
+      // Fully set-up users see the home page (no redirect)
+      setChecking(false)
     })
   }, [router])
 
