@@ -62,8 +62,13 @@
   max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
-.right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
-@media (min-width: 769px) { .right { margin-left: 0; } }
+.right { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+@media (min-width: 769px) { .right { margin-left: 0; gap: 8px; } }
+@media (max-width: 400px) {
+  .right { gap: 2px; }
+  .right .iconBtn { padding: 6px; font-size: 18px; }
+  .profileBadge { padding: 4px 6px 4px 4px; }
+}
 
 .iconBtn {
   position: relative; padding: 8px; font-size: 20px;
