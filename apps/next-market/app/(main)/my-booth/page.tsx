@@ -454,8 +454,10 @@ export default function MyBoothPage() {
     return typeof window !== 'undefined' ? `${window.location.origin}/market${bid ? '/booth/' + bid : ''}` : '/market'
   }
   const getBoothShareText = (boothId?: string | null) => {
+    const sellerName = state.user?.name?.split(' ')[0] || 'your neighbor'
     const productNames = myProducts.slice(0, 3).map(p => p.name).join(', ')
-    return `Hey! 🌱 Check out my booth "${name}" on CasaGrown Market!\n\n${productNames ? `Fresh ${productNames} and more. ` : ''}Browse and order from my booth:\n\n🛒 ${getBoothShareUrl(boothId)}\n\nFresh. Local. Trusted.`
+    const nextDay = nextMarket ? nextMarket.date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) : ''
+    return `Hey! 🌱 I'm ${sellerName} and I just set up my booth "${name}" on CasaGrown Market!\n\n${productNames ? `I'm growing ${productNames} and more — ` : ''}come check out what's fresh from my backyard.${nextDay ? `\n\n📅 Next market day: ${nextDay}` : ''}\n\n🛒 ${getBoothShareUrl(boothId)}\n\nFresh produce, straight from your neighbor! 🏡`
   }
 
   // Build product slot data
@@ -717,8 +719,8 @@ export default function MyBoothPage() {
         )}
       </div>
 
-      {/* ── Payment ── */}
-      {restriction.isFreeOnly ? (
+      {/* ── Free sharing notice ── */}
+      {restriction.isFreeOnly && (
         <div className={styles.boothSection}>
           <h2 className={styles.sectionTitle}>🏛️ Free Sharing Mode</h2>
           <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12, padding: '16px 20px', fontSize: 14, color: '#1e40af', lineHeight: 1.6 }}>
@@ -726,112 +728,6 @@ export default function MyBoothPage() {
             <p style={{ margin: '8px 0 0', color: '#3b82f6' }}>All your products will be listed as <strong>Free</strong>. Buyers can claim produce without payment. We&apos;re actively working on enabling paid transactions in your area.</p>
           </div>
         </div>
-      ) : (
-      <div className={styles.boothSection}>
-        <h2 className={styles.sectionTitle}>💳 Payout Method</h2>
-        <div className={styles.toggleGrid}>
-          <button
-            className={`${styles.toggleCard} ${paymentMethod === 'automatic' ? styles.toggleActive : ''}`}
-            onClick={() => { setPaymentMethod('automatic'); setSaved(false) }}
-          >
-            <span style={{ fontSize: 28 }}>⚡</span>
-            <strong>Auto Payout</strong>
-            <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>Paid after end-of-day settlement</span>
-          </button>
-          <button
-            className={`${styles.toggleCard} ${paymentMethod === 'manual' ? styles.toggleActive : ''}`}
-            onClick={() => { setPaymentMethod('manual'); setSaved(false) }}
-          >
-            <span style={{ fontSize: 28 }}>🖐️</span>
-            <strong>Manual</strong>
-            <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>Request payout after settlement</span>
-          </button>
-        </div>
-        {paymentMethod === 'automatic' && (
-          <div style={{ marginTop: 16 }}>
-            <p className="label" style={{ marginBottom: 10 }}>Where should earnings go?</p>
-            <div className={styles.toggleGrid}>
-              <button
-                className={`${styles.toggleCard} ${styles.toggleCardSmall} ${payoutDestination === 'venmo' ? styles.toggleActive : ''}`}
-                onClick={() => { setPayoutDestination('venmo'); setSaved(false) }}
-              >
-                <span style={{ fontSize: 22 }}>💸</span>
-                <strong>Venmo</strong>
-              </button>
-              <button
-                className={`${styles.toggleCard} ${styles.toggleCardSmall} ${payoutDestination === 'charity' ? styles.toggleActive : ''}`}
-                onClick={() => { setPayoutDestination('charity'); setSaved(false) }}
-              >
-                <span style={{ fontSize: 22 }}>❤️</span>
-                <strong>Charity</strong>
-              </button>
-            </div>
-            {payoutDestination === 'venmo' && (
-              <div className="form-group" style={{ marginTop: 12 }}>
-                <label className="label" htmlFor="venmo-handle">Venmo Username, Email or Phone</label>
-                <input
-                  id="venmo-handle" className="input" value={venmoHandle}
-                  onChange={e => { setVenmoHandle(e.target.value); setSaved(false) }}
-                  placeholder="@username, email, or phone" style={{ maxWidth: 320 }}
-                />
-              </div>
-            )}
-            {payoutDestination === 'charity' && (
-              <div className="form-group" style={{ marginTop: 12, position: 'relative' }}>
-                <label className="label" htmlFor="charity-search">Search Charities</label>
-                <input
-                  id="charity-search" className="input"
-                  value={charityName || charitySearch}
-                  onChange={e => {
-                    const val = e.target.value
-                    setCharitySearch(val)
-                    setCharityName('')
-                    setShowCharityDropdown(true)
-                    setSaved(false)
-                  }}
-                  onFocus={() => setShowCharityDropdown(true)}
-                  placeholder="Search for a charity..."
-                />
-                {showCharityDropdown && (
-                  <div className={styles.charityDropdown}>
-                    {DEFAULT_CHARITIES
-                      .filter(c => !charitySearch || c.name.toLowerCase().includes(charitySearch.toLowerCase()))
-                      .map(c => (
-                        <button
-                          key={c.id}
-                          className={styles.charityItem}
-                          onClick={() => {
-                            setCharityName(c.name)
-                            setCharitySearch('')
-                            setShowCharityDropdown(false)
-                            setSaved(false)
-                          }}
-                        >
-                          <span className={styles.charityItemName}>{c.name}</span>
-                          <span className={styles.charityItemCategory}>{c.category}</span>
-                        </button>
-                      ))}
-                    {charitySearch && !DEFAULT_CHARITIES.some(c => c.name.toLowerCase().includes(charitySearch.toLowerCase())) && (
-                      <button
-                        className={styles.charityItem}
-                        onClick={() => {
-                          setCharityName(charitySearch)
-                          setCharitySearch('')
-                          setShowCharityDropdown(false)
-                          setSaved(false)
-                        }}
-                      >
-                        <span className={styles.charityItemName}>Use &quot;{charitySearch}&quot;</span>
-                        <span className={styles.charityItemCategory}>Custom</span>
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
       )}
 
       {/* ── Product Slots ── */}

@@ -677,7 +677,7 @@ export default function PayoutPage() {
         <div className={styles.tabContent}>
           {giftCardDisabled && (
             <div className={styles.warningBox}>
-              ⚠️ Gift cards require a minimum balance of {formatUsd(GIFT_CARD_MIN)}. Your balance: {formatUsd(availableUsd)}
+              ⚠️ Gift cards require a minimum balance of {formatUsd(GIFT_CARD_MIN)}. Your balance: {availableUsd > 0 ? formatUsd(availableUsd) : 'free'}
             </div>
           )}
 
