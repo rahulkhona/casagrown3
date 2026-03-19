@@ -169,9 +169,8 @@ function ProfileSetupPageInner() {
         avatar_url: avatarUrl || null,
         profile_completed_at: new Date().toISOString(),
       }
-      if (geoLat !== null && geoLng !== null) {
-        profileUpdate.home_location = `SRID=4326;POINT(${geoLng} ${geoLat})`
-      }
+      // NOTE: home_location (PostGIS geometry) is NOT set here due to
+      // ambiguous operator errors. It will be computed server-side.
       if (h3Index) {
         const communityName = `${validatedCity}, ${validatedState}`
         await supabase.from('communities').upsert({
