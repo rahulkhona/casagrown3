@@ -12,7 +12,7 @@ import { checkIsStaffByEmail, linkStaffUserId } from '../../features/feedback/fe
 function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const returnTo = searchParams.get('returnTo') || '/'
+  const returnTo = searchParams.get('returnTo') || '/board'
   const { signInWithOtp, verifyOtp, user, loading: authLoading } = useAuth()
 
   const [method, setMethod] = useState<'email' | 'otp'>('email')

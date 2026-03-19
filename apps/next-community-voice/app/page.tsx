@@ -54,7 +54,7 @@ export default function Page() {
 
         <YStack marginTop="$8" alignItems="center">
             <Text color={colors.gray[500]} fontSize={13} fontWeight="400">
-                Staff Member? <Text color={colors.green[600]} fontWeight="600" onPress={() => router.push('/login')}>Log in here</Text>
+                Staff Member? <Text color={colors.green[600]} fontWeight="600" onPress={() => router.push('/login?returnTo=/board')}>Log in here</Text>
             </Text>
         </YStack>
       </YStack>
