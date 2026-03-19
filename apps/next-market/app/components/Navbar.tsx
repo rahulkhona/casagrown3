@@ -89,6 +89,21 @@ export function Navbar() {
     })
   }, [pathname]) // runs on navigation, but skips fetch unless leaving /profile
 
+  // Re-fetch profile when tab regains focus (catches cross-device edits)
+  useEffect(() => {
+    const onFocus = () => {
+      if (document.hidden || !userId) return
+      const supabase = createClient()
+      supabase.from('profiles').select('full_name, avatar_url').eq('id', userId).single()
+        .then(({ data }) => {
+          if (data?.full_name) setProfileName(data.full_name)
+          if (data?.avatar_url) setProfileAvatar(data.avatar_url)
+        })
+    }
+    document.addEventListener('visibilitychange', onFocus)
+    return () => document.removeEventListener('visibilitychange', onFocus)
+  }, [userId])
+
   // Poll unread notification count every 60s (separate from profile fetch)
   useEffect(() => {
     if (!userId) return
