@@ -124,6 +124,8 @@ export async function fetchTickets(
     } = params;
 
     // Build query — select only needed columns + counts
+    // NOTE: We do NOT use embedded joins (profiles!author_id) because PostgREST's
+    // schema cache can be stale after FK changes. Instead, we fetch profiles separately.
     let query = supabase
         .from("user_feedback")
         .select(
@@ -139,7 +141,6 @@ export async function fetchTickets(
       resolved_at,
       assigned_to,
       author_id,
-      author:profiles!author_id(full_name, avatar_url),
       feedback_votes(count),
       feedback_comments(count)
     `,
@@ -223,10 +224,25 @@ export async function fetchTickets(
     }
 
     // Transform response
+    // Fetch author profiles separately to avoid PostgREST schema cache issues
+    const authorIds = [...new Set((data || []).map((r: any) => r.author_id).filter(Boolean))];
+    let profileMap: Record<string, { full_name: string | null; avatar_url: string | null }> = {};
+    if (authorIds.length > 0) {
+        const { data: profiles } = await supabase
+            .from("profiles")
+            .select("id, full_name, avatar_url")
+            .in("id", authorIds);
+        if (profiles) {
+            for (const p of profiles) {
+                profileMap[p.id] = { full_name: p.full_name, avatar_url: p.avatar_url };
+            }
+        }
+    }
+
     let tickets: FeedbackTicket[] = (data || []).map((row: any) => ({
         id: row.id,
-        title: row.title,
-        description: row.description,
+        title: row.title || row.message || 'Untitled',
+        description: row.description || row.message || '',
         type: row.type,
         status: row.status,
         visibility: row.visibility,
@@ -235,8 +251,8 @@ export async function fetchTickets(
         resolved_at: row.resolved_at,
         assigned_to: row.assigned_to,
         author_id: row.author_id,
-        author_name: row.author?.full_name || "Anonymous",
-        author_avatar: row.author?.avatar_url || null,
+        author_name: profileMap[row.author_id]?.full_name || "Anonymous",
+        author_avatar: profileMap[row.author_id]?.avatar_url || null,
         vote_count: row.feedback_votes?.[0]?.count || 0,
         comment_count: row.feedback_comments?.[0]?.count || 0,
         is_voted: false,
@@ -331,15 +347,13 @@ export async function fetchTicketById(
       resolved_at,
       assigned_to,
       author_id,
-      author:profiles!author_id(full_name, avatar_url),
       feedback_votes(count),
       feedback_comments(
         id,
         content,
         is_official_response,
         created_at,
-        author_id,
-        comment_author:profiles!author_id(full_name, avatar_url)
+        author_id
       )
     `)
         .eq("id", id)
@@ -351,6 +365,25 @@ export async function fetchTicketById(
     }
 
     const row = data as any;
+
+    // Fetch author profiles separately
+    const allAuthorIds = new Set<string>();
+    if (row.author_id) allAuthorIds.add(row.author_id);
+    for (const c of (row.feedback_comments || [])) {
+        if (c.author_id) allAuthorIds.add(c.author_id);
+    }
+    let profileMap: Record<string, { full_name: string | null; avatar_url: string | null }> = {};
+    if (allAuthorIds.size > 0) {
+        const { data: profiles } = await supabase
+            .from("profiles")
+            .select("id, full_name, avatar_url")
+            .in("id", [...allAuthorIds]);
+        if (profiles) {
+            for (const p of profiles) {
+                profileMap[p.id] = { full_name: p.full_name, avatar_url: p.avatar_url };
+            }
+        }
+    }
 
     // Check user vote
     let isVoted = false;
@@ -398,8 +431,8 @@ export async function fetchTicketById(
 
     const result: FeedbackDetail = {
         id: row.id,
-        title: row.title,
-        description: row.description,
+        title: row.title || row.message || 'Untitled',
+        description: row.description || row.message || '',
         type: row.type,
         status: row.status,
         visibility: row.visibility,
@@ -408,8 +441,8 @@ export async function fetchTicketById(
         resolved_at: row.resolved_at,
         assigned_to: row.assigned_to,
         author_id: row.author_id,
-        author_name: row.author?.full_name || "Anonymous",
-        author_avatar: row.author?.avatar_url || null,
+        author_name: profileMap[row.author_id]?.full_name || "Anonymous",
+        author_avatar: profileMap[row.author_id]?.avatar_url || null,
         vote_count: row.feedback_votes?.[0]?.count || 0,
         comment_count: row.feedback_comments?.length || 0,
         is_voted: isVoted,
@@ -422,8 +455,8 @@ export async function fetchTicketById(
             is_official_response: c.is_official_response,
             created_at: c.created_at,
             author_id: c.author_id,
-            author_name: c.comment_author?.full_name || "Anonymous",
-            author_avatar: c.comment_author?.avatar_url || null,
+            author_name: profileMap[c.author_id]?.full_name || "Anonymous",
+            author_avatar: profileMap[c.author_id]?.avatar_url || null,
             attachments: commentMediaMap[c.id] || [],
         })),
     };
