@@ -176,9 +176,14 @@ function NewProductPageInner() {
     if (photos.length === 0) newErrors.photo = 'Please add at least one photo'
     if (!name.trim()) newErrors.name = 'Name is required'
     const effectivePrice = restriction.isFreeOnly ? '0' : priceUsd
-    if (effectivePrice === '' || effectivePrice === undefined) newErrors.price = 'Set a price (or 0 for free)'
-    if (effectivePrice !== '' && parseFloat(effectivePrice) < 0) newErrors.price = 'Price cannot be negative'
-    if (restriction.isFreeOnly && parseFloat(effectivePrice || '0') !== 0) newErrors.price = 'Your state requires free sharing — price must be $0'
+    const parsedPrice = parseFloat(effectivePrice)
+    if (effectivePrice === '' || effectivePrice === null || effectivePrice === undefined || isNaN(parsedPrice)) {
+      newErrors.price = 'Set a price (or 0 for free)'
+    } else if (parsedPrice < 0) {
+      newErrors.price = 'Price cannot be negative'
+    } else if (restriction.isFreeOnly && parsedPrice !== 0) {
+      newErrors.price = 'Your state requires free sharing — price must be $0'
+    }
     if (!quantity || parseInt(quantity) <= 0) newErrors.quantity = 'How many do you have?'
 
     if (Object.keys(newErrors).length > 0) {
