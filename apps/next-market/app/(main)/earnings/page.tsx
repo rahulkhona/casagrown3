@@ -7,7 +7,8 @@ import { useAuth } from '../../../lib/useAuth'
 import { createClient } from '../../../lib/supabase'
 import { useMarketRestriction } from '../../../lib/useMarketRestriction'
 import { MarketReceiptSheet, type MarketReceiptData } from '../../components/MarketReceiptSheet'
-import { NotificationBanner } from '../../components/NotificationBanner'
+import { useNotificationPrompt } from '../../../lib/useNotificationPrompt'
+import { NotificationPromptModal } from '../../components/NotificationPromptModal'
 import styles from './page.module.css'
 
 // ── Types ──
@@ -83,6 +84,7 @@ export default function EarningsPage() {
   const { isAuthenticated, loading: authLoading, user } = useAuth()
   const restriction = useMarketRestriction()
   const userId = user?.id
+  const { showPrompt, modalProps } = useNotificationPrompt(userId)
   const [tab, setTab] = useState<Tab>('activity')
   const [dateRange, setDateRange] = useState<DateRange>('month')
   const [customStart, setCustomStart] = useState('')
@@ -193,6 +195,9 @@ export default function EarningsPage() {
     }
   }, [isAuthenticated, userId, fetchTransactions, fetchSummary, fetchPending])
 
+  // Trigger notification prompt on mount
+  useEffect(() => { showPrompt() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Open receipt ──
   const openReceipt = useCallback(async (tx: TransactionEntry) => {
     if (tx.tx_type !== 'purchase' && tx.tx_type !== 'sale') return
@@ -289,7 +294,7 @@ export default function EarningsPage() {
           <p className="page-subtitle">Your market transactions, receipts, and payouts</p>
         </div>
 
-        <NotificationBanner context="payout updates and order alerts" />
+        <NotificationPromptModal {...modalProps} />
 
         {/* ── Free sharing mode banner ── */}
         {restriction.isFreeOnly && (

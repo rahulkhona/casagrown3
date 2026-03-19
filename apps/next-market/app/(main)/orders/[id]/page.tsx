@@ -8,7 +8,7 @@ import { createClient } from '../../../../lib/supabase'
 import { useAuth } from '../../../../lib/useAuth'
 import CameraCapture, { CaptureResult } from '../../../../components/CameraCapture'
 import OrderChat from '../../../../components/OrderChat'
-import { NotificationBanner } from '../../../components/NotificationBanner'
+
 import { useNotificationPrompt } from '../../../../lib/useNotificationPrompt'
 import { NotificationPromptModal } from '../../../components/NotificationPromptModal'
 import { geocodeAddress } from '../../../../lib/geocode'
@@ -271,7 +271,7 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
         <Link href="/orders">← Orders</Link>
       </div>
 
-      <NotificationBanner context="order updates and messages" />
+      <NotificationPromptModal {...modalProps} />
 
       {/* Order Summary */}
       <div className={styles.summaryCard}>

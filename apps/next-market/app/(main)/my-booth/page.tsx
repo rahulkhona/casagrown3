@@ -7,12 +7,14 @@ import { useMarket, formatUsd, getNextMarketDate, type Booth } from '../../../li
 import { useAuth } from '../../../lib/useAuth'
 import { createClient } from '../../../lib/supabase'
 import { useMarketRestriction } from '../../../lib/useMarketRestriction'
+import { useNotificationPrompt } from '../../../lib/useNotificationPrompt'
+import { NotificationPromptModal } from '../../components/NotificationPromptModal'
 import CameraCapture from '../../../components/CameraCapture'
 import ImageCropper from '../../../components/ImageCropper'
 
 
 import { geocodeAddress, toPostgisPoint } from '../../../lib/geocode'
-import { NotificationBanner } from '../../components/NotificationBanner'
+
 import styles from './page.module.css'
 
 const THEMES: { id: Booth['decorativeTheme']; label: string; emoji: string }[] = [
@@ -62,6 +64,8 @@ export default function MyBoothPage() {
   const supabase = createClient()
   const restriction = useMarketRestriction()
   const router = useRouter()
+  const { showPrompt, modalProps } = useNotificationPrompt(user?.id)
+  const nextMarket = getNextMarketDate(state.marketSchedule)
   const bannerRef = useRef<HTMLInputElement>(null)
   const myBooth = state.booths.find(b => b.ownerId === state.user?.id)
   const [dbProducts, setDbProducts] = useState<typeof state.products>([])
@@ -112,6 +116,9 @@ export default function MyBoothPage() {
     supabase.from('platform_fees').select('fees').eq('country_code', 'USA').single()
       .then(({ data }) => { if (data?.fees) setPlatformFeePct(Math.round(data.fees * 100)) })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Trigger notification prompt on mount
+  useEffect(() => { showPrompt() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Time windows (pre-defined 2-hour slots)
   const [deliveryWindows, setDeliveryWindows] = useState<string[]>(
@@ -460,7 +467,25 @@ export default function MyBoothPage() {
   return (
     <div className={styles.boothPreviewPage}>
 
-      <NotificationBanner context="new order alerts and buyer messages" />
+      <NotificationPromptModal {...modalProps} />
+
+      {/* ── Market Day Badge ── */}
+      <div style={{
+        background: 'var(--green-50)', border: '1px solid var(--green-200)',
+        borderRadius: 'var(--radius)', padding: '10px 16px', margin: '0 0 12px',
+        display: 'flex', alignItems: 'center', gap: 8, fontSize: 14,
+      }}>
+        <span style={{ fontSize: 18 }}>📅</span>
+        {nextMarket ? (
+          <span>
+            <strong>Preparing for {nextMarket.date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</strong>
+            <span style={{ color: 'var(--gray-500)', marginLeft: 6 }}>— next market day</span>
+          </span>
+        ) : (
+          <span style={{ color: 'var(--gray-500)' }}>No upcoming market scheduled</span>
+        )}
+      </div>
+
       {/* ── Compact Booth Header ── */}
       <div className={styles.boothHeader}>
         {/* Banner — always shows something (gradient default or uploaded image) */}
@@ -554,6 +579,9 @@ export default function MyBoothPage() {
           </div>
         </div>
       </div>
+
+      {/* Trigger notification prompt after page loads */}
+      {/* eslint-disable-next-line react-hooks/exhaustive-deps */}
 
       {/* ── Delivery & Pickup ── */}
       <div className={styles.boothSection}>
