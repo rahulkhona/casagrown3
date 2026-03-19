@@ -54,7 +54,7 @@ export function Navbar() {
 
   // Bug report state
   const [bugOpen, setBugOpen] = useState(false)
-  const [bugType, setBugType] = useState<'bug' | 'feature' | 'improvement'>('bug')
+  const [bugType, setBugType] = useState<'bug' | 'feature' | 'support'>('bug')
   const [bugMessage, setBugMessage] = useState('')
   const [bugSending, setBugSending] = useState(false)
   const [bugSent, setBugSent] = useState(false)
@@ -259,7 +259,7 @@ export function Navbar() {
               onClick={async () => {
                 // Capture screenshot before opening modal
                 try {
-                  const canvas = await html2canvas(document.body, { useCORS: true, scale: 0.5, logging: false })
+                  const canvas = await html2canvas(document.documentElement, { useCORS: true, scale: 0.5, logging: false, windowHeight: document.documentElement.scrollHeight, height: document.documentElement.scrollHeight })
                   setBugScreenshot(canvas.toDataURL('image/jpeg', 0.6))
                 } catch { setBugScreenshot(null) }
                 setBugOpen(true)
@@ -269,7 +269,7 @@ export function Navbar() {
               aria-label="Report Bug"
               title="Report a bug or send feedback"
             >
-              🐛
+              💬
             </button>
           )}
 
@@ -502,7 +502,7 @@ export function Navbar() {
             color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           }}>
             <div>
-              <div style={{ fontSize: 15, fontWeight: 700 }}>🐛 Report a Bug</div>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>💬 Send Feedback</div>
               <div style={{ fontSize: 11, opacity: 0.8 }}>Help us improve CasaGrown</div>
             </div>
             <button onClick={() => { setBugOpen(false); setBugSent(false) }} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer', opacity: 0.8 }}>✕</button>
@@ -521,7 +521,7 @@ export function Navbar() {
                 {([
                   { id: 'bug' as const, icon: '🐛', label: 'Bug', color: '#dc2626' },
                   { id: 'feature' as const, icon: '💡', label: 'Feature', color: '#7c3aed' },
-                  { id: 'improvement' as const, icon: '✨', label: 'Improve', color: '#0891b2' },
+                  { id: 'support' as const, icon: '🎧', label: 'Support', color: '#0891b2' },
                 ]).map(t => (
                   <button key={t.id} onClick={() => setBugType(t.id)} style={{
                     flex: 1, padding: '8px 6px', borderRadius: 10,
@@ -538,15 +538,18 @@ export function Navbar() {
 
               {/* Screenshot preview */}
               {bugScreenshot && (
-                <div style={{ borderRadius: 8, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+                <div style={{ borderRadius: 8, border: '1px solid #e5e7eb', overflow: 'hidden', position: 'relative' }}>
                   <img src={bugScreenshot} alt="Screenshot" style={{ width: '100%', height: 120, objectFit: 'cover', objectPosition: 'top' }} />
-                  <div style={{ fontSize: 10, color: '#9ca3af', padding: '4px 8px', background: '#f9fafb' }}>📸 Screenshot auto-captured</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', background: '#f9fafb' }}>
+                    <span style={{ fontSize: 10, color: '#9ca3af' }}>📸 Screenshot auto-captured</span>
+                    <button onClick={() => setBugScreenshot(null)} style={{ background: 'none', border: 'none', fontSize: 10, color: '#dc2626', cursor: 'pointer', fontWeight: 600 }}>✕ Remove</button>
+                  </div>
                 </div>
               )}
 
               {/* Message input */}
               <textarea
-                placeholder={bugType === 'bug' ? "What went wrong? Describe what happened..." : bugType === 'feature' ? "What feature would you like to see?" : "What could work better?"}
+                placeholder={bugType === 'bug' ? "What went wrong? Describe what happened..." : bugType === 'feature' ? "What feature would you like to see?" : "How can we help you?"}
                 value={bugMessage}
                 onChange={e => setBugMessage(e.target.value)}
                 rows={3}
