@@ -9,6 +9,7 @@ import { useMarketRestriction } from '../../../lib/useMarketRestriction'
 import { MarketReceiptSheet, type MarketReceiptData } from '../../components/MarketReceiptSheet'
 import { useNotificationPrompt } from '../../../lib/useNotificationPrompt'
 import { NotificationPromptModal } from '../../components/NotificationPromptModal'
+import { NotificationBanner } from '../../components/NotificationBanner'
 import styles from './page.module.css'
 
 // ── Types ──
@@ -295,6 +296,7 @@ export default function EarningsPage() {
         </div>
 
         <NotificationPromptModal {...modalProps} />
+        <NotificationBanner context="payout updates and order alerts" onEnableClick={showPrompt} />
 
         {/* ── Free sharing mode banner ── */}
         {restriction.isFreeOnly && (

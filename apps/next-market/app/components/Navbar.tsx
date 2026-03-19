@@ -35,6 +35,7 @@ export function Navbar() {
   const [hasSession, setHasSession] = useState(false)
   const [profileName, setProfileName] = useState('')
   const [profileEmail, setProfileEmail] = useState('')
+  const [profileAvatar, setProfileAvatar] = useState<string | null>(null)
   const [unreadCount, setUnreadCount] = useState(0)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -61,10 +62,11 @@ export function Navbar() {
         setProfileEmail(user.email || '')
         const { data: profile } = await supabase
           .from('profiles')
-          .select('full_name')
+          .select('full_name, avatar_url')
           .eq('id', user.id)
           .single()
         if (profile?.full_name) setProfileName(profile.full_name)
+        if (profile?.avatar_url) setProfileAvatar(profile.avatar_url)
       }
     })
   }, [pathname])
@@ -233,7 +235,11 @@ export function Navbar() {
           {/* Profile indicator (always visible for quick account identification) */}
           {hasSession && profileName && (
             <Link href="/profile" className={styles.profileBadge} title={profileEmail}>
-              <span className={styles.profileInitial}>{profileName.charAt(0).toUpperCase()}</span>
+              {profileAvatar ? (
+                <img src={profileAvatar} alt="" className={styles.profileInitial} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
+              ) : (
+                <span className={styles.profileInitial}>{profileName.charAt(0).toUpperCase()}</span>
+              )}
               <span className={`${styles.profileName} hide-mobile`}>{profileName.split(' ')[0]}</span>
             </Link>
           )}
@@ -363,7 +369,11 @@ export function Navbar() {
                 {/* User info */}
                 {state.isAuthenticated && (
                   <div className={styles.menuUser}>
-                    <div className={styles.menuAvatar}>{state.user?.name?.charAt(0) || '?'}</div>
+                    {profileAvatar ? (
+                      <img src={profileAvatar} alt="" className={styles.menuAvatar} style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }} />
+                    ) : (
+                      <div className={styles.menuAvatar}>{state.user?.name?.charAt(0) || '?'}</div>
+                    )}
                     <div>
                       <strong className={styles.menuUserName}>{state.user?.name}</strong>
                       <span className={styles.menuUserEmail}>{state.user?.email}</span>

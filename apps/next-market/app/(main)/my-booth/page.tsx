@@ -9,6 +9,7 @@ import { createClient } from '../../../lib/supabase'
 import { useMarketRestriction } from '../../../lib/useMarketRestriction'
 import { useNotificationPrompt } from '../../../lib/useNotificationPrompt'
 import { NotificationPromptModal } from '../../components/NotificationPromptModal'
+import { NotificationBanner } from '../../components/NotificationBanner'
 import CameraCapture from '../../../components/CameraCapture'
 import ImageCropper from '../../../components/ImageCropper'
 
@@ -468,6 +469,7 @@ export default function MyBoothPage() {
     <div className={styles.boothPreviewPage}>
 
       <NotificationPromptModal {...modalProps} />
+      <NotificationBanner context="new order alerts and buyer messages" onEnableClick={showPrompt} />
 
       {/* ── Market Day Badge ── */}
       <div style={{

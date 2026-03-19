@@ -11,6 +11,7 @@ import OrderChat from '../../../../components/OrderChat'
 
 import { useNotificationPrompt } from '../../../../lib/useNotificationPrompt'
 import { NotificationPromptModal } from '../../../components/NotificationPromptModal'
+import { NotificationBanner } from '../../../components/NotificationBanner'
 import { geocodeAddress } from '../../../../lib/geocode'
 import styles from './page.module.css'
 
@@ -272,6 +273,7 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
       </div>
 
       <NotificationPromptModal {...modalProps} />
+      <NotificationBanner context="order updates and messages" onEnableClick={showPrompt} />
 
       {/* Order Summary */}
       <div className={styles.summaryCard}>
