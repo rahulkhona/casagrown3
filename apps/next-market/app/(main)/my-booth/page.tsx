@@ -314,10 +314,10 @@ export default function MyBoothPage() {
   }
 
   if (!isAuthenticated) {
+    router.replace('/login?redirect=/my-booth')
     return (
       <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}>
-        <h2>Sign in to manage your booth</h2>
-        <Link href="/login" className="btn btn-primary" style={{ marginTop: 16 }}>Sign In</Link>
+        <p>Redirecting to sign in...</p>
       </div>
     )
   }
