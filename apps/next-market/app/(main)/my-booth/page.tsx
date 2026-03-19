@@ -1151,9 +1151,9 @@ export default function MyBoothPage() {
             reader.readAsDataURL(file)
             const userId = state.user?.id || 'anon'
             const path = `booth-banners/${userId}.jpg`
-            const { error } = await supabase.storage.from('media').upload(path, file, { upsert: true })
+            const { error } = await supabase.storage.from('product-photos').upload(path, file, { upsert: true })
             if (!error) {
-              const { data } = supabase.storage.from('media').getPublicUrl(path)
+              const { data } = supabase.storage.from('product-photos').getPublicUrl(path)
               if (data?.publicUrl) { setBannerUrl(data.publicUrl); setSaved(false) }
             }
             setUploadingBanner(false)

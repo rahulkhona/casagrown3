@@ -271,10 +271,10 @@ function ProfileSetupPageInner() {
                 const reader = new FileReader()
                 reader.onload = (ev) => setAvatarPreview(ev.target?.result as string)
                 reader.readAsDataURL(file)
-                const path = `avatars/${userId}.jpg`
-                const { error: uploadErr } = await supabase.storage.from('media').upload(path, file, { upsert: true })
+                const path = `${userId}.jpg`
+                const { error: uploadErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
                 if (uploadErr) { console.warn('Upload failed:', uploadErr.message); return }
-                const { data: urlData } = supabase.storage.from('media').getPublicUrl(path)
+                const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
                 if (urlData?.publicUrl) setAvatarUrl(urlData.publicUrl)
               }}
             />
