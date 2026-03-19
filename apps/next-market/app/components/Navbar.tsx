@@ -269,7 +269,7 @@ export function Navbar() {
               aria-label="Report Bug"
               title="Report a bug or send feedback"
             >
-              💬
+              ❓
             </button>
           )}
 
@@ -502,7 +502,7 @@ export function Navbar() {
             color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           }}>
             <div>
-              <div style={{ fontSize: 15, fontWeight: 700 }}>💬 Send Feedback</div>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>❓ Send Feedback</div>
               <div style={{ fontSize: 11, opacity: 0.8 }}>Help us improve CasaGrown</div>
             </div>
             <button onClick={() => { setBugOpen(false); setBugSent(false) }} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer', opacity: 0.8 }}>✕</button>
