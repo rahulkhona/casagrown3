@@ -189,7 +189,7 @@ export function ErrorToastProvider({ children, userId }: { children: React.React
           aria-label="Send Feedback"
           title="Send Feedback"
         >
-          💬
+          📣
         </button>
       )}
 

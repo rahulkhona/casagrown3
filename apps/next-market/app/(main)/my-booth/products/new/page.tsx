@@ -175,7 +175,8 @@ function NewProductPageInner() {
     const newErrors: Record<string, string> = {}
     if (photos.length === 0) newErrors.photo = 'Please add at least one photo'
     if (!name.trim()) newErrors.name = 'Name is required'
-    if (!priceUsd || (!restriction.isFreeOnly && parseFloat(priceUsd) <= 0)) newErrors.price = restriction.isFreeOnly ? 'Price must be 0 in free sharing mode' : 'Set a price'
+    if (priceUsd === '' || priceUsd === undefined) newErrors.price = 'Set a price (or 0 for free)'
+    if (priceUsd !== '' && parseFloat(priceUsd) < 0) newErrors.price = 'Price cannot be negative'
     if (!quantity || parseInt(quantity) <= 0) newErrors.quantity = 'How many do you have?'
 
     // $5 minimum product potential check (skip for free sharing mode)
@@ -194,6 +195,8 @@ function NewProductPageInner() {
 
     setValidating(true)
     setAddedProductName(name.trim())
+
+    try {
 
     // ── 1. Ensure a booth exists (auto-create draft if needed) ──
     let boothId: string | null = null
@@ -423,6 +426,11 @@ function NewProductPageInner() {
     setBoothIdForShare(boothId)
     setShowShareModal(true)
     showPrompt()
+    } catch (err: any) {
+      console.error('Product add error:', err)
+      alert('Failed to save product: ' + (err?.message || 'Unknown error. Please try again.'))
+      setValidating(false)
+    }
   }
 
   const boothLabel = state.booths.find(b => b.ownerId === authUser?.id)?.name || 'my booth'
