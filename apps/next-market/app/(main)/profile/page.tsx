@@ -1,38 +1,64 @@
 'use client'
 
-import { useState } from 'react'
-import { useMarket } from '../../../lib/store'
+import { useState, useEffect } from 'react'
+import { createClient } from '../../../lib/supabase'
 import { useAuth } from '../../../lib/useAuth'
 import styles from './page.module.css'
 
 export default function ProfilePage() {
-  const { state, dispatch } = useMarket()
+  const { user, isAuthenticated, loading: authLoading } = useAuth()
   const [form, setForm] = useState({
-    name: state.user?.name || '',
-    email: state.user?.email || '',
-    phone: state.user?.phone || '',
-    street: state.user?.address?.street || '',
-    city: state.user?.address?.city || '',
-    state: state.user?.address?.state || '',
-    zip: state.user?.address?.zip || '',
+    name: '',
+    email: '',
+    street: '',
+    city: '',
+    state: '',
+    zip: '',
   })
+  const [loading, setLoading] = useState(true)
+  const [saved, setSaved] = useState(false)
 
-  const handleSave = (e: React.FormEvent) => {
+  // Fetch actual profile from Supabase
+  useEffect(() => {
+    if (!user) return
+    const supabase = createClient()
+    supabase
+      .from('profiles')
+      .select('full_name, street_address, city, state, zip')
+      .eq('id', user.id)
+      .single()
+      .then(({ data }) => {
+        setForm({
+          name: data?.full_name || '',
+          email: user.email || '',
+          street: data?.street_address || '',
+          city: data?.city || '',
+          state: data?.state || '',
+          zip: data?.zip || '',
+        })
+        setLoading(false)
+      })
+  }, [user])
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
-    dispatch({
-      type: 'UPDATE_PROFILE',
-      payload: {
-        name: form.name,
-        phone: form.phone,
-        address: { street: form.street, city: form.city, state: form.state, zip: form.zip },
-      },
-    })
-    dispatch({ type: 'ADD_TOAST', payload: { message: 'Profile updated!', type: 'success' } })
+    if (!user) return
+    const supabase = createClient()
+    await supabase
+      .from('profiles')
+      .update({
+        full_name: form.name,
+        street_address: form.street,
+        city: form.city,
+        state: form.state,
+        zip: form.zip,
+      })
+      .eq('id', user.id)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
   }
 
-  const { isAuthenticated, loading: authLoading } = useAuth()
-
-  if (authLoading) return <div className="container-sm" style={{ padding: '80px 20px', textAlign: 'center' }}><p>Loading...</p></div>
+  if (authLoading || loading) return <div className="container-sm" style={{ padding: '80px 20px', textAlign: 'center' }}><p>Loading...</p></div>
 
   if (!isAuthenticated) {
     return (
@@ -46,7 +72,7 @@ export default function ProfilePage() {
   return (
     <div className="container-sm">
       <div className={styles.header}>
-        <div className={styles.avatar}>{state.user?.name?.charAt(0)}</div>
+        <div className={styles.avatar}>{form.name?.charAt(0) || '?'}</div>
         <h1 className="page-title">My Profile</h1>
         <p className="page-subtitle">Manage your personal information</p>
       </div>
@@ -61,16 +87,6 @@ export default function ProfilePage() {
           <label className="label" htmlFor="email">Email</label>
           <input id="email" className="input" value={form.email} disabled style={{ background: 'var(--gray-50)' }} />
           <p className="form-helper">Email cannot be changed</p>
-        </div>
-
-        <div className="form-group">
-          <label className="label" htmlFor="phone">Phone Number</label>
-          <div className={styles.phoneRow}>
-            <input id="phone" className="input" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="(555) 123-4567" />
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => dispatch({ type: 'ADD_TOAST', payload: { message: 'Phone verified! ✓', type: 'success' } })}>
-              Verify
-            </button>
-          </div>
         </div>
 
         <div className="divider" />
@@ -97,9 +113,10 @@ export default function ProfilePage() {
         </div>
 
         <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%', marginTop: 8 }}>
-          Save Profile
+          {saved ? '✓ Saved' : 'Save Profile'}
         </button>
       </form>
     </div>
   )
 }
+

@@ -134,8 +134,8 @@ function TermsPageInner() {
       if (template) {
         router.push(`/get-started/${template}`)
       } else if (profile?.full_name && profile?.street_address) {
-        // Profile already complete — go to redirect target or home
-        router.push(redirectTo || '/')
+        // Profile already complete — go to redirect target or market
+        router.push(redirectTo || '/market')
       } else {
         const redirectParam = redirectTo ? `?redirect=${encodeURIComponent(redirectTo)}` : ''
         router.push(`/profile-setup${redirectParam}`)
@@ -155,7 +155,7 @@ function TermsPageInner() {
         <div className={styles.header}>
           <img src="/logo.png" alt="CasaGrown" className={styles.headerLogo} />
           <h1 className={styles.headerTitle}>Legal Agreements</h1>
-          {isOnboarding && <p className={styles.headerDate}>Please review and accept both documents to continue</p>}
+          <p className={styles.headerDate}>Please review and accept both documents to continue</p>
         </div>
 
         {/* Tabs */}
@@ -200,8 +200,8 @@ function TermsPageInner() {
         </div>
       </div>
 
-      {/* Sticky accept bar — only during onboarding */}
-      {isOnboarding && (
+      {/* Sticky accept bar — always shown so users can accept */}
+      {(
         <div className={styles.acceptBar}>
           <div className={styles.acceptRow}>
             <input

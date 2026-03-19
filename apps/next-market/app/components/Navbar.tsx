@@ -181,6 +181,8 @@ export function Navbar() {
     { href: '/earnings/payout', label: 'Payout', icon: '💸', section: 'main' },
     { href: '/following', label: 'Following', icon: '❤️', section: 'main' },
     { href: '/profile', label: 'Profile', icon: '👤', section: 'account' },
+    { href: '/settings', label: 'Settings', icon: '⚙️', section: 'account' },
+    { href: '/logout', label: 'Log Out', icon: '🚪', section: 'account' },
   ]
 
   // Close menu on outside click
@@ -203,7 +205,7 @@ export function Navbar() {
     <nav className={styles.navbar}>
       <div className={styles.inner}>
         {/* Logo */}
-        <Link href="/" className={styles.logo}>
+        <Link href={hasSession ? '/market' : '/'} className={styles.logo}>
           <img src="/logo.png" alt="CasaGrown" className={styles.logoImg} />
           <div className={styles.logoTextWrap}>
             <span className={styles.logoText}>CasaGrown</span>

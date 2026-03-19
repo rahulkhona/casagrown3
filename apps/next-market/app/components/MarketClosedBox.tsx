@@ -230,7 +230,7 @@ export default function MarketClosedBox({ nextOpenDate, todaySchedule }: MarketC
 
             {/* Action 3: Invite neighbors */}
             <button style={{ ...actionCardStyle, cursor: 'pointer' }} className="mc-card" onClick={() => {
-              const url = `${window.location.origin}/get-started`
+              const url = `${window.location.origin}/`
               const text = [
                 'Hey! 🌱 I\u0027ve been using this app called CasaGrown to buy and sell homegrown produce with neighbors.',
                 '',
