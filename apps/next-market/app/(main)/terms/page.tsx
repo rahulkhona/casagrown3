@@ -115,7 +115,8 @@ function TermsPageInner() {
     if (!allAgreed) return
 
     // Record ToS acceptance with timestamp in profiles table
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
     if (user) {
       await supabase
         .from('profiles')

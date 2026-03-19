@@ -170,16 +170,22 @@ export default function MyBoothPage() {
     return () => clearTimeout(t)
   }, [name, theme, offersDelivery, offersPickup, deliveryRadius, pickupAddress, paymentMethod, venmoHandle, charityName, deliveryWindows, pickupWindows, bannerPreview, saved])
 
-  // Load booth + profile data from Supabase on mount (single auth call)
-  useEffect(() => {
-    const loadData = async () => {
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      if (!authUser) return
+  // Load booth + profile data from Supabase on mount (progressive — render booth first)
+  const [boothLoaded, setBoothLoaded] = useState(false)
+  const [productsLoading, setProductsLoading] = useState(true)
 
-      // Fetch profile address AND booth in parallel
+  useEffect(() => {
+    if (authLoading || !user) return
+    const loadData = async () => {
+      const authUserId = user.id
+
+      // Phase 1: Fetch profile + booth+helpers (joined) in parallel
       const [profileRes, boothRes] = await Promise.all([
-        supabase.from('profiles').select('street_address, city, state_code').eq('id', authUser.id).single(),
-        supabase.from('market_booths').select('*').eq('owner_id', authUser.id).single(),
+        supabase.from('profiles').select('street_address, city, state_code').eq('id', authUserId).single(),
+        supabase.from('market_booths')
+          .select('*, booth_helpers(helper_id, status, profiles!booth_helpers_helper_id_fkey(full_name))')
+          .eq('owner_id', authUserId)
+          .single(),
       ])
 
       // Set pickup address from profile
@@ -189,7 +195,7 @@ export default function MyBoothPage() {
       }
 
       const booth = boothRes.data
-      if (!booth) return
+      if (!booth) { setBoothLoaded(true); setProductsLoading(false); return }
 
       // Populate state from DB
       setName(booth.name || '')
@@ -215,13 +221,23 @@ export default function MyBoothPage() {
       setSaved(true)
       setSavedBoothId(booth.id)
 
+      // Extract helpers from joined query
+      const dbHelpers = (booth as any).booth_helpers || []
+      if (dbHelpers.length > 0) {
+        setHelpers(dbHelpers.map((h: any) => ({
+          helperId: h.helper_id,
+          name: h.profiles?.full_name || 'Unknown',
+          status: h.status as 'pending' | 'accepted' | 'revoked',
+        })))
+      }
+
       // Populate in-memory store so myBooth is non-null (enables product links)
-      if (!state.booths.find(b => b.ownerId === authUser.id)) {
+      if (!state.booths.find(b => b.ownerId === authUserId)) {
         dispatch({
           type: 'CREATE_BOOTH',
           payload: {
             id: booth.id,
-            ownerId: authUser.id,
+            ownerId: authUserId,
             ownerName: state.user?.name || '',
             name: booth.name,
             description: booth.description || '',
@@ -237,22 +253,18 @@ export default function MyBoothPage() {
         })
       }
 
-      // Load helpers AND products in parallel
-      const [helpersRes, productsRes] = await Promise.all([
-        supabase.from('booth_helpers').select('helper_id, status, profiles!booth_helpers_helper_id_fkey(full_name)').eq('booth_id', booth.id),
-        supabase.from('market_products').select('*').eq('seller_id', authUser.id).order('created_at', { ascending: false }),
-      ])
+      // ★ BOOTH IS READY — render it now while products load
+      setBoothLoaded(true)
 
-      if (helpersRes.data) {
-        setHelpers(helpersRes.data.map((h: any) => ({
-          helperId: h.helper_id,
-          name: h.profiles?.full_name || 'Unknown',
-          status: h.status as 'pending' | 'accepted' | 'revoked',
-        })))
-      }
+      // Phase 2: Load products in background (UI already visible)
+      const { data: products } = await supabase
+        .from('market_products')
+        .select('*')
+        .eq('seller_id', authUserId)
+        .order('created_at', { ascending: false })
 
-      if (productsRes.data && productsRes.data.length > 0) {
-        setDbProducts(productsRes.data.map((p: any) => ({
+      if (products && products.length > 0) {
+        setDbProducts(products.map((p: any) => ({
           id: p.id,
           boothId: p.seller_id,
           boothName: booth?.name || name || '',
@@ -275,6 +287,7 @@ export default function MyBoothPage() {
           harvestedAt: p.harvested_at,
         })))
       }
+      setProductsLoading(false)
     }
     loadData()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps

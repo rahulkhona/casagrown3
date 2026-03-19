@@ -54,12 +54,11 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
           .eq('booth_id', boothData.id)
         setFollowerCount(fCount || 0)
 
-        const { data: session } = await supabase.auth.getUser()
-        if (session?.user) {
+        if (user) {
           const { data: fRow } = await supabase
             .from('market_followers')
             .select('follower_id')
-            .eq('follower_id', session.user.id)
+            .eq('follower_id', user.id)
             .eq('booth_id', boothData.id)
             .maybeSingle()
           if (fRow) setFollowing(true)

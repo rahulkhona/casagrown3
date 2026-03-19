@@ -56,7 +56,8 @@ export function Navbar() {
   // Check actual Supabase session + fetch profile name
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      const user = session?.user
       setHasSession(!!user)
       if (user) {
         setProfileEmail(user.email || '')
@@ -76,7 +77,8 @@ export function Navbar() {
     if (!hasSession) return
     const supabase = createClient()
     const fetchCount = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { session } } = await supabase.auth.getSession()
+      const user = session?.user
       if (!user) return
       setUserId(user.id)
       const { count } = await supabase

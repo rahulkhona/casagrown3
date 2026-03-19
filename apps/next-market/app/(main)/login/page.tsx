@@ -25,7 +25,8 @@ function LoginPageInner() {
 
   // Redirect if already logged in
   useEffect(() => {
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      const user = session?.user
       if (!user) return
       const { data: profile } = await supabase
         .from('profiles')

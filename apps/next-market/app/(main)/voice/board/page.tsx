@@ -49,7 +49,8 @@ export default function VoiceBoardPage() {
   // Auth
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const user = session?.user
       if (user) setUserId(user.id)
     })
   }, [])

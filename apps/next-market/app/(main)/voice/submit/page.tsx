@@ -37,7 +37,8 @@ function VoiceSubmitPageInner() {
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const user = session?.user
       if (!user) { router.push('/login?redirect=/voice/submit?type=' + type); return }
       setUserId(user.id)
     })

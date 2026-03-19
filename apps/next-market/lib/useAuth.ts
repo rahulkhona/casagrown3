@@ -5,7 +5,8 @@ import { createClient } from './supabase'
 
 /**
  * Hook that checks the actual Supabase session (persisted in cookies).
- * Use this instead of state.isAuthenticated which resets on page reload.
+ * Uses getSession() (reads local cookie — instant) instead of getUser()
+ * (network call — slow). Listens to onAuthStateChange for reactivity.
  *
  * Returns { user, loading, isAuthenticated, isBanned, banReason }
  */
@@ -17,50 +18,60 @@ export function useAuth() {
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(async ({ data: { user: u } }) => {
-      if (u) {
-        // Check if user is banned
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('is_banned, ban_reason')
-          .eq('id', u.id)
-          .single()
 
-        if (profile?.is_banned) {
-          setIsBanned(true)
-          setBanReason(profile.ban_reason || null)
-          setUser({ id: u.id, email: u.email ?? undefined })
-          setLoading(false)
-          return
-        }
-
-        setUser({ id: u.id, email: u.email ?? undefined })
-
-        // Stamp last_active_at for 90-day sweep tracking
-        supabase.from('profiles').update({ last_active_at: new Date().toISOString() }).eq('id', u.id).then(() => {})
-      } else {
-        // Fallback for Playwright tests: check localStorage if cookie auth yields no user
+    const resolveUser = async (sessionUser: { id: string; email?: string } | null) => {
+      if (!sessionUser) {
+        // Fallback for Playwright tests: check localStorage
         try {
-          // Playwright injects session into multiple keys, we check the generic one
           const testToken = window?.localStorage?.getItem('supabase.auth.token')
           if (testToken) {
             const parsed = JSON.parse(testToken)
             if (parsed?.user?.id) {
-              const u = parsed.user
-              // We assume test users aren't banned for simplicity of the login flow
-              setUser({ id: u.id, email: u.email ?? undefined })
+              setUser({ id: parsed.user.id, email: parsed.user.email ?? undefined })
               setLoading(false)
               return
             }
           }
-        } catch (e) {
-          // ignore localStorage errors
-        }
-        
+        } catch { /* ignore */ }
+        setUser(null)
+        setLoading(false)
+        return
+      }
+
+      // Check if user is banned (lightweight single-row query)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_banned, ban_reason')
+        .eq('id', sessionUser.id)
+        .single()
+
+      if (profile?.is_banned) {
+        setIsBanned(true)
+        setBanReason(profile.ban_reason || null)
+      }
+
+      setUser({ id: sessionUser.id, email: sessionUser.email ?? undefined })
+      setLoading(false)
+
+      // Stamp last_active_at in background (fire and forget)
+      supabase.from('profiles').update({ last_active_at: new Date().toISOString() }).eq('id', sessionUser.id).then(() => {})
+    }
+
+    // getSession reads from cookie — instant, no network call
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      resolveUser(session?.user ? { id: session.user.id, email: session.user.email ?? undefined } : null)
+    })
+
+    // Listen for auth changes (login, logout, token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser({ id: session.user.id, email: session.user.email ?? undefined })
+      } else {
         setUser(null)
       }
-      setLoading(false)
     })
+
+    return () => subscription.unsubscribe()
   }, [])
 
   return { user, loading, isAuthenticated: !!user && !isBanned, isBanned, banReason }
