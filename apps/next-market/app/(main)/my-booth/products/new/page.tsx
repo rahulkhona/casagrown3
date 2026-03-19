@@ -249,18 +249,63 @@ function NewProductPageInner() {
       boothId = newBooth.id
     }
 
-    // ── 2. Check if product name is blocked ──
-    const { data: blocked } = await supabase
+    // ── 2. Check if product name contains blocked words ──
+    const { data: allBlocked } = await supabase
       .from('blocked_products')
-      .select('id')
-      .ilike('product_name', name.trim())
-      .limit(1)
+      .select('product_name')
 
-    if (blocked && blocked.length > 0) {
-      setValidating(false)
-      setErrors({ name: 'This product is not allowed in your area. Please choose a different name.' })
-      dispatch({ type: 'ADD_TOAST', payload: { message: 'This product name is not allowed in your area', type: 'error' } })
-      return
+    if (allBlocked && allBlocked.length > 0) {
+      const productWords = name.trim().toLowerCase()
+
+      // Context-aware allowlist: these words have legitimate product uses
+      // If the product name contains BOTH a blocked word and a context word, it's allowed
+      const allowedContexts: Record<string, string[]> = {
+        'pot':     ['flower', 'plant', 'garden', 'cooking', 'clay', 'ceramic', 'terracotta', 'wooden', 'planter', 'soup', 'stew', 'crock', 'honey'],
+        'ice':     ['cream', 'tea', 'coffee', 'cold', 'cooler', 'chest', 'pack', 'cube', 'bucket', 'water', 'popsicle', 'frozen'],
+        'crystal': ['vase', 'glass', 'clear', 'bowl', 'decor', 'quartz', 'rock'],
+        'snow':    ['pea', 'cone', 'globe', 'flake', 'white'],
+        'rock':    ['garden', 'salt', 'candy', 'climbing'],
+        'spice':   ['rack', 'mix', 'blend', 'seasoning', 'jar', 'kitchen', 'pumpkin', 'chai'],
+        'coke':    ['cola', 'soda', 'diet'],
+        'speed':   ['boat', 'bag', 'rack'],
+        'hash':    ['brown', 'tag', 'potato'],
+        'bars':    ['soap', 'granola', 'protein', 'energy', 'candy', 'chocolate', 'oat', 'snack'],
+        'dip':     ['salsa', 'hummus', 'guacamole', 'cheese', 'bean', 'ranch', 'french', 'onion', 'chip'],
+        'glass':   ['jar', 'bottle', 'vase', 'cup', 'bowl', 'stained', 'blown'],
+        'blow':    ['dryer', 'dry', 'torch'],
+        'acid':    ['reflux', 'wash'],
+        'blues':   ['berry', 'blueberry'],
+        'dragon':  ['fruit', 'fly'],
+        'tabs':    ['let', 'tablet'],
+        'x':       [],  // single letter - never match as standalone blocked word
+        'mod':     ['ern', 'ular', 'ified', 'el'],
+      }
+
+      const matchedBlocked = allBlocked.find(bp => {
+        const blockedTerm = bp.product_name.toLowerCase()
+
+        // Skip single-character blocked words (too many false positives)
+        if (blockedTerm.length <= 1) return false
+
+        // Check if the blocked term appears as a word boundary match
+        const regex = new RegExp(`\\b${blockedTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
+        if (!regex.test(productWords)) return false
+
+        // Check if there's an allowlisted context that makes this legitimate
+        const contexts = allowedContexts[blockedTerm]
+        if (contexts && contexts.length > 0) {
+          const hasLegitContext = contexts.some(ctx => productWords.includes(ctx))
+          if (hasLegitContext) return false // Legitimate use — don't block
+        }
+
+        return true // Blocked word found with no legitimate context
+      })
+
+      if (matchedBlocked) {
+        setValidating(false)
+        setErrors({ name: `"${matchedBlocked.product_name}" is not allowed. Please choose a different product name.` })
+        return
+      }
     }
 
     // ── 3. Insert or update the product ──

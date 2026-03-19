@@ -120,6 +120,10 @@
 .productSlot { position: relative; }
 .productSlot:hover .productRemoveBtn { opacity: 1; }
 .productRemoveBtn:hover { background: var(--red-500); }
+/* Always show delete button on touch devices (no hover support) */
+@media (hover: none) {
+  .productRemoveBtn { opacity: 0.8; }
+}
 
 /* Drag-over */
 .productSlotDragOver {
