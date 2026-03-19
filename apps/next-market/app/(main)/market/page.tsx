@@ -10,6 +10,7 @@ import { geocodeAddress } from '../../../lib/geocode'
 import { formatUsd } from '../../../lib/store'
 import { useMarketStatus } from '../../../lib/useMarketStatus'
 import MarketClosedBox from '../../components/MarketClosedBox'
+import { LoadingSpinner } from '../../components/LoadingSpinner'
 import styles from './page.module.css'
 
 interface BoothResult {
@@ -234,9 +235,8 @@ function BrowseMarketPageInner() {
   if (profileLoading || marketLoading) {
     return (
       <div className="container">
-        <div className="empty-state">
-          <div className="empty-state-icon">⏳</div>
-          <div className="empty-state-title">Loading...</div>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '40vh' }}>
+          <LoadingSpinner />
         </div>
       </div>
     )
@@ -344,9 +344,8 @@ function BrowseMarketPageInner() {
 
       {/* Results */}
       {loading ? (
-        <div className="empty-state">
-          <div className="empty-state-icon">🔍</div>
-          <div className="empty-state-title">Searching nearby...</div>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '20vh' }}>
+          <LoadingSpinner />
         </div>
       ) : booths.length === 0 ? (
         <div className="empty-state">

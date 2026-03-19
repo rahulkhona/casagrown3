@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useMarket, isMarketOpen } from '../../lib/store'
 import { createClient } from '../../lib/supabase'
-import html2canvas from 'html2canvas'
 import styles from './Navbar.module.css'
 
 interface Notification {
@@ -259,6 +258,7 @@ export function Navbar() {
               onClick={async () => {
                 // Capture screenshot before opening modal
                 try {
+                  const { default: html2canvas } = await import('html2canvas')
                   const canvas = await html2canvas(document.documentElement, { useCORS: true, scale: 0.5, logging: false, windowHeight: document.documentElement.scrollHeight, height: document.documentElement.scrollHeight })
                   setBugScreenshot(canvas.toDataURL('image/jpeg', 0.6))
                 } catch { setBugScreenshot(null) }

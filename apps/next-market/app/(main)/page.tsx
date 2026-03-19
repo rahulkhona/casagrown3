@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '../../lib/supabase'
 import { needsTosAcceptance } from '../../lib/legal'
+import { LoadingSpinner } from '../components/LoadingSpinner'
 import styles from './page.module.css'
 
 export default function HomePage() {
@@ -43,7 +44,7 @@ export default function HomePage() {
     return (
       <div className={styles.page}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '50vh' }}>
-          <p style={{ color: 'var(--gray-500)', fontSize: 16 }}>Loading...</p>
+          <LoadingSpinner />
         </div>
       </div>
     )
