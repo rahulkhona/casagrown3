@@ -262,6 +262,25 @@ function NewProductPageInner() {
 
     // ── 3. Insert or update the product ──
     if (isEditMode) {
+      // Upload any new photos (base64) to storage
+      const editPhotoUrls: string[] = []
+      for (let i = 0; i < photos.length; i++) {
+        if (photos[i].startsWith('http')) {
+          editPhotoUrls.push(photos[i])
+          continue
+        }
+        try {
+          const res = await fetch(photos[i])
+          const blob = await res.blob()
+          const ext = blob.type.includes('png') ? 'png' : 'jpg'
+          const path = `${authUser.id}/${Date.now()}_${i}.${ext}`
+          const { error: uploadErr } = await supabase.storage.from('product-photos').upload(path, blob, { upsert: true })
+          if (uploadErr) { alert('Photo upload failed: ' + uploadErr.message); setValidating(false); return }
+          const { data: urlData } = supabase.storage.from('product-photos').getPublicUrl(path)
+          if (urlData?.publicUrl) editPhotoUrls.push(urlData.publicUrl)
+        } catch (err: any) { alert('Photo upload failed: ' + (err.message || 'Unknown')); setValidating(false); return }
+      }
+
       // Edit mode: update existing product
       const { error } = await supabase
         .from('market_products')
@@ -272,14 +291,14 @@ function NewProductPageInner() {
           price_usd: parseFloat(priceUsd),
           unit,
           inventory: parseInt(quantity),
-          photos,
+          photos: editPhotoUrls,
           harvested_at: harvestedAt ? new Date(harvestedAt + 'T12:00:00').toISOString() : null,
         })
         .eq('id', editId)
 
       setValidating(false)
       if (error) {
-        dispatch({ type: 'ADD_TOAST', payload: { message: 'Failed to update product — ' + error.message, type: 'error' } })
+        alert('Failed to update product: ' + error.message)
         return
       }
 
@@ -288,6 +307,38 @@ function NewProductPageInner() {
 
       router.push('/my-booth')
       return
+    }
+
+    // ── Upload photos to storage first ──
+    const uploadedPhotoUrls: string[] = []
+    for (let i = 0; i < photos.length; i++) {
+      const photoData = photos[i]
+      // Skip if already a URL (edit mode)
+      if (photoData.startsWith('http')) {
+        uploadedPhotoUrls.push(photoData)
+        continue
+      }
+      try {
+        // Convert base64 to blob
+        const res = await fetch(photoData)
+        const blob = await res.blob()
+        const ext = blob.type.includes('png') ? 'png' : 'jpg'
+        const path = `${authUser.id}/${Date.now()}_${i}.${ext}`
+        const { error: uploadErr } = await supabase.storage.from('product-photos').upload(path, blob, { upsert: true })
+        if (uploadErr) {
+          console.warn('Photo upload failed:', uploadErr.message)
+          alert('Photo upload failed: ' + uploadErr.message)
+          setValidating(false)
+          return
+        }
+        const { data: urlData } = supabase.storage.from('product-photos').getPublicUrl(path)
+        if (urlData?.publicUrl) uploadedPhotoUrls.push(urlData.publicUrl)
+      } catch (err: any) {
+        console.warn('Photo upload error:', err)
+        alert('Photo upload failed: ' + (err.message || 'Unknown error'))
+        setValidating(false)
+        return
+      }
     }
 
     // Add mode: insert new product
@@ -302,14 +353,14 @@ function NewProductPageInner() {
         price_usd: parseFloat(priceUsd),
         unit,
         inventory: parseInt(quantity),
-        photos,
+        photos: uploadedPhotoUrls,
         harvested_at: harvestedAt ? new Date(harvestedAt + 'T12:00:00').toISOString() : null,
       })
 
     setValidating(false)
 
     if (error) {
-      dispatch({ type: 'ADD_TOAST', payload: { message: 'Failed to add product — ' + error.message, type: 'error' } })
+      alert('Failed to add product: ' + error.message)
       return
     }
 

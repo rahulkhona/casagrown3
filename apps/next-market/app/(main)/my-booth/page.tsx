@@ -333,6 +333,25 @@ export default function MyBoothPage() {
   const handleSaveBooth = async () => {
     if (!name.trim() || !user) return
 
+    // ── Validate fulfillment time windows ──
+    const issues: string[] = []
+    if (!offersDelivery && !offersPickup) {
+      issues.push('Enable at least one fulfillment option (delivery or pickup)')
+    }
+    if (offersDelivery && deliveryWindows.length === 0 && customDeliverySlots.length === 0) {
+      issues.push('Select at least one delivery time window')
+    }
+    if (offersPickup && pickupWindows.length === 0 && customPickupSlots.length === 0) {
+      issues.push('Select at least one pickup time window')
+    }
+    if (offersPickup && !pickupAddress.trim()) {
+      issues.push('Enter a pickup address')
+    }
+    if (issues.length > 0) {
+      alert('⚠️ Please fix before saving:\n\n• ' + issues.join('\n• '))
+      return
+    }
+
     try {
     // Map time window IDs to structured objects for DB
     const mapWindows = (ids: string[], customs: Array<{ start: string; end: string }>) => {
