@@ -105,95 +105,98 @@ function ProfileSetupPageInner() {
 
     setSaving(true); setError('')
 
-    // ── 1. Validate address via USPS edge function ──
-    let validatedZipPlus4 = zip.trim()
-    let county: string | null = null
-    let validatedStreet = streetAddress.trim()
-    let validatedCity = city.trim()
-    let validatedState = stateCode.trim().toUpperCase()
-
     try {
-      const { data: uspsResult, error: uspsError } = await supabase.functions.invoke('resolve-usps-address', {
-        body: {
-          streetAddress: streetAddress.trim(),
-          city: city.trim(),
-          state: stateCode.trim(),
-          zipCode: zip.trim().split('-')[0], // Send 5-digit zip
-        },
-      })
+      // ── 1. Validate address via USPS edge function ──
+      let validatedZipPlus4 = zip.trim()
+      let county: string | null = null
+      let validatedStreet = streetAddress.trim()
+      let validatedCity = city.trim()
+      let validatedState = stateCode.trim().toUpperCase()
 
-      if (!uspsError && uspsResult?.address) {
-        validatedStreet = uspsResult.address.streetAddress || validatedStreet
-        validatedCity = uspsResult.address.city || validatedCity
-        validatedState = uspsResult.address.state || validatedState
-        validatedZipPlus4 = uspsResult.address.ZIPPlus4 || validatedZipPlus4
-        county = uspsResult.jurisdiction?.county || null
-        // Update UI with validated address
-        setStreetAddress(validatedStreet)
-        setCity(validatedCity)
-        setStateCode(validatedState)
-        setZip(validatedZipPlus4)
+      try {
+        const { data: uspsResult, error: uspsError } = await supabase.functions.invoke('resolve-usps-address', {
+          body: {
+            streetAddress: streetAddress.trim(),
+            city: city.trim(),
+            state: stateCode.trim(),
+            zipCode: zip.trim().split('-')[0],
+          },
+        })
+
+        if (!uspsError && uspsResult?.address) {
+          validatedStreet = uspsResult.address.streetAddress || validatedStreet
+          validatedCity = uspsResult.address.city || validatedCity
+          validatedState = uspsResult.address.state || validatedState
+          validatedZipPlus4 = uspsResult.address.ZIPPlus4 || validatedZipPlus4
+          county = uspsResult.jurisdiction?.county || null
+          setStreetAddress(validatedStreet)
+          setCity(validatedCity)
+          setStateCode(validatedState)
+          setZip(validatedZipPlus4)
+        } else {
+          console.warn('USPS validation failed, using user-entered address:', uspsError)
+        }
+      } catch (err) {
+        console.warn('USPS edge function unavailable, using user-entered address:', err)
+      }
+
+      // ── 2. Compute h3 index from geocoded coordinates ──
+      let h3Index: string | null = null
+      let geoLat: number | null = null
+      let geoLng: number | null = null
+      try {
+        const geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(`${validatedStreet}, ${validatedCity}, ${validatedState} ${validatedZipPlus4.split('-')[0]}`)}&limit=1`
+        const geoRes = await fetch(geocodeUrl)
+        const geoData = await geoRes.json()
+        if (geoData?.[0]?.lat && geoData?.[0]?.lon) {
+          geoLat = parseFloat(geoData[0].lat)
+          geoLng = parseFloat(geoData[0].lon)
+          const { latLngToCell } = await import('h3-js')
+          h3Index = latLngToCell(geoLat, geoLng, 7)
+        }
+      } catch (err) {
+        console.warn('H3 computation failed:', err)
+      }
+
+      // ── 3. Save profile with all jurisdiction data ──
+      const profileUpdate: Record<string, any> = {
+        full_name: fullName.trim(),
+        street_address: validatedStreet,
+        city: validatedCity,
+        state_code: validatedState,
+        zip_plus4: validatedZipPlus4,
+        county,
+        avatar_url: avatarUrl || null,
+        profile_completed_at: new Date().toISOString(),
+      }
+      if (geoLat !== null && geoLng !== null) {
+        profileUpdate.home_location = `SRID=4326;POINT(${geoLng} ${geoLat})`
+      }
+      if (h3Index) {
+        const communityName = `${validatedCity}, ${validatedState}`
+        await supabase.from('communities').upsert({
+          h3_index: h3Index,
+          name: communityName,
+        }, { onConflict: 'h3_index' })
+        profileUpdate.home_community_h3_index = h3Index
+      }
+
+      const { error: updateErr } = await supabase
+        .from('profiles')
+        .update(profileUpdate)
+        .eq('id', userId!)
+
+      if (updateErr) { setError(updateErr.message); setSaving(false); return }
+
+      if (redirectTo) {
+        router.push(redirectTo.includes('?') ? `${redirectTo}&autoBuy=true` : `${redirectTo}?autoBuy=true`)
       } else {
-        console.warn('USPS validation failed, using user-entered address:', uspsError)
+        router.push('/market')
       }
-    } catch (err) {
-      console.warn('USPS edge function unavailable, using user-entered address:', err)
-    }
-
-    // ── 2. Compute h3 index from geocoded coordinates ──
-    let h3Index: string | null = null
-    let geoLat: number | null = null
-    let geoLng: number | null = null
-    try {
-      // Use browser geocoding to get lat/lng, then compute h3
-      const geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(`${validatedStreet}, ${validatedCity}, ${validatedState} ${validatedZipPlus4.split('-')[0]}`)}&limit=1`
-      const geoRes = await fetch(geocodeUrl)
-      const geoData = await geoRes.json()
-      if (geoData?.[0]?.lat && geoData?.[0]?.lon) {
-        geoLat = parseFloat(geoData[0].lat)
-        geoLng = parseFloat(geoData[0].lon)
-        const { latLngToCell } = await import('h3-js')
-        h3Index = latLngToCell(geoLat, geoLng, 7)
-      }
-    } catch (err) {
-      console.warn('H3 computation failed:', err)
-    }
-
-    // ── 3. Save profile with all jurisdiction data ──
-    const profileUpdate: Record<string, any> = {
-      full_name: fullName.trim(),
-      street_address: validatedStreet,
-      city: validatedCity,
-      state_code: validatedState,
-      zip_plus4: validatedZipPlus4,
-      county,
-      avatar_url: avatarUrl || null,
-      profile_completed_at: new Date().toISOString(),
-    }
-    // Store PostGIS point for spatial queries (Browse Market)
-    if (geoLat !== null && geoLng !== null) {
-      profileUpdate.home_location = `SRID=4326;POINT(${geoLng} ${geoLat})`
-    }
-    // Only set h3 after ensuring the community row exists (upsert, matching community app pattern)
-    if (h3Index) {
-      const communityName = `${validatedCity}, ${validatedState}`
-      await supabase.from('communities').upsert({
-        h3_index: h3Index,
-        name: communityName,
-      }, { onConflict: 'h3_index' })
-      profileUpdate.home_community_h3_index = h3Index
-    }
-
-    const { error: updateErr } = await supabase
-      .from('profiles')
-      .update(profileUpdate)
-      .eq('id', userId!)
-
-    if (updateErr) { setError(updateErr.message); setSaving(false); return }
-    if (redirectTo) {
-      router.push(redirectTo.includes('?') ? `${redirectTo}&autoBuy=true` : `${redirectTo}?autoBuy=true`)
-    } else {
-      router.push('/market')
+    } catch (err: any) {
+      console.error('Profile save failed:', err)
+      setError(err?.message || 'Something went wrong. Please try again.')
+      setSaving(false)
     }
   }
 
