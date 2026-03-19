@@ -468,7 +468,7 @@ export function Navbar() {
                   <div className={styles.menuSection}>
                     <button className={styles.menuItem} onClick={async () => {
                       const supabase = createClient()
-                      await supabase.auth.signOut({ scope: 'global' })
+                      await supabase.auth.signOut({ scope: 'local' })
                       dispatch({ type: 'LOGOUT' })
                       setMenuOpen(false)
                       window.location.href = '/'
