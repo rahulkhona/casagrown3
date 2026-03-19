@@ -33,8 +33,8 @@ export default function ProductsListPage() {
 
   const getInviteMessage = () => {
     if (!inviteProduct) return ''
-    const boothUrl = typeof window !== 'undefined' ? `${window.location.origin}/market/booth/${myBooth.id}` : ''
-    let msg = `🌿 Fresh ${inviteProduct.name} available at ${myBooth.name}!\n\n${formatUsd(inviteProduct.priceUsd)} per ${inviteProduct.unit}${inviteProduct.marketDate ? ` • ${inviteProduct.marketDate}` : ''}\n\n🛒 Browse: ${boothUrl}`
+    const boothUrl = typeof window !== 'undefined' ? `${window.location.origin}/market/booth/${myBooth.id}/product/${inviteProduct.id}` : ''
+    let msg = `Hey! 🌿 I have fresh ${inviteProduct.name} available on CasaGrown — ${formatUsd(inviteProduct.priceUsd)} per ${inviteProduct.unit}.${inviteProduct.marketDate ? ` Listed for ${inviteProduct.marketDate}.` : ''}\n\nTake a look: ${boothUrl}`
 
     if (attachCoupon) {
       const existingCoupon = coupons.find(c => c.code === selectedCoupon)

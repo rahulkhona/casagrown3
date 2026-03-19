@@ -928,7 +928,17 @@ export default function MyBoothPage() {
             className="btn btn-secondary"
             onClick={() => {
               const joinUrl = typeof window !== 'undefined' ? `${window.location.origin}/join-booth/${encodeURIComponent(helperPasscode)}` : ''
-              const text = `🤝 Hey! I could use your help with my booth "${name}" on CasaGrown.\n\nAs a helper you can:\n• See pending orders and deliver them\n• Chat with buyers on my behalf\n• Help with pickup handoffs\n\nJoin here: ${joinUrl}\nPasscode: ${helperPasscode}`
+              const text = [
+                `Hey! 🤝 I'm selling on CasaGrown Market and could use a hand with my booth "${name}".`,
+                '',
+                'As a helper you can:',
+                '• See and fulfill pending orders',
+                '• Chat with buyers on my behalf',
+                '• Help with delivery and pickup handoffs',
+                '',
+                `Join here: ${joinUrl}`,
+                `Passcode: ${helperPasscode}`,
+              ].join('\n')
               navigator.clipboard?.writeText(text)
               setInviteCopied(true)
               setTimeout(() => setInviteCopied(false), 2000)
@@ -941,7 +951,17 @@ export default function MyBoothPage() {
             className="btn btn-secondary"
             onClick={() => {
               const joinUrl = typeof window !== 'undefined' ? `${window.location.origin}/join-booth/${encodeURIComponent(helperPasscode)}` : ''
-              const text = `🤝 Hey! I could use your help with my booth "${name}" on CasaGrown.\n\nAs a helper you can:\n• See pending orders and deliver them\n• Chat with buyers on my behalf\n• Help with pickup handoffs\n\nJoin here: ${joinUrl}\nPasscode: ${helperPasscode}`
+              const text = [
+                `Hey! 🤝 I'm selling on CasaGrown Market and could use a hand with my booth "${name}".`,
+                '',
+                'As a helper you can:',
+                '• See and fulfill pending orders',
+                '• Chat with buyers on my behalf',
+                '• Help with delivery and pickup handoffs',
+                '',
+                `Join here: ${joinUrl}`,
+                `Passcode: ${helperPasscode}`,
+              ].join('\n')
               if (navigator.share) {
                 navigator.share({ title: `Help with ${name} on CasaGrown`, text })
               } else {

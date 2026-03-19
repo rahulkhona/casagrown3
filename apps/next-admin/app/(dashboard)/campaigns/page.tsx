@@ -3,7 +3,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { YStack, XStack, Text, Button, ScrollView, Separator, Checkbox, Spinner, Input, TextArea, Label } from 'tamagui'
 import { Plus, Edit3, Trash2, Award, Check, X, MapPin } from '@tamagui/lucide-icons'
-import { supabase } from '@casagrown/app/features/auth/auth-hook'
 import { adminApi } from '../../../lib/adminApi'
 import { colors } from '@casagrown/app/design-tokens'
 import dynamic from 'next/dynamic'
@@ -74,24 +73,20 @@ export default function CampaignsPage() {
 
   const fetchCampaigns = async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('incentive_campaigns')
-      .select('*')
-      .order('starts_at', { ascending: false })
+    const { data } = await adminApi.select('incentive_campaigns', '*', undefined, { order: { column: 'starts_at', ascending: false } })
     
     if (data) {
-      setCampaigns(data)
-      const ids = data.map((c: Campaign) => c.id)
+      setCampaigns(data as Campaign[])
+      const ids = (data as Campaign[]).map((c: Campaign) => c.id)
       if (ids.length > 0) {
         // Fetch rewards
-        const { data: rewards } = await supabase
-          .from('campaign_rewards')
-          .select('*')
-          .in('campaign_id', ids)
+        const { data: rewards } = await adminApi.select(
+          'campaign_rewards', '*', { in: { campaign_id: ids } }
+        )
         
         if (rewards) {
           const map: Record<string, CampaignReward[]> = {}
-          rewards.forEach((r: CampaignReward) => {
+          ;(rewards as CampaignReward[]).forEach((r: CampaignReward) => {
             if (!map[r.campaign_id]) map[r.campaign_id] = []
             map[r.campaign_id].push(r)
           })
@@ -99,14 +94,13 @@ export default function CampaignsPage() {
         }
 
         // Fetch zones
-        const { data: zones } = await supabase
-          .from('campaign_zones')
-          .select('campaign_id, community_h3_index')
-          .in('campaign_id', ids)
+        const { data: zones } = await adminApi.select(
+          'campaign_zones', 'campaign_id, community_h3_index', { in: { campaign_id: ids } }
+        )
         
         if (zones) {
           const zMap: Record<string, string[]> = {}
-          zones.forEach((z: any) => {
+          ;(zones as any[]).forEach((z: any) => {
             if (!zMap[z.campaign_id]) zMap[z.campaign_id] = []
             if (z.community_h3_index) zMap[z.campaign_id].push(z.community_h3_index)
           })
@@ -124,7 +118,8 @@ export default function CampaignsPage() {
       c.id === id ? { ...c, is_active: !currentStatus } : c
     ))
     
-    const { error } = await adminApi.update('incentive_campaigns',
+    const { error } = await adminApi.update(
+      'incentive_campaigns',
       { is_active: !currentStatus },
       { eq: { id } }
     )
@@ -144,7 +139,7 @@ export default function CampaignsPage() {
     setSubmitting(true)
     setErrorMessage('')
     try {
-      const { data: campaigns, error } = await adminApi.insert<Campaign[]>('incentive_campaigns', {
+      const { data: campaigns, error } = await adminApi.insert('incentive_campaigns', {
           name: formName.trim(),
           description: formDescription.trim() || null,
           starts_at: new Date(formStartsAt).toISOString(),
@@ -153,7 +148,8 @@ export default function CampaignsPage() {
         })
 
       if (error) throw new Error(error)
-      const campaign = campaigns?.[0]
+      const campaignList = campaigns as Campaign[] | null
+      const campaign = campaignList?.[0]
       if (!campaign) throw new Error('Campaign creation returned no data')
 
       // Insert rewards
@@ -215,13 +211,17 @@ export default function CampaignsPage() {
     setSubmitting(true)
     setErrorMessage('')
     try {
-      const { error } = await adminApi.update('incentive_campaigns', {
+      const { error } = await adminApi.update(
+        'incentive_campaigns',
+        {
           name: editName.trim(),
           description: editDescription.trim() || null,
           starts_at: new Date(editStartsAt).toISOString(),
           ends_at: new Date(editEndsAt).toISOString(),
           updated_at: new Date().toISOString(),
-        }, { eq: { id: editingId } })
+        },
+        { eq: { id: editingId } }
+      )
       
       if (error) throw new Error(error)
 

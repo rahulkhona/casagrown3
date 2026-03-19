@@ -36,7 +36,8 @@ const getSupabaseUrl = () => {
 };
 
 const supabaseUrl = getSupabaseUrl();
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
   // Local Supabase dev anon key (safe to commit — it's the default demo key)
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
 

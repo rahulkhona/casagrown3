@@ -40,7 +40,7 @@ export default function MembersPage() {
         { limit: 20 }
       )
 
-      if (profileErr) throw new Error(profileErr)
+      if (profileErr) throw new Error(String(profileErr))
 
       // For each profile, get post count and flag count
       const results: MemberResult[] = await Promise.all(
@@ -102,7 +102,7 @@ export default function MembersPage() {
         { gte: { created_at: oneDayAgo } }
       )
 
-      if (flagErr) throw new Error(flagErr)
+      if (flagErr) throw new Error(String(flagErr))
 
       // Count flags per author
       const authorFlagCounts = new Map<string, number>()
@@ -159,7 +159,7 @@ export default function MembersPage() {
         { eq: { id: userId } }
       )
 
-      if (updateErr) throw new Error(updateErr)
+      if (updateErr) throw new Error(String(updateErr))
 
       // Update local state in both lists
       const updateUser = (user: MemberResult) =>

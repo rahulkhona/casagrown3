@@ -6,7 +6,6 @@ import { colors } from '@casagrown/app/design-tokens'
 import { Plus, Trash2, Settings, Percent } from '@tamagui/lucide-icons'
 import { AdminDataGrid, ColumnDef } from '../../../../../packages/app/features/admin/components/AdminDataGrid'
 import { useAdminQuery } from '../../../../../packages/app/features/admin/hooks/useAdminQuery'
-import { supabase } from '@casagrown/app/utils/supabase'
 import { adminApi } from '../../../lib/adminApi'
 
 export default function PlatformSettingsPage() {
@@ -31,7 +30,7 @@ export default function PlatformSettingsPage() {
 
   const loadSettings = async () => {
     setSettingsLoading(true)
-    const { data } = await supabase.from('platform_settings').select('*').limit(1).single()
+    const { data } = await adminApi.select('platform_settings', '*', undefined, { limit: 1, single: true })
     if (data) {
       setSettings(data)
       setGracePeriod((data.provider_grace_period_ms / 60000).toString()) // convert to minutes
@@ -43,10 +42,14 @@ export default function PlatformSettingsPage() {
     if (!settings) return
     setSavingSettings(true)
     const ms = parseInt(gracePeriod) * 60000
-    const { error } = await adminApi.update('platform_settings', {
-      provider_grace_period_ms: ms,
-      updated_at: new Date().toISOString()
-    }, { eq: { id: settings.id } })
+    const { error } = await adminApi.update(
+      'platform_settings',
+      {
+        provider_grace_period_ms: ms,
+        updated_at: new Date().toISOString()
+      },
+      { eq: { id: settings.id } }
+    )
     
     if (error) console.error(error)
     else console.log('Platform settings updated successfully!')

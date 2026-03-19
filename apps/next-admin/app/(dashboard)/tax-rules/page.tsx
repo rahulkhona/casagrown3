@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from 'react'
 import { YStack, XStack, Text, Button, ScrollView, Separator, Spinner, Input, Label } from 'tamagui'
 import { Plus, Edit3, Trash2, Receipt } from '@tamagui/lucide-icons'
-import { supabase } from '@casagrown/app/features/auth/auth-hook'
 import { adminApi } from '../../../lib/adminApi'
 import { colors } from '@casagrown/app/design-tokens'
 
@@ -47,21 +46,19 @@ export default function TaxRulesPage() {
 
   const fetchRules = async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('category_tax_rules')
-      .select('*')
-      .is('effective_until', null)
-      .eq('rule_type', 'fixed')
-      .order('state_code')
-      .order('category_name')
+    const { data } = await adminApi.select(
+      'category_tax_rules', '*',
+      { is: { effective_until: null }, eq: { rule_type: 'fixed' } },
+      { order: { column: 'state_code', ascending: true } }
+    )
     
-    if (data) setRules(data)
+    if (data) setRules(data as TaxRule[])
     setLoading(false)
   }
 
   useEffect(() => {
     fetchRules()
-    supabase.from('sales_categories').select('name').order('display_order').then(({ data }: any) => {
+    adminApi.select('sales_categories', 'name', undefined, { order: { column: 'display_order', ascending: true } }).then(({ data }: any) => {
       if (data) setCategories(data)
     })
   }, [])
@@ -95,7 +92,8 @@ export default function TaxRulesPage() {
     try {
       // If editing, soft-delete the old rule first
       if (editingId) {
-        const { error: retireError } = await adminApi.update('category_tax_rules',
+        const { error: retireError } = await adminApi.update(
+          'category_tax_rules',
           { effective_until: new Date().toISOString().split('T')[0] },
           { eq: { id: editingId } }
         )
@@ -127,7 +125,8 @@ export default function TaxRulesPage() {
 
   const handleDelete = async (rule: TaxRule) => {
     setErrorMessage('')
-    const { error } = await adminApi.update('category_tax_rules',
+    const { error } = await adminApi.update(
+      'category_tax_rules',
       { effective_until: new Date().toISOString().split('T')[0] },
       { eq: { id: rule.id } }
     )

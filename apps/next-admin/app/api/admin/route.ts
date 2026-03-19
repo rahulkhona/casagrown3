@@ -12,11 +12,11 @@ import { cookies } from 'next/headers'
 
 // Service-role client — server-side only
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+const supabaseServiceKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 function getServiceClient() {
   if (!supabaseServiceKey) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY is not configured')
+    throw new Error('SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY) is not configured')
   }
   return createClient(supabaseUrl, supabaseServiceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -27,7 +27,7 @@ async function getAuthClient() {
   const cookieStore = await cookies()
   return createServerClient(
     supabaseUrl,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         getAll() {
@@ -72,6 +72,11 @@ const ALLOWED_TABLES = new Set([
   'campaign_zones',
   // Staff
   'staff_members',
+  // Geography (read-only lookups for jurisdiction dropdowns)
+  'countries',
+  'states',
+  'counties',
+  'cities',
 ])
 
 interface AdminRequestBody {

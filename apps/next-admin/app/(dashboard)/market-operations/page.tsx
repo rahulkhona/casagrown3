@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react'
 import { YStack, XStack, Text, Button, Input, Switch } from 'tamagui'
 import { colors } from '@casagrown/app/design-tokens'
 import { Store, Clock, Save, Check } from '@tamagui/lucide-icons'
-import { supabase } from '@casagrown/app/features/auth/auth-hook'
 import { adminApi } from '../../../lib/adminApi'
 
 type ScheduleRow = {
@@ -38,7 +37,7 @@ export default function MarketOperationsPage() {
 
   const loadSettings = async () => {
     setSettingsLoading(true)
-    const { data } = await supabase.from('market_settings').select('*').limit(1).single()
+    const { data } = await adminApi.select('market_settings', '*', undefined, { limit: 1, single: true })
     if (data) {
       setProductsNeverExpire(data.products_never_expire)
       setMarketNeverCloses(data.market_never_closes)
@@ -48,12 +47,9 @@ export default function MarketOperationsPage() {
 
   const loadSchedule = async () => {
     setScheduleLoading(true)
-    const { data } = await supabase
-      .from('market_schedule_policies')
-      .select('*')
-      .order('day_of_week')
+    const { data } = await adminApi.select('market_schedule_policies', '*', undefined, { order: { column: 'day_of_week', ascending: true } })
     if (data) {
-      setSchedule(data)
+      setSchedule(data as ScheduleRow[])
     }
     setScheduleLoading(false)
   }
@@ -61,11 +57,15 @@ export default function MarketOperationsPage() {
   // ── Save Settings ──
   const handleSaveSettings = async () => {
     setSavingSettings(true)
-    const { error } = await adminApi.update('market_settings', {
-      products_never_expire: productsNeverExpire,
-      market_never_closes: marketNeverCloses,
-      updated_at: new Date().toISOString(),
-    }, { eq: { id: true } })
+    const { error } = await adminApi.update(
+      'market_settings',
+      {
+        products_never_expire: productsNeverExpire,
+        market_never_closes: marketNeverCloses,
+        updated_at: new Date().toISOString(),
+      },
+      { eq: { id: true } }
+    )
 
     if (!error) {
       setSettingsSuccess('Market settings saved successfully')
@@ -83,12 +83,16 @@ export default function MarketOperationsPage() {
     if (!original) return
 
     setSavingDay(dayOfWeek)
-    const { error } = await adminApi.update('market_schedule_policies', {
+    const { error } = await adminApi.update(
+      'market_schedule_policies',
+      {
         open_time: edits.open_time ?? original.open_time,
         close_time: edits.close_time ?? original.close_time,
         is_enabled: edits.is_enabled ?? original.is_enabled,
         updated_at: new Date().toISOString(),
-      }, { eq: { day_of_week: dayOfWeek } })
+      },
+      { eq: { day_of_week: dayOfWeek } }
+    )
 
     if (!error) {
       setScheduleSuccess(`Updated ${original.day_name}`)

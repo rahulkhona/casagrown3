@@ -30,13 +30,12 @@ export default function PostPoliciesPage() {
 
   const loadPolicies = async () => {
     setLoading(true)
-    const { data } = await adminApi.select('post_type_policies', '*', undefined, {
-      order: { column: 'expiration_days', ascending: true }
-    })
+    const { data } = await adminApi.select('post_type_policies', '*', undefined, { order: { column: 'expiration_days', ascending: true } })
     if (data) {
-      setPolicies(data)
+      const policies = data as PolicyRow[]
+      setPolicies(policies)
       const days: Record<string, string> = {}
-      data.forEach((p: PolicyRow) => { days[p.post_type] = p.expiration_days.toString() })
+      policies.forEach((p: PolicyRow) => { days[p.post_type] = p.expiration_days.toString() })
       setEditedDays(days)
     }
     setLoading(false)
@@ -49,7 +48,8 @@ export default function PostPoliciesPage() {
     if (isNaN(days) || days < 1) return
 
     setSaving(postType)
-    const { error } = await adminApi.update('post_type_policies',
+    const { error } = await adminApi.update(
+      'post_type_policies',
       { expiration_days: days, updated_at: new Date().toISOString() },
       { eq: { post_type: postType } }
     )

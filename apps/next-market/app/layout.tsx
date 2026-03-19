@@ -5,6 +5,19 @@ export const metadata: Metadata = {
   title: 'CasaGrown Market — Fresh from Neighbors\' Backyard',
   description: 'Buy and sell fresh, locally-grown produce from your neighbors. Market opens Saturdays & Sundays 8–11 AM.',
   icons: '/favicon.ico',
+  openGraph: {
+    title: 'CasaGrown Market',
+    description: 'Buy and sell fresh, homegrown produce from your neighbors.',
+    siteName: 'CasaGrown Market',
+    type: 'website',
+    images: [{ url: '/icon-192.png', width: 192, height: 192, alt: 'CasaGrown Market' }],
+  },
+  twitter: {
+    card: 'summary',
+    title: 'CasaGrown Market',
+    description: 'Buy and sell fresh, homegrown produce from your neighbors.',
+    images: ['/icon-192.png'],
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

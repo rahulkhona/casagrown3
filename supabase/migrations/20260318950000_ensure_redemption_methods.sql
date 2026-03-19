@@ -5,10 +5,13 @@
 
 INSERT INTO available_redemption_methods (method, is_active) VALUES
   ('giftcards', true),
-  ('charity', true),
-  ('529c', true),
+  ('charity', false),
+  ('529c', false),
   ('cashout', true)
 ON CONFLICT (method) DO NOTHING;
+
+-- Disable unsupported methods (in case they were already inserted as active)
+UPDATE available_redemption_methods SET is_active = false WHERE method IN ('529c', 'charity');
 
 INSERT INTO available_redemption_method_instruments (method, instrument, is_active) VALUES
   ('giftcards', 'tremendous', true),

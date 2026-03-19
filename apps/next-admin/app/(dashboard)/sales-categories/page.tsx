@@ -9,7 +9,6 @@ import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd'
 import { AdminDataGrid, ColumnDef } from '../../../../../packages/app/features/admin/components/AdminDataGrid'
 import { AdminDataForm, FormFieldDef } from '../../../../../packages/app/features/admin/components/AdminDataForm'
 import { useAdminQuery } from '../../../../../packages/app/features/admin/hooks/useAdminQuery'
-import { supabase } from '@casagrown/app/utils/supabase'
 import { adminApi } from '../../../lib/adminApi'
 
 export default function SalesCategoriesPage() {

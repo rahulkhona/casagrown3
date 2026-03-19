@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from 'react'
 import { YStack, XStack, Text, Button, Input, Label, ScrollView, Separator, Spinner } from 'tamagui'
 import { Plus, Edit3, Trash2, FileSpreadsheet, ChevronDown } from '@tamagui/lucide-icons'
-import { supabase } from '@casagrown/app/features/auth/auth-hook'
 import { adminApi } from '../../../lib/adminApi'
 import { colors } from '@casagrown/app/design-tokens'
 
@@ -42,12 +41,13 @@ export default function TaxReportingPage() {
 
   const fetchRules = async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('tax_reporting_thresholds')
-      .select('*')
-      .order('state_code')
+    const { data } = await adminApi.select(
+      'tax_reporting_thresholds', '*',
+      undefined,
+      { order: { column: 'state_code', ascending: true } }
+    )
 
-    if (data) setRules(data)
+    if (data) setRules(data as Threshold[])
     setLoading(false)
   }
 
@@ -88,12 +88,16 @@ export default function TaxReportingPage() {
     try {
       if (editingState) {
         // Update existing
-        const { error } = await adminApi.update('tax_reporting_thresholds', {
+        const { error } = await adminApi.update(
+          'tax_reporting_thresholds',
+          {
             amount,
             min_txns: minTxns,
             warn_pct: warnPct,
             updated_at: new Date().toISOString(),
-          }, { eq: { state_code: editingState } })
+          },
+          { eq: { state_code: editingState } }
+        )
 
         if (error) throw new Error(error)
         setSuccessMessage(`Updated threshold for ${editingState}`)
@@ -123,7 +127,8 @@ export default function TaxReportingPage() {
 
   const handleDelete = async (stateCode: string) => {
     setErrorMessage('')
-    const { error } = await adminApi.delete('tax_reporting_thresholds',
+    const { error } = await adminApi.delete(
+      'tax_reporting_thresholds',
       { eq: { state_code: stateCode } }
     )
 

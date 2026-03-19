@@ -7,7 +7,6 @@ import { Plus, Trash2, Shield, ChevronDown } from '@tamagui/lucide-icons'
 import { AdminDataGrid, ColumnDef } from '../../../../../packages/app/features/admin/components/AdminDataGrid'
 import { useAdminQuery } from '../../../../../packages/app/features/admin/hooks/useAdminQuery'
 import { adminApi } from '../../../lib/adminApi'
-import { supabase } from '@casagrown/app/features/auth/auth-hook'
 
 export default function MarketAvailabilityPage() {
   const { data, loading, page, next, prev, hasMore, hasPrev, refresh } = useAdminQuery({
@@ -29,13 +28,9 @@ export default function MarketAvailabilityPage() {
   const [states, setStates] = useState<{ id: string; code: string; name: string }[]>([])
 
   useEffect(() => {
-    supabase
-      .from('states')
-      .select('id, code, name')
-      .eq('country_iso_3', 'USA')
-      .order('code')
+    adminApi.select('states', 'id, code, name', { eq: { country_iso_3: 'USA' } }, { order: { column: 'code', ascending: true } })
       .then(({ data }) => {
-        if (data) setStates(data)
+        if (data) setStates(data as { id: string; code: string; name: string }[])
       })
   }, [])
 

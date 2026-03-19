@@ -7,7 +7,7 @@ import { Plus, Trash2, Shield } from '@tamagui/lucide-icons'
 import { AdminDataGrid, ColumnDef } from '../../../../../packages/app/features/admin/components/AdminDataGrid'
 import { AdminDataForm, FormFieldDef } from '../../../../../packages/app/features/admin/components/AdminDataForm'
 import { useAdminQuery } from '../../../../../packages/app/features/admin/hooks/useAdminQuery'
-import { supabase } from '@casagrown/app/utils/supabase'
+import { adminApi } from '../../../lib/adminApi'
 
 // Equivalent to tracking staff members
 export default function UsersPage() {
@@ -59,7 +59,7 @@ export default function UsersPage() {
           chromeless 
           icon={<Trash2 size={16} color={colors.red[500]} />} 
           onPress={async () => {
-            await supabase.from('staff_members').delete().eq('id', item.id)
+            await adminApi.delete('staff_members', { eq: { id: item.id } })
             refresh()
           }} 
         />
@@ -88,12 +88,12 @@ export default function UsersPage() {
       let roles = Array.isArray(values.roles) ? [...values.roles] : []
       if (roles.length === 0) roles.push('support') // ensure at least support
 
-      const { error } = await supabase.from('staff_members').insert({
+      const { error } = await adminApi.insert('staff_members', {
         email: values.email,
         roles
       })
       if (error) {
-        console.error(error.message)
+        console.error(error)
       } else {
         setIsAdding(false)
         refresh()

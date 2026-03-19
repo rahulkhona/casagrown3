@@ -6,7 +6,6 @@ import { colors } from '@casagrown/app/design-tokens'
 import { Plus, Trash2, ShieldAlert, ChevronDown } from '@tamagui/lucide-icons'
 import { AdminDataGrid, ColumnDef } from '../../../../../packages/app/features/admin/components/AdminDataGrid'
 import { useAdminQuery } from '../../../../../packages/app/features/admin/hooks/useAdminQuery'
-import { supabase } from '@casagrown/app/utils/supabase'
 import { adminApi } from '../../../lib/adminApi'
 
 const SCOPE_LABELS: Record<string, string> = {
@@ -43,16 +42,16 @@ export default function ProductRestrictionsPage() {
 
   // Fetch states when country is set
   useEffect(() => {
-    supabase.from('states').select('id, name, code').eq('country_iso_3', 'USA').order('name').then(({ data }) => {
-      if (data) setStates(data)
+    adminApi.select('states', 'id, name, code', { eq: { country_iso_3: 'USA' } }, { order: { column: 'name', ascending: true } }).then(({ data }) => {
+      if (data) setStates(data as any[])
     })
   }, [])
 
   // Fetch counties when state changes
   useEffect(() => {
     if (selectedState) {
-      supabase.from('counties').select('id, name').eq('state_id', selectedState).order('name').then(({ data }) => {
-        if (data) setCounties(data)
+      adminApi.select('counties', 'id, name', { eq: { state_id: selectedState } }, { order: { column: 'name', ascending: true } }).then(({ data }) => {
+        if (data) setCounties(data as any[])
       })
     } else {
       setCounties([])
@@ -64,8 +63,8 @@ export default function ProductRestrictionsPage() {
   // Fetch cities when state changes
   useEffect(() => {
     if (selectedState) {
-      supabase.from('cities').select('id, name').eq('state_id', selectedState).order('name').then(({ data }) => {
-        if (data) setCities(data)
+      adminApi.select('cities', 'id, name', { eq: { state_id: selectedState } }, { order: { column: 'name', ascending: true } }).then(({ data }) => {
+        if (data) setCities(data as any[])
       })
     } else {
       setCities([])
@@ -102,14 +101,14 @@ export default function ProductRestrictionsPage() {
     }
     
     const enrichRows = async () => {
-      const stateIds = [...new Set(data.filter((d: any) => d.state_id).map((d: any) => d.state_id))]
-      const countyIds = [...new Set(data.filter((d: any) => d.county_id).map((d: any) => d.county_id))]
-      const cityIds = [...new Set(data.filter((d: any) => d.city_id).map((d: any) => d.city_id))]
+      const stateIds = Array.from(new Set(data.filter((d: any) => d.state_id).map((d: any) => d.state_id)))
+      const countyIds = Array.from(new Set(data.filter((d: any) => d.county_id).map((d: any) => d.county_id)))
+      const cityIds = Array.from(new Set(data.filter((d: any) => d.city_id).map((d: any) => d.city_id)))
       
       const [statesRes, countiesRes, citiesRes] = await Promise.all([
-        stateIds.length > 0 ? supabase.from('states').select('id, name').in('id', stateIds) : { data: [] },
-        countyIds.length > 0 ? supabase.from('counties').select('id, name').in('id', countyIds) : { data: [] },
-        cityIds.length > 0 ? supabase.from('cities').select('id, name').in('id', cityIds) : { data: [] },
+        stateIds.length > 0 ? adminApi.select('states', 'id, name', { in: { id: stateIds } }) : { data: [] },
+        countyIds.length > 0 ? adminApi.select('counties', 'id, name', { in: { id: countyIds } }) : { data: [] },
+        cityIds.length > 0 ? adminApi.select('cities', 'id, name', { in: { id: cityIds } }) : { data: [] },
       ])
       
       const stateMap = Object.fromEntries((statesRes.data || []).map((s: any) => [s.id, s.name]))

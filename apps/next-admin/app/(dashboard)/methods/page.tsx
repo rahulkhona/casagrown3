@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from 'react'
 import { YStack, XStack, Text, Button, ScrollView, Separator, Checkbox, Spinner } from 'tamagui'
 import { RefreshCw, Check } from '@tamagui/lucide-icons'
-import { supabase } from '@casagrown/app/features/auth/auth-hook'
 import { adminApi } from '../../../lib/adminApi'
 import { colors } from '@casagrown/app/design-tokens'
 
@@ -40,18 +39,15 @@ export default function MethodsPage() {
   const fetchMethods = async () => {
     setLoading(true)
     
-    const { data: methods } = await supabase
-      .from('available_redemption_methods')
-      .select('*')
-      .order('method')
-      
-    const { data: instruments } = await supabase
-      .from('available_redemption_method_instruments')
-      .select('*')
-      
-    const { data: queues } = await supabase
-      .from('instrument_queuing_status')
-      .select('*')
+    const [methodsRes, instrumentsRes, queuesRes] = await Promise.all([
+      adminApi.select('available_redemption_methods', '*', undefined, { order: { column: 'method', ascending: true } }),
+      adminApi.select('available_redemption_method_instruments'),
+      adminApi.select('instrument_queuing_status'),
+    ])
+
+    const methods = methodsRes.data as any[] | null
+    const instruments = instrumentsRes.data as any[] | null
+    const queues = queuesRes.data as any[] | null
 
     if (methods && instruments) {
       const formatted = methods.map((m: any) => {
@@ -84,7 +80,8 @@ export default function MethodsPage() {
       m.method === methodName ? { ...m, is_active: !currentStatus } : m
     ))
     
-    const { error } = await adminApi.update('available_redemption_methods',
+    const { error } = await adminApi.update(
+      'available_redemption_methods',
       { is_active: !currentStatus },
       { eq: { method: methodName } }
     )
@@ -110,7 +107,8 @@ export default function MethodsPage() {
     
     const table = field === 'is_active' ? 'available_redemption_method_instruments' : 'instrument_queuing_status'
     
-    const { error } = await adminApi.update(table,
+    const { error } = await adminApi.update(
+      table,
       { [field]: !currentStatus },
       { eq: { instrument: instrumentName } }
     )
