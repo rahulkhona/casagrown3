@@ -62,8 +62,15 @@ export function Navbar() {
 
   const open = isMarketOpen(state.marketSchedule, state.marketNeverCloses)
 
-  // Check actual Supabase session + fetch profile name (ONCE on mount)
+  // Check actual Supabase session + fetch profile name (on mount + after profile edit)
+  const prevPath = useRef(pathname)
   useEffect(() => {
+    const wasOnProfile = prevPath.current === '/profile'
+    prevPath.current = pathname
+
+    // Skip re-fetch unless first mount or leaving profile page
+    if (hasSession && !wasOnProfile) return
+
     const supabase = createClient()
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       const user = session?.user
@@ -80,7 +87,7 @@ export function Navbar() {
         if (profile?.avatar_url) setProfileAvatar(profile.avatar_url)
       }
     })
-  }, []) // only on mount — profile data doesn't change between pages
+  }, [pathname]) // runs on navigation, but skips fetch unless leaving /profile
 
   // Poll unread notification count every 60s (separate from profile fetch)
   useEffect(() => {
