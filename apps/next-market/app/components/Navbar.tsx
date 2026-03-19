@@ -185,11 +185,9 @@ export function Navbar() {
     { href: '/community', label: 'Buzz', icon: '🐝' },
   ]
 
-  // Extended menu items (in hamburger)
+  // Extended menu items (hamburger only — items NOT in BottomNav/header)
   const menuItems = [
-    { href: '/community', label: 'Buzz', icon: '🐝', section: 'main' },
     { href: '/my-booth', label: 'My Booth', icon: '🏪', section: 'main' },
-    { href: '/orders', label: 'Orders', icon: '🧾', section: 'main' },
     { href: '/helping', label: 'Helping', icon: '🤝', section: 'main' },
     { href: '/earnings', label: 'Transactions', icon: '💰', section: 'main' },
     { href: '/earnings/payout', label: 'Payout', icon: '💸', section: 'main' },
@@ -397,7 +395,17 @@ export function Navbar() {
 
             {menuOpen && (
               <div className={styles.slideMenu}>
-                {/* User info */}
+                {/* Auth - Sign In at top when logged out */}
+                {!hasSession && (
+                  <div className={styles.menuSection}>
+                    <Link href="/login" className={styles.menuItem} style={{ fontWeight: 600, color: 'var(--green-700)' }}>
+                      <span className={styles.menuItemIcon}>🔑</span>
+                      <span>Sign In</span>
+                    </Link>
+                  </div>
+                )}
+
+                {/* User info - only when logged in */}
                 {state.isAuthenticated && (
                   <div className={styles.menuUser}>
                     {profileAvatar ? (
@@ -412,29 +420,33 @@ export function Navbar() {
                   </div>
                 )}
 
-                {/* Main navigation */}
-                <div className={styles.menuSection}>
-                  <div className={styles.menuSectionLabel}>Navigation</div>
-                  {mainItems.map(item => (
-                    <Link key={item.href} href={item.href} className={`${styles.menuItem} ${pathname === item.href ? styles.menuItemActive : ''}`}>
-                      <span className={styles.menuItemIcon}>{item.icon}</span>
-                      <span>{item.label}</span>
-                    </Link>
-                  ))}
-                </div>
+                {/* Main navigation - only when logged in */}
+                {hasSession && (
+                  <div className={styles.menuSection}>
+                    <div className={styles.menuSectionLabel}>Navigation</div>
+                    {mainItems.map(item => (
+                      <Link key={item.href} href={item.href} className={`${styles.menuItem} ${pathname === item.href ? styles.menuItemActive : ''}`}>
+                        <span className={styles.menuItemIcon}>{item.icon}</span>
+                        <span>{item.label}</span>
+                      </Link>
+                    ))}
+                  </div>
+                )}
 
-                {/* Account & Settings */}
-                <div className={styles.menuSection}>
-                  <div className={styles.menuSectionLabel}>Account</div>
-                  {accountItems.map(item => (
-                    <Link key={item.href} href={item.href} className={`${styles.menuItem} ${pathname === item.href ? styles.menuItemActive : ''}`}>
-                      <span className={styles.menuItemIcon}>{item.icon}</span>
-                      <span>{item.label}</span>
-                    </Link>
-                  ))}
-                </div>
+                {/* Account - only when logged in */}
+                {hasSession && (
+                  <div className={styles.menuSection}>
+                    <div className={styles.menuSectionLabel}>Account</div>
+                    {accountItems.map(item => (
+                      <Link key={item.href} href={item.href} className={`${styles.menuItem} ${pathname === item.href ? styles.menuItemActive : ''}`}>
+                        <span className={styles.menuItemIcon}>{item.icon}</span>
+                        <span>{item.label}</span>
+                      </Link>
+                    ))}
+                  </div>
+                )}
 
-                {/* Support & Legal */}
+                {/* Support & Legal - always visible */}
                 <div className={styles.menuSection}>
                   <div className={styles.menuSectionLabel}>Support & Legal</div>
                   <Link href="/voice/board" className={`${styles.menuItem} ${pathname.startsWith('/voice') ? styles.menuItemActive : ''}`}>
@@ -451,9 +463,9 @@ export function Navbar() {
                   </Link>
                 </div>
 
-                {/* Auth */}
-                <div className={styles.menuSection}>
-                  {hasSession ? (
+                {/* Log Out - only when logged in */}
+                {hasSession && (
+                  <div className={styles.menuSection}>
                     <button className={styles.menuItem} onClick={async () => {
                       const supabase = createClient()
                       await supabase.auth.signOut({ scope: 'global' })
@@ -464,13 +476,8 @@ export function Navbar() {
                       <span className={styles.menuItemIcon}>🚪</span>
                       <span>Log Out</span>
                     </button>
-                  ) : (
-                    <Link href="/login" className={styles.menuItem}>
-                      <span className={styles.menuItemIcon}>🔑</span>
-                      <span>Sign In</span>
-                    </Link>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
