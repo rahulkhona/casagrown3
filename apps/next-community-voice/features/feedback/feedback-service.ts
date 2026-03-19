@@ -123,9 +123,9 @@ export async function fetchTickets(
         pageSize = 20,
     } = params;
 
-    // Build query — select only needed columns + counts
-    // NOTE: We do NOT use embedded joins (profiles!author_id) because PostgREST's
-    // schema cache can be stale after FK changes. Instead, we fetch profiles separately.
+    // Build query — select only needed columns
+    // NOTE: We do NOT use embedded joins because PostgREST's schema cache
+    // may not know about FK relationships. We fetch related data separately.
     let query = supabase
         .from("user_feedback")
         .select(
@@ -140,9 +140,7 @@ export async function fetchTickets(
       updated_at,
       resolved_at,
       assigned_to,
-      author_id,
-      feedback_votes(count),
-      feedback_comments(count)
+      author_id
     `,
             { count: "exact" },
         );
@@ -225,7 +223,8 @@ export async function fetchTickets(
 
     // Transform response
     // Fetch author profiles separately to avoid PostgREST schema cache issues
-    const authorIds = [...new Set((data || []).map((r: any) => r.author_id).filter(Boolean))];
+    const ticketIds = (data || []).map((r: any) => r.id);
+    const authorIds = Array.from(new Set((data || []).map((r: any) => r.author_id).filter(Boolean)));
     let profileMap: Record<string, { full_name: string | null; avatar_url: string | null }> = {};
     if (authorIds.length > 0) {
         const { data: profiles } = await supabase
@@ -235,6 +234,30 @@ export async function fetchTickets(
         if (profiles) {
             for (const p of profiles) {
                 profileMap[p.id] = { full_name: p.full_name, avatar_url: p.avatar_url };
+            }
+        }
+    }
+
+    // Fetch vote and comment counts separately
+    let voteCounts: Record<string, number> = {};
+    let commentCounts: Record<string, number> = {};
+    if (ticketIds.length > 0) {
+        const { data: votes } = await supabase
+            .from("feedback_votes")
+            .select("feedback_id")
+            .in("feedback_id", ticketIds);
+        if (votes) {
+            for (const v of votes) {
+                voteCounts[v.feedback_id] = (voteCounts[v.feedback_id] || 0) + 1;
+            }
+        }
+        const { data: comments } = await supabase
+            .from("feedback_comments")
+            .select("feedback_id")
+            .in("feedback_id", ticketIds);
+        if (comments) {
+            for (const c of comments) {
+                commentCounts[c.feedback_id] = (commentCounts[c.feedback_id] || 0) + 1;
             }
         }
     }
@@ -253,8 +276,8 @@ export async function fetchTickets(
         author_id: row.author_id,
         author_name: profileMap[row.author_id]?.full_name || "Anonymous",
         author_avatar: profileMap[row.author_id]?.avatar_url || null,
-        vote_count: row.feedback_votes?.[0]?.count || 0,
-        comment_count: row.feedback_comments?.[0]?.count || 0,
+        vote_count: voteCounts[row.id] || 0,
+        comment_count: commentCounts[row.id] || 0,
         is_voted: false,
         flag_count: 0,
         is_flagged: false,
@@ -346,15 +369,7 @@ export async function fetchTicketById(
       updated_at,
       resolved_at,
       assigned_to,
-      author_id,
-      feedback_votes(count),
-      feedback_comments(
-        id,
-        content,
-        is_official_response,
-        created_at,
-        author_id
-      )
+      author_id
     `)
         .eq("id", id)
         .single();
@@ -364,7 +379,21 @@ export async function fetchTicketById(
         return null;
     }
 
+    // Fetch comments separately
+    const { data: commentsData } = await supabase
+        .from("feedback_comments")
+        .select("id, content, is_official_response, created_at, author_id, feedback_id")
+        .eq("feedback_id", id)
+        .order("created_at", { ascending: true });
+
+    // Fetch vote count separately
+    const { data: votesData } = await supabase
+        .from("feedback_votes")
+        .select("feedback_id")
+        .eq("feedback_id", id);
+
     const row = data as any;
+    row.feedback_comments = commentsData || [];
 
     // Fetch author profiles separately
     const allAuthorIds = new Set<string>();
@@ -377,7 +406,7 @@ export async function fetchTicketById(
         const { data: profiles } = await supabase
             .from("profiles")
             .select("id, full_name, avatar_url")
-            .in("id", [...allAuthorIds]);
+            .in("id", Array.from(allAuthorIds));
         if (profiles) {
             for (const p of profiles) {
                 profileMap[p.id] = { full_name: p.full_name, avatar_url: p.avatar_url };
@@ -443,7 +472,7 @@ export async function fetchTicketById(
         author_id: row.author_id,
         author_name: profileMap[row.author_id]?.full_name || "Anonymous",
         author_avatar: profileMap[row.author_id]?.avatar_url || null,
-        vote_count: row.feedback_votes?.[0]?.count || 0,
+        vote_count: (votesData || []).length,
         comment_count: row.feedback_comments?.length || 0,
         is_voted: isVoted,
         flag_count: 0,
