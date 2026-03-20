@@ -8,6 +8,7 @@ import { useAuth } from '../../../../../lib/useAuth'
 import { createClient } from '../../../../../lib/supabase'
 import { useMarketRestriction } from '../../../../../lib/useMarketRestriction'
 import { useNotificationPrompt } from '../../../../../lib/useNotificationPrompt'
+import { trackFormSubmit, trackClick, trackError } from '../../../../../lib/analytics'
 import { NotificationPromptModal } from '../../../../components/NotificationPromptModal'
 import CameraCapture from '../../../../../components/CameraCapture'
 import ImageCropper from '../../../../../components/ImageCropper'
@@ -201,6 +202,7 @@ function NewProductPageInner() {
 
     setValidating(true)
     setAddedProductName(name.trim())
+    trackFormSubmit(isEditMode ? 'edit_product' : 'add_product', { category, name: name.trim() })
 
     try {
 
@@ -481,6 +483,7 @@ function NewProductPageInner() {
     showPrompt()
     } catch (err: any) {
       console.error('Product add error:', err)
+      trackError('product_add_failed', { error: err?.message })
       alert('Failed to save product: ' + (err?.message || 'Unknown error. Please try again.'))
       setValidating(false)
     }
@@ -497,6 +500,7 @@ function NewProductPageInner() {
   const handleShareCopy = async () => {
     try {
       await navigator.clipboard.writeText(getShareMessage())
+      trackClick('share_product_copy', { productName: addedProductName })
       setShareCopied(true)
       setTimeout(() => setShareCopied(false), 2000)
     } catch { /* fallback */ }
@@ -505,6 +509,7 @@ function NewProductPageInner() {
   const handleShareNative = async () => {
     if (navigator.share) {
       try {
+        trackClick('share_product_native', { productName: addedProductName })
         await navigator.share({ title: `Fresh ${addedProductName} at ${boothLabel}`, text: getShareMessage() })
       } catch { /* cancelled */ }
     } else {

@@ -5,6 +5,7 @@ import { useState, useRef, useEffect, useCallback , Suspense } from 'react'
 import { LoadingSpinner } from '../../components/LoadingSpinner'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
+import { trackFormSubmit, trackClick, trackError } from '../../../lib/analytics'
 import CameraCapture from '../../../components/CameraCapture'
 import ImageCropper from '../../../components/ImageCropper'
 import styles from './page.module.css'
@@ -71,6 +72,7 @@ function ProfileSetupPageInner() {
 
   const useCurrentLocation = () => {
     if (!navigator.geolocation) { setError('Geolocation is not supported by your browser'); return }
+    trackClick('use_current_location')
     setGeolocating(true); setError('')
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
@@ -105,6 +107,7 @@ function ProfileSetupPageInner() {
     if (!stateCode.trim()) { setError('Please enter your state'); return }
     if (!zip.trim()) { setError('Please enter your zip code'); return }
 
+    trackFormSubmit('profile_setup', { hasAvatar: !!avatarUrl })
     setSaving(true); setError('')
 
     try {
@@ -227,6 +230,7 @@ function ProfileSetupPageInner() {
       }
     } catch (err: any) {
       console.error('Profile save failed:', err)
+      trackError('profile_setup_failed', { error: err?.message })
       setError(err?.message || 'Something went wrong. Please try again.')
       setSaving(false)
     }

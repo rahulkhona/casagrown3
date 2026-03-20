@@ -17,6 +17,7 @@ import ImageCropper from '../../../components/ImageCropper'
 
 
 import { geocodeAddress, toPostgisPoint } from '../../../lib/geocode'
+import { trackClick, trackError } from '../../../lib/analytics'
 
 import styles from './page.module.css'
 
@@ -333,6 +334,7 @@ export default function MyBoothPage() {
 
   const handleSaveBooth = async () => {
     if (!name.trim() || !user) return
+    trackClick('save_booth_config', { theme, offersDelivery, offersPickup })
 
     // ── Validate fulfillment time windows ──
     const issues: string[] = []
@@ -434,6 +436,7 @@ export default function MyBoothPage() {
     try { localStorage.removeItem(BOOTH_DRAFT_KEY) } catch { /* ignore */ }
     } catch (err: any) {
       console.error('Booth save error:', err)
+      trackError('booth_save_failed', { error: err.message })
       alert('Booth save failed: ' + (err.message || 'Unknown error'))
     }
   }

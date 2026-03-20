@@ -5,6 +5,7 @@ import { useState, useEffect, useRef , Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase'
 import { createTicket, type FeedbackType } from '../../../../lib/feedback-service'
+import { trackFormSubmit } from '../../../../lib/analytics'
 import styles from '../voice.module.css'
 
 const TYPE_MAP: Record<string, FeedbackType> = {
@@ -63,6 +64,7 @@ function VoiceSubmitPageInner() {
 
   const handleSubmit = async () => {
     if (!title.trim() || !description.trim() || !userId) return
+    trackFormSubmit('submit_feedback', { type: TYPE_MAP[type] || 'bug_report' })
     setLoading(true)
     const result = await createTicket({
       title: title.trim(),

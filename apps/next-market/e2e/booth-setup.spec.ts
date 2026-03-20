@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures'
 
 test.describe('Booth Setup & Product Management', () => {
   test('should navigate to my-booth page', async ({ page }) => {

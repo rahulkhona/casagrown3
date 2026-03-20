@@ -105,14 +105,31 @@ describe("Feedback Service", () => {
                     resolved_at: null,
                     assigned_to: null,
                     author_id: "user-1",
-                    author: { full_name: "Test User", avatar_url: null },
-                    feedback_votes: [{ count: 5 }],
-                    feedback_comments: [{ count: 3 }],
                 },
             ];
 
-            const chain = chainable({ data: mockData, error: null, count: 1 });
-            (supabase.from as any).mockReturnValue(chain);
+            // fetchTickets calls from() multiple times:
+            // 1. user_feedback (main query) → returns tickets
+            // 2. profiles (author lookup) → returns profile map
+            // 3. feedback_votes (vote counts) → returns vote rows
+            // 4. feedback_comments (comment counts) → returns comment rows
+            // 5. feedback_flags (flag counts) → returns flag rows
+            const ticketsChain = chainable({ data: mockData, error: null, count: 1 });
+            const profilesChain = chainable({ data: [{ id: "user-1", full_name: "Test User", avatar_url: null }], error: null });
+            const votesChain = chainable({ data: [
+                { feedback_id: "ticket-1" }, { feedback_id: "ticket-1" }, { feedback_id: "ticket-1" },
+                { feedback_id: "ticket-1" }, { feedback_id: "ticket-1" },
+            ], error: null });
+            const commentsChain = chainable({ data: [
+                { feedback_id: "ticket-1" }, { feedback_id: "ticket-1" }, { feedback_id: "ticket-1" },
+            ], error: null });
+            const flagsChain = chainable({ data: [], error: null });
+            (supabase.from as any)
+                .mockReturnValueOnce(ticketsChain)   // user_feedback
+                .mockReturnValueOnce(profilesChain)  // profiles
+                .mockReturnValueOnce(votesChain)      // feedback_votes
+                .mockReturnValueOnce(commentsChain)   // feedback_comments
+                .mockReturnValueOnce(flagsChain);     // feedback_flags
 
             const result = await fetchTickets({ page: 1, pageSize: 20 });
 
@@ -167,45 +184,52 @@ describe("Feedback Service", () => {
         });
 
         it("should sort by vote count client-side when most_votes selected", async () => {
-            const chain = chainable({
-                data: [
-                    {
-                        id: "t1",
-                        title: "Few Votes",
-                        description: "",
-                        type: "bug_report",
-                        status: "open",
-                        visibility: "public",
-                        created_at: "2026-02-20T10:00:00Z",
-                        updated_at: null,
-                        resolved_at: null,
-                        assigned_to: null,
-                        author_id: "u1",
-                        author: null,
-                        feedback_votes: [{ count: 2 }],
-                        feedback_comments: [{ count: 0 }],
-                    },
-                    {
-                        id: "t2",
-                        title: "Many Votes",
-                        description: "",
-                        type: "bug_report",
-                        status: "open",
-                        visibility: "public",
-                        created_at: "2026-02-19T10:00:00Z",
-                        updated_at: null,
-                        resolved_at: null,
-                        assigned_to: null,
-                        author_id: "u2",
-                        author: null,
-                        feedback_votes: [{ count: 10 }],
-                        feedback_comments: [{ count: 0 }],
-                    },
-                ],
-                error: null,
-                count: 2,
-            });
-            (supabase.from as any).mockReturnValue(chain);
+            const mockData = [
+                {
+                    id: "t1",
+                    title: "Few Votes",
+                    description: "",
+                    type: "bug_report",
+                    status: "open",
+                    visibility: "public",
+                    created_at: "2026-02-20T10:00:00Z",
+                    updated_at: null,
+                    resolved_at: null,
+                    assigned_to: null,
+                    author_id: "u1",
+                },
+                {
+                    id: "t2",
+                    title: "Many Votes",
+                    description: "",
+                    type: "bug_report",
+                    status: "open",
+                    visibility: "public",
+                    created_at: "2026-02-19T10:00:00Z",
+                    updated_at: null,
+                    resolved_at: null,
+                    assigned_to: null,
+                    author_id: "u2",
+                },
+            ];
+            // fetchTickets calls from() for: user_feedback, profiles, votes, comments, flags
+            const ticketsChain = chainable({ data: mockData, error: null, count: 2 });
+            const profilesChain = chainable({ data: [], error: null });
+            // t1 has 2 votes, t2 has 10 votes
+            const votesChain = chainable({ data: [
+                { feedback_id: "t1" }, { feedback_id: "t1" },
+                { feedback_id: "t2" }, { feedback_id: "t2" }, { feedback_id: "t2" }, { feedback_id: "t2" },
+                { feedback_id: "t2" }, { feedback_id: "t2" }, { feedback_id: "t2" }, { feedback_id: "t2" },
+                { feedback_id: "t2" }, { feedback_id: "t2" },
+            ], error: null });
+            const commentsChain = chainable({ data: [], error: null });
+            const flagsChain = chainable({ data: [], error: null });
+            (supabase.from as any)
+                .mockReturnValueOnce(ticketsChain)
+                .mockReturnValueOnce(profilesChain)
+                .mockReturnValueOnce(votesChain)
+                .mockReturnValueOnce(commentsChain)
+                .mockReturnValueOnce(flagsChain);
 
             const result = await fetchTickets({ sort: "most_votes" });
             expect(result.tickets[0].title).toBe("Many Votes");
@@ -218,6 +242,14 @@ describe("Feedback Service", () => {
     // =========================================================================
     describe("fetchTicketById", () => {
         it("should fetch ticket with comments", async () => {
+            // fetchTicketById calls from() for:
+            // 1. user_feedback (main ticket) → .eq().single()
+            // 2. feedback_comments → .eq().order()
+            // 3. feedback_votes (count) → .eq()
+            // 4. profiles (author lookup) → .in()
+            // 5. feedback_media (ticket media) → .eq().order()
+            // 6. feedback_comment_media → .in()
+            // 7. feedback_flags → .eq()
             const ticketChain = chainable({
                 data: {
                     id: "ticket-1",
@@ -231,46 +263,56 @@ describe("Feedback Service", () => {
                     resolved_at: null,
                     assigned_to: null,
                     author_id: "user-1",
-                    author: {
-                        full_name: "Test User",
-                        avatar_url: "https://example.com/avatar.png",
-                    },
-                    feedback_votes: [{ count: 5 }],
-                    feedback_comments: [
-                        {
-                            id: "c1",
-                            content: "A comment",
-                            is_official_response: false,
-                            created_at: "2026-02-20T11:00:00Z",
-                            author_id: "user-2",
-                            comment_author: {
-                                full_name: "Commenter",
-                                avatar_url: null,
-                            },
-                        },
-                        {
-                            id: "c2",
-                            content: "Official response",
-                            is_official_response: true,
-                            created_at: "2026-02-20T12:00:00Z",
-                            author_id: "user-3",
-                            comment_author: {
-                                full_name: "Staff",
-                                avatar_url: null,
-                            },
-                        },
-                    ],
                 },
                 error: null,
             });
-            // Subsequent from() calls (flags, media) return empty arrays
+            const commentsChain = chainable({
+                data: [
+                    {
+                        id: "c1",
+                        content: "A comment",
+                        is_official_response: false,
+                        created_at: "2026-02-20T11:00:00Z",
+                        author_id: "user-2",
+                        feedback_id: "ticket-1",
+                    },
+                    {
+                        id: "c2",
+                        content: "Official response",
+                        is_official_response: true,
+                        created_at: "2026-02-20T12:00:00Z",
+                        author_id: "user-3",
+                        feedback_id: "ticket-1",
+                    },
+                ],
+                error: null,
+            });
+            // 5 individual vote rows → vote_count = 5
+            const votesChain = chainable({
+                data: [
+                    { feedback_id: "ticket-1" }, { feedback_id: "ticket-1" }, { feedback_id: "ticket-1" },
+                    { feedback_id: "ticket-1" }, { feedback_id: "ticket-1" },
+                ],
+                error: null,
+            });
+            const profilesChain = chainable({
+                data: [
+                    { id: "user-1", full_name: "Test User", avatar_url: "https://example.com/avatar.png" },
+                    { id: "user-2", full_name: "Commenter", avatar_url: null },
+                    { id: "user-3", full_name: "Staff", avatar_url: null },
+                ],
+                error: null,
+            });
             const emptyChain = chainable({ data: [], error: null });
+
             (supabase.from as any)
-                .mockReturnValueOnce(ticketChain) // user_feedback
-                .mockReturnValueOnce(emptyChain) // feedback_flags (count)
-                .mockReturnValueOnce(emptyChain) // feedback_flags (user flag)
-                .mockReturnValueOnce(emptyChain) // feedback_media
-                .mockReturnValue(emptyChain); // feedback_comment_media
+                .mockReturnValueOnce(ticketChain)    // user_feedback
+                .mockReturnValueOnce(commentsChain)  // feedback_comments
+                .mockReturnValueOnce(votesChain)      // feedback_votes (count)
+                .mockReturnValueOnce(profilesChain)   // profiles
+                .mockReturnValueOnce(emptyChain)      // feedback_media
+                .mockReturnValueOnce(emptyChain)      // feedback_comment_media
+                .mockReturnValue(emptyChain);          // feedback_flags
 
             const result = await fetchTicketById("ticket-1");
 

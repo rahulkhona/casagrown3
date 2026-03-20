@@ -1,4 +1,5 @@
-import { test, expect, Page } from '@playwright/test'
+import { test, expect, Page } from './fixtures'
+
 
 const BASE = process.env.BASE_URL || 'http://localhost:3001'
 

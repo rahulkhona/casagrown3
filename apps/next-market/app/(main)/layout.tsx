@@ -7,6 +7,8 @@ import { BottomNav } from '../components/BottomNav'
 import { RatingReminder } from '../components/RatingReminder'
 import { AnalyticsTracker } from '../components/AnalyticsTracker'
 import { ErrorToastProvider } from '../components/ErrorToast'
+import { AlphaBanner } from '../components/AlphaBanner'
+import { ErrorBoundary } from '../components/ErrorBoundary'
 
 function BannedOverlay({ reason }: { reason: string | null }) {
   return (
@@ -48,9 +50,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     <MarketProvider>
       <ErrorToastProvider userId={user?.id}>
         <AnalyticsTracker />
+        <AlphaBanner />
         <Navbar />
         <main className="page-wrapper">
-          {children}
+          <ErrorBoundary>
+            {children}
+          </ErrorBoundary>
         </main>
         <BottomNav />
         <RatingReminder />

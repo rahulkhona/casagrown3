@@ -94,7 +94,7 @@ vi.mock('../../lib/useAuth', () => ({
 
 // Mock analytics
 vi.mock('../../lib/analytics', () => ({
-  trackClick: vi.fn(), trackError: vi.fn(), trackEvent: vi.fn(), trackPageView: vi.fn(), setAnalyticsUser: vi.fn(),
+  trackClick: vi.fn(), trackError: vi.fn(), trackEvent: vi.fn(), trackPageView: vi.fn(), setAnalyticsUser: vi.fn(), trackFormSubmit: vi.fn(),
 }))
 
 // Mock legal

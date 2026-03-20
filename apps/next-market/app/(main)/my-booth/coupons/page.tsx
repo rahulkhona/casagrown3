@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useMarket } from '../../../../lib/store'
+import { trackFormSubmit, trackClick } from '../../../../lib/analytics'
 import styles from './page.module.css'
 
 export default function CouponsPage() {
@@ -16,6 +17,7 @@ export default function CouponsPage() {
 
   const handleCreate = () => {
     if (!code || !discountValue || !myBooth) return
+    trackFormSubmit('create_coupon', { code: code.toUpperCase(), discountType, discountValue: parseFloat(discountValue) })
     dispatch({
       type: 'CREATE_COUPON',
       payload: {
@@ -38,6 +40,7 @@ Use code ${coupon.code} for ${coupon.discountType === 'percent' ? `${coupon.disc
 
 Fresh. Local. Trusted. 🌱`
     navigator.clipboard?.writeText(msg)
+    trackClick('share_coupon', { code: coupon.code })
     dispatch({ type: 'ADD_TOAST', payload: { message: 'Coupon share message copied! 📋', type: 'success' } })
   }
 

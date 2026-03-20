@@ -229,7 +229,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
 
     setLoading(true)
     setError('')
-    trackClick('place_order', { productId: product.id, qty, total, fulfillment })
+    trackClick('place_order', { productId: product.id, boothId: booth.id, boothName: booth.name, qty, total, fulfillment })
 
     try {
       // Step 1: Place order (atomic)

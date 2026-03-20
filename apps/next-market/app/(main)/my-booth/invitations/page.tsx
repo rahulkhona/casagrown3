@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useMarket } from '../../../../lib/store'
+import { trackClick } from '../../../../lib/analytics'
 import styles from './page.module.css'
 
 export default function InvitationsPage() {
@@ -29,15 +30,18 @@ Fresh. Local. Trusted.`
 
   const copyLink = () => {
     navigator.clipboard?.writeText(inviteUrl)
+    trackClick('copy_invitation_link')
     dispatch({ type: 'ADD_TOAST', payload: { message: 'Link copied! 📋', type: 'success' } })
   }
 
   const copyMessage = () => {
     navigator.clipboard?.writeText(shareMessage)
+    trackClick('copy_invitation_message')
     dispatch({ type: 'ADD_TOAST', payload: { message: 'Share message copied! 📋', type: 'success' } })
   }
 
   const shareVia = (channel: 'sms' | 'whatsapp' | 'email') => {
+    trackClick('share_invitation', { channel })
     const encodedMsg = encodeURIComponent(shareMessage)
     const subject = encodeURIComponent(`Check out ${myBooth.name} on CasaGrown Market!`)
     let url = ''

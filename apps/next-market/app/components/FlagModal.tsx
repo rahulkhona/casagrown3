@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '../../lib/supabase'
+import { trackFormSubmit, trackError } from '../../lib/analytics'
 import styles from './FlagModal.module.css'
 
 const FLAG_REASONS = [
@@ -27,6 +28,7 @@ export function FlagModal({ productId, productName, onClose, onFlagged }: FlagMo
 
   const handleSubmit = async () => {
     if (!reason) { setError('Please select a reason'); return }
+    trackFormSubmit('flag_product', { productId, reason })
     setLoading(true)
     setError('')
 
@@ -38,6 +40,7 @@ export function FlagModal({ productId, productName, onClose, onFlagged }: FlagMo
       if (insertErr.code === '23505') {
         setError('You have already flagged this product')
       } else {
+        trackError('flag_product_failed', { productId, error: insertErr.message })
         setError(insertErr.message)
       }
       setLoading(false)

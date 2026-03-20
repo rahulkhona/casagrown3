@@ -16,6 +16,7 @@ import Link from 'next/link'
 import { useAuth } from '../../../../lib/useAuth'
 import { formatUsd } from '../../../../lib/store'
 import { createClient } from '../../../../lib/supabase'
+import { trackClick, trackError } from '../../../../lib/analytics'
 import styles from './page.module.css'
 
 // ── Types ──
@@ -326,6 +327,7 @@ export default function PayoutPage() {
   const handleRedeemGiftCard = useCallback(async () => {
     if (!selectedCard || !gcAmount) return
     if (gcAmount < GIFT_CARD_MIN) { setError(`Minimum gift card amount is ${formatUsd(GIFT_CARD_MIN)}`); return }
+    trackClick('redeem_gift_card', { brand: selectedCard.brandName, amount: gcAmount })
     setError(null)
     setRedeeming(true)
     try {
@@ -342,12 +344,14 @@ export default function PayoutPage() {
       setAvailableUsd(prev => Math.max(0, prev - gcAmount))
       setSelectedCard(null)
     } catch (err: any) {
+      trackError('gift_card_redeem_failed', { error: err.message })
       setError(err.message || 'Gift card purchase failed')
     } finally { setRedeeming(false) }
   }, [selectedCard, gcAmount, supabase])
 
   const handleDonate = useCallback(async () => {
     if (!selectedCharity || !donateAmount) return
+    trackClick('donate', { project: selectedCharity.title, amount: parseFloat(donateAmount) })
     setError(null)
     setDonating(true)
     const usdAmt = parseFloat(donateAmount) || 0
@@ -371,6 +375,7 @@ export default function PayoutPage() {
       setSelectedCharity(null)
       setDonateAmount('')
     } catch (err: any) {
+      trackError('donate_failed', { error: err.message })
       setError(err.message || 'Donation failed')
     } finally { setDonating(false) }
   }, [selectedCharity, donateAmount, supabase])
@@ -381,6 +386,7 @@ export default function PayoutPage() {
       return
     }
     if (!cashoutAmount) return
+    trackClick('cashout', { amount: parseFloat(cashoutAmount) })
     setError(null)
     setCashingOut(true)
     const usdAmt = parseFloat(cashoutAmount) || 0
@@ -393,6 +399,7 @@ export default function PayoutPage() {
       setAvailableUsd(prev => Math.max(0, prev - usdAmt))
       setCashoutResult({ success: true, txnId: data.batch_id || data.transactionId, status: data.status || 'completed' })
     } catch (err: any) {
+      trackError('cashout_failed', { error: err.message })
       setError(err.message || 'Cashout failed')
     } finally { setCashingOut(false) }
   }, [payoutStatus, cashoutAmount, supabase])
@@ -401,6 +408,7 @@ export default function PayoutPage() {
 
   // ── Auto-payout save ──
   const handleAutoSave = useCallback(async () => {
+    trackClick('save_auto_payout', { method: autoConfig.method, threshold: autoConfig.threshold_usd })
     setError(null)
     setAutoSaving(true)
     setAutoSaved(false)

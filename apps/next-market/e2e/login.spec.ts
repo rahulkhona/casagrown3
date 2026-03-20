@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures'
 
 // Login tests must run WITHOUT auth — clear any existing session
 test.use({ storageState: { cookies: [], origins: [] } })

@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import MentionPicker from './MentionPicker'
 import { uploadChatImage } from '../../../../../../packages/app/features/community-chat/community-chat-service'
 import { createClient } from '../../../../lib/supabase'
+import { trackClick } from '../../../../lib/analytics'
 import styles from '../page.module.css'
 
 interface ComposeBarProps {
@@ -31,6 +32,7 @@ export default function ComposeBar({ onSend, userId, h3Index }: ComposeBarProps)
     e?.preventDefault()
     if ((!content.trim() && mediaFiles.length === 0) || isSending) return
 
+    trackClick('send_community_message', { hasMedia: mediaFiles.length > 0, hasMentions: mentions.length > 0 })
     setIsSending(true)
     try {
       // Upload media files first

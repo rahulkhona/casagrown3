@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useMarket } from '../../../lib/store'
 import { createClient } from '../../../lib/supabase'
 import { needsTosAcceptance } from '../../../lib/legal'
+import { trackFormSubmit, trackError } from '../../../lib/analytics'
 import styles from './page.module.css'
 
 function LoginPageInner() {
@@ -49,12 +50,14 @@ function LoginPageInner() {
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!email) return
+    trackFormSubmit('login_email')
     setLoading(true)
     setError('')
 
     const { error: otpError } = await supabase.auth.signInWithOtp({ email })
 
     if (otpError) {
+      trackError('login_otp_send_failed', { error: otpError.message })
       setError(otpError.message)
       setLoading(false)
       return
@@ -67,6 +70,7 @@ function LoginPageInner() {
   const handleOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (otp.length < 6) return
+    trackFormSubmit('login_otp_verify')
     setLoading(true)
     setError('')
 
@@ -77,6 +81,7 @@ function LoginPageInner() {
     })
 
     if (verifyError) {
+      trackError('login_verify_failed', { error: verifyError.message })
       setError(verifyError.message)
       setLoading(false)
       return

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useMarket, formatUsd, type OrderStatus } from '../../../../lib/store'
+import { trackClick } from '../../../../lib/analytics'
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   pending: '⏳ Pending', accepted: '✓ Accepted', rejected: '✕ Rejected',
@@ -70,10 +71,12 @@ export default function SellerOrdersPage() {
                     {o.status === 'pending' && (
                       <>
                         <button className="btn btn-primary btn-xs" onClick={() => {
+                          trackClick('accept_order', { orderId: o.id })
                           dispatch({ type: 'UPDATE_ORDER_STATUS', payload: { orderId: o.id, status: 'accepted' } })
                           dispatch({ type: 'ADD_TOAST', payload: { message: 'Order accepted', type: 'success' } })
                         }}>✓ Accept</button>
                         <button className="btn btn-danger btn-xs" onClick={() => {
+                          trackClick('reject_order', { orderId: o.id })
                           dispatch({ type: 'UPDATE_ORDER_STATUS', payload: { orderId: o.id, status: 'rejected' } })
                           dispatch({ type: 'ADD_TOAST', payload: { message: 'Order rejected', type: 'info' } })
                         }}>✕ Reject</button>
@@ -81,6 +84,7 @@ export default function SellerOrdersPage() {
                     )}
                     {o.status === 'accepted' && (
                       <button className="btn btn-primary btn-xs" onClick={() => {
+                        trackClick('mark_delivered', { orderId: o.id })
                         dispatch({ type: 'UPDATE_ORDER_STATUS', payload: { orderId: o.id, status: 'delivered', proofPhotos: ['proof.jpg'] } })
                         dispatch({ type: 'ADD_TOAST', payload: { message: 'Marked delivered', type: 'success' } })
                       }}>📷 Mark Delivered</button>
