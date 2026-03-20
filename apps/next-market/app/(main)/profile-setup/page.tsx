@@ -175,12 +175,30 @@ function ProfileSetupPageInner() {
         profileUpdate.home_location = `SRID=4326;POINT(${geoLng} ${geoLat})`
       }
       if (h3Index) {
+        // Save immediate fallback name ("City, State") so the community exists right away
         const communityName = `${validatedCity}, ${validatedState}`
         await supabase.from('communities').upsert({
           h3_index: h3Index,
           name: communityName,
-        }, { onConflict: 'h3_index' })
+          metadata: { source: 'nominatim_fallback', geocoded_city: validatedCity },
+        }, { onConflict: 'h3_index', ignoreDuplicates: true })
         profileUpdate.home_community_h3_index = h3Index
+
+        // Fire-and-forget: call resolve-community to get a landmark name
+        // (e.g., "Leland High School Community" instead of "San Jose, CA")
+        if (geoLat !== null && geoLng !== null) {
+          supabase.functions.invoke('resolve-community', {
+            body: { lat: geoLat, lng: geoLng },
+          }).then((res: any) => {
+            if (res.error) {
+              console.warn('resolve-community failed (enrichment will retry):', res.error)
+            } else {
+              console.log('resolve-community succeeded:', res.data?.primary?.name)
+            }
+          }).catch((err: any) => {
+            console.warn('resolve-community fire-and-forget failed:', err)
+          })
+        }
       }
 
       const { error: updateErr } = await supabase

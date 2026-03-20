@@ -19,12 +19,16 @@ import { cellToLatLng } from "https://esm.sh/h3-js@4.1.0?target=deno";
  */
 
 serveWithCors(async (req, { supabase, corsHeaders }) => {
-  // Parse optional limit from body
+  // Parse optional limit and delay from body
   let limit = 1;
+  let delaySec = 120; // Default: 2 minutes between each resolution
   try {
     const body = await req.json();
     if (body?.limit && typeof body.limit === "number") {
-      limit = Math.min(body.limit, 5); // Cap at 5 per invocation
+      limit = Math.min(body.limit, 10); // Cap at 10 per invocation
+    }
+    if (body?.delay_seconds && typeof body.delay_seconds === "number") {
+      delaySec = Math.max(body.delay_seconds, 10); // Minimum 10 seconds
     }
   } catch (_e) {
     // No body or invalid JSON — use default
@@ -54,7 +58,15 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     new_name?: string;
   }> = [];
 
-  for (const community of communities) {
+  for (let i = 0; i < communities.length; i++) {
+    const community = communities[i];
+
+    // Pause between resolutions to avoid Overpass rate limits
+    if (i > 0) {
+      console.log(`⏸️ Waiting ${delaySec}s before next enrichment...`);
+      await new Promise((resolve) => setTimeout(resolve, delaySec * 1000));
+    }
+
     // Claim this community by setting source to 'enriching'
     const { error: claimError } = await supabase
       .from("communities")

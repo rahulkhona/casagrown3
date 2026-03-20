@@ -80,6 +80,7 @@ function NewProductPageInner() {
   const [quantity, setQuantity] = useState('')
   const [category, setCategory] = useState('')
   const [harvestedAt, setHarvestedAt] = useState('')
+  const [listingDays, setListingDays] = useState(30)
 
   // Categories from DB
   const [dbCategories, setDbCategories] = useState<Array<{ name: string; display_order: number }>>([])
@@ -131,7 +132,12 @@ function NewProductPageInner() {
         .order('display_order')
       if (cats) {
         setDbCategories(cats)
-        if (!category && cats.length > 0) setCategory(cats[0].name)
+        if (!category && cats.length > 0) {
+          setCategory(cats[0].name)
+          // Auto-select listing duration based on default category
+          const perishable = ['fruits', 'vegetables', 'herbs', 'flowers', 'flower_arrangements']
+          setListingDays(perishable.includes(cats[0].name) ? 3 : 30)
+        }
       }
 
       // Load restrictions for user's jurisdiction
@@ -341,6 +347,7 @@ function NewProductPageInner() {
           inventory: parseInt(quantity),
           photos: editPhotoUrls,
           harvested_at: harvestedAt ? new Date(harvestedAt + 'T12:00:00').toISOString() : null,
+          expires_at: new Date(Date.now() + listingDays * 86400000).toISOString(),
         })
         .eq('id', editId)
 
@@ -403,6 +410,7 @@ function NewProductPageInner() {
         inventory: parseInt(quantity),
         photos: uploadedPhotoUrls,
         harvested_at: harvestedAt ? new Date(harvestedAt + 'T12:00:00').toISOString() : null,
+        expires_at: new Date(Date.now() + listingDays * 86400000).toISOString(),
       })
 
     setValidating(false)
@@ -587,7 +595,13 @@ function NewProductPageInner() {
               </div>
               <div className={styles.field}>
                 <label className={styles.label}>Category</label>
-                <select className={styles.input} value={category} onChange={e => setCategory(e.target.value)}>
+                <select className={styles.input} value={category} onChange={e => {
+                  const newCat = e.target.value
+                  setCategory(newCat)
+                  // Auto-switch listing duration based on category
+                  const perishable = ['fruits', 'vegetables', 'herbs', 'flowers', 'flower_arrangements']
+                  setListingDays(perishable.includes(newCat) ? 3 : 30)
+                }}>
                   {availableCategories.map(c => (
                     <option key={c.name} value={c.name}>
                       {categoryEmoji[c.name] || '📦'} {formatCategoryName(c.name)}
@@ -624,6 +638,29 @@ function NewProductPageInner() {
                 </span>
               )}
             </div>
+          </div>
+
+          {/* ===== Listing Duration ===== */}
+          <div className={styles.section}>
+            <label className={styles.label}>📆 Listing Duration</label>
+            <div className={styles.durationPicker}>
+              {[3, 7, 14, 30].map(d => (
+                <button
+                  key={d}
+                  type="button"
+                  className={`${styles.durationBtn} ${listingDays === d ? styles.durationBtnActive : ''}`}
+                  onClick={() => setListingDays(d)}
+                >
+                  {d} days
+                </button>
+              ))}
+            </div>
+            <span className={styles.hint}>
+              {(() => {
+                const exp = new Date(Date.now() + listingDays * 86400000)
+                return `Expires ${exp.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+              })()}
+            </span>
           </div>
 
           {/* ===== Price & Quantity ===== */}

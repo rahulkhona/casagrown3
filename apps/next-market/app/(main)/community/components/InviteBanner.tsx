@@ -15,8 +15,8 @@ export default function InviteBanner({ h3Index }: InviteBannerProps) {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Join CasaGrown Community',
-          text: 'Hey! 🏘️ I\u0027m on this neighborhood community chat called CasaGrown Buzz — we share gardening tips, coordinate harvests, and trade homegrown produce. You should join!',
+          title: 'Join CasaGrown',
+          text: 'Did you know 11.5 billion lbs of backyard produce is wasted every year? Millions can be fed if we save that. Join me and CasaGrown in stopping this waste.',
           url: inviteUrl,
         })
         return

@@ -762,37 +762,37 @@ BEGIN
   ON CONFLICT (email) DO NOTHING;
 
   -- Public feedback tickets
-  INSERT INTO user_feedback (id, author_id, type, title, description, status, visibility, created_at)
-  VALUES (gen_random_uuid(), v_user2, 'feature_request', 'Allow uploading videos in chat', 'It would be great to share short videos of produce condition directly in the chat.', 'planned', 'public', now() - interval '2 days')
+  INSERT INTO user_feedback (id, author_id, type, title, description, message, status, visibility, created_at)
+  VALUES (gen_random_uuid(), v_user2, 'feature_request', 'Allow uploading videos in chat', 'It would be great to share short videos of produce condition directly in the chat.', 'It would be great to share short videos of produce condition directly in the chat.', 'planned', 'public', now() - interval '2 days')
   RETURNING id INTO v_fb1;
 
-  INSERT INTO user_feedback (id, author_id, type, title, description, status, visibility, created_at)
-  VALUES (gen_random_uuid(), v_user3, 'bug_report', 'App crashes when opening profile on Android', 'Every time I try to edit my bio, the app force closes. Samsung Galaxy S21.', 'in_progress', 'public', now() - interval '1 day')
+  INSERT INTO user_feedback (id, author_id, type, title, description, message, status, visibility, created_at)
+  VALUES (gen_random_uuid(), v_user3, 'bug_report', 'App crashes when opening profile on Android', 'Every time I try to edit my bio, the app force closes. Samsung Galaxy S21.', 'Every time I try to edit my bio, the app force closes. Samsung Galaxy S21.', 'in_progress', 'public', now() - interval '1 day')
   RETURNING id INTO v_fb2;
 
-  INSERT INTO user_feedback (id, author_id, type, title, description, status, visibility, created_at)
-  VALUES (gen_random_uuid(), v_user2, 'feature_request', 'Dark mode support', 'My eyes hurt at night! Please add dark mode to the app.', 'open', 'public', now() - interval '5 days')
+  INSERT INTO user_feedback (id, author_id, type, title, description, message, status, visibility, created_at)
+  VALUES (gen_random_uuid(), v_user2, 'feature_request', 'Dark mode support', 'My eyes hurt at night! Please add dark mode to the app.', 'My eyes hurt at night! Please add dark mode to the app.', 'open', 'public', now() - interval '5 days')
   RETURNING id INTO v_fb3;
 
-  INSERT INTO user_feedback (id, author_id, type, title, description, status, visibility, created_at, resolved_at)
-  VALUES (gen_random_uuid(), v_user3, 'bug_report', 'Notification badge not clearing', 'I have read all messages but the red dot persists.', 'completed', 'public', now() - interval '3 days', now() - interval '1 day')
+  INSERT INTO user_feedback (id, author_id, type, title, description, message, status, visibility, created_at, resolved_at)
+  VALUES (gen_random_uuid(), v_user3, 'bug_report', 'Notification badge not clearing', 'I have read all messages but the red dot persists.', 'I have read all messages but the red dot persists.', 'completed', 'public', now() - interval '3 days', now() - interval '1 day')
   RETURNING id INTO v_fb4;
 
-  INSERT INTO user_feedback (id, author_id, type, title, description, status, visibility, created_at)
-  VALUES (gen_random_uuid(), v_user2, 'feature_request', 'Points transaction history export', 'I want to export my points history as a CSV file for tax purposes.', 'open', 'public', now() - interval '7 days')
+  INSERT INTO user_feedback (id, author_id, type, title, description, message, status, visibility, created_at)
+  VALUES (gen_random_uuid(), v_user2, 'feature_request', 'Points transaction history export', 'I want to export my points history as a CSV file for tax purposes.', 'I want to export my points history as a CSV file for tax purposes.', 'open', 'public', now() - interval '7 days')
   RETURNING id INTO v_fb5;
 
-  INSERT INTO user_feedback (id, author_id, type, title, description, status, visibility, created_at, resolved_at)
-  VALUES (gen_random_uuid(), v_user3, 'bug_report', 'Map not loading on slower connections', 'When on 3G, the map takes forever and sometimes shows blank.', 'completed', 'public', now() - interval '10 days', now() - interval '4 days')
+  INSERT INTO user_feedback (id, author_id, type, title, description, message, status, visibility, created_at, resolved_at)
+  VALUES (gen_random_uuid(), v_user3, 'bug_report', 'Map not loading on slower connections', 'When on 3G, the map takes forever and sometimes shows blank.', 'When on 3G, the map takes forever and sometimes shows blank.', 'completed', 'public', now() - interval '10 days', now() - interval '4 days')
   RETURNING id INTO v_fb6;
 
   -- Private support tickets
-  INSERT INTO user_feedback (id, author_id, type, title, description, status, visibility, created_at)
-  VALUES (gen_random_uuid(), v_user2, 'support_request', 'Where did my points go?', 'I had 500 points yesterday but now I only see 200.', 'open', 'private', now() - interval '1 day')
+  INSERT INTO user_feedback (id, author_id, type, title, description, message, status, visibility, created_at)
+  VALUES (gen_random_uuid(), v_user2, 'support_request', 'Where did my points go?', 'I had 500 points yesterday but now I only see 200.', 'I had 500 points yesterday but now I only see 200.', 'open', 'private', now() - interval '1 day')
   RETURNING id INTO v_fb7;
 
-  INSERT INTO user_feedback (id, author_id, type, title, description, status, visibility, created_at)
-  VALUES (gen_random_uuid(), v_user3, 'support_request', 'Transaction failed but points deducted', 'I tried to buy tomatoes but the transaction shows failed. My points were still deducted.', 'under_review', 'private', now() - interval '6 hours')
+  INSERT INTO user_feedback (id, author_id, type, title, description, message, status, visibility, created_at)
+  VALUES (gen_random_uuid(), v_user3, 'support_request', 'Transaction failed but points deducted', 'I tried to buy tomatoes but the transaction shows failed. My points were still deducted.', 'I tried to buy tomatoes but the transaction shows failed. My points were still deducted.', 'under_review', 'private', now() - interval '6 hours')
   RETURNING id INTO v_fb8;
 
   -- Votes

@@ -14,6 +14,28 @@
   border-right: 1px solid var(--border);
 }
 
+/* ─── Community Name Header ──────────────────────────────────── */
+.communityHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  background: linear-gradient(135deg, var(--green-600), var(--green-700));
+  color: #fff;
+  border-bottom: 1px solid var(--green-800);
+  flex-shrink: 0;
+}
+
+.communityHeaderIcon {
+  font-size: 1.125rem;
+}
+
+.communityHeaderName {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
 .centerContainer {
   display: flex;
   flex-direction: column;

@@ -517,7 +517,7 @@ export function Navbar() {
         }}>
           {/* Header */}
           <div style={{
-            padding: '14px 16px 10px', background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+            padding: '14px 16px 10px', background: 'linear-gradient(135deg, #16a34a, #15803d)',
             color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           }}>
             <div>

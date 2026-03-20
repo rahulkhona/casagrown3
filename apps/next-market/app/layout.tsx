@@ -6,17 +6,17 @@ export const metadata: Metadata = {
   description: 'Buy and sell fresh, locally-grown produce from your neighbors. Market opens Saturdays & Sundays 8–11 AM.',
   icons: '/favicon.ico',
   openGraph: {
-    title: 'CasaGrown Market',
-    description: 'Buy and sell fresh, homegrown produce from your neighbors.',
+    title: 'CasaGrown Market — Fresh from Your Neighbor\'s Backyard',
+    description: 'Over 11.5 billion lbs of backyard produce goes to waste every year. Join CasaGrown to buy and sell fresh, homegrown produce with your neighbors.',
     siteName: 'CasaGrown Market',
     type: 'website',
-    images: [{ url: '/icon-192.png', width: 192, height: 192, alt: 'CasaGrown Market' }],
+    images: [{ url: '/og-share.png', width: 1207, height: 981, alt: 'CasaGrown — Incredible Freshness, Stop Food Waste, Beat Inflation, Teen Opportunity' }],
   },
   twitter: {
-    card: 'summary',
-    title: 'CasaGrown Market',
-    description: 'Buy and sell fresh, homegrown produce from your neighbors.',
-    images: ['/icon-192.png'],
+    card: 'summary_large_image',
+    title: 'CasaGrown Market — Fresh from Your Neighbor\'s Backyard',
+    description: 'Over 11.5 billion lbs of backyard produce goes to waste every year. Join the movement!',
+    images: ['/og-share.png'],
   },
 }
 

@@ -26,6 +26,7 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const [geolocating, setGeolocating] = useState(false)
 
   // Camera & Cropper
   const [showCamera, setShowCamera] = useState(false)
@@ -96,6 +97,38 @@ export default function ProfilePage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  // ── Geolocation: auto-fill address from GPS ──
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) { setError('Geolocation is not supported by your browser'); return }
+    setGeolocating(true); setError('')
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json&addressdetails=1`,
+            { headers: { 'Accept-Language': 'en' } }
+          )
+          const data = await res.json()
+          const addr = data.address || {}
+          const houseNumber = addr.house_number || ''
+          const road = addr.road || ''
+          setForm(prev => ({
+            ...prev,
+            street: [houseNumber, road].filter(Boolean).join(' '),
+            city: addr.city || addr.town || addr.village || addr.hamlet || '',
+            state: addr.state ? (addr['ISO3166-2-lvl4']?.split('-')[1] || addr.state.slice(0, 2)).toUpperCase() : '',
+            zip: addr.postcode?.split('-')[0] || '',
+          }))
+        } catch {
+          setError('Could not look up address from location')
+        }
+        setGeolocating(false)
+      },
+      () => { setError('Location access denied'); setGeolocating(false) },
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
   }
 
   if (authLoading || loading) return <div className="container-sm" style={{ padding: '80px 20px', textAlign: 'center' }}><p>Loading...</p></div>
@@ -203,7 +236,21 @@ export default function ProfilePage() {
         <h3 className={styles.sectionTitle}>Address</h3>
 
         <div className="form-group">
-          <label className="label" htmlFor="street">Street</label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <label className="label" htmlFor="street">Street</label>
+            <button
+              type="button"
+              onClick={useCurrentLocation}
+              disabled={geolocating}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--green-600)', fontSize: 13, fontWeight: 600,
+                padding: '2px 0', display: 'flex', alignItems: 'center', gap: 4,
+              }}
+            >
+              {geolocating ? '⏳ Locating...' : '📍 Use My Location'}
+            </button>
+          </div>
           <input id="street" className="input" value={form.street} onChange={e => setForm({ ...form, street: e.target.value })} placeholder="123 Main St" />
         </div>
 
