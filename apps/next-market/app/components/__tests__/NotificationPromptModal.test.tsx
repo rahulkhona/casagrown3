@@ -47,7 +47,7 @@ describe('NotificationPromptModal', () => {
     const { container } = render(
       React.createElement(NotificationPromptModal, { ...defaultProps, variant: 'ios-safari' })
     )
-    expect(container.textContent).toContain('iOS requires one extra step')
+    expect(container.textContent).toContain('One quick setup step')
     expect(container.textContent).toContain('Step 1')
     expect(container.textContent).toContain('Share button')
   })

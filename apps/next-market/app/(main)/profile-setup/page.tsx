@@ -175,29 +175,41 @@ function ProfileSetupPageInner() {
         profileUpdate.home_location = `SRID=4326;POINT(${geoLng} ${geoLat})`
       }
       if (h3Index) {
-        // Save immediate fallback name ("City, State") so the community exists right away
-        const communityName = `${validatedCity}, ${validatedState}`
-        await supabase.from('communities').upsert({
-          h3_index: h3Index,
-          name: communityName,
-          metadata: { source: 'nominatim_fallback', geocoded_city: validatedCity },
-        }, { onConflict: 'h3_index', ignoreDuplicates: true })
         profileUpdate.home_community_h3_index = h3Index
 
-        // Fire-and-forget: call resolve-community to get a landmark name
-        // (e.g., "Leland High School Community" instead of "San Jose, CA")
+        // Call resolve-community FIRST to get proper landmark name via Overpass
+        // (e.g., "Leland High School, Almaden Valley Community" instead of "San Jose, CA")
         if (geoLat !== null && geoLng !== null) {
-          supabase.functions.invoke('resolve-community', {
-            body: { lat: geoLat, lng: geoLng },
-          }).then((res: any) => {
-            if (res.error) {
-              console.warn('resolve-community failed (enrichment will retry):', res.error)
+          try {
+            const { data: resolveResult, error: resolveError } = await supabase.functions.invoke('resolve-community', {
+              body: { lat: geoLat, lng: geoLng },
+            })
+            if (resolveError) {
+              console.warn('resolve-community failed, using fallback:', resolveError)
+              // Fallback: create basic community if resolve-community failed
+              await supabase.from('communities').upsert({
+                h3_index: h3Index,
+                name: `${validatedCity}, ${validatedState}`,
+                metadata: { source: 'nominatim_fallback', geocoded_city: validatedCity },
+              }, { onConflict: 'h3_index', ignoreDuplicates: true })
             } else {
-              console.log('resolve-community succeeded:', res.data?.primary?.name)
+              console.log('resolve-community succeeded:', resolveResult?.primary?.name)
             }
-          }).catch((err: any) => {
-            console.warn('resolve-community fire-and-forget failed:', err)
-          })
+          } catch (err: any) {
+            console.warn('resolve-community failed, using fallback:', err)
+            await supabase.from('communities').upsert({
+              h3_index: h3Index,
+              name: `${validatedCity}, ${validatedState}`,
+              metadata: { source: 'nominatim_fallback', geocoded_city: validatedCity },
+            }, { onConflict: 'h3_index', ignoreDuplicates: true })
+          }
+        } else {
+          // No coordinates — fallback only
+          await supabase.from('communities').upsert({
+            h3_index: h3Index,
+            name: `${validatedCity}, ${validatedState}`,
+            metadata: { source: 'nominatim_fallback', geocoded_city: validatedCity },
+          }, { onConflict: 'h3_index', ignoreDuplicates: true })
         }
       }
 

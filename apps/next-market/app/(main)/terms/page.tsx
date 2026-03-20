@@ -1,11 +1,11 @@
 'use client'
 
 
-import { useState , Suspense } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useMarket } from '../../../lib/store'
 import { createClient } from '../../../lib/supabase'
-import { TOS_EFFECTIVE_DATE } from '../../../lib/legal'
+import { TOS_EFFECTIVE_DATE, needsTosAcceptance } from '../../../lib/legal'
 import styles from './page.module.css'
 
 // ---------------------------------------------------------------------------
@@ -138,10 +138,31 @@ function TermsPageInner() {
   )
   const [agreedTerms, setAgreedTerms] = useState(false)
   const [agreedPrivacy, setAgreedPrivacy] = useState(false)
+  const [alreadyAccepted, setAlreadyAccepted] = useState(false)
+  const [acceptedDate, setAcceptedDate] = useState<string | null>(null)
 
   const allAgreed = agreedTerms && agreedPrivacy
   const isOnboarding = !!(template || redirectTo)
   const supabase = createClient()
+
+  // Check if user has already accepted current TOS (read-only mode)
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      const user = session?.user
+      if (!user) return
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('tos_accepted_at')
+        .eq('id', user.id)
+        .single()
+      if (profile?.tos_accepted_at && !needsTosAcceptance(profile.tos_accepted_at)) {
+        setAlreadyAccepted(true)
+        setAcceptedDate(new Date(profile.tos_accepted_at).toLocaleDateString('en-US', {
+          month: 'long', day: 'numeric', year: 'numeric'
+        }))
+      }
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAccept = async () => {
     if (!allAgreed) return
@@ -233,8 +254,17 @@ function TermsPageInner() {
         </div>
       </div>
 
-      {/* Sticky accept bar — always shown so users can accept */}
-      {(
+      {/* Accept bar — hidden if user already accepted current version */}
+      {alreadyAccepted ? (
+        <div className={styles.acceptBar} style={{ textAlign: 'center' }}>
+          <p style={{ color: 'var(--green-700)', fontWeight: 600, margin: '0 0 4px' }}>
+            ✓ You accepted these agreements on {acceptedDate}
+          </p>
+          <p style={{ color: 'var(--gray-500)', fontSize: 13, margin: 0 }}>
+            You can review them anytime from the menu.
+          </p>
+        </div>
+      ) : (
         <div className={styles.acceptBar}>
           <div className={styles.acceptRow}>
             <input

@@ -129,34 +129,43 @@ function PWAGuide({ browser, onDismiss, onPermanentDismiss }: {
   browser: 'safari' | 'chrome'; onDismiss: () => void; onPermanentDismiss: () => void
 }) {
   const isSafari = browser === 'safari'
-  const shareIcon = isSafari ? '⬆️' : '📤'
 
   return (
     <>
       <div className={styles.iconCircle} style={{ background: '#dcfce7' }}>🔔</div>
-      <h2 className={styles.title}>Stay in the Loop!</h2>
+      <h2 className={styles.title}>Get Notifications on iPhone</h2>
       <p className={styles.body} style={{ marginBottom: 12 }}>
-        Enable notifications so you never miss an update on your orders, messages, or booth activity.
+        Know instantly when your order ships, a buyer messages you, or the market opens — just like a regular app.
       </p>
       <BenefitsList compact />
       <div className={styles.pwaInfoBox}>
-        📱 <strong>iOS requires one extra step.</strong> Add CasaGrown to your Home Screen first, then notifications will work like a native app.
+        📱 <strong>One quick setup step.</strong> Apple requires you to save CasaGrown to your Home Screen first.
+        It takes 30 seconds and notifications will work just like any other app!
       </div>
       <div className={styles.pwaStepsBox}>
-        <PWAStep icon={shareIcon} step={1} text={isSafari
-          ? 'Tap the Share button at the bottom of Safari'
-          : 'Tap the ⋯ menu (or Share button) in Chrome'
-        } />
-        <PWAStep icon="➕" step={2} text={isSafari
-          ? 'Scroll down and tap "Add to Home Screen"'
-          : 'Tap "Add to Home Screen"'
-        } />
-        <PWAStep icon="✅" step={3} text='Tap "Add" to confirm' />
-        <PWAStep icon="🏠" step={4} text="Open CasaGrown from your home screen" />
-        <PWAStep icon="🔔" step={5} text="You'll be prompted to enable notifications" />
+        {isSafari ? (
+          <>
+            <PWAStep icon="⬆️" step={1} text='Tap the Share button (⬆️) at the bottom of your screen' />
+            <PWAStep icon="➕" step={2} text='Scroll down and tap "Add to Home Screen"' />
+            <PWAStep icon="✅" step={3} text='Tap "Add" in the top-right corner' />
+          </>
+        ) : (
+          <>
+            <PWAStep icon="⋯" step={1} text='Tap the ⋯ menu button in Chrome' />
+            <PWAStep icon="📲" step={2} text='Tap "Add to Home Screen"' />
+            <PWAStep icon="✅" step={3} text='Tap "Add" to confirm' />
+          </>
+        )}
       </div>
+      <div className={styles.pwaInfoBox} style={{ background: '#fef3c7', borderColor: '#f59e0b' }}>
+        ⚠️ <strong>Important:</strong> After adding, close this browser tab and open CasaGrown from your Home Screen.
+        Always use the Home Screen app — it will ask you to allow notifications the first time you open it.
+      </div>
+      <p style={{ fontSize: 12, color: 'var(--gray-500)', textAlign: 'center', margin: '8px 0 0' }}>
+        💡 After this, CasaGrown works just like an app — no App Store needed!
+      </p>
       <button className={styles.enableBtn} onClick={onDismiss}>
-        Got It!
+        Got It — I&#39;ll Set It Up!
       </button>
       <button className={styles.dismissLink} onClick={onDismiss}>Remind me later</button>
       <button className={styles.permanentDismiss} onClick={onPermanentDismiss}>Don&#39;t ask again</button>
