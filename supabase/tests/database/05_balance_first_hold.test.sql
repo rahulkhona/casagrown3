@@ -44,7 +44,7 @@ ON CONFLICT (id) DO NOTHING;
 
 -- Products ($25 each for clean math)
 INSERT INTO market_products (id, seller_id, market_date, name, category, price_usd, unit, inventory, is_active) VALUES
-  ('33333333-aaaa-0001-0001-100000000001', '11111111-aaaa-bbbb-cccc-100000000001', '2026-03-15', 'Premium Tomatoes', 'vegetables', 25.00, 'lb', 200, true)
+  ('33333333-aaaa-0001-0001-100000000001', '11111111-aaaa-bbbb-cccc-100000000001', '2026-03-15', 'Premium Tomatoes', 'produce', 25.00, 'lb', 200, true)
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================

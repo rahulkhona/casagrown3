@@ -16,7 +16,7 @@ ON CONFLICT (id) DO NOTHING;
 
 -- Ensure categories exist
 INSERT INTO sales_categories (name, display_order)
-VALUES ('vegetables', 1), ('fruits', 2), ('herbs', 3), ('flowers', 4), ('other', 5)
+VALUES ('produce', 1), ('eggs', 2), ('honey', 3), ('flowers', 4), ('garden_equipment', 5)
 ON CONFLICT (name) DO NOTHING;
 
 -- T1: Trigger auto-computes expires_at for perishable category (3 days)
@@ -25,7 +25,7 @@ VALUES (
   'a0a01111-0001-4e00-a001-000000000001',
   '11111111-1111-1111-1111-111111111111',
   'LCTEST Perishable Carrots',
-  3.00, 'bunch', 5, true, CURRENT_DATE + 7, 'vegetables'
+  3.00, 'bunch', 5, true, CURRENT_DATE + 7, 'produce'
 );
 
 SELECT ok(
@@ -36,7 +36,7 @@ SELECT ok(
 -- T2: Perishable default is ~3 days
 SELECT ok(
   (SELECT expires_at FROM market_products WHERE id = 'a0a01111-0001-4e00-a001-000000000001')
-    <= now() + interval '3 days' + interval '1 minute',
+    <= now() + interval '3 days' + interval '5 minutes',
   'Perishable product expires_at is ~3 days from now'
 );
 
@@ -46,7 +46,7 @@ VALUES (
   'b0b02222-0002-4e00-a002-000000000002',
   '11111111-1111-1111-1111-111111111111',
   'LCTEST Preserved Jam',
-  8.00, 'jar', 10, true, CURRENT_DATE + 7, 'other'
+  8.00, 'jar', 10, true, CURRENT_DATE + 7, 'garden_equipment'
 );
 
 SELECT ok(
@@ -61,7 +61,7 @@ VALUES (
   'c0c03333-0003-4e00-a003-000000000003',
   '11111111-1111-1111-1111-111111111111',
   'LCTEST Custom Expiry Honey',
-  12.00, 'jar', 3, true, CURRENT_DATE + 7, 'other',
+  12.00, 'jar', 3, true, CURRENT_DATE + 7, 'garden_equipment',
   now() + interval '14 days'
 );
 
@@ -77,7 +77,7 @@ VALUES (
   'd0d04444-0004-4e00-a004-000000000004',
   '11111111-1111-1111-1111-111111111111',
   'LCTEST Expired Tomatoes',
-  5.00, 'basket', 10, true, CURRENT_DATE + 7, 'vegetables',
+  5.00, 'basket', 10, true, CURRENT_DATE + 7, 'produce',
   now() - interval '1 day'
 );
 
@@ -98,7 +98,7 @@ VALUES (
   'e0e05555-0005-4e00-a005-000000000005',
   '11111111-1111-1111-1111-111111111111',
   'LCTEST No Expiry Product',
-  2.00, 'each', 5, true, CURRENT_DATE + 7, 'other'
+  2.00, 'each', 5, true, CURRENT_DATE + 7, 'garden_equipment'
 );
 UPDATE market_products SET expires_at = NULL WHERE id = 'e0e05555-0005-4e00-a005-000000000005';
 

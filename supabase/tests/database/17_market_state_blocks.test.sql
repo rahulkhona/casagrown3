@@ -16,6 +16,7 @@ BEGIN
   IF v_ny_id IS NULL THEN
     RAISE EXCEPTION 'NY state not found in states table';
   END IF;
+  DELETE FROM market_state_blocks WHERE state_id = v_ny_id;
   INSERT INTO market_state_blocks (state_id, reason)
   VALUES (v_ny_id, 'Agent of payee not recognized');
 END;
@@ -48,7 +49,7 @@ INSERT INTO market_products (id, seller_id, name, price_usd, unit, inventory, is
 VALUES (
   'e0e01111-0001-4a00-a001-000000000001',
   '44444444-4444-4444-4444-444444444444',
-  'FREETEST Product', 10.00, 'each', 5, true, CURRENT_DATE + 7, 'vegetables'
+  'FREETEST Product', 10.00, 'each', 5, true, CURRENT_DATE + 7, 'produce'
 );
 
 SELECT ok(

@@ -50,9 +50,9 @@ ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO market_products (id, seller_id, market_date, name, category, price_usd, unit, inventory, is_active)
 VALUES
-  ('cccccccc-0001-0001-0001-000000000001', 'aaaaaaaa-0001-0001-0001-000000000001', CURRENT_DATE, 'Tomatoes', 'vegetables', 5.00, 'lb', 100, true),
-  ('cccccccc-0001-0001-0001-000000000002', 'aaaaaaaa-0001-0001-0001-000000000001', CURRENT_DATE, 'Peppers', 'vegetables', 4.00, 'lb', 50, true),
-  ('cccccccc-0001-0001-0001-000000000003', 'aaaaaaaa-0001-0001-0001-000000000003', CURRENT_DATE, 'Basil', 'herbs', 3.00, 'bunch', 80, true)
+  ('cccccccc-0001-0001-0001-000000000001', 'aaaaaaaa-0001-0001-0001-000000000001', CURRENT_DATE, 'Tomatoes', 'produce', 5.00, 'lb', 100, true),
+  ('cccccccc-0001-0001-0001-000000000002', 'aaaaaaaa-0001-0001-0001-000000000001', CURRENT_DATE, 'Peppers', 'produce', 4.00, 'lb', 50, true),
+  ('cccccccc-0001-0001-0001-000000000003', 'aaaaaaaa-0001-0001-0001-000000000003', CURRENT_DATE, 'Basil', 'flowers', 3.00, 'bunch', 80, true)
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================

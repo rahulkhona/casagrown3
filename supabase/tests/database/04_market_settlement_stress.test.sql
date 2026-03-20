@@ -54,14 +54,14 @@ ON CONFLICT (id) DO NOTHING;
 
 -- Products
 INSERT INTO market_products (id, seller_id, market_date, name, category, price_usd, unit, inventory, is_active) VALUES
-  ('33333333-aaaa-0001-0001-000000000001', '11111111-aaaa-bbbb-cccc-000000000001', '2026-03-14', 'Tomatoes', 'vegetables', 5.00, 'lb', 200, true),
-  ('33333333-aaaa-0001-0001-000000000002', '11111111-aaaa-bbbb-cccc-000000000001', '2026-03-14', 'Peppers', 'vegetables', 3.50, 'lb', 100, true),
-  ('33333333-aaaa-0001-0001-000000000003', '11111111-aaaa-bbbb-cccc-000000000003', '2026-03-14', 'Cookies', 'baked', 12.00, 'dozen', 30, true),
-  ('33333333-aaaa-0001-0001-000000000004', '11111111-aaaa-bbbb-cccc-000000000003', '2026-03-14', 'Bread', 'baked', 6.00, 'loaf', 50, true),
-  ('33333333-aaaa-0001-0001-000000000005', '11111111-aaaa-bbbb-cccc-000000000005', '2026-03-14', 'Microgreens', 'herbs', 1.00, 'tray', 100, true),
-  ('33333333-aaaa-0001-0001-000000000006', '11111111-aaaa-bbbb-cccc-000000000006', '2026-03-14', 'Beef', 'dairy', 45.00, 'lb', 20, true),
-  ('33333333-aaaa-0001-0001-000000000007', '11111111-aaaa-bbbb-cccc-000000000007', '2026-03-14', 'Basil', 'herbs', 4.00, 'bunch', 40, true),
-  ('33333333-aaaa-0001-0001-000000000008', '11111111-aaaa-bbbb-cccc-000000000007', '2026-03-14', 'Mint', 'herbs', 3.00, 'bunch', 60, true)
+  ('33333333-aaaa-0001-0001-000000000001', '11111111-aaaa-bbbb-cccc-000000000001', '2026-03-14', 'Tomatoes', 'produce', 5.00, 'lb', 200, true),
+  ('33333333-aaaa-0001-0001-000000000002', '11111111-aaaa-bbbb-cccc-000000000001', '2026-03-14', 'Peppers', 'produce', 3.50, 'lb', 100, true),
+  ('33333333-aaaa-0001-0001-000000000003', '11111111-aaaa-bbbb-cccc-000000000003', '2026-03-14', 'Cookies', 'honey', 12.00, 'dozen', 30, true),
+  ('33333333-aaaa-0001-0001-000000000004', '11111111-aaaa-bbbb-cccc-000000000003', '2026-03-14', 'Bread', 'honey', 6.00, 'loaf', 50, true),
+  ('33333333-aaaa-0001-0001-000000000005', '11111111-aaaa-bbbb-cccc-000000000005', '2026-03-14', 'Microgreens', 'produce', 1.00, 'tray', 100, true),
+  ('33333333-aaaa-0001-0001-000000000006', '11111111-aaaa-bbbb-cccc-000000000006', '2026-03-14', 'Beef', 'eggs', 45.00, 'lb', 20, true),
+  ('33333333-aaaa-0001-0001-000000000007', '11111111-aaaa-bbbb-cccc-000000000007', '2026-03-14', 'Basil', 'flowers', 4.00, 'bunch', 40, true),
+  ('33333333-aaaa-0001-0001-000000000008', '11111111-aaaa-bbbb-cccc-000000000007', '2026-03-14', 'Mint', 'flowers', 3.00, 'bunch', 60, true)
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================

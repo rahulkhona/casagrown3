@@ -10,7 +10,7 @@ INSERT INTO market_products (id, seller_id, name, price_usd, unit, inventory, is
 VALUES (
   'f0f01111-0001-4f00-f001-000000000001',
   '11111111-1111-1111-1111-111111111111',
-  'FLAGTEST Product', 5.00, 'each', 10, true, CURRENT_DATE + 7, 'vegetables'
+  'FLAGTEST Product', 5.00, 'each', 10, true, CURRENT_DATE + 7, 'produce'
 );
 
 -- T1: Product starts active and not flagged

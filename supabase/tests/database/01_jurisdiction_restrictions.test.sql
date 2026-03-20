@@ -45,18 +45,18 @@ select results_eq(
 -- First verify default (no restrictions = allowed)
 select lives_ok(
     $$ select public.create_order_atomic(
-        '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 1, 100, 100, 'fruits', 'Apple', '2030-01-01', null
+        '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 1, 100, 100, 'produce', 'Apple', '2030-01-01', null
     ) $$,
     'fruits is allowed by default (does not raise)'
 );
 
 -- Add state-level restriction (blocked categories)
 insert into public.category_restrictions (category_name, state_id, reason)
-values ('fruits', '00000000-0000-0000-0000-000000000002', 'State law restricted');
+values ('produce', '00000000-0000-0000-0000-000000000002', 'State law restricted');
 
 select throws_ok(
     $$ select public.create_order_atomic(
-        '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 1, 100, 100, 'fruits', 'Apple', '2030-01-01', null
+        '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 1, 100, 100, 'produce', 'Apple', '2030-01-01', null
     ) $$,
     'CATEGORY_RESTRICTED:This category is restricted in your area',
     'fruits is blocked by state restriction table'
@@ -66,15 +66,15 @@ select throws_ok(
 -- There is no concept of "allow list" overriding a "block list". The logic is purely "if bounded constraint matches, block it".
 
 -- Clear state restriction
-delete from public.category_restrictions where category_name = 'fruits';
+delete from public.category_restrictions where category_name = 'produce';
 
 -- Add county-level restriction
 insert into public.category_restrictions (category_name, county_id)
-values ('fruits', '00000000-0000-0000-0000-000000000003');
+values ('produce', '00000000-0000-0000-0000-000000000003');
 
 select throws_ok(
     $$ select public.create_order_atomic(
-        '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 1, 100, 100, 'fruits', 'Apple', '2030-01-01', null
+        '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 1, 100, 100, 'produce', 'Apple', '2030-01-01', null
      ) $$,
     'CATEGORY_RESTRICTED:This category is restricted in your area',
     'fruits is restricted by county override'
@@ -85,11 +85,11 @@ delete from public.category_restrictions;
 
 -- Add city-level restriction
 insert into public.category_restrictions (category_name, city_id)
-values ('fruits', '00000000-0000-0000-0000-000000000004');
+values ('produce', '00000000-0000-0000-0000-000000000004');
 
 select throws_ok(
     $$ select public.create_order_atomic(
-        '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 1, 100, 100, 'fruits', 'Apple', '2030-01-01', null
+        '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 1, 100, 100, 'produce', 'Apple', '2030-01-01', null
      ) $$,
     'CATEGORY_RESTRICTED:This category is restricted in your area',
     'fruits is restricted by city override'
@@ -100,11 +100,11 @@ delete from public.category_restrictions;
 
 -- Add country-level restriction
 insert into public.category_restrictions (category_name, country_iso_3)
-values ('fruits', 'XXX');
+values ('produce', 'XXX');
 
 select throws_ok(
     $$ select public.create_order_atomic(
-        '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 1, 100, 100, 'fruits', 'Apple', '2030-01-01', null
+        '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 1, 100, 100, 'produce', 'Apple', '2030-01-01', null
      ) $$,
     'CATEGORY_RESTRICTED:This category is restricted in your area',
     'fruits is restricted by country override'

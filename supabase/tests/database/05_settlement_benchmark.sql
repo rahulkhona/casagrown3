@@ -47,7 +47,7 @@ BEGIN
       ('aaaaaaaa-bbb0-0000-0000-' || LPAD(((i - 1) % 50 + 1)::TEXT, 12, '0'))::UUID,
       CURRENT_DATE,
       'Product ' || i,
-      CASE (i % 4) WHEN 0 THEN 'vegetables' WHEN 1 THEN 'fruits' WHEN 2 THEN 'herbs' ELSE 'baked' END,
+      CASE (i % 4) WHEN 0 THEN 'produce' WHEN 1 THEN 'flowers' WHEN 2 THEN 'eggs' ELSE 'honey' END,
       5.00 + (i % 20)::NUMERIC,
       'unit',
       1000,

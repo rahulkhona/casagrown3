@@ -14,7 +14,7 @@ VALUES (
   'e0e01111-0001-4e00-e001-000000000001',
   '11111111-1111-1111-1111-111111111111',
   'EXPTEST Fresh Tomatoes',
-  5.00, 'basket', 10, true, CURRENT_DATE + 1, 'vegetables'
+  5.00, 'basket', 10, true, CURRENT_DATE + 1, 'produce'
 );
 
 -- Expired product (market_date in the past)
@@ -23,13 +23,13 @@ VALUES (
   'e0e02222-0002-4e00-e002-000000000002',
   '11111111-1111-1111-1111-111111111111',
   'EXPTEST Old Lettuce',
-  3.00, 'head', 5, true, CURRENT_DATE - 7, 'vegetables'
+  3.00, 'head', 5, true, CURRENT_DATE - 7, 'produce'
 );
 
 -- T1: Active product appears in nearby_booths
 SELECT ok(
   EXISTS(
-    SELECT 1 FROM nearby_booths(37.33::float8, -121.89::float8, 50.0::float8, null::text, null::text, null::numeric, null::numeric, null::text)
+    SELECT 1 FROM nearby_booths(37.33::float8, -121.89::float8, 50.0::float8, null::text, null::text, null::numeric, null::numeric, null::text, null::text)
     WHERE matched_products::text ILIKE '%EXPTEST Fresh Tomatoes%'
   ),
   'Active future-dated product appears in nearby_booths'
@@ -38,7 +38,7 @@ SELECT ok(
 -- T2: Expired product does NOT appear
 SELECT ok(
   NOT EXISTS(
-    SELECT 1 FROM nearby_booths(37.33::float8, -121.89::float8, 50.0::float8, null::text, null::text, null::numeric, null::numeric, null::text)
+    SELECT 1 FROM nearby_booths(37.33::float8, -121.89::float8, 50.0::float8, null::text, null::text, null::numeric, null::numeric, null::text, null::text)
     WHERE matched_products::text ILIKE '%EXPTEST Old Lettuce%'
   ),
   'Expired product is filtered from nearby_booths'
@@ -60,7 +60,7 @@ SELECT ok(
 UPDATE market_products SET market_date = CURRENT_DATE + 1 WHERE id = 'e0e02222-0002-4e00-e002-000000000002';
 SELECT ok(
   EXISTS(
-    SELECT 1 FROM nearby_booths(37.33::float8, -121.89::float8, 50.0::float8, null::text, null::text, null::numeric, null::numeric, null::text)
+    SELECT 1 FROM nearby_booths(37.33::float8, -121.89::float8, 50.0::float8, null::text, null::text, null::numeric, null::numeric, null::text, null::text)
     WHERE matched_products::text ILIKE '%EXPTEST Old Lettuce%'
   ),
   'Re-listed product appears in nearby_booths'
@@ -71,7 +71,7 @@ UPDATE market_products SET market_date = CURRENT_DATE - 7 WHERE id = 'e0e02222-0
 UPDATE market_settings SET products_never_expire = true WHERE id = true;
 SELECT ok(
   EXISTS(
-    SELECT 1 FROM nearby_booths(37.33::float8, -121.89::float8, 50.0::float8, null::text, null::text, null::numeric, null::numeric, null::text)
+    SELECT 1 FROM nearby_booths(37.33::float8, -121.89::float8, 50.0::float8, null::text, null::text, null::numeric, null::numeric, null::text, null::text)
     WHERE matched_products::text ILIKE '%EXPTEST Old Lettuce%'
   ),
   'products_never_expire=true shows expired products'
