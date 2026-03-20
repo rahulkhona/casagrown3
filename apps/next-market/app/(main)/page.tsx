@@ -154,7 +154,7 @@ export default function HomePage() {
               <div className={styles.stepEmoji}>📸</div>
               <h4 className={styles.stepTitle}>List Your Produce</h4>
               <p className={styles.stepDesc}>
-                Snap photos of your excess fruits, veggies, or eggs anytime. Set your price and quantity.
+                Snap photos of your excess fruits, veggies, or eggs anytime. Set your price and quantity. Open or close your booth before each market day.
               </p>
             </div>
             <div className={styles.stepCard}>

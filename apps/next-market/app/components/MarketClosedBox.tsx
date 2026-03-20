@@ -456,7 +456,7 @@ export default function MarketClosedBox({ nextOpenDate, todaySchedule }: MarketC
             gap: 8, flexWrap: 'wrap',
           }}>
             <HowStep num={1} icon="📸" title="List Your Produce"
-              desc="Snap photos of your excess fruits, veggies, or baked goods. Set your price and quantity." />
+              desc="Snap photos of your excess fruits, veggies, or baked goods. Set your price and quantity. Open or close your booth before each market day." />
             <Arrow />
             <HowStep num={2} icon="📅" title="Market Day"
               desc="When the market opens, neighbors browse your booth and place orders." />

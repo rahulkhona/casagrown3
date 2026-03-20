@@ -84,6 +84,7 @@ export default function MyBoothPage() {
   const [saved, setSaved] = useState(!!myBooth)
   const [showThemePicker, setShowThemePicker] = useState(false)
   const [showPhotoMenu, setShowPhotoMenu] = useState(false)
+  const [isOpen, setIsOpen] = useState(true)
 
   // Delivery options
   const [offersDelivery, setOffersDelivery] = useState(myBooth?.offersDelivery ?? true)
@@ -212,6 +213,7 @@ export default function MyBoothPage() {
       if (booth.venmo_handle) { setVenmoHandle(booth.venmo_handle); setPayoutDestination('venmo') }
       if (booth.charity_name) { setCharityName(booth.charity_name); setPayoutDestination('charity') }
       if (booth.helper_passcode) setHelperPasscodeState(booth.helper_passcode)
+      if (booth.is_open !== undefined) setIsOpen(booth.is_open)
 
       // Parse windows from DB
       const dwArr = (booth.delivery_windows || []) as Array<{ id: string; start: string; end: string }>
@@ -423,7 +425,7 @@ export default function MyBoothPage() {
         type: 'CREATE_BOOTH',
         payload: {
           id: data.id,
-          ownerId: state.user!.id, ownerName: state.user!.name,
+          ownerId: user.id, ownerName: user.email?.split('@')[0] || '',
           description: '',
           aboutHtml: '<p>Welcome to my booth!</p>',
           inviteCode: name.replace(/\s/g, '').toUpperCase().slice(0, 8) + '2026',
@@ -515,6 +517,52 @@ export default function MyBoothPage() {
           <span style={{ color: 'var(--gray-500)' }}>No upcoming market scheduled</span>
         )}
       </div>
+
+      {/* ── Booth Open/Close Toggle ── */}
+      {savedBoothId && (
+        <button
+          onClick={async () => {
+            const newVal = !isOpen
+            setIsOpen(newVal)
+            trackClick('toggle_booth_open', { isOpen: newVal })
+            const { error } = await supabase
+              .from('market_booths')
+              .update({ is_open: newVal })
+              .eq('id', savedBoothId)
+            if (error) {
+              setIsOpen(!newVal) // revert
+              dispatch({ type: 'ADD_TOAST', payload: { message: 'Failed to update — ' + error.message, type: 'error' } })
+            }
+          }}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            width: '100%', padding: '12px 16px', margin: '0 0 12px',
+            borderRadius: 'var(--radius)', cursor: 'pointer',
+            border: isOpen ? '2px solid var(--green-400)' : '2px solid var(--red-300, #fca5a5)',
+            background: isOpen
+              ? 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)'
+              : 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+            transition: 'all 0.2s',
+            fontSize: 15, fontWeight: 600,
+            color: isOpen ? 'var(--green-700)' : 'var(--red-600, #dc2626)',
+          }}
+          id="booth-open-toggle"
+        >
+          <span style={{
+            width: 44, height: 24, borderRadius: 12,
+            background: isOpen ? 'var(--green-500)' : 'var(--red-400, #f87171)',
+            position: 'relative', flexShrink: 0, transition: 'background 0.2s',
+          }}>
+            <span style={{
+              position: 'absolute', top: 2, left: isOpen ? 22 : 2,
+              width: 20, height: 20, borderRadius: '50%',
+              background: '#fff', transition: 'left 0.2s',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+            }} />
+          </span>
+          {isOpen ? '🟢 Open for Next Market' : '🔴 Closed — booth hidden from shoppers'}
+        </button>
+      )}
 
       {/* ── Compact Booth Header ── */}
       <div className={styles.boothHeader}>

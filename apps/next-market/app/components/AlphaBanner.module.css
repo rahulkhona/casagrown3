@@ -1,72 +1,139 @@
-.banner {
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 16px;
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-  color: #fff;
-  font-size: 13px;
-  line-height: 1.4;
-  animation: slideDown 0.3s ease-out;
-}
-
-.content {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
+/* ── Alpha Badge (persistent, after acknowledgment) ── */
 .badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  background: rgba(0, 0, 0, 0.25);
-  border-radius: 4px;
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.badgeText {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: 1.2px;
-  white-space: nowrap;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+  animation: badgePulse 4s ease-in-out infinite;
 }
 
-.text {
-  flex: 1;
-  min-width: 0;
+@keyframes badgePulse {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
 }
 
-.text strong {
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.close {
-  background: none;
-  border: none;
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 16px;
-  cursor: pointer;
-  padding: 6px 10px;
-  min-height: 32px;
-  min-width: 32px;
+/* ── Modal Overlay (first visit) ── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
-  transition: background 0.15s;
-  flex-shrink: 0;
+  padding: 24px;
+  animation: fadeIn 0.3s ease;
 }
 
-.close:hover {
-  background: rgba(0, 0, 0, 0.15);
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal {
+  background: #fff;
+  border-radius: 20px;
+  padding: 40px 32px;
+  max-width: 440px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  animation: slideUp 0.4s ease;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.modalIcon {
+  font-size: 56px;
+  margin-bottom: 8px;
+}
+
+.modalTitle {
+  font-size: 24px;
+  font-weight: 800;
+  color: #1f2937;
+  margin: 0 0 8px;
+}
+
+.modalDesc {
+  font-size: 15px;
+  color: #6b7280;
+  line-height: 1.5;
+  margin: 0 0 20px;
+}
+
+.modalList {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 24px;
+  text-align: left;
+}
+
+.modalList li {
+  padding: 10px 14px;
+  margin: 0 0 8px;
+  border-radius: 12px;
+  background: #f9fafb;
+  border: 1px solid #f3f4f6;
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.4;
+}
+
+.modalList li:last-child {
+  margin-bottom: 0;
+}
+
+.modalBtn {
+  display: inline-block;
+  padding: 14px 36px;
+  border-radius: 50px;
+  border: none;
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
   color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 14px rgba(22, 163, 74, 0.3);
+  min-width: 200px;
+  min-height: 48px;
 }
 
-@keyframes slideDown {
-  from { transform: translateY(-100%); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+.modalBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(22, 163, 74, 0.4);
+}
+
+.modalBtn:active {
+  transform: translateY(0);
+}
+
+@media (max-width: 480px) {
+  .modal {
+    padding: 32px 20px;
+  }
+  .modalTitle {
+    font-size: 20px;
+  }
+  .modalIcon {
+    font-size: 44px;
+  }
 }
