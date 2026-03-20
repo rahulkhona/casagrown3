@@ -140,6 +140,10 @@ export default function HomePage() {
                 Limited hours mean fresher produce, fairer access, and a true community shopping experience. 
                 We&apos;ll notify you before the market opens!
               </p>
+              <p className={styles.scheduleBuzzNote}>
+                🐝 While the market has set hours, <Link href="/community" className={styles.buzzLink}>Buzz</Link> is always on — post, 
+                discuss, and connect with your local community anytime!
+              </p>
             </div>
           </div>
 

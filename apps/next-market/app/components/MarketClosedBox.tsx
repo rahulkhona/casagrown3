@@ -422,6 +422,17 @@ export default function MarketClosedBox({ nextOpenDate, todaySchedule }: MarketC
               and when the market opens, the magic happens!
             </p>
           </div>
+
+          {/* Buzz always-on note */}
+          <div style={{
+            marginTop: 12, padding: '12px 20px', borderRadius: 'var(--radius-lg, 12px)',
+            background: 'var(--gray-50, #f9fafb)', border: '1px solid var(--gray-200, #e5e7eb)',
+            textAlign: 'center',
+          }}>
+            <p style={{ fontSize: 13, color: 'var(--gray-600, #4b5563)', lineHeight: 1.6, margin: 0 }}>
+              🐝 While the market has set hours, <Link href="/community" style={{ color: 'var(--green-700, #15803d)', fontWeight: 700, textDecoration: 'none' }}>Buzz</Link> is always on — post, discuss, and connect with your local community anytime!
+            </p>
+          </div>
         </div>
 
         {/* ── How It Works (matching original howItWorks) ── */}
