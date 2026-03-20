@@ -147,7 +147,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* 4-Step Process */}
+          {/* 5-Step Process */}
           <div className={styles.stepsGrid}>
             <div className={styles.stepCard}>
               <div className={styles.stepNumber}>1</div>
@@ -175,12 +175,69 @@ export default function HomePage() {
             </div>
             <div className={styles.stepCard}>
               <div className={styles.stepNumber}>4</div>
-              <div className={styles.stepEmoji}>💳</div>
-              <h4 className={styles.stepTitle}>Get Paid</h4>
+              <div className={styles.stepEmoji}>⚖️</div>
+              <h4 className={styles.stepTitle}>Daily Settlement</h4>
               <p className={styles.stepDesc}>
-                Earnings are netted automatically. Redeem as gift cards, donate, or cash out via Venmo.
+                At market close, all orders are netted. Your sales minus purchases and fees equals your earnings.
               </p>
             </div>
+            <div className={styles.stepCard}>
+              <div className={styles.stepNumber}>5</div>
+              <div className={styles.stepEmoji}>💰</div>
+              <h4 className={styles.stepTitle}>Withdraw</h4>
+              <p className={styles.stepDesc}>
+                Funds clear in ~2 days. Cash out via Venmo or PayPal, redeem as gift cards, or donate to charity.
+              </p>
+            </div>
+          </div>
+
+          {/* Settlement Process Explainer */}
+          <div className={styles.settlementExplainer}>
+            <h3 className={styles.settlementTitle}>🏦 How Daily Settlement Works</h3>
+            <div className={styles.settlementSteps}>
+              <div className={styles.settlementStep}>
+                <div className={styles.settlementIcon}>🔔</div>
+                <div className={styles.settlementText}>
+                  <strong>Market Closes</strong>
+                  <span>At 11:00 AM, the market closes and all orders for the day are finalized.</span>
+                </div>
+              </div>
+              <div className={styles.settlementArrow}>→</div>
+              <div className={styles.settlementStep}>
+                <div className={styles.settlementIcon}>⚖️</div>
+                <div className={styles.settlementText}>
+                  <strong>Netting</strong>
+                  <span>For each person, we calculate: sales − purchases − fees ± refunds = net earnings.</span>
+                </div>
+              </div>
+              <div className={styles.settlementArrow}>→</div>
+              <div className={styles.settlementStep}>
+                <div className={styles.settlementIcon}>💳</div>
+                <div className={styles.settlementText}>
+                  <strong>Stripe Capture</strong>
+                  <span>Credit card holds are captured for the exact amount owed. Unused holds are released.</span>
+                </div>
+              </div>
+              <div className={styles.settlementArrow}>→</div>
+              <div className={styles.settlementStep}>
+                <div className={styles.settlementIcon}>⏳</div>
+                <div className={styles.settlementText}>
+                  <strong>Clearance (~2 days)</strong>
+                  <span>Stripe transfers funds to CasaGrown. Your balance moves from &quot;pending&quot; to &quot;available.&quot;</span>
+                </div>
+              </div>
+              <div className={styles.settlementArrow}>→</div>
+              <div className={styles.settlementStep}>
+                <div className={styles.settlementIcon}>🎉</div>
+                <div className={styles.settlementText}>
+                  <strong>Withdraw</strong>
+                  <span>Cash out via Venmo or PayPal, redeem as gift cards, or donate to charity.</span>
+                </div>
+              </div>
+            </div>
+            <p className={styles.settlementNote}>
+              💡 Because we net all orders before capturing, you pay fewer processing fees — and if you both buy and sell, only the difference is charged!
+            </p>
           </div>
         </div>
       </section>

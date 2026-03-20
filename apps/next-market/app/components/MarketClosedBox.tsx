@@ -464,8 +464,45 @@ export default function MarketClosedBox({ nextOpenDate, todaySchedule }: MarketC
             <HowStep num={3} icon="📦" title="Deliver or Pickup"
               desc="Drop off at their porch or they pick up from you. Snap a photo as proof of delivery." />
             <Arrow />
-            <HowStep num={4} icon="💳" title="Get Paid"
-              desc="Earnings are netted automatically. Redeem as gift cards, donate, or cash out via Venmo." />
+            <HowStep num={4} icon="⚖️" title="Daily Settlement"
+              desc="At market close, all orders are netted. Sales minus purchases and fees = your net earnings." />
+            <Arrow />
+            <HowStep num={5} icon="💰" title="Withdraw"
+              desc="Funds clear in ~2 days. Cash out via Venmo or PayPal, redeem as gift cards, or donate to charity." />
+          </div>
+
+          {/* Settlement Process Detail */}
+          <div style={{
+            marginTop: 32, maxWidth: 680, margin: '32px auto 0',
+            padding: '24px 20px', borderRadius: 'var(--radius-xl, 16px)',
+            background: 'linear-gradient(135deg, #f0fdf4, #ecfdf5, #f0f9ff)',
+            border: '1px solid var(--green-200, #bbf7d0)',
+          }}>
+            <h3 style={{
+              textAlign: 'center', fontSize: 16, fontWeight: 700,
+              color: 'var(--gray-800, #1f2937)', marginBottom: 16,
+            }}>🏦 How Daily Settlement Works</h3>
+            <div style={{
+              display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+              gap: 6, flexWrap: 'wrap',
+            }}>
+              <SettlementStep icon="🔔" title="Market Closes" desc="Orders finalized at 11 AM" />
+              <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--green-400, #4ade80)', marginTop: 10 }}>→</span>
+              <SettlementStep icon="⚖️" title="Netting" desc="Sales − purchases − fees = net" />
+              <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--green-400, #4ade80)', marginTop: 10 }}>→</span>
+              <SettlementStep icon="💳" title="Capture" desc="Only the net amount is charged" />
+              <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--green-400, #4ade80)', marginTop: 10 }}>→</span>
+              <SettlementStep icon="⏳" title="Clearance" desc="~2 days for bank transfer" />
+              <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--green-400, #4ade80)', marginTop: 10 }}>→</span>
+              <SettlementStep icon="🎉" title="Withdraw" desc="Venmo, PayPal, gift cards, or donate" />
+            </div>
+            <p style={{
+              fontSize: 12, color: 'var(--gray-500, #6b7280)',
+              textAlign: 'center', margin: '14px 0 0', paddingTop: 12,
+              borderTop: '1px solid var(--green-200, #bbf7d0)', lineHeight: 1.5,
+            }}>
+              💡 Netting saves you money — if you buy $5 and sell $20, only $15 net is processed!
+            </p>
           </div>
         </div>
       </div>
@@ -518,6 +555,25 @@ function HowStep({ num, icon, title, desc }: { num: number; icon: string; title:
       <div style={{ fontSize: 28 }}>{icon}</div>
       <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-800, #1f2937)' }}>{title}</h3>
       <p style={{ fontSize: 12, color: 'var(--gray-500, #6b7280)', lineHeight: 1.5, margin: 0 }}>{desc}</p>
+    </div>
+  )
+}
+
+function SettlementStep({ icon, title, desc }: { icon: string; title: string; desc: string }) {
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      gap: 4, textAlign: 'center', flex: 1, minWidth: 80, maxWidth: 110,
+    }}>
+      <div style={{
+        fontSize: 22, width: 40, height: 40,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: '#fff', borderRadius: '50%',
+        border: '2px solid var(--green-200, #bbf7d0)',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
+      }}>{icon}</div>
+      <strong style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-800, #1f2937)' }}>{title}</strong>
+      <span style={{ fontSize: 10, color: 'var(--gray-500, #6b7080)', lineHeight: 1.3 }}>{desc}</span>
     </div>
   )
 }
