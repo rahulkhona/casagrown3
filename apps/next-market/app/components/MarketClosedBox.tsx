@@ -51,7 +51,7 @@ function pad(n: number) { return String(n).padStart(2, '0') }
 export default function MarketClosedBox({ nextOpenDate, todaySchedule }: MarketClosedBoxProps) {
   const countdown = useCountdown(nextOpenDate)
   const supabase = createClient()
-  const { user } = useAuth()
+  const { user, isAuthenticated, profileComplete } = useAuth()
 
   // Reminder state (from original)
   const [showReminder, setShowReminder] = useState(false)
@@ -106,6 +106,15 @@ export default function MarketClosedBox({ nextOpenDate, todaySchedule }: MarketC
   }
 
   const handleSetReminder = async () => {
+    // Gate: require login + profile
+    if (!isAuthenticated) {
+      window.location.href = '/login?redirect=/market'
+      return
+    }
+    if (profileComplete !== true) {
+      window.location.href = '/profile-setup'
+      return
+    }
     if (notifPermission !== 'granted') {
       requestNotifPermission()
       return

@@ -70,6 +70,19 @@ vi.mock('../../../lib/store', () => ({
   formatUsd: (n: number) => `$${(n || 0).toFixed(2)}`,
 }))
 
+// ── useAuth mock — fully onboarded user ──
+vi.mock('../../../lib/useAuth', () => ({
+  useAuth: () => ({
+    user: { id: 'user-1', email: 'test@test.com' },
+    isAuthenticated: true,
+    tosAccepted: true,
+    profileComplete: true,
+    loading: false,
+    isBanned: false,
+    banReason: null,
+  }),
+}))
+
 // Mock CSS modules
 vi.mock('../Navbar.module.css', () => ({ default: new Proxy({}, { get: (_, key) => key }) }))
 

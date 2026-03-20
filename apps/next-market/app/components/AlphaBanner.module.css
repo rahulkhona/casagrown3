@@ -1,9 +1,9 @@
 /* ── Alpha Badge (persistent, after acknowledgment) ── */
 .badge {
   position: fixed;
-  top: 8px;
+  top: 60px; /* below navbar on mobile */
   right: 8px;
-  z-index: 9999;
+  z-index: 999; /* below navbar z-index */
   pointer-events: none;
 }
 

@@ -321,17 +321,16 @@ export default function MyBoothPage() {
   const tc = THEME_COLORS[theme] || THEME_COLORS.minimal
   const themeInfo = THEMES.find(t => t.id === theme)!
 
-  if (authLoading) {
-    return <LoadingSpinner />
-  }
+  // Redirect to login if not authenticated (layout gate also handles this,
+  // but this is a safety net for direct navigation)
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.replace('/login?redirect=/my-booth')
+    }
+  }, [authLoading, isAuthenticated, router])
 
-  if (!isAuthenticated) {
-    router.replace('/login?redirect=/my-booth')
-    return (
-      <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}>
-        <p>Redirecting to sign in...</p>
-      </div>
-    )
+  if (authLoading || !isAuthenticated) {
+    return <LoadingSpinner />
   }
 
   const handleSaveBooth = async () => {

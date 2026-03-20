@@ -189,7 +189,7 @@
 
 .notifContent {
   font-size: 13px; color: var(--gray-700); line-height: 1.4;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .notifItemUnread .notifContent { font-weight: 600; color: var(--gray-800); }
 
@@ -223,3 +223,33 @@
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
 }
+
+/* ============================================= */
+/* Locked / profile-incomplete states            */
+/* ============================================= */
+
+.navLinkLocked {
+  opacity: 0.4;
+  cursor: pointer;
+  background: none;
+  border: none;
+  font: inherit;
+}
+.navLinkLocked:hover { opacity: 0.55; background: var(--gray-50); }
+
+.menuItemLocked {
+  opacity: 0.4;
+  cursor: pointer;
+}
+.menuItemLocked:hover { opacity: 0.55; background: var(--gray-50); }
+
+.iconBtnLocked {
+  opacity: 0.35;
+}
+
+.lockIcon {
+  font-size: 11px;
+  margin-left: auto;
+  opacity: 0.7;
+}
+

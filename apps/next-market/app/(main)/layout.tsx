@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import { MarketProvider } from '../../lib/store'
 import { useAuth } from '../../lib/useAuth'
 import { Navbar } from '../components/Navbar'
@@ -9,6 +11,7 @@ import { AnalyticsTracker } from '../components/AnalyticsTracker'
 import { ErrorToastProvider } from '../components/ErrorToast'
 import { AlphaBanner } from '../components/AlphaBanner'
 import { ErrorBoundary } from '../components/ErrorBoundary'
+import { LoadingSpinner } from '../components/LoadingSpinner'
 
 function BannedOverlay({ reason }: { reason: string | null }) {
   return (
@@ -43,9 +46,78 @@ function BannedOverlay({ reason }: { reason: string | null }) {
   )
 }
 
+/** Routes exempt from ALL gates (always accessible) */
+const GATE_EXEMPT = ['/terms', '/profile-setup', '/login']
+
+/** Routes that allow browsing even without profile completion */
+const BROWSABLE_ROUTES = ['/', '/market', '/community', '/get-started', '/voice']
+
+/**
+ * Routes that require full onboarding (ToS + profile).
+ * If a logged-in user without a completed profile navigates here,
+ * they get redirected to /profile-setup.
+ */
+const PROTECTED_ROUTES = [
+  '/my-booth', '/orders', '/earnings', '/chat', '/helping',
+  '/following', '/notifications', '/settings', '/profile',
+]
+
+function OnboardingGate({ children }: { children: React.ReactNode }) {
+  const { user, loading, tosAccepted, profileComplete } = useAuth()
+  const pathname = usePathname()
+  const router = useRouter()
+
+  const isExempt = GATE_EXEMPT.some(p => pathname.startsWith(p))
+  const isBrowsable = BROWSABLE_ROUTES.some(p =>
+    p === '/' ? pathname === '/' : pathname.startsWith(p)
+  )
+  const isProtected = PROTECTED_ROUTES.some(p => pathname.startsWith(p))
+
+  // Determine if the user needs onboarding
+  const needsToS = !loading && !!user && tosAccepted === false
+  const needsProfile = !loading && !!user && tosAccepted === true && profileComplete === false
+  const needsOnboarding = needsToS || needsProfile
+
+  useEffect(() => {
+    if (loading || !user || isExempt) return
+
+    // Always enforce ToS first
+    if (needsToS) {
+      router.replace('/terms')
+      return
+    }
+
+    // For protected routes, redirect to profile-setup
+    if (needsProfile && isProtected) {
+      router.replace('/profile-setup')
+    }
+  }, [loading, user, needsToS, needsProfile, isExempt, isProtected, router])
+
+  // Block content on protected routes when onboarding is needed
+  if (needsOnboarding && isProtected && !isExempt) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <LoadingSpinner />
+      </div>
+    )
+  }
+
+  // ToS is always enforced — block everything except exempt routes
+  if (needsToS && !isExempt) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <LoadingSpinner />
+      </div>
+    )
+  }
+
+  return <>{children}</>
+}
+
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const { isBanned, banReason, user } = useAuth()
 
+  // Always show nav — the Navbar/BottomNav handle their own greying
   return (
     <MarketProvider>
       <ErrorToastProvider userId={user?.id}>
@@ -54,7 +126,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         <Navbar />
         <main className="page-wrapper">
           <ErrorBoundary>
-            {children}
+            <OnboardingGate>
+              {children}
+            </OnboardingGate>
           </ErrorBoundary>
         </main>
         <BottomNav />
@@ -64,4 +138,3 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     </MarketProvider>
   )
 }
-

@@ -69,8 +69,8 @@ const mockSupabase = {
 vi.mock('@supabase/ssr', () => ({ createBrowserClient: () => mockSupabase }))
 vi.mock('../../lib/supabase', () => ({ createClient: () => mockSupabase }))
 vi.mock('../../../lib/supabase', () => ({ createClient: () => mockSupabase }))
-vi.mock('../../lib/useAuth', () => ({ useAuth: () => ({ user: mockUser, isAuthenticated: true, loading: false, isBanned: false, banReason: null }) }))
-vi.mock('../../../lib/useAuth', () => ({ useAuth: () => ({ user: mockUser, isAuthenticated: true, loading: false, isBanned: false, banReason: null }) }))
+vi.mock('../../lib/useAuth', () => ({ useAuth: () => ({ user: mockUser, isAuthenticated: true, loading: false, isBanned: false, banReason: null, tosAccepted: true, profileComplete: true }) }))
+vi.mock('../../../lib/useAuth', () => ({ useAuth: () => ({ user: mockUser, isAuthenticated: true, loading: false, isBanned: false, banReason: null, tosAccepted: true, profileComplete: true }) }))
 vi.mock('../../lib/store', () => ({
   MarketProvider: ({ children }: any) => React.createElement('div', null, children),
   useMarket: () => ({

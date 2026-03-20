@@ -206,17 +206,17 @@ INSERT INTO auth.identities (
 
 INSERT INTO public.profiles (
   id, email, full_name, home_community_h3_index, referral_code,
-  phone_verified, tos_accepted_at,
+  phone_verified, tos_accepted_at, profile_completed_at,
   zip_code, street_address, city, state_code, phone_number,
   nearby_community_h3_indices
 )
 VALUES
   ('a1111111-1111-1111-1111-111111111111', 'seller@test.local', 'Sam Seller',
-   '89283470c2fffff', 'SELLER01', true, NOW(),
+   '89283470c2fffff', 'SELLER01', true, NOW(), NOW(),
    '95125', '973 Wallace Dr', 'San Jose', 'CA', '+14085551234',
    ARRAY['89283470c6fffff', '89283470cafffff']),
   ('b2222222-2222-2222-2222-222222222222', 'buyer@test.local', 'Beth Buyer',
-   '89283470c2fffff', 'BUYER01', false, NOW(),
+   '89283470c2fffff', 'BUYER01', false, NOW(), NOW(),
    '95120', '123 Main St', 'San Jose', 'CA', '+14085555678',
    ARRAY['89283470c6fffff', '89283470cafffff'])
 ON CONFLICT (id) DO UPDATE SET
@@ -225,6 +225,7 @@ ON CONFLICT (id) DO UPDATE SET
   referral_code = EXCLUDED.referral_code,
   phone_verified = EXCLUDED.phone_verified,
   tos_accepted_at = EXCLUDED.tos_accepted_at,
+  profile_completed_at = EXCLUDED.profile_completed_at,
   zip_code = EXCLUDED.zip_code,
   street_address = EXCLUDED.street_address,
   city = EXCLUDED.city,

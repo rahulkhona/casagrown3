@@ -20,7 +20,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const { user, isAuthenticated } = useAuth()
+  const { user, isAuthenticated, profileComplete } = useAuth()
   const autoBuy = searchParams.get('autoBuy') === 'true'
   const [product, setProduct] = useState<any>(null)
   const [booth, setBooth] = useState<any>(null)
@@ -164,6 +164,10 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
             onClick={() => {
               if (!isAuthenticated) {
                 router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
+                return
+              }
+              if (profileComplete !== true) {
+                router.push('/profile-setup')
                 return
               }
               setShowBuy(true)

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useMarket, isMarketOpen } from '../../lib/store'
+import { useAuth } from '../../lib/useAuth'
 import { createClient } from '../../lib/supabase'
 import styles from './Navbar.module.css'
 
@@ -29,6 +30,7 @@ function formatTimeAgo(dateStr: string) {
 
 export function Navbar() {
   const { state, dispatch } = useMarket()
+  const { profileComplete } = useAuth()
   const pathname = usePathname()
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -38,6 +40,12 @@ export function Navbar() {
   const [profileAvatar, setProfileAvatar] = useState<string | null>(null)
   const [unreadCount, setUnreadCount] = useState(0)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  // Profile gate: grey out nav items unless fully onboarded (logged in + profile complete)
+  const isProfileLocked = profileComplete !== true
+
+  // Where to send locked clicks
+  const lockRedirect = hasSession ? '/profile-setup' : '/login'
 
   // Notification panel state
   const [notifOpen, setNotifOpen] = useState(false)
@@ -197,10 +205,11 @@ export function Navbar() {
   useEffect(() => { setNotifOpen(false) }, [pathname])
 
   // Primary nav tabs (always visible on desktop)
+  // locked = requires profile completion
   const primaryNav = [
-    { href: '/market', label: open ? 'Market Open' : 'Market Closed', icon: '🧺', hasStatus: true },
-    { href: '/orders', label: 'Orders', icon: '📦' },
-    { href: '/community', label: 'Buzz', icon: '🐝' },
+    { href: '/market', label: open ? 'Market Open' : 'Market Closed', icon: '🧺', hasStatus: true, locked: false },
+    { href: '/orders', label: 'Orders', icon: '📦', locked: true },
+    { href: '/community', label: 'Buzz', icon: '🐝', locked: true },
   ]
 
   // Extended menu items (hamburger only — items NOT in BottomNav/header)
@@ -244,17 +253,31 @@ export function Navbar() {
 
         {/* Desktop Nav (primary tabs) */}
         <div className={`${styles.navLinks} hide-mobile`}>
-          {primaryNav.map(item => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`${styles.navLink} ${pathname.startsWith(item.href) ? styles.navLinkActive : ''}`}
-            >
-              <span className={styles.navIcon}>{item.icon}</span>
-              {item.hasStatus && <span className={`${styles.statusDot} ${open ? styles.statusDotOpen : styles.statusDotClosed}`} />}
-              <span className={styles.navLabel}>{item.label}</span>
-            </Link>
-          ))}
+          {primaryNav.map(item => {
+            const itemLocked = item.locked && isProfileLocked
+            return itemLocked ? (
+              <button
+                key={item.href}
+                className={`${styles.navLink} ${styles.navLinkLocked}`}
+                onClick={() => router.push(lockRedirect)}
+                title="Complete your profile to unlock"
+              >
+                <span className={styles.navIcon}>{item.icon}</span>
+                <span className={styles.navLabel}>{item.label}</span>
+                <span className={styles.lockIcon}>🔒</span>
+              </button>
+            ) : (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`${styles.navLink} ${pathname.startsWith(item.href) ? styles.navLinkActive : ''}`}
+              >
+                <span className={styles.navIcon}>{item.icon}</span>
+                {item.hasStatus && <span className={`${styles.statusDot} ${open ? styles.statusDotOpen : styles.statusDotClosed}`} />}
+                <span className={styles.navLabel}>{item.label}</span>
+              </Link>
+            )
+          })}
         </div>
 
         {/* Right Section */}
@@ -295,15 +318,17 @@ export function Navbar() {
           {/* Notifications dropdown */}
           <div className={styles.notifWrapper} ref={notifRef}>
             <button
-              className={styles.iconBtn}
+              className={`${styles.iconBtn} ${isProfileLocked ? styles.iconBtnLocked : ''}`}
               onClick={() => {
                 if (!hasSession) { router.push('/login?redirect=/notifications'); return }
+                if (isProfileLocked) { router.push(lockRedirect); return }
                 setNotifOpen(!notifOpen); if (menuOpen) setMenuOpen(false)
               }}
               aria-label="Notifications"
+              title={isProfileLocked ? 'Complete your profile to unlock' : 'Notifications'}
             >
               🔔
-              {unreadCount > 0 && <span className={styles.badge}>{unreadCount}</span>}
+              {!isProfileLocked && unreadCount > 0 && <span className={styles.badge}>{unreadCount}</span>}
             </button>
 
             {notifOpen && (
@@ -444,10 +469,22 @@ export function Navbar() {
                   <div className={styles.menuSection}>
                     <div className={styles.menuSectionLabel}>Navigation</div>
                     {mainItems.map(item => (
-                      <Link key={item.href} href={item.href} className={`${styles.menuItem} ${pathname === item.href ? styles.menuItemActive : ''}`}>
-                        <span className={styles.menuItemIcon}>{item.icon}</span>
-                        <span>{item.label}</span>
-                      </Link>
+                      isProfileLocked ? (
+                        <button
+                          key={item.href}
+                          className={`${styles.menuItem} ${styles.menuItemLocked}`}
+                          onClick={() => { setMenuOpen(false); router.push(lockRedirect) }}
+                        >
+                          <span className={styles.menuItemIcon}>{item.icon}</span>
+                          <span>{item.label}</span>
+                          <span className={styles.lockIcon}>🔒</span>
+                        </button>
+                      ) : (
+                        <Link key={item.href} href={item.href} className={`${styles.menuItem} ${pathname === item.href ? styles.menuItemActive : ''}`}>
+                          <span className={styles.menuItemIcon}>{item.icon}</span>
+                          <span>{item.label}</span>
+                        </Link>
+                      )
                     ))}
                   </div>
                 )}
@@ -465,21 +502,43 @@ export function Navbar() {
                   </div>
                 )}
 
-                {/* Support & Legal - always visible */}
+                {/* Support & Legal */}
                 <div className={styles.menuSection}>
                   <div className={styles.menuSectionLabel}>Support & Legal</div>
-                  <Link href="/voice/board" className={`${styles.menuItem} ${pathname.startsWith('/voice') ? styles.menuItemActive : ''}`}>
-                    <span className={styles.menuItemIcon}>📋</span>
-                    <span>Contact Support</span>
-                  </Link>
-                  <Link href="/terms" className={`${styles.menuItem} ${pathname === '/terms' ? styles.menuItemActive : ''}`}>
-                    <span className={styles.menuItemIcon}>📄</span>
-                    <span>Terms of Use</span>
-                  </Link>
-                  <Link href="/terms?tab=privacy" className={styles.menuItem}>
-                    <span className={styles.menuItemIcon}>🔒</span>
-                    <span>Privacy Policy</span>
-                  </Link>
+                  {isProfileLocked ? (
+                    <>
+                      <button className={`${styles.menuItem} ${styles.menuItemLocked}`} onClick={() => { setMenuOpen(false); router.push(lockRedirect) }}>
+                        <span className={styles.menuItemIcon}>📋</span>
+                        <span>Contact Support</span>
+                        <span className={styles.lockIcon}>🔒</span>
+                      </button>
+                      <button className={`${styles.menuItem} ${styles.menuItemLocked}`} onClick={() => { setMenuOpen(false); router.push(lockRedirect) }}>
+                        <span className={styles.menuItemIcon}>📄</span>
+                        <span>Terms of Use</span>
+                        <span className={styles.lockIcon}>🔒</span>
+                      </button>
+                      <button className={`${styles.menuItem} ${styles.menuItemLocked}`} onClick={() => { setMenuOpen(false); router.push(lockRedirect) }}>
+                        <span className={styles.menuItemIcon}>🔒</span>
+                        <span>Privacy Policy</span>
+                        <span className={styles.lockIcon}>🔒</span>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <Link href="/voice/board" className={`${styles.menuItem} ${pathname.startsWith('/voice') ? styles.menuItemActive : ''}`}>
+                        <span className={styles.menuItemIcon}>📋</span>
+                        <span>Contact Support</span>
+                      </Link>
+                      <Link href="/terms" className={`${styles.menuItem} ${pathname === '/terms' ? styles.menuItemActive : ''}`}>
+                        <span className={styles.menuItemIcon}>📄</span>
+                        <span>Terms of Use</span>
+                      </Link>
+                      <Link href="/terms?tab=privacy" className={styles.menuItem}>
+                        <span className={styles.menuItemIcon}>🔒</span>
+                        <span>Privacy Policy</span>
+                      </Link>
+                    </>
+                  )}
                 </div>
 
                 {/* Log Out - only when logged in */}

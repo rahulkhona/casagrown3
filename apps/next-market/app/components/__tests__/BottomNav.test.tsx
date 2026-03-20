@@ -4,8 +4,10 @@ import React from 'react'
 import { render } from '@testing-library/react'
 
 // Mock Next.js navigation
+const mockPush = vi.fn()
 vi.mock('next/navigation', () => ({
   usePathname: () => '/market',
+  useRouter: () => ({ push: mockPush, replace: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn(), prefetch: vi.fn() }),
 }))
 
 vi.mock('next/link', () => ({
@@ -19,6 +21,21 @@ vi.mock('../../../lib/store', () => ({
   }),
   isMarketOpen: () => true,
 }))
+
+// ── useAuth mock — fully onboarded user ──
+vi.mock('../../../lib/useAuth', () => ({
+  useAuth: () => ({
+    user: { id: 'user-1', email: 'test@test.com' },
+    isAuthenticated: true,
+    tosAccepted: true,
+    profileComplete: true,
+    loading: false,
+    isBanned: false,
+    banReason: null,
+  }),
+}))
+
+vi.mock('../BottomNav.module.css', () => ({ default: new Proxy({}, { get: (_, key) => key }) }))
 
 import { BottomNav } from '../BottomNav'
 

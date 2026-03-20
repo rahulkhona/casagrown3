@@ -245,6 +245,10 @@ function BrowseMarketPageInner() {
     e.preventDefault()
     e.stopPropagation()
     if (!user) { router.push(`/login?redirect=/market`); return }
+    // Gate behind profile completion
+    const supabaseClient = createClient()
+    const { data: profile } = await supabaseClient.from('profiles').select('profile_completed_at').eq('id', user.id).single()
+    if (!profile?.profile_completed_at) { router.push('/profile-setup'); return }
     const isSaved = savedProductIds.has(productId)
     if (isSaved) {
       await supabase.from('product_reminders').delete().eq('user_id', user.id).eq('product_id', productId)

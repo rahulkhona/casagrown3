@@ -17,7 +17,7 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
   const supabase = createClient()
   const router = useRouter()
   const pathname = usePathname()
-  const { user, isAuthenticated } = useAuth()
+  const { user, isAuthenticated, profileComplete } = useAuth()
   const [booth, setBooth] = useState<any>(null)
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -162,6 +162,10 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
           <button
             className={`${styles.followBtn} ${following ? styles.followBtnActive : ''}`}
             onClick={async () => {
+              if (profileComplete !== true) {
+                router.push('/profile-setup')
+                return
+              }
               if (following) {
                 await supabase.from('market_followers').delete().match({ follower_id: user!.id, booth_id: booth.id })
                 setFollowing(false)
@@ -277,6 +281,10 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
                         if (!isAuthenticated) {
                           const productUrl = `/market/booth/${id}/product/${p.id}`
                           router.push(`/login?redirect=${encodeURIComponent(productUrl)}`)
+                          return
+                        }
+                        if (profileComplete !== true) {
+                          router.push(`/profile-setup`)
                           return
                         }
                         setBuyProduct(p)

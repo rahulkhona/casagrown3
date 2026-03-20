@@ -72,10 +72,18 @@ export default function GetStartedPage() {
   const open = isMarketOpen(state.marketSchedule, state.marketNeverCloses)
   const next = getNextMarketOpen(state.marketSchedule)
   const [reminderSet, setReminderSet] = useState(false)
-  const { user } = useAuth()
+  const { user, isAuthenticated, profileComplete } = useAuth()
   const { showPrompt, modalProps } = useNotificationPrompt(user?.id)
 
   const requestReminder = () => {
+    if (!isAuthenticated) {
+      window.location.href = '/login?redirect=/get-started'
+      return
+    }
+    if (profileComplete !== true) {
+      window.location.href = '/profile-setup'
+      return
+    }
     showPrompt()
   }
 
