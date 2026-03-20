@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { createClient } from '../../../../../../../lib/supabase'
 import { formatUsd } from '../../../../../../../lib/store'
 import { useAuth } from '../../../../../../../lib/useAuth'
+import { useMarketStatus } from '../../../../../../../lib/useMarketStatus'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import BuyModal from '../../../../../../components/BuyModal'
 import { FlagModal } from '../../../../../../components/FlagModal'
@@ -21,6 +22,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const { user, isAuthenticated, profileComplete } = useAuth()
+  const { isOpen: marketIsOpen, nextOpenDate, loading: marketLoading } = useMarketStatus()
   const autoBuy = searchParams.get('autoBuy') === 'true'
   const [product, setProduct] = useState<any>(null)
   const [booth, setBooth] = useState<any>(null)
@@ -32,6 +34,11 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
   const [showFlag, setShowFlag] = useState(false)
   const [flagged, setFlagged] = useState(false)
   const { showPrompt, modalProps } = useNotificationPrompt(user?.id)
+
+  // Reminder state
+  const [reminderSet, setReminderSet] = useState(false)
+  const [reminderLoading, setReminderLoading] = useState(false)
+  const [reminderToast, setReminderToast] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -50,6 +57,13 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
       setBuyerAddress(saved.get('addr') || '')
     } catch {}
   }, [productId, boothId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load existing product reminder
+  useEffect(() => {
+    if (!user || !productId) return
+    supabase.from('product_reminders').select('id').eq('user_id', user.id).eq('product_id', productId).maybeSingle()
+      .then(({ data }) => { if (data) setReminderSet(true) })
+  }, [user, productId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-open Buy modal when returning from login flow
   useEffect(() => {
@@ -79,7 +93,68 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
     return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onFocus) }
   }, [product?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (loading) {
+  // Determine closed state
+  const boothClosed = booth && booth.is_open === false
+  const isClosed = !marketIsOpen || boothClosed
+
+  const closedReason = boothClosed
+    ? 'This booth is currently closed'
+    : !marketIsOpen
+      ? 'Market is currently closed'
+      : null
+
+  // Toggle product reminder
+  const toggleReminder = async () => {
+    if (!user) {
+      router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
+      return
+    }
+    if (profileComplete !== true) {
+      router.push('/profile-setup')
+      return
+    }
+
+    setReminderLoading(true)
+    try {
+      if (reminderSet) {
+        // Remove reminder
+        await supabase.from('product_reminders').delete().eq('user_id', user.id).eq('product_id', productId)
+        setReminderSet(false)
+        setReminderToast('Reminder removed')
+      } else {
+        // Set product reminder
+        await supabase.from('product_reminders').upsert(
+          { user_id: user.id, product_id: productId },
+          { onConflict: 'user_id,product_id', ignoreDuplicates: true }
+        )
+
+        // Also ensure a market_reminders row exists so cron fires at the right time
+        if (nextOpenDate) {
+          const remindAt = new Date(nextOpenDate.getTime() - 15 * 60 * 1000) // 15 min before
+          const marketDate = nextOpenDate.toISOString()
+          await supabase.from('market_reminders').upsert(
+            {
+              user_id: user.id,
+              remind_at: remindAt.toISOString(),
+              market_date: marketDate,
+              reminder_minutes: 15,
+            },
+            { onConflict: 'user_id,market_date', ignoreDuplicates: true }
+          )
+        }
+
+        setReminderSet(true)
+        setReminderToast('🔔 Saved! We\'ll remind you 15 min before market opens')
+      }
+    } catch (err) {
+      console.error('Reminder toggle failed:', err)
+      setReminderToast('Failed to set reminder')
+    }
+    setReminderLoading(false)
+    setTimeout(() => setReminderToast(null), 3000)
+  }
+
+  if (loading || marketLoading) {
     return (
       <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}>
         <p>Loading product...</p>
@@ -97,6 +172,12 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
   }
 
   const photos = product.photos || []
+
+  // Format next open date
+  const nextOpenStr = nextOpenDate
+    ? nextOpenDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) +
+      ' at ' + nextOpenDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    : null
 
   return (
     <div className="container">
@@ -157,6 +238,49 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
             )}
           </div>
 
+          {/* Market/Booth Closed Banner + Reminder */}
+          {isClosed && (
+            <div style={{
+              background: 'linear-gradient(135deg, #fefce8 0%, #fef9c3 100%)',
+              border: '1px solid #fbbf24',
+              borderRadius: 'var(--radius-md, 12px)',
+              padding: '16px 20px',
+              marginTop: 16,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 20 }}>🕐</span>
+                <strong style={{ color: '#92400e', fontSize: 15 }}>{closedReason}</strong>
+              </div>
+              {nextOpenStr && (
+                <p style={{ margin: '0 0 12px', fontSize: 13, color: '#a16207' }}>
+                  Next open: <strong>{nextOpenStr}</strong>
+                </p>
+              )}
+              <p style={{ margin: '0 0 12px', fontSize: 13, color: '#92400e' }}>
+                Set a reminder and we&apos;ll send you a push notification 15 minutes before the market opens!
+              </p>
+              <button
+                onClick={toggleReminder}
+                disabled={reminderLoading}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '10px 20px', borderRadius: 24,
+                  border: reminderSet ? '2px solid #16a34a' : '2px solid #d97706',
+                  background: reminderSet
+                    ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)'
+                    : 'linear-gradient(135deg, #fff, #fef9c3)',
+                  color: reminderSet ? '#15803d' : '#92400e',
+                  fontWeight: 600, fontSize: 14,
+                  cursor: reminderLoading ? 'wait' : 'pointer',
+                  transition: 'all 0.2s',
+                }}
+              >
+                {reminderLoading ? '⏳' : reminderSet ? '✅' : '🔔'}
+                {reminderLoading ? 'Saving...' : reminderSet ? 'Reminder Set — Tap to Remove' : 'Remind Me When Market Opens'}
+              </button>
+            </div>
+          )}
+
           {/* Buy Button */}
           <button
             className="btn btn-primary btn-lg"
@@ -172,9 +296,13 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
               }
               setShowBuy(true)
             }}
-            disabled={product.inventory === 0}
+            disabled={product.inventory === 0 || isClosed}
           >
-            {product.inventory === 0 ? 'Sold Out' : `Buy — ${formatUsd(product.price_usd)} / ${product.unit}`}
+            {isClosed
+              ? (boothClosed ? '🔒 Booth Closed' : '🔒 Market Closed')
+              : product.inventory === 0
+                ? 'Sold Out'
+                : `Buy — ${formatUsd(product.price_usd)} / ${product.unit}`}
           </button>
 
           {/* Harvest info */}
@@ -243,6 +371,18 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
 
       {/* Notification Prompt Modal */}
       <NotificationPromptModal {...modalProps} />
+
+      {/* Reminder Toast */}
+      {reminderToast && (
+        <div style={{
+          position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
+          background: 'var(--gray-900, #111)', color: '#fff', padding: '10px 20px',
+          borderRadius: 24, fontSize: 14, zIndex: 1000, boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          animation: 'fadeInUp 0.3s ease',
+        }}>
+          {reminderToast}
+        </div>
+      )}
     </div>
   )
 }

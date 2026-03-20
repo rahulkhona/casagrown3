@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { createClient } from '../../../../../lib/supabase'
 import { formatUsd } from '../../../../../lib/store'
 import { useAuth } from '../../../../../lib/useAuth'
+import { useMarketStatus } from '../../../../../lib/useMarketStatus'
 import { useRouter, usePathname } from 'next/navigation'
 import BuyModal from '../../../../components/BuyModal'
 import { FlagModal } from '../../../../components/FlagModal'
@@ -18,6 +19,7 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
   const router = useRouter()
   const pathname = usePathname()
   const { user, isAuthenticated, profileComplete } = useAuth()
+  const { isOpen: marketIsOpen, nextOpenDate, loading: marketLoading } = useMarketStatus()
   const [booth, setBooth] = useState<any>(null)
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -29,6 +31,10 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
   const [following, setFollowing] = useState(false)
   const [followerCount, setFollowerCount] = useState(0)
   const { showPrompt, modalProps } = useNotificationPrompt(user?.id)
+
+  // Reminder state
+  const [savedProductIds, setSavedProductIds] = useState<Set<string>>(new Set())
+  const [reminderToast, setReminderToast] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -74,6 +80,15 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
     } catch {}
   }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Load existing product reminders
+  useEffect(() => {
+    if (!user) return
+    supabase.from('product_reminders').select('product_id').eq('user_id', user.id)
+      .then(({ data }) => {
+        if (data) setSavedProductIds(new Set(data.map(r => r.product_id)))
+      })
+  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Two-tier polling:
   // 1. Lightweight refresh (30s + tab focus): just update prices/inventory
   // 2. Full product re-fetch (2 min): catch new/removed products
@@ -112,6 +127,48 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
     }
   }, [booth?.id, products.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Determine closed state
+  const boothClosed = booth && booth.is_open === false
+  const isClosed = !marketIsOpen || boothClosed
+
+  // Toggle product reminder
+  const toggleProductReminder = async (productId: string, e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!user) { router.push(`/login?redirect=${encodeURIComponent(pathname)}`); return }
+    if (profileComplete !== true) { router.push('/profile-setup'); return }
+
+    const isSaved = savedProductIds.has(productId)
+    if (isSaved) {
+      await supabase.from('product_reminders').delete().eq('user_id', user.id).eq('product_id', productId)
+      setSavedProductIds(prev => { const next = new Set(prev); next.delete(productId); return next })
+      setReminderToast('Reminder removed')
+    } else {
+      await supabase.from('product_reminders').upsert(
+        { user_id: user.id, product_id: productId },
+        { onConflict: 'user_id,product_id', ignoreDuplicates: true }
+      )
+
+      // Also ensure a market_reminders row exists so cron fires at the right time
+      if (nextOpenDate) {
+        const remindAt = new Date(nextOpenDate.getTime() - 15 * 60 * 1000)
+        await supabase.from('market_reminders').upsert(
+          {
+            user_id: user.id,
+            remind_at: remindAt.toISOString(),
+            market_date: nextOpenDate.toISOString(),
+            reminder_minutes: 15,
+          },
+          { onConflict: 'user_id,market_date', ignoreDuplicates: true }
+        )
+      }
+
+      setSavedProductIds(prev => new Set(prev).add(productId))
+      setReminderToast('🔔 Saved! We\'ll remind you 15 min before market opens')
+    }
+    setTimeout(() => setReminderToast(null), 3000)
+  }
+
   const themeColors: Record<string, { bg: string; border: string }> = {
     rustic: { bg: '#fef3c7', border: '#f59e0b' },
     tropical: { bg: '#d1fae5', border: '#10b981' },
@@ -121,7 +178,7 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
     cottage: { bg: '#e0f2fe', border: '#0ea5e9' },
   }
 
-  if (loading) {
+  if (loading || marketLoading) {
     return (
       <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}>
         <p>Loading booth...</p>
@@ -139,6 +196,12 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   const theme = themeColors[booth.decorative_theme] || themeColors.minimal
+
+  // Format next open date for banner
+  const nextOpenStr = nextOpenDate
+    ? nextOpenDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) +
+      ' at ' + nextOpenDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    : null
 
   return (
     <div className="container">
@@ -226,6 +289,29 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       )}
 
+      {/* Market/Booth Closed Banner */}
+      {isClosed && (
+        <div style={{
+          background: 'linear-gradient(135deg, #fefce8 0%, #fef9c3 100%)',
+          border: '1px solid #fbbf24',
+          borderRadius: 'var(--radius-md, 12px)',
+          padding: '16px 20px',
+          margin: '16px 0',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 20 }}>🕐</span>
+            <strong style={{ color: '#92400e', fontSize: 15 }}>
+              {boothClosed ? 'This booth is currently closed' : 'Market is currently closed'}
+            </strong>
+          </div>
+          {nextOpenStr && (
+            <p style={{ margin: '8px 0 0', fontSize: 13, color: '#a16207' }}>
+              Next open: <strong>{nextOpenStr}</strong> — tap 🔔 on any product to get a reminder!
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Products */}
       <div className={styles.productsSection} style={{ '--theme-border': theme.border, '--theme-accent-color': theme.border } as React.CSSProperties}>
         <h2 className={styles.sectionTitle}>Products</h2>
@@ -248,6 +334,24 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
                     <span className={styles.lowStock}>Only {p.inventory} left</span>
                   )}
                   {p.inventory === 0 && <span className={styles.outOfStock}>Sold Out</span>}
+                  {/* Reminder bell overlay when closed */}
+                  {isClosed && (
+                    <button
+                      onClick={(e) => toggleProductReminder(p.id, e)}
+                      title={savedProductIds.has(p.id) ? 'Remove reminder' : 'Remind me when market opens'}
+                      style={{
+                        position: 'absolute', top: 6, right: 6,
+                        background: savedProductIds.has(p.id) ? 'var(--green-100, #dcfce7)' : 'rgba(255,255,255,0.9)',
+                        border: savedProductIds.has(p.id) ? '1px solid var(--green-300, #86efac)' : '1px solid var(--gray-200, #e5e7eb)',
+                        borderRadius: 20, padding: '3px 10px', fontSize: 12,
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                        color: savedProductIds.has(p.id) ? 'var(--green-700, #15803d)' : 'var(--gray-600)',
+                        zIndex: 2, transition: 'all 0.2s', fontWeight: 600,
+                      }}
+                    >
+                      🔔 {savedProductIds.has(p.id) ? 'Saved' : 'Remind'}
+                    </button>
+                  )}
                 </div>
                 {isAuthenticated && user?.id !== booth?.owner_id && (
                   <button
@@ -278,6 +382,7 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
                       style={{ width: '100%', fontSize: 13, padding: '6px 12px', marginTop: 8 }}
                       onClick={(e) => {
                         e.preventDefault(); e.stopPropagation()
+                        if (isClosed) return
                         if (!isAuthenticated) {
                           const productUrl = `/market/booth/${id}/product/${p.id}`
                           router.push(`/login?redirect=${encodeURIComponent(productUrl)}`)
@@ -289,9 +394,11 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
                         }
                         setBuyProduct(p)
                       }}
-                      disabled={p.inventory === 0}
+                      disabled={p.inventory === 0 || isClosed}
                     >
-                      {p.inventory === 0 ? 'Sold Out' : 'Buy'}
+                      {isClosed
+                        ? (boothClosed ? '🔒 Closed' : '🔒 Market Closed')
+                        : p.inventory === 0 ? 'Sold Out' : 'Buy'}
                     </button>
                 </div>
               </Link>
@@ -332,6 +439,18 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
 
       {/* Notification Prompt Modal */}
       <NotificationPromptModal {...modalProps} />
+
+      {/* Reminder Toast */}
+      {reminderToast && (
+        <div style={{
+          position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
+          background: 'var(--gray-900, #111)', color: '#fff', padding: '10px 20px',
+          borderRadius: 24, fontSize: 14, zIndex: 1000, boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          animation: 'fadeInUp 0.3s ease',
+        }}>
+          {reminderToast}
+        </div>
+      )}
     </div>
   )
 }
