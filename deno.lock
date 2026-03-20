@@ -401,6 +401,7 @@
             "npm:@testing-library/user-event@^14.6.1",
             "npm:@types/node@^20.14.1",
             "npm:@types/react@^19.2.14",
+            "npm:html2canvas@^1.4.1",
             "npm:jsdom@29",
             "npm:lucide-react@0.563",
             "npm:next@16.1.1",

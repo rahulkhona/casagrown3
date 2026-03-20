@@ -6,6 +6,8 @@ vi.unmock('../../lib/useAuth')
 
 // Mock supabase before importing useAuth
 const mockGetUser = vi.fn()
+const mockGetSession = vi.fn()
+const mockOnAuthStateChange = vi.fn().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } })
 const mockSelect = vi.fn()
 const mockEq = vi.fn()
 const mockSingle = vi.fn()
@@ -14,7 +16,7 @@ const mockFrom = vi.fn()
 
 vi.mock('../../lib/supabase', () => ({
   createClient: () => ({
-    auth: { getUser: mockGetUser },
+    auth: { getUser: mockGetUser, getSession: mockGetSession, onAuthStateChange: mockOnAuthStateChange },
     from: mockFrom,
   }),
 }))
@@ -37,7 +39,7 @@ describe('useAuth', () => {
   })
 
   it('should return loading=true initially', () => {
-    mockGetUser.mockReturnValue(new Promise(() => {})) // never resolves
+    mockGetSession.mockReturnValue(new Promise(() => {})) // never resolves
     const { result } = renderHook(() => useAuth())
     expect(result.current.loading).toBe(true)
     expect(result.current.user).toBeNull()
@@ -45,7 +47,7 @@ describe('useAuth', () => {
   })
 
   it('should return user when authenticated', async () => {
-    mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1', email: 'test@test.com' } } })
+    mockGetSession.mockResolvedValue({ data: { session: { user: { id: 'user-1', email: 'test@test.com' } } } })
 
     const { result } = renderHook(() => useAuth())
     await waitFor(() => expect(result.current.loading).toBe(false))
@@ -56,7 +58,7 @@ describe('useAuth', () => {
   })
 
   it('should return null user when not authenticated', async () => {
-    mockGetUser.mockResolvedValue({ data: { user: null } })
+    mockGetSession.mockResolvedValue({ data: { session: null } })
 
     const { result } = renderHook(() => useAuth())
     await waitFor(() => expect(result.current.loading).toBe(false))
@@ -66,7 +68,7 @@ describe('useAuth', () => {
   })
 
   it('should detect banned user', async () => {
-    mockGetUser.mockResolvedValue({ data: { user: { id: 'banned-user', email: 'banned@test.com' } } })
+    mockGetSession.mockResolvedValue({ data: { session: { user: { id: 'banned-user', email: 'banned@test.com' } } } })
     mockSingle.mockResolvedValue({ data: { is_banned: true, ban_reason: 'Violation of terms' } })
 
     const { result } = renderHook(() => useAuth())
@@ -79,7 +81,7 @@ describe('useAuth', () => {
   })
 
   it('should handle banned user with no ban_reason', async () => {
-    mockGetUser.mockResolvedValue({ data: { user: { id: 'banned-user', email: 'banned@test.com' } } })
+    mockGetSession.mockResolvedValue({ data: { session: { user: { id: 'banned-user', email: 'banned@test.com' } } } })
     mockSingle.mockResolvedValue({ data: { is_banned: true, ban_reason: null } })
 
     const { result } = renderHook(() => useAuth())
@@ -90,7 +92,7 @@ describe('useAuth', () => {
   })
 
   it('should handle user with no email', async () => {
-    mockGetUser.mockResolvedValue({ data: { user: { id: 'user-no-email', email: undefined } } })
+    mockGetSession.mockResolvedValue({ data: { session: { user: { id: 'user-no-email', email: undefined } } } })
 
     const { result } = renderHook(() => useAuth())
     await waitFor(() => expect(result.current.loading).toBe(false))

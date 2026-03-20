@@ -135,7 +135,7 @@ function NewProductPageInner() {
         if (!category && cats.length > 0) {
           setCategory(cats[0].name)
           // Auto-select listing duration based on default category
-          const perishable = ['fruits', 'vegetables', 'herbs', 'flowers', 'flower_arrangements']
+          const perishable = ['produce', 'eggs', 'flowers', 'flower_arrangements']
           setListingDays(perishable.includes(cats[0].name) ? 3 : 30)
         }
       }
@@ -514,8 +514,9 @@ function NewProductPageInner() {
 
   // Category display names
   const categoryEmoji: Record<string, string> = {
-    fruits: '🍎', vegetables: '🥬', herbs: '🌿', flowers: '🌸',
-    flower_arrangements: '💐', garden_equipment: '🧰', pots: '🪴', soil: '🪨',
+    produce: '🥬', flowers: '🌸', flower_arrangements: '💐',
+    garden_equipment: '🧰', pots: '🪴', soil: '🪨',
+    seeds: '🌱', eggs: '🥚', honey: '🍯',
   }
   const formatCategoryName = (name: string) =>
     name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
@@ -533,7 +534,7 @@ function NewProductPageInner() {
           <div className={styles.marketDayBanner}>
             <span className={styles.marketDayIcon}>📅</span>
             <div>
-              <strong>{nextMarket?.label || 'Next Market Day'}</strong>
+              <strong>Next Market Day: {nextMarket?.label || 'TBD'}</strong>
               {nextMarket && (
                 <span className={styles.marketDayTime}>
                   {formatTime(nextMarket.openTime)} – {formatTime(nextMarket.closeTime)}
@@ -599,7 +600,7 @@ function NewProductPageInner() {
                   const newCat = e.target.value
                   setCategory(newCat)
                   // Auto-switch listing duration based on category
-                  const perishable = ['fruits', 'vegetables', 'herbs', 'flowers', 'flower_arrangements']
+                  const perishable = ['produce', 'eggs', 'flowers', 'flower_arrangements']
                   setListingDays(perishable.includes(newCat) ? 3 : 30)
                 }}>
                   {availableCategories.map(c => (
@@ -617,6 +618,7 @@ function NewProductPageInner() {
               <label className={styles.label}>Description <span className={styles.optional}>(optional)</span></label>
               <textarea className={styles.input} value={description} onChange={e => setDescription(e.target.value)} placeholder="What makes these special?" rows={2} />
             </div>
+            {['produce', 'flowers', 'flower_arrangements', 'eggs'].includes(category) && (
             <div className={styles.field}>
               <label className={styles.label}>🌾 Harvested <span className={styles.optional}>(optional)</span></label>
               <input
@@ -638,11 +640,15 @@ function NewProductPageInner() {
                 </span>
               )}
             </div>
+            )}
           </div>
 
           {/* ===== Listing Duration ===== */}
           <div className={styles.section}>
-            <label className={styles.label}>📆 Listing Duration</label>
+            <label className={styles.label}>📆 How long to show this listing?</label>
+            <span className={styles.hint} style={{ marginBottom: 8, marginTop: 0 }}>
+              Your product will be visible to buyers for this many days, then automatically removed.
+            </span>
             <div className={styles.durationPicker}>
               {[3, 7, 14, 30].map(d => (
                 <button
@@ -658,7 +664,7 @@ function NewProductPageInner() {
             <span className={styles.hint}>
               {(() => {
                 const exp = new Date(Date.now() + listingDays * 86400000)
-                return `Expires ${exp.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                return `Auto-removes on ${exp.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`
               })()}
             </span>
           </div>

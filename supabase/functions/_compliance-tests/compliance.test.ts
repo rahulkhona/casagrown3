@@ -293,18 +293,13 @@ Deno.test("Sales tax: CA produce categories have fixed 0% rate", async () => {
         "CA should have fixed-rate tax rules for produce categories",
     );
 
-    // Vegetables and fruits should be exempt (fixed 0%)
-    const vegRule = rules.find((r: Record<string, unknown>) =>
-        r.category_name === "vegetables"
-    );
-    const fruitRule = rules.find((r: Record<string, unknown>) =>
-        r.category_name === "fruits"
+    // produce category should be exempt (fixed 0%)
+    const produceRule = rules.find((r: Record<string, unknown>) =>
+        r.category_name === "produce"
     );
 
-    assertExists(vegRule, "vegetables should have a CA tax rule");
-    assertExists(fruitRule, "fruits should have a CA tax rule");
-    assertEquals(Number(vegRule!.rate_pct), 0);
-    assertEquals(Number(fruitRule!.rate_pct), 0);
+    assertExists(produceRule, "produce should have a CA tax rule");
+    assertEquals(Number(produceRule!.rate_pct), 0);
 });
 
 Deno.test("Orders table has harvest_date column", async () => {

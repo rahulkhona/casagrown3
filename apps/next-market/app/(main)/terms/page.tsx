@@ -67,6 +67,38 @@ const TERMS_SECTIONS = [
       'Final Authority: CasaGrown Staff holds final authority on whether to release funds or return them to the Buyer.',
     ],
   },
+  {
+    title: '7. Prohibited Listings and Items',
+    paragraphs: [
+      'CasaGrown is a marketplace exclusively for fresh produce and related neighborhood goods. To ensure user safety and regulatory compliance, the following items are strictly prohibited:',
+      'Regulated Substances: Cigarettes, e-cigarettes, vapes, tobacco, alcohol, and any illegal drugs or drug paraphernalia.',
+      'Prescription Goods: Any prescription medications or products making unverified medical claims.',
+      'Adult Content: Any sexually explicit, pornographic, or "adult-only" products or services.',
+      'Dangerous Items: Weapons, explosives, or hazardous chemicals.',
+      'Non-Produce Items: Unless explicitly permitted, the platform may not be used to sell household junk, counterfeit goods, or services unrelated to gardening/produce.',
+      'Violation Result: Posting prohibited items will result in immediate removal of the listing and a permanent ban of the user account.',
+    ],
+  },
+  {
+    title: '8. Community Standards and Conduct',
+    paragraphs: [
+      'We have a zero-tolerance policy for behavior that makes our neighborhood unsafe or unwelcome:',
+      'Zero Harassment: You may not threaten, stalk, bully, or harass any user.',
+      'Communication: All interactions must remain respectful. Profanity, hate speech, or derogatory comments regarding race, religion, gender, or identity are grounds for immediate termination.',
+      'Fraud and Misuse: Creating multiple accounts to bypass limits, "shilling" fake reviews, or attempting to lure users off-platform to avoid fees is strictly prohibited.',
+      'Enforcement: CasaGrown reserves the right to report any illegal conduct or credible threats to law enforcement.',
+    ],
+  },
+  {
+    title: '9. Minor and Teen Safety',
+    paragraphs: [
+      'CasaGrown allows teenagers to participate in the neighborhood economy, but safety is our priority:',
+      'Age Requirement: Users must be at least 13 years old to create an account.',
+      'Guardian Oversight: Any user under the age of 18 ("Minor") represents that they have the explicit permission of a parent or legal guardian to use the platform.',
+      'Parental Liability: Parents or legal guardians are solely responsible for the conduct, safety, and financial liabilities of any Minor using the account.',
+      'Safe Exchanges: We strongly advise that all hand-offs between neighbors occur in public spaces or under the supervision of an adult.',
+    ],
+  },
 ]
 
 // ---------------------------------------------------------------------------

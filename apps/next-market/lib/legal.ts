@@ -4,7 +4,7 @@
  * Any user whose tos_accepted_at is older than this will be
  * prompted to re-accept on their next login/page visit.
  */
-export const TOS_EFFECTIVE_DATE = new Date('2026-03-15T00:00:00Z')
+export const TOS_EFFECTIVE_DATE = new Date('2026-03-20T00:00:00Z')
 
 /**
  * Returns true if the user needs to (re)accept the ToS.

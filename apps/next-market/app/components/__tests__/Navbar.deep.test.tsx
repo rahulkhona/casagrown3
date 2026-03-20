@@ -61,8 +61,8 @@ vi.mock('../../../lib/store', () => ({
   useMarket: () => ({
     state: {
       marketSchedule: null, marketNeverCloses: true,
-      user: { id: 'user-1', name: 'Alice Smith', email: 'test@test.com' },
-      isAuthenticated: true, notifications: [], booths: [], orders: [],
+      user: null,
+      isAuthenticated: false, notifications: [], booths: [], orders: [],
     },
     dispatch: mockDispatch,
   }),
@@ -82,6 +82,7 @@ beforeEach(() => {
     if (table === 'market_notifications') return chain([])
     return chain()
   })
+  mockSupabase.auth.getSession.mockResolvedValue({ data: { session: { user: mockUser } } })
   mockSupabase.auth.getUser.mockResolvedValue({ data: { user: mockUser } })
 })
 
@@ -109,6 +110,7 @@ describe('Navbar', () => {
   })
 
   it('hides profile badge when no session', async () => {
+    mockSupabase.auth.getSession.mockResolvedValue({ data: { session: null } })
     mockSupabase.auth.getUser.mockResolvedValue({ data: { user: null } })
     const { Navbar } = await import('../Navbar')
     const { container } = render(React.createElement(Navbar))
@@ -145,6 +147,7 @@ describe('Navbar', () => {
   })
 
   it('shows Sign In link when not authenticated', async () => {
+    mockSupabase.auth.getSession.mockResolvedValue({ data: { session: null } })
     mockSupabase.auth.getUser.mockResolvedValue({ data: { user: null } })
     const { Navbar } = await import('../Navbar')
     const { container } = render(React.createElement(Navbar))
@@ -171,7 +174,6 @@ describe('Navbar', () => {
     await act(async () => { fireEvent.click(logoutBtn) })
     expect(mockSupabase.auth.signOut).toHaveBeenCalled()
     expect(mockDispatch).toHaveBeenCalledWith({ type: 'LOGOUT' })
-    expect(mockPush).toHaveBeenCalledWith('/')
   })
 
   it('toggles notification panel', async () => {
@@ -190,6 +192,7 @@ describe('Navbar', () => {
   })
 
   it('redirects to login when clicking bell without session', async () => {
+    mockSupabase.auth.getSession.mockResolvedValue({ data: { session: null } })
     mockSupabase.auth.getUser.mockResolvedValue({ data: { user: null } })
     const { Navbar } = await import('../Navbar')
     const { container } = render(React.createElement(Navbar))

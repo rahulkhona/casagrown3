@@ -138,7 +138,8 @@ function LoginPageInner() {
               <label className="label" htmlFor="email">Email Address</label>
               <input
                 id="email"
-                type="email"
+                type="text"
+                inputMode="email"
                 className="input"
                 placeholder="you@example.com"
                 value={email}

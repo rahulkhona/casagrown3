@@ -39,12 +39,15 @@ function chain(data: any = [], error: any = null) {
 }
 
 const categoriesData = [
-  { name: 'fruits', display_order: 1 },
-  { name: 'vegetables', display_order: 2 },
-  { name: 'herbs', display_order: 3 },
-  { name: 'flowers', display_order: 4 },
-  { name: 'honey', display_order: 5 },
-  { name: 'other', display_order: 6 },
+  { name: 'produce', display_order: 1 },
+  { name: 'flowers', display_order: 2 },
+  { name: 'flower_arrangements', display_order: 3 },
+  { name: 'garden_equipment', display_order: 4 },
+  { name: 'pots', display_order: 5 },
+  { name: 'soil', display_order: 6 },
+  { name: 'seeds', display_order: 7 },
+  { name: 'eggs', display_order: 8 },
+  { name: 'honey', display_order: 9 },
 ]
 
 const mockSupabase = {
@@ -161,7 +164,7 @@ describe('Listing Lifecycle — Duration Picker', () => {
     const { container } = render(React.createElement(Component))
 
     await waitFor(() => {
-      expect(container.textContent).toContain('Listing Duration')
+      expect(container.textContent).toContain('How long to show this listing')
     })
 
     // Should have 4 duration buttons
@@ -179,7 +182,7 @@ describe('Listing Lifecycle — Duration Picker', () => {
     const { container } = render(React.createElement(Component))
 
     await waitFor(() => {
-      expect(container.textContent).toContain('Expires')
+      expect(container.textContent).toContain('Auto-removes')
     })
   })
 
@@ -221,13 +224,13 @@ describe('Listing Lifecycle — expires_at Calculation', () => {
   })
 
   it('perishable categories are correctly identified', () => {
-    const perishable = ['fruits', 'vegetables', 'herbs', 'flowers', 'flower_arrangements']
-    expect(perishable.includes('fruits')).toBe(true)
-    expect(perishable.includes('vegetables')).toBe(true)
-    expect(perishable.includes('herbs')).toBe(true)
+    const perishable = ['produce', 'eggs', 'flowers', 'flower_arrangements']
+    expect(perishable.includes('produce')).toBe(true)
+    expect(perishable.includes('eggs')).toBe(true)
     expect(perishable.includes('flowers')).toBe(true)
+    expect(perishable.includes('flower_arrangements')).toBe(true)
     expect(perishable.includes('honey')).toBe(false)
-    expect(perishable.includes('other')).toBe(false)
+    expect(perishable.includes('seeds')).toBe(false)
   })
 })
 

@@ -900,7 +900,7 @@ export default function MyBoothPage() {
           </button>
           <button
             className="btn btn-secondary"
-            onClick={() => {
+            onClick={async () => {
               const joinUrl = typeof window !== 'undefined' ? `${window.location.origin}/join-booth/${encodeURIComponent(helperPasscode)}` : ''
               const text = [
                 `Hey! 🤝 I'm selling on CasaGrown Market and could use a hand with my booth "${name}".`,
@@ -914,7 +914,7 @@ export default function MyBoothPage() {
                 `Passcode: ${helperPasscode}`,
               ].join('\n')
               if (navigator.share) {
-                navigator.share({ title: `Help with ${name} on CasaGrown`, text })
+                try { await navigator.share({ title: `Help with ${name} on CasaGrown`, text }) } catch { /* user cancelled */ }
               } else {
                 navigator.clipboard?.writeText(text)
                 dispatch({ type: 'ADD_TOAST', payload: { message: 'Copied! 📋', type: 'success' } })

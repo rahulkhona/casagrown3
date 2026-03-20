@@ -18,10 +18,8 @@ test.describe('Earnings & Payouts', () => {
   test('should show tabs (summary, transactions, etc)', async ({ page }) => {
     await page.goto('/earnings')
     await page.waitForTimeout(2000)
-    const tabs = page.locator('button[role="tab"], [class*="tab"]')
-    if (await tabs.count() > 0) {
-      await expect(tabs.first()).toBeVisible()
-    }
+    const body = await page.textContent('body')
+    expect(body).toMatch(/Earnings|Balance|Transactions|Payout|Activity/i)
   })
 
   test('should display platform fee information', async ({ page }) => {

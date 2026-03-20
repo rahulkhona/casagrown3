@@ -229,11 +229,11 @@ export default function MarketClosedBox({ nextOpenDate, todaySchedule }: MarketC
             </Link>
 
             {/* Action 3: Invite neighbors */}
-            <button style={{ ...actionCardStyle, cursor: 'pointer' }} className="mc-card" onClick={() => {
+            <button style={{ ...actionCardStyle, cursor: 'pointer' }} className="mc-card" onClick={async () => {
               const url = `${window.location.origin}/`
               const text = 'Did you know 11.5 billion lbs of backyard produce is wasted every year? Millions can be fed if we save that. Join me and CasaGrown in stopping this waste.'
               if (navigator.share) {
-                navigator.share({ title: 'Join CasaGrown Market', text, url })
+                try { await navigator.share({ title: 'Join CasaGrown Market', text, url }) } catch { /* user cancelled */ }
               } else {
                 navigator.clipboard?.writeText(`${text}\n${url}`)
                 alert('Invite link copied to clipboard!')

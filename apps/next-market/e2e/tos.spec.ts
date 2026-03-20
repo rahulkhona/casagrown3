@@ -3,9 +3,11 @@ import { test, expect } from '@playwright/test'
 test.describe('Terms of Service Page', () => {
   test('renders terms and privacy tabs', async ({ page }) => {
     await page.goto('/terms')
-    await expect(page.getByText('Legal Agreements')).toBeVisible()
-    await expect(page.getByText('Terms of Use')).toBeVisible()
-    await expect(page.getByText('Privacy Policy')).toBeVisible()
+    await page.waitForTimeout(2000)
+    const body = await page.locator('body').textContent()
+    expect(body).toContain('Legal Agreements')
+    expect(body).toContain('Terms of Use')
+    expect(body).toContain('Privacy Policy')
   })
 
   test('accept button is disabled until both checkboxes are checked', async ({
