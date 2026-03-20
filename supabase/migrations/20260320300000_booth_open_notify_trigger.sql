@@ -6,6 +6,9 @@
 -- have product_reminders for products in this booth, then delete the reminders.
 -- ============================================================================
 
+-- Ensure is_open column exists (self-healing if 20260320200000 didn't fully apply)
+ALTER TABLE market_booths ADD COLUMN IF NOT EXISTS is_open BOOLEAN DEFAULT true;
+
 CREATE OR REPLACE FUNCTION trg_booth_open_notify_reminders()
 RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
