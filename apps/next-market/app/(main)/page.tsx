@@ -94,31 +94,27 @@ export default function HomePage() {
         <div className="container">
           <div className={styles.whyGrid}>
             <div className={`${styles.whyCard} ${styles.whyCardGreen}`}>
-              <div className={`${styles.whyIcon} ${styles.whyIconGreen}`}>✨</div>
               <h3 className={styles.whyTitle}>Incredible Freshness</h3>
               <p className={styles.whyDesc}>
-                Produce picked fresh from a neighbor&apos;s tree, not sitting in a warehouse for weeks.
+                Fruits in grocery stores often take weeks to months to reach the shelves. CasaGrown connects you with neighbors for produce picked fresh from the tree.
               </p>
             </div>
             <div className={`${styles.whyCard} ${styles.whyCardAmber}`}>
-              <div className={`${styles.whyIcon} ${styles.whyIconAmber}`}>🚫</div>
               <h3 className={styles.whyTitle}>Stop Food Waste</h3>
               <p className={styles.whyDesc}>
-                Over 11.5B lbs of backyard produce goes to waste every year. Help us save it.
+                Over 11.5 billion pounds of backyard produce goes to waste every year. Join us in saving it to feed 28 million people.
               </p>
             </div>
-            <div className={`${styles.whyCard} ${styles.whyCardBlue}`}>
-              <div className={`${styles.whyIcon} ${styles.whyIconBlue}`}>📈</div>
+            <div className={`${styles.whyCard} ${styles.whyCardBlue2}`}>
               <h3 className={styles.whyTitle}>Beat Inflation</h3>
               <p className={styles.whyDesc}>
-                Earn extra cash from your garden or save money on high-quality produce next door.
+                Earn extra cash from your garden selling homegrown abundance to neighbors, or save money by finding high-quality produce right next door.
               </p>
             </div>
             <div className={`${styles.whyCard} ${styles.whyCardPink}`}>
-              <div className={`${styles.whyIcon} ${styles.whyIconPink}`}>🎓</div>
               <h3 className={styles.whyTitle}>Teen Opportunity</h3>
               <p className={styles.whyDesc}>
-                Empower teens to learn business skills and earn pocket money selling produce.
+                Empower teens to learn business skills and earn pocket money by selling and delivering homegrown produce.
               </p>
             </div>
           </div>

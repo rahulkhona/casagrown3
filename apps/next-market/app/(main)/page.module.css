@@ -72,44 +72,84 @@
   .heroImage { max-width: 100%; }
 }
 
-/* ---- Why Trade Homegrown ---- */
+/* ---- Why Trade Homegrown — Vibrant Angled Cards ---- */
 .whyGrid {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
-  max-width: 900px; margin: 0 auto;
+  display: flex; justify-content: center; align-items: flex-end;
+  gap: 0; max-width: 960px; margin: 0 auto;
+  padding: 40px 20px 60px;
+  position: relative;
 }
 .whyCard {
-  border-radius: var(--radius-xl); padding: 28px 24px;
-  transition: transform 0.2s;
+  border-radius: 20px; padding: 32px 24px;
+  width: 220px; min-height: 280px;
+  color: #fff;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  position: relative;
+  flex-shrink: 0;
+  margin: 0 4px;
 }
-.whyCard:hover { transform: translateY(-3px); }
-.whyCardGreen { background: #dcfce7; }
-.whyCardAmber { background: #fef3c7; }
-.whyCardBlue  { background: #dbeafe; }
-.whyCardPink  { background: #fce7f3; }
-
-.whyIcon {
-  width: 44px; height: 44px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 20px; margin-bottom: 16px;
+.whyCard:hover {
+  transform: translateY(-12px) scale(1.04) !important;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.25);
+  z-index: 10;
 }
-.whyIconGreen { background: #bbf7d0; }
-.whyIconAmber { background: #fde68a; }
-.whyIconBlue  { background: #bfdbfe; }
-.whyIconPink  { background: #fbcfe8; }
+/* Vibrant solid colors matching play.casagrown.com */
+.whyCardGreen {
+  background: linear-gradient(135deg, #84C225 0%, #6BA31E 100%);
+  transform: rotate(-7deg);
+  margin-bottom: 30px;
+  z-index: 4;
+}
+.whyCardAmber {
+  background: linear-gradient(135deg, #F7C948 0%, #F1B51A 100%);
+  transform: rotate(4deg);
+  margin-bottom: 0px;
+  z-index: 3;
+}
+.whyCardBlue2 {
+  background: linear-gradient(135deg, #F58232 0%, #E06A1E 100%);
+  transform: rotate(-4deg);
+  margin-bottom: 30px;
+  z-index: 2;
+}
+.whyCardPink {
+  background: linear-gradient(135deg, #00ADEF 0%, #0090CC 100%);
+  transform: rotate(6deg);
+  margin-bottom: 0px;
+  z-index: 1;
+}
 
 .whyTitle {
-  font-size: 16px; font-weight: 700; color: var(--gray-800);
-  margin: 0 0 8px;
+  font-size: 26px; font-weight: 800; color: #fff;
+  margin: 0 0 12px; line-height: 1.15;
+  font-style: italic;
 }
 .whyDesc {
-  font-size: 13px; color: var(--gray-600); line-height: 1.6; margin: 0;
+  font-size: 13px; color: rgba(255,255,255,0.92); line-height: 1.6; margin: 0;
 }
 
-@media (max-width: 768px) {
-  .whyGrid { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 900px) {
+  .whyGrid {
+    flex-direction: column; align-items: center;
+    gap: 0; padding: 20px 16px 40px;
+  }
+  .whyCard {
+    width: 85%; max-width: 400px; min-height: 180px;
+    margin: -6px 0 !important;
+  }
+  .whyCardGreen  { transform: rotate(-3deg); z-index: 4; }
+  .whyCardAmber  { transform: rotate(2deg); z-index: 3; }
+  .whyCardBlue2  { transform: rotate(-2deg); z-index: 2; }
+  .whyCardPink   { transform: rotate(3deg); z-index: 1; }
 }
 @media (max-width: 480px) {
-  .whyGrid { grid-template-columns: 1fr; max-width: 360px; }
+  .whyCard {
+    width: 90%; max-width: 340px; min-height: 160px;
+    padding: 24px 20px;
+    margin: -8px 0 !important;
+  }
+  .whyTitle { font-size: 22px; }
 }
 
 /* ---- Earnings Calculator ---- */
