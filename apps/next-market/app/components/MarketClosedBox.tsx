@@ -274,16 +274,24 @@ export default function MarketClosedBox({ nextOpenDate, todaySchedule }: MarketC
               <div style={{ marginTop: 16, textAlign: 'left' }}>
                 {notifPermission === 'unsupported' ? (
                   <div>
-                    <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-800)', margin: '0 0 8px' }}>📱 Enable Notifications</p>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-800)', margin: '0 0 8px' }}>📱 Get Notifications on iPhone/iPad</p>
                     <p style={{ fontSize: 13, color: 'var(--gray-600)', margin: '0 0 12px', lineHeight: 1.5 }}>
-                      Your browser doesn&apos;t support push notifications. For the best experience:
+                      Apple requires you to save CasaGrown to your Home Screen first. It takes 30 seconds!
                     </p>
                     <div style={{
-                      padding: 12, background: 'var(--amber-50, #fffbeb)', borderRadius: 'var(--radius, 8px)',
-                      border: '1px solid var(--amber-200, #fde68a)', fontSize: 13, color: 'var(--gray-700)', lineHeight: 1.6,
+                      padding: 12, background: 'var(--blue-50, #eff6ff)', borderRadius: 'var(--radius, 8px)',
+                      border: '1px solid var(--blue-200, #bfdbfe)', fontSize: 13, color: 'var(--gray-700)', lineHeight: 1.8,
                     }}>
-                      <div><strong>iOS Safari:</strong> Tap the share button (⬆️) → &quot;Add to Home Screen&quot; → Open from your home screen to enable notifications.</div>
-                      <div style={{ marginTop: 8 }}><strong>Android Chrome:</strong> Tap the menu (⋮) → &quot;Add to Home Screen&quot; or &quot;Install App&quot;.</div>
+                      <div><strong>Step 1:</strong> Tap the Share button (⬆️) at the bottom of your screen</div>
+                      <div><strong>Step 2:</strong> Scroll down and tap &quot;Add to Home Screen&quot;</div>
+                      <div><strong>Step 3:</strong> Tap &quot;Add&quot; to confirm</div>
+                    </div>
+                    <div style={{
+                      marginTop: 8, padding: 12, background: 'var(--amber-50, #fffbeb)',
+                      borderRadius: 'var(--radius, 8px)', border: '1px solid var(--amber-200, #fde68a)',
+                      fontSize: 13, color: 'var(--gray-700)', lineHeight: 1.5,
+                    }}>
+                      ⚠️ <strong>Important:</strong> After adding, close this browser and always open CasaGrown from your Home Screen. It will ask you to allow notifications the first time!
                     </div>
                   </div>
                 ) : notifPermission === 'denied' ? (
@@ -308,9 +316,9 @@ export default function MarketClosedBox({ nextOpenDate, todaySchedule }: MarketC
                     <div style={{
                       marginTop: 12, padding: 12, background: 'var(--amber-50, #fffbeb)',
                       borderRadius: 'var(--radius, 8px)', border: '1px solid var(--amber-200, #fde68a)',
-                      fontSize: 13, color: 'var(--gray-700)', lineHeight: 1.6,
+                      fontSize: 13, color: 'var(--gray-700)', lineHeight: 1.5,
                     }}>
-                      <strong>💡 Tip for iPhone:</strong> Add this page to your Home Screen first (tap ⬆️ → &quot;Add to Home Screen&quot;), then open it from there to enable notifications.
+                      <strong>💡 iPhone/iPad?</strong> Tap ⬆️ → &quot;Add to Home Screen&quot; → then always open CasaGrown from your Home Screen. It will ask you to allow notifications there!
                     </div>
                   </div>
                 ) : (
