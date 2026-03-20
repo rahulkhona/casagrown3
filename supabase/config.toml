@@ -541,3 +541,8 @@ entrypoint = "./functions/send-market-email/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/market-cron/index.ts"
+
+[functions.send-market-reminders]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/send-market-reminders/index.ts"

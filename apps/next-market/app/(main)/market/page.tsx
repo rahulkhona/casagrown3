@@ -77,6 +77,10 @@ function BrowseMarketPageInner() {
   const [profileLoading, setProfileLoading] = useState(true)
   const [buyerStateCode, setBuyerStateCode] = useState<string | null>(null)
 
+  // Product reminders (when market is closed)
+  const [savedProductIds, setSavedProductIds] = useState<Set<string>>(new Set())
+  const [reminderToast, setReminderToast] = useState<string | null>(null)
+
   // Market hours status
   const { isOpen: marketIsOpen, todaySchedule, nextOpenDate, loading: marketLoading } = useMarketStatus()
 
@@ -226,6 +230,32 @@ function BrowseMarketPageInner() {
 
   const handleChangeAddress = () => {
     setAddressResolved(false); setBooths([])
+  }
+
+  // Load existing product reminders
+  useEffect(() => {
+    if (!user) return
+    supabase.from('product_reminders').select('product_id').eq('user_id', user.id)
+      .then(({ data }) => {
+        if (data) setSavedProductIds(new Set(data.map(r => r.product_id)))
+      })
+  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggleProductReminder = async (productId: string, e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!user) { router.push(`/login?redirect=/market`); return }
+    const isSaved = savedProductIds.has(productId)
+    if (isSaved) {
+      await supabase.from('product_reminders').delete().eq('user_id', user.id).eq('product_id', productId)
+      setSavedProductIds(prev => { const next = new Set(prev); next.delete(productId); return next })
+      setReminderToast('Reminder removed')
+    } else {
+      await supabase.from('product_reminders').upsert({ user_id: user.id, product_id: productId }, { onConflict: 'user_id,product_id', ignoreDuplicates: true })
+      setSavedProductIds(prev => new Set(prev).add(productId))
+      setReminderToast('🔔 Saved! We\'ll remind you when market opens')
+    }
+    setTimeout(() => setReminderToast(null), 3000)
   }
 
   const isSearching = !!search.trim()
@@ -408,18 +438,38 @@ function BrowseMarketPageInner() {
                   {products.length > 0 && (
                     <div className={styles.productList}>
                       {products.slice(0, isSearching ? 6 : 4).map((p: any) => (
-                        <Link key={p.id} href={`/market/booth/${booth.booth_id}/product/${p.id}`} className={styles.productCard}>
-                          <div className={styles.productThumb}>
-                            {p.photo ? <img src={p.photo} alt={p.name} /> : <span>{categoryIcons[p.category] || '📦'}</span>}
-                          </div>
-                          <div className={styles.productInfo}>
-                            <span className={styles.productName}>{p.name}</span>
-                            <div className={styles.productMeta}>
-                              <span className={styles.productPrice}>{formatUsd(p.price_usd)}<span className={styles.unit}>/{p.unit}</span></span>
-                              <span className={styles.qty}>{p.inventory > 0 ? `${p.inventory} avail` : 'Sold out'}</span>
+                        <div key={p.id} style={{ position: 'relative' }}>
+                          <Link href={`/market/booth/${booth.booth_id}/product/${p.id}`} className={styles.productCard}>
+                            <div className={styles.productThumb}>
+                              {p.photo ? <img src={p.photo} alt={p.name} /> : <span>{categoryIcons[p.category] || '📦'}</span>}
                             </div>
-                          </div>
-                        </Link>
+                            <div className={styles.productInfo}>
+                              <span className={styles.productName}>{p.name}</span>
+                              <div className={styles.productMeta}>
+                                <span className={styles.productPrice}>{formatUsd(p.price_usd)}<span className={styles.unit}>/{p.unit}</span></span>
+                                <span className={styles.qty}>{p.inventory > 0 ? `${p.inventory} avail` : 'Sold out'}</span>
+                              </div>
+                            </div>
+                          </Link>
+                          {!marketIsOpen && (
+                            <button
+                              onClick={(e) => toggleProductReminder(p.id, e)}
+                              title={savedProductIds.has(p.id) ? 'Remove reminder' : 'Remind me when market opens'}
+                              className={styles.remindBtn}
+                              style={{
+                                position: 'absolute', top: 4, right: 4,
+                                background: savedProductIds.has(p.id) ? 'var(--green-100, #dcfce7)' : 'rgba(255,255,255,0.9)',
+                                border: savedProductIds.has(p.id) ? '1px solid var(--green-300, #86efac)' : '1px solid var(--gray-200, #e5e7eb)',
+                                borderRadius: 20, padding: '2px 8px', fontSize: 11,
+                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3,
+                                color: savedProductIds.has(p.id) ? 'var(--green-700, #15803d)' : 'var(--gray-600)',
+                                zIndex: 2, transition: 'all 0.2s',
+                              }}
+                            >
+                              🔔 {savedProductIds.has(p.id) ? 'Saved' : 'Remind Me'}
+                            </button>
+                          )}
+                        </div>
                       ))}
                       {products.length > (isSearching ? 6 : 4) && (
                         <Link href={`/market/booth/${booth.booth_id}`} className={styles.moreCard}>+{products.length - (isSearching ? 6 : 4)}</Link>
@@ -430,6 +480,18 @@ function BrowseMarketPageInner() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Reminder toast */}
+      {reminderToast && (
+        <div style={{
+          position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
+          background: 'var(--gray-900, #111)', color: '#fff', padding: '10px 20px',
+          borderRadius: 24, fontSize: 14, zIndex: 1000, boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          animation: 'fadeInUp 0.3s ease',
+        }}>
+          {reminderToast}
         </div>
       )}
     </div>
