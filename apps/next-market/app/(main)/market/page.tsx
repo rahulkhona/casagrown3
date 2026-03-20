@@ -257,22 +257,8 @@ function BrowseMarketPageInner() {
     } else {
       await supabase.from('product_reminders').upsert({ user_id: user.id, product_id: productId }, { onConflict: 'user_id,product_id', ignoreDuplicates: true })
 
-      // Also ensure a market_reminders row exists so the cron job fires 15 min before open
-      if (nextOpenDate) {
-        const remindAt = new Date(nextOpenDate.getTime() - 15 * 60 * 1000)
-        await supabase.from('market_reminders').upsert(
-          {
-            user_id: user.id,
-            remind_at: remindAt.toISOString(),
-            market_date: nextOpenDate.toISOString(),
-            reminder_minutes: 15,
-          },
-          { onConflict: 'user_id,market_date', ignoreDuplicates: true }
-        )
-      }
-
       setSavedProductIds(prev => new Set(prev).add(productId))
-      setReminderToast('🔔 Saved! We\'ll remind you 15 min before market opens')
+      setReminderToast('🔔 Saved! We\'ll notify you when this booth opens')
     }
     setTimeout(() => setReminderToast(null), 3000)
   }
@@ -473,7 +459,7 @@ function BrowseMarketPageInner() {
                           {!marketIsOpen && (
                             <button
                               onClick={(e) => toggleProductReminder(p.id, e)}
-                              title={savedProductIds.has(p.id) ? 'Remove reminder' : 'Remind me when market opens'}
+                              title={savedProductIds.has(p.id) ? 'Remove reminder' : 'Remind me when booth opens'}
                               className={styles.remindBtn}
                               style={{
                                 position: 'absolute', top: 4, right: 4,

@@ -149,22 +149,8 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
         { onConflict: 'user_id,product_id', ignoreDuplicates: true }
       )
 
-      // Also ensure a market_reminders row exists so cron fires at the right time
-      if (nextOpenDate) {
-        const remindAt = new Date(nextOpenDate.getTime() - 15 * 60 * 1000)
-        await supabase.from('market_reminders').upsert(
-          {
-            user_id: user.id,
-            remind_at: remindAt.toISOString(),
-            market_date: nextOpenDate.toISOString(),
-            reminder_minutes: 15,
-          },
-          { onConflict: 'user_id,market_date', ignoreDuplicates: true }
-        )
-      }
-
       setSavedProductIds(prev => new Set(prev).add(productId))
-      setReminderToast('🔔 Saved! We\'ll remind you 15 min before market opens')
+      setReminderToast('🔔 Saved! We\'ll notify you when this booth opens')
     }
     setTimeout(() => setReminderToast(null), 3000)
   }
@@ -301,12 +287,12 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 20 }}>🕐</span>
             <strong style={{ color: '#92400e', fontSize: 15 }}>
-              {boothClosed ? 'This booth is currently closed' : 'Market is currently closed'}
+              This booth is currently closed
             </strong>
           </div>
-          {nextOpenStr && (
+          {!marketIsOpen && nextOpenStr && (
             <p style={{ margin: '8px 0 0', fontSize: 13, color: '#a16207' }}>
-              Next open: <strong>{nextOpenStr}</strong> — tap 🔔 on any product to get a reminder!
+              Next market open: <strong>{nextOpenStr}</strong> — tap 🔔 on any product to get notified!
             </p>
           )}
         </div>
@@ -338,7 +324,7 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
                   {isClosed && (
                     <button
                       onClick={(e) => toggleProductReminder(p.id, e)}
-                      title={savedProductIds.has(p.id) ? 'Remove reminder' : 'Remind me when market opens'}
+                      title={savedProductIds.has(p.id) ? 'Remove reminder' : 'Remind me when booth opens'}
                       style={{
                         position: 'absolute', top: 6, right: 6,
                         background: savedProductIds.has(p.id) ? 'var(--green-100, #dcfce7)' : 'rgba(255,255,255,0.9)',
@@ -397,7 +383,7 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
                       disabled={p.inventory === 0 || isClosed}
                     >
                       {isClosed
-                        ? (boothClosed ? '🔒 Closed' : '🔒 Market Closed')
+                        ? '🔒 Closed'
                         : p.inventory === 0 ? 'Sold Out' : 'Buy'}
                     </button>
                 </div>

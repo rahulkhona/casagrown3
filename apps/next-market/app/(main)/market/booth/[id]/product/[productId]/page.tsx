@@ -97,11 +97,9 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
   const boothClosed = booth && booth.is_open === false
   const isClosed = !marketIsOpen || boothClosed
 
-  const closedReason = boothClosed
+  const closedReason = isClosed
     ? 'This booth is currently closed'
-    : !marketIsOpen
-      ? 'Market is currently closed'
-      : null
+    : null
 
   // Toggle product reminder
   const toggleReminder = async () => {
@@ -128,23 +126,8 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
           { onConflict: 'user_id,product_id', ignoreDuplicates: true }
         )
 
-        // Also ensure a market_reminders row exists so cron fires at the right time
-        if (nextOpenDate) {
-          const remindAt = new Date(nextOpenDate.getTime() - 15 * 60 * 1000) // 15 min before
-          const marketDate = nextOpenDate.toISOString()
-          await supabase.from('market_reminders').upsert(
-            {
-              user_id: user.id,
-              remind_at: remindAt.toISOString(),
-              market_date: marketDate,
-              reminder_minutes: 15,
-            },
-            { onConflict: 'user_id,market_date', ignoreDuplicates: true }
-          )
-        }
-
         setReminderSet(true)
-        setReminderToast('🔔 Saved! We\'ll remind you 15 min before market opens')
+        setReminderToast('🔔 Saved! We\'ll notify you when this booth opens')
       }
     } catch (err) {
       console.error('Reminder toggle failed:', err)
@@ -251,13 +234,13 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                 <span style={{ fontSize: 20 }}>🕐</span>
                 <strong style={{ color: '#92400e', fontSize: 15 }}>{closedReason}</strong>
               </div>
-              {nextOpenStr && (
+              {!marketIsOpen && nextOpenStr && (
                 <p style={{ margin: '0 0 12px', fontSize: 13, color: '#a16207' }}>
-                  Next open: <strong>{nextOpenStr}</strong>
+                  Next market open: <strong>{nextOpenStr}</strong>
                 </p>
               )}
               <p style={{ margin: '0 0 12px', fontSize: 13, color: '#92400e' }}>
-                Set a reminder and we&apos;ll send you a push notification 15 minutes before the market opens!
+                Set a reminder and we&apos;ll notify you when this booth opens!
               </p>
               <button
                 onClick={toggleReminder}
@@ -276,7 +259,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                 }}
               >
                 {reminderLoading ? '⏳' : reminderSet ? '✅' : '🔔'}
-                {reminderLoading ? 'Saving...' : reminderSet ? 'Reminder Set — Tap to Remove' : 'Remind Me When Market Opens'}
+                {reminderLoading ? 'Saving...' : reminderSet ? 'Reminder Set — Tap to Remove' : 'Remind Me When Booth Opens'}
               </button>
             </div>
           )}
@@ -299,7 +282,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
             disabled={product.inventory === 0 || isClosed}
           >
             {isClosed
-              ? (boothClosed ? '🔒 Booth Closed' : '🔒 Market Closed')
+              ? '🔒 Closed'
               : product.inventory === 0
                 ? 'Sold Out'
                 : `Buy — ${formatUsd(product.price_usd)} / ${product.unit}`}
