@@ -17,7 +17,7 @@ ALTER TABLE market_products
 UPDATE market_products
   SET expires_at = created_at + interval '3 days'
   WHERE expires_at IS NULL
-    AND category IN ('fruits', 'vegetables', 'herbs', 'flowers', 'flower_arrangements');
+    AND category IN ('produce', 'fruits', 'vegetables', 'herbs', 'flowers', 'flower_arrangements', 'eggs');
 
 -- Non-perishable items: 30 days from creation
 UPDATE market_products
@@ -33,7 +33,7 @@ BEGIN
   -- Only compute if caller didn't explicitly set expires_at
   IF NEW.expires_at IS NULL THEN
     -- Perishable categories get shorter defaults
-    IF NEW.category IN ('fruits', 'vegetables', 'herbs', 'flowers', 'flower_arrangements') THEN
+    IF NEW.category IN ('produce', 'fruits', 'vegetables', 'herbs', 'flowers', 'flower_arrangements', 'eggs') THEN
       v_days := 3;
     ELSE
       v_days := 30;

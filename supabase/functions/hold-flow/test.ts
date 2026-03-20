@@ -164,7 +164,7 @@ async function createSellerPost(sellerId: string): Promise<string> {
 
     await supabaseRest("want_to_sell_details", "POST", {
         post_id: postId,
-        category: "fruits",
+        category: "produce",
         produce_name: "Test Oranges",
         unit: "box",
         total_quantity_available: 20,
@@ -233,7 +233,7 @@ async function createTestOrder(
             quantity: ORDER_QTY,
             pointsPerUnit: ORDER_PPU,
             totalPrice: ORDER_TOTAL,
-            category: "fruits",
+            category: "produce",
             product: "Test Oranges",
             deliveryDate: "2026-03-01",
             deliveryAddress: "123 Test St",

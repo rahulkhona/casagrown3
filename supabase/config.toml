@@ -546,3 +546,38 @@ entrypoint = "./functions/market-cron/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/send-market-reminders/index.ts"
+
+[functions.fetch-market-gift-cards]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/fetch-market-gift-cards/index.ts"
+
+[functions.notify-on-market-message]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/notify-on-market-message/index.ts"
+
+[functions.market-cashout-paypal]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/market-cashout-paypal/index.ts"
+
+[functions.market-donate-earnings]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/market-donate-earnings/index.ts"
+
+[functions.market-purchase-gift-card]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/market-purchase-gift-card/index.ts"
+
+[functions.notify-product-flagged]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/notify-product-flagged/index.ts"
+
+[functions.send-notification-email]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/send-notification-email/index.ts"

@@ -109,6 +109,18 @@ export interface SettlementData {
   recentSettlements: { date: string; status: string; orders: number; captured: number; payouts: number }[]
 }
 
+export interface PlatformUsageRow {
+  os: string
+  pwa_users: number
+  browser_users: number
+  pwa_sessions: number
+  browser_sessions: number
+}
+
+export interface PlatformUsageData {
+  platformUsage: PlatformUsageRow[]
+}
+
 export interface LogEntry {
   id: string
   timestamp: string
@@ -482,6 +494,30 @@ export async function fetchSettlementSummary(
       { date: '2026-03-14', status: 'completed', orders: 45, captured: 3560, payouts: 3134 },
       { date: '2026-03-13', status: 'completed', orders: 33, captured: 2650, payouts: 2332 },
       { date: '2026-03-12', status: 'pending', orders: 41, captured: 3180, payouts: 0 },
+    ],
+  }
+}
+
+export async function fetchPlatformUsage(
+  dateRange: DateRange
+): Promise<PlatformUsageData> {
+  try {
+    const { data, error } = await supabase.rpc('metrics_platform_usage', {
+      p_start: dateRange.start,
+      p_end: dateRange.end,
+    })
+    if (!error && data) return data as PlatformUsageData
+  } catch {}
+
+  // Demo fallback
+  markDemo()
+  return {
+    platformUsage: [
+      { os: 'iOS', pwa_users: 145, browser_users: 89, pwa_sessions: 1230, browser_sessions: 456 },
+      { os: 'Android', pwa_users: 112, browser_users: 67, pwa_sessions: 980, browser_sessions: 312 },
+      { os: 'macOS', pwa_users: 23, browser_users: 156, pwa_sessions: 210, browser_sessions: 1340 },
+      { os: 'Windows', pwa_users: 8, browser_users: 98, pwa_sessions: 65, browser_sessions: 780 },
+      { os: 'Other', pwa_users: 3, browser_users: 12, pwa_sessions: 18, browser_sessions: 54 },
     ],
   }
 }

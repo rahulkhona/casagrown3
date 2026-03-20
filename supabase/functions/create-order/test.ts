@@ -105,7 +105,7 @@ async function createSellerPost(sellerId: string): Promise<string> {
     // Insert sell details so the post displays price/quantity in the feed
     await supabaseRest("want_to_sell_details", "POST", {
         post_id: postId,
-        category: "vegetables",
+        category: "produce",
         produce_name: "Fresh Tomatoes",
         unit: "box",
         total_quantity_available: 10,
@@ -209,7 +209,7 @@ Deno.test("create-order — happy path: creates order atomically", async () => {
             quantity: 3,
             pointsPerUnit: 10,
             totalPrice: 30,
-            category: "vegetables",
+            category: "produce",
             product: "Tomatoes",
             deliveryDate: "2026-03-01",
             deliveryAddress: "123 Main St",
@@ -314,7 +314,7 @@ Deno.test("create-order — rejects order with insufficient points", async () =>
             quantity: 5,
             pointsPerUnit: 100,
             totalPrice: 500,
-            category: "vegetables",
+            category: "produce",
             product: "Tomatoes",
         },
         buyer.headers,

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useFilters } from '../layout'
-import { fetchPageAnalytics, type PageAnalyticsData, type PageAnalyticsRow } from '../../../lib/metrics-service'
+import { fetchPageAnalytics, fetchPlatformUsage, type PageAnalyticsData, type PageAnalyticsRow, type PlatformUsageData } from '../../../lib/metrics-service'
 import { HBarChart, BarChart, formatNumber } from '../../../lib/charts'
 
 type SortKey = keyof PageAnalyticsRow
@@ -11,6 +11,7 @@ type SortDir = 'asc' | 'desc'
 export default function ActivityPage() {
   const { dateRange, geoFilter } = useFilters()
   const [data, setData] = useState<PageAnalyticsData | null>(null)
+  const [platformData, setPlatformData] = useState<PlatformUsageData | null>(null)
   const [loading, setLoading] = useState(true)
   const [sortKey, setSortKey] = useState<SortKey>('pageLoads')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
@@ -18,8 +19,11 @@ export default function ActivityPage() {
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    fetchPageAnalytics(dateRange, geoFilter).then(d => {
-      if (!cancelled) { setData(d); setLoading(false) }
+    Promise.all([
+      fetchPageAnalytics(dateRange, geoFilter),
+      fetchPlatformUsage(dateRange),
+    ]).then(([pageData, platData]) => {
+      if (!cancelled) { setData(pageData); setPlatformData(platData); setLoading(false) }
     })
     return () => { cancelled = true }
   }, [dateRange, geoFilter])
@@ -130,6 +134,64 @@ export default function ActivityPage() {
           />
         </div>
       </div>
+
+      {/* Platform Usage: PWA vs Browser by OS */}
+      {platformData && platformData.platformUsage.length > 0 && (
+        <div className="card" style={{ marginBottom: 24 }}>
+          <div className="chart-title">📱 Platform Usage — PWA vs Browser by OS</div>
+          <div className="chart-subtitle">How users access CasaGrown: installed PWA vs browser, broken down by operating system</div>
+          <div className="chart-grid-2" style={{ gap: 24 }}>
+            <div>
+              <div className="table-container">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>OS</th>
+                      <th>PWA Users</th>
+                      <th>Browser Users</th>
+                      <th>PWA Sessions</th>
+                      <th>Browser Sessions</th>
+                      <th>PWA %</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {platformData.platformUsage.map((row, i) => {
+                      const totalUsers = row.pwa_users + row.browser_users
+                      const pwaPct = totalUsers > 0 ? Math.round((row.pwa_users / totalUsers) * 100) : 0
+                      return (
+                        <tr key={i}>
+                          <td style={{ fontWeight: 600 }}>{row.os}</td>
+                          <td>{formatNumber(row.pwa_users)}</td>
+                          <td>{formatNumber(row.browser_users)}</td>
+                          <td>{formatNumber(row.pwa_sessions)}</td>
+                          <td>{formatNumber(row.browser_sessions)}</td>
+                          <td>
+                            <span className={`badge ${pwaPct >= 50 ? 'badge-green' : 'badge-orange'}`}>
+                              {pwaPct}%
+                            </span>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div>
+              <HBarChart
+                data={platformData.platformUsage.map(row => ({
+                  label: row.os,
+                  value: row.pwa_users,
+                }))}
+                color="var(--accent-green)"
+              />
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', marginTop: 8 }}>
+                PWA users by OS
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Error Hotspots */}
       <div className="card" style={{ marginBottom: 24 }}>

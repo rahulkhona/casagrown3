@@ -466,3 +466,71 @@ describe('Auth Guard', () => {
     expect(container.textContent).toContain('Verifying access')
   })
 })
+
+// ============================================================================
+// PLATFORM USAGE — Demo + RPC
+// ============================================================================
+describe('Metrics Service — Platform Usage', () => {
+  it('fetchPlatformUsage returns demo data when RPC fails', async () => {
+    const { fetchPlatformUsage, getIsDemoMode, resetDemoMode } = await import('../../lib/metrics-service')
+    resetDemoMode()
+    const result = await fetchPlatformUsage({ start: '2026-03-01', end: '2026-03-16' })
+    expect(result.platformUsage).toBeDefined()
+    expect(result.platformUsage.length).toBeGreaterThan(0)
+    expect(result.platformUsage[0]).toHaveProperty('os')
+    expect(result.platformUsage[0]).toHaveProperty('pwa_users')
+    expect(result.platformUsage[0]).toHaveProperty('browser_users')
+    expect(result.platformUsage[0]).toHaveProperty('pwa_sessions')
+    expect(result.platformUsage[0]).toHaveProperty('browser_sessions')
+    expect(getIsDemoMode()).toBe(true)
+    // Verify we have expected OS entries
+    const osNames = result.platformUsage.map(r => r.os)
+    expect(osNames).toContain('iOS')
+    expect(osNames).toContain('Android')
+    expect(osNames).toContain('macOS')
+  })
+
+  it('fetchPlatformUsage uses RPC data when available', async () => {
+    const rpcResponse = {
+      platformUsage: [
+        { os: 'iOS', pwa_users: 50, browser_users: 20, pwa_sessions: 400, browser_sessions: 100 },
+        { os: 'Android', pwa_users: 30, browser_users: 15, pwa_sessions: 250, browser_sessions: 80 },
+      ],
+    }
+    mockSupabase.rpc.mockResolvedValueOnce({ data: rpcResponse, error: null })
+
+    const { fetchPlatformUsage, resetDemoMode } = await import('../../lib/metrics-service')
+    resetDemoMode()
+    const result = await fetchPlatformUsage({ start: '2026-03-01', end: '2026-03-16' })
+
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('metrics_platform_usage', {
+      p_start: '2026-03-01',
+      p_end: '2026-03-16',
+    })
+    expect(result.platformUsage).toEqual(rpcResponse.platformUsage)
+    expect(result.platformUsage[0]!.os).toBe('iOS')
+    expect(result.platformUsage[0]!.pwa_users).toBe(50)
+  })
+})
+
+// ============================================================================
+// ACTIVITY PAGE — renders Platform Usage card
+// ============================================================================
+describe('Activity Page', () => {
+  it('renders page analytics and platform usage sections', async () => {
+    mockPathname.mockReturnValue('/activity')
+    // Mock the useFilters hook from layout
+    vi.mock('../../app/(dashboard)/layout', () => ({
+      useFilters: () => ({
+        dateRange: { start: '2026-02-15', end: '2026-03-16' },
+        granularity: 'daily' as const,
+        geoFilter: {},
+      }),
+    }))
+
+    const mod = await import('../(dashboard)/activity/page')
+    const c = renderComponent(mod)
+    // Component should render (starts with loading state)
+    expect(c).toBeTruthy()
+  })
+})

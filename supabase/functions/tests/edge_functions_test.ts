@@ -30,7 +30,7 @@ function assertError(status: number, name: string) {
     // 200 can still be an error if data.success === false
     return
   }
-  if ([400, 401, 403, 500].includes(status)) return
+  if ([400, 401, 403, 500, 503].includes(status)) return
   throw new Error(`[${name}] Expected error status, got ${status}`)
 }
 

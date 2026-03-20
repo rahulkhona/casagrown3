@@ -18,6 +18,29 @@ function uuid() {
   return crypto.randomUUID()
 }
 
+/** Detect if running as installed PWA (standalone display mode) */
+export function isPWA(): boolean {
+  if (typeof window === 'undefined') return false
+  return (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    // iOS Safari doesn't support display-mode media query
+    (window.navigator as any).standalone === true
+  )
+}
+
+/** Parse OS from user agent string */
+export function detectOS(): string {
+  if (typeof navigator === 'undefined') return 'Unknown'
+  const ua = navigator.userAgent
+  if (/iPad|iPhone|iPod/.test(ua)) return 'iOS'
+  if (/Android/.test(ua)) return 'Android'
+  if (/Mac OS X/.test(ua)) return 'macOS'
+  if (/Windows/.test(ua)) return 'Windows'
+  if (/Linux/.test(ua)) return 'Linux'
+  if (/CrOS/.test(ua)) return 'ChromeOS'
+  return 'Other'
+}
+
 /** Get or create session ID (persists across page loads in same tab) */
 export function getSessionId(): string {
   if (_sessionId) return _sessionId
@@ -68,7 +91,7 @@ export async function trackEvent(
       event_type: eventType,
       event_name: eventName,
       page_path: window.location.pathname,
-      metadata: metadata || {},
+      metadata: { is_pwa: isPWA(), os: detectOS(), ...(metadata || {}) },
       user_agent: navigator.userAgent,
       // Columns used by metrics dashboard RPCs
       element_id: metadata?.elementId || null,

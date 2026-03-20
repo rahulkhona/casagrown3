@@ -11,28 +11,50 @@ import {
   assertEquals,
   assertExists,
 } from 'https://deno.land/std@0.224.0/assert/mod.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const SUPABASE_URL = 'http://127.0.0.1:54321'
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ??
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
+const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ??
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WO_o0BQy4UlCDU'
 
-// Service role client for setup/teardown
-const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
+const REST_HEADERS = {
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
+  'apikey': SERVICE_ROLE_KEY,
+  'Prefer': 'return=representation',
+}
 
-/** Ensure at least one user exists (needed after supabase start resets DB) */
-async function ensureTestUser(): Promise<string> {
-  const { data: users } = await adminClient.auth.admin.listUsers()
-  if (users?.users?.length) return users.users[0].id
-
-  // Create a test user
-  const { data: newUser, error } = await adminClient.auth.admin.createUser({
-    email: 'market-schema-test@test.local',
-    password: 'testpass123',
-    email_confirm: true,
+/** REST helper for table operations */
+async function supabaseRest(
+  table: string,
+  method: string,
+  body?: Record<string, unknown>,
+  queryParams?: string
+): Promise<Record<string, unknown>[]> {
+  const url = `${SUPABASE_URL}/rest/v1/${table}${queryParams ? `?${queryParams}` : ''}`
+  const res = await fetch(url, {
+    method,
+    headers: REST_HEADERS,
+    body: body ? JSON.stringify(body) : undefined,
   })
-  if (error) throw new Error(`Failed to create test user: ${error.message}`)
-  return newUser.user.id
+  const text = await res.text()
+  if (!text) return []
+  const data = JSON.parse(text)
+  return Array.isArray(data) ? data : [data]
+}
+
+/** Create a test user via HTTP signup (avoids admin JWT signing issues) */
+async function ensureTestUser(): Promise<string> {
+  const email = `market-schema-${Date.now()}-${Math.random().toString(36).slice(2)}@test.local`
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
+    body: JSON.stringify({ email, password: 'TestPassword123!' }),
+  })
+  const data = await res.json()
+  if (!data.user?.id) throw new Error(`Failed to create test user: ${JSON.stringify(data)}`)
+  return data.user.id
 }
 
 Deno.test({
@@ -42,26 +64,22 @@ Deno.test({
   async fn() {
     const userId = await ensureTestUser()
 
-    await adminClient.from('market_booths').delete().eq('owner_id', userId)
+    await supabaseRest('market_booths', 'DELETE', undefined, `owner_id=eq.${userId}`)
 
-    const { data: booth, error } = await adminClient
-      .from('market_booths')
-      .insert({
-        owner_id: userId,
-        name: 'Test Market Booth',
-        description: 'Integration test booth',
-        decorative_theme: 'rustic',
-        market_day_of_week: 6, // Saturday
-      })
-      .select()
-      .single()
+    const rows = await supabaseRest('market_booths', 'POST', {
+      owner_id: userId,
+      name: 'Test Market Booth',
+      description: 'Integration test booth',
+      decorative_theme: 'rustic',
+      market_day_of_week: 6,
+    })
+    const booth = rows[0]!
 
-    assertEquals(error, null, `Insert should succeed: ${error?.message}`)
     assertExists(booth)
     assertEquals(booth.name, 'Test Market Booth')
     assertEquals(booth.market_day_of_week, 6)
 
-    await adminClient.from('market_booths').delete().eq('id', booth.id)
+    await supabaseRest('market_booths', 'DELETE', undefined, `id=eq.${booth.id}`)
   },
 })
 
@@ -72,24 +90,28 @@ Deno.test({
   async fn() {
     const userId = await ensureTestUser()
 
-    await adminClient.from('market_booths').delete().eq('owner_id', userId)
+    await supabaseRest('market_booths', 'DELETE', undefined, `owner_id=eq.${userId}`)
 
-    const { data: booth1 } = await adminClient
-      .from('market_booths')
-      .insert({ owner_id: userId, name: 'Booth 1' })
-      .select()
-      .single()
+    const rows = await supabaseRest('market_booths', 'POST', { owner_id: userId, name: 'Booth 1' })
+    const booth1 = rows[0]!
     assertExists(booth1)
 
-    const { error } = await adminClient
-      .from('market_booths')
-      .insert({ owner_id: userId, name: 'Booth 2' })
-      .select()
-      .single()
+    // Second insert for same owner should fail (409 conflict)
+    let gotError = false
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/market_booths`, {
+        method: 'POST',
+        headers: { ...REST_HEADERS, 'Prefer': 'return=representation' },
+        body: JSON.stringify({ owner_id: userId, name: 'Booth 2' }),
+      })
+      if (res.status >= 400) gotError = true
+    } catch {
+      gotError = true
+    }
 
-    assertExists(error, 'Duplicate owner_id should fail')
+    assertEquals(gotError, true, 'Duplicate owner_id should fail')
 
-    await adminClient.from('market_booths').delete().eq('id', booth1!.id)
+    await supabaseRest('market_booths', 'DELETE', undefined, `id=eq.${booth1.id}`)
   },
 })
 
@@ -100,37 +122,29 @@ Deno.test({
   async fn() {
     const userId = await ensureTestUser()
 
-    await adminClient.from('market_booths').delete().eq('owner_id', userId)
+    await supabaseRest('market_booths', 'DELETE', undefined, `owner_id=eq.${userId}`)
 
-    const { data: booth } = await adminClient
-      .from('market_booths')
-      .insert({ owner_id: userId, name: 'Product Test Booth' })
-      .select()
-      .single()
+    const boothRows = await supabaseRest('market_booths', 'POST', { owner_id: userId, name: 'Product Test Booth' })
+    const booth = boothRows[0]!
     assertExists(booth)
 
-    // market_date is required
-    const { data: product, error } = await adminClient
-      .from('market_products')
-      .insert({
-        booth_id: booth!.id,
-        market_date: '2026-03-15', // Next Saturday
-        name: 'Fresh Tomatoes',
-        category: 'produce',
-        price_usd: 3.50,
-        unit: 'lb',
-        inventory: 20,
-      })
-      .select()
-      .single()
+    const productRows = await supabaseRest('market_products', 'POST', {
+      seller_id: userId,
+      market_date: '2026-03-15',
+      name: 'Fresh Tomatoes',
+      category: 'produce',
+      price_usd: 3.50,
+      unit: 'lb',
+      inventory: 20,
+    })
+    const product = productRows[0]!
 
-    assertEquals(error, null, `Product insert: ${error?.message}`)
     assertExists(product)
     assertEquals(product.name, 'Fresh Tomatoes')
     assertEquals(product.market_date, '2026-03-15')
 
     // Cascade deletes products
-    await adminClient.from('market_booths').delete().eq('id', booth!.id)
+    await supabaseRest('market_booths', 'DELETE', undefined, `id=eq.${booth.id}`)
   },
 })
 
@@ -141,28 +155,31 @@ Deno.test({
   async fn() {
     const userId = await ensureTestUser()
 
-    await adminClient.from('market_booths').delete().eq('owner_id', userId)
+    await supabaseRest('market_booths', 'DELETE', undefined, `owner_id=eq.${userId}`)
 
-    const { data: booth } = await adminClient
-      .from('market_booths')
-      .insert({ owner_id: userId, name: 'Date Test Booth' })
-      .select()
-      .single()
+    const boothRows = await supabaseRest('market_booths', 'POST', { owner_id: userId, name: 'Date Test Booth' })
+    const booth = boothRows[0]!
     assertExists(booth)
 
     // Omitting market_date should fail (NOT NULL)
-    const { error } = await adminClient
-      .from('market_products')
-      .insert({
-        booth_id: booth!.id,
-        name: 'No Date Product',
-        price_usd: 5.00,
+    let gotError = false
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/market_products`, {
+        method: 'POST',
+        headers: { ...REST_HEADERS, 'Prefer': 'return=representation' },
+        body: JSON.stringify({
+          seller_id: userId,
+          name: 'No Date Product',
+          price_usd: 5.00,
+        }),
       })
-      .select()
-      .single()
+      if (res.status >= 400) gotError = true
+    } catch {
+      gotError = true
+    }
 
-    assertExists(error, 'Missing market_date should fail')
+    assertEquals(gotError, true, 'Missing market_date should fail')
 
-    await adminClient.from('market_booths').delete().eq('id', booth!.id)
+    await supabaseRest('market_booths', 'DELETE', undefined, `id=eq.${booth.id}`)
   },
 })
