@@ -133,7 +133,7 @@ function PWAGuide({ browser, onDismiss, onPermanentDismiss }: {
   return (
     <>
       <div className={styles.iconCircle} style={{ background: '#dcfce7' }}>🔔</div>
-      <h2 className={styles.title}>Get Notifications on iPhone</h2>
+      <h2 className={styles.title}>Get Notifications on iOS</h2>
       <p className={styles.body} style={{ marginBottom: 12 }}>
         Know instantly when your order ships, a buyer messages you, or the market opens — just like a regular app.
       </p>

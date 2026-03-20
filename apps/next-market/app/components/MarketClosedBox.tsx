@@ -274,7 +274,7 @@ export default function MarketClosedBox({ nextOpenDate, todaySchedule }: MarketC
               <div style={{ marginTop: 16, textAlign: 'left' }}>
                 {notifPermission === 'unsupported' ? (
                   <div>
-                    <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-800)', margin: '0 0 8px' }}>📱 Get Notifications on iPhone/iPad</p>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-800)', margin: '0 0 8px' }}>📱 Get Notifications on iOS</p>
                     <p style={{ fontSize: 13, color: 'var(--gray-600)', margin: '0 0 12px', lineHeight: 1.5 }}>
                       Apple requires you to save CasaGrown to your Home Screen first. It takes 30 seconds!
                     </p>

@@ -56,10 +56,11 @@ test.describe('Global UI Elements', () => {
 
   test('bottom nav Orders tab navigates', async ({ page }) => {
     await page.goto('/market')
+    await page.waitForLoadState('networkidle')
     const ordersTab = page.locator('a[href="/orders"]:visible').last()
     if (await ordersTab.isVisible({ timeout: 3000 }).catch(() => false)) {
       await ordersTab.click()
-      await expect(page).toHaveURL(/\/orders/)
+      await expect(page).toHaveURL(/\/orders/, { timeout: 10000 })
     }
   })
 
