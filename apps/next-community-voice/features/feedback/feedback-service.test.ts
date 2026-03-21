@@ -456,20 +456,21 @@ describe("Feedback Service", () => {
     // =========================================================================
     describe("updateTicketStatus", () => {
         it("should update status successfully", async () => {
-            const chain = chainable({ data: null, error: null });
-            (supabase.from as any).mockReturnValue(chain);
+            (supabase.rpc as any).mockResolvedValue({ data: null, error: null });
 
             const result = await updateTicketStatus("ticket-1", "completed");
             expect(result).toBe(true);
-            expect(supabase.from).toHaveBeenCalledWith("user_feedback");
+            expect(supabase.rpc).toHaveBeenCalledWith("staff_update_feedback_status", {
+                p_feedback_id: "ticket-1",
+                p_new_status: "completed",
+            });
         });
 
         it("should return false on error", async () => {
-            const chain = chainable({
+            (supabase.rpc as any).mockResolvedValue({
                 data: null,
                 error: { message: "Update error" },
             });
-            (supabase.from as any).mockReturnValue(chain);
 
             const result = await updateTicketStatus("ticket-1", "completed");
             expect(result).toBe(false);

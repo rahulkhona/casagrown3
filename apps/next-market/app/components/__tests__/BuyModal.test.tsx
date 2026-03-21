@@ -166,12 +166,17 @@ describe('BuyModal', () => {
     expect(container.textContent).toContain('Secured by Stripe')
   })
 
-  it('shows $5.00 minimum order threshold in notice', () => {
-    const { container } = render(React.createElement(BuyModal, defaultProps))
-    // The hold notice / button area always shows — verify the total calculation renders
-    expect(container.textContent).toContain('Place Order')
-    // The MINIMUM_ORDER_USD constant is 5.00, verified through notice text
-    expect(container.textContent).toContain('$')
+  it('does not enforce a minimum order (sub-$5 products work)', () => {
+    const cheapProps = {
+      ...defaultProps,
+      product: { ...defaultProps.product, price_usd: 1.50, inventory: 10 },
+    }
+    const { container } = render(React.createElement(BuyModal, cheapProps))
+    // No minimum order warning should appear
+    expect(container.textContent).not.toContain('Minimum order')
+    // Place Order button should be present and NOT mention minimum
+    const orderBtn = Array.from(container.querySelectorAll('button')).find(b => b.textContent?.includes('Place Order'))
+    expect(orderBtn).toBeTruthy()
   })
 
   it('shows available quantity text', () => {

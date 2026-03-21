@@ -156,7 +156,7 @@ export function pseudonymize(userId: string): string {
 export async function revealUser(userId: string): Promise<{ email: string; displayName: string }> {
   try {
     const { data, error } = await supabase.rpc('metrics_reveal_user', { target_user_id: userId })
-    if (!error && data) return data as { email: string; displayName: string }
+    if (!error && data && !data?.error) return data as { email: string; displayName: string }
   } catch {}
 
   // Demo fallback
@@ -220,7 +220,7 @@ export async function fetchUserGrowth(
       p_city: geoFilter?.city || null,
       p_zip: geoFilter?.zip_code || null,
     })
-    if (!error && data) return data as UserGrowthData
+    if (!error && data && !data?.error) return data as UserGrowthData
   } catch {}
 
   // Fallback: demo data
@@ -260,7 +260,7 @@ export async function fetchSalesSummary(
       p_city: geoFilter?.city || null,
       p_zip: geoFilter?.zip_code || null,
     })
-    if (!error && data) return data as SalesSummaryData
+    if (!error && data && !data?.error) return data as SalesSummaryData
   } catch {}
 
   markDemo()
@@ -311,7 +311,7 @@ export async function fetchPayoutTrends(
       p_city: geoFilter?.city || null,
       p_zip: geoFilter?.zip_code || null,
     })
-    if (!error && data) return data as PayoutData
+    if (!error && data && !data?.error) return data as PayoutData
   } catch {}
 
   markDemo()
@@ -362,7 +362,7 @@ export async function fetchPageAnalytics(
       p_city: geoFilter?.city || null,
       p_zip: geoFilter?.zip_code || null,
     })
-    if (!error && data) return data as PageAnalyticsData
+    if (!error && data && !data?.error) return data as PageAnalyticsData
   } catch {}
 
   markDemo()
@@ -416,7 +416,7 @@ export async function fetchMarketplaceHealth(
       p_city: geoFilter?.city || null,
       p_zip: geoFilter?.zip_code || null,
     })
-    if (!error && data) return data as MarketplaceHealthData
+    if (!error && data && !data?.error) return data as MarketplaceHealthData
   } catch {}
 
   markDemo()
@@ -445,7 +445,7 @@ export async function fetchCommunityChatMetrics(
       p_city: geoFilter?.city || null,
       p_zip: geoFilter?.zip_code || null,
     })
-    if (!error && data) return data as CommunityChatData
+    if (!error && data && !data?.error) return data as CommunityChatData
   } catch {}
 
   markDemo()
@@ -466,7 +466,7 @@ export async function fetchSettlementSummary(
       p_start: dateRange.start,
       p_end: dateRange.end,
     })
-    if (!error && data) return data as SettlementData
+    if (!error && data && !data?.error) return data as SettlementData
   } catch {}
 
   markDemo()
@@ -506,7 +506,7 @@ export async function fetchPlatformUsage(
       p_start: dateRange.start,
       p_end: dateRange.end,
     })
-    if (!error && data) return data as PlatformUsageData
+    if (!error && data && !data?.error) return data as PlatformUsageData
   } catch {}
 
   // Demo fallback
@@ -538,7 +538,7 @@ export async function searchLogs(
       p_page: page,
       p_page_size: pageSize,
     })
-    if (!error && data) return data as LogSearchResult
+    if (!error && data && !data?.error) return data as LogSearchResult
   } catch {}
 
   // Demo data
