@@ -45,11 +45,19 @@ export default function MarketOperationsPage() {
     setSettingsLoading(false)
   }
 
+  const [scheduleError, setScheduleError] = useState('')
+
   const loadSchedule = async () => {
     setScheduleLoading(true)
-    const { data } = await adminApi.select('market_schedule_policies', '*', undefined, { order: { column: 'day_of_week', ascending: true } })
-    if (data) {
+    setScheduleError('')
+    const { data, error } = await adminApi.select('market_schedule_policies', '*', undefined, { order: { column: 'day_of_week', ascending: true } })
+    if (error) {
+      console.error('Failed to load schedule:', error)
+      setScheduleError(typeof error === 'string' ? error : 'Failed to load schedule')
+    } else if (data) {
       setSchedule(data as ScheduleRow[])
+    } else {
+      setScheduleError('No schedule data returned')
     }
     setScheduleLoading(false)
   }
@@ -229,6 +237,11 @@ export default function MarketOperationsPage() {
 
         {scheduleLoading ? (
           <Text>Loading schedule...</Text>
+        ) : scheduleError ? (
+          <YStack backgroundColor="#fef2f2" padding="$3" borderRadius="$2" borderWidth={1} borderColor="#fecaca">
+            <Text color="#991b1b" fontWeight="600">⚠️ {scheduleError}</Text>
+            <Button size="$3" marginTop="$2" onPress={loadSchedule}><Text>Retry</Text></Button>
+          </YStack>
         ) : (
           <YStack borderWidth={1} borderColor={colors.gray[200]} borderRadius="$4" backgroundColor="white" overflow="hidden">
             {/* Header */}
