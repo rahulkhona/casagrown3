@@ -454,16 +454,16 @@ export function Navbar() {
                 )}
 
                 {/* User info - only when logged in */}
-                {state.isAuthenticated && (
+                {hasSession && (
                   <div className={styles.menuUser}>
                     {profileAvatar ? (
                       <img src={profileAvatar} alt="" className={styles.menuAvatar} style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }} />
                     ) : (
-                      <div className={styles.menuAvatar}>{state.user?.name?.charAt(0) || '?'}</div>
+                      <div className={styles.menuAvatar}>{profileName?.charAt(0) || '?'}</div>
                     )}
                     <div>
-                      <strong className={styles.menuUserName}>{state.user?.name}</strong>
-                      <span className={styles.menuUserEmail}>{state.user?.email}</span>
+                      <strong className={styles.menuUserName}>{profileName || 'User'}</strong>
+                      <span className={styles.menuUserEmail}>{profileEmail}</span>
                     </div>
                   </div>
                 )}
