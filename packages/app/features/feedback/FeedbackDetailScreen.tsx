@@ -23,7 +23,10 @@ import {
   toggleVote,
   flagTicket,
   unflagTicket,
+  updateTicketStatus,
+  checkIsStaff,
   FeedbackDetail as FeedbackDetailType,
+  FeedbackStatus,
   MediaAttachment,
 } from './feedback-service'
 
@@ -39,9 +42,17 @@ export function FeedbackDetailScreen({ id }: { id: string }) {
   const [newComment, setNewComment] = useState('')
   const [commentImages, setCommentImages] = useState<SelectedImage[]>([])
   const [submitting, setSubmitting] = useState(false)
+  const [isStaff, setIsStaff] = useState(false)
+  const [changingStatus, setChangingStatus] = useState(false)
   const media = useMedia()
   const isDesktop = !media.sm
   const { user } = useAuth()
+
+  useEffect(() => {
+    if (user?.id) {
+      checkIsStaff(user.id).then(setIsStaff)
+    }
+  }, [user?.id])
 
   useEffect(() => {
     loadTicket()
@@ -202,6 +213,42 @@ export function FeedbackDetailScreen({ id }: { id: string }) {
               <Text fontSize="$1" color={colors.red[500]} fontWeight="600">{ticket.flag_count} flagged</Text>
             )}
           </XStack>
+
+          {/* Staff status controls */}
+          {isStaff && (
+            <YStack gap="$2" padding="$3" backgroundColor={colors.blue[50]} borderRadius="$3" borderWidth={1} borderColor={colors.blue[200]}>
+              <Text fontSize="$2" fontWeight="700" color={colors.blue[700]}>⚙️ STAFF: Change Status</Text>
+              <XStack gap="$2" flexWrap="wrap">
+                {(['open', 'planned', 'in_progress', 'completed', 'rejected', 'duplicate'] as FeedbackStatus[]).map(s => (
+                  <TouchableOpacity
+                    key={s}
+                    disabled={changingStatus || ticket.status === s}
+                    onPress={async () => {
+                      setChangingStatus(true)
+                      const ok = await updateTicketStatus(ticket.id, s)
+                      if (ok) setTicket({ ...ticket, status: s })
+                      setChangingStatus(false)
+                    }}
+                  >
+                    <Text
+                      fontSize="$2"
+                      fontWeight="600"
+                      paddingHorizontal="$2"
+                      paddingVertical="$1"
+                      borderRadius="$2"
+                      borderWidth={1}
+                      borderColor={ticket.status === s ? colors.green[500] : colors.gray[300]}
+                      backgroundColor={ticket.status === s ? colors.green[100] : 'white'}
+                      color={ticket.status === s ? colors.green[700] : colors.gray[600]}
+                      opacity={changingStatus ? 0.5 : 1}
+                    >
+                      {s.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </XStack>
+            </YStack>
+          )}
 
           <Text fontSize={isDesktop ? '$8' : '$6'} fontWeight="700" lineHeight={isDesktop ? '$8' : '$7'}>{ticket.title}</Text>
 
