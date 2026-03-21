@@ -10,7 +10,7 @@ test.describe('Login Page', () => {
     await expect(
       page.getByRole('button', { name: /send login code/i })
     ).toBeVisible()
-    await expect(page.getByText('CasaGrown Market')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'CasaGrown Market' })).toBeVisible()
   })
 
   test('shows OTP step after entering email', async ({ page }) => {

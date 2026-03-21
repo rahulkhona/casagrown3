@@ -7,6 +7,7 @@ import { useMarket, isMarketOpen } from '../../lib/store'
 import { useAuth } from '../../lib/useAuth'
 import { createClient } from '../../lib/supabase'
 import styles from './Navbar.module.css'
+import { resetTour } from './GuidedTour'
 
 interface Notification {
   id: string
@@ -207,9 +208,9 @@ export function Navbar() {
   // Primary nav tabs (always visible on desktop)
   // locked = requires profile completion
   const primaryNav = [
-    { href: '/market', label: open ? 'Market Open' : 'Market Closed', icon: '🧺', hasStatus: true, locked: false },
-    { href: '/orders', label: 'Orders', icon: '📦', locked: true },
-    { href: '/community', label: 'Buzz', icon: '🐝', locked: true },
+    { href: '/market', label: open ? 'Market Open' : 'Market Closed', icon: '🧺', hasStatus: true, locked: false, tour: 'nav-market' },
+    { href: '/orders', label: 'Orders', icon: '📦', locked: true, tour: 'nav-orders' },
+    { href: '/community', label: 'Buzz', icon: '🐝', locked: true, tour: 'nav-buzz' },
   ]
 
   // Extended menu items (hamburger only — items NOT in BottomNav/header)
@@ -261,6 +262,7 @@ export function Navbar() {
                 className={`${styles.navLink} ${styles.navLinkLocked}`}
                 onClick={() => router.push(lockRedirect)}
                 title="Complete your profile to unlock"
+                data-tour={item.tour}
               >
                 <span className={styles.navIcon}>{item.icon}</span>
                 <span className={styles.navLabel}>{item.label}</span>
@@ -271,6 +273,7 @@ export function Navbar() {
                 key={item.href}
                 href={item.href}
                 className={`${styles.navLink} ${pathname.startsWith(item.href) ? styles.navLinkActive : ''}`}
+                data-tour={item.tour}
               >
                 <span className={styles.navIcon}>{item.icon}</span>
                 {item.hasStatus && <span className={`${styles.statusDot} ${open ? styles.statusDotOpen : styles.statusDotClosed}`} />}
@@ -310,6 +313,7 @@ export function Navbar() {
               }}
               aria-label="Report Bug"
               title="Report a bug or send feedback"
+              data-tour="nav-feedback"
             >
               ❓
             </button>
@@ -433,7 +437,7 @@ export function Navbar() {
 
           {/* Always-Visible Hamburger Menu */}
           <div className={styles.hamburgerWrapper} ref={menuRef}>
-            <button className={styles.hamburger} onClick={() => setMenuOpen(!menuOpen)} aria-label="Menu">
+            <button className={styles.hamburger} onClick={() => setMenuOpen(!menuOpen)} aria-label="Menu" data-tour="nav-hamburger">
               {menuOpen ? '✕' : '☰'}
             </button>
 
@@ -525,6 +529,14 @@ export function Navbar() {
                     </>
                   ) : (
                     <>
+                      <Link href="/guide" className={`${styles.menuItem} ${pathname === '/guide' ? styles.menuItemActive : ''}`}>
+                        <span className={styles.menuItemIcon}>📖</span>
+                        <span>How It Works</span>
+                      </Link>
+                      <button className={styles.menuItem} onClick={() => { setMenuOpen(false); resetTour() }}>
+                        <span className={styles.menuItemIcon}>🔄</span>
+                        <span>Guided Tour</span>
+                      </button>
                       <Link href="/voice/board" className={`${styles.menuItem} ${pathname.startsWith('/voice') ? styles.menuItemActive : ''}`}>
                         <span className={styles.menuItemIcon}>📋</span>
                         <span>Contact Support</span>

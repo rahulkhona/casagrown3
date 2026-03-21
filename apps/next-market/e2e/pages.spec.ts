@@ -81,3 +81,35 @@ test.describe('Get Started / Landing', () => {
     expect(body).toBeTruthy()
   })
 })
+
+test.describe('Guide / How It Works', () => {
+  test('should display guide page with title', async ({ page }) => {
+    await page.goto('/guide')
+    await page.waitForTimeout(2000)
+    await expect(page.locator('body')).toBeVisible()
+    const body = await page.textContent('body')
+    expect(body?.toLowerCase()).toContain('how it works')
+  })
+
+  test('should show accordion sections', async ({ page }) => {
+    await page.goto('/guide')
+    await page.waitForTimeout(2000)
+    // Alpha section should be open by default
+    const body = await page.textContent('body')
+    expect(body).toContain('Alpha Testing')
+    expect(body).toContain('Market Schedule')
+    expect(body).toContain('Settlements')
+    expect(body).toContain('Safety')
+  })
+
+  test('should expand accordion sections on click', async ({ page }) => {
+    await page.goto('/guide')
+    await page.waitForTimeout(2000)
+    // Click on Market Schedule section
+    const scheduleBtn = page.locator('button', { hasText: 'Market Schedule' })
+    await scheduleBtn.click()
+    await page.waitForTimeout(500)
+    const body = await page.textContent('body')
+    expect(body).toContain('Why limited hours')
+  })
+})

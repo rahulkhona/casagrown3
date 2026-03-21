@@ -30,9 +30,9 @@ function useKeyboardVisible() {
 }
 
 const tabs = [
-  { href: '/market', label: 'Market', icon: '🧺', hasStatus: true, locked: false },
-  { href: '/orders', label: 'Orders', icon: '📦', locked: true },
-  { href: '/community', label: 'Buzz', icon: '🐝', locked: true },
+  { href: '/market', label: 'Market', icon: '🧺', hasStatus: true, locked: false, tour: 'nav-market' },
+  { href: '/orders', label: 'Orders', icon: '📦', locked: true, tour: 'nav-orders' },
+  { href: '/community', label: 'Buzz', icon: '🐝', locked: true, tour: 'nav-buzz' },
 ]
 
 export function BottomNav() {
@@ -57,6 +57,7 @@ export function BottomNav() {
             className={`${styles.tab} ${styles.tabLocked}`}
             onClick={() => router.push(lockRedirect)}
             title="Complete your profile to unlock"
+            data-tour={tab.tour}
           >
             <span className={styles.icon}>{tab.icon}</span>
             <span className={styles.label}>
@@ -68,6 +69,7 @@ export function BottomNav() {
             key={tab.href}
             href={tab.href}
             className={`${styles.tab} ${isActive(tab.href) ? styles.tabActive : ''}`}
+            data-tour={tab.tour}
           >
             <span className={styles.icon}>{tab.icon}</span>
             <span className={styles.label}>

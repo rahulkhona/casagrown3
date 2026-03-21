@@ -12,6 +12,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '../../lib/supabase'
 import { useAuth } from '../../lib/useAuth'
+import { resetTour } from './GuidedTour'
 
 interface MarketClosedBoxProps {
   nextOpenDate: Date | null
@@ -191,11 +192,16 @@ export default function MarketClosedBox({ nextOpenDate, todaySchedule }: MarketC
             </div>
           )}
 
-          <p style={{
-            fontSize: 14, color: 'var(--gray-400, #9ca3af)', marginBottom: 28,
+          <button onClick={() => resetTour()} style={{
+            fontSize: 14, color: 'var(--green-700, #15803d)', textDecoration: 'none', fontWeight: 600,
+            marginTop: 12, marginBottom: 28, display: 'block', background: 'none', border: 'none',
+            cursor: 'pointer', fontFamily: 'inherit', width: '100%', textAlign: 'center',
           }}>
-            While you wait, here&apos;s how you can get ready:
-          </p>
+            📖 Explore the app while you wait →
+          </button>
+
+
+
 
           {/* Action Cards — 3-col grid on desktop, compact horizontal rows on mobile */}
           <style>{`

@@ -12,6 +12,7 @@ import { ErrorToastProvider } from '../components/ErrorToast'
 import { AlphaBanner } from '../components/AlphaBanner'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { LoadingSpinner } from '../components/LoadingSpinner'
+import { GuidedTour } from '../components/GuidedTour'
 
 function BannedOverlay({ reason }: { reason: string | null }) {
   return (
@@ -50,7 +51,7 @@ function BannedOverlay({ reason }: { reason: string | null }) {
 const GATE_EXEMPT = ['/terms', '/profile-setup', '/login']
 
 /** Routes that allow browsing even without profile completion */
-const BROWSABLE_ROUTES = ['/', '/market', '/community', '/get-started', '/voice']
+const BROWSABLE_ROUTES = ['/', '/market', '/community', '/get-started', '/voice', '/guide']
 
 /**
  * Routes that require full onboarding (ToS + profile).
@@ -127,6 +128,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         <main className="page-wrapper">
           <ErrorBoundary>
             <OnboardingGate>
+              <GuidedTour />
               {children}
             </OnboardingGate>
           </ErrorBoundary>
