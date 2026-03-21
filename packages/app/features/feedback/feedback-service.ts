@@ -164,7 +164,7 @@ export async function fetchTickets(
     } else if (visibility === "public" && !search.trim()) {
         // Hide closed tickets from the unfiltered public board to reduce clutter.
         // They remain searchable and visible when a specific status filter is applied.
-        query = query.not("status", "in", '("completed","rejected","duplicate")');
+        query = query.not("status", "in", "(completed,rejected,duplicate)");
     }
 
     // Search (title or description)
