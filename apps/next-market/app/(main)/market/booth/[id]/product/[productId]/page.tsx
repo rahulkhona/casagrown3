@@ -27,6 +27,10 @@ export async function generateMetadata(
 
     if (product) {
       const photo = product.photos?.[0]
+      // Use Next.js image optimization to resize for OG (WhatsApp needs < ~300KB)
+      const ogImage = photo
+        ? `${siteUrl}/_next/image?url=${encodeURIComponent(photo)}&w=1200&q=75`
+        : undefined
       const price = product.price_usd === 0 ? 'Free' : `$${Number(product.price_usd).toFixed(2)}/${product.unit}`
       const title = `${product.name} — ${price} on CasaGrown`
       const description = product.description || `Fresh ${product.name} available on CasaGrown Market`
@@ -40,13 +44,13 @@ export async function generateMetadata(
           description,
           siteName: 'CasaGrown Market',
           type: 'website',
-          ...(photo ? { images: [{ url: photo, width: 600, height: 600, alt: product.name }] } : {}),
+          ...(ogImage ? { images: [{ url: ogImage, width: 1200, height: 630, alt: product.name }] } : {}),
         },
         twitter: {
           card: 'summary_large_image',
           title,
           description,
-          ...(photo ? { images: [photo] } : {}),
+          ...(ogImage ? { images: [ogImage] } : {}),
         },
       }
     }
