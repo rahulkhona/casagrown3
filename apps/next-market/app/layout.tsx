@@ -18,7 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
       description: 'Over 11.5 billion lbs of backyard produce goes to waste every year. Join CasaGrown to buy and sell fresh, homegrown produce with your neighbors.',
       siteName: 'CasaGrown Market',
       type: 'website',
-      images: [{ url: '/og-share.jpg', width: 1200, height: 975, alt: 'CasaGrown — Incredible Freshness, Stop Food Waste, Beat Inflation, Teen Opportunity' }],
+      images: [{ url: '/og-share.jpg', width: 1200, height: 630, alt: 'CasaGrown — Incredible Freshness, Stop Food Waste, Beat Inflation, Teen Opportunity' }],
     },
     twitter: {
       card: 'summary_large_image',
