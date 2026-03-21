@@ -23,8 +23,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   }
 })
 
-// Design System aligned email header/footer
-const LOGO_URL = 'https://market.casagrown.com/logo.png'
+const SITE_URL = Deno.env.get('SITE_URL') ?? 'http://localhost:3002'
+const LOGO_URL = `${SITE_URL}/logo.png`
 
 const EMAIL_HEADER = `
   <div style="text-align:center;padding:20px 0;border-bottom:2px solid #16a34a">
@@ -150,7 +150,7 @@ async function handleMarketReminder(
                 <p style="font-size:13px;margin:4px 0 0">${boothNames}${extra} will be selling fresh items.</p>
               </div>
               ${productRows ? `<div style="background:#f9fafb;border-radius:12px;padding:12px;margin:16px 0">${productRows}${moreCount > 0 ? `<p style="font-size:12px;color:#6b7280;margin:8px 0 0">+ ${moreCount} more items</p>` : ''}</div>` : ''}
-              <a href="https://market.casagrown.com/market" style="display:inline-block;background:#16a34a;color:white;padding:10px 24px;border-radius:12px;text-decoration:none;font-weight:600;font-size:14px">Browse Market</a>
+              <a href="${SITE_URL}/market" style="display:inline-block;background:#16a34a;color:white;padding:10px 24px;border-radius:12px;text-decoration:none;font-weight:600;font-size:14px">Browse Market</a>
             </div>
             ${EMAIL_FOOTER}
           </div>`,
@@ -307,7 +307,7 @@ async function handleDailyDigest(
                   </tr></table>
                 </div>` : ''}
               <div style="margin-top:20px">
-                <a href="https://market.casagrown.com/earnings" style="display:inline-block;background:#16a34a;color:white;padding:10px 24px;border-radius:12px;text-decoration:none;font-weight:600;font-size:14px">View Full Details</a>
+                <a href="${SITE_URL}/earnings" style="display:inline-block;background:#16a34a;color:white;padding:10px 24px;border-radius:12px;text-decoration:none;font-weight:600;font-size:14px">View Full Details</a>
               </div>
             </div>
             ${EMAIL_FOOTER}
