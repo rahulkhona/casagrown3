@@ -403,6 +403,21 @@ export default function MyBoothPage() {
       const geo = await geocodeAddress(pickupAddress.trim())
       if (geo) {
         dbRow.pickup_location = toPostgisPoint(geo.lat, geo.lng)
+      } else {
+        // Geocoding failed — try home_location as approximate fallback
+        console.warn('Geocoding failed for pickup address, trying home_location fallback')
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('home_location')
+          .eq('id', user.id)
+          .single()
+        if (profile?.home_location?.coordinates) {
+          const [lng, lat] = profile.home_location.coordinates
+          dbRow.pickup_location = toPostgisPoint(lat, lng)
+          alert('⚠️ We couldn\'t verify your booth address. Your booth will appear near your home address for now. Please double-check the pickup address and save again.')
+        } else {
+          alert('⚠️ We couldn\'t locate your booth address. Your booth won\'t appear in search until you enter a valid address and save again.')
+        }
       }
     }
 
