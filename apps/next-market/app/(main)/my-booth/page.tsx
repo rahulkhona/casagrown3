@@ -1076,7 +1076,11 @@ export default function MyBoothPage() {
                 className="btn btn-secondary"
                 onClick={async () => {
                   if (navigator.share) {
-                    try { await navigator.share({ title: `${name} on CasaGrown`, text: boothShareMsg, url: getBoothShareUrl() }) } catch {}
+                    const nextDay = nextMarket ? nextMarket.date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) : ''
+                    const cta = nextDay
+                      ? `Be sure to visit my booth this ${nextDay}! 🌿`
+                      : 'Be sure to visit my booth on CasaGrown! 🌿'
+                    try { await navigator.share({ title: `${name} on CasaGrown`, text: cta, url: getBoothShareUrl() }) } catch {}
                   } else {
                     try { await navigator.clipboard.writeText(boothShareMsg); setBoothShareCopied(true); setTimeout(() => setBoothShareCopied(false), 2000) } catch {}
                   }

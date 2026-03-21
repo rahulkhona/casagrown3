@@ -511,7 +511,10 @@ function NewProductPageInner() {
       try {
         trackClick('share_product_native', { productName: addedProductName })
         const boothUrl = boothIdForShare ? `${window.location.origin}/market/booth/${boothIdForShare}` : `${window.location.origin}/market`
-        await navigator.share({ title: `Fresh ${addedProductName} at ${boothLabel}`, text: getShareMessage(), url: boothUrl })
+        const cta = nextMarket
+          ? `Be sure to visit my booth this ${nextMarket.label}! 🌿`
+          : 'Be sure to visit my booth on CasaGrown! 🌿'
+        await navigator.share({ title: `Fresh ${addedProductName} at ${boothLabel}`, text: cta, url: boothUrl })
       } catch { /* cancelled */ }
     } else {
       handleShareCopy()

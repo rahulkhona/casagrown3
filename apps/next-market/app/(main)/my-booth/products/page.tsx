@@ -55,10 +55,14 @@ export default function ProductsListPage() {
 
   const handleInviteShare = () => {
     const productUrl = inviteProduct ? `${window.location.origin}/market/booth/${myBooth.id}/product/${inviteProduct.id}` : `${window.location.origin}/market`
+    const marketDate = inviteProduct?.marketDate || ''
+    const cta = marketDate
+      ? `Be sure to visit my booth on ${marketDate}! 🌿`
+      : 'Be sure to visit my booth on CasaGrown! 🌿'
     if (navigator.share) {
       navigator.share({
         title: `${inviteProduct?.name} at ${myBooth.name}`,
-        text: getInviteMessage(),
+        text: cta,
         url: productUrl,
       }).catch(() => {})
     } else {
