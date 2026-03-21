@@ -16,7 +16,7 @@ export default function InviteBanner({ h3Index }: InviteBannerProps) {
       try {
         await navigator.share({
           title: 'Join CasaGrown',
-          text: 'Join me and CasaGrown in stopping this food waste! 🌱',
+          text: 'Come hang out with us on Buzz to discuss gardening related topics! 🐝',
           url: inviteUrl,
         })
         return
