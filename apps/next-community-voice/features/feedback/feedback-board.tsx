@@ -16,6 +16,7 @@ import {
   flagTicket,
   unflagTicket,
   deleteFeedback,
+  checkIsStaff,
   FeedbackTicket,
   FeedbackStatus,
 } from './feedback-service'
@@ -27,6 +28,14 @@ export function FeedbackBoard({ isStaff = false, hideHeader = false }: { isStaff
   const media = useMedia()
   const isDesktop = !media.sm
   const { user } = useAuth()
+  const [isUserStaff, setIsUserStaff] = useState(false)
+
+  // Check if current user is staff (for showing dashboard link)
+  useEffect(() => {
+    if (user?.id) {
+      checkIsStaff(user.id).then(setIsUserStaff)
+    }
+  }, [user?.id])
 
   // User profile for header display
   const [userName, setUserName] = useState<string | null>(null)
@@ -241,6 +250,17 @@ export function FeedbackBoard({ isStaff = false, hideHeader = false }: { isStaff
               onPress={() => setShowLogoutMenu(!showLogoutMenu)}
               hoverStyle={{ opacity: 0.8 } as any}
             >
+              {isUserStaff && (
+                <Button
+                  size="$3"
+                  backgroundColor={colors.green[600]}
+                  borderRadius="$4"
+                  onPress={(e: any) => { e.stopPropagation(); router.push('/staff/dashboard') }}
+                  pressStyle={{ backgroundColor: colors.green[700] }}
+                >
+                  <Text color="white" fontWeight="600" fontSize="$2">⚙️ Staff Dashboard</Text>
+                </Button>
+              )}
               <XStack
                 width={36}
                 height={36}
