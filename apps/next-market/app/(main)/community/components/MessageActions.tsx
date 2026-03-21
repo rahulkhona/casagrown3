@@ -34,7 +34,7 @@ export default function MessageActions({ isOwnMessage, messageText, onDelete, on
     const shareData = {
       title: 'CasaGrown Buzz — Neighborhood Chat',
       text: shareText,
-      url: `${window.location.origin}/login?redirect=${encodeURIComponent('/community')}`,
+      url: `${window.location.origin}/community`,
     }
     if (navigator.share) {
       try {

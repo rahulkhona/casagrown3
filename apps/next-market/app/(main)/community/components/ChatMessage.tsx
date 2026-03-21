@@ -94,14 +94,14 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
         await navigator.share({
           title: 'CasaGrown Buzz — Neighborhood Chat',
           text: shareText,
-          url: `${window.location.origin}/login?redirect=${encodeURIComponent('/community')}`,
+          url: `${window.location.origin}/community`,
         })
         return
       } catch (err) {
         if ((err as Error).name === 'AbortError') return
       }
     }
-    try { await navigator.clipboard.writeText(`${shareText}\n${window.location.origin}/login?redirect=${encodeURIComponent('/community')}`) } catch {}
+    try { await navigator.clipboard.writeText(`${shareText}\n${window.location.origin}/community`) } catch {}
   }
 
 
