@@ -1,29 +1,32 @@
 import type { Metadata } from 'next'
+import { headers } from 'next/headers'
 import './globals.css'
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
-  || (process.env.VERCEL_PROJECT_PRODUCTION_URL && `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`)
-  || (process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`)
-  || 'http://localhost:3002'
+export async function generateMetadata(): Promise<Metadata> {
+  const headersList = await headers()
+  const host = headersList.get('host') || 'localhost:3002'
+  const protocol = host.includes('localhost') ? 'http' : 'https'
+  const siteUrl = `${protocol}://${host}`
 
-export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
-  title: 'CasaGrown Market — Fresh from Neighbors\' Backyard',
-  description: 'Buy and sell fresh, locally-grown produce from your neighbors. Market opens Saturdays & Sundays 8–11 AM.',
-  icons: '/favicon.ico',
-  openGraph: {
-    title: 'CasaGrown Market — Fresh from Your Neighbor\'s Backyard',
-    description: 'Over 11.5 billion lbs of backyard produce goes to waste every year. Join CasaGrown to buy and sell fresh, homegrown produce with your neighbors.',
-    siteName: 'CasaGrown Market',
-    type: 'website',
-    images: [{ url: '/og-share.png', width: 1207, height: 981, alt: 'CasaGrown — Incredible Freshness, Stop Food Waste, Beat Inflation, Teen Opportunity' }],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'CasaGrown Market — Fresh from Your Neighbor\'s Backyard',
-    description: 'Over 11.5 billion lbs of backyard produce goes to waste every year. Join the movement!',
-    images: ['/og-share.png'],
-  },
+  return {
+    metadataBase: new URL(siteUrl),
+    title: 'CasaGrown Market — Fresh from Neighbors\' Backyard',
+    description: 'Buy and sell fresh, locally-grown produce from your neighbors. Market opens Saturdays & Sundays 8–11 AM.',
+    icons: '/favicon.ico',
+    openGraph: {
+      title: 'CasaGrown Market — Fresh from Your Neighbor\'s Backyard',
+      description: 'Over 11.5 billion lbs of backyard produce goes to waste every year. Join CasaGrown to buy and sell fresh, homegrown produce with your neighbors.',
+      siteName: 'CasaGrown Market',
+      type: 'website',
+      images: [{ url: '/og-share.png', width: 1207, height: 981, alt: 'CasaGrown — Incredible Freshness, Stop Food Waste, Beat Inflation, Teen Opportunity' }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: 'CasaGrown Market — Fresh from Your Neighbor\'s Backyard',
+      description: 'Over 11.5 billion lbs of backyard produce goes to waste every year. Join the movement!',
+      images: ['/og-share.png'],
+    },
+  }
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
