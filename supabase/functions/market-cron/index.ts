@@ -11,34 +11,34 @@
 
 import { serveWithCors, jsonOk } from '../_shared/serve-with-cors.ts'
 
-serveWithCors(async (req, { supabase, env, corsHeaders }) => {
+serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
   const { action } = await req.json().catch(() => ({ action: 'market_reminder' }))
 
   if (action === 'market_reminder') {
-    return await handleMarketReminder(supabase, env, corsHeaders)
+    return await handleMarketReminder(supabase, env, corsHeaders, siteUrl)
   } else if (action === 'daily_digest') {
-    return await handleDailyDigest(supabase, env, corsHeaders)
+    return await handleDailyDigest(supabase, env, corsHeaders, siteUrl)
   } else {
     return jsonOk({ error: 'Unknown action: ' + action }, corsHeaders)
   }
 })
 
-const SITE_URL = Deno.env.get('SITE_URL') ?? 'http://localhost:3002'
-const LOGO_URL = `${SITE_URL}/logo.png`
+const FONT = "'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif"
 
-const EMAIL_HEADER = `
+function getEmailHeader(siteUrl: string) {
+  const logoUrl = `${siteUrl}/logo.png`
+  return `
   <div style="text-align:center;padding:20px 0;border-bottom:2px solid #16a34a">
-    <img src="${LOGO_URL}" alt="CasaGrown" style="height:40px;width:40px;vertical-align:middle;margin-right:8px">
+    <img src="${logoUrl}" alt="CasaGrown" style="height:40px;width:40px;vertical-align:middle;margin-right:8px">
     <span style="color:#166534;font-size:22px;font-weight:700;font-family:'Inter',system-ui,sans-serif;vertical-align:middle">CasaGrown</span>
     <p style="color:#4b5563;font-size:11px;letter-spacing:2px;margin:4px 0 0;font-weight:500">FRESH • LOCAL • TRUSTED</p>
   </div>`
+}
 
 const EMAIL_FOOTER = `
   <div style="border-top:1px solid #e5e7eb;padding-top:16px;color:#9ca3af;font-size:11px;text-align:center">
     CasaGrown — Fresh. Local. Trusted.
   </div>`
-
-const FONT = "'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif"
 
 // ═══════════════════════════════════════════════
 // (g) Market Open Reminder — based on market_reminders table
@@ -47,6 +47,7 @@ async function handleMarketReminder(
   supabase: any,
   env: (k: string) => string | undefined,
   corsHeaders: Record<string, string>,
+  siteUrl: string,
 ) {
   const now = new Date().toISOString()
 
@@ -141,7 +142,7 @@ async function handleMarketReminder(
         subject: `🛒 CasaGrown Market ${whenLabel} — ${dateStr}`,
         html: `
           <div style="font-family:${FONT};max-width:480px;margin:0 auto;padding:24px;color:#1f2937">
-            ${EMAIL_HEADER}
+            ${getEmailHeader(siteUrl)}
             <div style="padding:24px 0">
               <p style="font-size:14px">Hi ${name},</p>
               <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px;margin:16px 0">
@@ -150,7 +151,7 @@ async function handleMarketReminder(
                 <p style="font-size:13px;margin:4px 0 0">${boothNames}${extra} will be selling fresh items.</p>
               </div>
               ${productRows ? `<div style="background:#f9fafb;border-radius:12px;padding:12px;margin:16px 0">${productRows}${moreCount > 0 ? `<p style="font-size:12px;color:#6b7280;margin:8px 0 0">+ ${moreCount} more items</p>` : ''}</div>` : ''}
-              <a href="${SITE_URL}/market" style="display:inline-block;background:#16a34a;color:white;padding:10px 24px;border-radius:12px;text-decoration:none;font-weight:600;font-size:14px">Browse Market</a>
+              <a href="${siteUrl}/market" style="display:inline-block;background:#16a34a;color:white;padding:10px 24px;border-radius:12px;text-decoration:none;font-weight:600;font-size:14px">Browse Market</a>
             </div>
             ${EMAIL_FOOTER}
           </div>`,
@@ -179,6 +180,7 @@ async function handleDailyDigest(
   supabase: any,
   env: (k: string) => string | undefined,
   corsHeaders: Record<string, string>,
+  siteUrl: string,
 ) {
   const today = new Date().toISOString().slice(0, 10)
 
@@ -294,7 +296,7 @@ async function handleDailyDigest(
         subject: `CasaGrown — Daily Settlement Summary (${subjectAmount})`,
         html: `
           <div style="font-family:${FONT};max-width:580px;margin:0 auto;padding:24px;color:#1f2937">
-            ${EMAIL_HEADER}
+            ${getEmailHeader(siteUrl)}
             <div style="padding:24px 0">
               <p style="font-size:14px">Hi ${name},</p>
               ${salesHtml}
@@ -307,7 +309,7 @@ async function handleDailyDigest(
                   </tr></table>
                 </div>` : ''}
               <div style="margin-top:20px">
-                <a href="${SITE_URL}/earnings" style="display:inline-block;background:#16a34a;color:white;padding:10px 24px;border-radius:12px;text-decoration:none;font-weight:600;font-size:14px">View Full Details</a>
+                <a href="${siteUrl}/earnings" style="display:inline-block;background:#16a34a;color:white;padding:10px 24px;border-radius:12px;text-decoration:none;font-weight:600;font-size:14px">View Full Details</a>
               </div>
             </div>
             ${EMAIL_FOOTER}

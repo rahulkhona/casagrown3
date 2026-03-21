@@ -37,6 +37,8 @@ export interface HandlerContext {
     env: (key: string, required?: boolean) => string | undefined;
     /** CORS headers (includes any extra headers from options) */
     corsHeaders: Record<string, string>;
+    /** Site URL resolved from request Origin header or SITE_URL env var */
+    siteUrl: string;
 }
 
 export interface ServeOptions {
@@ -88,7 +90,14 @@ export function serveWithCors(
                 return val;
             };
 
-            return await handler(req, { supabase, env, corsHeaders });
+            // Resolve site URL: prefer Origin header (for staging/prod auto-detect),
+            // fall back to SITE_URL env var (for cron jobs)
+            const siteUrl = req.headers.get('origin')
+                || Deno.env.get('SITE_URL')
+                || ''
+            if (!siteUrl) console.warn('⚠️ No Origin header or SITE_URL env var — email links will be broken');
+
+            return await handler(req, { supabase, env, corsHeaders, siteUrl });
         } catch (error: unknown) {
             const message = error instanceof Error
                 ? error.message
