@@ -29,10 +29,12 @@ export default function MessageActions({ isOwnMessage, messageText, onDelete, on
 
   const handleShare = async () => {
     onClose()
+    const truncated = messageText.length > 200 ? messageText.slice(0, 200) + '…' : messageText
+    const shareText = `💬 From CasaGrown Buzz:\n\n"${truncated}"\n\nJoin the neighborhood chat 👇`
     const shareData = {
-      title: 'CasaGrown Community',
-      text: messageText.length > 100 ? messageText.slice(0, 100) + '…' : messageText,
-      url: window.location.href,
+      title: 'CasaGrown Buzz — Neighborhood Chat',
+      text: shareText,
+      url: `${window.location.origin}/login?redirect=${encodeURIComponent('/community')}`,
     }
     if (navigator.share) {
       try {
@@ -43,7 +45,7 @@ export default function MessageActions({ isOwnMessage, messageText, onDelete, on
       }
     }
     try {
-      await navigator.clipboard.writeText(`${shareData.text}\n${shareData.url}`)
+      await navigator.clipboard.writeText(shareText)
     } catch {}
   }
 
