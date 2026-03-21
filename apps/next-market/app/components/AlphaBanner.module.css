@@ -2,8 +2,8 @@
 .badge {
   position: fixed;
   top: 60px; /* below navbar on mobile */
-  right: 8px;
-  z-index: 999; /* below navbar z-index */
+  left: 8px; /* moved to LEFT side to avoid overlapping right-side content */
+  z-index: 100; /* low enough to not block content */
   pointer-events: none;
 }
 

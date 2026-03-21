@@ -5,7 +5,7 @@ import { LoadingSpinner } from '../../components/LoadingSpinner'
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useMarket, formatUsd, getNextMarketDate, type Booth } from '../../../lib/store'
+import { useMarket, formatUsd, getNextMarketDate, isMarketOpen, type Booth } from '../../../lib/store'
 import { useAuth } from '../../../lib/useAuth'
 import { createClient } from '../../../lib/supabase'
 import { useMarketRestriction } from '../../../lib/useMarketRestriction'
@@ -70,6 +70,7 @@ export default function MyBoothPage() {
   const router = useRouter()
   const { showPrompt, modalProps } = useNotificationPrompt(user?.id)
   const nextMarket = getNextMarketDate(state.marketSchedule)
+  const marketOpen = isMarketOpen(state.marketSchedule, state.marketNeverCloses)
   const bannerRef = useRef<HTMLInputElement>(null)
   const myBooth = state.booths.find(b => b.ownerId === state.user?.id)
   const [dbProducts, setDbProducts] = useState<typeof state.products>([])
@@ -183,7 +184,8 @@ export default function MyBoothPage() {
     const loadData = async () => {
       const authUserId = user.id
 
-      // Phase 1: Fetch profile + booth+helpers (joined) in parallel
+      // Phase 1: Fetch profile + booth in parallel
+      // Try with booth_helpers join first; fall back to plain query if it fails
       const [profileRes, boothRes] = await Promise.all([
         supabase.from('profiles').select('street_address, city, state_code').eq('id', authUserId).single(),
         supabase.from('market_booths')
@@ -192,13 +194,25 @@ export default function MyBoothPage() {
           .single(),
       ])
 
+      // Fallback: if joined query failed, try without the join
+      let boothData = boothRes.data
+      if (!boothData && boothRes.error) {
+        console.warn('Booth query with helpers failed, trying without join:', boothRes.error.message)
+        const { data: plainBooth } = await supabase
+          .from('market_booths')
+          .select('*')
+          .eq('owner_id', authUserId)
+          .single()
+        boothData = plainBooth
+      }
+
       // Set pickup address from profile
       if (!pickupAddress && profileRes.data?.street_address) {
         const addr = [profileRes.data.street_address, profileRes.data.city].filter(Boolean).join(', ')
         setPickupAddress(addr)
       }
 
-      const booth = boothRes.data
+      const booth = boothData
       if (!booth) { setBoothLoaded(true); setProductsLoading(false); return }
 
       // Populate state from DB
@@ -502,19 +516,39 @@ export default function MyBoothPage() {
 
       {/* ── Market Day Badge ── */}
       <div style={{
-        background: 'var(--green-50)', border: '1px solid var(--green-200)',
+        background: marketOpen ? 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)' : 'var(--green-50)',
+        border: marketOpen ? '2px solid var(--green-400)' : '1px solid var(--green-200)',
         borderRadius: 'var(--radius)', padding: '10px 16px', margin: '0 0 12px',
         display: 'flex', alignItems: 'center', gap: 8, fontSize: 14,
+        flexWrap: 'wrap',
       }}>
-        <span style={{ fontSize: 18 }}>📅</span>
-        {nextMarket ? (
-          <span>
+        <span style={{ fontSize: 18 }}>{marketOpen ? '🟢' : '📅'}</span>
+        {marketOpen ? (
+          <span style={{ flex: 1 }}>
+            <strong>Market is Open!</strong>
+            <span style={{ color: 'var(--green-700)', marginLeft: 6 }}>— your booth is live for shoppers</span>
+          </span>
+        ) : nextMarket ? (
+          <span style={{ flex: 1 }}>
             <strong>Preparing for {nextMarket.date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</strong>
             <span style={{ color: 'var(--gray-500)', marginLeft: 6 }}>— next market day</span>
           </span>
         ) : (
-          <span style={{ color: 'var(--gray-500)' }}>No upcoming market scheduled</span>
+          <span style={{ color: 'var(--gray-500)', flex: 1 }}>No upcoming market scheduled</span>
         )}
+        {/* Invite button — always visible, prominent when market is open */}
+        <button
+          onClick={() => { setBoothShareMsg(getBoothShareText()); setShowBoothShareModal(true) }}
+          style={{
+            padding: '6px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
+            background: marketOpen ? 'var(--green-600, #16a34a)' : 'var(--green-100)',
+            color: marketOpen ? '#fff' : 'var(--green-700)',
+            fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
+            transition: 'all 0.15s',
+          }}
+        >
+          📤 Invite Neighbors
+        </button>
       </div>
 
       {/* ── Booth Open/Close Toggle ── */}
