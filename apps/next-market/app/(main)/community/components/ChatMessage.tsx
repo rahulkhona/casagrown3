@@ -87,16 +87,21 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
 
   const handleShare = async () => {
     setShowActions(false)
-    const text = message.content.length > 100 ? message.content.slice(0, 100) + '…' : message.content
+    const truncated = message.content.length > 200 ? message.content.slice(0, 200) + '…' : message.content
+    const shareText = `💬 From CasaGrown Buzz:\n\n"${truncated}"\n\nJoin the neighborhood chat 👇`
     if (navigator.share) {
       try {
-        await navigator.share({ title: 'CasaGrown Community', text, url: window.location.href })
+        await navigator.share({
+          title: 'CasaGrown Buzz — Neighborhood Chat',
+          text: shareText,
+          url: `${window.location.origin}/login?redirect=${encodeURIComponent('/community')}`,
+        })
         return
       } catch (err) {
         if ((err as Error).name === 'AbortError') return
       }
     }
-    try { await navigator.clipboard.writeText(`${text}\n${window.location.href}`) } catch {}
+    try { await navigator.clipboard.writeText(`${shareText}\n${window.location.origin}/login?redirect=${encodeURIComponent('/community')}`) } catch {}
   }
 
 
