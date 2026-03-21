@@ -33,7 +33,9 @@ export async function generateMetadata(
         : undefined
       const price = product.price_usd === 0 ? 'Free' : `$${Number(product.price_usd).toFixed(2)}/${product.unit}`
       const title = `${product.name} — ${price} on CasaGrown`
-      const description = product.description || `Fresh ${product.name} available on CasaGrown Market`
+      const description = product.description
+        ? `${product.description} — Check it out on CasaGrown and help stop food waste!`
+        : `Fresh ${product.name} available on CasaGrown Market. Join me in stopping food waste — help feed millions!`
 
       return {
         metadataBase: new URL(siteUrl),
