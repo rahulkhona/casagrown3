@@ -15,7 +15,7 @@ export async function generateMetadata(): Promise<Metadata> {
     icons: '/favicon.ico',
     openGraph: {
       title: 'CasaGrown Market — Fresh from Your Neighbor\'s Backyard',
-      description: '11.5 billion lbs of backyard produce is wasted every year. Join CasaGrown to stop the waste — buy and sell fresh, homegrown produce with your neighbors.',
+      description: '11.5 billion lbs of backyard produce is wasted every year. Join me and CasaGrown in stopping this waste to help feed millions.',
       siteName: 'CasaGrown Market',
       type: 'website',
       images: [{ url: '/og-share.jpg', width: 1200, height: 630, alt: 'CasaGrown — Incredible Freshness, Stop Food Waste, Beat Inflation, Teen Opportunity' }],
