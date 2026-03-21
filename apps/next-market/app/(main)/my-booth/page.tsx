@@ -309,7 +309,7 @@ export default function MyBoothPage() {
       setProductsLoading(false)
     }
     loadData()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id, authLoading]) // re-run when auth resolves
 
   // Custom time slots
   const [customDeliverySlots, setCustomDeliverySlots] = useState<Array<{ start: string; end: string }>>([])
