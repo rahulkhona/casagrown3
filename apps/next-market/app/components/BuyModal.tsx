@@ -54,7 +54,6 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
   const productExpired = product.market_date ? isProductExpired(product.market_date, productsNeverExpire) : false
   const canOrder = marketIsOpen && !productExpired
 
-  const MINIMUM_ORDER_USD = 5.00
   const subtotal = currentPrice * qty
   const computedTax = +(subtotal * (taxInfo?.rate || 0) / 100).toFixed(2)
   const total = +(subtotal + computedTax).toFixed(2)
@@ -62,9 +61,6 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
   const totalCents = Math.round(total * 100)
   const priceChanged = currentPrice !== product.price_usd
   const isFreeProduct = currentPrice === 0
-  const belowMinimum = !isFreeProduct && subtotal < MINIMUM_ORDER_USD
-  const minQtyForOrder = Math.ceil(MINIMUM_ORDER_USD / (currentPrice || 1))
-  const canReachMinimum = isFreeProduct || currentPrice * available >= MINIMUM_ORDER_USD
 
   // Balance vs card split calculation
   const balanceApplied = Math.min(availableBalance, total)
@@ -250,11 +246,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
           setLoading(false)
           return
         }
-        if (orderResult.code === 'minimum_order') {
-          setError(`Minimum order is $5.00. Add ${orderResult.suggested_quantity - qty} more ${product.unit}(s) to proceed.`)
-          setLoading(false)
-          return
-        }
+
         setError(orderResult.error); setLoading(false); return
       }
 
@@ -344,15 +336,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
             </div>
           )}
 
-          {/* Minimum order warning */}
-          {belowMinimum && (
-            <div className={styles.minimumWarning}>
-              {canReachMinimum
-                ? `⚠️ Minimum order is $${MINIMUM_ORDER_USD.toFixed(2)}. Add at least ${minQtyForOrder} ${product.unit}(s) ($${(currentPrice * minQtyForOrder).toFixed(2)}).`
-                : `⚠️ This product can't reach the $${MINIMUM_ORDER_USD.toFixed(2)} minimum — only ${available} available at ${formatUsd(currentPrice)}/${product.unit}.`
-              }
-            </div>
-          )}
+
 
           {/* Quantity */}
           <div className={styles.section}>
@@ -536,7 +520,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
 
         {/* Footer */}
         <div className={styles.footer}>
-          <button className={styles.orderBtn} disabled={loading || available === 0 || belowMinimum || !canOrder || (!isFreeProduct && needsCard && !stripeReady)} onClick={handleOrder}>
+          <button className={styles.orderBtn} disabled={loading || available === 0 || !canOrder || (!isFreeProduct && needsCard && !stripeReady)} onClick={handleOrder}>
             {loading ? 'Processing...' : !marketIsOpen ? '🔒 Market Closed' : productExpired ? '⏰ Product Expired' : available === 0 ? 'Sold Out' : isFreeProduct ? `🌱 Claim (Free) — ${qty} ${product.unit}${qty > 1 ? 's' : ''}` : `Place Order — ${formatUsd(total)}`}
           </button>
           {!isFreeProduct && (
