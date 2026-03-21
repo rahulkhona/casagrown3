@@ -22,11 +22,32 @@ interface AdminResponse<T = any> {
   count?: number
 }
 
+function getAccessToken(): string | null {
+  if (typeof window === 'undefined' || !window.localStorage) return null
+  // Supabase stores session in localStorage under sb-<ref>-auth-token
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i)
+    if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+      try {
+        const val = JSON.parse(localStorage.getItem(key) || '{}')
+        return val.access_token || null
+      } catch { return null }
+    }
+  }
+  return null
+}
+
 async function adminFetch<T = any>(body: Record<string, any>): Promise<AdminResponse<T>> {
   try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    const token = getAccessToken()
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+
     const res = await fetch('/api/admin', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(body),
     })
 

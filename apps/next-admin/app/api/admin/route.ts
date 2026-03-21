@@ -1,14 +1,13 @@
 /**
  * Server-side admin API route.
  * All admin write operations (insert/update/delete) go through this endpoint.
- * The service_role key is ONLY accessible here — never exposed to the browser.
+ * The secret key is ONLY accessible here — never exposed to the browser.
  *
- * Auth: Validates the caller's JWT, checks admin role via staff_members table.
+ * Auth: Validates the caller's JWT (passed via Authorization header),
+ * checks admin role via staff_members table.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 
 // Service-role client — server-side only
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -21,21 +20,6 @@ function getServiceClient() {
   return createClient(supabaseUrl, supabaseServiceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   })
-}
-
-async function getAuthClient() {
-  const cookieStore = await cookies()
-  return createServerClient(
-    supabaseUrl,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-      },
-    }
-  )
 }
 
 // Allowed tables for admin operations (whitelist to prevent arbitrary table access)
@@ -112,16 +96,26 @@ interface AdminRequestBody {
 
 export async function POST(request: NextRequest) {
   try {
-    // 1. Authenticate: get user session from cookies
-    const supabaseAuth = await getAuthClient()
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser()
+    // 1. Authenticate: read access token from Authorization header
+    //    (the shared auth-hook stores sessions in localStorage, not cookies,
+    //     so we pass the token via header from adminApi)
+    const authHeader = request.headers.get('Authorization')
+    const accessToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
+
+    if (!accessToken) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const serviceClient = getServiceClient()
+
+    // Verify the token and get the user
+    const { data: { user }, error: authError } = await serviceClient.auth.getUser(accessToken)
 
     if (authError || !user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // 2. Verify admin role
-    const serviceClient = getServiceClient()
     const { data: staffRow } = await serviceClient
       .from('staff_members')
       .select('id, roles')
