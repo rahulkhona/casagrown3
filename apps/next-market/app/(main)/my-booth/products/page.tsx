@@ -54,10 +54,12 @@ export default function ProductsListPage() {
   }
 
   const handleInviteShare = () => {
+    const productUrl = inviteProduct ? `${window.location.origin}/market/booth/${myBooth.id}/product/${inviteProduct.id}` : `${window.location.origin}/market`
     if (navigator.share) {
       navigator.share({
         title: `${inviteProduct?.name} at ${myBooth.name}`,
         text: getInviteMessage(),
+        url: productUrl,
       }).catch(() => {})
     } else {
       handleInviteCopy()

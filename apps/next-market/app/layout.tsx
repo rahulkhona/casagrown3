@@ -1,8 +1,13 @@
 import type { Metadata } from 'next'
 import './globals.css'
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
+  || (process.env.VERCEL_PROJECT_PRODUCTION_URL && `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`)
+  || (process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`)
+  || 'http://localhost:3002'
+
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://casagrown.com'),
+  metadataBase: new URL(siteUrl),
   title: 'CasaGrown Market — Fresh from Neighbors\' Backyard',
   description: 'Buy and sell fresh, locally-grown produce from your neighbors. Market opens Saturdays & Sundays 8–11 AM.',
   icons: '/favicon.ico',

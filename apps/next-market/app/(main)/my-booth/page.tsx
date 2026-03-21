@@ -964,7 +964,7 @@ export default function MyBoothPage() {
                 `Passcode: ${helperPasscode}`,
               ].join('\n')
               if (navigator.share) {
-                try { await navigator.share({ title: `Help with ${name} on CasaGrown`, text }) } catch { /* user cancelled */ }
+                try { await navigator.share({ title: `Help with ${name} on CasaGrown`, text, url: joinUrl }) } catch { /* user cancelled */ }
               } else {
                 navigator.clipboard?.writeText(text)
                 dispatch({ type: 'ADD_TOAST', payload: { message: 'Copied! 📋', type: 'success' } })
@@ -1076,7 +1076,7 @@ export default function MyBoothPage() {
                 className="btn btn-secondary"
                 onClick={async () => {
                   if (navigator.share) {
-                    try { await navigator.share({ title: `${name} on CasaGrown`, text: boothShareMsg }) } catch {}
+                    try { await navigator.share({ title: `${name} on CasaGrown`, text: boothShareMsg, url: getBoothShareUrl() }) } catch {}
                   } else {
                     try { await navigator.clipboard.writeText(boothShareMsg); setBoothShareCopied(true); setTimeout(() => setBoothShareCopied(false), 2000) } catch {}
                   }
