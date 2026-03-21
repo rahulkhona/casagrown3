@@ -374,6 +374,14 @@ export default function MyBoothPage() {
     }
     if (offersPickup && !pickupAddress.trim()) {
       issues.push('Enter a pickup address')
+    } else if (offersPickup && pickupAddress.trim()) {
+      // Validate address completeness — require state abbreviation or zip code
+      const addr = pickupAddress.trim()
+      const hasState = /\b[A-Z]{2}\b/.test(addr) // e.g. "CA", "TX"
+      const hasZip = /\b\d{5}\b/.test(addr) // e.g. "95120"
+      if (!hasState && !hasZip) {
+        issues.push('Please include your city, state, and zip code in the pickup address (e.g. "123 Main St, San Jose, CA 95120")')
+      }
     }
     if (issues.length > 0) {
       alert('⚠️ Please fix before saving:\n\n• ' + issues.join('\n• '))
