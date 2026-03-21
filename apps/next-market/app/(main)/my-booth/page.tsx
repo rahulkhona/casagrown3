@@ -399,24 +399,32 @@ export default function MyBoothPage() {
     }
 
     // Geocode pickup address for spatial search
+    // If address matches profile, reuse home_location (already geocoded) to avoid Nominatim rate limits
     if (pickupAddress.trim()) {
-      const geo = await geocodeAddress(pickupAddress.trim())
-      if (geo) {
-        dbRow.pickup_location = toPostgisPoint(geo.lat, geo.lng)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('street_address, city, home_location')
+        .eq('id', user.id)
+        .single()
+      const profileAddr = profile ? [profile.street_address, profile.city].filter(Boolean).join(', ') : ''
+      
+      if (profile?.home_location?.coordinates && pickupAddress.trim().toLowerCase() === profileAddr.toLowerCase()) {
+        // Pickup address matches profile — reuse existing coordinates
+        const [lng, lat] = profile.home_location.coordinates
+        dbRow.pickup_location = toPostgisPoint(lat, lng)
       } else {
-        // Geocoding failed — try home_location as approximate fallback
-        console.warn('Geocoding failed for pickup address, trying home_location fallback')
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('home_location')
-          .eq('id', user.id)
-          .single()
-        if (profile?.home_location?.coordinates) {
-          const [lng, lat] = profile.home_location.coordinates
-          dbRow.pickup_location = toPostgisPoint(lat, lng)
-          alert('⚠️ We couldn\'t verify your booth address. Your booth will appear near your home address for now. Please double-check the pickup address and save again.')
+        // Custom address — geocode via Nominatim with retry
+        let geo = await geocodeAddress(pickupAddress.trim())
+        if (!geo) {
+          console.warn('Geocoding failed, retrying after 2s...')
+          await new Promise(r => setTimeout(r, 2000))
+          geo = await geocodeAddress(pickupAddress.trim())
+        }
+        if (geo) {
+          dbRow.pickup_location = toPostgisPoint(geo.lat, geo.lng)
         } else {
-          alert('⚠️ We couldn\'t locate your booth address. Your booth won\'t appear in search until you enter a valid address and save again.')
+          alert('⚠️ We couldn\'t verify your booth address. Please check the pickup address and try saving again.')
+          return
         }
       }
     }
