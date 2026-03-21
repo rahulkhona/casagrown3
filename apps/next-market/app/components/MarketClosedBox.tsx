@@ -242,7 +242,7 @@ export default function MarketClosedBox({ nextOpenDate, todaySchedule }: MarketC
               const url = `${window.location.origin}/`
               const text = 'Did you know 11.5 billion lbs of backyard produce is wasted every year? Millions can be fed if we save that. Join me and CasaGrown in stopping this waste.'
               if (navigator.share) {
-                try { await navigator.share({ title: 'Join CasaGrown Market', text, url }) } catch { /* user cancelled */ }
+                try { await navigator.share({ title: 'Join CasaGrown Market', text: `${text}\n\n`, url }) } catch { /* user cancelled */ }
               } else {
                 navigator.clipboard?.writeText(`${text}\n${url}`)
                 alert('Invite link copied to clipboard!')
