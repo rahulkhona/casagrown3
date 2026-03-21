@@ -43,6 +43,21 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     if (auth instanceof Response) return auth;
     const buyerId = auth;
 
+    // ══════════════════════════════════════════════════════════
+    // Check if buyer has outstanding debts (blocked from purchases)
+    // ══════════════════════════════════════════════════════════
+    const { data: debtCheck } = await supabase.rpc("is_buyer_blocked", {
+        p_buyer_id: buyerId,
+    });
+    if (debtCheck?.blocked) {
+        return jsonError(
+            `You have $${debtCheck.total_debt_usd.toFixed(2)} in outstanding charges. ` +
+                `Please update your payment method or add funds to your balance to continue shopping.`,
+            corsHeaders,
+            403,
+        );
+    }
+
     // Verify order belongs to buyer
     const { data: order, error: orderErr } = await supabase
         .from("market_orders")

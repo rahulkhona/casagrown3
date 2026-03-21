@@ -5,7 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { YStack, XStack, Text, Button, Sheet, ScrollView, Separator } from 'tamagui'
 import { useMedia } from 'tamagui'
-import { Menu, LogOut, Users, ShoppingBag, Settings, Award, CreditCard, Receipt, ChevronRight, Store, FileSpreadsheet } from '@tamagui/lucide-icons'
+import { Menu, LogOut, Users, ShoppingBag, Settings, Award, CreditCard, Receipt, ChevronRight, Store, FileSpreadsheet, DollarSign, BarChart } from '@tamagui/lucide-icons'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@casagrown/app/features/auth/auth-hook'
 import { colors } from '@casagrown/app/design-tokens'
@@ -50,6 +50,15 @@ const MENU_GROUPS: MenuGroup[] = [
     ]
   },
   {
+    title: 'FINANCIAL',
+    icon: DollarSign,
+    items: [
+      { label: 'Cash Flow', path: '/cash-flow' },
+      { label: 'Settlements & Stripe', path: '/settlements' },
+      { label: 'Redemption Methods', path: '/methods' },
+    ]
+  },
+  {
     title: 'PLATFORM SETTINGS',
     icon: Settings,
     items: [
@@ -62,13 +71,6 @@ const MENU_GROUPS: MenuGroup[] = [
     icon: Award,
     items: [
       { label: 'Campaigns', path: '/campaigns' },
-    ]
-  },
-  {
-    title: 'REDEMPTIONS & CASHOUTS',
-    icon: CreditCard,
-    items: [
-      { label: 'Methods', path: '/methods' },
     ]
   },
   {

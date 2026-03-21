@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { YStack, XStack, Text, Button, ScrollView, Separator, Checkbox, Spinner } from 'tamagui'
-import { RefreshCw, Check } from '@tamagui/lucide-icons'
+import { RefreshCw, Check, Play } from '@tamagui/lucide-icons'
 import { adminApi } from '../../../lib/adminApi'
 import { colors } from '@casagrown/app/design-tokens'
 
@@ -35,6 +35,8 @@ type MethodData = {
 export default function MethodsPage() {
   const [methodsData, setMethodsData] = useState<MethodData[]>([])
   const [loading, setLoading] = useState(true)
+  const [processingQueue, setProcessingQueue] = useState(false)
+  const [processResult, setProcessResult] = useState<string | null>(null)
 
   const fetchMethods = async () => {
     setLoading(true)
@@ -117,6 +119,28 @@ export default function MethodsPage() {
       console.error(`Failed to update ${field}:`, error)
       fetchMethods()
     }
+
+    // When queue is toggled OFF, trigger process-redemptions to drain the backlog
+    if (field === 'is_queuing' && currentStatus === true) {
+      triggerProcessRedemptions()
+    }
+  }
+
+  const triggerProcessRedemptions = async () => {
+    setProcessingQueue(true)
+    setProcessResult(null)
+    try {
+      const { data, error } = await adminApi.invokeFunction('process-redemptions', { source: 'admin_manual' })
+      if (error) throw error
+      const processed = data?.processed ?? 0
+      const failed = data?.failed ?? 0
+      setProcessResult(`Processed ${processed} redemptions${failed > 0 ? `, ${failed} failed` : ''}`)
+    } catch (err: any) {
+      console.error('Failed to trigger process-redemptions:', err)
+      setProcessResult(`Error: ${err.message || 'Failed to process'}`)
+    } finally {
+      setProcessingQueue(false)
+    }
   }
 
   const hasMultipleProviders = (method: MethodData) => method.instruments.length > 1
@@ -130,6 +154,15 @@ export default function MethodsPage() {
         </YStack>
         <Button icon={RefreshCw} backgroundColor={colors.green[600]} onPress={fetchMethods} disabled={loading}>
           <Text color="white">Refresh</Text>
+        </Button>
+        <Button 
+          icon={processingQueue ? undefined : Play} 
+          backgroundColor="#ea580c" 
+          onPress={triggerProcessRedemptions} 
+          disabled={processingQueue}
+          data-testid="process-queue-btn"
+        >
+          {processingQueue ? <Spinner size="small" color="white" /> : <Text color="white">Process Queue Now</Text>}
         </Button>
       </XStack>
 
@@ -276,11 +309,16 @@ export default function MethodsPage() {
       <YStack backgroundColor="#fffedd" padding="$4" borderRadius="$4" borderWidth={1} borderColor="#fdb528">
         <Text fontWeight="bold" color="#ea580c">About Queue Redemptions</Text>
         <Text fontSize={13} color="#9a3412" marginTop="$2">
-          For gift card providers, you can individually control each provider and enable queuing if its API is down. New user redemptions will still be accepted (points debited), but placed in a delayed queue. A cron job retries queued items and auto-clears the queue once the provider recovers.
+          For gift card providers, you can individually control each provider and enable queuing if its API is down. New user redemptions will still be accepted (balance debited), but placed in a delayed queue. A cron job runs every 15 minutes to retry queued items and auto-clears the queue once the provider recovers.
         </Text>
         <Text fontSize={13} color="#9a3412" marginTop="$1">
-          For single-provider methods (Cash Out, Charity), simply toggle the method on/off.
+          When you toggle queuing OFF, it immediately triggers the queue processor. You can also use the "Process Queue Now" button to manually drain the queue at any time.
         </Text>
+        {processResult && (
+          <Text fontSize={13} fontWeight="600" color={processResult.startsWith('Error') ? '#dc2626' : colors.green[700]} marginTop="$2">
+            {processResult}
+          </Text>
+        )}
       </YStack>
     </YStack>
   )

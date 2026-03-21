@@ -1,15 +1,15 @@
 /**
- * redeem-gift-card — Edge Function for purchasing gift cards
+ * market-purchase-gift-card — Edge Function for purchasing gift cards with market earnings
  *
  * Flow:
- * 1. Validate user balance
+ * 1. Validate user's available market balance
  * 2. Look up brand in cached catalog to find available providers
  * 3. Pick cheapest provider (Tremendous first — free, Reloadly as fallback)
- * 4. If Reloadly: compute net fee = fee − discount. Add to point cost if > 0
- * 5. Debit points (create pending redemption)
+ * 4. If Reloadly: compute net fee = fee − discount. Add to cost if > 0
+ * 5. Atomically debit market balance via debit_market_balance RPC
  * 6. Place order with selected provider
  * 7. On success: store card code/URL, update redemption status
- * 8. On failure: refund points
+ * 8. On failure: queue for retry
  */
 
 import {
@@ -200,27 +200,33 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
   const isQueuing = queueRow?.is_queuing ?? false;
 
-  // ── 3. Check user balance (Closed-Loop: Earned only) ──
-  const { data: balances, error: balanceError } = await supabase
-    .rpc("get_user_balances", { p_user_id: userId })
+  // ── 3. Check user balance (user_balances.available_usd) ──
+  const usdAmount = pointsCost / 100; // pointsCost is in cents from frontend
+  const { data: balanceRow, error: balanceError } = await supabase
+    .from("user_balances")
+    .select("available_usd")
+    .eq("user_id", userId)
     .maybeSingle();
 
-  if (balanceError || !balances) {
-    return jsonError("Failed to fetch user balances", corsHeaders);
+  if (balanceError) {
+    return jsonError("Failed to fetch balance", corsHeaders);
   }
 
-  const earnedBalance = (balances as any).earned_balance ?? 0;
-  if (earnedBalance < pointsCost) {
-    return jsonError("Insufficient earned points balance", corsHeaders);
+  const availableUsd = Number(balanceRow?.available_usd ?? 0);
+  if (availableUsd < usdAmount) {
+    return jsonError(
+      `Insufficient balance. You have $${availableUsd.toFixed(2)} available.`,
+      corsHeaders,
+    );
   }
 
-  // ── 4. Create pending redemption ──
+  // ── 4. Create pending redemption for audit trail ──
   const { data: redemption, error: redemptionError } = await supabase
     .from("redemptions")
     .insert({
       user_id: userId,
       item_id: null,
-      point_cost: totalPointsCost,
+      point_cost: totalPointsCost, // cents for backward compat
       status: "pending",
       metadata: {
         brand_name: brandName,
@@ -229,8 +235,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         product_id: selectedProvider.productId,
         net_fee_cents: netFeeCents,
         discount_pct: selectedProvider.discountPercentage,
-        refund_usd_cents: faceValueCents,
-        fee_deducted_cents: netFeeCents,
+        source: "market",
       },
     })
     .select()
@@ -248,24 +253,23 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   }
   console.log(`[REDEEM] Step 4 OK: redemption ${redemption.id}`);
 
-  // ── 5. Debit points ──
-  const { error: debitError } = await supabase.from("market_ledger").insert({
-    user_id: userId,
-    type: "redemption",
-    amount: -totalPointsCost,
-    balance_after: 0, // trigger will compute
-    reference_id: redemption.id,
-    metadata: {
+  // ── 5. Atomically debit market balance ──
+  const { data: debitResult, error: debitError } = await supabase.rpc("debit_market_balance", {
+    p_user_id: userId,
+    p_amount_usd: usdAmount,
+    p_redemption_id: redemption.id,
+    p_metadata: {
+      description: `Gift card: ${brandName} $${(faceValueCents / 100).toFixed(2)}`,
       brand_name: brandName,
       face_value_cents: faceValueCents,
-      redemption_id: redemption.id,
       provider: selectedProvider.provider,
     },
   });
 
-  if (debitError) {
+  if (debitError || !debitResult?.success) {
+    console.error("Failed to debit market balance:", debitError || debitResult?.error);
     await supabase.from("redemptions").delete().eq("id", redemption.id);
-    return jsonError("Failed to debit points", corsHeaders);
+    return jsonError(debitResult?.error || "Failed to debit balance", corsHeaders);
   }
 
   // ── 6. Place order with selected provider ──
@@ -397,6 +401,20 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         ).toFixed(2)
       }`,
   );
+
+  // Record bank ledger outflow for platform cash tracking
+  const outflowUsd = (providerResult!.actualCostCents || faceValueCents) / 100;
+  await supabase.rpc("append_bank_ledger_entry", {
+    p_event_type: "gift_card_purchased",
+    p_direction: "outflow",
+    p_amount_usd: outflowUsd,
+    p_provider: providerResult!.provider,
+    p_reference_type: "redemption",
+    p_reference_id: redemption.id,
+    p_metadata: { brand_name: brandName, face_value_usd: faceValueCents / 100 },
+  }).then(({ error }) => {
+    if (error) console.warn("[REDEEM] Bank ledger entry failed:", error.message);
+  });
 
   // ── 8. Send push notification and in-app notification ──
   const successMessage = `Your ${brandName} gift card ($${(faceValueCents / 100).toFixed(2)}) is ready! ${providerResult!.cardUrl ? 'Tap to view.' : 'Check your transaction history.'}`

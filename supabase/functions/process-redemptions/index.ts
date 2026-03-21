@@ -4,7 +4,7 @@
  * Flow:
  * 1. Fetch all redemptions where status = 'failed' (Tremendous/Reloadly) or 'pending' for GlobalGiving
  * 2. Invoke appropriate provider API
- * 3. On success: Update redemption, point_ledger, create receipt/delivery, and fire push notification
+ * 3. On success: Update redemption, market_ledger, create receipt/delivery, bank ledger, and fire push notification
  * 4. On failure: Skip and leave in queue
  */
 
@@ -29,7 +29,8 @@ import {
 serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     // Basic auth check for cron jobs
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader || authHeader !== `Bearer ${env("CRON_SECRET")}`) {
+    const serviceRoleKey = env("SUPABASE_SERVICE_ROLE_KEY") || env("CRON_SECRET");
+    if (!authHeader || !authHeader.includes(serviceRoleKey || "")) {
         return jsonError("Unauthorized", corsHeaders, 401);
     }
 
@@ -280,8 +281,21 @@ async function processGiftCard(
             `[RETRY] Critical Error finalizing Gift Card to Database:`,
             finalizeError,
         );
-        // Do not crash the entire function loop, let the next queued orders attempt
     }
+
+    // Bank ledger outflow
+    const outflowUsd = (providerResult.actualCostCents || face_value_cents) / 100;
+    await supabase.rpc("append_bank_ledger_entry", {
+        p_event_type: "gift_card_purchased",
+        p_direction: "outflow",
+        p_amount_usd: outflowUsd,
+        p_provider: provider,
+        p_reference_type: "redemption",
+        p_reference_id: redemption.id,
+        p_metadata: { brand_name, face_value_usd: face_value_cents / 100, source: "process-redemptions" },
+    }).then(({ error }: { error: any }) => {
+        if (error) console.warn("[RETRY] Bank ledger entry failed:", error.message);
+    });
 
     // Fire Push Notification
     const msg = `Good news! Your $${
@@ -373,8 +387,20 @@ async function processGlobalGiving(
             `[RETRY] Critical Error finalizing GlobalGiving Donation to Database:`,
             finalizeError,
         );
-        // Do not crash the entire function loop, let the next queued orders attempt
     }
+
+    // Bank ledger outflow
+    await supabase.rpc("append_bank_ledger_entry", {
+        p_event_type: "donation_sent",
+        p_direction: "outflow",
+        p_amount_usd: dollarAmount,
+        p_provider: "globalgiving",
+        p_reference_type: "redemption",
+        p_reference_id: redemption.id,
+        p_metadata: { organization, receipt_number: receiptNumber, source: "process-redemptions" },
+    }).then(({ error }: { error: any }) => {
+        if (error) console.warn("[RETRY] Bank ledger entry failed:", error.message);
+    });
 
     // Fire Push
     const msg = `Your queued donation of $${
@@ -446,9 +472,9 @@ async function processPayPalCashout(
     const payoutPayload = {
         sender_batch_header: {
             sender_batch_id: `retry_${Date.now()}_${userId.substring(0, 8)}`,
-            email_subject: "Here is your CasaGrown Reward!",
+            email_subject: "Here is your CasaGrown payout!",
             email_message:
-                `You earned $${usdAmount} by redeeming ${pointsAmount} points on CasaGrown! Keep up the great work.`,
+                `You earned $${usdAmount.toFixed(2)} on CasaGrown Market! Here's your payout.`,
         },
         items: [
             {
@@ -457,7 +483,7 @@ async function processPayPalCashout(
                     value: usdAmount.toFixed(2),
                     currency: "USD",
                 },
-                note: "CasaGrown Points Redemption",
+                note: "CasaGrown Market Payout",
                 sender_item_id: `retry_item_${Date.now()}`,
                 receiver: payoutTarget,
             },
@@ -503,24 +529,36 @@ async function processPayPalCashout(
             `[RETRY] Critical Error finalizing PayPal Cashout to Database:`,
             finalizeError,
         );
-        // Do not crash the entire function loop, let the next queued orders attempt
     }
+
+    // Bank ledger outflow
+    await supabase.rpc("append_bank_ledger_entry", {
+        p_event_type: "cashout_sent",
+        p_direction: "outflow",
+        p_amount_usd: usdAmount,
+        p_provider: "paypal",
+        p_reference_type: "redemption",
+        p_reference_id: redemption.id,
+        p_metadata: { payout_target: payoutTarget, batch_id: txId, source: "process-redemptions" },
+    }).then(({ error }: { error: any }) => {
+        if (error) console.warn("[RETRY] Bank ledger entry failed:", error.message);
+    });
 
     // Fire Push
     const msg = `Your queued cashout of $${
         usdAmount.toFixed(2)
     } to ${payoutTarget} has been successfully processed!`;
 
-    await supabase.from("notifications").insert({
+    await supabase.from("market_notifications").insert({
         user_id: userId,
         content: msg,
-        link_url: "/transaction-history",
+        link_url: "/earnings",
     });
 
     await sendPushNotification(supabase, {
         userIds: [userId],
         title: "Cashout Complete 💸",
         body: msg,
-        url: "/transaction-history",
+        url: "/earnings",
     });
 }

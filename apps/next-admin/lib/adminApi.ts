@@ -73,4 +73,12 @@ export const adminApi = {
   /** UPSERT row(s) in a table */
   upsert: <T = any>(table: string, data: Record<string, any> | Record<string, any>[]) =>
     adminFetch<T>({ action: 'upsert', table, data }),
+
+  /** Invoke a Supabase Edge Function */
+  invokeFunction: <T = any>(functionName: string, body?: Record<string, any>) =>
+    adminFetch<T>({ action: 'invoke_function', functionName, body }),
+
+  /** Call a Postgres RPC function */
+  rpc: <T = any>(functionName: string, params?: Record<string, any>) =>
+    adminFetch<T>({ action: 'rpc', functionName, params }),
 }

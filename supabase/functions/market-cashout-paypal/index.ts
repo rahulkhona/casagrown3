@@ -10,14 +10,14 @@ import { sendTransactionEmail, getUserEmail } from "../_shared/postmark.ts";
 import { buildPayoutEmail } from "../_shared/payout-email.ts";
 
 /**
- * redeem-paypal-payout — Supabase Edge Function
+ * market-cashout-paypal — Supabase Edge Function
  *
- * Request body: { pointsToRedeem: number, payoutId?: string }
+ * Request body: { pointsToRedeem: number (cents), payoutId?: string }
  *
- * 1. Checks if the user has enough points.
- * 2. Fetches their `paypal_payout_id` (or uses the new one provided).
+ * 1. Checks the user's available market balance (user_balances.available_usd).
+ * 2. Fetches their verified payout handle.
  * 3. Calls PayPal Payouts API to send the funds.
- * 4. Deducts points and records the transaction.
+ * 4. Atomically debits market balance via debit_market_balance RPC.
  */
 serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   const PAYPAL_CLIENT_ID = env("PAYPAL_CLIENT_ID");
@@ -44,22 +44,25 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
   // 2. Parse request
   const body = await req.json().catch(() => ({}));
-  const pointsToRedeem = Number(body.pointsToRedeem);
+  // Frontend sends cents as "pointsToRedeem" for backward compatibility
+  const amountCents = Number(body.pointsToRedeem || body.amountCents);
   const providedPayoutId = body.payoutId?.trim();
 
-  // Validate points amount (must be positive, min 1)
-  if (!pointsToRedeem || isNaN(pointsToRedeem) || pointsToRedeem < 1) {
+  // Validate amount (must be positive, min 100 cents = $1.00)
+  if (!amountCents || isNaN(amountCents) || amountCents < 100) {
     return jsonError(
-      "Invalid points amount. Must redeem at least 1 point.",
+      "Invalid amount. Minimum cashout is $1.00.",
       corsHeaders,
       400,
     );
   }
 
-  // Fetch user's profile to check for existing payout ID and get name
+  const usdAmount = Number((amountCents / 100).toFixed(2));
+
+  // Fetch user's profile to check for existing payout handle
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("full_name, paypal_payout_id")
+    .select("full_name, payout_handle, payout_handle_type, payout_verified")
     .eq("id", userId)
     .single();
 
@@ -68,12 +71,12 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     return jsonError("Could not fetch user profile", corsHeaders, 400);
   }
 
-  let finalPayoutId = profile?.paypal_payout_id;
+  let finalPayoutId = profile?.payout_handle;
 
-  // If they provided a new ID and it's different from the saved one, update the saved one
+  // If they provided a new ID and it's different, update
   if (providedPayoutId && providedPayoutId !== finalPayoutId) {
     finalPayoutId = providedPayoutId;
-    await supabase.from("profiles").update({ paypal_payout_id: finalPayoutId })
+    await supabase.from("profiles").update({ payout_handle: finalPayoutId })
       .eq("id", userId);
   }
 
@@ -127,40 +130,39 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
   const isQueuing = queueRow?.is_queuing ?? false;
 
-  // 3. Verify Points Balance (Closed-Loop: Earned only)
-  const conversionRate = 100; // 100 points = $1
-  const usdAmount = Number((pointsToRedeem / conversionRate).toFixed(2));
-
-  const { data: balances, error: balanceError } = await supabase
-    .rpc("get_user_balances", { p_user_id: userId })
+  // 3. Verify market balance (user_balances.available_usd)
+  const { data: balanceRow, error: balanceError } = await supabase
+    .from("user_balances")
+    .select("available_usd")
+    .eq("user_id", userId)
     .maybeSingle();
 
-  if (balanceError || !balances) {
-    return jsonError("Failed to verify user point balance.", corsHeaders, 400);
+  if (balanceError) {
+    return jsonError("Failed to verify balance.", corsHeaders, 400);
   }
 
-  const earnedBalance = (balances as any).earned_balance ?? 0;
-  if (earnedBalance < pointsToRedeem) {
+  const availableUsd = Number(balanceRow?.available_usd ?? 0);
+  if (availableUsd < usdAmount) {
     return jsonError(
-      `Insufficient earned points. You have ${earnedBalance} but tried to redeem ${pointsToRedeem}. Purchased points cannot be cashed out via PayPal.`,
+      `Insufficient balance. You have $${availableUsd.toFixed(2)} available but requested $${usdAmount.toFixed(2)}.`,
       corsHeaders,
       400,
     );
   }
 
-  // 4. Create pending redemption record FIRST so we can reference it
+  // 4. Create pending redemption record for audit trail
   const { data: redemption, error: redemptionError } = await supabase
     .from("redemptions")
     .insert({
       user_id: userId,
       item_id: null,
-      point_cost: pointsToRedeem,
+      point_cost: amountCents, // cents for backward compatibility
       status: "pending",
       metadata: {
         type: "paypal_cashout",
+        source: "market",
         usd_amount: usdAmount,
         payout_target: finalPayoutId,
-        refund_usd_cents: usdAmount * 100,
         fee_deducted_cents: 0,
       },
     })
@@ -199,7 +201,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           message:
             "PayPal payouts are currently disabled. Your cashout has been queued.",
           redemptionId: redemption.id,
-          newBalance: earnedBalance - pointsToRedeem,
+          newBalance: availableUsd - usdAmount,
         },
         corsHeaders,
       );
@@ -232,15 +234,15 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           sender_batch_id: `casagrown_payout_${Date.now()}_${
             userId.substring(0, 8)
           }`,
-          email_subject: "Here is your CasaGrown Reward!",
+          email_subject: "Here is your CasaGrown payout!",
           email_message:
-            `You earned $${usdAmount} by redeeming ${pointsToRedeem} points on CasaGrown! Keep up the great work.`,
+            `You earned $${usdAmount.toFixed(2)} on CasaGrown Market! Here's your payout.`,
         },
         items: [
           {
             recipient_type: receiverType,
             amount: { value: usdAmount.toFixed(2), currency: "USD" },
-            note: "CasaGrown Points Redemption",
+            note: "CasaGrown Market Payout",
             sender_item_id: `item_${Date.now()}`,
             receiver: finalPayoutId,
           },
@@ -347,48 +349,57 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     );
   }
 
-  // 6. Unified ACID Transaction for Redemptions
+  // 6. Atomically debit market balance (user_balances.available_usd + market_ledger)
+  const { data: debitResult, error: debitError } = await supabase.rpc("debit_market_balance", {
+    p_user_id: userId,
+    p_amount_usd: usdAmount,
+    p_redemption_id: redemption.id,
+    p_metadata: {
+      description: `Cashout $${usdAmount.toFixed(2)} to PayPal/Venmo (${finalPayoutId})`,
+      payout_target: finalPayoutId,
+      provider: "paypal",
+      batch_id: txId,
+    },
+  });
+
+  if (debitError || !debitResult?.success) {
+    console.error("Failed to debit market balance:", debitError || debitResult?.error);
+    await supabase.from("redemptions").delete().eq("id", redemption.id);
+    return jsonOk({
+      success: false,
+      error: debitResult?.error || "Failed to debit balance.",
+    }, corsHeaders);
+  }
+
+  // 7. Finalize redemption (provider_transactions, receipt logging)
   const { error: finalizeError } = await supabase.rpc("finalize_redemption", {
     p_payload: {
       redemption_id: redemption.id,
       redemption_type: "paypal",
       provider_name: "paypal",
       external_order_id: txId,
-      actual_cost_cents: Math.round(usdAmount * 100),
-      batch_id: txId, // will be merged into metadata
-      payout_target: finalPayoutId,
-    },
-  });
-
-  // Because this endpoint creates the point_ledger entry dynamically, the universal RPC handles the metadata
-  // update. But we must still manually deduct the points BEFORE the RPC seals it. (The RPC only UPDATES existing ledger rows).
-  const { error: logError } = await supabase.from("market_ledger").insert({
-    user_id: userId,
-    amount: -pointsToRedeem,
-    type: "redemption",
-    reference_id: redemption.id,
-    metadata: {
-      description: `Redeemed $${usdAmount} to PayPal/Venmo (${finalPayoutId})`,
-      payout_target: finalPayoutId,
-      provider: "paypal",
+      actual_cost_cents: amountCents,
       batch_id: txId,
-      refund_usd_cents: usdAmount * 100,
-      fee_deducted_cents: 0,
-      status: "completed",
+      payout_target: finalPayoutId,
     },
   });
 
-  if (logError || finalizeError) {
-    console.error(
-      "Failed to log transaction. User got free money!",
-      logError || finalizeError,
-    );
-    await supabase.from("redemptions").delete().eq("id", redemption.id);
-    return jsonOk({
-      success: false,
-      error: "Failed to deduct points or lock receipt.",
-    }, corsHeaders);
+  if (finalizeError) {
+    console.warn("[CASHOUT] finalize_redemption warning:", finalizeError.message);
   }
+
+  // Record bank ledger outflow for platform cash tracking
+  await supabase.rpc("append_bank_ledger_entry", {
+    p_event_type: "cashout_sent",
+    p_direction: "outflow",
+    p_amount_usd: usdAmount,
+    p_provider: "venmo",
+    p_reference_type: "redemption",
+    p_reference_id: redemption.id,
+    p_metadata: { payout_target: finalPayoutId, batch_id: txId },
+  }).then(({ error }) => {
+    if (error) console.warn("[CASHOUT] Bank ledger entry failed:", error.message);
+  });
 
   // The RPC handles the redemption 'completed' status update.
 

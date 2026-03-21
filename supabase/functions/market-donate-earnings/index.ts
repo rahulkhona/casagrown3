@@ -1,12 +1,12 @@
 /**
- * donate-points — Edge Function for donating points to GlobalGiving projects
+ * market-donate-earnings — Edge Function for donating market earnings to GlobalGiving
  *
  * Flow:
- * 1. Validate user balance
- * 2. Debit points
+ * 1. Validate user's available market balance
+ * 2. Atomically debit via debit_market_balance RPC
  * 3. Call GlobalGiving Donation API
  * 4. Store donation receipt
- * 5. On failure: refund points
+ * 5. On failure: queue for retry
  */
 
 import {
@@ -42,9 +42,9 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     );
   }
 
-  const POINTS_PER_DOLLAR = 100;
-  const dollarAmount = pointsAmount / POINTS_PER_DOLLAR;
-  const _donationCents = Math.round(dollarAmount * 100);
+  // pointsAmount is in cents from the frontend
+  const amountCents = pointsAmount;
+  const dollarAmount = amountCents / 100;
 
   // 1. Check Instrument Active & Queue Status
   const instrumentName = "globalgiving";
@@ -89,22 +89,24 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   const isQueuing = queueRow?.is_queuing ?? false;
   const isSandbox = env("GLOBALGIVING_SANDBOX") === "true";
 
-  // 2. Check balance (Closed-Loop: Earned only)
-  const { data: balances, error: balanceError } = await supabase
-    .rpc("get_user_balances", { p_user_id: userId })
+  // 2. Check market balance (user_balances.available_usd)
+  const { data: balanceRow, error: balanceError } = await supabase
+    .from("user_balances")
+    .select("available_usd")
+    .eq("user_id", userId)
     .maybeSingle();
 
-  if (balanceError || !balances) {
-    return jsonError("Failed to fetch user balances", corsHeaders);
+  if (balanceError) {
+    return jsonError("Failed to fetch balance", corsHeaders);
   }
 
-  const earnedBalance = (balances as any).earned_balance ?? 0;
-  if (earnedBalance < pointsAmount) {
-    return jsonError("Insufficient earned points balance", corsHeaders);
+  const availableUsd = Number(balanceRow?.available_usd ?? 0);
+  if (availableUsd < dollarAmount) {
+    return jsonError(
+      `Insufficient balance. You have $${availableUsd.toFixed(2)} available.`,
+      corsHeaders,
+    );
   }
-
-  // 3. Deduction
-  const newBalance = earnedBalance - pointsAmount;
 
   let externalOrderId = "";
   let finalStatus = "pending";
@@ -149,13 +151,13 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     }
   }
 
-  // 5. Create redemption
+  // 5. Create redemption for audit trail
   const { data: redemption, error: redemptionError } = await supabase
     .from("redemptions")
     .insert({
       user_id: userId,
       item_id: itemId || null,
-      point_cost: pointsAmount,
+      point_cost: amountCents, // cents for backward compat
       status: finalStatus,
       provider_order_id: externalOrderId || null,
       provider: "globalgiving",
@@ -166,6 +168,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         organization: organizationName,
         project_title: projectTitle,
         theme,
+        source: "market",
       },
     })
     .select()
@@ -175,54 +178,61 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     return jsonError("Failed to create redemption", corsHeaders);
   }
 
-  // 6. Debit points
+  // 6. Atomically debit market balance
   const receiptNumber = finalStatus === "completed"
     ? `DON-${Date.now().toString(36).toUpperCase()}`
     : `DON-Q-${Date.now().toString(36).toUpperCase()}`;
 
-  const _receiptUrl = finalStatus === "completed"
-    ? `https://casagrown.com/receipts/${receiptNumber}`
-    : undefined;
-
-  await supabase.from("market_ledger").insert({
-    user_id: userId,
-    type: "donation",
-    amount: -pointsAmount,
-    balance_after: newBalance,
-    reference_id: redemption.id,
-    metadata: {
+  const { data: debitResult, error: debitError } = await supabase.rpc("debit_market_balance", {
+    p_user_id: userId,
+    p_amount_usd: dollarAmount,
+    p_redemption_id: redemption.id,
+    p_metadata: {
+      description: `Donation $${dollarAmount.toFixed(2)} to ${organizationName}`,
       organization: organizationName,
       project_title: projectTitle,
-      theme: theme,
-      redemption_id: redemption.id,
       receipt_number: receiptNumber,
-      status: finalStatus,
-      refund_usd_cents: Math.round(dollarAmount * 100),
-      fee_deducted_cents: 0,
     },
   });
 
+  if (debitError || !debitResult?.success) {
+    console.error("Failed to debit market balance:", debitError || debitResult?.error);
+    await supabase.from("redemptions").delete().eq("id", redemption.id);
+    return jsonError(debitResult?.error || "Failed to debit balance.", corsHeaders);
+  }
+
   if (finalStatus === "completed") {
-    // ACID: Use finalize_redemption RPC to atomically write to
-    // provider_transactions, donation_receipts, and update point_ledger metadata
+    // ACID: Use finalize_redemption RPC for provider_transactions + donation_receipts
     const { error: finalizeError } = await supabase.rpc("finalize_redemption", {
       p_payload: {
         redemption_id: redemption.id,
         redemption_type: "donation",
         provider_name: "globalgiving",
         external_order_id: externalOrderId,
-        actual_cost_cents: Math.round(dollarAmount * 100),
+        actual_cost_cents: amountCents,
         receipt_number: receiptNumber,
       },
     });
 
     if (finalizeError) {
       console.error(
-        "[DONATE] Critical Error finalizing donation to Database:",
+        "[DONATE] Critical Error finalizing donation:",
         finalizeError,
       );
-      // Points are already deducted; the cron job will retry finalization
     }
+
+    // Record bank ledger outflow for platform cash tracking
+    await supabase.rpc("append_bank_ledger_entry", {
+      p_event_type: "donation_sent",
+      p_direction: "outflow",
+      p_amount_usd: dollarAmount,
+      p_provider: "globalgiving",
+      p_reference_type: "redemption",
+      p_reference_id: redemption.id,
+      p_metadata: { organization: organizationName, receipt_number: receiptNumber },
+    }).then(({ error }) => {
+      if (error) console.warn("[DONATE] Bank ledger entry failed:", error.message);
+    });
 
     const successMessage = `Your donation of $${
       dollarAmount.toFixed(

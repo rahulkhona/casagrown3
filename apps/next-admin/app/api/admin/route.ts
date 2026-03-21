@@ -77,11 +77,21 @@ const ALLOWED_TABLES = new Set([
   'states',
   'counties',
   'cities',
+  // Financial (admin read for cash flow / settlements pages)
+  'platform_bank_ledger',
+  'market_settlements',
+  'settlement_captures',
+  'buyer_debts',
+  'user_settlements',
+  'user_balances',
+  'redemptions',
 ])
 
 interface AdminRequestBody {
-  action: 'select' | 'insert' | 'update' | 'delete' | 'upsert'
+  action: 'select' | 'insert' | 'update' | 'delete' | 'upsert' | 'invoke_function' | 'rpc'
   table: string
+  functionName?: string
+  params?: Record<string, any>
   data?: Record<string, any> | Record<string, any>[]
   select?: string
   filters?: {
@@ -125,6 +135,34 @@ export async function POST(request: NextRequest) {
     // 3. Parse and validate request
     const body: AdminRequestBody = await request.json()
     const { action, table, data, select: selectClause, filters, order, limit, single } = body
+
+    // Handle function invocation separately — no table needed
+    if (action === 'invoke_function') {
+      const { functionName, body: fnBody } = body as any
+      if (!functionName) {
+        return NextResponse.json({ error: 'functionName is required' }, { status: 400 })
+      }
+      const { data: fnResult, error: fnError } = await serviceClient.functions.invoke(functionName, {
+        body: fnBody || {},
+      })
+      if (fnError) {
+        return NextResponse.json({ error: fnError.message }, { status: 400 })
+      }
+      return NextResponse.json({ data: fnResult })
+    }
+
+    // Handle RPC calls separately — no table needed
+    if (action === 'rpc') {
+      const { functionName, params } = body as any
+      if (!functionName) {
+        return NextResponse.json({ error: 'functionName is required for rpc' }, { status: 400 })
+      }
+      const { data: rpcResult, error: rpcError } = await serviceClient.rpc(functionName, params || {})
+      if (rpcError) {
+        return NextResponse.json({ error: rpcError.message }, { status: 400 })
+      }
+      return NextResponse.json({ data: rpcResult })
+    }
 
     if (!ALLOWED_TABLES.has(table)) {
       return NextResponse.json({ error: `Table '${table}' is not allowed` }, { status: 400 })
