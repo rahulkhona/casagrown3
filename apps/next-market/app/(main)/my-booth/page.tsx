@@ -118,10 +118,20 @@ export default function MyBoothPage() {
 
   // Platform fee rate (loaded from DB)
   const [platformFeePct, setPlatformFeePct] = useState(10)
+  const [profileName, setProfileName] = useState<string | null>(null)
+  const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null)
   useEffect(() => {
     supabase.from('platform_fees').select('fees').eq('country_code', 'USA').single()
       .then(({ data }) => { if (data?.fees) setPlatformFeePct(Math.round(data.fees * 100)) })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!user?.id) return
+    supabase.from('profiles').select('full_name, avatar_url').eq('id', user.id).single()
+      .then(({ data }) => {
+        if (data?.full_name) setProfileName(data.full_name)
+        if (data?.avatar_url) setProfileAvatarUrl(data.avatar_url)
+      })
+  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Trigger notification prompt on mount
   useEffect(() => { showPrompt() }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -257,7 +267,7 @@ export default function MyBoothPage() {
           payload: {
             id: booth.id,
             ownerId: authUserId,
-            ownerName: state.user?.name || '',
+            ownerName: profileName || user?.email?.split('@')[0] || '',
             name: booth.name,
             description: booth.description || '',
             decorativeTheme: booth.decorative_theme || 'floral',
@@ -513,7 +523,7 @@ export default function MyBoothPage() {
     return typeof window !== 'undefined' ? `${window.location.origin}/market${bid ? '/booth/' + bid : ''}` : '/market'
   }
   const getBoothShareText = (boothId?: string | null) => {
-    const sellerName = state.user?.name?.split(' ')[0] || 'your neighbor'
+    const sellerName = profileName?.split(' ')[0] || 'your neighbor'
     const productNames = myProducts.slice(0, 3).map(p => p.name).join(', ')
     const nextDay = nextMarket ? nextMarket.date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) : ''
     return `Hey! 🌱 I'm ${sellerName} and I just set up my booth "${name}" on CasaGrown Market!\n\n${productNames ? `I'm growing ${productNames} and more — ` : ''}come check out what's fresh from my backyard.${nextDay ? `\n\n📅 Next market day: ${nextDay}` : ''}\n\n🛒 ${getBoothShareUrl(boothId)}\n\nFresh produce, straight from your neighbor! 🏡`
@@ -702,14 +712,14 @@ export default function MyBoothPage() {
           />
           <div className={styles.nameBarOwner}>
             <span>by</span>
-            {state.user?.avatarUrl ? (
-              <img src={state.user.avatarUrl} alt="" className={styles.ownerAvatar} />
+            {profileAvatarUrl ? (
+              <img src={profileAvatarUrl} alt="" className={styles.ownerAvatar} />
             ) : (
               <span className={styles.ownerAvatarFallback}>
-                {(state.user?.name || user?.email || '?')[0].toUpperCase()}
+                {(profileName || user?.email || '?')[0].toUpperCase()}
               </span>
             )}
-            <span>{state.user?.name || user?.email?.split('@')[0] || 'You'}</span>
+            <span>{profileName || user?.email?.split('@')[0] || 'You'}</span>
           </div>
         </div>
       </div>
