@@ -605,10 +605,10 @@ export async function updateTicketStatus(
     ticketId: string,
     newStatus: FeedbackStatus,
 ): Promise<boolean> {
-    const { error } = await supabase
-        .from("user_feedback")
-        .update({ status: newStatus })
-        .eq("id", ticketId);
+    const { error } = await supabase.rpc("staff_update_feedback_status", {
+        p_feedback_id: ticketId,
+        p_new_status: newStatus,
+    });
 
     if (error) {
         console.error("updateTicketStatus error:", error);
