@@ -28,25 +28,25 @@ BEGIN
   -- Total users (with geo filter)
   SELECT COUNT(*) INTO v_total
   FROM profiles p
-  LEFT JOIN communities co ON co.id = p.community_id
-  LEFT JOIN zip_codes zc ON zc.zip_code = co.zip_code AND zc.country_iso_3 = co.country_iso_3
-  LEFT JOIN cities ci ON ci.id = zc.city_id
-  LEFT JOIN states st ON st.id = ci.state_id
-  WHERE (p_state IS NULL OR st.code = p_state)
-    AND (p_city IS NULL OR ci.name ILIKE p_city)
-    AND (p_zip IS NULL OR co.zip_code = p_zip);
+  -- communities join removed: use profiles geo columns directly
+  -- zip_codes join removed: use p.state_code, p.city, p.zip_plus4 directly
+  -- cities join removed
+  -- states join removed
+  WHERE (p_state IS NULL OR p.state_code = p_state)
+    AND (p_city IS NULL OR p.city ILIKE p_city)
+    AND (p_zip IS NULL OR p.zip_plus4 = p_zip);
 
   -- New users in range
   SELECT COUNT(*) INTO v_new_in_period
   FROM profiles p
-  LEFT JOIN communities co ON co.id = p.community_id
-  LEFT JOIN zip_codes zc ON zc.zip_code = co.zip_code AND zc.country_iso_3 = co.country_iso_3
-  LEFT JOIN cities ci ON ci.id = zc.city_id
-  LEFT JOIN states st ON st.id = ci.state_id
+  -- communities join removed: use profiles geo columns directly
+  -- zip_codes join removed: use p.state_code, p.city, p.zip_plus4 directly
+  -- cities join removed
+  -- states join removed
   WHERE p.created_at::date BETWEEN p_start AND p_end
-    AND (p_state IS NULL OR st.code = p_state)
-    AND (p_city IS NULL OR ci.name ILIKE p_city)
-    AND (p_zip IS NULL OR co.zip_code = p_zip);
+    AND (p_state IS NULL OR p.state_code = p_state)
+    AND (p_city IS NULL OR p.city ILIKE p_city)
+    AND (p_zip IS NULL OR p.zip_plus4 = p_zip);
 
   -- timeSeries: [{date, value}]
   SELECT COALESCE(jsonb_agg(jsonb_build_object(
@@ -58,14 +58,14 @@ BEGIN
       date_trunc(v_date_trunc, p.created_at)::date AS d,
       COUNT(*) AS cnt
     FROM profiles p
-    LEFT JOIN communities co ON co.id = p.community_id
-    LEFT JOIN zip_codes zc ON zc.zip_code = co.zip_code AND zc.country_iso_3 = co.country_iso_3
-    LEFT JOIN cities ci ON ci.id = zc.city_id
-    LEFT JOIN states st ON st.id = ci.state_id
+    -- communities join removed: use profiles geo columns directly
+    -- zip_codes join removed: use p.state_code, p.city, p.zip_plus4 directly
+    -- cities join removed
+    -- states join removed
     WHERE p.created_at::date BETWEEN p_start AND p_end
-      AND (p_state IS NULL OR st.code = p_state)
-      AND (p_city IS NULL OR ci.name ILIKE p_city)
-      AND (p_zip IS NULL OR co.zip_code = p_zip)
+      AND (p_state IS NULL OR p.state_code = p_state)
+      AND (p_city IS NULL OR p.city ILIKE p_city)
+      AND (p_zip IS NULL OR p.zip_plus4 = p_zip)
     GROUP BY date_trunc(v_date_trunc, p.created_at)::date
   ) t;
 
@@ -83,14 +83,14 @@ BEGIN
         date_trunc(v_date_trunc, p.created_at)::date AS d,
         COUNT(*) AS cnt
       FROM profiles p
-      LEFT JOIN communities co ON co.id = p.community_id
-      LEFT JOIN zip_codes zc ON zc.zip_code = co.zip_code AND zc.country_iso_3 = co.country_iso_3
-      LEFT JOIN cities ci ON ci.id = zc.city_id
-      LEFT JOIN states st ON st.id = ci.state_id
+      -- communities join removed: use profiles geo columns directly
+      -- zip_codes join removed: use p.state_code, p.city, p.zip_plus4 directly
+      -- cities join removed
+      -- states join removed
       WHERE p.created_at::date BETWEEN p_start AND p_end
-        AND (p_state IS NULL OR st.code = p_state)
-        AND (p_city IS NULL OR ci.name ILIKE p_city)
-        AND (p_zip IS NULL OR co.zip_code = p_zip)
+        AND (p_state IS NULL OR p.state_code = p_state)
+        AND (p_city IS NULL OR p.city ILIKE p_city)
+        AND (p_zip IS NULL OR p.zip_plus4 = p_zip)
       GROUP BY date_trunc(v_date_trunc, p.created_at)::date
     ) sub
   ) t;
@@ -102,18 +102,18 @@ BEGIN
   ) ORDER BY t.cnt DESC), '[]'::jsonb) INTO v_by_geo
   FROM (
     SELECT
-      COALESCE(st.name, 'Unknown') AS region,
+      COALESCE(p.state_code, 'Unknown') AS region,
       COUNT(*) AS cnt
     FROM profiles p
-    LEFT JOIN communities co ON co.id = p.community_id
-    LEFT JOIN zip_codes zc ON zc.zip_code = co.zip_code AND zc.country_iso_3 = co.country_iso_3
-    LEFT JOIN cities ci ON ci.id = zc.city_id
-    LEFT JOIN states st ON st.id = ci.state_id
+    -- communities join removed: use profiles geo columns directly
+    -- zip_codes join removed: use p.state_code, p.city, p.zip_plus4 directly
+    -- cities join removed
+    -- states join removed
     WHERE p.created_at::date BETWEEN p_start AND p_end
-      AND (p_state IS NULL OR st.code = p_state)
-      AND (p_city IS NULL OR ci.name ILIKE p_city)
-      AND (p_zip IS NULL OR co.zip_code = p_zip)
-    GROUP BY COALESCE(st.name, 'Unknown')
+      AND (p_state IS NULL OR p.state_code = p_state)
+      AND (p_city IS NULL OR p.city ILIKE p_city)
+      AND (p_zip IS NULL OR p.zip_plus4 = p_zip)
+    GROUP BY COALESCE(p.state_code, 'Unknown')
   ) t;
 
   RETURN jsonb_build_object(
@@ -174,15 +174,15 @@ BEGIN
   INTO v_total_gmv, v_total_orders, v_avg_order, v_total_tax, v_total_fees
   FROM market_orders o
   JOIN profiles p ON p.id = o.buyer_id
-  LEFT JOIN communities co ON co.id = p.community_id
-  LEFT JOIN zip_codes zc ON zc.zip_code = co.zip_code AND zc.country_iso_3 = co.country_iso_3
-  LEFT JOIN cities ci ON ci.id = zc.city_id
-  LEFT JOIN states st ON st.id = ci.state_id
+  -- communities join removed: use profiles geo columns directly
+  -- zip_codes join removed: use p.state_code, p.city, p.zip_plus4 directly
+  -- cities join removed
+  -- states join removed
   WHERE o.status != 'cancelled'
     AND o.created_at::date BETWEEN p_start AND p_end
-    AND (p_state IS NULL OR st.code = p_state)
-    AND (p_city IS NULL OR ci.name ILIKE p_city)
-    AND (p_zip IS NULL OR co.zip_code = p_zip);
+    AND (p_state IS NULL OR p.state_code = p_state)
+    AND (p_city IS NULL OR p.city ILIKE p_city)
+    AND (p_zip IS NULL OR p.zip_plus4 = p_zip);
 
   -- gmvTimeSeries: [{date, value}]
   SELECT COALESCE(jsonb_agg(jsonb_build_object(
@@ -192,14 +192,14 @@ BEGIN
     SELECT date_trunc(v_date_trunc, o.created_at)::date AS d, SUM(o.total_usd) AS rev
     FROM market_orders o
     JOIN profiles p ON p.id = o.buyer_id
-    LEFT JOIN communities co ON co.id = p.community_id
-    LEFT JOIN zip_codes zc ON zc.zip_code = co.zip_code AND zc.country_iso_3 = co.country_iso_3
-    LEFT JOIN cities ci ON ci.id = zc.city_id
-    LEFT JOIN states st ON st.id = ci.state_id
+    -- communities join removed: use profiles geo columns directly
+    -- zip_codes join removed: use p.state_code, p.city, p.zip_plus4 directly
+    -- cities join removed
+    -- states join removed
     WHERE o.status != 'cancelled' AND o.created_at::date BETWEEN p_start AND p_end
-      AND (p_state IS NULL OR st.code = p_state)
-      AND (p_city IS NULL OR ci.name ILIKE p_city)
-      AND (p_zip IS NULL OR co.zip_code = p_zip)
+      AND (p_state IS NULL OR p.state_code = p_state)
+      AND (p_city IS NULL OR p.city ILIKE p_city)
+      AND (p_zip IS NULL OR p.zip_plus4 = p_zip)
     GROUP BY 1
   ) t;
 
@@ -211,14 +211,14 @@ BEGIN
     SELECT date_trunc(v_date_trunc, o.created_at)::date AS d, COUNT(*) AS cnt
     FROM market_orders o
     JOIN profiles p ON p.id = o.buyer_id
-    LEFT JOIN communities co ON co.id = p.community_id
-    LEFT JOIN zip_codes zc ON zc.zip_code = co.zip_code AND zc.country_iso_3 = co.country_iso_3
-    LEFT JOIN cities ci ON ci.id = zc.city_id
-    LEFT JOIN states st ON st.id = ci.state_id
+    -- communities join removed: use profiles geo columns directly
+    -- zip_codes join removed: use p.state_code, p.city, p.zip_plus4 directly
+    -- cities join removed
+    -- states join removed
     WHERE o.status != 'cancelled' AND o.created_at::date BETWEEN p_start AND p_end
-      AND (p_state IS NULL OR st.code = p_state)
-      AND (p_city IS NULL OR ci.name ILIKE p_city)
-      AND (p_zip IS NULL OR co.zip_code = p_zip)
+      AND (p_state IS NULL OR p.state_code = p_state)
+      AND (p_city IS NULL OR p.city ILIKE p_city)
+      AND (p_zip IS NULL OR p.zip_plus4 = p_zip)
     GROUP BY 1
   ) t;
 
@@ -309,14 +309,14 @@ BEGIN
     FROM redemptions r
     JOIN redemption_merchandize rm ON rm.id = r.item_id
     JOIN profiles p ON p.id = r.user_id
-    LEFT JOIN communities co ON co.id = p.community_id
-    LEFT JOIN zip_codes zc ON zc.zip_code = co.zip_code AND zc.country_iso_3 = co.country_iso_3
-    LEFT JOIN cities ci ON ci.id = zc.city_id
-    LEFT JOIN states st ON st.id = ci.state_id
+    -- communities join removed: use profiles geo columns directly
+    -- zip_codes join removed: use p.state_code, p.city, p.zip_plus4 directly
+    -- cities join removed
+    -- states join removed
     WHERE r.created_at::date BETWEEN p_start AND p_end
-      AND (p_state IS NULL OR st.code = p_state)
-      AND (p_city IS NULL OR ci.name ILIKE p_city)
-      AND (p_zip IS NULL OR co.zip_code = p_zip)
+      AND (p_state IS NULL OR p.state_code = p_state)
+      AND (p_city IS NULL OR p.city ILIKE p_city)
+      AND (p_zip IS NULL OR p.zip_plus4 = p_zip)
     GROUP BY 1
   ) t;
 
@@ -343,14 +343,14 @@ BEGIN
     FROM redemptions r
     JOIN redemption_merchandize rm ON rm.id = r.item_id
     JOIN profiles p ON p.id = r.user_id
-    LEFT JOIN communities co ON co.id = p.community_id
-    LEFT JOIN zip_codes zc ON zc.zip_code = co.zip_code AND zc.country_iso_3 = co.country_iso_3
-    LEFT JOIN cities ci ON ci.id = zc.city_id
-    LEFT JOIN states st ON st.id = ci.state_id
+    -- communities join removed: use profiles geo columns directly
+    -- zip_codes join removed: use p.state_code, p.city, p.zip_plus4 directly
+    -- cities join removed
+    -- states join removed
     WHERE r.created_at::date BETWEEN p_start AND p_end
-      AND (p_state IS NULL OR st.code = p_state)
-      AND (p_city IS NULL OR ci.name ILIKE p_city)
-      AND (p_zip IS NULL OR co.zip_code = p_zip)
+      AND (p_state IS NULL OR p.state_code = p_state)
+      AND (p_city IS NULL OR p.city ILIKE p_city)
+      AND (p_zip IS NULL OR p.zip_plus4 = p_zip)
     GROUP BY 1, 2
   ) t;
 
@@ -438,14 +438,14 @@ BEGIN
         COUNT(*) AS event_count
       FROM user_analytics ua
       JOIN profiles p ON p.id = ua.user_id
-      LEFT JOIN communities co ON co.id = p.community_id
-      LEFT JOIN zip_codes zc ON zc.zip_code = co.zip_code AND zc.country_iso_3 = co.country_iso_3
-      LEFT JOIN cities ci ON ci.id = zc.city_id
-      LEFT JOIN states st ON st.id = ci.state_id
+      -- communities join removed: use profiles geo columns directly
+      -- zip_codes join removed: use p.state_code, p.city, p.zip_plus4 directly
+      -- cities join removed
+      -- states join removed
       WHERE ua.created_at::date BETWEEN p_start AND p_end
-        AND (p_state IS NULL OR st.code = p_state)
-        AND (p_city IS NULL OR ci.name ILIKE p_city)
-        AND (p_zip IS NULL OR co.zip_code = p_zip)
+        AND (p_state IS NULL OR p.state_code = p_state)
+        AND (p_city IS NULL OR p.city ILIKE p_city)
+        AND (p_zip IS NULL OR p.zip_plus4 = p_zip)
       GROUP BY ua.page_path, ua.session_id
     ),
     last_page AS (
@@ -737,17 +737,17 @@ BEGIN
   SELECT COUNT(*) INTO v_total
   FROM user_analytics ua
   JOIN profiles p ON p.id = ua.user_id
-  LEFT JOIN communities co ON co.id = p.community_id
-  LEFT JOIN zip_codes zc ON zc.zip_code = co.zip_code AND zc.country_iso_3 = co.country_iso_3
-  LEFT JOIN cities ci ON ci.id = zc.city_id
-  LEFT JOIN states st ON st.id = ci.state_id
+  -- communities join removed: use profiles geo columns directly
+  -- zip_codes join removed: use p.state_code, p.city, p.zip_plus4 directly
+  -- cities join removed
+  -- states join removed
   WHERE (p_query = '' OR ua.event_name ILIKE '%' || p_query || '%' OR ua.page_path ILIKE '%' || p_query || '%')
     AND (p_event_type = '' OR ua.event_type = p_event_type)
     AND (p_start IS NULL OR ua.created_at::date >= p_start)
     AND (p_end IS NULL OR ua.created_at::date <= p_end)
-    AND (p_state IS NULL OR st.code = p_state)
-    AND (p_city IS NULL OR ci.name ILIKE p_city)
-    AND (p_zip IS NULL OR co.zip_code = p_zip);
+    AND (p_state IS NULL OR p.state_code = p_state)
+    AND (p_city IS NULL OR p.city ILIKE p_city)
+    AND (p_zip IS NULL OR p.zip_plus4 = p_zip);
 
   -- Paginated entries → matches LogEntry interface
   SELECT COALESCE(jsonb_agg(jsonb_build_object(
@@ -775,17 +775,17 @@ BEGIN
       ua.metadata
     FROM user_analytics ua
     JOIN profiles p ON p.id = ua.user_id
-    LEFT JOIN communities co ON co.id = p.community_id
-    LEFT JOIN zip_codes zc ON zc.zip_code = co.zip_code AND zc.country_iso_3 = co.country_iso_3
-    LEFT JOIN cities ci ON ci.id = zc.city_id
-    LEFT JOIN states st ON st.id = ci.state_id
+    -- communities join removed: use profiles geo columns directly
+    -- zip_codes join removed: use p.state_code, p.city, p.zip_plus4 directly
+    -- cities join removed
+    -- states join removed
     WHERE (p_query = '' OR ua.event_name ILIKE '%' || p_query || '%' OR ua.page_path ILIKE '%' || p_query || '%')
       AND (p_event_type = '' OR ua.event_type = p_event_type)
       AND (p_start IS NULL OR ua.created_at::date >= p_start)
       AND (p_end IS NULL OR ua.created_at::date <= p_end)
-      AND (p_state IS NULL OR st.code = p_state)
-      AND (p_city IS NULL OR ci.name ILIKE p_city)
-      AND (p_zip IS NULL OR co.zip_code = p_zip)
+      AND (p_state IS NULL OR p.state_code = p_state)
+      AND (p_city IS NULL OR p.city ILIKE p_city)
+      AND (p_zip IS NULL OR p.zip_plus4 = p_zip)
     ORDER BY ua.created_at DESC
     LIMIT p_page_size OFFSET v_offset
   ) t;
@@ -915,14 +915,14 @@ BEGIN
     SELECT date_trunc(v_date_trunc, m.created_at)::date AS d, COUNT(DISTINCT m.author_id) AS cnt
     FROM community_chat_messages m
     JOIN profiles p ON p.id = m.author_id
-    LEFT JOIN communities co ON co.id = p.community_id
-    LEFT JOIN zip_codes zc ON zc.zip_code = co.zip_code AND zc.country_iso_3 = co.country_iso_3
-    LEFT JOIN cities ci ON ci.id = zc.city_id
-    LEFT JOIN states st ON st.id = ci.state_id
+    -- communities join removed: use profiles geo columns directly
+    -- zip_codes join removed: use p.state_code, p.city, p.zip_plus4 directly
+    -- cities join removed
+    -- states join removed
     WHERE m.created_at::date BETWEEN p_start AND p_end
-      AND (p_state IS NULL OR st.code = p_state)
-      AND (p_city IS NULL OR ci.name ILIKE p_city)
-      AND (p_zip IS NULL OR co.zip_code = p_zip)
+      AND (p_state IS NULL OR p.state_code = p_state)
+      AND (p_city IS NULL OR p.city ILIKE p_city)
+      AND (p_zip IS NULL OR p.zip_plus4 = p_zip)
     GROUP BY 1
   ) t;
 
@@ -944,13 +944,13 @@ BEGIN
         SELECT m.author_id, MIN(m.created_at) AS first_at
         FROM community_chat_messages m
         JOIN profiles p ON p.id = m.author_id
-        LEFT JOIN communities co ON co.id = p.community_id
-        LEFT JOIN zip_codes zc ON zc.zip_code = co.zip_code AND zc.country_iso_3 = co.country_iso_3
-        LEFT JOIN cities ci ON ci.id = zc.city_id
-        LEFT JOIN states st ON st.id = ci.state_id
-        WHERE (p_state IS NULL OR st.code = p_state)
-          AND (p_city IS NULL OR ci.name ILIKE p_city)
-          AND (p_zip IS NULL OR co.zip_code = p_zip)
+        -- communities join removed: use profiles geo columns directly
+        -- zip_codes join removed: use p.state_code, p.city, p.zip_plus4 directly
+        -- cities join removed
+        -- states join removed
+        WHERE (p_state IS NULL OR p.state_code = p_state)
+          AND (p_city IS NULL OR p.city ILIKE p_city)
+          AND (p_zip IS NULL OR p.zip_plus4 = p_zip)
         GROUP BY m.author_id
       ) first_post
       WHERE first_post.first_at::date BETWEEN p_start AND p_end
@@ -962,28 +962,28 @@ BEGIN
   SELECT COUNT(*) INTO v_total_messages
   FROM community_chat_messages m
   JOIN profiles p ON p.id = m.author_id
-  LEFT JOIN communities co ON co.id = p.community_id
-  LEFT JOIN zip_codes zc ON zc.zip_code = co.zip_code AND zc.country_iso_3 = co.country_iso_3
-  LEFT JOIN cities ci ON ci.id = zc.city_id
-  LEFT JOIN states st ON st.id = ci.state_id
+  -- communities join removed: use profiles geo columns directly
+  -- zip_codes join removed: use p.state_code, p.city, p.zip_plus4 directly
+  -- cities join removed
+  -- states join removed
   WHERE m.created_at::date BETWEEN p_start AND p_end
-    AND (p_state IS NULL OR st.code = p_state)
-    AND (p_city IS NULL OR ci.name ILIKE p_city)
-    AND (p_zip IS NULL OR co.zip_code = p_zip);
+    AND (p_state IS NULL OR p.state_code = p_state)
+    AND (p_city IS NULL OR p.city ILIKE p_city)
+    AND (p_zip IS NULL OR p.zip_plus4 = p_zip);
 
   SELECT COALESCE(AVG(cnt), 0) INTO v_avg_dau
   FROM (
     SELECT COUNT(DISTINCT m.author_id) AS cnt
     FROM community_chat_messages m
     JOIN profiles p ON p.id = m.author_id
-    LEFT JOIN communities co ON co.id = p.community_id
-    LEFT JOIN zip_codes zc ON zc.zip_code = co.zip_code AND zc.country_iso_3 = co.country_iso_3
-    LEFT JOIN cities ci ON ci.id = zc.city_id
-    LEFT JOIN states st ON st.id = ci.state_id
+    -- communities join removed: use profiles geo columns directly
+    -- zip_codes join removed: use p.state_code, p.city, p.zip_plus4 directly
+    -- cities join removed
+    -- states join removed
     WHERE m.created_at::date BETWEEN p_start AND p_end
-      AND (p_state IS NULL OR st.code = p_state)
-      AND (p_city IS NULL OR ci.name ILIKE p_city)
-      AND (p_zip IS NULL OR co.zip_code = p_zip)
+      AND (p_state IS NULL OR p.state_code = p_state)
+      AND (p_city IS NULL OR p.city ILIKE p_city)
+      AND (p_zip IS NULL OR p.zip_plus4 = p_zip)
     GROUP BY m.created_at::date
   ) daily_counts;
 
