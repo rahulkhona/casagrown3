@@ -38,7 +38,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
   const { data: communities, error: fetchError } = await supabase
     .from("communities")
     .select("*")
-    .in("metadata->>source", ["nominatim_fallback"])
+    .or("metadata->>source.eq.nominatim_fallback,metadata->>source.is.null,metadata.is.null")
     .order("created_at", { ascending: true })
     .limit(limit);
 
@@ -78,7 +78,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
         },
       })
       .eq("h3_index", community.h3_index)
-      .eq("metadata->>source", "nominatim_fallback"); // CAS
+      .or("metadata->>source.eq.nominatim_fallback,metadata->>source.is.null,metadata.is.null"); // CAS
 
     if (claimError) {
       console.warn(
