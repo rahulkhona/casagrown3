@@ -123,6 +123,10 @@ export default function TestersPage() {
               <span>CasaGrown</span>
             </div>
             <p className={styles.footerTagline}>Fresh. Local. Trusted.</p>
+            <div style={{ display: 'flex', gap: 16, justifyContent: 'center', margin: '8px 0' }}>
+              <a href="/terms" style={{ color: 'var(--gray-500)', fontSize: 13 }}>Terms of Use</a>
+              <a href="/terms?tab=privacy" style={{ color: 'var(--gray-500)', fontSize: 13 }}>Privacy Policy</a>
+            </div>
             <a href="https://casagrown.com" className={styles.footerLink}>casagrown.com</a>
           </div>
         </footer>
@@ -269,7 +273,9 @@ export default function TestersPage() {
               </button>
 
               <p className={styles.formDisclaimer}>
-                By signing up, you agree to receive emails about the CasaGrown beta program. 
+                By signing up, you agree to our{' '}
+                <a href="/terms" style={{ color: 'var(--green-700)', textDecoration: 'underline' }}>Terms of Use</a> and{' '}
+                <a href="/terms?tab=privacy" style={{ color: 'var(--green-700)', textDecoration: 'underline' }}>Privacy Policy</a>.
                 We&apos;ll never spam or share your information.
               </p>
             </form>
@@ -334,6 +340,10 @@ export default function TestersPage() {
             <span>CasaGrown</span>
           </div>
           <p className={styles.footerTagline}>Fresh. Local. Trusted.</p>
+          <div style={{ display: 'flex', gap: 16, justifyContent: 'center', margin: '8px 0' }}>
+            <a href="/terms" style={{ color: 'var(--gray-500)', fontSize: 13 }}>Terms of Use</a>
+            <a href="/terms?tab=privacy" style={{ color: 'var(--gray-500)', fontSize: 13 }}>Privacy Policy</a>
+          </div>
           <a href="https://casagrown.com" className={styles.footerLink} target="_blank" rel="noopener noreferrer">
             casagrown.com
           </a>

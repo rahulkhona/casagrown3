@@ -755,6 +755,7 @@ export async function checkIsStaffByEmail(
 
 // Legacy: check by user_id (for backward compat)
 export async function checkIsStaff(userId: string): Promise<boolean> {
+    // First try by user_id (fast path)
     const { data, error } = await supabase
         .from("staff_members")
         .select("id")
@@ -766,7 +767,30 @@ export async function checkIsStaff(userId: string): Promise<boolean> {
         return false;
     }
 
-    return !!data;
+    if (data) return true;
+
+    // Fallback: look up the user's email and check by email
+    // This handles the case where staff_members.user_id isn't linked yet
+    const { data: authUser } = await supabase.auth.getUser();
+    if (authUser?.user?.email) {
+        const { data: staffByEmail } = await supabase
+            .from("staff_members")
+            .select("id")
+            .eq("email", authUser.user.email.toLowerCase())
+            .maybeSingle();
+
+        if (staffByEmail) {
+            // Auto-link user_id for future lookups
+            await supabase
+                .from("staff_members")
+                .update({ user_id: userId })
+                .eq("id", staffByEmail.id)
+                .is("user_id", null);
+            return true;
+        }
+    }
+
+    return false;
 }
 
 // =============================================================================

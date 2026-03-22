@@ -337,7 +337,7 @@ export function Navbar() {
               title="Report a bug or send feedback"
               data-tour="nav-feedback"
             >
-              ❓
+              🐛
             </button>
           )}
 
@@ -614,7 +614,7 @@ export function Navbar() {
             color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           }}>
             <div>
-              <div style={{ fontSize: 15, fontWeight: 700 }}>❓ Send Feedback</div>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>🐛 Report a Bug</div>
               <div style={{ fontSize: 11, opacity: 0.8 }}>Help us improve CasaGrown</div>
             </div>
             <button onClick={() => { setBugOpen(false); setBugSent(false) }} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer', opacity: 0.8 }}>✕</button>
@@ -697,18 +697,28 @@ export function Navbar() {
                         screenshotUrl = urlData?.publicUrl || null
                       }
                     }
+                    // Map bugType to the enum values the table expects
+                    const typeMap: Record<string, string> = {
+                      bug: 'bug_report', feature: 'feature_request', support: 'support_request',
+                    }
+                    // Auto-generate a title from the first line of the message
+                    const autoTitle = bugMessage.trim().split('\n')[0].substring(0, 120) || 'Bug Report'
+                    const contextLines = [
+                      bugMessage.trim(),
+                      '',
+                      '--- Context ---',
+                      `Page: ${window.location.href}`,
+                      `Viewport: ${window.innerWidth}x${window.innerHeight}`,
+                      `Platform: ${navigator.platform}`,
+                      screenshotUrl ? `Screenshot: ${screenshotUrl}` : '',
+                    ].filter(Boolean).join('\n')
+
                     await supabase.from('user_feedback').insert({
-                      reporter_id: userId,
-                      type: bugType,
-                      message: bugMessage,
-                      page_url: window.location.href,
-                      user_agent: navigator.userAgent,
-                      extra_context: {
-                        viewport: `${window.innerWidth}x${window.innerHeight}`,
-                        timestamp: new Date().toISOString(),
-                        platform: navigator.platform,
-                        screenshot_url: screenshotUrl,
-                      },
+                      author_id: userId,
+                      title: autoTitle,
+                      description: contextLines,
+                      type: typeMap[bugType] || 'bug_report',
+                      visibility: bugType === 'support' ? 'private' : 'public',
                     })
                     setBugSent(true)
                     setBugMessage('')
@@ -722,7 +732,7 @@ export function Navbar() {
                 disabled={!bugMessage.trim() || bugSending}
                 style={{
                   width: '100%', padding: '10px 16px', borderRadius: 10,
-                  background: bugSending || !bugMessage.trim() ? '#e5e7eb' : 'linear-gradient(135deg, #dc2626, #b91c1c)',
+                  background: bugSending || !bugMessage.trim() ? '#e5e7eb' : 'linear-gradient(135deg, #16a34a, #15803d)',
                   border: 'none', color: bugSending || !bugMessage.trim() ? '#9ca3af' : '#fff',
                   cursor: bugSending || !bugMessage.trim() ? 'not-allowed' : 'pointer',
                   fontSize: 14, fontWeight: 600, transition: 'all 0.15s',

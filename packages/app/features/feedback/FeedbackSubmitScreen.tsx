@@ -93,8 +93,14 @@ export function FeedbackSubmitScreen({ initialType }: { initialType?: 'bug' | 'f
         authorId: user.id,
       })
 
+      if (!result) {
+        Alert.alert('Error', 'Failed to submit feedback. Please try again.')
+        setLoading(false)
+        return
+      }
+
       // Upload images and link to ticket
-      if (result && images.length > 0) {
+      if (images.length > 0) {
         for (let i = 0; i < images.length; i++) {
           try {
             const { mediaId } = await uploadFeedbackImage(
@@ -112,11 +118,14 @@ export function FeedbackSubmitScreen({ initialType }: { initialType?: 'bug' | 'f
           }
         }
       }
-    } catch (err) {
+
+      setLoading(false)
+      router.replace('/feedback')
+    } catch (err: any) {
       console.error('Submit error:', err)
+      Alert.alert('Error', err?.message || 'Failed to submit feedback. Please try again.')
+      setLoading(false)
     }
-    setLoading(false)
-    router.replace('/feedback')
   }
 
   return (

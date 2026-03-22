@@ -548,7 +548,12 @@ export async function queryTable(token: string, table: string, filter: string): 
       Authorization: `Bearer ${token}`,
     },
   })
-  return res.json()
+  const data = await res.json()
+  if (!res.ok || !Array.isArray(data)) {
+    console.error(`queryTable ${table} error:`, data)
+    return []
+  }
+  return data
 }
 
 /**

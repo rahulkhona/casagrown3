@@ -75,7 +75,7 @@ test.describe('Deep Interactions', () => {
        WHERE buyer_id = 'b2222222-2222-2222-2222-222222222222'
          AND seller_id = 'a1111111-1111-1111-1111-111111111111'
          AND fulfillment_type = 'delivery'
-         AND status IN ('delivered', 'resolved', 'escalated', 'disputed')`
+         AND status IN ('delivered', 'resolved', 'escalated', 'disputed', 'completed')`
     )
 
     // 3. Reset Beth↔ANY seller pickup orders back to pending
@@ -86,8 +86,24 @@ test.describe('Deep Interactions', () => {
          AND status != 'pending'`
     )
 
+    // Helper: extract UUID from execSql RETURNING output (filters out "UPDATE N" lines)
+    const extractUuid = (raw: string | undefined): string | null => {
+      if (!raw) return null
+      const line = raw.split('\n')[0]?.trim()
+      return line && /^[0-9a-f]{8}-[0-9a-f]{4}-/.test(line) ? line : null
+    }
+
     // ── CREATE REQUIRED ORDER STATES ──
     // 4. Mark TWO delivery orders as 'delivered' for dispute tests (D1 + D5)
+    //    First reset any non-pending delivery orders back to pending (idempotent reruns)
+    await execSql(
+      `UPDATE market_orders SET status = 'pending', delivered_at = NULL
+       WHERE buyer_id = 'b2222222-2222-2222-2222-222222222222'
+         AND seller_id = 'a1111111-1111-1111-1111-111111111111'
+         AND fulfillment_type = 'delivery'
+         AND status IN ('delivered', 'disputed', 'escalated', 'resolved', 'completed')`
+    )
+
     const firstDelivered = await execSql(
       `UPDATE market_orders SET status = 'delivered', delivered_at = now()
        WHERE id = (
@@ -99,9 +115,12 @@ test.describe('Deep Interactions', () => {
          ORDER BY id LIMIT 1
        ) RETURNING id`
     )
-    if (firstDelivered) {
-      deliveredOrderId = firstDelivered.split('\n')[0].trim()
+    const firstUuid = extractUuid(firstDelivered)
+    if (firstUuid) {
+      deliveredOrderId = firstUuid
       console.log(`[SETUP] Marked order ${deliveredOrderId} as delivered`)
+    } else {
+      console.warn('[SETUP] No pending delivery order found for D1 dispute tests')
     }
 
     const secondDelivered = await execSql(
@@ -111,12 +130,13 @@ test.describe('Deep Interactions', () => {
          WHERE buyer_id = 'b2222222-2222-2222-2222-222222222222'
            AND status = 'pending'
            AND fulfillment_type = 'delivery'
-           AND id != '${deliveredOrderId}'
+           AND id != '${deliveredOrderId || '00000000-0000-0000-0000-000000000000'}'
          ORDER BY id LIMIT 1
        ) RETURNING id`
     )
-    if (secondDelivered) {
-      console.log(`[SETUP] Marked second order ${secondDelivered.trim()} as delivered`)
+    const secondUuid = extractUuid(secondDelivered)
+    if (secondUuid) {
+      console.log(`[SETUP] Marked second order ${secondUuid} as delivered`)
     }
 
     // 5. Find a pending pickup order for passcode tests — match any seller
@@ -277,9 +297,10 @@ test.describe('Deep Interactions', () => {
 
   test.describe('Pickup Flow (Simplified — mirrors delivery)', () => {
     test('P1 — seller hands off pickup order → status becomes delivered', async () => {
-      // Reset a Sam-owned order to pending/pickup for this test
+      // Reset a Sam-owned non-delivered order to pending/pickup for this test
+      // Exclude 'delivered' to avoid conflicting with dispute tests
       const resetResult = execSql(
-        `UPDATE market_orders SET status = 'pending', fulfillment_type = 'pickup', delivered_at = NULL, auto_complete_at = NULL WHERE id = (SELECT id FROM market_orders WHERE seller_id = 'a1111111-1111-1111-1111-111111111111' ORDER BY created_at DESC LIMIT 1) RETURNING id`
+        `UPDATE market_orders SET status = 'pending', fulfillment_type = 'pickup', delivered_at = NULL, auto_complete_at = NULL WHERE id = (SELECT id FROM market_orders WHERE seller_id = 'a1111111-1111-1111-1111-111111111111' AND status NOT IN ('delivered','completed') ORDER BY created_at DESC LIMIT 1) RETURNING id`
       )
       // execSql returns "UUID\n\nUPDATE 1" — extract just the UUID from first line
       const testOrderId = resetResult?.split('\n')[0]?.trim()

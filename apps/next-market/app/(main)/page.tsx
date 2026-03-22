@@ -290,6 +290,8 @@ export default function HomePage() {
             </div>
             <div className={styles.footerLinks}>
               <Link href="/login">Join the Movement</Link>
+              <Link href="/terms">Terms of Use</Link>
+              <Link href="/terms?tab=privacy">Privacy Policy</Link>
             </div>
           </div>
           <div className={styles.footerBottom}>

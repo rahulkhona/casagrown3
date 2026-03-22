@@ -109,18 +109,38 @@ const PRIVACY_SECTIONS = [
   {
     title: '1. Information Collection',
     paragraphs: [
-      'To ensure regulatory and tax compliance, we collect:',
-      'Listing Data: Descriptions and categories used to justify tax-exempt statuses.',
-      'Financial Metadata: Logs of Gross Sales vs. Gross Purchases for 1099-K reporting.',
-      'Payout Identifiers: Your Venmo handle or Zelle-linked ID.',
-      'Taxpayer Identity: SSN/EIN for users exceeding reporting thresholds.',
+      'To provide our neighborhood marketplace and ensure regulatory compliance, we collect:',
+      'Personal Identifiers: Legal name, email address, phone number, and physical neighborhood address (required for geofencing and delivery).',
+      'Financial & Tax Data: Payout handles (Venmo/Zelle), transaction history (Gross Sales vs. Purchases), and Taxpayer Identity (SSN/EIN) for users exceeding IRS or state reporting thresholds.',
+      'Usage & Device Data: IP address, device identifiers, and "Cookies" or tracking pixels used to measure app performance and deliver relevant neighborhood advertisements.',
+      'Listing Content: Photos and descriptions of your produce used for tax categorization and platform safety monitoring.',
     ],
   },
   {
-    title: '2. Data Usage & Mandatory Retention',
+    title: '2. Data Usage & Third-Party Sharing',
     paragraphs: [
-      'Legal Retention: We are legally required to retain records of your transactions and Taxpayer Identity for a minimum of seven (7) years, even after account deletion.',
-      'Inactivity Monitoring: We track login and transaction timestamps to identify Inactive accounts for the 90-day sweep.',
+      'We use your data to operate the marketplace and grow our community:',
+      'Service Operations: To facilitate netting, payouts, and neighborhood deliveries.',
+      'Mandatory Retention: We are legally required to retain transaction records and Taxpayer Identity for seven (7) years for audit purposes.',
+      'Marketing & Advertising: We may share hashed (encrypted) identifiers (such as email or phone) with third-party platforms like Meta (Facebook) to show you relevant neighborhood market openings or to find new "lookalike" neighbors who might enjoy CasaGrown. You may opt-out of this sharing in your account settings.',
+      'Safety & Inactivity: We monitor login timestamps to execute the 90-Day Force-Sweep of inactive accounts.',
+    ],
+  },
+  {
+    title: '3. Teen Safety & COPPA Compliance',
+    paragraphs: [
+      'CasaGrown is a family-oriented platform, but we take the privacy of minors seriously:',
+      'Under 13: We do not knowingly collect or store data from children under the age of 13. If we discover a user is under 13, the account will be immediately deleted.',
+      'Teens (13–17): Data collected from minor users is strictly used for platform operations and safety. We do not sell or lease the personal data of known minors to third-party advertisers for behavioral targeting.',
+    ],
+  },
+  {
+    title: '4. Your Rights & Choices',
+    paragraphs: [
+      'Depending on your location (e.g., California, Texas, or Virginia), you have the right to:',
+      'Access & Export: Request a copy of the data we hold about you.',
+      'Deletion: Request that we delete your account (subject to our 7-year legal tax retention requirement).',
+      'Opt-Out: Disable "Behavioral Advertising" pixels in your app settings.',
     ],
   },
 ]
