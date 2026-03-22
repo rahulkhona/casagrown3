@@ -11,12 +11,22 @@ import { createClient } from '@supabase/supabase-js'
 
 // Service-role client — server-side only
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY!
+
+// Resolve the best available key (filter out empty/whitespace-only values)
+function resolveServiceKey(): string {
+  const candidates = [
+    process.env.SUPABASE_SERVICE_ROLE_KEY,   // JWT format (preferred for auth.getUser)
+    process.env.SUPABASE_SECRET_KEY,          // sb_secret_ format
+  ]
+  for (const key of candidates) {
+    if (key && key.trim().length > 1) return key.trim()
+  }
+  throw new Error('No valid Supabase service key found (SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SECRET_KEY)')
+}
+
+const supabaseServiceKey = resolveServiceKey()
 
 function getServiceClient() {
-  if (!supabaseServiceKey) {
-    throw new Error('SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY) is not configured')
-  }
   return createClient(supabaseUrl, supabaseServiceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   })
