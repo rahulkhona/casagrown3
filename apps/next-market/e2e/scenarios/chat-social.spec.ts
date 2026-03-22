@@ -1,22 +1,15 @@
-/**
- * Chat & Social Flows — Messaging, Community Voice, Following & Notifications
- *
- * Scenarios:
- * S8.1  Buyer-seller chat
- * S8.3  Chat list
- * S9.1  Community board
- * S9.2  Submit feedback
- * S9.3  View ticket
- * S11.1 Notifications page
- * S11.2 Email branding check
- */
 import { test, expect } from '@playwright/test'
 import {
   loginAsUser,
   navigateTo,
+  navigateToMarket,
   assertPageHealthy,
   assertEmailBranding,
   clearMailpit,
+  execSql,
+  queryTable,
+  getAccessToken,
+  TEST_USERS,
 } from './scenario-helpers'
 
 test.describe.configure({ mode: 'serial' })
@@ -146,24 +139,87 @@ test.describe('Chat & Social Flows', () => {
     await page.context().close()
   })
 
-  // ── S2.4: Following ──
-  test('S2.4 — following page loads', async ({ browser }) => {
-    const page = await loginAsUser(browser, 'beth')
-    await navigateTo(page, '/following')
-    await assertPageHealthy(page)
+  // ── S2.4: Follow / Unfollow Lifecycle ──
+  test('S2.4 — follow booth → verify on /following → unfollow → verify removed', async ({ browser }) => {
+    // Clean up any existing follows for Beth first
+    execSql(
+      `DELETE FROM market_followers WHERE follower_id = 'b2222222-2222-2222-2222-222222222222'`
+    )
 
-    const body = await page.locator('body').innerText()
-    // Should show followed sellers or empty state
-    const hasFollowContent =
-      body.includes('Following') ||
-      body.includes('following') ||
-      body.includes('Follow') ||
-      body.includes('seller') ||
-      body.includes('No') ||
-      body.includes('none')
-    expect(hasFollowContent).toBeTruthy()
+    // Step 1: Login as Beth, browse market, click into a booth
+    const bethPage = await loginAsUser(browser, 'beth')
+    await navigateToMarket(bethPage)
+    await assertPageHealthy(bethPage)
 
-    await page.context().close()
+    // Find a booth link
+    const boothLinks = bethPage.locator('a[href*="/market/booth/"]')
+    const boothCount = await boothLinks.count()
+
+    if (boothCount === 0) {
+      // Market may be closed — test with direct booth URL
+      const boothId = execSql(
+        `SELECT id FROM market_booths LIMIT 1`
+      )
+      if (!boothId) { console.log('[FOLLOW] No booths found, skipping'); test.skip(); return }
+      await navigateTo(bethPage, `/market/booth/${boothId}`)
+    } else {
+      await boothLinks.first().click()
+      await bethPage.waitForLoadState('networkidle')
+    }
+    await assertPageHealthy(bethPage)
+
+    // Step 2: Click Follow button
+    const followBtn = bethPage.locator('button:has-text("Follow")')
+    const followBtnCount = await followBtn.count()
+    expect(followBtnCount).toBeGreaterThan(0)
+
+    // Should show "🤍 Follow" (not already following)
+    const btnText = await followBtn.first().innerText()
+    expect(btnText).toContain('Follow')
+    console.log(`[FOLLOW] Button text before click: "${btnText}"`)
+
+    await followBtn.first().click()
+    await bethPage.waitForTimeout(1500)
+
+    // Step 3: Verify button toggled to "Following"
+    const afterBtn = bethPage.locator('button:has-text("Following")')
+    const afterCount = await afterBtn.count()
+    expect(afterCount).toBeGreaterThan(0)
+    console.log('[FOLLOW] ✅ Button toggled to Following')
+
+    // Step 4: Navigate to /following and verify booth is listed
+    await navigateTo(bethPage, '/following')
+    await assertPageHealthy(bethPage)
+
+    const followingBody = await bethPage.locator('body').innerText()
+    // Should NOT show "Not following anyone yet"
+    expect(followingBody).not.toContain('Not following anyone yet')
+    // Should have unfollow button
+    const unfollowBtn = bethPage.locator('button:has-text("Unfollow")')
+    const unfollowCount = await unfollowBtn.count()
+    expect(unfollowCount).toBeGreaterThan(0)
+    console.log('[FOLLOW] ✅ Booth appears on /following page')
+
+    // Step 5: Click Unfollow
+    await unfollowBtn.first().click()
+    await bethPage.waitForTimeout(1500)
+
+    // Step 6: Verify booth removed — should show empty state
+    const afterUnfollow = await bethPage.locator('body').innerText()
+    const removedOrEmpty =
+      afterUnfollow.includes('Not following anyone yet') ||
+      (await unfollowBtn.count()) === 0
+    expect(removedOrEmpty).toBeTruthy()
+    console.log('[FOLLOW] ✅ Booth removed after unfollow')
+
+    // Step 7: Verify via DB — no market_followers row
+    const dbCheck = execSql(
+      `SELECT COUNT(*) FROM market_followers WHERE follower_id = 'b2222222-2222-2222-2222-222222222222'`
+    )
+    expect(parseInt(dbCheck) || 0).toBe(0)
+    console.log('[FOLLOW] ✅ DB confirms no follows remain')
+
+    await bethPage.context().close()
   })
 
   // ── S11.1: Notifications ──
@@ -201,3 +257,4 @@ test.describe('Chat & Social Flows', () => {
     await assertEmailBranding()
   })
 })
+

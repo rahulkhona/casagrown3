@@ -505,6 +505,115 @@ export async function assertNotificationCreated(
   console.warn(`[NOTIFICATION] No notification found for user ${userId}${_type ? ` type=${_type}` : ''}`)
 }
 
+// ── Supabase API Helpers (consolidated from individual spec files) ──
+
+/**
+ * Get an access token for a user via GoTrue password auth.
+ */
+export async function getAccessToken(email: string, password: string): Promise<string> {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY },
+    body: JSON.stringify({ email, password }),
+  })
+  const data = await res.json()
+  return data.access_token
+}
+
+/**
+ * Call a Supabase RPC function with an authenticated user token.
+ */
+export async function callRpc(token: string, rpcName: string, params: Record<string, any>): Promise<any> {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${rpcName}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(params),
+  })
+  const data = await res.json()
+  if (!res.ok) console.error(`RPC ${rpcName} failed:`, data)
+  return data
+}
+
+/**
+ * Query a Supabase table via REST API.
+ */
+export async function queryTable(token: string, table: string, filter: string): Promise<any[]> {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${filter}`, {
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${token}`,
+    },
+  })
+  return res.json()
+}
+
+/**
+ * Execute a SQL statement directly via Docker exec psql.
+ */
+export function execSql(sql: string): string {
+  const { execSync } = require('child_process')
+  try {
+    return execSync(
+      `docker exec -i supabase_db_casagrown3 psql -U postgres -t -c "${sql.replace(/"/g, '\\"')}"`,
+      { encoding: 'utf-8' },
+    ).trim()
+  } catch (e: any) {
+    console.error('[SQL ERROR]', e.stderr || e.message)
+    return ''
+  }
+}
+
+/**
+ * Invoke a Supabase edge function with the service role key.
+ */
+export async function invokeEdgeFunction(fnName: string, body: any): Promise<any> {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/${fnName}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+    },
+    body: JSON.stringify(body),
+  })
+  const text = await res.text()
+  try { return { status: res.status, data: JSON.parse(text) } }
+  catch { return { status: res.status, data: text } }
+}
+
+/**
+ * Pre-authenticate all TEST_USERS and return a token map.
+ */
+export async function preAuthAllUsers(): Promise<Record<string, string>> {
+  const tokens: Record<string, string> = {}
+  for (const [key, user] of Object.entries(TEST_USERS)) {
+    try { tokens[key] = await getAccessToken(user.email, user.password) }
+    catch { console.warn(`[AUTH] Could not get token for ${key}`) }
+  }
+  return tokens
+}
+
+/**
+ * Get booth IDs and addresses for all seeded sellers.
+ * Useful for tests that need to verify booths from multiple sellers are visible.
+ */
+export function getSellerBooths(): Array<{ boothId: string; ownerEmail: string; name: string; pickupAddress: string }> {
+  const rows = execSql(
+    `SELECT b.id, au.email, b.name, COALESCE(b.pickup_address, '')
+     FROM market_booths b
+     JOIN auth.users au ON au.id = b.owner_id
+     ORDER BY b.name`
+  )
+  if (!rows) return []
+  return rows.split('\n').filter(Boolean).map(row => {
+    const parts = row.split('|').map(s => s.trim())
+    return { boothId: parts[0], ownerEmail: parts[1], name: parts[2], pickupAddress: parts[3] || '' }
+  })
+}
+
 // ── Utility ──
 
 /**

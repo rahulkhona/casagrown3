@@ -30,6 +30,7 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
   const [flaggedIds, setFlaggedIds] = useState<Set<string>>(new Set())
   const [following, setFollowing] = useState(false)
   const [followerCount, setFollowerCount] = useState(0)
+  const [sellerRating, setSellerRating] = useState<{ avg: number; count: number } | null>(null)
   const { showPrompt, modalProps } = useNotificationPrompt(user?.id)
 
   // Reminder state
@@ -46,12 +47,22 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
 
       if (boothData) {
         setBooth(boothData)
-        const { data: prods } = await supabase
-          .from('market_products')
-          .select('*')
-          .eq('seller_id', boothData.owner_id)
-          .order('created_at', { ascending: true })
+        const [{ data: prods }, { data: profileData }] = await Promise.all([
+          supabase
+            .from('market_products')
+            .select('*')
+            .eq('seller_id', boothData.owner_id)
+            .order('created_at', { ascending: true }),
+          supabase
+            .from('profiles')
+            .select('seller_avg_rating, seller_rating_count')
+            .eq('id', boothData.owner_id)
+            .single(),
+        ])
         if (prods) setProducts(prods)
+        if (profileData && profileData.seller_rating_count >= 5) {
+          setSellerRating({ avg: profileData.seller_avg_rating, count: profileData.seller_rating_count })
+        }
 
         // Check follow status + count
         const { count: fCount } = await supabase
@@ -200,6 +211,13 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
           </div>
         )}
         <h1 className={styles.boothName}>{booth.name}</h1>
+        {sellerRating && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+            <span style={{ fontSize: 16 }}>⭐</span>
+            <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--gray-800)' }}>{sellerRating.avg}</span>
+            <span style={{ fontSize: 13, color: 'var(--gray-500)' }}>({sellerRating.count} reviews)</span>
+          </div>
+        )}
         <div className={styles.boothStats}>
           <span>{products.length} products</span>
           {booth.offers_delivery && <><span>•</span><span>🚗 Delivery</span></>}

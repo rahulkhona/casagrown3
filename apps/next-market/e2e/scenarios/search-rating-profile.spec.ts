@@ -12,6 +12,11 @@ import {
   loginAsUser,
   navigateTo,
   assertPageHealthy,
+  getAccessToken,
+  callRpc,
+  queryTable,
+  execSql,
+  preAuthAllUsers,
   SUPABASE_URL,
   SUPABASE_ANON_KEY,
   TEST_USERS,
@@ -19,65 +24,16 @@ import {
   TEST_LNG,
   TEST_ADDRESS,
 } from './scenario-helpers'
-import { execSync } from 'child_process'
 
 test.describe.configure({ mode: 'serial' })
 
-// ── Helpers ──
-
-async function getAccessToken(email: string, password: string): Promise<string> {
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY },
-    body: JSON.stringify({ email, password }),
-  })
-  const data = await res.json()
-  return data.access_token
-}
-
-async function callRpc(token: string, rpcName: string, params: Record<string, any>): Promise<any> {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${rpcName}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(params),
-  })
-  return res.json()
-}
-
-async function queryTable(token: string, table: string, filter: string): Promise<any[]> {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${filter}`, {
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${token}`,
-    },
-  })
-  return res.json()
-}
-
-function execSql(sql: string): string {
-  try {
-    return execSync(
-      `docker exec -i supabase_db_casagrown3 psql -U postgres -t -c "${sql.replace(/"/g, '\\"')}"`,
-      { encoding: 'utf-8' },
-    ).trim()
-  } catch (e: any) {
-    console.error('[SQL ERROR]', e.stderr || e.message)
-    return ''
-  }
-}
+// ── Helpers (imported from scenario-helpers) ──
 
 const tokens: Record<string, string> = {}
 
 test.describe('Search, Rating & Profile', () => {
   test.beforeAll(async () => {
-    for (const [key, user] of Object.entries(TEST_USERS)) {
-      try { tokens[key] = await getAccessToken(user.email, user.password) }
-      catch { console.warn(`[AUTH] Could not get token for ${key}`) }
-    }
+    Object.assign(tokens, await preAuthAllUsers())
   })
 
   // ════════════════════════════════════════════════════════════

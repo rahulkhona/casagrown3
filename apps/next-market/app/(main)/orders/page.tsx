@@ -35,6 +35,21 @@ interface MarketOrder {
   booth_name?: string
 }
 
+interface HelperOrder {
+  order_id: string
+  product_name: string
+  quantity: number
+  status: string
+  fulfillment_type: string
+  buyer_name: string
+  booth_name: string
+  booth_id: string
+  seller_name: string
+  total_usd: number
+  created_at: string
+  delivered_by_name: string | null
+}
+
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: string }> = {
   pending:          { label: 'Pending',          color: 'var(--amber-600, #d97706)', icon: '⏳' },
   delivered:        { label: 'Delivered',         color: 'var(--green-600)',          icon: '📦' },
@@ -63,7 +78,9 @@ function OrdersContent() {
   const searchParams = useSearchParams()
   const { user, isAuthenticated, loading: authLoading } = useAuth()
   const [orders, setOrders] = useState<MarketOrder[]>([])
-  const [role, setRole] = useState<'selling' | 'buying'>(searchParams.get('role') === 'buying' ? 'buying' : 'selling')
+  const [helperOrders, setHelperOrders] = useState<HelperOrder[]>([])
+  const [isHelper, setIsHelper] = useState(false)
+  const [role, setRole] = useState<'selling' | 'buying' | 'helping'>(searchParams.get('role') === 'buying' ? 'buying' : searchParams.get('role') === 'helping' ? 'helping' : 'selling')
   const [tab, setTab] = useState('pending_delivery')
   const [loading, setLoading] = useState(true)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -100,12 +117,29 @@ function OrdersContent() {
 
   useEffect(() => { loadOrders() }, [loadOrders])
 
-  // Fast poll: refresh orders every 15s while on this page
+  // Check if user is a helper for any booth and load helper queue
+  const loadHelperOrders = useCallback(async () => {
+    if (!user) return
+    const { count } = await supabase
+      .from('booth_helpers')
+      .select('*', { count: 'exact', head: true })
+      .eq('helper_id', user.id)
+      .eq('status', 'accepted')
+    setIsHelper((count || 0) > 0)
+
+    if ((count || 0) > 0) {
+      const { data } = await supabase.rpc('get_helper_queue')
+      if (data) setHelperOrders(data)
+    }
+  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { loadHelperOrders() }, [loadHelperOrders])
+
   useEffect(() => {
     if (!user) return
-    const id = setInterval(loadOrders, 15_000)
+    const id = setInterval(() => { loadOrders(); if (isHelper) loadHelperOrders() }, 15_000)
     return () => clearInterval(id)
-  }, [user?.id, loadOrders])
+  }, [user?.id, loadOrders, loadHelperOrders, isHelper])
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) router.push('/login?redirect=/orders')
@@ -166,6 +200,7 @@ function OrdersContent() {
 
   const sellingCount = orders.filter(o => o.seller_id === user!.id && ACTIVE_STATUSES.includes(o.status)).length
   const buyingCount = orders.filter(o => o.buyer_id === user!.id && ACTIVE_STATUSES.includes(o.status)).length
+  const helpingCount = helperOrders.length
 
   // Scroll fade: detect when scrolled to end
   const handleTabScroll = () => {
@@ -194,6 +229,15 @@ function OrdersContent() {
           🛒 Purchases
           {buyingCount > 0 && <span className={styles.tabCount}>{buyingCount}</span>}
         </button>
+        {isHelper && (
+          <button
+            className={`${styles.roleBtn} ${role === 'helping' ? styles.roleBtnActive : ''}`}
+            onClick={() => { setRole('helping'); setTab('all') }}
+          >
+            🤝 Helping
+            {helpingCount > 0 && <span className={styles.tabCount}>{helpingCount}</span>}
+          </button>
+        )}
       </div>
 
       {/* Status pills: horizontally scrollable with fade hint */}
@@ -211,6 +255,67 @@ function OrdersContent() {
           ))}
         </div>
       </div>
+
+      {/* Helper view: grouped by booth */}
+      {role === 'helping' ? (
+        helperOrders.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">🤝</div>
+            <div className="empty-state-title">No active orders</div>
+            <div className="empty-state-text">Orders for booths you help will appear here</div>
+          </div>
+        ) : (
+          <div className={styles.orderList}>
+            {/* Group by booth */}
+            {Array.from(new Set(helperOrders.map(o => o.booth_name))).map(boothName => (
+              <div key={boothName}>
+                <div style={{
+                  padding: '12px 0 6px', fontWeight: 600, fontSize: 15,
+                  borderBottom: '1px solid var(--gray-200)', marginBottom: 8,
+                  color: 'var(--gray-700)',
+                }}>
+                  📍 {boothName}
+                  <span style={{ fontWeight: 400, fontSize: 12, marginLeft: 8, color: 'var(--gray-400)' }}>
+                    {helperOrders.filter(o => o.booth_name === boothName).length} orders
+                  </span>
+                </div>
+                {helperOrders.filter(o => o.booth_name === boothName).map(order => {
+                  const config = STATUS_CONFIG[order.status] || { label: order.status, color: 'var(--gray-500)', icon: '•' }
+                  return (
+                    <Link key={order.order_id} href={`/orders/${order.order_id}`} className={styles.orderCard}>
+                      <div className={styles.orderHeader}>
+                        <div>
+                          <div className={styles.productName}>{order.product_name}</div>
+                          <div className={styles.orderMeta}>
+                            <span>{order.fulfillment_type === 'delivery' ? '🚗 Delivery' : '📍 Pickup'}</span>
+                            <span>•</span>
+                            <span>for {order.buyer_name}</span>
+                            <span>•</span>
+                            <span>{new Date(order.created_at).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                        <div className={styles.statusBadge} style={{ background: config.color }}>
+                          {config.icon} {config.label}
+                        </div>
+                      </div>
+                      <div className={styles.orderDetails}>
+                        <div className={styles.detailRow}>
+                          <span>{order.quantity} × {formatUsd(Number(order.total_usd) / order.quantity)}</span>
+                          <span className={styles.totalPrice}>{formatUsd(Number(order.total_usd))}</span>
+                        </div>
+                      </div>
+                      {order.delivered_by_name && (
+                        <div className={styles.hint}>✅ Delivered by {order.delivered_by_name}</div>
+                      )}
+                    </Link>
+                  )
+                })}
+              </div>
+            ))}
+          </div>
+        )
+      ) : (
+      <>
 
       {filtered.length === 0 ? (
         <div className="empty-state">
@@ -283,6 +388,8 @@ function OrdersContent() {
             )
           })}
         </div>
+      )}
+      </>
       )}
     </div>
   )

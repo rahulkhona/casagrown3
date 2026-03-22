@@ -27,6 +27,9 @@ import {
   assertPageHealthy,
   clearMailpit,
   assertEmailSent,
+  getAccessToken,
+  callRpc,
+  preAuthAllUsers,
   SUPABASE_URL,
   SUPABASE_ANON_KEY,
   TEST_USERS,
@@ -35,41 +38,8 @@ import {
 
 test.describe.configure({ mode: 'serial' })
 
-// ── Supabase RPC helper (server-side, bypasses UI) ──
-async function callRpc(
-  accessToken: string,
-  rpcName: string,
-  params: Record<string, any>,
-): Promise<any> {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${rpcName}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify(params),
-  })
-  const data = await res.json()
-  if (!res.ok) {
-    console.error(`RPC ${rpcName} failed:`, data)
-  }
-  return data
-}
-
-// ── Get access token for a user ──
-async function getAccessToken(email: string, password: string): Promise<string> {
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: SUPABASE_ANON_KEY,
-    },
-    body: JSON.stringify({ email, password }),
-  })
-  const data = await res.json()
-  return data.access_token
-}
+// ── Shared helpers imported from scenario-helpers ──
+// getAccessToken, callRpc, preAuthAllUsers
 
 // ── Upload a tiny test JPEG to Supabase Storage ──
 async function uploadTestPhoto(
@@ -151,11 +121,8 @@ test.describe('Transaction Pipeline — Full Financial Lifecycle', () => {
 
   test.beforeAll(async () => {
     await clearMailpit()
-
     // Pre-authenticate all users via API
-    for (const [key, user] of Object.entries(TEST_USERS)) {
-      tokens[key] = await getAccessToken(user.email, user.password)
-    }
+    Object.assign(tokens, await preAuthAllUsers())
   })
 
   // ── Phase 1: Create Multiple Orders ──

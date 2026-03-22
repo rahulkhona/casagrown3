@@ -66,6 +66,8 @@ const ALLOWED_TABLES = new Set([
   'campaign_zones',
   // Staff
   'staff_members',
+  // Beta testers
+  'beta_testers',
   // Geography (read-only lookups for jurisdiction dropdowns)
   'countries',
   'states',
@@ -117,11 +119,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify the token via Supabase Auth REST API directly.
-    // This avoids supabase-js client key format issues with sb_secret_ keys.
+    // The apikey header must be the publishable/anon key (not the service key).
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
     const authResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
-        'apikey': supabaseServiceKey,
+        'apikey': anonKey,
       },
     })
 

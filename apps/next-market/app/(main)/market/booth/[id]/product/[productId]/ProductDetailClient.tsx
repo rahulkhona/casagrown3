@@ -40,6 +40,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
   const [reminderSet, setReminderSet] = useState(false)
   const [reminderLoading, setReminderLoading] = useState(false)
   const [reminderToast, setReminderToast] = useState<string | null>(null)
+  const [sellerRating, setSellerRating] = useState<{ avg: number; count: number } | null>(null)
 
 
   const cart = useCart()
@@ -54,7 +55,18 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
         supabase.from('market_booths').select('*').eq('id', boothId).single(),
       ])
       if (prod) setProduct(prod)
-      if (boothData) setBooth(boothData)
+      if (boothData) {
+        setBooth(boothData)
+        // Fetch seller rating
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('seller_avg_rating, seller_rating_count')
+          .eq('id', boothData.owner_id)
+          .single()
+        if (profileData && profileData.seller_rating_count >= 5) {
+          setSellerRating({ avg: profileData.seller_avg_rating, count: profileData.seller_rating_count })
+        }
+      }
       setLoading(false)
     }
     load()
@@ -213,6 +225,14 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
             {product.category?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
           </div>
           <h1 className={styles.productName}>{product.name}</h1>
+          {sellerRating && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, marginBottom: 4 }}>
+              <span style={{ fontSize: 14 }}>⭐</span>
+              <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--gray-700)' }}>{sellerRating.avg}</span>
+              <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>({sellerRating.count} ratings)</span>
+              <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>• Seller</span>
+            </div>
+          )}
           <p className={styles.productPrice}>
             <span className="price price-large">{formatUsd(product.price_usd)}</span>
             <span className={styles.unit}>/ {product.unit}</span>

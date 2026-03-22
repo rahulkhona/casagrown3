@@ -31,6 +31,7 @@ interface BoothResult {
   matched_products: any[]
   seller_avatar_url: string | null
   seller_avg_rating: number | null
+  seller_rating_count: number
 }
 
 const themeColors: Record<string, { border: string; gradient: string }> = {
@@ -217,8 +218,21 @@ function BrowseMarketPageInner() {
           const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`)
           const data = await res.json()
           if (data?.address) {
-            const parts = [data.address.road, data.address.city || data.address.town || data.address.suburb, data.address.state].filter(Boolean)
+            const street = [data.address.house_number, data.address.road].filter(Boolean).join(' ')
+            const city = data.address.city || data.address.town || data.address.suburb || data.address.village
+            // Map state name to abbreviation for display and filtering
+            const stateMap: Record<string, string> = {
+              'California': 'CA', 'Florida': 'FL', 'New York': 'NY', 'Texas': 'TX',
+              'Oklahoma': 'OK', 'Arizona': 'AZ', 'Oregon': 'OR', 'Washington': 'WA',
+            }
+            const sc = stateMap[data.address.state] || data.address['ISO3166-2-lvl4']?.split('-')[1] || data.address.state
+            // Build full address with zip code and state abbreviation
+            const parts = [street, city, sc, data.address.postcode].filter(Boolean)
             setAddress(parts.join(', '))
+            // Extract zip code for category filtering and state isolation
+            if (data.address.postcode) setZipCode(data.address.postcode)
+            // Set buyer state code for state isolation
+            if (sc) setBuyerStateCode(sc)
           }
         } catch { /* ignore */ }
         setAddressResolved(true); setLocationLoading(false)
@@ -420,7 +434,7 @@ function BrowseMarketPageInner() {
                           : <span>{booth.booth_name.charAt(0)}</span>
                         }
                       </div>
-                      {booth.seller_avg_rating && (
+                      {booth.seller_avg_rating && booth.seller_rating_count >= 5 && (
                         <span className={styles.sellerRating}>⭐ {booth.seller_avg_rating}</span>
                       )}
                     </div>
