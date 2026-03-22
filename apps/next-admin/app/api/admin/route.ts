@@ -116,14 +116,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const serviceClient = getServiceClient()
+    // Verify the token via Supabase Auth REST API directly.
+    // This avoids supabase-js client key format issues with sb_secret_ keys.
+    const authResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'apikey': supabaseServiceKey,
+      },
+    })
 
-    // Verify the token and get the user
-    const { data: { user }, error: authError } = await serviceClient.auth.getUser(accessToken)
-
-    if (authError || !user?.email) {
+    if (!authResponse.ok) {
+      console.error('Admin API: auth validation failed:', authResponse.status)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const user = await authResponse.json()
+    if (!user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Create service client for data operations
+    const serviceClient = getServiceClient()
 
     // 2. Verify admin role
     const { data: staffRow } = await serviceClient
