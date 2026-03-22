@@ -158,6 +158,7 @@ function TermsPageInner() {
   )
   const [agreedTerms, setAgreedTerms] = useState(false)
   const [agreedPrivacy, setAgreedPrivacy] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [alreadyAccepted, setAlreadyAccepted] = useState(false)
   const [acceptedDate, setAcceptedDate] = useState<string | null>(null)
 
@@ -170,6 +171,7 @@ function TermsPageInner() {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       const user = session?.user
       if (!user) return
+      setIsLoggedIn(true)
       const { data: profile } = await supabase
         .from('profiles')
         .select('tos_accepted_at')
@@ -275,7 +277,7 @@ function TermsPageInner() {
       </div>
 
       {/* Accept bar — hidden if user already accepted current version */}
-      {alreadyAccepted ? (
+      {!isLoggedIn ? null : alreadyAccepted ? (
         <div className={styles.acceptBar} style={{ textAlign: 'center' }}>
           <p style={{ color: 'var(--green-700)', fontWeight: 600, margin: '0 0 4px' }}>
             ✓ You accepted these agreements on {acceptedDate}
