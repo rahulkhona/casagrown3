@@ -211,8 +211,8 @@ export default function BetaTestersPage() {
                         {tester.full_name}
                       </Text>
                       <Text fontSize="$2" color={colors.gray[400]}>
-                        Signed up {new Date(tester.signed_up_at).toLocaleDateString('en-US', {
-                          month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit'
+                        Signed up {new Date(tester.signed_up_at).toLocaleString('en-US', {
+                          month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short'
                         })}
                       </Text>
                     </YStack>
