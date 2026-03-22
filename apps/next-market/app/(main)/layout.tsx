@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { MarketProvider } from '../../lib/store'
+import { CartProvider } from '../../lib/useCart'
 import { useAuth } from '../../lib/useAuth'
 import { Navbar } from '../components/Navbar'
 import { BottomNav } from '../components/BottomNav'
@@ -60,7 +61,7 @@ const BROWSABLE_ROUTES = ['/', '/market', '/community', '/get-started', '/voice'
  */
 const PROTECTED_ROUTES = [
   '/my-booth', '/orders', '/earnings', '/chat', '/helping',
-  '/following', '/notifications', '/settings', '/profile',
+  '/following', '/notifications', '/settings', '/profile', '/cart',
 ]
 
 function OnboardingGate({ children }: { children: React.ReactNode }) {
@@ -121,6 +122,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   // Always show nav — the Navbar/BottomNav handle their own greying
   return (
     <MarketProvider>
+      <CartProvider>
       <ErrorToastProvider userId={user?.id}>
         <AnalyticsTracker />
         <AlphaBanner />
@@ -137,6 +139,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         <RatingReminder />
         {isBanned && <BannedOverlay reason={banReason} />}
       </ErrorToastProvider>
+      </CartProvider>
     </MarketProvider>
   )
 }

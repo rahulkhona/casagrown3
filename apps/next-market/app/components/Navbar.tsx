@@ -8,6 +8,8 @@ import { useAuth } from '../../lib/useAuth'
 import { createClient } from '../../lib/supabase'
 import styles from './Navbar.module.css'
 import { resetTour } from './GuidedTour'
+import { useCart } from '../../lib/useCart'
+import { useMarketStatus } from '../../lib/useMarketStatus'
 
 interface Notification {
   id: string
@@ -27,6 +29,24 @@ function formatTimeAgo(dateStr: string) {
   const days = Math.floor(hours / 24)
   if (days < 7) return `${days}d ago`
   return new Date(dateStr).toLocaleDateString()
+}
+
+function CartIcon() {
+  const { itemCount } = useCart()
+  const router = useRouter()
+
+  return (
+    <button
+      className={styles.iconBtn}
+      onClick={() => router.push('/cart')}
+      aria-label="Shopping Cart"
+      title={itemCount > 0 ? `${itemCount} item${itemCount > 1 ? 's' : ''} in cart` : 'Cart is empty'}
+      style={{ position: 'relative' }}
+    >
+      🛒
+      {itemCount > 0 && <span className={styles.badge}>{itemCount}</span>}
+    </button>
+  )
 }
 
 export function Navbar() {
@@ -296,6 +316,8 @@ export function Navbar() {
               <span className={`${styles.profileName} hide-mobile`}>{profileName.split(' ')[0]}</span>
             </Link>
           )}
+          {/* Cart icon — only when experiment is enabled */}
+          <CartIcon />
           {/* Bug Report Button */}
           {hasSession && (
             <button

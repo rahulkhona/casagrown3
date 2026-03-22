@@ -13,6 +13,7 @@ import { FlagModal } from '../../../../../../components/FlagModal'
 import { ProductQA } from '../../../../../../components/ProductQA'
 import { NotificationPromptModal } from '../../../../../../components/NotificationPromptModal'
 import { useNotificationPrompt } from '../../../../../../../lib/useNotificationPrompt'
+import { useCart } from '../../../../../../../lib/useCart'
 import styles from './page.module.css'
 
 function ProductDetailPageInner({ params }: { params: Promise<{ id: string; productId: string }> }) {
@@ -39,6 +40,12 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
   const [reminderSet, setReminderSet] = useState(false)
   const [reminderLoading, setReminderLoading] = useState(false)
   const [reminderToast, setReminderToast] = useState<string | null>(null)
+
+
+  const cart = useCart()
+  const existingCartQty = cart.getItemQty(productId)
+  const [cartQty, setCartQty] = useState(existingCartQty || 1)
+  const [cartToast, setCartToast] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -264,29 +271,116 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
             </div>
           )}
 
-          {/* Buy Button */}
-          <button
-            className="btn btn-primary btn-lg"
-            style={{ width: '100%', marginTop: 16, fontSize: 16 }}
-            onClick={() => {
-              if (!isAuthenticated) {
-                router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
-                return
-              }
-              if (profileComplete !== true) {
-                router.push('/profile-setup')
-                return
-              }
-              setShowBuy(true)
-            }}
-            disabled={product.inventory === 0 || isClosed}
-          >
-            {isClosed
-              ? '🔒 Closed'
-              : product.inventory === 0
-                ? 'Sold Out'
-                : `Buy — ${formatUsd(product.price_usd)} / ${product.unit}`}
-          </button>
+          {/* Buy Now + Add to Cart */}
+          <div style={{ marginTop: 16 }}>
+            {/* Buy Now button */}
+            <button
+              className="btn btn-primary btn-lg"
+              style={{ width: '100%', fontSize: 16 }}
+              onClick={() => {
+                if (!isAuthenticated) {
+                  router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
+                  return
+                }
+                if (profileComplete !== true) {
+                  router.push('/profile-setup')
+                  return
+                }
+                setShowBuy(true)
+              }}
+              disabled={product.inventory === 0 || isClosed}
+            >
+              {isClosed
+                ? '🔒 Closed'
+                : product.inventory === 0
+                  ? 'Sold Out'
+                  : `⚡ Buy Now — ${formatUsd(product.price_usd)} / ${product.unit}`}
+            </button>
+
+            {/* Qty picker + Add to Cart */}
+            {!isClosed && product.inventory > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--gray-600)' }}>Qty:</span>
+                  <button
+                    className="btn"
+                    style={{ width: 36, height: 36, padding: 0, fontSize: 18, borderRadius: '50%' }}
+                    onClick={() => setCartQty(Math.max(1, cartQty - 1))}
+                    disabled={cartQty <= 1}
+                  >−</button>
+                  <span style={{ fontSize: 18, fontWeight: 600, minWidth: 32, textAlign: 'center' }}>{cartQty}</span>
+                  <button
+                    className="btn"
+                    style={{ width: 36, height: 36, padding: 0, fontSize: 18, borderRadius: '50%' }}
+                    onClick={() => setCartQty(Math.min(product.inventory, cartQty + 1))}
+                    disabled={cartQty >= product.inventory}
+                  >+</button>
+                  <span style={{ fontSize: 13, color: 'var(--gray-500)', marginLeft: 4 }}>
+                    {product.inventory} available
+                  </span>
+                </div>
+
+                <button
+                  style={{
+                    width: '100%', padding: '12px 20px',
+                    border: '2px solid var(--green-600, #16a34a)', borderRadius: 'var(--radius-md, 12px)',
+                    background: 'var(--green-50, #f0fdf4)', color: 'var(--green-700, #15803d)',
+                    fontSize: 16, fontWeight: 600, cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                  onClick={() => {
+                    if (!isAuthenticated) {
+                      router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
+                      return
+                    }
+                    if (profileComplete !== true) {
+                      router.push('/profile-setup')
+                      return
+                    }
+                    cart.addItem(
+                      {
+                        id: product.id,
+                        name: product.name,
+                        price_usd: product.price_usd,
+                        unit: product.unit,
+                        inventory: product.inventory,
+                        photos: product.photos,
+                        category: product.category,
+                      },
+                      {
+                        id: booth.id,
+                        name: booth.name,
+                        offers_delivery: booth.offers_delivery,
+                        offers_pickup: booth.offers_pickup,
+                        pickup_address: booth.pickup_address,
+                        delivery_radius_miles: booth.delivery_radius_miles,
+                      },
+                      cartQty
+                    )
+                    setCartToast(existingCartQty > 0 ? `Cart updated! (${cartQty} ${product.unit}${cartQty > 1 ? 's' : ''})` : `Added to cart! 🛒`)
+                    setTimeout(() => setCartToast(null), 3000)
+                  }}
+                >
+                  {existingCartQty > 0
+                    ? `In Cart (${existingCartQty}) — Update to ${cartQty}`
+                    : `🛒 Add to Cart — ${formatUsd(product.price_usd * cartQty)}`}
+                </button>
+
+                {existingCartQty > 0 && (
+                  <button
+                    style={{
+                      width: '100%', marginTop: 8, padding: '10px', border: '1px solid var(--gray-300)',
+                      borderRadius: 'var(--radius-md, 12px)', background: 'none', cursor: 'pointer',
+                      fontSize: 14, color: 'var(--green-700, #15803d)', fontWeight: 500,
+                    }}
+                    onClick={() => router.push('/cart')}
+                  >
+                    View Cart →
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Harvest info */}
           {product.harvested_at && (
@@ -364,6 +458,18 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
           animation: 'fadeInUp 0.3s ease',
         }}>
           {reminderToast}
+        </div>
+      )}
+
+      {/* Cart Toast */}
+      {cartToast && (
+        <div style={{
+          position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
+          background: 'var(--green-700, #15803d)', color: '#fff', padding: '10px 20px',
+          borderRadius: 24, fontSize: 14, zIndex: 1000, boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          animation: 'fadeInUp 0.3s ease',
+        }}>
+          {cartToast}
         </div>
       )}
     </div>

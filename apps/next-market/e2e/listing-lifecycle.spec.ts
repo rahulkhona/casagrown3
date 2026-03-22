@@ -60,9 +60,9 @@ test.describe('Dynamic OG Tags — Product Page', () => {
 
   test('product page route exists and redirects', async ({ page }) => {
     // Navigate to a fake product ID — should redirect to /market
-    const response = await page.goto('/market/product/00000000-0000-0000-0000-000000000000')
-    await page.waitForTimeout(2000)
-    // Should redirect to /market (with or without product param)
+    await page.goto('/market/product/00000000-0000-0000-0000-000000000000')
+    // Wait for redirect to /market
+    await page.waitForURL('**/market**', { timeout: 10000 }).catch(() => {})
     const url = page.url()
     expect(url).toContain('/market')
   })

@@ -160,6 +160,24 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     if (existingHold) {
         // Top-up: cancel old PI, create new PI with old_hold + new_remainder
         isTopUp = true;
+
+        // Enforce max 10 top-ups per hold
+        const currentTopUps = existingHold.top_up_count || 0;
+        if (currentTopUps >= 10) {
+            // Refund the balance we just debited
+            await supabase.rpc("refund_buyer_balance", {
+                p_buyer_id: buyerId,
+                p_amount_cents: balanceAppliedCents,
+                p_reason: "topup_limit_reached",
+            });
+            return jsonError(
+                "You've reached the maximum number of card authorizations for this market session. " +
+                "Your existing hold will be settled at the end of the day.",
+                corsHeaders,
+                429,
+            );
+        }
+
         const newSpent = existingHold.spent_amount_cents + amount_cents;
         const newBalanceApplied = existingHold.balance_applied_cents + balanceAppliedCents;
         holdAmountCents = Math.max(
@@ -228,6 +246,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                 hold_amount_cents: holdAmountCents,
                 spent_amount_cents: newSpent,
                 balance_applied_cents: newBalanceApplied,
+                top_up_count: currentTopUps + 1,
                 updated_at: new Date().toISOString(),
             })
             .eq("id", existingHold.id);

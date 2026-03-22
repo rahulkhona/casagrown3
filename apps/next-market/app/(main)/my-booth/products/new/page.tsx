@@ -96,9 +96,78 @@ function NewProductPageInner() {
   const [boothWasPublished, setBoothWasPublished] = useState(false)
   const [boothIdForShare, setBoothIdForShare] = useState<string | null>(null)
 
+  // Inline booth setup (for users without a booth)
+  const [hasBooth, setHasBooth] = useState<boolean | null>(null) // null = loading
+  const [inlineDelivery, setInlineDelivery] = useState(true)
+  const [inlinePickup, setInlinePickup] = useState(true)
+  const [inlinePickupAddress, setInlinePickupAddress] = useState('')
+  const [inlineDeliveryRadius, setInlineDeliveryRadius] = useState(2)
+  const [inlineProfileName, setInlineProfileName] = useState('')
+  const [inlineDeliveryWindows, setInlineDeliveryWindows] = useState<string[]>(['8-10', '10-12'])
+  const [inlinePickupWindows, setInlinePickupWindows] = useState<string[]>(['8-10', '10-12', '12-14', '14-16'])
+
+  const INLINE_TIME_WINDOWS = [
+    { id: '8-10', label: '8–10a' },
+    { id: '10-12', label: '10–12p' },
+    { id: '12-14', label: '12–2p' },
+    { id: '14-16', label: '2–4p' },
+    { id: '16-18', label: '4–6p' },
+    { id: '18-20', label: '6–8p' },
+  ]
+
+  // Custom time windows (for non-standard slots)
+  const [inlineCustomDeliverySlots, setInlineCustomDeliverySlots] = useState<Array<{ start: string; end: string }>>([])
+  const [inlineCustomPickupSlots, setInlineCustomPickupSlots] = useState<Array<{ start: string; end: string }>>([])
+  const [inlineCustomStart, setInlineCustomStart] = useState('17:00')
+  const [inlineCustomEnd, setInlineCustomEnd] = useState('19:00')
+  const [showInlineCustomDelivery, setShowInlineCustomDelivery] = useState(false)
+  const [showInlineCustomPickup, setShowInlineCustomPickup] = useState(false)
+
+  const mapInlineWindows = (ids: string[], customs: Array<{ start: string; end: string }> = []) => {
+    const preset = ids.map(id => {
+      const [start] = id.split('-')
+      return { id, start: `${start}:00`, end: `${parseInt(start) + 2}:00` }
+    })
+    const custom = customs.map(s => ({ id: `custom-${s.start}`, start: s.start, end: s.end }))
+    return [...preset, ...custom]
+  }
+
+  const formatTime12h = (t: string) => {
+    const [h, m] = t.split(':').map(Number)
+    const suffix = h >= 12 ? 'p' : 'a'
+    const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h
+    return m > 0 ? `${h12}:${m.toString().padStart(2, '0')}${suffix}` : `${h12}${suffix}`
+  }
+
   // Validation
   const [errors, setErrors] = useState<Record<string, string>>({})
   const { showPrompt, modalProps } = useNotificationPrompt(authUser?.id)
+
+  // Auto-open camera when ?camera=true is present (photo-first flow from market FAB)
+  useEffect(() => {
+    if (searchParams.get('camera') === 'true' && !isEditMode && photos.length === 0) {
+      setShowCamera(true)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Check if user already has a booth
+  useEffect(() => {
+    if (!authUser) return
+    supabase.from('market_booths').select('id').eq('owner_id', authUser.id).single()
+      .then(({ data }) => {
+        setHasBooth(!!data)
+        // Pre-fill pickup address from profile if no booth
+        if (!data) {
+          supabase.from('profiles').select('full_name, street_address, city, state_code').eq('id', authUser.id).single()
+            .then(({ data: profile }) => {
+              if (profile?.full_name) setInlineProfileName(profile.full_name)
+              if (profile?.street_address) {
+                setInlinePickupAddress([profile.street_address, profile.city, profile.state_code].filter(Boolean).join(', '))
+              }
+            })
+        }
+      })
+  }, [authUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load existing product in edit mode
   useEffect(() => {
@@ -206,7 +275,7 @@ function NewProductPageInner() {
 
     try {
 
-    // ── 1. Ensure a booth exists (auto-create draft if needed) ──
+    // ── 1. Ensure a booth exists (auto-create if needed) ──
     let boothId: string | null = null
     const { data: existingBooth } = await supabase
       .from('market_booths')
@@ -217,34 +286,23 @@ function NewProductPageInner() {
     if (existingBooth) {
       boothId = existingBooth.id
     } else {
-      // Auto-create a draft booth, pulling saved draft from localStorage if available
-      let draftName = 'My Booth'
-      let draftData: Record<string, any> = {}
-      try {
-        const raw = localStorage.getItem('casagrown_booth_draft')
-        if (raw) {
-          const d = JSON.parse(raw)
-          if (d.name) draftName = d.name
-          draftData = {
-            offers_delivery: d.offersDelivery ?? true,
-            offers_pickup: d.offersPickup ?? true,
-            delivery_radius_miles: d.deliveryRadius ? parseInt(d.deliveryRadius) : 2,
-            pickup_address: d.pickupAddress || null,
-            payment_method: d.paymentMethod || 'automatic',
-            venmo_handle: d.venmoHandle || null,
-            charity_name: d.charityName || null,
-            decorative_theme: d.theme || 'floral',
-          }
-        }
-      } catch { /* ignore */ }
+      // Auto-create a booth using inline form values — publish immediately
+      const boothName = inlineProfileName ? `${inlineProfileName}'s Booth` : 'My Booth'
 
       const { data: newBooth, error: boothErr } = await supabase
         .from('market_booths')
         .insert({
           owner_id: authUser.id,
-          name: draftName,
-          status: 'draft',
-          ...draftData,
+          name: boothName,
+          status: 'published',
+          offers_delivery: inlineDelivery,
+          offers_pickup: inlinePickup,
+          delivery_radius_miles: inlineDeliveryRadius,
+          pickup_address: inlinePickup ? inlinePickupAddress || null : null,
+          delivery_windows: inlineDelivery ? mapInlineWindows(inlineDeliveryWindows, inlineCustomDeliverySlots) : [],
+          pickup_windows: inlinePickup ? mapInlineWindows(inlinePickupWindows, inlineCustomPickupSlots) : [],
+          payment_method: 'automatic',
+          decorative_theme: 'floral',
         })
         .select()
         .single()
@@ -721,6 +779,170 @@ function NewProductPageInner() {
               {errors.quantity && <span className={styles.error}>{errors.quantity}</span>}
             </div>
           </div>
+
+          {/* ===== Inline Booth Setup (first-time sellers only) ===== */}
+          {hasBooth === false && !isEditMode && (
+            <div className={styles.section}>
+              <label className={styles.label}>🏪 How will buyers get your product?</label>
+              <span className={styles.hint} style={{ marginBottom: 12, marginTop: 0 }}>
+                We'll set up your booth automatically. You can customize it later.
+              </span>
+              <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+                <button
+                  type="button"
+                  onClick={() => setInlineDelivery(!inlineDelivery)}
+                  style={{
+                    flex: 1, padding: '12px 16px', borderRadius: 10,
+                    border: inlineDelivery ? '2px solid #16a34a' : '2px solid #e5e7eb',
+                    background: inlineDelivery ? '#f0fdf4' : '#fff',
+                    cursor: 'pointer', textAlign: 'center', fontSize: 14, fontWeight: 500,
+                    color: inlineDelivery ? '#15803d' : '#6b7280',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  🚗 I can deliver
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInlinePickup(!inlinePickup)}
+                  style={{
+                    flex: 1, padding: '12px 16px', borderRadius: 10,
+                    border: inlinePickup ? '2px solid #2563eb' : '2px solid #e5e7eb',
+                    background: inlinePickup ? '#eff6ff' : '#fff',
+                    cursor: 'pointer', textAlign: 'center', fontSize: 14, fontWeight: 500,
+                    color: inlinePickup ? '#1d4ed8' : '#6b7280',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  📍 Pickup available
+                </button>
+              </div>
+              {!inlineDelivery && !inlinePickup && (
+                <span className={styles.error}>Please select at least one fulfillment option</span>
+              )}
+              {inlinePickup && (
+                <div className={styles.field}>
+                  <label className={styles.label}>Pickup Address <span className={styles.optional}>(optional)</span></label>
+                  <input
+                    className={styles.input}
+                    value={inlinePickupAddress}
+                    onChange={e => setInlinePickupAddress(e.target.value)}
+                    placeholder="Where should buyers pick up?"
+                  />
+                </div>
+              )}
+              {inlinePickup && (
+                <div className={styles.field}>
+                  <label className={styles.label}>Pickup Windows</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {INLINE_TIME_WINDOWS.map(w => (
+                      <button key={w.id} type="button" style={{
+                        padding: '8px 14px', borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                        border: inlinePickupWindows.includes(w.id) ? '2px solid #16a34a' : '1px solid #d1d5db',
+                        background: inlinePickupWindows.includes(w.id) ? '#dcfce7' : '#fff',
+                        color: inlinePickupWindows.includes(w.id) ? '#15803d' : '#6b7280',
+                        transition: 'all 0.15s',
+                      }} onClick={() => setInlinePickupWindows(prev =>
+                        prev.includes(w.id) ? prev.filter(id => id !== w.id) : [...prev, w.id]
+                      )}>
+                        {inlinePickupWindows.includes(w.id) ? '✅' : '⏰'} {w.label}
+                      </button>
+                    ))}
+                  </div>
+                  {inlineCustomPickupSlots.map((s, i) => (
+                    <div key={`cp-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                      <span style={{ fontSize: 13, color: '#16a34a', fontWeight: 600 }}>✅ {formatTime12h(s.start)}–{formatTime12h(s.end)}</span>
+                      <button type="button" onClick={() => setInlineCustomPickupSlots(prev => prev.filter((_, j) => j !== i))}
+                        style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 16 }}>×</button>
+                    </div>
+                  ))}
+                  {showInlineCustomPickup ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                      <input type="time" className={styles.input} value={inlineCustomStart}
+                        onChange={e => setInlineCustomStart(e.target.value)} style={{ maxWidth: 140 }} />
+                      <span style={{ color: '#9ca3af' }}>to</span>
+                      <input type="time" className={styles.input} value={inlineCustomEnd}
+                        onChange={e => setInlineCustomEnd(e.target.value)} style={{ maxWidth: 140 }} />
+                      <button type="button" onClick={() => {
+                        setInlineCustomPickupSlots(prev => [...prev, { start: inlineCustomStart, end: inlineCustomEnd }])
+                        setShowInlineCustomPickup(false)
+                      }} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #16a34a', background: '#dcfce7', color: '#15803d', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Add</button>
+                      <button type="button" onClick={() => setShowInlineCustomPickup(false)}
+                        style={{ border: 'none', background: 'none', color: '#9ca3af', cursor: 'pointer' }}>Cancel</button>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => setShowInlineCustomPickup(true)}
+                      style={{ marginTop: 8, border: 'none', background: 'none', color: '#16a34a', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                      ➕ Custom time slot
+                    </button>
+                  )}
+                </div>
+              )}
+              {inlineDelivery && (
+                <div className={styles.field}>
+                  <label className={styles.label}>Delivery Radius</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <input
+                      type="range" min={1} max={10}
+                      value={inlineDeliveryRadius}
+                      onChange={e => setInlineDeliveryRadius(parseInt(e.target.value))}
+                      style={{ flex: 1 }}
+                    />
+                    <span style={{ minWidth: 50, fontSize: 14, fontWeight: 600, color: '#16a34a' }}>
+                      {inlineDeliveryRadius} mi
+                    </span>
+                  </div>
+                </div>
+              )}
+              {inlineDelivery && (
+                <div className={styles.field}>
+                  <label className={styles.label}>Delivery Windows</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {INLINE_TIME_WINDOWS.map(w => (
+                      <button key={w.id} type="button" style={{
+                        padding: '8px 14px', borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                        border: inlineDeliveryWindows.includes(w.id) ? '2px solid #16a34a' : '1px solid #d1d5db',
+                        background: inlineDeliveryWindows.includes(w.id) ? '#dcfce7' : '#fff',
+                        color: inlineDeliveryWindows.includes(w.id) ? '#15803d' : '#6b7280',
+                        transition: 'all 0.15s',
+                      }} onClick={() => setInlineDeliveryWindows(prev =>
+                        prev.includes(w.id) ? prev.filter(id => id !== w.id) : [...prev, w.id]
+                      )}>
+                        {inlineDeliveryWindows.includes(w.id) ? '✅' : '⏰'} {w.label}
+                      </button>
+                    ))}
+                  </div>
+                  {inlineCustomDeliverySlots.map((s, i) => (
+                    <div key={`cd-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                      <span style={{ fontSize: 13, color: '#16a34a', fontWeight: 600 }}>✅ {formatTime12h(s.start)}–{formatTime12h(s.end)}</span>
+                      <button type="button" onClick={() => setInlineCustomDeliverySlots(prev => prev.filter((_, j) => j !== i))}
+                        style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 16 }}>×</button>
+                    </div>
+                  ))}
+                  {showInlineCustomDelivery ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                      <input type="time" className={styles.input} value={inlineCustomStart}
+                        onChange={e => setInlineCustomStart(e.target.value)} style={{ maxWidth: 110 }} />
+                      <span style={{ color: '#9ca3af' }}>to</span>
+                      <input type="time" className={styles.input} value={inlineCustomEnd}
+                        onChange={e => setInlineCustomEnd(e.target.value)} style={{ maxWidth: 110 }} />
+                      <button type="button" onClick={() => {
+                        setInlineCustomDeliverySlots(prev => [...prev, { start: inlineCustomStart, end: inlineCustomEnd }])
+                        setShowInlineCustomDelivery(false)
+                      }} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #16a34a', background: '#dcfce7', color: '#15803d', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Add</button>
+                      <button type="button" onClick={() => setShowInlineCustomDelivery(false)}
+                        style={{ border: 'none', background: 'none', color: '#9ca3af', cursor: 'pointer' }}>Cancel</button>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => setShowInlineCustomDelivery(true)}
+                      style={{ marginTop: 8, border: 'none', background: 'none', color: '#16a34a', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                      ➕ Custom time slot
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ===== Submit ===== */}
           <button type="submit" className={styles.submitBtn} disabled={validating}>

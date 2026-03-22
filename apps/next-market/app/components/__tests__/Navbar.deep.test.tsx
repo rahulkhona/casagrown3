@@ -22,6 +22,11 @@ vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: any) => React.createElement('a', { href, ...props }, children),
 }))
 
+// Mock useCart — CartIcon always calls useCart now (cart is always on)
+vi.mock('../../../lib/useCart', () => ({
+  useCart: () => ({ itemCount: 0, items: [], addItem: vi.fn(), removeItem: vi.fn(), getItemQty: vi.fn(() => 0) }),
+}))
+
 // ── Supabase mock ──
 function chain(data: any = []) {
   const result = { data: data ?? [], error: null, count: 0 }

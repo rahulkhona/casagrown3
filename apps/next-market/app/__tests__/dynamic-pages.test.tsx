@@ -123,6 +123,20 @@ vi.mock('../../../../../lib/legal', () => legalMock)
 vi.mock('../../../../../lib/analytics', () => analyticsMock)
 vi.mock('../../../../../lib/useNotificationPrompt', () => notifMock)
 
+// Mock useCart at all depths (cart is always on — ProductDetailClient uses useCart)
+const cartMock = { useCart: () => ({ itemCount: 0, items: [], addItem: vi.fn(), removeItem: vi.fn(), getItemQty: vi.fn(() => 0), updateQty: vi.fn(), clearCart: vi.fn() }) }
+vi.mock('../../lib/useCart', () => cartMock)
+vi.mock('../../../lib/useCart', () => cartMock)
+vi.mock('../../../../lib/useCart', () => cartMock)
+vi.mock('../../../../../lib/useCart', () => cartMock)
+
+// Mock useMarketStatus at all depths
+const marketStatusMock = { useMarketStatus: () => ({ isOpen: true, loading: false, productsNeverExpire: true, todaySchedule: null }), isProductExpired: () => false }
+vi.mock('../../lib/useMarketStatus', () => marketStatusMock)
+vi.mock('../../../lib/useMarketStatus', () => marketStatusMock)
+vi.mock('../../../../lib/useMarketStatus', () => marketStatusMock)
+vi.mock('../../../../../lib/useMarketStatus', () => marketStatusMock)
+
 // Mock components used by dynamic route pages
 vi.mock('../../components/BuyModal', () => ({ default: () => null }))
 vi.mock('../../components/FlagModal', () => ({ FlagModal: () => null }))

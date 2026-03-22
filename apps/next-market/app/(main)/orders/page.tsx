@@ -3,7 +3,7 @@
 import { LoadingSpinner } from '../../components/LoadingSpinner'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
 import { useAuth } from '../../../lib/useAuth'
 import styles from './page.module.css'
@@ -60,9 +60,10 @@ function formatUsd(n: number) {
 export default function OrdersPage() {
   const supabase = createClient()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user, isAuthenticated, loading: authLoading } = useAuth()
   const [orders, setOrders] = useState<MarketOrder[]>([])
-  const [role, setRole] = useState<'selling' | 'buying'>('selling')
+  const [role, setRole] = useState<'selling' | 'buying'>(searchParams.get('role') === 'buying' ? 'buying' : 'selling')
   const [tab, setTab] = useState('pending_delivery')
   const [loading, setLoading] = useState(true)
   const scrollRef = useRef<HTMLDivElement>(null)

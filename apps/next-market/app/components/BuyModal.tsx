@@ -34,7 +34,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
   )
   const [available, setAvailable] = useState(product.inventory)
   const [currentPrice, setCurrentPrice] = useState(product.price_usd)
-  const [holdAmountStr, setHoldAmountStr] = useState('')
+
   const [deliveryAddress, setDeliveryAddress] = useState(buyerAddress || '')
   const [deliveryInstructions, setDeliveryInstructions] = useState('')
   const [loading, setLoading] = useState(false)
@@ -43,7 +43,6 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
   const [stripeReady, setStripeReady] = useState(false)
   const cardElementRef = useRef<any>(null)
   const stripeRef = useRef<any>(null)
-  const [existingHold, setExistingHold] = useState<{ holdAmountCents: number; spentAmountCents: number } | null>(null)
   const [availableBalance, setAvailableBalance] = useState(0) // buyer's available USD balance
 
   // Push notification prompt
@@ -66,12 +65,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
   const balanceApplied = Math.min(availableBalance, total)
   const cardAmount = Math.max(0, total - balanceApplied)
   const cardCents = Math.round(cardAmount * 100)
-  const holdRemaining = existingHold
-    ? existingHold.holdAmountCents - existingHold.spentAmountCents
-    : 0
-  const needsCard = !isFreeProduct && cardCents > 0 && (!existingHold || holdRemaining < cardCents)
-  const additionalNeeded = needsCard ? (cardCents - holdRemaining) / 100 : 0
-  const suggestedAdditional = needsCard ? Math.max(cardAmount * 3, additionalNeeded) : 0
+  const needsCard = !isFreeProduct && cardCents > 0
 
   // Fetch fresh price + inventory when buy form opens
   useEffect(() => {
@@ -90,25 +84,6 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
     fetchFresh()
   }, [product.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch existing active hold
-  useEffect(() => {
-    if (!user) return
-    const fetchHold = async () => {
-      const { data } = await supabase
-        .from('market_holds')
-        .select('hold_amount_cents, spent_amount_cents')
-        .eq('buyer_id', user.id)
-        .eq('status', 'active')
-        .single()
-      if (data) {
-        setExistingHold({
-          holdAmountCents: data.hold_amount_cents,
-          spentAmountCents: data.spent_amount_cents,
-        })
-      }
-    }
-    fetchHold()
-  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch buyer's available balance
   useEffect(() => {
@@ -250,17 +225,22 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
         setError(orderResult.error); setLoading(false); return
       }
 
-      // Step 2: Create/top-up Stripe hold
-      const suggestedHold = holdAmountStr ? Math.round(parseFloat(holdAmountStr) * 100) : undefined
+      // Step 2: Create/top-up Stripe hold (exact order amount — no larger hold)
       const { data: holdResult, error: holdErr } = await supabase.functions.invoke('market-hold', {
         body: {
           order_id: orderResult.order_id,
           amount_cents: orderResult.total_cents,
-          suggested_hold_cents: suggestedHold,
         },
       })
 
-      if (holdErr) { setError(holdErr.message || 'Failed to create payment hold'); setLoading(false); return }
+      if (holdErr || holdResult?.error) {
+        const msg = holdResult?.error || holdErr?.message || 'Failed to create payment hold'
+        setError(msg)
+        // Rollback: cancel the order we just placed
+        await supabase.from('market_orders').update({ status: 'cancelled' }).eq('id', orderResult.order_id)
+        setLoading(false)
+        return
+      }
 
       // Step 3: Confirm with Stripe Elements (only if card entry is needed)
       if (holdResult.requiresCardEntry && stripeRef.current && cardElementRef.current) {
@@ -293,7 +273,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
     } finally {
       setLoading(false)
     }
-  }, [user, qty, available, fulfillment, deliveryAddress, buyerZip, product.id, holdAmountStr, stripeReady, supabase, onSuccess])
+  }, [user, qty, available, fulfillment, deliveryAddress, buyerZip, product.id, stripeReady, supabase, onSuccess])
 
   return (
     <div className={styles.overlay} onClick={onClose}>
@@ -444,60 +424,10 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
             </div>
           )}
 
-          {/* Existing hold info */}
-          {existingHold && (
-            <div className={styles.section}>
-              <div className={styles.holdInfo}>
-                <div className={styles.holdInfoLabel}>💳 Existing Hold</div>
-                <div className={styles.holdInfoGrid}>
-                  <span>Authorized</span>
-                  <strong>{formatUsd(existingHold.holdAmountCents / 100)}</strong>
-                  <span>Spent so far</span>
-                  <strong>{formatUsd(existingHold.spentAmountCents / 100)}</strong>
-                  <span>Remaining</span>
-                  <strong>{formatUsd(holdRemaining / 100)}</strong>
-                </div>
-                {!needsCard && (
-                  <p className={styles.holdCovered}>
-                    ✅ This order of {formatUsd(total)} is covered by your existing hold — no card entry needed.
-                  </p>
-                )}
-                {needsCard && (
-                  <p className={styles.holdShort}>
-                    ⚠️ Your remaining hold ({formatUsd(holdRemaining / 100)}) doesn't cover this {formatUsd(total)} order.
-                    An additional {formatUsd(additionalNeeded)} authorization is needed.
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
 
-          {/* Hold Suggestion — only when card is needed */}
-          {needsCard && (
-            <div className={styles.section}>
-              <div className={styles.holdSuggestion}>
-                <div className={styles.holdLabel}>
-                  {existingHold ? '💡 Increase your hold?' : '💡 Pre-authorize a higher amount?'}
-                </div>
-                <div className={styles.holdDesc}>
-                  Pre-authorize a larger amount so you won't need to re-enter your card for each
-                  purchase. At the end of the market day, all your transactions are netted — purchases
-                  you made minus any earnings from your own sales. Only the net balance (if positive)
-                  is charged to your card. If your sales exceed your purchases, the difference is
-                  credited to you. Any unused hold is automatically released.
-                </div>
-                <input
-                  className={styles.holdInput}
-                  type="number"
-                  placeholder={`Suggested: $${suggestedAdditional.toFixed(2)}`}
-                  value={holdAmountStr}
-                  onChange={e => setHoldAmountStr(e.target.value)}
-                  min={additionalNeeded}
-                  step="0.01"
-                />
-              </div>
-            </div>
-          )}
+
+
+
 
           {/* Stripe Card Element — only when card is needed */}
           {needsCard && (
@@ -526,7 +456,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
           {!isFreeProduct && (
           <p className={styles.holdNotice}>
             {needsCard
-              ? `Your card will be authorized for ${holdAmountStr ? `$${parseFloat(holdAmountStr).toFixed(2)}` : formatUsd(cardAmount)}${balanceApplied > 0 ? ` (${formatUsd(balanceApplied)} from balance)` : ''}. At end of day, only your actual net total is charged.`
+              ? `Your card will be authorized for ${formatUsd(cardAmount)}${balanceApplied > 0 ? ` (${formatUsd(balanceApplied)} from balance)` : ''}. Your card is only charged after delivery is confirmed and the order is complete.`
               : balanceApplied > 0
                 ? `${formatUsd(balanceApplied)} will be applied from your balance. No card authorization needed.`
                 : `This order is covered by your existing hold. No additional card authorization needed.`

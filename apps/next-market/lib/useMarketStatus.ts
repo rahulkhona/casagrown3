@@ -32,12 +32,14 @@ interface MarketSchedule {
 interface MarketSettings {
   market_never_closes: boolean
   products_never_expire: boolean
+  enable_cart: boolean
 }
 
 interface MarketStatus {
   isOpen: boolean
   neverCloses: boolean
   productsNeverExpire: boolean
+  enableCart: boolean
   todaySchedule: { open_time: string; close_time: string } | null
   nextOpenDate: Date | null
   loading: boolean
@@ -99,6 +101,7 @@ export function useMarketStatus(): MarketStatus {
   const [settings, setSettings] = useState<MarketSettings>({
     market_never_closes: false,
     products_never_expire: false,
+    enable_cart: false,
   })
   const [todaySchedule, setTodaySchedule] = useState<{ open_time: string; close_time: string } | null>(null)
   const [nextOpenDate, setNextOpenDate] = useState<Date | null>(null)
@@ -109,13 +112,14 @@ export function useMarketStatus(): MarketStatus {
       // Fetch settings
       const { data: settingsData } = await supabase
         .from('market_settings')
-        .select('market_never_closes, products_never_expire')
+        .select('market_never_closes, products_never_expire, enable_cart')
         .eq('id', true)
         .single()
 
       const s: MarketSettings = {
         market_never_closes: settingsData?.market_never_closes ?? false,
         products_never_expire: settingsData?.products_never_expire ?? false,
+        enable_cart: settingsData?.enable_cart ?? false,
       }
       setSettings(s)
 
@@ -164,6 +168,7 @@ export function useMarketStatus(): MarketStatus {
     isOpen,
     neverCloses: settings.market_never_closes,
     productsNeverExpire: settings.products_never_expire,
+    enableCart: settings.enable_cart,
     todaySchedule,
     nextOpenDate,
     loading,

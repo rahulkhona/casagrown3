@@ -17,11 +17,22 @@ export const test = base.extend({
       await page.evaluate(() => {
         try { localStorage.setItem('casagrown_alpha_ack', 'true') } catch {}
       })
-      // If the modal is already showing, click through it
+      // If the modal is already showing, dismiss it robustly
       const btn = page.locator('[data-testid="alpha-banner-close"]')
-      if (await btn.isVisible({ timeout: 500 }).catch(() => false)) {
-        await btn.click()
-        await page.waitForTimeout(100)
+      try {
+        if (await btn.isVisible({ timeout: 800 }).catch(() => false)) {
+          await btn.click({ force: true, timeout: 2000 })
+          await page.waitForTimeout(200)
+        }
+      } catch {
+        // If click fails, force-dismiss via localStorage + remove modal DOM
+        await page.evaluate(() => {
+          try {
+            localStorage.setItem('casagrown_alpha_ack', 'true')
+            const overlay = document.querySelector('[class*="AlphaBanner"]')
+            if (overlay) (overlay as HTMLElement).style.display = 'none'
+          } catch {}
+        })
       }
       return result
     }
