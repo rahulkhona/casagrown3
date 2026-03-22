@@ -1,7 +1,7 @@
 'use client'
 
 import { LoadingSpinner } from '../../components/LoadingSpinner'
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
@@ -57,7 +57,7 @@ function formatUsd(n: number) {
   return '$' + n.toFixed(2)
 }
 
-export default function OrdersPage() {
+function OrdersContent() {
   const supabase = createClient()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -285,5 +285,13 @@ export default function OrdersPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function OrdersPage() {
+  return (
+    <Suspense fallback={<LoadingSpinner />}>
+      <OrdersContent />
+    </Suspense>
   )
 }
