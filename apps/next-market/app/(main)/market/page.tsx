@@ -106,8 +106,12 @@ function BrowseMarketPageInner() {
 
   useEffect(() => { if (addressResolved) syncUrl() }, [syncUrl, addressResolved])
 
-  // Load user's address from profile — only if no URL state
+  // Load user's address from profile — only if no URL state and not already resolved.
+  // Guard against addressResolved prevents re-geocoding on Supabase token refresh, which
+  // fires onAuthStateChange with a new user object reference and would otherwise cause
+  // lat/lng to be reset, triggering a non-silent searchBooths() and a visible spinner.
   useEffect(() => {
+    if (addressResolved) { setProfileLoading(false); return }
     if (searchParams.has('lat')) { setProfileLoading(false); return }
     if (!user) { setProfileLoading(false); return }
     supabase.from('profiles').select('street_address, city, state_code, zip_code')
@@ -123,7 +127,7 @@ function BrowseMarketPageInner() {
         }
         setProfileLoading(false)
       })
-  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, addressResolved]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch allowed categories from DB when address resolves
   useEffect(() => {
