@@ -1,7 +1,7 @@
 'use client'
 
 
-import { useState, useEffect, useCallback , Suspense } from 'react'
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
@@ -153,9 +153,13 @@ function BrowseMarketPageInner() {
       // during background polling when nothing has changed on the market.
       setBooths(prev => {
         const next = data || []
-        const prevKey = JSON.stringify(prev.map(b => ({ id: b.booth_id, pc: b.product_count, dist: b.distance_miles })))
-        const nextKey = JSON.stringify(next.map((b: BoothResult) => ({ id: b.booth_id, pc: b.product_count, dist: b.distance_miles })))
-        return prevKey === nextKey ? prev : next
+        // Include sorted product IDs in the fingerprint so we only replace when
+        // the actual product set changes, not just on stale RPC responses.
+        const fingerprint = (arr: BoothResult[]) => JSON.stringify(arr.map(b => ({
+          id: b.booth_id, pc: b.product_count, dist: b.distance_miles,
+          pids: (b.matched_products || []).map((p: any) => p.id).sort().join(','),
+        })))
+        return fingerprint(prev) === fingerprint(next as BoothResult[]) ? prev : next
       })
     }
     if (!silent) setLoading(false)
@@ -173,45 +177,55 @@ function BrowseMarketPageInner() {
   // Two-tier polling:
   // 1. Lightweight refresh (30s + tab focus): just update prices/inventory for visible products
   // 2. Full spatial search (2 min): catch new/removed booths
+  //
+  // Use refs so intervals stay stable and never reset when booths or filters change.
+  // Without this, booths.length / searchBooths in the dep array caused React to tear
+  // down and recreate the 2-min interval on every render, causing a visible flicker.
+  const refreshProducts = useCallback(async () => {
+    const productIds = booths.flatMap(b => b.matched_products.map((p: any) => p.id))
+    if (productIds.length === 0) return
+    const { data } = await supabase.rpc('refresh_product_data', { product_ids: productIds })
+    if (!data) return
+    const updates = new Map((data as any[]).map((d) => [d.id, d]))
+    // Lightweight refresh: only patch price/inventory on changed products.
+    // Never remove products here — removals are handled by the full 2-min searchBooths.
+    // This prevents visible flicker when products are still valid but the RPC
+    // momentarily returns stale data.
+    setBooths(prev => {
+      let changed = false
+      const next = prev.map(b => ({
+        ...b,
+        matched_products: b.matched_products.map((p: any) => {
+          const u = updates.get(p.id)
+          if (!u) return p
+          if (u.price_usd === p.price_usd && u.inventory === p.inventory) return p
+          changed = true
+          return { ...p, price_usd: u.price_usd, inventory: u.inventory }
+        }),
+      }))
+      return changed ? next : prev
+    })
+  }, [booths, supabase]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep refs in sync so intervals always call the latest version without recreating
+  const searchBoothsRef = useRef(searchBooths)
+  const refreshProductsRef = useRef(refreshProducts)
+  useEffect(() => { searchBoothsRef.current = searchBooths }, [searchBooths])
+  useEffect(() => { refreshProductsRef.current = refreshProducts }, [refreshProducts])
+
   useEffect(() => {
     if (!lat || !lng || !addressResolved) return
 
-    const refreshProducts = async () => {
-      const productIds = booths.flatMap(b => b.matched_products.map((p: any) => p.id))
-      if (productIds.length === 0) return
-      const { data } = await supabase.rpc('refresh_product_data', { product_ids: productIds })
-      if (!data) return
-      const updates = new Map((data as any[]).map((d) => [d.id, d]))
-      // Lightweight refresh: only patch price/inventory on changed products.
-      // Never remove products here — removals are handled by the full 2-min searchBooths.
-      // This prevents visible flicker when products are still valid but the RPC
-      // momentarily returns stale data.
-      setBooths(prev => {
-        let changed = false
-        const next = prev.map(b => ({
-          ...b,
-          matched_products: b.matched_products.map((p: any) => {
-            const u = updates.get(p.id)
-            if (!u) return p
-            if (u.price_usd === p.price_usd && u.inventory === p.inventory) return p
-            changed = true
-            return { ...p, price_usd: u.price_usd, inventory: u.inventory }
-          }),
-        }))
-        return changed ? next : prev
-      })
-    }
-
-    const lightInterval = setInterval(refreshProducts, 30_000)
-    const heavyInterval = setInterval(() => searchBooths(true), 120_000)
-    const onFocus = () => { if (!document.hidden) refreshProducts() }
+    const lightInterval = setInterval(() => refreshProductsRef.current(), 30_000)
+    const heavyInterval = setInterval(() => searchBoothsRef.current(true), 120_000)
+    const onFocus = () => { if (!document.hidden) refreshProductsRef.current() }
     document.addEventListener('visibilitychange', onFocus)
     return () => {
       clearInterval(lightInterval)
       clearInterval(heavyInterval)
       document.removeEventListener('visibilitychange', onFocus)
     }
-  }, [searchBooths, booths.length, addressResolved]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [lat, lng, addressResolved]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAddressSubmit = async () => {
     if (!address.trim()) return
