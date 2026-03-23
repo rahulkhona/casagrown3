@@ -159,8 +159,12 @@ function BrowseMarketPageInner() {
         const next = data || []
         // Include sorted product IDs in the fingerprint so we only replace when
         // the actual product set changes, not just on stale RPC responses.
+        // Round distance_miles to 2dp — PostGIS floats drift slightly between calls
+        // (e.g. 2.345678 → 2.345679) which would cause the fingerprint to never match,
+        // replacing the booth array every 2 minutes and causing visible UI flicker.
         const fingerprint = (arr: BoothResult[]) => JSON.stringify(arr.map(b => ({
-          id: b.booth_id, pc: b.product_count, dist: b.distance_miles,
+          id: b.booth_id, pc: b.product_count,
+          dist: Math.round(b.distance_miles * 100) / 100,
           pids: (b.matched_products || []).map((p: any) => p.id).sort().join(','),
         })))
         return fingerprint(prev) === fingerprint(next as BoothResult[]) ? prev : next
