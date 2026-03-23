@@ -133,9 +133,9 @@ function BrowseMarketPageInner() {
   }, [addressResolved, zipCode]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Search booths
-  const searchBooths = useCallback(async () => {
+  const searchBooths = useCallback(async (silent = false) => {
     if (!lat || !lng) return
-    setLoading(true)
+    if (!silent) setLoading(true)
     const { data, error } = await supabase.rpc('nearby_booths', {
       user_lat: lat, user_lng: lng,
       max_miles: maxMiles,
@@ -146,9 +146,19 @@ function BrowseMarketPageInner() {
       category_filter: category || null,
       buyer_state_code: buyerStateCode,
     })
-    if (error) console.error('Search error:', error.message)
-    else setBooths(data || [])
-    setLoading(false)
+    if (error) {
+      console.error('Search error:', error.message)
+    } else {
+      // Only update state if results actually changed — avoids unnecessary re-renders
+      // during background polling when nothing has changed on the market.
+      setBooths(prev => {
+        const next = data || []
+        const prevKey = JSON.stringify(prev.map(b => ({ id: b.booth_id, pc: b.product_count, dist: b.distance_miles })))
+        const nextKey = JSON.stringify(next.map((b: BoothResult) => ({ id: b.booth_id, pc: b.product_count, dist: b.distance_miles })))
+        return prevKey === nextKey ? prev : next
+      })
+    }
+    if (!silent) setLoading(false)
   }, [lat, lng, fulfillment, maxMiles, search, minPrice, maxPrice, category, buyerStateCode]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (lat && lng && addressResolved) searchBooths() }, [lat, lng, fulfillment, maxMiles, category]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -193,7 +203,7 @@ function BrowseMarketPageInner() {
     }
 
     const lightInterval = setInterval(refreshProducts, 30_000)
-    const heavyInterval = setInterval(searchBooths, 120_000)
+    const heavyInterval = setInterval(() => searchBooths(true), 120_000)
     const onFocus = () => { if (!document.hidden) refreshProducts() }
     document.addEventListener('visibilitychange', onFocus)
     return () => {
