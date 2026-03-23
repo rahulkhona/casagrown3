@@ -26,6 +26,8 @@ Deno.serve(async (req: Request) => {
             seller_name,
             product_name,
             product_id,
+            ai_flagged = false,
+            ai_reason = "",
         } = await req.json();
 
         if (!seller_email || !product_name) {
@@ -37,6 +39,17 @@ Deno.serve(async (req: Request) => {
 
         const marketUrl = Deno.env.get("MARKET_APP_URL") ?? "http://localhost:3001";
         const editUrl = `${marketUrl}/my-booth/products/${product_id}`;
+
+        const flagSource = ai_flagged
+            ? "our automated content review"
+            : "multiple community members";
+        const reasonBlock = ai_flagged && ai_reason
+            ? `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:14px;margin:16px 0;color:#991b1b;font-size:14px;"><strong>Reason:</strong> ${ai_reason}</div>`
+            : "";
+        const subject = ai_flagged
+            ? `⚠️ Your listing "${product_name}" needs edits`
+            : `⚠️ Your product "${product_name}" has been flagged`;
+
 
         const htmlBody = `
 <!DOCTYPE html>
@@ -59,26 +72,28 @@ Deno.serve(async (req: Request) => {
         Hi ${seller_name || "there"},
       </p>
       <p style="color: #374151; font-size: 15px; line-height: 1.6;">
-        Your product <strong>"${product_name}"</strong> has been flagged by multiple community members and has been <strong>temporarily hidden</strong> from the market.
+        Your listing <strong>"${product_name}"</strong> was flagged by ${flagSource} and has been <strong>temporarily hidden</strong> from the market.
       </p>
+
+      ${reasonBlock}
 
       <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 16px; margin: 20px 0;">
         <p style="margin: 0 0 8px 0; font-weight: 600; color: #92400e;">What to do:</p>
         <ol style="margin: 0; padding-left: 20px; color: #78350f; font-size: 14px; line-height: 1.8;">
-          <li>Review your product listing for any guideline issues</li>
-          <li>Edit the product to update the name, photos, or description</li>
-          <li>Save — your product will be automatically republished</li>
+          <li>Review your listing for any guideline issues</li>
+          <li>Edit the name, photos, or description to address the concern</li>
+          <li>Save — your listing will be automatically re-reviewed and republished</li>
         </ol>
       </div>
 
       <div style="text-align: center; margin: 24px 0;">
         <a href="${editUrl}" style="display: inline-block; background: #f59e0b; color: #fff; font-weight: 600; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-size: 15px;">
-          ✏️ Edit Product
+          ✏️ Edit Listing
         </a>
       </div>
 
       <p style="color: #6b7280; font-size: 13px; line-height: 1.5;">
-        If you believe this was flagged in error, editing and saving will clear the flags and make your product visible again.
+        If you believe this was flagged in error, editing and saving will trigger a fresh review and make your listing visible again.
       </p>
     </div>
 
@@ -94,8 +109,8 @@ Deno.serve(async (req: Request) => {
 
         await sendTransactionEmail({
             to: seller_email,
-            subject: `⚠️ Your product "${product_name}" has been flagged`,
-            htmlBody: htmlBody,
+            subject,
+            htmlBody,
         });
 
         console.log(
