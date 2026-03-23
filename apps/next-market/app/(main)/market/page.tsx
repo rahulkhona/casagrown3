@@ -172,13 +172,24 @@ function BrowseMarketPageInner() {
       const { data } = await supabase.rpc('refresh_product_data', { product_ids: productIds })
       if (!data) return
       const updates = new Map((data as any[]).map((d) => [d.id, d]))
-      setBooths(prev => prev.map(b => ({
-        ...b,
-        matched_products: b.matched_products.map((p: any) => {
-          const u = updates.get(p.id)
-          return u ? { ...p, price_usd: u.price_usd, inventory: u.inventory, is_active: u.is_active } : p
-        }).filter((p: any) => p.is_active),
-      })))
+      // Lightweight refresh: only patch price/inventory on changed products.
+      // Never remove products here — removals are handled by the full 2-min searchBooths.
+      // This prevents visible flicker when products are still valid but the RPC
+      // momentarily returns stale data.
+      setBooths(prev => {
+        let changed = false
+        const next = prev.map(b => ({
+          ...b,
+          matched_products: b.matched_products.map((p: any) => {
+            const u = updates.get(p.id)
+            if (!u) return p
+            if (u.price_usd === p.price_usd && u.inventory === p.inventory) return p
+            changed = true
+            return { ...p, price_usd: u.price_usd, inventory: u.inventory }
+          }),
+        }))
+        return changed ? next : prev
+      })
     }
 
     const lightInterval = setInterval(refreshProducts, 30_000)
