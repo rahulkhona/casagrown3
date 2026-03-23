@@ -78,6 +78,12 @@ export default function TestersPage() {
 
       if (res.ok || res.status === 201) {
         setSubmitted(true)
+        // Fire Meta Pixel Lead event so Facebook registers the conversion
+        try {
+          if (typeof window !== 'undefined' && (window as any).fbq) {
+            ;(window as any).fbq('track', 'Lead', { email: form.email.trim().toLowerCase() })
+          }
+        } catch { /* ignore if pixel not loaded */ }
       } else {
         const data = await res.json().catch(() => ({}))
         if (data?.code === '23505') {
