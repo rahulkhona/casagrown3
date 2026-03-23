@@ -200,6 +200,39 @@ INSERT INTO auth.identities (
   now(), now(), now()
 ) ON CONFLICT (provider_id, provider) DO NOTHING;
 
+-- Maria Martinez
+INSERT INTO auth.users (
+  id, instance_id, aud, role,
+  email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data,
+  created_at, updated_at,
+  confirmation_token, recovery_token, email_change_token_new,
+  email_change
+) VALUES (
+  'c3333333-3333-3333-3333-333333333333',
+  '00000000-0000-0000-0000-000000000000',
+  'authenticated', 'authenticated',
+  'martinez@test.local',
+  '$2a$06$FbG0qaw0v4J3GOm/y5tduulnL0cYxDpju9ZoHH9mNJW.GgeaC.xve',
+  now(),
+  '{"provider":"email","providers":["email"]}',
+  '{"full_name":"Maria Martinez"}',
+  now(), now(),
+  '', '', '', ''
+) ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email;
+
+INSERT INTO auth.identities (
+  id, user_id, provider_id, provider,
+  identity_data, last_sign_in_at,
+  created_at, updated_at
+) VALUES (
+  'c3333333-3333-3333-3333-333333333333',
+  'c3333333-3333-3333-3333-333333333333',
+  'martinez@test.local', 'email',
+  jsonb_build_object('sub', 'c3333333-3333-3333-3333-333333333333', 'email', 'martinez@test.local'),
+  now(), now(), now()
+) ON CONFLICT (provider_id, provider) DO NOTHING;
+
 -- =============================================================================
 -- 11. Test Profiles
 -- =============================================================================
@@ -218,6 +251,10 @@ VALUES
   ('b2222222-2222-2222-2222-222222222222', 'buyer@test.local', 'Beth Buyer',
    '89283470c2fffff', 'BUYER01', false, NOW(), NOW(),
    '95120', '123 Main St', 'San Jose', 'CA', '+14085555678',
+   ARRAY['89283470c6fffff', '89283470cafffff']),
+  ('c3333333-3333-3333-3333-333333333333', 'martinez@test.local', 'Maria Martinez',
+   '89283470c2fffff', 'MARIA01', true, NOW(), NOW(),
+   '95123', '456 Oak Ave', 'San Jose', 'CA', '+14085559012',
    ARRAY['89283470c6fffff', '89283470cafffff'])
 ON CONFLICT (id) DO UPDATE SET
   full_name = EXCLUDED.full_name,
@@ -239,7 +276,8 @@ ON CONFLICT (id) DO UPDATE SET
 INSERT INTO public.point_ledger (user_id, type, amount, balance_after, created_at, metadata)
 VALUES
   ('a1111111-1111-1111-1111-111111111111', 'reward', 5000, 5000, now() + interval '1 second', '{"reason":"E2E test seed"}'),
-  ('b2222222-2222-2222-2222-222222222222', 'reward', 5000, 5000, now() + interval '1 second', '{"reason":"E2E test seed"}');
+  ('b2222222-2222-2222-2222-222222222222', 'reward', 5000, 5000, now() + interval '1 second', '{"reason":"E2E test seed"}'),
+  ('c3333333-3333-3333-3333-333333333333', 'reward', 5000, 5000, now() + interval '1 second', '{"reason":"E2E test seed"}');
 
 -- =============================================================================
 -- 12. Test Posts (with complete detail rows)
@@ -937,6 +975,53 @@ BEGIN
     2, 4.50, 9.00, 0.83, 9.83, 'pickup', 'pending'
   FROM market_booths b, market_products p
   WHERE b.owner_id = 'a1111111-1111-1111-1111-111111111111' AND p.name = 'Heirloom Peppers' LIMIT 1;
+
+  -- S2b: Another pending pickup from same buyer (Beth → Sam) — for group hand-off testing
+  INSERT INTO market_orders (buyer_id, seller_id, booth_id, product_id, product_name,
+    quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
+    fulfillment_type, status)
+  SELECT 'b2222222-2222-2222-2222-222222222222', 'a1111111-1111-1111-1111-111111111111', b.id, p.id, 'Heritage Tomatoes',
+    3, 5.00, 15.00, 1.39, 16.39, 'pickup', 'pending'
+  FROM market_booths b, market_products p
+  WHERE b.owner_id = 'a1111111-1111-1111-1111-111111111111' AND p.name = 'Heritage Tomatoes' LIMIT 1;
+
+  -- S2c: Third pending pickup from Beth → Sam — lemons
+  INSERT INTO market_orders (buyer_id, seller_id, booth_id, product_id, product_name,
+    quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
+    fulfillment_type, status)
+  SELECT 'b2222222-2222-2222-2222-222222222222', 'a1111111-1111-1111-1111-111111111111', b.id, p.id, 'Meyer Lemons',
+    4, 3.50, 14.00, 1.30, 15.30, 'pickup', 'pending'
+  FROM market_booths b, market_products p
+  WHERE b.owner_id = 'a1111111-1111-1111-1111-111111111111' AND p.name = 'Meyer Lemons' LIMIT 1;
+
+  -- ── MARIA → SAM (mixed pickup + delivery) ──
+
+  -- M1: Pending pickup from Maria
+  INSERT INTO market_orders (buyer_id, seller_id, booth_id, product_id, product_name,
+    quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
+    fulfillment_type, status)
+  SELECT 'c3333333-3333-3333-3333-333333333333', 'a1111111-1111-1111-1111-111111111111', b.id, p.id, 'Heritage Tomatoes',
+    2, 5.00, 10.00, 0.93, 10.93, 'pickup', 'pending'
+  FROM market_booths b, market_products p
+  WHERE b.owner_id = 'a1111111-1111-1111-1111-111111111111' AND p.name = 'Heritage Tomatoes' LIMIT 1;
+
+  -- M2: Pending pickup from Maria (second item)
+  INSERT INTO market_orders (buyer_id, seller_id, booth_id, product_id, product_name,
+    quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
+    fulfillment_type, status)
+  SELECT 'c3333333-3333-3333-3333-333333333333', 'a1111111-1111-1111-1111-111111111111', b.id, p.id, 'Heirloom Peppers',
+    1, 4.50, 4.50, 0.42, 4.92, 'pickup', 'pending'
+  FROM market_booths b, market_products p
+  WHERE b.owner_id = 'a1111111-1111-1111-1111-111111111111' AND p.name = 'Heirloom Peppers' LIMIT 1;
+
+  -- M3: Pending delivery from Maria (different fulfillment type)
+  INSERT INTO market_orders (buyer_id, seller_id, booth_id, product_id, product_name,
+    quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
+    fulfillment_type, status)
+  SELECT 'c3333333-3333-3333-3333-333333333333', 'a1111111-1111-1111-1111-111111111111', b.id, p.id, 'Meyer Lemons',
+    3, 3.50, 10.50, 0.97, 11.47, 'delivery', 'pending'
+  FROM market_booths b, market_products p
+  WHERE b.owner_id = 'a1111111-1111-1111-1111-111111111111' AND p.name = 'Meyer Lemons' LIMIT 1;
 
   -- ── SELLER@TEST AS BUYER (login as seller@test to confirm/dispute) ──
 

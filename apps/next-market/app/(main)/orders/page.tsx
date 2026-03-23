@@ -328,67 +328,147 @@ function OrdersContent() {
           </div>
           <Link href="/market" className="btn btn-primary">Browse Market</Link>
         </div>
-      ) : (
-        <div className={styles.orderList}>
-          {filtered.map(order => {
-            const config = STATUS_CONFIG[order.status] || { label: order.status, color: 'var(--gray-500)', icon: '•' }
-            const isBuyer = order.buyer_id === user!.id
-            const otherName = isBuyer ? order.seller_name : order.buyer_name
-            const otherAvatar = isBuyer ? order.seller_avatar : order.buyer_avatar
+      ) : (() => {
+        // Group by buyer for seller's pending tabs
+        const shouldGroup = role === 'selling' && (tab === 'pending_delivery' || tab === 'pending_pickup')
+        if (!shouldGroup) {
+          // Flat list for non-grouped views
+          return (
+            <div className={styles.orderList}>
+              {filtered.map(order => {
+                const config = STATUS_CONFIG[order.status] || { label: order.status, color: 'var(--gray-500)', icon: '•' }
+                const isBuyer = order.buyer_id === user!.id
+                const otherName = isBuyer ? order.seller_name : order.buyer_name
+                const otherAvatar = isBuyer ? order.seller_avatar : order.buyer_avatar
+                return (
+                  <Link key={order.id} href={`/orders/${order.id}`} className={styles.orderCard}>
+                    <div className={styles.orderHeader}>
+                      <div>
+                        <div className={styles.productName}>{order.product_name}</div>
+                        <div className={styles.orderMeta}>
+                          {otherAvatar ? (
+                            <img src={otherAvatar} alt="" style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }} />
+                          ) : (
+                            <span style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--green-100)', color: 'var(--green-700)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
+                              {(otherName || '?').charAt(0).toUpperCase()}
+                            </span>
+                          )}
+                          <span>{isBuyer ? `Bought from ${otherName}` : `Selling to ${otherName}`}</span>
+                          <span>•</span>
+                          <span>{order.fulfillment_type === 'delivery' ? '🚗 Delivery' : '📍 Pickup'}</span>
+                          <span>•</span>
+                          <span>{new Date(order.created_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                      <div className={styles.statusBadge} style={{ background: config.color }}>
+                        {config.icon} {config.label}
+                      </div>
+                    </div>
+                    <div className={styles.orderDetails}>
+                      <div className={styles.detailRow}>
+                        <span>{order.quantity} × {formatUsd(order.unit_price_usd)}</span>
+                        <span className={styles.totalPrice}>{formatUsd(order.total_usd)}</span>
+                      </div>
+                    </div>
+                    {order.status === 'delivered' && order.buyer_id === user!.id && order.auto_complete_at && (
+                      <div className={styles.hint}>
+                        ⏰ Auto-completes {new Date(order.auto_complete_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    )}
+                    {order.status === 'ready_for_pickup' && (
+                      <div className={styles.hint}>
+                        📍 {order.buyer_id === user!.id ? 'Show your passcode at pickup' : 'Enter buyer\'s passcode to complete'}
+                      </div>
+                    )}
+                    {order.status === 'pending' && order.seller_id === user!.id && (
+                      <div className={styles.hint}>
+                        ⏳ Waiting for you to process this order
+                      </div>
+                    )}
+                  </Link>
+                )
+              })}
+            </div>
+          )
+        }
 
-            return (
-              <Link key={order.id} href={`/orders/${order.id}`} className={styles.orderCard}>
-                <div className={styles.orderHeader}>
-                  <div>
-                    <div className={styles.productName}>{order.product_name}</div>
-                    <div className={styles.orderMeta}>
-                      {otherAvatar ? (
-                        <img src={otherAvatar} alt="" style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }} />
+        // Grouped by buyer for seller's pending tabs
+        const buyerGroups = new Map<string, { buyerId: string; buyerName: string; buyerAvatar: string | null; orders: MarketOrder[] }>()
+        filtered.forEach(order => {
+          const key = order.buyer_id
+          if (!buyerGroups.has(key)) {
+            buyerGroups.set(key, { buyerId: order.buyer_id, buyerName: order.buyer_name || 'Unknown', buyerAvatar: order.buyer_avatar || null, orders: [] })
+          }
+          buyerGroups.get(key)!.orders.push(order)
+        })
+
+        return (
+          <div className={styles.orderList}>
+            {Array.from(buyerGroups.values()).map(group => {
+              const groupTotal = group.orders.reduce((sum, o) => sum + o.total_usd, 0)
+              return (
+                <div key={group.buyerId}>
+                  {/* Buyer group header */}
+                  <div style={{
+                    padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    borderBottom: '2px solid var(--green-200)', marginBottom: 8, marginTop: 12,
+                    background: 'var(--green-50, #f0fdf4)', borderRadius: '10px 10px 0 0',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      {group.buyerAvatar ? (
+                        <img src={group.buyerAvatar} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }} />
                       ) : (
-                        <span style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--green-100)', color: 'var(--green-700)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
-                          {(otherName || '?').charAt(0).toUpperCase()}
+                        <span style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--green-200)', color: 'var(--green-700)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700 }}>
+                          {group.buyerName.charAt(0).toUpperCase()}
                         </span>
                       )}
-                      <span>{isBuyer ? `Bought from ${otherName}` : `Selling to ${otherName}`}</span>
-                      <span>•</span>
-                      <span>{order.fulfillment_type === 'delivery' ? '🚗 Delivery' : '📍 Pickup'}</span>
-                      <span>•</span>
-                      <span>{new Date(order.created_at).toLocaleDateString()}</span>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--gray-800)' }}>
+                          {group.buyerName}
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>
+                          {group.orders.length} item{group.orders.length !== 1 ? 's' : ''} · {formatUsd(groupTotal)}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div className={styles.statusBadge} style={{ background: config.color }}>
-                    {config.icon} {config.label}
-                  </div>
-                </div>
 
-                <div className={styles.orderDetails}>
-                  <div className={styles.detailRow}>
-                    <span>{order.quantity} × {formatUsd(order.unit_price_usd)}</span>
-                    <span className={styles.totalPrice}>{formatUsd(order.total_usd)}</span>
-                  </div>
+                  {/* Individual orders in this group */}
+                  {group.orders.map(order => {
+                    const config = STATUS_CONFIG[order.status] || { label: order.status, color: 'var(--gray-500)', icon: '•' }
+                    return (
+                      <Link key={order.id} href={`/orders/${order.id}`} className={styles.orderCard} style={{ marginLeft: 8 }}>
+                        <div className={styles.orderHeader}>
+                          <div>
+                            <div className={styles.productName}>{order.product_name}</div>
+                            <div className={styles.orderMeta}>
+                              <span>{order.fulfillment_type === 'delivery' ? '🚗 Delivery' : '📍 Pickup'}</span>
+                              <span>•</span>
+                              <span>{new Date(order.created_at).toLocaleDateString()}</span>
+                            </div>
+                          </div>
+                          <div className={styles.statusBadge} style={{ background: config.color }}>
+                            {config.icon} {config.label}
+                          </div>
+                        </div>
+                        <div className={styles.orderDetails}>
+                          <div className={styles.detailRow}>
+                            <span>{order.quantity} × {formatUsd(order.unit_price_usd)}</span>
+                            <span className={styles.totalPrice}>{formatUsd(order.total_usd)}</span>
+                          </div>
+                        </div>
+                        {order.status === 'pending' && (
+                          <div className={styles.hint}>⏳ Waiting for you to process</div>
+                        )}
+                      </Link>
+                    )
+                  })}
                 </div>
-
-                {/* Quick status hints */}
-                {order.status === 'delivered' && isBuyer && order.auto_complete_at && (
-                  <div className={styles.hint}>
-                    ⏰ Auto-completes {new Date(order.auto_complete_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </div>
-                )}
-                {order.status === 'ready_for_pickup' && (
-                  <div className={styles.hint}>
-                    📍 {isBuyer ? 'Show your passcode at pickup' : 'Enter buyer\'s passcode to complete'}
-                  </div>
-                )}
-                {order.status === 'pending' && !isBuyer && (
-                  <div className={styles.hint}>
-                    ⏳ Waiting for you to process this order
-                  </div>
-                )}
-              </Link>
-            )
-          })}
-        </div>
-      )}
+              )
+            })}
+          </div>
+        )
+      })()}
       </>
       )}
     </div>

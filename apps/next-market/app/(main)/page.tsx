@@ -12,7 +12,7 @@ export default function HomePage() {
   const router = useRouter()
   const [checking, setChecking] = useState(true)
 
-  // Check auth on mount — redirect logged-in users
+  // Check auth on mount — redirect fully-set-up users to market
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -22,21 +22,19 @@ export default function HomePage() {
         return
       }
 
-      // User is logged in — check their progress
+      // User is logged in — only redirect if fully set up
       const { data: profile } = await supabase
         .from('profiles')
         .select('tos_accepted_at, full_name, street_address')
         .eq('id', user.id)
         .single()
 
-      if (needsTosAcceptance(profile?.tos_accepted_at)) {
-        router.replace('/terms')
-        return
-      } else if (!profile?.full_name || !profile?.street_address) {
-        router.replace('/profile-setup')
+      if (profile?.full_name && profile?.street_address && !needsTosAcceptance(profile?.tos_accepted_at)) {
+        // Fully set-up users go straight to market
+        router.replace('/market')
         return
       }
-      // Fully set-up users see the home page (no redirect)
+      // Not fully set up — just show the landing page (don't force ToS here)
       setChecking(false)
     })
   }, [router])

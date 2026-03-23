@@ -10,23 +10,6 @@ test.describe('Terms of Service Page', () => {
     expect(body).toContain('Privacy Policy')
   })
 
-  test('accept button is disabled until both checkboxes are checked', async ({
-    page,
-  }) => {
-    // Checkboxes and accept button only render in onboarding mode (with redirect param)
-    await page.goto('/terms?redirect=/market')
-    const acceptBtn = page.getByRole('button', { name: /accept.*continue/i })
-    await expect(acceptBtn).toBeDisabled()
-
-    // Check only terms
-    await page.check('#agree-terms')
-    await expect(acceptBtn).toBeDisabled()
-
-    // Check privacy too
-    await page.check('#agree-privacy')
-    await expect(acceptBtn).toBeEnabled()
-  })
-
   test('switching tabs shows different content', async ({ page }) => {
     await page.goto('/terms')
 
@@ -42,11 +25,14 @@ test.describe('Terms of Service Page', () => {
     ).toBeVisible()
   })
 
-  test('checkboxes show check marks on tabs', async ({ page }) => {
-    // Checkboxes only render in onboarding mode
-    await page.goto('/terms?redirect=/market')
-    await page.check('#agree-terms')
-    // The ✓ should appear on the terms tab
-    await expect(page.locator('text=✓')).toBeVisible()
+  test('terms page is viewable as read-only without login', async ({ page }) => {
+    // Terms page should render content for anonymous visitors (crawlers, footer links)
+    await page.goto('/terms')
+    await page.waitForTimeout(1000)
+    const body = await page.locator('body').textContent()
+    expect(body).toContain('Legal Agreements')
+    // No acceptance bar for anonymous visitors
+    const acceptBtn = page.getByRole('button', { name: /accept.*continue/i })
+    expect(await acceptBtn.count()).toBe(0)
   })
 })
