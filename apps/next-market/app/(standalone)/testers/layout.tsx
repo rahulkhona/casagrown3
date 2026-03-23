@@ -13,10 +13,10 @@ export const metadata: Metadata = {
     type: 'website',
     images: [
       {
-        url: `${BASE_URL}/og-share.png`,
+        url: `${BASE_URL}/og-testers.png`,
         width: 1200,
         height: 630,
-        alt: 'CasaGrown — Fresh from Neighbors\' Backyard',
+        alt: 'Join CasaGrown Beta — Fresh from your neighbors\' backyard',
       },
     ],
   },

@@ -104,3 +104,26 @@ BEGIN
   ORDER BY f.dist_miles;
 END;
 $$;
+
+-- Also fix refresh_product_data: remove market_date check so auto-refresh
+-- (called every 30s) doesn't incorrectly mark products as inactive.
+-- Previously: market_date >= v_today AND expires_at > now()
+-- Now: only expires_at > now() (market_date is the listing date, not the expiry)
+CREATE OR REPLACE FUNCTION refresh_product_data(product_ids UUID[])
+RETURNS TABLE(id UUID, price_usd NUMERIC, inventory INTEGER, is_active BOOLEAN)
+LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  v_never_expire BOOLEAN;
+BEGIN
+  SELECT COALESCE(ms.products_never_expire, false) INTO v_never_expire
+  FROM market_settings ms WHERE ms.id = true;
+
+  RETURN QUERY
+  SELECT mp.id, mp.price_usd, mp.inventory,
+    (mp.is_active
+      AND (v_never_expire OR mp.expires_at IS NULL OR mp.expires_at > now())
+    ) AS is_active
+  FROM market_products mp
+  WHERE mp.id = ANY(product_ids);
+END;
+$$;
