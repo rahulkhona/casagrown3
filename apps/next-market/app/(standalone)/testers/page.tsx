@@ -105,7 +105,7 @@ export default function TestersPage() {
             </p>
             <p className={styles.successNext}>
               Our team will review your application and send a <strong>confirmation email</strong> to{' '}
-              <strong>{form.email}</strong> with your test schedule, compensation details, and next steps.
+              <strong>{form.email}</strong> with your test schedule and next steps.
             </p>
             <p className={styles.successNext}>
               This usually takes 1–2 business days. We appreciate your patience!
@@ -159,10 +159,10 @@ export default function TestersPage() {
             </p>
 
             <div className={styles.paidBadge}>
-              <span>💰</span>
+              <span>🌱</span>
               <div>
-                <strong>Paid Testing Opportunity</strong>
-                <p>Testers are compensated for their time and feedback</p>
+                <strong>Community Beta Testers</strong>
+                <p>Help shape a product that could change how neighbors share food</p>
               </div>
             </div>
           </div>
@@ -170,10 +170,10 @@ export default function TestersPage() {
           {/* Right: Form (prominent) */}
           <div className={styles.formContainer}>
             <div className={styles.formHeader}>
-              <h2 className={styles.formTitle}>🧪 Sign Up to Get Paid to Test</h2>
+              <h2 className={styles.formTitle}>🧪 Sign Up to Beta Test</h2>
               <p className={styles.formSubtitle}>
-                Apply below. After review, we&apos;ll send your confirmation email 
-                with compensation details and test schedule.
+                Apply below. After review, we&apos;ll send your confirmation email
+                with next steps and your test schedule.
               </p>
             </div>
 
