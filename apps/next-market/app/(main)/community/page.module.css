@@ -816,6 +816,17 @@
   border-color: var(--green-300);
 }
 
+.casabotChip {
+  background: linear-gradient(135deg, var(--green-50), var(--amber-50));
+  border-color: var(--green-300);
+  font-weight: 600;
+}
+
+.casabotChip:hover {
+  background: linear-gradient(135deg, var(--green-100), var(--amber-100));
+  border-color: var(--green-400);
+}
+
 /* ─── Invite Banner (deprecated — hidden) ────────────────────── */
 .inviteBanner { display: none; }
 .inviteContent { display: none; }

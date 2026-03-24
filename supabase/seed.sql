@@ -1189,3 +1189,83 @@ ON CONFLICT (user_id) DO UPDATE SET
   total_withdrawn_usd = EXCLUDED.total_withdrawn_usd,
   updated_at = now();
 
+
+-- =============================================================================
+-- 21. CasaBot System User + Demo Community Chat Messages
+-- =============================================================================
+
+-- CasaBot auth user
+INSERT INTO auth.users (
+  id, instance_id, aud, role,
+  email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data,
+  created_at, updated_at,
+  confirmation_token, recovery_token, email_change_token_new, email_change
+) VALUES (
+  'a0000000-0000-0000-0000-00000ca5ab07',
+  '00000000-0000-0000-0000-000000000000',
+  'authenticated', 'authenticated',
+  'casabot@casagrown.com',
+  '$2a$06$FbG0qaw0v4J3GOm/y5tduulnL0cYxDpju9ZoHH9mNJW.GgeaC.xve',
+  now(),
+  '{"provider":"email","providers":["email"]}',
+  '{"full_name":"CasaBot 🌱"}',
+  now(), now(),
+  '', '', '', ''
+) ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO auth.identities (
+  id, user_id, provider_id, provider,
+  identity_data, last_sign_in_at,
+  created_at, updated_at
+) VALUES (
+  'a0000000-0000-0000-0000-00000ca5ab07',
+  'a0000000-0000-0000-0000-00000ca5ab07',
+  'casabot@casagrown.com', 'email',
+  jsonb_build_object('sub', 'a0000000-0000-0000-0000-00000ca5ab07', 'email', 'casabot@casagrown.com'),
+  now(), now(), now()
+) ON CONFLICT (provider_id, provider) DO NOTHING;
+
+-- CasaBot profile
+INSERT INTO public.profiles (
+  id, email, full_name, avatar_url, home_community_h3_index
+) VALUES (
+  'a0000000-0000-0000-0000-00000ca5ab07',
+  'casabot@casagrown.com',
+  'CasaBot 🌱',
+  '/logo.png',
+  '89283470c2fffff'
+) ON CONFLICT (id) DO UPDATE SET
+  full_name = 'CasaBot 🌱',
+  avatar_url = '/logo.png';
+
+-- Demo community chat messages (spread over several days for realism)
+INSERT INTO public.community_chat_messages (community_h3_index, author_id, content, is_system, is_pinned, created_at)
+VALUES
+  ('89283470c2fffff', 'a0000000-0000-0000-0000-00000ca5ab07',
+   '👋 Welcome to CasaGrown Community! Share gardening tips, trade produce, and connect with neighbors. Say hello! 🌿',
+   true, true, now() - interval '6 days'),
+  ('89283470c2fffff', 'a0000000-0000-0000-0000-00000ca5ab07',
+   '🌱 **Gardening Tip**: March is perfect for starting tomato seedlings indoors! They need 6-8 weeks before transplanting. Keep soil around 70-75°F for fastest germination.',
+   true, false, now() - interval '5 days'),
+  ('89283470c2fffff', 'a0000000-0000-0000-0000-00000ca5ab07',
+   '🐝 Did you know? Planting marigolds near your vegetable garden repels pests naturally and attracts pollinators!',
+   true, false, now() - interval '4 days'),
+  ('89283470c2fffff', 'a1111111-1111-1111-1111-111111111111',
+   'Just harvested a bunch of tomatoes from my raised bed! Anyone interested? 🍅',
+   false, false, now() - interval '3 days'),
+  ('89283470c2fffff', 'b2222222-2222-2222-2222-222222222222',
+   'Yes please! I''d love some. How much are you asking per box?',
+   false, false, now() - interval '3 days' + interval '2 hours'),
+  ('89283470c2fffff', 'c3333333-3333-3333-3333-333333333333',
+   'My basil is going crazy this season! Happy to share cuttings with anyone who wants to grow their own 🌿',
+   false, false, now() - interval '2 days'),
+  ('89283470c2fffff', 'a0000000-0000-0000-0000-00000ca5ab07',
+   '💡 Have excess produce? Tap "📸 Sell Excess Produce" on the market page to share with neighbors!',
+   true, false, now() - interval '1 day'),
+  ('89283470c2fffff', 'b2222222-2222-2222-2222-222222222222',
+   '@CasaBot what vegetables grow well in partial shade?',
+   false, false, now() - interval '12 hours'),
+  ('89283470c2fffff', 'a0000000-0000-0000-0000-00000ca5ab07',
+   '🌻 Ask me anything about gardening! Mention @CasaBot for planting schedules, pest control, soil tips, and more.',
+   true, false, now() - interval '1 hour');

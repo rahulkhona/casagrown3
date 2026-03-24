@@ -144,12 +144,21 @@ export default function SuggestionChips({ onSelect, userMessageCount }: Suggesti
     setSuggestions(getRandomChips(3))
   }, [])
 
-  // Only show when the user hasn't sent many messages yet
-  if (userMessageCount > 2 || suggestions.length === 0) return null
-
+  // Show random chips when user hasn't sent many messages
+  // but always show the CasaBot chip
   return (
     <div className={styles.suggestionsWrapper}>
-      {suggestions.map((text, i) => (
+      {/* Always-visible CasaBot chip */}
+      <button
+        className={`${styles.suggestionChip} ${styles.casabotChip}`}
+        onClick={() => onSelect('@CasaBot ')}
+        title="Ask CasaBot for gardening advice"
+      >
+        🌱 Ask CasaBot
+      </button>
+
+      {/* Random suggestion chips (only when user is new) */}
+      {userMessageCount <= 2 && suggestions.map((text, i) => (
         <button 
           key={i} 
           className={styles.suggestionChip}

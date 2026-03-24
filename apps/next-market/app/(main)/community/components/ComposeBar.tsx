@@ -214,7 +214,7 @@ export default function ComposeBar({ onSend, userId, h3Index }: ComposeBarProps)
         <textarea
           ref={inputRef}
           className={styles.composeInput}
-          placeholder="Type a message..."
+          placeholder="Message your neighbors... try @CasaBot for garden tips!"
           value={content}
           onChange={handleInput}
           onKeyDown={handleKeyDown}
