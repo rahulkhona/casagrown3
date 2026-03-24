@@ -684,7 +684,7 @@ function BrowseMarketPageInner() {
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)' }}
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}
         >
-          {marketIsOpen ? '📸 Take Photo to Sell' : '📸 Take Photo to Sell'}
+          {marketIsOpen ? '📸 Sell Excess Produce' : '📸 List for Next Market'}
         </Link>
     </div>
   )

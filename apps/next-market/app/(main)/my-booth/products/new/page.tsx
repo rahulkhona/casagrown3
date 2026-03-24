@@ -80,8 +80,23 @@ function NewProductPageInner() {
   const [unit, setUnit] = useState('each')
   const [quantity, setQuantity] = useState('')
   const [category, setCategory] = useState('')
-  const [harvestedAt, setHarvestedAt] = useState('')
-  const [listingDays, setListingDays] = useState(30)
+  const [harvestedAt, setHarvestedAt] = useState(() => {
+    // Auto-fill harvest date to today for applicable categories
+    return new Date().toISOString().split('T')[0]
+  })
+  // Smart listing expiry: max(next market day, category default days)
+  const getExpiryDate = () => {
+    const categoryDays: Record<string, number> = {
+      produce: 3, flowers: 3, flower_arrangements: 3, eggs: 3,
+      honey: 10, seeds: 10, soil: 10, pots: 10, garden_equipment: 10,
+    }
+    const defaultDays = categoryDays[category] || 7
+    const fromDays = new Date(Date.now() + defaultDays * 86400000)
+    // At least until the next market day
+    const nextMarketMs = nextMarket ? new Date(nextMarket.iso + 'T23:59:59').getTime() : 0
+    const expiryMs = Math.max(fromDays.getTime(), nextMarketMs)
+    return new Date(expiryMs).toISOString()
+  }
 
   // Categories from DB
   const [dbCategories, setDbCategories] = useState<Array<{ name: string; display_order: number }>>([])
@@ -95,6 +110,14 @@ function NewProductPageInner() {
   const [publishMissing, setPublishMissing] = useState<string[]>([])
   const [boothWasPublished, setBoothWasPublished] = useState(false)
   const [boothIdForShare, setBoothIdForShare] = useState<string | null>(null)
+  const [addedProductId, setAddedProductId] = useState<string | null>(null)
+  const [buzzPosted, setBuzzPosted] = useState(false)
+  const [buzzPosting, setBuzzPosting] = useState(false)
+  const [userH3Index, setUserH3Index] = useState<string | null>(null)
+
+  // AI auto-fill
+  const [aiAnalyzing, setAiAnalyzing] = useState(false)
+  const [aiToast, setAiToast] = useState<string | null>(null)
 
   // Inline booth setup (for users without a booth)
   const [hasBooth, setHasBooth] = useState<boolean | null>(null) // null = loading
@@ -204,9 +227,6 @@ function NewProductPageInner() {
         setDbCategories(cats)
         if (!category && cats.length > 0) {
           setCategory(cats[0].name)
-          // Auto-select listing duration based on default category
-          const perishable = ['produce', 'eggs', 'flowers', 'flower_arrangements']
-          setListingDays(perishable.includes(cats[0].name) ? 3 : 30)
         }
       }
 
@@ -220,6 +240,13 @@ function NewProductPageInner() {
     }
     loadCategories()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load user's community h3 index for Buzz posting
+  useEffect(() => {
+    if (!authUser?.id) return
+    supabase.from('profiles').select('home_community_h3_index').eq('id', authUser.id).single()
+      .then(({ data }) => { if (data?.home_community_h3_index) setUserH3Index(data.home_community_h3_index) })
+  }, [authUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Auth guards (AFTER all hooks) ──
   if (authLoading) return (
@@ -448,7 +475,7 @@ function NewProductPageInner() {
           inventory: parseInt(quantity),
           photos: editPhotoUrls,
           harvested_at: harvestedAt ? new Date(harvestedAt + 'T12:00:00').toISOString() : null,
-          expires_at: new Date(Date.now() + listingDays * 86400000).toISOString(),
+          expires_at: getExpiryDate(),
         })
         .eq('id', editId)
 
@@ -535,10 +562,12 @@ function NewProductPageInner() {
         inventory: parseInt(quantity),
         photos: uploadedPhotoUrls,
         harvested_at: harvestedAt ? new Date(harvestedAt + 'T12:00:00').toISOString() : null,
-        expires_at: new Date(Date.now() + listingDays * 86400000).toISOString(),
+        expires_at: getExpiryDate(),
       })
       .select('id')
       .single()
+
+    setAddedProductId(insertedProduct?.id || null)
 
     if (error || !insertedProduct) {
       setValidating(false)
@@ -640,10 +669,15 @@ function NewProductPageInner() {
 
   const boothLabel = state.booths.find(b => b.ownerId === authUser?.id)?.name || 'my booth'
 
-  const getShareMessage = () => {
+  const getProductUrl = () => {
     const origin = typeof window !== 'undefined' ? window.location.origin : ''
-    const boothUrl = boothIdForShare ? `${origin}/market/booth/${boothIdForShare}` : `${origin}/market`
-    return `🌿 Fresh ${addedProductName} available this ${nextMarket?.label || 'Saturday'}!\n\nBrowse and order: ${boothUrl}`
+    if (addedProductId && boothIdForShare) return `${origin}/market/booth/${boothIdForShare}/product/${addedProductId}`
+    if (boothIdForShare) return `${origin}/market/booth/${boothIdForShare}`
+    return `${origin}/market`
+  }
+
+  const getShareMessage = () => {
+    return `🌿 Fresh ${addedProductName} available this ${nextMarket?.label || 'Saturday'}!\n\nBrowse and order: ${getProductUrl()}`
   }
 
   const handleShareCopy = async () => {
@@ -659,15 +693,77 @@ function NewProductPageInner() {
     if (navigator.share) {
       try {
         trackClick('share_product_native', { productName: addedProductName })
-        const boothUrl = boothIdForShare ? `${window.location.origin}/market/booth/${boothIdForShare}` : `${window.location.origin}/market`
         const cta = nextMarket
           ? `Fresh ${addedProductName} will be available at my booth this ${nextMarket.label}! 🌿`
           : `Fresh ${addedProductName} is available at my booth on CasaGrown! 🌿`
-        await navigator.share({ title: `Fresh ${addedProductName} at ${boothLabel}`, text: cta, url: boothUrl })
+        await navigator.share({ title: `Fresh ${addedProductName} at ${boothLabel}`, text: cta, url: getProductUrl() })
       } catch { /* cancelled */ }
     } else {
       handleShareCopy()
     }
+  }
+
+  const handleShareFacebook = () => {
+    trackClick('share_product_facebook', { productName: addedProductName })
+    const url = encodeURIComponent(getProductUrl())
+    const quote = encodeURIComponent(`🌿 Fresh ${addedProductName} available on CasaGrown Market!`)
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}&quote=${quote}`, '_blank', 'width=600,height=400')
+  }
+
+  const handleShareNextdoor = async () => {
+    trackClick('share_product_nextdoor', { productName: addedProductName })
+    const msg = getShareMessage()
+    try {
+      await navigator.clipboard.writeText(msg)
+      setShareCopied(true)
+      setTimeout(() => setShareCopied(false), 4000)
+    } catch { /* ignore */ }
+    // Open Nextdoor — user pastes the copied text
+    window.open('https://nextdoor.com/news_feed/', '_blank')
+  }
+
+  const handleShareBuzz = async () => {
+    if (!authUser?.id || !userH3Index) return
+    setBuzzPosting(true)
+    try {
+      const msg = nextMarket
+        ? `🌿 New listing! ${addedProductName} — $${priceUsd}/${unit}. Available this ${nextMarket.label}! Browse & order on CasaGrown Market.`
+        : `🌿 New listing! ${addedProductName} — $${priceUsd}/${unit}. Browse & order on CasaGrown Market!`
+      await supabase.from('community_chat_messages').insert({
+        community_h3_index: userH3Index,
+        author_id: authUser.id,
+        content: msg,
+        product_listing_id: addedProductId || undefined,
+      })
+      setBuzzPosted(true)
+      trackClick('share_product_buzz', { productName: addedProductName })
+    } catch {
+      setBuzzPosted(false)
+    }
+    setBuzzPosting(false)
+  }
+
+  // AI auto-fill from photo
+  const handleAiAutoFill = async () => {
+    if (photos.length === 0) return
+    setAiAnalyzing(true)
+    setAiToast(null)
+    try {
+      const res = await supabase.functions.invoke('analyze-product-photo', {
+        body: { image: photos[0] },
+      })
+      const data = res.data as any
+      if (data?.name) setName(data.name)
+      if (data?.category && dbCategories.some(c => c.name === data.category)) setCategory(data.category)
+      if (data?.description) setDescription(data.description)
+      if (data?.suggested_unit) setUnit(data.suggested_unit)
+      setAiToast('✨ AI filled in product details — review and adjust!')
+      trackClick('ai_autofill_product', { category: data?.category })
+    } catch {
+      setAiToast('⚠️ AI analysis failed — please fill in manually.')
+    }
+    setAiAnalyzing(false)
+    setTimeout(() => setAiToast(null), 5000)
   }
 
   // Category display names
@@ -744,6 +840,44 @@ function NewProductPageInner() {
             <input ref={fileInputRef} type="file" accept="image/*" className={styles.hidden} onChange={handlePhoto} />
           </div>
 
+          {/* ===== AI Auto-fill Button ===== */}
+          {photos.length > 0 && !isEditMode && (
+            <div style={{ marginBottom: 16 }}>
+              <button
+                type="button"
+                onClick={handleAiAutoFill}
+                disabled={aiAnalyzing}
+                style={{
+                  width: '100%', padding: '12px 20px',
+                  borderRadius: 'var(--radius-md, 12px)',
+                  border: '2px solid var(--green-300, #86efac)',
+                  background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)',
+                  color: 'var(--green-800, #166534)',
+                  fontSize: 15, fontWeight: 600,
+                  cursor: aiAnalyzing ? 'wait' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  transition: 'all 0.2s',
+                  opacity: aiAnalyzing ? 0.7 : 1,
+                }}
+              >
+                {aiAnalyzing ? (
+                  <><span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>🤖</span> Analyzing photo...</>
+                ) : (
+                  <>✨ Auto-fill from Photo</>
+                )}
+              </button>
+              {aiToast && (
+                <p style={{
+                  margin: '8px 0 0', fontSize: 13, textAlign: 'center',
+                  color: aiToast.startsWith('⚠') ? '#b45309' : '#15803d',
+                  fontWeight: 500,
+                }}>
+                  {aiToast}
+                </p>
+              )}
+            </div>
+          )}
+
           {/* ===== Name & Category ===== */}
           <div className={styles.section}>
             <div className={styles.row2}>
@@ -757,9 +891,6 @@ function NewProductPageInner() {
                 <select className={styles.input} value={category} onChange={e => {
                   const newCat = e.target.value
                   setCategory(newCat)
-                  // Auto-switch listing duration based on category
-                  const perishable = ['produce', 'eggs', 'flowers', 'flower_arrangements']
-                  setListingDays(perishable.includes(newCat) ? 3 : 30)
                 }}>
                   {availableCategories.map(c => (
                     <option key={c.name} value={c.name}>
@@ -802,31 +933,7 @@ function NewProductPageInner() {
             )}
           </div>
 
-          {/* ===== Listing Duration ===== */}
-          <div className={styles.section}>
-            <label className={styles.label}>📆 How long to show this listing?</label>
-            <span className={styles.hint} style={{ marginBottom: 8, marginTop: 0 }}>
-              Your product will be visible to buyers for this many days, then automatically removed.
-            </span>
-            <div className={styles.durationPicker}>
-              {[3, 7, 14, 30].map(d => (
-                <button
-                  key={d}
-                  type="button"
-                  className={`${styles.durationBtn} ${listingDays === d ? styles.durationBtnActive : ''}`}
-                  onClick={() => setListingDays(d)}
-                >
-                  {d} days
-                </button>
-              ))}
-            </div>
-            <span className={styles.hint}>
-              {(() => {
-                const exp = new Date(Date.now() + listingDays * 86400000)
-                return `Auto-removes on ${exp.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`
-              })()}
-            </span>
-          </div>
+          {/* Listing duration is auto-calculated — no user selection needed */}
 
           {/* ===== Price & Quantity ===== */}
           <div className={styles.section}>
@@ -1101,13 +1208,34 @@ function NewProductPageInner() {
                   <p className={styles.modalSubtitle} style={{ marginTop: 0 }}>
                     🎉 Your booth is live! Invite your neighbors to check it out.
                   </p>
-                  {/* Share actions */}
+                  {/* Share actions — 2×2 grid */}
                   <div className={styles.modalActions}>
-                    <button className={styles.shareActionBtn} onClick={handleShareCopy}>
-                      {shareCopied ? '✅ Copied!' : '📋 Copy Invite'}
+                    <button
+                      className={styles.shareActionBtn}
+                      style={{ background: '#1877f2' }}
+                      onClick={handleShareFacebook}
+                    >
+                      📘 Share on Facebook
                     </button>
+                    <button
+                      className={styles.shareActionBtn}
+                      style={{ background: '#8ed500' }}
+                      onClick={handleShareNextdoor}
+                    >
+                      {shareCopied ? '✅ Copied! Paste on Nextdoor' : '🏡 Share on Nextdoor'}
+                    </button>
+                    {userH3Index && (
+                      <button
+                        className={styles.shareActionBtn}
+                        style={{ background: buzzPosted ? '#16a34a' : '#f59e0b' }}
+                        onClick={handleShareBuzz}
+                        disabled={buzzPosted || buzzPosting}
+                      >
+                        {buzzPosting ? '⏳ Posting...' : buzzPosted ? '✅ Posted on Buzz!' : '🐝 Share on Buzz'}
+                      </button>
+                    )}
                     <button className={styles.shareActionBtn} onClick={handleShareNative}>
-                      📤 Share with Neighbors
+                      📤 Share Link
                     </button>
                   </div>
                 </>
