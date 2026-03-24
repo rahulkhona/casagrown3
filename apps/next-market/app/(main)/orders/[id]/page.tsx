@@ -1084,6 +1084,7 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
         <CameraCapture
           captureLabel="📸 Capture Photo"
           closeLabel="✕ Cancel"
+          stampPhoto={true}
           onCapture={async (result) => {
             const preview = URL.createObjectURL(result.file)
             setProofPhotos(prev => [...prev, { preview, result }])
@@ -1125,6 +1126,7 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
         <CameraCapture
           captureLabel="📸 Capture Evidence"
           closeLabel="✕ Cancel"
+          stampPhoto={true}
           onCapture={(result) => {
             const preview = URL.createObjectURL(result.file)
             setDisputePhotos(prev => [...prev, { preview, result }])

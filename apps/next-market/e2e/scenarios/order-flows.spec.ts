@@ -127,8 +127,10 @@ test.describe('Order Flows', () => {
     await navigateToMarket(bethPage)
     await assertPageHealthy(bethPage)
 
-    // Visit cart page
-    await navigateTo(bethPage, '/cart')
+    // Visit cart page — use domcontentloaded + explicit wait because
+    // the cart page has real-time subscriptions that prevent networkidle
+    await bethPage.goto('http://localhost:3001/cart', { waitUntil: 'domcontentloaded', timeout: 30_000 })
+    await bethPage.waitForTimeout(2000)
     await assertPageHealthy(bethPage)
 
     // Cart should show items or empty state

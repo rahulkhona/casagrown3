@@ -86,7 +86,7 @@ export async function loginAsUser(
   }
 
   // 3. Navigate to login page (sets correct origin)
-  await page.goto(`${BASE_URL}/login`)
+  await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded', timeout: 30_000 })
 
   // 4. Inject JWT into both localStorage AND cookies (@supabase/ssr uses cookies)
   const sessionData = JSON.stringify({
@@ -150,7 +150,12 @@ export async function loginAsUser(
   )
 
   // 5. Reload so the Supabase client picks up the auth from cookies/localStorage
-  await page.reload({ waitUntil: 'networkidle' })
+  try {
+    await page.reload({ waitUntil: 'networkidle', timeout: 15_000 })
+  } catch {
+    // HMR WebSocket may prevent networkidle — page is loaded, auth is injected
+    await page.waitForTimeout(2000)
+  }
 
   return page
 }
@@ -211,7 +216,22 @@ async function ensureUserIdentity(email: string, password: string): Promise<{ ac
  * Navigate to a path and wait for the page to be ready.
  */
 export async function navigateTo(page: Page, path: string): Promise<void> {
-  await page.goto(`${BASE_URL}${path}`, { waitUntil: 'networkidle' })
+  // Routes with real-time connections (Supabase realtime, etc.) prevent
+  // networkidle from resolving. Use domcontentloaded + settle delay for those.
+  const realtimeRoutes = ['/cart', '/chat', '/community']
+  const isRealtime = realtimeRoutes.some(r => path === r || path.startsWith(r + '/') || path.startsWith(r + '?'))
+
+  if (isRealtime) {
+    await page.goto(`${BASE_URL}${path}`, { waitUntil: 'domcontentloaded', timeout: 30_000 })
+    await page.waitForTimeout(2000)
+  } else {
+    try {
+      await page.goto(`${BASE_URL}${path}`, { waitUntil: 'networkidle', timeout: 30_000 })
+    } catch {
+      // HMR WebSocket may prevent networkidle — page content is loaded
+      await page.waitForTimeout(1500)
+    }
+  }
   // Dismiss overlays that may intercept clicks
   await dismissLegalConsent(page)
   await dismissAlphaBanner(page)

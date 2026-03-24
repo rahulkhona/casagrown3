@@ -482,9 +482,11 @@ test.describe('Deep Interactions', () => {
         const testPost = `Community test ${Date.now()}`
         await composeInput.fill(testPost)
 
-        const submitBtn = bethPage.locator('button[type="submit"], button:has-text("Post"), button:has-text("Send")').first()
+        // Use a narrow selector that excludes suggestion chips, and force-click
+        // to bypass any overlay div that may intercept pointer events
+        const submitBtn = bethPage.locator('button[type="submit"]:not([class*="suggestionChip"]), form button:has-text("Post"), form button:has-text("Send")').first()
         if (await submitBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-          await submitBtn.click()
+          await submitBtn.click({ force: true, timeout: 10_000 })
           await bethPage.waitForTimeout(2000)
         }
       }

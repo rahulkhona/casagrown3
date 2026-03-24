@@ -28,6 +28,8 @@ interface CameraCaptureProps {
   cropGuide?: 'banner' | 'square'
   /** If true, keep camera running after capture for multiple photos. Default false. */
   multiCapture?: boolean
+  /** If true, burn timestamp + GPS location onto the captured photo. Only use for delivery proofs. Default false. */
+  stampPhoto?: boolean
   /** Label for capture button. Default '📸 Capture'. */
   captureLabel?: string
   /** Label for close button. Default '✕ Cancel'. */
@@ -41,6 +43,7 @@ export default function CameraCapture({
   cropSquare = false,
   cropGuide,
   multiCapture = false,
+  stampPhoto = false,
   captureLabel = '📸 Capture',
   closeLabel = '✕ Cancel',
 }: CameraCaptureProps) {
@@ -159,29 +162,31 @@ export default function CameraCapture({
       meta.accuracy = geoPosition.coords.accuracy
     }
 
-    // Burn timestamp + location text onto the photo
-    const fontSize = Math.max(16, Math.round(w / 35))
-    ctx.font = `bold ${fontSize}px monospace`
-    const stampLines: string[] = [
-      `Date: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`,
-    ]
-    if (meta.latitude != null) {
-      stampLines.push(`Loc: ${meta.latitude.toFixed(5)}, ${meta.longitude!.toFixed(5)} +/-${Math.round(meta.accuracy || 0)}m`)
-    } else {
-      stampLines.push('Loc: GPS unavailable')
-    }
-    const lh = fontSize * 1.5
-    const pad = fontSize * 0.7
-    const boxH = stampLines.length * lh + pad * 2
-    const boxY = h - boxH
+    // Burn timestamp + location text onto the photo (delivery proof only)
+    if (stampPhoto) {
+      const fontSize = Math.max(16, Math.round(w / 35))
+      ctx.font = `bold ${fontSize}px monospace`
+      const stampLines: string[] = [
+        `Date: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`,
+      ]
+      if (meta.latitude != null) {
+        stampLines.push(`Loc: ${meta.latitude.toFixed(5)}, ${meta.longitude!.toFixed(5)} +/-${Math.round(meta.accuracy || 0)}m`)
+      } else {
+        stampLines.push('Loc: GPS unavailable')
+      }
+      const lh = fontSize * 1.5
+      const pad = fontSize * 0.7
+      const boxH = stampLines.length * lh + pad * 2
+      const boxY = h - boxH
 
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.65)'
-    ctx.fillRect(0, boxY, w, boxH)
-    ctx.fillStyle = '#ffffff'
-    ctx.textBaseline = 'top'
-    stampLines.forEach((line, i) => {
-      ctx.fillText(line, pad, boxY + pad + i * lh)
-    })
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.65)'
+      ctx.fillRect(0, boxY, w, boxH)
+      ctx.fillStyle = '#ffffff'
+      ctx.textBaseline = 'top'
+      stampLines.forEach((line, i) => {
+        ctx.fillText(line, pad, boxY + pad + i * lh)
+      })
+    }
 
     // Create blob — stop stream AFTER blob is ready
     canvas.toBlob((blob) => {

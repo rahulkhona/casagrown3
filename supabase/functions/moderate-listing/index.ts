@@ -17,12 +17,12 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// ── AI config — swap just these 2 lines to migrate to LiteLLM later ──────────
-const AI_URL = Deno.env.get("AI_URL") ?? "https://openrouter.ai/api/v1/chat/completions";
-const AI_KEY = Deno.env.get("OPENROUTER_API_KEY") ?? "";
-const AI_MODEL = Deno.env.get("AI_MODEL") ?? "google/gemini-2.0-flash-exp:free";
-// Fallback model if primary is rate-limited (OpenRouter handles transparently)
-const AI_MODEL_FALLBACK = "meta-llama/llama-3.2-11b-vision-instruct:free";
+// ── AI config ────────────────────────────────────────────────────────────────
+// Uses Google Gemini API directly (free tier: 15 RPM, no credits needed).
+// The OpenAI-compatible endpoint means the rest of the code stays the same.
+const AI_KEY = Deno.env.get("GEMINI_API_KEY") ?? Deno.env.get("OPENROUTER_API_KEY") ?? "";
+const AI_URL = Deno.env.get("AI_URL") ?? "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+const AI_MODEL = Deno.env.get("AI_MODEL") ?? "gemini-2.5-flash";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -33,8 +33,19 @@ const PRICE_RANGES: Record<string, [number, number]> = {
   citrus: [0.5, 40],
   herbs: [0.5, 20],
   fruits: [0.5, 50],
+  produce: [0.1, 200],
   other: [0.1, 200],
 };
+
+// Profanity keyword check — deterministic, no LLM needed
+const PROFANITY_PATTERNS = [
+  /\bf+u+c+k+\w*/i, /\bsh[i!1]+t\b/i, /\bass+h+ol+e/i, /\bb[i!1]+tch\b/i,
+  /\bc+u+n+t\b/i, /\bd[i!1]+ck\b/i, /\bpussy\b/i, /\bcrap\b/i,
+  /\bmother\s*f/i, /\bmf+\b/i, /\bwtf\b/i, /\bstfu\b/i,
+];
+function containsProfanity(text: string): boolean {
+  return PROFANITY_PATTERNS.some(p => p.test(text));
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -74,6 +85,29 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // ── 2b. Profanity pre-check (no LLM needed) ──────────────────────────────
+    const textToCheck = `${name} ${description ?? ""}`;
+    if (containsProfanity(textToCheck)) {
+      const flags = {
+        issues: ["profanity_offensive_language"],
+        issue_messages: {
+          profanity_offensive_language:
+            "Your listing contains inappropriate language. Please use respectful, family-friendly language to describe your product.",
+        },
+        confidence: 1.0,
+        reason: "Listing contains profanity or offensive language.",
+      };
+      await supabase.from("market_products").update({
+        moderation_status: "flagged",
+        moderation_flags: flags,
+        moderation_checked_at: new Date().toISOString(),
+        moderation_content_hash: contentHash,
+      }).eq("id", product_id);
+      return new Response(JSON.stringify({ status: "flagged", flags }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     // ── 3. Gemini 2.0 Flash moderation ───────────────────────────────────────
     const parts: any[] = [
       {
@@ -94,7 +128,7 @@ Example: { "drugs_banned_substances": "Your listing appears to contain cannabis 
 Valid issues (use exact strings):
 "drugs_banned_substances" | "alcohol" | "tobacco_cigarettes_vaping" | "weapons_dangerous_items" |
 "sexually_explicit" | "hate_speech_abusive" | "threats_violence" | "spam_scam" |
-"category_mismatch" | "not_homegrown_produce" | "photo_mismatch" | "price_unrealistic" | "misleading"
+"profanity_offensive_language" | "category_mismatch" | "not_homegrown_produce" | "photo_mismatch" | "price_unrealistic" | "misleading"
 
 Listing:
 Name: ${name}
@@ -117,6 +151,7 @@ FLAG (set approved=false) if the listing contains:
 - Sexually explicit language, nudity, or adult content in text or photo
 - Hate speech, racial slurs, abusive language, or personal attacks
 - Threats of violence or intimidation language
+- Profanity, swear words, obscene or vulgar language of any kind (e.g. f-word, s-word, or similar offensive terms) — use code "profanity_offensive_language"
 - Products clearly not in the listed category (e.g. "tomatoes" with a photo of shoes)
 - Commercial packaged factory food (Costco boxes, branded products) — this is homegrown only
 - Scam patterns (fake contact info, "DM for real price", guaranteed income claims)
@@ -169,8 +204,6 @@ When in doubt, APPROVE. Only flag clear violations.`,
           messages: [{ role: "user", content }],
           response_format: { type: "json_object" },
           temperature: 0.1,
-          // OpenRouter: try fallback model if primary is rate-limited
-          models: [AI_MODEL, AI_MODEL_FALLBACK],
         }),
       });
 

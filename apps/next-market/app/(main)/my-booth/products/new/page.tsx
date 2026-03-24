@@ -267,6 +267,45 @@ function NewProductPageInner() {
       return
     }
 
+    // ── Inline content pre-check (profanity, drugs, weapons, adult content) ──
+    // These are deterministic — no API call needed. Block submission immediately.
+    const contentToCheck = `${name} ${description}`.toLowerCase()
+    const BLOCKED_CONTENT: Array<{ pattern: RegExp; message: string }> = [
+      { pattern: /\bf+u+c+k+\w*/i,              message: 'Please remove profanity from your listing.' },
+      { pattern: /\bsh[i!1]+t\b/i,               message: 'Please remove profanity from your listing.' },
+      { pattern: /\bmother\s*f/i,                message: 'Please remove profanity from your listing.' },
+      { pattern: /\bass+h+ol+e/i,                message: 'Please remove profanity from your listing.' },
+      { pattern: /\bb[i!1]+tch\b/i,              message: 'Please remove profanity from your listing.' },
+      { pattern: /\bc+u+n+t\b/i,                 message: 'Please remove profanity from your listing.' },
+      { pattern: /\bd[i!1]+ck\b/i,               message: 'Please remove profanity from your listing.' },
+      { pattern: /\bpussy\b/i,                   message: 'Please remove profanity from your listing.' },
+      { pattern: /\bcannabis\b|\bmarijuana\b|\bweed\b|\bthc\b|\bcbd\b/i,
+                                                  message: 'Cannabis and related products are not allowed on CasaGrown.' },
+      { pattern: /\bcocaine\b|\bheroin\b|\bmeth\b|\bfentanyl\b|\bxanax\b|\badderall\b/i,
+                                                  message: 'Controlled substances are not allowed on CasaGrown.' },
+      { pattern: /\bgun\b|\bfirearm\b|\bammunition\b|\bbullet\b|\brifle\b|\bpistol\b/i,
+                                                  message: 'Weapons and firearms are not allowed on CasaGrown.' },
+      { pattern: /\bknife\b|\bblade\b|\bsword\b|\bpepperspray\b/i,
+                                                  message: 'Weapons are not allowed on CasaGrown.' },
+      { pattern: /\bkill\b|\bmurder\b|\bstab\b|\bshoot\b|\bbomb\b/i,
+                                                  message: 'Threats and violence are not allowed on CasaGrown.' },
+      { pattern: /\bnude\b|\bnaked\b|\bporn\b|\bsex\b|\bxxxxx/i,
+                                                  message: 'Adult content is not allowed on CasaGrown.' },
+    ]
+    const blockedMatch = BLOCKED_CONTENT.find(b => b.pattern.test(contentToCheck))
+    if (blockedMatch) {
+      // Show error under the field(s) that actually contain the blocked content
+      const nameMatch = blockedMatch.pattern.test(name.toLowerCase())
+      const descMatch = blockedMatch.pattern.test(description.toLowerCase())
+      const fieldErrors: Record<string, string> = {}
+      if (nameMatch) fieldErrors.name = blockedMatch.message
+      if (descMatch) fieldErrors.description = blockedMatch.message
+      if (!nameMatch && !descMatch) fieldErrors.name = blockedMatch.message // fallback
+      setErrors(fieldErrors)
+      dispatch({ type: 'ADD_TOAST', payload: { message: blockedMatch.message, type: 'error' } })
+      return
+    }
+
     if (!authUser) return
 
     setValidating(true)
@@ -369,7 +408,9 @@ function NewProductPageInner() {
 
       if (matchedBlocked) {
         setValidating(false)
-        setErrors({ name: `"${matchedBlocked.product_name}" is not allowed. Please choose a different product name.` })
+        const msg = `"${matchedBlocked.product_name}" is not allowed. Please choose a different product name.`
+        setErrors({ name: msg })
+        dispatch({ type: 'ADD_TOAST', payload: { message: msg, type: 'error' } })
         return
       }
     }
@@ -411,8 +452,8 @@ function NewProductPageInner() {
         })
         .eq('id', editId)
 
-      setValidating(false)
       if (error) {
+        setValidating(false)
         alert('Failed to update product: ' + error.message)
         return
       }
@@ -420,6 +461,30 @@ function NewProductPageInner() {
       // Clear any community flags (reactivates the product if it was flagged)
       try { await supabase.rpc('clear_product_flags', { p_product_id: editId }) } catch { /* ignore if no flags */ }
 
+      // ── AI Moderation (edit) ──
+      try {
+        const modRes = await supabase.functions.invoke('moderate-listing', {
+          body: {
+            product_id: editId,
+            seller_id: authUser.id,
+            name: name.trim(),
+            description: description.trim() || null,
+            price_usd: parseFloat(priceUsd || '0'),
+            category,
+            photo_url: editPhotoUrls[0] || null,
+          },
+        })
+        const modData = modRes.data as any
+        if (modData?.status === 'flagged' && modData?.flags) {
+          const messages = Object.values(modData.flags.issue_messages || {}) as string[]
+          const reason = messages[0] || modData.flags.reason || 'Your listing was flagged for review.'
+          dispatch({ type: 'ADD_TOAST', payload: { message: `⚠️ ${reason}`, type: 'error' } })
+        }
+      } catch (modErr) {
+        console.warn('Moderation check failed (non-blocking):', modErr)
+      }
+
+      setValidating(false)
       router.push('/my-booth')
       return
     }
@@ -457,7 +522,7 @@ function NewProductPageInner() {
     }
 
     // Add mode: insert new product
-    const { error } = await supabase
+    const { data: insertedProduct, error } = await supabase
       .from('market_products')
       .insert({
         seller_id: authUser.id,
@@ -472,13 +537,39 @@ function NewProductPageInner() {
         harvested_at: harvestedAt ? new Date(harvestedAt + 'T12:00:00').toISOString() : null,
         expires_at: new Date(Date.now() + listingDays * 86400000).toISOString(),
       })
+      .select('id')
+      .single()
 
-    setValidating(false)
-
-    if (error) {
-      alert('Failed to add product: ' + error.message)
+    if (error || !insertedProduct) {
+      setValidating(false)
+      alert('Failed to add product: ' + (error?.message || 'Unknown error'))
       return
     }
+
+    // ── AI Moderation (new product) ──
+    try {
+      const modRes = await supabase.functions.invoke('moderate-listing', {
+        body: {
+          product_id: insertedProduct.id,
+          seller_id: authUser.id,
+          name: name.trim(),
+          description: description.trim() || null,
+          price_usd: parseFloat(priceUsd || '0'),
+          category,
+          photo_url: uploadedPhotoUrls[0] || null,
+        },
+      })
+      const modData = modRes.data as any
+      if (modData?.status === 'flagged' && modData?.flags) {
+        const messages = Object.values(modData.flags.issue_messages || {}) as string[]
+        const reason = messages[0] || modData.flags.reason || 'Your listing was flagged for review.'
+        dispatch({ type: 'ADD_TOAST', payload: { message: `⚠️ ${reason}`, type: 'error' } })
+      }
+    } catch (modErr) {
+      console.warn('Moderation check failed (non-blocking):', modErr)
+    }
+
+    setValidating(false)
 
     // ── 3. Check if booth qualifies for publishing ──
     // Requirements: ≥1 product (we just added one) + delivery or pickup + payment configured
@@ -642,7 +733,7 @@ function NewProductPageInner() {
               <div className={styles.photoBtns}>
                 <button type="button" className={styles.photoBtn} onClick={() => setShowCamera(true)}>
                   <span className={styles.photoBtnIcon}>📸</span>
-                  <span className={styles.photoBtnLabel}>Take Photo</span>
+                  <span className={styles.photoBtnLabel}>Take Photo to List</span>
                 </button>
                 <button type="button" className={styles.photoBtn} onClick={() => fileInputRef.current?.click()}>
                   <span className={styles.photoBtnIcon}>🖼️</span>
@@ -683,7 +774,8 @@ function NewProductPageInner() {
             </div>
             <div className={styles.field}>
               <label className={styles.label}>Description <span className={styles.optional}>(optional)</span></label>
-              <textarea className={styles.input} value={description} onChange={e => setDescription(e.target.value)} placeholder="What makes these special?" rows={2} />
+              <textarea className={`${styles.input} ${errors.description ? styles.inputError : ''}`} value={description} onChange={e => { setDescription(e.target.value); setErrors(p => ({ ...p, description: '' })) }} placeholder="What makes these special?" rows={2} />
+              {errors.description && <span className={styles.error}>{errors.description}</span>}
             </div>
             {['produce', 'flowers', 'flower_arrangements', 'eggs'].includes(category) && (
             <div className={styles.field}>

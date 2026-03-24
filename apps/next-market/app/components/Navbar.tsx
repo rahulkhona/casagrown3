@@ -579,9 +579,13 @@ export function Navbar() {
                 {hasSession && (
                   <div className={styles.menuSection}>
                     <button className={styles.menuItem} onClick={async () => {
-                      const supabase = createClient()
-                      await supabase.auth.signOut({ scope: 'local' })
-                      dispatch({ type: 'LOGOUT' })
+                      try {
+                        const supabase = createClient()
+                        await supabase.auth.signOut({ scope: 'local' })
+                      } catch (err) {
+                        console.error('Sign out error (continuing):', err)
+                      }
+                      try { dispatch({ type: 'LOGOUT' }) } catch {}
                       setMenuOpen(false)
                       window.location.href = '/'
                     }}>

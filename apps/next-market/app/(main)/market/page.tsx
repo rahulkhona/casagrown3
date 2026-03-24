@@ -336,7 +336,26 @@ function BrowseMarketPageInner() {
 
   // ── STATE 1.5: Market is closed — full-page takeover ──
   if (!marketIsOpen) {
-    return <MarketClosedBox nextOpenDate={nextOpenDate} todaySchedule={todaySchedule} />
+    return (
+      <>
+        <MarketClosedBox nextOpenDate={nextOpenDate} todaySchedule={todaySchedule} />
+        <Link
+            href={user ? "/my-booth/products/new?camera=true" : "/login?redirect=%2Fmy-booth%2Fproducts%2Fnew%3Fcamera%3Dtrue"}
+            id="sell-fab"
+            style={{
+              position: 'fixed', bottom: 80, right: 24,
+              background: 'linear-gradient(135deg, #16a34a, #15803d)',
+              color: '#fff', borderRadius: 28, padding: '14px 24px',
+              fontSize: 15, fontWeight: 600, textDecoration: 'none',
+              display: 'flex', alignItems: 'center', gap: 8,
+              boxShadow: '0 6px 20px rgba(22, 163, 74, 0.4)',
+              zIndex: 100, transition: 'transform 0.2s, box-shadow 0.2s',
+            }}
+          >
+            📸 Snap & List for Next Market
+          </Link>
+      </>
+    )
   }
 
   // ── STATE 2: Need address ──
@@ -558,9 +577,8 @@ function BrowseMarketPageInner() {
       )}
 
       {/* Sell Something FAB — visible when market is open and user is authenticated */}
-      {user && (
-        <Link
-          href="/my-booth/products/new?camera=true"
+      <Link
+          href={user ? "/my-booth/products/new?camera=true" : "/login?redirect=%2Fmy-booth%2Fproducts%2Fnew%3Fcamera%3Dtrue"}
           id="sell-fab"
           style={{
             position: 'fixed', bottom: 80, right: 24,
@@ -574,9 +592,8 @@ function BrowseMarketPageInner() {
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)' }}
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}
         >
-          {marketIsOpen ? '🌽 Sell Something' : '🌽 List for Next Market'}
+          {marketIsOpen ? '📸 Snap & List' : '📸 Snap & List for Next Market'}
         </Link>
-      )}
     </div>
   )
 }
