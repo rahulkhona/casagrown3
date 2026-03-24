@@ -32,7 +32,7 @@ export default function ClientPage() {
   const [messages, setMessages] = useState<CommunityChatMessage[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [profileH3, setProfileH3] = useState<string | null>(null)
-  const [communityName, setCommunityName] = useState<string | null>(null)
+
   
   // Polling state
   const [lastFetchTime, setLastFetchTime] = useState<string | null>(null)
@@ -66,13 +66,6 @@ export default function ClientPage() {
         
       if (data?.home_community_h3_index) {
         setProfileH3(data.home_community_h3_index)
-        // Look up community name from the communities table
-        const { data: community } = await supabase
-          .from('communities')
-          .select('name')
-          .eq('h3_index', data.home_community_h3_index)
-          .single()
-        if (community?.name) setCommunityName(community.name)
       } else {
         // If they don't have a community, redirect to onboarding or show error
         console.warn('User has no home community set')
@@ -212,6 +205,21 @@ export default function ClientPage() {
       // Prompt for push notification permission (first time / re-prompt after 7 days)
       showPrompt()
 
+      // If message mentions @CasaBot, trigger AI response in background
+      if (content.toLowerCase().includes('@casabot')) {
+        supabase.functions.invoke('casabot-reply', {
+          body: {
+            message_id: msgId,
+            content,
+            community_h3_index: profileH3,
+            author_name: 'Neighbor',
+          },
+        }).then(() => {
+          // Reload after a short delay to show the bot reply
+          setTimeout(() => loadMessages(), 3000)
+        }).catch((err: unknown) => console.error('CasaBot error:', err))
+      }
+
       // Ensure we're scrolled to the bottom
       setTimeout(() => {
         if (scrollRef.current) {
@@ -240,12 +248,10 @@ export default function ClientPage() {
   return (
     <div className={styles.container}>
       {/* Community Name Header */}
-      {communityName && (
-        <div className={styles.communityHeader}>
-          <span className={styles.communityHeaderIcon}>🏘️</span>
-          <span className={styles.communityHeaderName}>{communityName} Community</span>
-        </div>
-      )}
+      <div className={styles.communityHeader}>
+        <span className={styles.communityHeaderIcon}>🌿</span>
+        <span className={styles.communityHeaderName}>CasaGrown Community</span>
+      </div>
 
       {/* Message List Area */}
       <div 
