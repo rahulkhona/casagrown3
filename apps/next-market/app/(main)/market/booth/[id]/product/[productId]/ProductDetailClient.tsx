@@ -48,8 +48,29 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
   const [cartQty, setCartQty] = useState(existingCartQty || 1)
   const [cartToast, setCartToast] = useState<string | null>(null)
 
+  // Detect demo product
+  const isDemo = productId.startsWith('demo-')
+
   useEffect(() => {
     const load = async () => {
+      // Demo products: load from sessionStorage (cached by market page)
+      if (isDemo) {
+        try {
+          const cachedProduct = sessionStorage.getItem(`demo_product_${productId}`)
+          const cachedBooth = sessionStorage.getItem(`demo_booth_${boothId}`)
+          if (cachedProduct) setProduct(JSON.parse(cachedProduct))
+          if (cachedBooth) {
+            const bd = JSON.parse(cachedBooth)
+            setBooth(bd)
+            if (bd.seller_avg_rating) {
+              setSellerRating({ avg: bd.seller_avg_rating, count: bd.seller_rating_count || 0 })
+            }
+          }
+        } catch {}
+        setLoading(false)
+        return
+      }
+
       const [{ data: prod }, { data: boothData }] = await Promise.all([
         supabase.from('market_products').select('*').eq('id', productId).single(),
         supabase.from('market_booths').select('*').eq('id', boothId).single(),
@@ -92,8 +113,9 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
   }, [autoBuy, isAuthenticated, product, booth]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Periodic poll for fresh product data (price, inventory) — every 30s + on tab focus
+  // Skip for demo products (no real data to refresh)
   useEffect(() => {
-    if (!product) return
+    if (!product || isDemo) return
     const refreshProduct = async () => {
       const { data } = await supabase.rpc('refresh_product_data', { product_ids: [productId] })
       if (data && (data as any[]).length > 0) {
@@ -183,6 +205,24 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
 
   return (
     <div className="container">
+      {/* Demo Banner */}
+      {isDemo && (
+        <div style={{
+          background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)',
+          border: '1px solid #86efac', borderRadius: 12,
+          padding: '12px 20px', marginBottom: 16,
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <span style={{ fontSize: 24 }}>🌿</span>
+          <div>
+            <strong style={{ color: '#15803d', fontSize: 14 }}>Demo Listing</strong>
+            <p style={{ margin: 0, fontSize: 13, color: '#166534' }}>
+              This is a preview of what CasaGrown looks like. Purchases are not available for demo listings.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className={styles.breadcrumb}>
         <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: 'var(--green-700)', cursor: 'pointer', padding: 0, font: 'inherit' }}>← Back</button>
         <span style={{ color: 'var(--gray-400)', margin: '0 6px' }}>/</span>
@@ -208,7 +248,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
               ))}
             </div>
           )}
-          {isAuthenticated && user?.id !== product.seller_id && (
+          {isAuthenticated && user?.id !== product.seller_id && !isDemo && (
             <button
               className={styles.reportLink}
               onClick={() => setShowFlag(true)}
@@ -221,8 +261,13 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
 
         {/* Details */}
         <div className={styles.details}>
-          <div className="badge badge-green" style={{ marginBottom: 8 }}>
-            {product.category?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+            <span className="badge badge-green">
+              {product.category?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+            </span>
+            {isDemo && (
+              <span className="badge" style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac' }}>🌿 Demo</span>
+            )}
           </div>
           <h1 className={styles.productName}>{product.name}</h1>
           {sellerRating && (
@@ -291,63 +336,56 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
             </div>
           )}
 
-          {/* Buy Now + Add to Cart */}
+          {/* Buy Now + Add to Cart (blocked for demo) */}
           <div style={{ marginTop: 16 }}>
-            {/* Buy Now button */}
-            <button
-              className="btn btn-primary btn-lg"
-              style={{ width: '100%', fontSize: 16 }}
-              onClick={() => {
-                if (!isAuthenticated) {
-                  router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
-                  return
-                }
-                if (profileComplete !== true) {
-                  router.push('/profile-setup')
-                  return
-                }
-                setShowBuy(true)
-              }}
-              disabled={product.inventory === 0 || isClosed}
-            >
-              {isClosed
-                ? '🔒 Closed'
-                : product.inventory === 0
-                  ? 'Sold Out'
-                  : `⚡ Buy Now — ${formatUsd(product.price_usd)} / ${product.unit}`}
-            </button>
-
-            {/* Qty picker + Add to Cart */}
-            {!isClosed && product.inventory > 0 && (
-              <div style={{ marginTop: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                  <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--gray-600)' }}>Qty:</span>
-                  <button
-                    className="btn"
-                    style={{ width: 36, height: 36, padding: 0, fontSize: 18, borderRadius: '50%' }}
-                    onClick={() => setCartQty(Math.max(1, cartQty - 1))}
-                    disabled={cartQty <= 1}
-                  >−</button>
-                  <span style={{ fontSize: 18, fontWeight: 600, minWidth: 32, textAlign: 'center' }}>{cartQty}</span>
-                  <button
-                    className="btn"
-                    style={{ width: 36, height: 36, padding: 0, fontSize: 18, borderRadius: '50%' }}
-                    onClick={() => setCartQty(Math.min(product.inventory, cartQty + 1))}
-                    disabled={cartQty >= product.inventory}
-                  >+</button>
-                  <span style={{ fontSize: 13, color: 'var(--gray-500)', marginLeft: 4 }}>
-                    {product.inventory} available
-                  </span>
-                </div>
-
+            {isDemo ? (
+              /* Demo: show blocked buttons + Start Selling CTA */
+              <div>
+                <button
+                  className="btn btn-primary btn-lg"
+                  style={{ width: '100%', fontSize: 16, opacity: 0.5, cursor: 'not-allowed' }}
+                  disabled
+                >
+                  🌿 Demo — Buy Now Not Available
+                </button>
                 <button
                   style={{
-                    width: '100%', padding: '12px 20px',
+                    width: '100%', marginTop: 8, padding: '12px 20px',
                     border: '2px solid var(--green-600, #16a34a)', borderRadius: 'var(--radius-md, 12px)',
                     background: 'var(--green-50, #f0fdf4)', color: 'var(--green-700, #15803d)',
-                    fontSize: 16, fontWeight: 600, cursor: 'pointer',
-                    transition: 'all 0.2s',
+                    fontSize: 16, fontWeight: 600, opacity: 0.5, cursor: 'not-allowed',
                   }}
+                  disabled
+                >
+                  🛒 Add to Cart — Demo Only
+                </button>
+                <div style={{
+                  marginTop: 16, padding: '16px 20px', borderRadius: 12,
+                  background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)',
+                  border: '1px solid #86efac', textAlign: 'center',
+                }}>
+                  <p style={{ margin: '0 0 12px', fontSize: 14, color: '#166534' }}>
+                    Want to see real listings like this? Start selling to your neighbors!
+                  </p>
+                  <Link
+                    href={user ? '/my-booth/products/new?camera=true' : '/login?redirect=%2Fmy-booth%2Fproducts%2Fnew%3Fcamera%3Dtrue'}
+                    style={{
+                      display: 'inline-block', padding: '12px 28px', borderRadius: 12,
+                      background: 'linear-gradient(135deg, #16a34a, #15803d)',
+                      color: '#fff', fontWeight: 600, fontSize: 15,
+                      textDecoration: 'none', boxShadow: '0 4px 12px rgba(22,163,74,0.3)',
+                    }}
+                  >
+                    🌱 Start Selling →
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              /* Real product: normal Buy/Cart */
+              <>
+                <button
+                  className="btn btn-primary btn-lg"
+                  style={{ width: '100%', fontSize: 16 }}
                   onClick={() => {
                     if (!isAuthenticated) {
                       router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
@@ -357,48 +395,100 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                       router.push('/profile-setup')
                       return
                     }
-                    cart.addItem(
-                      {
-                        id: product.id,
-                        name: product.name,
-                        price_usd: product.price_usd,
-                        unit: product.unit,
-                        inventory: product.inventory,
-                        photos: product.photos,
-                        category: product.category,
-                      },
-                      {
-                        id: booth.id,
-                        name: booth.name,
-                        offers_delivery: booth.offers_delivery,
-                        offers_pickup: booth.offers_pickup,
-                        pickup_address: booth.pickup_address,
-                        delivery_radius_miles: booth.delivery_radius_miles,
-                      },
-                      cartQty
-                    )
-                    setCartToast(existingCartQty > 0 ? `Cart updated! (${cartQty} ${product.unit}${cartQty > 1 ? 's' : ''})` : `Added to cart! 🛒`)
-                    setTimeout(() => setCartToast(null), 3000)
+                    setShowBuy(true)
                   }}
+                  disabled={product.inventory === 0 || isClosed}
                 >
-                  {existingCartQty > 0
-                    ? `In Cart (${existingCartQty}) — Update to ${cartQty}`
-                    : `🛒 Add to Cart — ${formatUsd(product.price_usd * cartQty)}`}
+                  {isClosed
+                    ? '🔒 Closed'
+                    : product.inventory === 0
+                      ? 'Sold Out'
+                      : `⚡ Buy Now — ${formatUsd(product.price_usd)} / ${product.unit}`}
                 </button>
 
-                {existingCartQty > 0 && (
-                  <button
-                    style={{
-                      width: '100%', marginTop: 8, padding: '10px', border: '1px solid var(--gray-300)',
-                      borderRadius: 'var(--radius-md, 12px)', background: 'none', cursor: 'pointer',
-                      fontSize: 14, color: 'var(--green-700, #15803d)', fontWeight: 500,
-                    }}
-                    onClick={() => router.push('/cart')}
-                  >
-                    View Cart →
-                  </button>
+                {!isClosed && product.inventory > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--gray-600)' }}>Qty:</span>
+                      <button
+                        className="btn"
+                        style={{ width: 36, height: 36, padding: 0, fontSize: 18, borderRadius: '50%' }}
+                        onClick={() => setCartQty(Math.max(1, cartQty - 1))}
+                        disabled={cartQty <= 1}
+                      >−</button>
+                      <span style={{ fontSize: 18, fontWeight: 600, minWidth: 32, textAlign: 'center' }}>{cartQty}</span>
+                      <button
+                        className="btn"
+                        style={{ width: 36, height: 36, padding: 0, fontSize: 18, borderRadius: '50%' }}
+                        onClick={() => setCartQty(Math.min(product.inventory, cartQty + 1))}
+                        disabled={cartQty >= product.inventory}
+                      >+</button>
+                      <span style={{ fontSize: 13, color: 'var(--gray-500)', marginLeft: 4 }}>
+                        {product.inventory} available
+                      </span>
+                    </div>
+
+                    <button
+                      style={{
+                        width: '100%', padding: '12px 20px',
+                        border: '2px solid var(--green-600, #16a34a)', borderRadius: 'var(--radius-md, 12px)',
+                        background: 'var(--green-50, #f0fdf4)', color: 'var(--green-700, #15803d)',
+                        fontSize: 16, fontWeight: 600, cursor: 'pointer',
+                        transition: 'all 0.2s',
+                      }}
+                      onClick={() => {
+                        if (!isAuthenticated) {
+                          router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
+                          return
+                        }
+                        if (profileComplete !== true) {
+                          router.push('/profile-setup')
+                          return
+                        }
+                        cart.addItem(
+                          {
+                            id: product.id,
+                            name: product.name,
+                            price_usd: product.price_usd,
+                            unit: product.unit,
+                            inventory: product.inventory,
+                            photos: product.photos,
+                            category: product.category,
+                          },
+                          {
+                            id: booth.id,
+                            name: booth.name,
+                            offers_delivery: booth.offers_delivery,
+                            offers_pickup: booth.offers_pickup,
+                            pickup_address: booth.pickup_address,
+                            delivery_radius_miles: booth.delivery_radius_miles,
+                          },
+                          cartQty
+                        )
+                        setCartToast(existingCartQty > 0 ? `Cart updated! (${cartQty} ${product.unit}${cartQty > 1 ? 's' : ''})` : `Added to cart! 🛒`)
+                        setTimeout(() => setCartToast(null), 3000)
+                      }}
+                    >
+                      {existingCartQty > 0
+                        ? `In Cart (${existingCartQty}) — Update to ${cartQty}`
+                        : `🛒 Add to Cart — ${formatUsd(product.price_usd * cartQty)}`}
+                    </button>
+
+                    {existingCartQty > 0 && (
+                      <button
+                        style={{
+                          width: '100%', marginTop: 8, padding: '10px', border: '1px solid var(--gray-300)',
+                          borderRadius: 'var(--radius-md, 12px)', background: 'none', cursor: 'pointer',
+                          fontSize: 14, color: 'var(--green-700, #15803d)', fontWeight: 500,
+                        }}
+                        onClick={() => router.push('/cart')}
+                      >
+                        View Cart →
+                      </button>
+                    )}
+                  </div>
                 )}
-              </div>
+              </>
             )}
           </div>
 
@@ -437,10 +527,10 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
       </div>
 
       {/* Q&A Section */}
-      <ProductQA productId={productId} sellerId={product.seller_id} />
+      <ProductQA productId={productId} sellerId={product.seller_id} isDemo={isDemo} productName={product.name} productDescription={product.description} />
 
-      {/* Buy Modal */}
-      {showBuy && (
+      {/* Buy Modal — never shown for demo */}
+      {showBuy && !isDemo && (
         <BuyModal
           product={product}
           booth={booth}
@@ -456,8 +546,8 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
         />
       )}
 
-      {/* Flag Modal */}
-      {showFlag && product && (
+      {/* Flag Modal — not for demo */}
+      {showFlag && product && !isDemo && (
         <FlagModal
           productId={product.id}
           productName={product.name}

@@ -74,3 +74,72 @@ describe('ProductQA', () => {
     // ProductQA uses productId internally, not as displayed text
   })
 })
+
+describe('ProductQA - Demo Mode', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const demoProps = {
+    productId: 'demo-101',
+    sellerId: 'demo-seller-1',
+    isDemo: true,
+    productName: 'Heirloom Tomatoes',
+    productDescription: 'Vine-ripened, bursting with flavor.',
+  }
+
+  it('renders Demo badge in header when isDemo', () => {
+    const { container } = render(React.createElement(ProductQA, demoProps))
+    expect(container.textContent).toContain('🌿 Demo')
+  })
+
+  it('shows pre-seeded example Q&A', () => {
+    const { container } = render(React.createElement(ProductQA, demoProps))
+    expect(container.textContent).toContain('Is this grown organically?')
+    expect(container.textContent).toContain('100% organic')
+    expect(container.textContent).toContain('Jessica M.')
+  })
+
+  it('shows AI label and disclaimer', () => {
+    const { container } = render(React.createElement(ProductQA, demoProps))
+    expect(container.textContent).toContain('demo Q&A powered by CasaGrown AI')
+  })
+
+  it('accepts user questions and shows AI response', async () => {
+    const { container } = render(React.createElement(ProductQA, demoProps))
+
+    // Find textarea
+    const textarea = container.querySelector('textarea') as HTMLTextAreaElement
+    expect(textarea).toBeTruthy()
+
+    // Type a question about delivery
+    fireEvent.change(textarea, { target: { value: 'Do you deliver?' } })
+
+    // "Ask AI" button should appear
+    const askBtn = Array.from(container.querySelectorAll('button'))
+      .find(b => b.textContent === 'Ask AI')
+    expect(askBtn).toBeTruthy()
+
+    // Click Ask AI
+    fireEvent.click(askBtn!)
+
+    // Should show typing indicator briefly, then AI response
+    await waitFor(() => {
+      expect(container.textContent).toContain('CasaGrown AI')
+      expect(container.textContent).toContain('Delivery')
+    }, { timeout: 3000 })
+  })
+
+  it('does NOT call supabase in demo mode', () => {
+    render(React.createElement(ProductQA, demoProps))
+    // The mockFrom should not have been called for demo mode
+    // (demo mode renders pre-seeded data and returns early)
+    expect(mockFrom).not.toHaveBeenCalledWith('product_comments')
+  })
+
+  it('shows "Ask a question about this demo product" placeholder', () => {
+    const { container } = render(React.createElement(ProductQA, demoProps))
+    const textarea = container.querySelector('textarea') as HTMLTextAreaElement
+    expect(textarea.placeholder).toContain('demo product')
+  })
+})

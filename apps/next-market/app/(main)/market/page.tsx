@@ -32,6 +32,7 @@ interface BoothResult {
   seller_avatar_url: string | null
   seller_avg_rating: number | null
   seller_rating_count: number
+  is_demo: boolean
 }
 
 const themeColors: Record<string, { border: string; gradient: string }> = {
@@ -45,6 +46,8 @@ const themeColors: Record<string, { border: string; gradient: string }> = {
 
 const categoryIcons: Record<string, string> = {
   produce: '🥬', baked: '🍞', preserved: '🫙', other: '📦',
+  flowers: '💐', flower_arrangements: '💐', garden_equipment: '🧰',
+  pots: '🪴', soil: '🌱', seeds: '🌰', eggs: '🥚', honey: '🍯',
 }
 
 function BrowseMarketPageInner() {
@@ -81,6 +84,7 @@ function BrowseMarketPageInner() {
   // Product reminders (when market is closed)
   const [savedProductIds, setSavedProductIds] = useState<Set<string>>(new Set())
   const [reminderToast, setReminderToast] = useState<string | null>(null)
+  const [showDemoModal, setShowDemoModal] = useState(false)
 
   // Market hours status
   const { isOpen: marketIsOpen, todaySchedule, nextOpenDate, loading: marketLoading } = useMarketStatus()
@@ -156,18 +160,44 @@ function BrowseMarketPageInner() {
       // Only update state if results actually changed — avoids unnecessary re-renders
       // during background polling when nothing has changed on the market.
       setBooths(prev => {
-        const next = data || []
+        const next = Array.isArray(data) ? data : []
         // Include sorted product IDs in the fingerprint so we only replace when
         // the actual product set changes, not just on stale RPC responses.
         // Round distance_miles to 2dp — PostGIS floats drift slightly between calls
         // (e.g. 2.345678 → 2.345679) which would cause the fingerprint to never match,
         // replacing the booth array every 2 minutes and causing visible UI flicker.
-        const fingerprint = (arr: BoothResult[]) => JSON.stringify(arr.map(b => ({
+        const fingerprint = (arr: BoothResult[]) => Array.isArray(arr) ? JSON.stringify(arr.map(b => ({
           id: b.booth_id, pc: b.product_count,
           dist: Math.round(b.distance_miles * 100) / 100,
           pids: (b.matched_products || []).map((p: any) => p.id).sort().join(','),
-        })))
-        return fingerprint(prev) === fingerprint(next as BoothResult[]) ? prev : next
+        }))) : ''
+        if (fingerprint(prev) !== fingerprint(next as BoothResult[])) {
+          // Cache demo booth/product data so ProductDetailClient can render them
+          try {
+            const demoBooths = (next as BoothResult[]).filter(b => b.is_demo)
+            for (const db of demoBooths) {
+              sessionStorage.setItem(`demo_booth_${db.booth_id}`, JSON.stringify({
+                id: db.booth_id, name: db.booth_name, owner_id: db.owner_id,
+                description: db.description, decorative_theme: db.decorative_theme,
+                header_image_url: db.header_image_url, offers_delivery: db.offers_delivery,
+                offers_pickup: db.offers_pickup, delivery_radius_miles: db.delivery_radius_miles,
+                pickup_address: db.pickup_address, is_demo: true,
+                seller_avg_rating: db.seller_avg_rating, seller_rating_count: db.seller_rating_count,
+              }))
+              for (const p of (db.matched_products || [])) {
+                sessionStorage.setItem(`demo_product_${p.id}`, JSON.stringify({
+                  id: p.id, name: p.name, description: p.description,
+                  price_usd: p.price_usd, unit: p.unit, photos: p.photo ? [p.photo] : [],
+                  category: p.category, inventory: p.inventory || 10,
+                  harvested_at: p.harvested_at, seller_id: db.owner_id, is_active: true,
+                  is_demo: true, booth_id: db.booth_id,
+                }))
+              }
+            }
+          } catch {}
+          return next
+        }
+        return prev
       })
     }
     if (!silent) setLoading(false)
@@ -352,7 +382,7 @@ function BrowseMarketPageInner() {
               zIndex: 100, transition: 'transform 0.2s, box-shadow 0.2s',
             }}
           >
-            📸 Snap & List for Next Market
+            📸 Take Photo to Sell
           </Link>
       </>
     )
@@ -445,13 +475,19 @@ function BrowseMarketPageInner() {
       </div>
 
       {/* Status */}
-      {!loading && booths.length > 0 && (
-        <p className={styles.statusText}>
-          {isSearching
-            ? `${totalProducts} result${totalProducts !== 1 ? 's' : ''} for "${search}" across ${booths.length} booth${booths.length !== 1 ? 's' : ''}`
-            : `${booths.length} booth${booths.length !== 1 ? 's' : ''} near you`}
-        </p>
-      )}
+      {!loading && booths.length > 0 && (() => {
+        const realCount = booths.filter(b => !b.is_demo).length
+        const demoCount = booths.filter(b => b.is_demo).length
+        return (
+          <p className={styles.statusText}>
+            {isSearching
+              ? `${totalProducts} result${totalProducts !== 1 ? 's' : ''} for "${search}" across ${booths.length} booth${booths.length !== 1 ? 's' : ''}`
+              : demoCount > 0
+                ? `${realCount} booth${realCount !== 1 ? 's' : ''} near you + ${demoCount} demo`
+                : `${booths.length} booth${booths.length !== 1 ? 's' : ''} near you`}
+          </p>
+        )
+      })()}
 
       {/* Results */}
       {loading ? (
@@ -472,7 +508,10 @@ function BrowseMarketPageInner() {
             return (
               <div key={booth.booth_id} className="card">
                 {/* Header → booth page */}
-                <Link href={`/market/booth/${booth.booth_id}`} className={styles.cardHeaderLink}>
+                <Link href={booth.is_demo ? '#' : `/market/booth/${booth.booth_id}`}
+                  className={styles.cardHeaderLink}
+                  onClick={e => { if (booth.is_demo) { e.preventDefault(); setShowDemoModal(true) } }}
+                >
                   <div className={styles.cardHeader} style={{
                     background: booth.header_image_url ? `url(${booth.header_image_url}) center/cover` : theme.gradient,
                     borderBottom: `3px solid ${theme.border}`,
@@ -483,6 +522,9 @@ function BrowseMarketPageInner() {
                         {booth.booth_name}
                       </h3>
                       <div className={styles.cardMeta}>
+                        {booth.is_demo && (
+                          <span className="badge" style={{ fontSize: 10, background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac' }}>🌿 Demo</span>
+                        )}
                         <span className="badge badge-green" style={{ fontSize: 11 }}>{booth.distance_miles} mi</span>
                         <span style={{ color: 'var(--gray-400)' }}>·</span>
                         <span>{booth.product_count} items</span>
@@ -496,8 +538,10 @@ function BrowseMarketPageInner() {
                           : <span>{booth.booth_name.charAt(0)}</span>
                         }
                       </div>
-                      {booth.seller_avg_rating && booth.seller_rating_count >= 5 && (
+                      {booth.seller_avg_rating && booth.seller_rating_count >= 5 ? (
                         <span className={styles.sellerRating}>⭐ {booth.seller_avg_rating}</span>
+                      ) : !booth.is_demo && (
+                        <span className={styles.sellerRating} style={{ fontSize: 10, color: 'var(--gray-400)' }}>🆕 New Seller</span>
                       )}
                     </div>
                   </div>
@@ -505,13 +549,13 @@ function BrowseMarketPageInner() {
 
                 {/* Body */}
                 <div className={styles.cardBody}>
-                  {booth.description && <p className={styles.cardDesc}>{booth.description}</p>}
+                  {booth.description && <p className={styles.cardDesc}>{booth.is_demo ? `${booth.description} Demo listing — viewing only.` : booth.description}</p>}
 
                   <div className={styles.tagRow}>
                     {booth.offers_delivery && (
                       <span className="badge badge-green">🚗 Delivers {booth.delivery_radius_miles}mi</span>
                     )}
-                    {booth.offers_pickup && (
+                    {booth.offers_pickup && !booth.is_demo && (
                       <span className="badge badge-blue">📍 Pickup</span>
                     )}
                   </div>
@@ -520,7 +564,10 @@ function BrowseMarketPageInner() {
                     <div className={styles.productList}>
                       {products.slice(0, isSearching ? 6 : 4).map((p: any) => (
                         <div key={p.id} style={{ position: 'relative' }}>
-                          <Link href={`/market/booth/${booth.booth_id}/product/${p.id}`} className={styles.productCard}>
+                          <Link
+                            href={`/market/booth/${booth.booth_id}/product/${p.id}`}
+                            className={styles.productCard}
+                          >
                             <div className={styles.productThumb}>
                               {p.photo ? <img src={p.photo} alt={p.name} /> : <span>{categoryIcons[p.category] || '📦'}</span>}
                             </div>
@@ -532,7 +579,7 @@ function BrowseMarketPageInner() {
                               </div>
                             </div>
                           </Link>
-                          {!marketIsOpen && (
+                          {!marketIsOpen && !booth.is_demo && (
                             <button
                               onClick={(e) => toggleProductReminder(p.id, e)}
                               title={savedProductIds.has(p.id) ? 'Remove reminder' : 'Remind me when booth opens'}
@@ -575,6 +622,51 @@ function BrowseMarketPageInner() {
           {reminderToast}
         </div>
       )}
+      {/* Demo Warning Modal */}
+      {showDemoModal && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 20,
+        }} onClick={() => setShowDemoModal(false)}>
+          <div style={{
+            background: '#fff', borderRadius: 16, padding: 32, maxWidth: 400, width: '100%',
+            boxShadow: '0 24px 48px rgba(0,0,0,0.2)', textAlign: 'center',
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>🌿</div>
+            <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, color: '#15803d' }}>
+              This is a Demo Listing
+            </h3>
+            <p style={{ fontSize: 14, color: 'var(--gray-600)', lineHeight: 1.6, marginBottom: 20 }}>
+              Demo booths show what CasaGrown looks like when your neighbors start selling.
+              Transactions are not available for demo listings.
+            </p>
+            <Link
+              href={user ? "/my-booth/products/new?camera=true" : "/login?redirect=%2Fmy-booth%2Fproducts%2Fnew%3Fcamera%3Dtrue"}
+              style={{
+                display: 'block', padding: '14px 24px', borderRadius: 12,
+                background: 'linear-gradient(135deg, #16a34a, #15803d)',
+                color: '#fff', fontWeight: 600, fontSize: 16,
+                textDecoration: 'none', marginBottom: 12,
+                boxShadow: '0 4px 12px rgba(22,163,74,0.3)',
+              }}
+            >
+              🌱 Start Selling →
+            </Link>
+            <button
+              onClick={() => setShowDemoModal(false)}
+              style={{
+                background: 'none', border: '1px solid var(--gray-300)',
+                borderRadius: 8, padding: '10px 24px', cursor: 'pointer',
+                fontSize: 14, color: 'var(--gray-600)',
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Sell Something FAB — visible when market is open and user is authenticated */}
       <Link
@@ -592,7 +684,7 @@ function BrowseMarketPageInner() {
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)' }}
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}
         >
-          {marketIsOpen ? '📸 Snap & List' : '📸 Snap & List for Next Market'}
+          {marketIsOpen ? '📸 Take Photo to Sell' : '📸 Take Photo to Sell'}
         </Link>
     </div>
   )

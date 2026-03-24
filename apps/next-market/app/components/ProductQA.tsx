@@ -21,9 +21,12 @@ interface Comment {
 interface ProductQAProps {
   productId: string
   sellerId: string
+  isDemo?: boolean
+  productName?: string
+  productDescription?: string
 }
 
-export function ProductQA({ productId, sellerId }: ProductQAProps) {
+export function ProductQA({ productId, sellerId, isDemo, productName, productDescription }: ProductQAProps) {
   const supabase = createClient()
   const { user, isAuthenticated } = useAuth()
   const [comments, setComments] = useState<Comment[]>([])
@@ -32,6 +35,164 @@ export function ProductQA({ productId, sellerId }: ProductQAProps) {
   const [replyText, setReplyText] = useState('')
   const [flaggedIds, setFlaggedIds] = useState<Set<string>>(new Set())
   const [posting, setPosting] = useState(false)
+
+  // ── Demo Q&A Mode ──────────────────────────────────────────────────────────
+  // For demo products, provide a local AI-powered Q&A experience without DB
+  const [demoQuestions, setDemoQuestions] = useState<{ q: string; a: string; ts: string }[]>([])
+  const [demoInput, setDemoInput] = useState('')
+  const [demoTyping, setDemoTyping] = useState(false)
+
+  const generateDemoAnswer = (question: string): string => {
+    const q = question.toLowerCase()
+    const name = productName || 'this product'
+    const desc = productDescription || ''
+
+    // Context-aware responses
+    if (q.includes('organic') || q.includes('pesticide') || q.includes('spray'))
+      return `Great question! Our demo sellers on CasaGrown typically grow organically in their home gardens. When you find a real seller, you can ask them directly about their growing practices right here in the Q&A section. 🌱`
+    if (q.includes('deliver') || q.includes('delivery') || q.includes('ship'))
+      return `Delivery options vary by seller. Most CasaGrown sellers offer both local delivery and pickup from their home. You'll see the specific delivery radius and pickup address on each real listing. 🚗`
+    if (q.includes('fresh') || q.includes('harvest') || q.includes('pick'))
+      return `CasaGrown sellers harvest from their own gardens, so produce is typically picked the same day or day before! Each listing shows the harvest date so you know exactly how fresh it is. 🌿`
+    if (q.includes('price') || q.includes('cost') || q.includes('expensive') || q.includes('cheap'))
+      return `Prices on CasaGrown are set by individual sellers. Since they're your neighbors growing in their backyards, prices are typically very competitive — often less than grocery stores for much fresher produce! 💰`
+    if (q.includes('how') && (q.includes('sell') || q.includes('list')))
+      return `Selling on CasaGrown is easy! Just tap "Take Photo to Sell", snap a picture of what you're growing, and we'll help you create a listing in seconds. Your neighbors will see it right away! 📸`
+    if (q.includes('pay') || q.includes('payment') || q.includes('stripe'))
+      return `CasaGrown uses Stripe for secure payments. Your payment is held safely until you confirm receipt of your order. Sellers get paid daily to their connected account. 🔒`
+    if (q.includes('avail') || q.includes('stock') || q.includes('inventory'))
+      return `${name} availability depends on what's growing in the seller's garden. This is a demo listing — when real sellers list their harvest, you'll see live inventory counts updated in real-time. 📊`
+
+    // Fallback: helpful generic answer using product context
+    return `That's a great question about ${name}! This is a demo listing showing what CasaGrown looks like.${desc ? ` This would be: ${desc}.` : ''} When real sellers are nearby, you'll be able to chat with them directly in this Q&A section. Start selling yourself to help fill your neighborhood's market! 🌻`
+  }
+
+  const handleDemoQuestion = () => {
+    if (!demoInput.trim()) return
+    const question = demoInput.trim()
+    setDemoInput('')
+    setDemoTyping(true)
+
+    // Simulate typing delay
+    setTimeout(() => {
+      setDemoQuestions(prev => [...prev, {
+        q: question,
+        a: generateDemoAnswer(question),
+        ts: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+      }])
+      setDemoTyping(false)
+    }, 800 + Math.random() * 600)
+  }
+
+  if (isDemo) {
+    return (
+      <div className={styles.qaSection}>
+        <h3 className={styles.qaTitle}>
+          💬 Questions & Answers
+          <span className={styles.qaCount} style={{ background: '#f0fdf4', color: '#15803d' }}>🌿 Demo</span>
+        </h3>
+
+        {/* Pre-seeded example Q&A */}
+        <div className={styles.questionList}>
+          <div className={styles.questionBlock}>
+            <div className={styles.commentRow}>
+              <div className={`${styles.avatar} ${styles.avatarMd}`}><span>JM</span></div>
+              <div className={styles.commentContent}>
+                <div className={styles.commentMeta}>
+                  <span className={styles.authorName}>Jessica M.</span>
+                  <span className={styles.timestamp}>2d ago</span>
+                </div>
+                <p className={styles.commentBody}>Is this grown organically?</p>
+              </div>
+            </div>
+            <div className={styles.repliesSection}>
+              <div className={`${styles.replyRow} ${styles.sellerReplyRow}`}>
+                <div className={`${styles.avatar} ${styles.avatarSm} ${styles.avatarSeller}`}><span>🌱</span></div>
+                <div className={styles.commentContent}>
+                  <div className={styles.commentMeta}>
+                    <span className={styles.authorName}>Demo Seller <span className={styles.sellerBadge}>Seller</span></span>
+                    <span className={styles.timestamp}>2d ago</span>
+                  </div>
+                  <p className={styles.commentBody}>Yes! Everything I grow is 100% organic — no pesticides, just compost and love. Happy to answer any other questions! 🌿</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* User-submitted demo questions */}
+          {demoQuestions.map((dq, i) => (
+            <div key={i} className={styles.questionBlock}>
+              <div className={styles.commentRow}>
+                <div className={`${styles.avatar} ${styles.avatarMd}`}><span>You</span></div>
+                <div className={styles.commentContent}>
+                  <div className={styles.commentMeta}>
+                    <span className={styles.authorName}>You</span>
+                    <span className={styles.timestamp}>{dq.ts}</span>
+                  </div>
+                  <p className={styles.commentBody}>{dq.q}</p>
+                </div>
+              </div>
+              <div className={styles.repliesSection}>
+                <div className={`${styles.replyRow} ${styles.sellerReplyRow}`}>
+                  <div className={`${styles.avatar} ${styles.avatarSm} ${styles.avatarSeller}`}><span>🤖</span></div>
+                  <div className={styles.commentContent}>
+                    <div className={styles.commentMeta}>
+                      <span className={styles.authorName}>CasaGrown AI <span className={styles.sellerBadge} style={{ background: '#dbeafe', color: '#1d4ed8' }}>AI</span></span>
+                      <span className={styles.timestamp}>Just now</span>
+                    </div>
+                    <p className={styles.commentBody}>{dq.a}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Typing indicator */}
+        {demoTyping && (
+          <div style={{ padding: '8px 16px', fontSize: 13, color: 'var(--gray-500)', fontStyle: 'italic' }}>
+            🤖 CasaGrown AI is typing...
+          </div>
+        )}
+
+        {/* Ask input */}
+        <div className={styles.askBox}>
+          <div className={styles.askRow}>
+            <div className={`${styles.avatar} ${styles.avatarSm}`}><span>?</span></div>
+            <textarea
+              className={styles.askInput}
+              placeholder="Ask a question about this demo product..."
+              value={demoInput}
+              onChange={e => setDemoInput(e.target.value)}
+              rows={1}
+              maxLength={2000}
+              onFocus={e => { (e.target as HTMLTextAreaElement).rows = 3 }}
+              onBlur={e => { if (!demoInput) (e.target as HTMLTextAreaElement).rows = 1 }}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleDemoQuestion() } }}
+            />
+          </div>
+          {demoInput.trim() && (
+            <div className={styles.askActions}>
+              <button
+                className={styles.postBtn}
+                onClick={handleDemoQuestion}
+                disabled={demoTyping}
+              >
+                Ask AI
+              </button>
+              <button className={styles.cancelBtn} onClick={() => setDemoInput('')}>
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
+
+        <p style={{ fontSize: 12, color: 'var(--gray-400)', textAlign: 'center', marginTop: 8 }}>
+          🌿 This is a demo Q&A powered by CasaGrown AI. Real listings have seller-answered questions.
+        </p>
+      </div>
+    )
+  }
 
   const loadComments = useCallback(async () => {
     // Fetch comments with author profile info
