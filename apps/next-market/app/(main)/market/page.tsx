@@ -218,6 +218,26 @@ function BrowseMarketPageInner() {
   const searchBooths = useCallback(async (silent = false) => {
     if (!lat || !lng) return
     if (!silent) setLoading(true)
+
+    // 2-hour Local Storage cache for Demo Booths (tied to the searched ZIP code)
+    let cachedDemos: BoothResult[] | null = null
+    const CACHE_KEY = 'demo_booths_cache'
+    
+    if (!silent) {
+      try {
+        const raw = localStorage.getItem(CACHE_KEY)
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          // 2 hours = 7200000 ms
+          if (Date.now() - parsed.timestamp < 7200000 && parsed.zipCode === zipCode) {
+            cachedDemos = parsed.booths
+          }
+        }
+      } catch {}
+    }
+
+    const shouldExcludeDemos = silent || !!cachedDemos
+
     const { data, error } = await supabase.rpc('nearby_booths', {
       user_lat: lat, user_lng: lng,
       max_miles: maxMiles,
@@ -227,7 +247,7 @@ function BrowseMarketPageInner() {
       max_price: maxPrice ? parseFloat(maxPrice) : null,
       category_filter: category || null,
       buyer_state_code: buyerStateCode,
-      exclude_demos: silent,
+      exclude_demos: shouldExcludeDemos,
     })
     if (error) {
       console.error('Search error:', error.message)
@@ -236,10 +256,26 @@ function BrowseMarketPageInner() {
       // during background polling when nothing has changed on the market.
       setBooths(prev => {
         const next = Array.isArray(data) ? [...data] : []
+        
         if (silent) {
-          // Keep the demo booths we already had, because exclude_demos was true for this background poll.
+          // Idle polling: Retain the demo booths we already had in React state
           const existingDemos = prev.filter(b => b.is_demo)
           next.push(...existingDemos)
+        } else if (cachedDemos) {
+          // Active page load: Inject the 2-hour valid Local Storage cache
+          next.push(...cachedDemos)
+        } else {
+          // Active page load (Cache Miss): We fetched fresh demos! Save them to the 2-hour cache.
+          const freshDemos = next.filter(b => b.is_demo)
+          if (freshDemos.length > 0) {
+            try {
+              localStorage.setItem(CACHE_KEY, JSON.stringify({
+                timestamp: Date.now(),
+                zipCode,
+                booths: freshDemos
+              }))
+            } catch {}
+          }
         }
 
         // Include sorted product IDs in the fingerprint so we only replace when
