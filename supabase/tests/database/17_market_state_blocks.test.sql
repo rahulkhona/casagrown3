@@ -52,10 +52,8 @@ VALUES (
   'FREETEST Product', 10.00, 'each', 5, true, CURRENT_DATE + 7, 'produce'
 );
 
--- Seed a booth outside CA (e.g. Nevada)
-INSERT INTO market_booths (id, owner_id, name, pickup_location, is_open) VALUES
-('b0000000-0000-0000-0000-000000000002', '33333333-3333-3333-3333-333333333333', 'Nevada Test Booth', ST_SetSRID(ST_MakePoint(-119.76, 39.16), 4326), true);
-UPDATE market_booths SET is_open = true;
+-- Update the Seeded booth to ensure it stays open for the test framework
+UPDATE market_booths SET is_open = true WHERE id = 'b0000000-0000-0000-0000-000000000002';
 
 SELECT ok(
   (SELECT price_usd FROM market_products WHERE id = 'e0e01111-0001-4a00-a001-000000000001') = 0,
