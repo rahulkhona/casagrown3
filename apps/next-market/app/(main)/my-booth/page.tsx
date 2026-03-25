@@ -116,6 +116,10 @@ export default function MyBoothPage() {
   const [dragIdx, setDragIdx] = useState<number | null>(null)
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
 
+  // Pre-flight modal
+  const [showPreFlightModal, setShowPreFlightModal] = useState(false)
+  const [preFlightItems, setPreFlightItems] = useState<{ expired: typeof dbProducts, inactive: typeof dbProducts }>({ expired: [], inactive: [] })
+
   // Platform fee rate (loaded from DB)
   const [platformFeePct, setPlatformFeePct] = useState(10)
   const [profileName, setProfileName] = useState<string | null>(null)
@@ -311,7 +315,7 @@ export default function MyBoothPage() {
           deliveryWindows: [],
           pickupWindows: [],
           isActive: p.is_active,
-          status: (!p.is_active ? 'inactive' : (!state.productsNeverExpire && p.market_date < new Date().toISOString().split('T')[0]) ? 'expired' : 'active') as any,
+          status: (!p.is_active ? 'inactive' : (p.market_date && p.market_date < new Date().toISOString().split('T')[0]) ? 'expired' : 'active') as any,
           marketDate: p.market_date,
           harvestedAt: p.harvested_at,
         })))
@@ -501,7 +505,7 @@ export default function MyBoothPage() {
   const handleRemoveProduct = async (productId: string) => {
     const prev = dbProducts
     setDbProducts(p => p.filter(x => x.id !== productId))
-    const { error } = await supabase.from('market_products').delete().eq('id', productId)
+    const { error } = await supabase.from('market_products').update({ is_deleted: true }).eq('id', productId)
     if (error) {
       setDbProducts(prev) // restore
       dispatch({ type: 'ADD_TOAST', payload: { message: 'Failed to remove — ' + error.message, type: 'error' } })
@@ -592,11 +596,186 @@ export default function MyBoothPage() {
         </button>
       </div>
 
+      {/* ── Pre-Flight Shelf Review Modal ── */}
+      {showPreFlightModal && (
+        <>
+          <div className={styles.shareBackdrop} onClick={() => setShowPreFlightModal(false)} />
+          <div className={styles.shareModal} style={{ textAlign: 'left', maxWidth: 480, maxHeight: '80vh', overflowY: 'auto' }}>
+            <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8, color: 'var(--gray-900)' }}>Booth Preparation</h2>
+            <p style={{ fontSize: 14, color: 'var(--gray-600)', marginBottom: 20 }}>
+              Please review the items preventing your storefront from opening to buyers.
+            </p>
+
+            {preFlightItems.expired.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-900)', marginBottom: 8 }}>Expired & Removed Items</h3>
+                <p style={{ fontSize: 13, color: 'var(--gray-500)', margin: '0 0 12px 0' }}>
+                  The following items have expired and been automatically removed from your catalog. Click <strong>Refresh</strong> to quickly re-list them for the upcoming market.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {preFlightItems.expired.map(p => {
+                    const isPerishable = ['produce', 'eggs', 'flowers', 'flower_arrangements'].includes(p.category)
+                    return (
+                      <div 
+                        key={`exp-${p.id}`} 
+                        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px', background: 'var(--red-50, #fef2f2)', border: '1px solid var(--red-200)', borderRadius: 12, cursor: 'pointer' }}
+                        onClick={() => router.push(`/my-booth/products/${p.id}`)}
+                      >
+                        <span style={{ fontSize: 24, flexShrink: 0 }}>{p.photos[0] ? <img src={p.photos[0]} style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover' }} /> : '🥬'}</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--gray-900)' }}>{p.name}</div>
+                          <div style={{ fontSize: 12, color: 'var(--red-700)', fontWeight: 600, marginTop: 2 }}>Expired {p.marketDate}</div>
+                        </div>
+                        {isPerishable ? (
+                          <button 
+                            className="btn btn-sm" 
+                            style={{ padding: '6px 12px', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', backgroundColor: 'var(--red-100)', color: 'var(--red-700)', border: '1px solid var(--red-200)' }}
+                            onClick={async (e) => {
+                              e.stopPropagation()
+                              const { error } = await supabase.from('market_products').update({ is_deleted: true }).eq('id', p.id)
+                              if (!error) {
+                                setDbProducts(prev => prev.filter(prod => prod.id !== p.id))
+                                setPreFlightItems(prev => ({ ...prev, expired: prev.expired.filter(x => x.id !== p.id) }))
+                              } else {
+                                alert('Error removing product: ' + error.message)
+                              }
+                            }}
+                          >
+                            🗑️ Remove
+                          </button>
+                        ) : (
+                          <button 
+                            className="btn btn-secondary btn-sm" 
+                            style={{ padding: '6px 12px', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}
+                            onClick={async (e) => {
+                              e.stopPropagation()
+                              const nextMarket = getNextMarketDate(state.marketSchedule)
+                              const newDate = nextMarket?.date.toISOString().split('T')[0] || new Date().toISOString().split('T')[0]
+                              const { error } = await supabase.from('market_products')
+                                .update({ market_date: newDate, is_active: true, updated_at: new Date().toISOString() })
+                                .eq('id', p.id)
+                              if (!error) {
+                                setDbProducts(prev => prev.map(prod =>
+                                  prod.id === p.id
+                                    ? { ...prod, marketDate: newDate, isActive: true, status: 'active' as const }
+                                    : prod
+                                ))
+                                setPreFlightItems(prev => ({ ...prev, expired: prev.expired.filter(x => x.id !== p.id) }))
+                              }
+                            }}
+                          >
+                            🔄 Refresh
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {preFlightItems.inactive.length > 0 && (
+              <div>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-900)', marginBottom: 8 }}>Inactive or Empty Listings</h3>
+                <p style={{ fontSize: 13, color: 'var(--gray-500)', margin: '0 0 12px 0' }}>
+                  The following listings are currently inactive or out of stock. You can quickly renew them below:
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {preFlightItems.inactive.map(p => {
+                    const isPerishable = ['produce', 'eggs', 'flowers', 'flower_arrangements'].includes(p.category)
+                    return (
+                      <div 
+                        key={`in-${p.id}`} 
+                        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px', background: 'var(--amber-50)', border: '1px solid var(--amber-200)', borderRadius: 12, cursor: 'pointer' }}
+                        onClick={() => router.push(`/my-booth/products/${p.id}`)}
+                      >
+                        <span style={{ fontSize: 24, flexShrink: 0 }}>{p.photos[0] ? <img src={p.photos[0]} style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover' }} /> : '📦'}</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--gray-900)' }}>{p.name}</div>
+                          <div style={{ fontSize: 12, color: 'var(--amber-700)', fontWeight: 600, marginTop: 2 }}>
+                            {p.inventory === 0 ? 'Out of stock (0 left)' : 'Hidden from Store'}
+                          </div>
+                        </div>
+                        {isPerishable ? (
+                          <button 
+                            className="btn btn-sm" 
+                            style={{ padding: '6px 12px', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', backgroundColor: 'var(--red-100)', color: 'var(--red-700)', border: '1px solid var(--red-200)' }}
+                            onClick={async (e) => {
+                              e.stopPropagation()
+                              const { error } = await supabase.from('market_products').update({ is_deleted: true }).eq('id', p.id)
+                              if (!error) {
+                                setDbProducts(prev => prev.filter(prod => prod.id !== p.id))
+                                setPreFlightItems(prev => ({ ...prev, inactive: prev.inactive.filter(x => x.id !== p.id) }))
+                              } else {
+                                alert('Error removing product: ' + error.message)
+                              }
+                            }}
+                          >
+                            🗑️ Remove
+                          </button>
+                        ) : (
+                          <button 
+                            className="btn btn-secondary btn-sm" 
+                            style={{ padding: '6px 12px', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              router.push(`/my-booth/products/${p.id}`)
+                            }}
+                          >
+                            ✍️ Renew
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            <button
+              className="btn btn-primary"
+              style={{ width: '100%', marginTop: 24, padding: 14, fontSize: 16, fontWeight: 700 }}
+              onClick={async () => {
+                setShowPreFlightModal(false)
+                setIsOpen(true)
+                trackClick('toggle_booth_open', { isOpen: true })
+                const { error } = await supabase
+                  .from('market_booths')
+                  .update({ is_open: true })
+                  .eq('id', savedBoothId)
+                if (error) {
+                  setIsOpen(false)
+                  dispatch({ type: 'ADD_TOAST', payload: { message: 'Failed to update — ' + error.message, type: 'error' } })
+                }
+              }}
+            >
+              Proceed & Open Booth
+            </button>
+          </div>
+        </>
+      )}
+
       {/* ── Booth Open/Close Toggle ── */}
       {savedBoothId && (
         <button
           onClick={async () => {
             const newVal = !isOpen
+            
+            // Trigger pre-flight interceptor if attempting to open
+            if (newVal === true) {
+               const todayStr = new Date().toISOString().split('T')[0]
+               // Identifies expired perishable products 
+               const expired = myProducts.filter(p => p.status === 'expired' || (p.marketDate && p.marketDate < todayStr))
+               // Identifies items that are out-of-stock or inactive, but not expired perishables
+               const inactive = myProducts.filter(p => !expired.includes(p) && (!p.isActive || p.inventory === 0))
+               
+               if (expired.length > 0 || inactive.length > 0) {
+                 setPreFlightItems({ expired, inactive })
+                 setShowPreFlightModal(true)
+                 return
+               }
+            }
+            
             setIsOpen(newVal)
             trackClick('toggle_booth_open', { isOpen: newVal })
             const { error } = await supabase
@@ -934,8 +1113,7 @@ export default function MyBoothPage() {
                     )}
                   </div>
                 </div>
-                {/* Re-list button for expired products */}
-                {slot.product.status === 'expired' && (
+                {slot.product.status === 'expired' && !['produce', 'eggs', 'flowers', 'flower_arrangements'].includes(slot.product.category) && (
                   <button
                     className="btn btn-primary btn-sm"
                     style={{ margin: '8px 8px 4px', fontSize: 12 }}

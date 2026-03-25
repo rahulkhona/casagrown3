@@ -5,25 +5,26 @@
 BEGIN;
 SELECT plan(6);
 
--- Ensure products_never_expire is false
+-- Ensure products_never_expire is false and all testing booths are open
 UPDATE market_settings SET products_never_expire = false WHERE id = true;
+UPDATE market_booths SET is_open = true;
 
 -- Active product with future market_date (seller: Maria Garcia 11111111...)
-INSERT INTO market_products (id, seller_id, name, price_usd, unit, inventory, is_active, market_date, category)
+INSERT INTO market_products (id, seller_id, name, price_usd, unit, inventory, is_active, market_date, category, expires_at)
 VALUES (
   'e0e01111-0001-4e00-e001-000000000001',
   '11111111-1111-1111-1111-111111111111',
   'EXPTEST Fresh Tomatoes',
-  5.00, 'basket', 10, true, CURRENT_DATE + 1, 'produce'
+  5.00, 'basket', 10, true, CURRENT_DATE + 1, 'produce', now() + interval '5 days'
 );
 
 -- Expired product (market_date in the past)
-INSERT INTO market_products (id, seller_id, name, price_usd, unit, inventory, is_active, market_date, category)
+INSERT INTO market_products (id, seller_id, name, price_usd, unit, inventory, is_active, market_date, category, expires_at)
 VALUES (
   'e0e02222-0002-4e00-e002-000000000002',
   '11111111-1111-1111-1111-111111111111',
   'EXPTEST Old Lettuce',
-  3.00, 'head', 5, true, CURRENT_DATE - 7, 'produce'
+  3.00, 'head', 5, true, CURRENT_DATE - 7, 'produce', now() - interval '2 days'
 );
 
 -- T1: Active product appears in nearby_booths
@@ -57,7 +58,7 @@ SELECT ok(
 );
 
 -- T5: Re-list expired product
-UPDATE market_products SET market_date = CURRENT_DATE + 1 WHERE id = 'e0e02222-0002-4e00-e002-000000000002';
+UPDATE market_products SET market_date = CURRENT_DATE + 1, expires_at = now() + interval '5 days' WHERE id = 'e0e02222-0002-4e00-e002-000000000002';
 SELECT ok(
   EXISTS(
     SELECT 1 FROM nearby_booths(37.33::float8, -121.89::float8, 50.0::float8, null::text, null::text, null::numeric, null::numeric, null::text, null::text)
@@ -67,7 +68,7 @@ SELECT ok(
 );
 
 -- T6: products_never_expire override
-UPDATE market_products SET market_date = CURRENT_DATE - 7 WHERE id = 'e0e02222-0002-4e00-e002-000000000002';
+UPDATE market_products SET market_date = CURRENT_DATE - 7, expires_at = now() - interval '2 days' WHERE id = 'e0e02222-0002-4e00-e002-000000000002';
 UPDATE market_settings SET products_never_expire = true WHERE id = true;
 SELECT ok(
   EXISTS(

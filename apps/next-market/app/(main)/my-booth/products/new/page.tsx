@@ -476,6 +476,8 @@ function NewProductPageInner() {
           photos: editPhotoUrls,
           harvested_at: harvestedAt ? new Date(harvestedAt + 'T12:00:00').toISOString() : null,
           expires_at: getExpiryDate(),
+          market_date: marketDate,
+          is_active: true,
         })
         .eq('id', editId)
 

@@ -5,6 +5,8 @@
 BEGIN;
 SELECT plan(3);
 
+UPDATE market_booths SET is_open = true;
+
 -- Temporarily ban Sofia Rossi for testing
 UPDATE profiles SET is_banned = true, banned_at = now() WHERE id = '44444444-4444-4444-4444-444444444444';
 

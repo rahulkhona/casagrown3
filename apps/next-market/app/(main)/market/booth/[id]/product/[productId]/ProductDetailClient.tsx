@@ -293,6 +293,30 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
             )}
           </div>
 
+          {/* Owner Share Button */}
+          {isAuthenticated && user?.id === product.seller_id && !isDemo && (
+            <div style={{ marginTop: 16 }}>
+              <button
+                className="btn btn-secondary"
+                style={{ width: '100%', padding: '10px 20px', fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                onClick={async () => {
+                  const url = typeof window !== 'undefined' ? window.location.href : ''
+                  const text = `Hey! Check out my fresh ${product.name} on CasaGrown Market 🌱\n\n${formatUsd(product.price_usd)} / ${product.unit}\n\n🛒 ${url}`
+                  if (navigator.share) {
+                    try { await navigator.share({ title: `${product.name} on CasaGrown`, text, url }) } catch {}
+                  } else {
+                    try { 
+                      await navigator.clipboard.writeText(text)
+                      alert('Product link copied to clipboard! 📋')
+                    } catch {}
+                  }
+                }}
+              >
+                📤 Share Product
+              </button>
+            </div>
+          )}
+
           {/* Market/Booth Closed Banner + Reminder */}
           {isClosed && (
             <div style={{

@@ -67,7 +67,8 @@ Deno.serve(async (req: Request) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
     // ── 1. Price sanity (no API call needed) ──────────────────────────────────
-    const [minP, maxP] = PRICE_RANGES[category] ?? PRICE_RANGES.other;
+    const range = PRICE_RANGES[category] || PRICE_RANGES["other"] || [0.1, 200];
+    const [minP, maxP] = range;
     const priceOk = price_usd == null || (price_usd >= minP && price_usd <= maxP);
 
     // ── 2. Content hash — skip if identical to last check ───────────────────
