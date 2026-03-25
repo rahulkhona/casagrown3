@@ -108,6 +108,23 @@
   margin-bottom: 0.75rem;
 }
 
+.actionButton {
+  margin-top: 1.25rem;
+  padding: 0.5rem 1rem;
+  background: var(--green-600);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-full);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.actionButton:hover {
+  background: var(--green-700);
+}
+
 /* ─── Compose Wrapper ────────────────────────────────────────── */
 .composeWrapper {
   padding: 0.5rem 1rem 0.75rem;

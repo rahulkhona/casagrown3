@@ -32,6 +32,7 @@ export default function ClientPage() {
   const [messages, setMessages] = useState<CommunityChatMessage[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [profileH3, setProfileH3] = useState<string | null>(null)
+  const [errorState, setErrorState] = useState<{ message: string; cta?: string; action?: () => void } | null>(null)
 
   
   // Polling state
@@ -65,12 +66,18 @@ export default function ClientPage() {
         .eq('id', user.id)
         .single()
         
+      if (error) {
+        console.error('Failed to fetch profile H3 index:', error)
+        setErrorState({ message: 'We encountered an error loading your community profile.', cta: 'Try Again', action: () => window.location.reload() })
+        return
+      }
+
       if (data?.home_community_h3_index) {
         setProfileH3(data.home_community_h3_index)
       } else {
         // If they don't have a community, redirect to onboarding or show error
         console.warn('User has no home community set')
-        // For now we could show an error state or prompt to set location
+        setErrorState({ message: 'You need to set your neighborhood location before you can join the Buzz!', cta: 'Update Profile', action: () => router.push('/settings') })
       }
     }
     
@@ -237,6 +244,25 @@ export default function ClientPage() {
 
   if (!isAuthenticated) return null // Handled by redirect in useEffect
   
+  if (errorState) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.centerContainer}>
+          <div className={styles.emptyState}>
+            <span className={styles.emptyIcon}>📍</span>
+            <h3>Missing Location</h3>
+            <p className={styles.emptyMessage}>{errorState.message}</p>
+            {errorState.cta && (
+              <button className={styles.actionButton} onClick={errorState.action}>
+                {errorState.cta}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (!profileH3) {
     return (
       <div className={styles.container}>
