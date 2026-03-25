@@ -10,6 +10,7 @@ import { geocodeAddress } from '../../../lib/geocode'
 import { formatUsd } from '../../../lib/store'
 import { useMarketStatus } from '../../../lib/useMarketStatus'
 import MarketClosedBox from '../../components/MarketClosedBox'
+import PioneerBanner from '../../components/PioneerBanner'
 import { LoadingSpinner } from '../../components/LoadingSpinner'
 import styles from './page.module.css'
 
@@ -86,6 +87,11 @@ function BrowseMarketPageInner() {
   const [reminderToast, setReminderToast] = useState<string | null>(null)
   const [showDemoModal, setShowDemoModal] = useState(false)
 
+  // Pioneer banner state
+  const [communityMemberCount, setCommunityMemberCount] = useState<number | null>(null)
+  const [showPioneerBanner, setShowPioneerBanner] = useState(true)
+  const [userH3, setUserH3] = useState<string | null>(null)
+
   // Market hours status
   const { isOpen: marketIsOpen, todaySchedule, nextOpenDate, loading: marketLoading } = useMarketStatus()
 
@@ -118,7 +124,7 @@ function BrowseMarketPageInner() {
     if (addressResolved) { setProfileLoading(false); return }
     if (searchParams.has('lat')) { setProfileLoading(false); return }
     if (!user) { setProfileLoading(false); return }
-    supabase.from('profiles').select('street_address, city, state_code, zip_code')
+    supabase.from('profiles').select('street_address, city, state_code, zip_code, home_community_h3_index')
       .eq('id', user.id).single()
       .then(async ({ data: profile }) => {
         if (profile?.state_code) setBuyerStateCode(profile.state_code)
@@ -128,6 +134,12 @@ function BrowseMarketPageInner() {
           if (profile.zip_code) setZipCode(profile.zip_code)
           const geo = await geocodeAddress(addr)
           if (geo) { setLat(geo.lat); setLng(geo.lng); setAddressResolved(true) }
+        }
+        // Fetch community member count for pioneer banner
+        if (profile?.home_community_h3_index) {
+          setUserH3(profile.home_community_h3_index)
+          supabase.rpc('get_community_member_count', { target_h3: profile.home_community_h3_index })
+            .then(({ data }) => { if (typeof data === 'number') setCommunityMemberCount(data) })
         }
         setProfileLoading(false)
       })
@@ -364,32 +376,11 @@ function BrowseMarketPageInner() {
     )
   }
 
-  // ── STATE 1.5: Market is closed — full-page takeover ──
-  if (!marketIsOpen) {
-    return (
-      <>
-        <MarketClosedBox nextOpenDate={nextOpenDate} todaySchedule={todaySchedule} />
-        <Link
-            href={user ? "/my-booth/products/new?camera=true" : "/login?redirect=%2Fmy-booth%2Fproducts%2Fnew%3Fcamera%3Dtrue"}
-            id="sell-fab"
-            style={{
-              position: 'fixed', bottom: 80, right: 24,
-              background: 'linear-gradient(135deg, #16a34a, #15803d)',
-              color: '#fff', borderRadius: 28, padding: '14px 24px',
-              fontSize: 15, fontWeight: 600, textDecoration: 'none',
-              display: 'flex', alignItems: 'center', gap: 8,
-              boxShadow: '0 6px 20px rgba(22, 163, 74, 0.4)',
-              zIndex: 100, transition: 'transform 0.2s, box-shadow 0.2s',
-            }}
-          >
-            📸 Take Photo to Sell
-          </Link>
-      </>
-    )
-  }
+  // ── STATE 1.5: Market is closed — show closed box + demo booths below ──
+  // (no longer an early return — demo booths render below)
 
-  // ── STATE 2: Need address ──
-  if (!addressResolved) {
+  // ── STATE 2: Need address (only when market is open) ──
+  if (!addressResolved && marketIsOpen) {
     return (
       <div className="container">
         <div className={styles.addressPrompt}>
@@ -424,15 +415,53 @@ function BrowseMarketPageInner() {
   }
 
   // ── STATE 3: Address resolved — show results ──
+  const demoBooths = booths.filter(b => b.is_demo)
+
   return (
     <div className="container">
-      {/* Address bar + change */}
+      {/* Market Closed Box (inline, not blocking) */}
+      {!marketIsOpen && (
+        <MarketClosedBox nextOpenDate={nextOpenDate} todaySchedule={todaySchedule} />
+      )}
+
+      {/* Pioneer Banner (first 20 members) */}
+      {showPioneerBanner && communityMemberCount !== null && communityMemberCount <= 20 && userH3 && (
+        <PioneerBanner
+          memberCount={communityMemberCount}
+          communityH3={userH3}
+          onDismiss={() => setShowPioneerBanner(false)}
+        />
+      )}
+
+      {/* When market is closed and we have demo booths, show explore section */}
+      {!marketIsOpen && demoBooths.length > 0 && (
+        <div style={{
+          textAlign: 'center', padding: '20px 0 8px',
+        }}>
+          <h2 style={{
+            fontSize: 18, fontWeight: 800, color: 'var(--gray-800, #1f2937)',
+            marginBottom: 4, letterSpacing: '-0.02em',
+          }}>
+            🛒 Explore Demo Products
+          </h2>
+          <p style={{
+            fontSize: 13, color: 'var(--gray-500, #6b7280)', lineHeight: 1.5, margin: 0,
+          }}>
+            These are example listings — explore to learn how the market works!
+          </p>
+        </div>
+      )}
+
+      {/* Address bar + change (only when market is open) */}
+      {marketIsOpen && (
       <div className={styles.addressBar}>
         <span className={styles.addressLabel}>📍 {address || 'Your location'}</span>
         <button className="btn btn-xs btn-ghost" onClick={handleChangeAddress}>Change</button>
       </div>
+      )}
 
-      {/* Search + Filters */}
+      {/* Search + Filters (only when market is open) */}
+      {marketIsOpen && (
       <div className={styles.searchSection}>
         <input
           className="input"
@@ -473,9 +502,10 @@ function BrowseMarketPageInner() {
           </div>
         </div>
       </div>
+      )}
 
-      {/* Status */}
-      {!loading && booths.length > 0 && (() => {
+      {/* Status (only when market is open) */}
+      {marketIsOpen && !loading && booths.length > 0 && (() => {
         const realCount = booths.filter(b => !b.is_demo).length
         const demoCount = booths.filter(b => b.is_demo).length
         return (
