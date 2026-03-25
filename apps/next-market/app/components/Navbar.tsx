@@ -87,6 +87,7 @@ export function Navbar() {
   const [bugSending, setBugSending] = useState(false)
   const [bugSent, setBugSent] = useState(false)
   const [bugScreenshot, setBugScreenshot] = useState<string | null>(null)
+  const [screenshotError, setScreenshotError] = useState<string | null>(null)
   const bugRef = useRef<HTMLDivElement>(null)
 
   const open = isMarketOpen(state.marketSchedule, state.marketNeverCloses)
@@ -328,7 +329,11 @@ export function Navbar() {
                   const { default: html2canvas } = await import('html2canvas')
                   const canvas = await html2canvas(document.documentElement, { useCORS: true, scale: 0.5, logging: false, windowHeight: document.documentElement.scrollHeight, height: document.documentElement.scrollHeight })
                   setBugScreenshot(canvas.toDataURL('image/jpeg', 0.6))
-                } catch { setBugScreenshot(null) }
+                  setScreenshotError(null)
+                } catch (err: any) { 
+                  setBugScreenshot(null)
+                  setScreenshotError(err.message || 'Canvas tainted or Out of Memory')
+                }
                 setBugOpen(true)
                 if (notifOpen) setNotifOpen(false)
                 if (menuOpen) setMenuOpen(false)
@@ -692,15 +697,24 @@ export function Navbar() {
                     const supabase = createClient()
                     // Upload screenshot if available
                     let screenshotUrl: string | null = null
+                    let uploadErrorMsg = null
+
                     if (bugScreenshot) {
-                      const blob = await (await fetch(bugScreenshot)).blob()
-                      const path = `feedback/${userId}/${Date.now()}.jpg`
-                      const { data: upload } = await supabase.storage.from('feedback-screenshots').upload(path, blob, { contentType: 'image/jpeg' })
-                      if (upload) {
-                        const { data: urlData } = supabase.storage.from('feedback-screenshots').getPublicUrl(path)
-                        screenshotUrl = urlData?.publicUrl || null
+                      try {
+                        const blob = await (await fetch(bugScreenshot)).blob()
+                        const path = `feedback/${userId}/${Date.now()}.jpg`
+                        const { data: upload, error: uploadErr } = await supabase.storage.from('feedback-screenshots').upload(path, blob, { contentType: 'image/jpeg' })
+                        if (uploadErr) {
+                          uploadErrorMsg = uploadErr.message
+                        } else if (upload) {
+                          const { data: urlData } = supabase.storage.from('feedback-screenshots').getPublicUrl(path)
+                          screenshotUrl = urlData?.publicUrl || null
+                        }
+                      } catch (networkErr: any) {
+                        uploadErrorMsg = networkErr.message || 'Network fetch blob failed'
                       }
                     }
+
                     // Map bugType to the enum values the table expects
                     const typeMap: Record<string, string> = {
                       bug: 'bug_report', feature: 'feature_request', support: 'support_request',
@@ -715,6 +729,8 @@ export function Navbar() {
                       `Viewport: ${window.innerWidth}x${window.innerHeight}`,
                       `Platform: ${navigator.platform}`,
                       screenshotUrl ? `Screenshot: ${screenshotUrl}` : '',
+                      screenshotError ? `[System] Capture Failed: ${screenshotError}` : '',
+                      uploadErrorMsg ? `[System] Storage Upload Failed: ${uploadErrorMsg}` : '',
                     ].filter(Boolean).join('\n')
 
                     const errorResponse = await supabase.from('user_feedback').insert({
