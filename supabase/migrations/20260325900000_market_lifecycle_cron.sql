@@ -5,15 +5,32 @@
 CREATE OR REPLACE FUNCTION public.close_market_booths()
 RETURNS void AS $$
 BEGIN
-  -- Notify sellers whose booths are getting locked
+  -- 1. Grab all IDs currently open
+  WITH open_booths AS (
+    SELECT owner_id FROM public.market_booths WHERE is_open = true
+  )
+  -- 2. Send in-app notification to these sellers
   INSERT INTO public.notifications (user_id, title, message, type, link_url)
   SELECT owner_id,
          'Market Closed!',
          'The market has officially closed for the day. Your storefront has been safely locked.',
          'system',
          '/my-booth'
-  FROM public.market_booths
-  WHERE is_open = true;
+  FROM open_booths;
+
+  -- 3. Post to market-cron edge function for Push/Email routing
+  PERFORM net.http_post(
+    url := coalesce(current_setting('app.settings.supabase_url', true), 'http://host.docker.internal:54321') || '/functions/v1/market-cron',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)
+    ),
+    body := jsonb_build_object(
+      'action', 'seller_lifecycle',
+      'type', 'closed',
+      'userIds', (SELECT jsonb_agg(owner_id) FROM public.market_booths WHERE is_open = true)
+    )
+  );
 
   -- Close them
   UPDATE public.market_booths SET is_open = false WHERE is_open = true;
@@ -33,7 +50,7 @@ CREATE OR REPLACE FUNCTION public.send_market_lifecycle_ping(ping_type text)
 RETURNS void AS $$
 BEGIN
   IF ping_type = 'prep' THEN
-    -- Insert "Prep" notification for sellers with inactive/closed booths but active products
+    -- In-app Notification
     INSERT INTO public.notifications (user_id, title, message, type, link_url)
     SELECT DISTINCT mb.owner_id, 
            'The Market opens tomorrow!', 
@@ -44,8 +61,20 @@ BEGIN
     JOIN public.market_products mp ON mp.seller_id = mb.owner_id
     WHERE mb.is_open = false AND mp.is_active = true;
     
+    -- Edge Routing
+    PERFORM net.http_post(
+      url := coalesce(current_setting('app.settings.supabase_url', true), 'http://host.docker.internal:54321') || '/functions/v1/market-cron',
+      headers := jsonb_build_object('Content-Type', 'application/json', 'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)),
+      body := jsonb_build_object('action', 'seller_lifecycle', 'type', 'prep', 'userIds', (
+        SELECT jsonb_agg(DISTINCT mb.owner_id)
+        FROM public.market_booths mb
+        JOIN public.market_products mp ON mp.seller_id = mb.owner_id
+        WHERE mb.is_open = false AND mp.is_active = true
+      ))
+    );
+    
   ELSIF ping_type = 'launch' THEN
-    -- Insert "Launch" notification
+    -- In-app Notification
     INSERT INTO public.notifications (user_id, title, message, type, link_url)
     SELECT DISTINCT mb.owner_id, 
            'The Market opens in 1 hour!', 
@@ -55,6 +84,18 @@ BEGIN
     FROM public.market_booths mb
     JOIN public.market_products mp ON mp.seller_id = mb.owner_id
     WHERE mb.is_open = false AND mp.is_active = true;
+
+    -- Edge Routing (Push Only as specified in Typescript handler)
+    PERFORM net.http_post(
+      url := coalesce(current_setting('app.settings.supabase_url', true), 'http://host.docker.internal:54321') || '/functions/v1/market-cron',
+      headers := jsonb_build_object('Content-Type', 'application/json', 'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)),
+      body := jsonb_build_object('action', 'seller_lifecycle', 'type', 'launch', 'userIds', (
+        SELECT jsonb_agg(DISTINCT mb.owner_id)
+        FROM public.market_booths mb
+        JOIN public.market_products mp ON mp.seller_id = mb.owner_id
+        WHERE mb.is_open = false AND mp.is_active = true
+      ))
+    );
   END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

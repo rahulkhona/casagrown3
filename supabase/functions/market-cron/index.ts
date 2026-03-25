@@ -12,12 +12,15 @@
 import { serveWithCors, jsonOk } from '../_shared/serve-with-cors.ts'
 
 serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
-  const { action } = await req.json().catch(() => ({ action: 'market_reminder' }))
+  const body = await req.json().catch(() => ({ action: 'market_reminder' }))
+  const { action } = body
 
   if (action === 'market_reminder') {
     return await handleMarketReminder(supabase, env, corsHeaders, siteUrl)
   } else if (action === 'daily_digest') {
     return await handleDailyDigest(supabase, env, corsHeaders, siteUrl)
+  } else if (action === 'seller_lifecycle') {
+    return await handleSellerLifecycle(supabase, env, corsHeaders, siteUrl, body)
   } else {
     return jsonOk({ error: 'Unknown action: ' + action }, corsHeaders)
   }
@@ -321,4 +324,128 @@ async function handleDailyDigest(
   }
 
   return jsonOk({ sent: sentCount }, corsHeaders)
+}
+
+// ═══════════════════════════════════════════════
+// (j) Seller Lifecycle — Prep, Launch, Closed
+// ═══════════════════════════════════════════════
+async function handleSellerLifecycle(
+  supabase: any,
+  env: (k: string) => string | undefined,
+  corsHeaders: Record<string, string>,
+  siteUrl: string,
+  body: any
+) {
+  const { type, userIds } = body
+  if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+    return jsonOk({ sent: 0, message: 'No userIds provided' }, corsHeaders)
+  }
+
+  // Find users with push subscriptions
+  const { data: subscriptions } = await supabase
+    .from('push_subscriptions')
+    .select('user_id')
+    .in('user_id', userIds)
+
+  const pushUsers = new Set((subscriptions || []).map((s: any) => s.user_id))
+  
+  const targetPushUserIds = Array.from(pushUsers)
+  // If type is launch, NO EMAILS at all
+  // If user has push, NO EMAIL
+  const targetEmailUserIds = type === 'launch' 
+    ? [] 
+    : userIds.filter((id: string) => !pushUsers.has(id))
+
+  const serviceKey = env('SUPABASE_SERVICE_ROLE_KEY') || ''
+  const emailUrl = (env('SUPABASE_URL') || 'http://host.docker.internal:54321') + '/functions/v1/send-market-email'
+  const pushUrl = (env('SUPABASE_URL') || 'http://host.docker.internal:54321') + '/functions/v1/send-push-notification'
+
+  let pushSent = false
+  let emailSentCount = 0
+
+  // 1. Send Push
+  if (targetPushUserIds.length > 0) {
+    let title = ''
+    let pushBody = ''
+    if (type === 'prep') {
+      title = '🌱 The Market opens tomorrow!'
+      pushBody = 'Review your local harvest and restock your booth shelves now.'
+    } else if (type === 'launch') {
+      title = '⏰ The Market opens in 1 hour!'
+      pushBody = 'Quickly review your inventory to safely unlock your storefront to the neighborhood.'
+    } else if (type === 'closed') {
+      title = '🔒 Market Closed'
+      pushBody = 'The market has officially closed for the day. Your storefront has been safely locked.'
+    }
+
+    if (title) {
+      await fetch(pushUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceKey}` },
+        body: JSON.stringify({
+          userIds: targetPushUserIds,
+          title,
+          body: pushBody,
+          url: '/my-booth',
+          tag: 'seller-lifecycle'
+        }),
+      }).catch(e => console.warn('Seller push failed:', e))
+      pushSent = true
+    }
+  }
+
+  // 2. Send Emails (Only if not launch, and only to users without push)
+  if (targetEmailUserIds.length > 0) {
+    for (const userId of targetEmailUserIds) {
+      const { data: authUser } = await supabase.auth.admin.getUserById(userId)
+      const email = authUser?.user?.email
+      if (!email) continue
+
+      const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', userId).single()
+      const name = profile?.full_name || email.split('@')[0]
+
+      let subject = ''
+      let headline = ''
+      let textBody = ''
+      let buttonText = ''
+
+      if (type === 'prep') {
+        subject = '🌱 The Market opens tomorrow!'
+        headline = 'The Market opens tomorrow!'
+        textBody = 'Review your local harvest and restock your booth shelves now.'
+        buttonText = 'Restock Booth'
+      } else if (type === 'closed') {
+        subject = '🔒 Market Closed'
+        headline = 'Market Closed!'
+        textBody = 'The market has officially closed for the day. Your storefront has been safely locked.'
+        buttonText = 'View Storefront'
+      }
+
+      if (subject) {
+        await fetch(emailUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceKey}` },
+          body: JSON.stringify({
+            to: email,
+            subject: subject,
+            html: `
+              <div style="font-family:${FONT};max-width:480px;margin:0 auto;padding:24px;color:#1f2937">
+                ${getEmailHeader(siteUrl)}
+                <div style="padding:24px 0">
+                  <p style="font-size:14px">Hi ${name},</p>
+                  <div style="${type === 'closed' ? 'background:#f9fafb;border:1px solid #e5e7eb;' : 'background:#f0fdf4;border:1px solid #bbf7d0;'}border-radius:12px;padding:16px;margin:16px 0">
+                    <p style="color:${type === 'closed' ? '#374151' : '#166534'};font-size:15px;margin:0"><strong>${headline}</strong><br><br>${textBody}</p>
+                  </div>
+                  <a href="${siteUrl}/my-booth" style="display:inline-block;background:#16a34a;color:white;padding:10px 24px;border-radius:12px;text-decoration:none;font-weight:600;font-size:14px">${buttonText}</a>
+                </div>
+                ${EMAIL_FOOTER}
+              </div>`
+          }),
+        }).catch(e => console.warn('Seller email failed:', e))
+        emailSentCount++
+      }
+    }
+  }
+
+  return jsonOk({ pushSent, emailSentCount }, corsHeaders)
 }
