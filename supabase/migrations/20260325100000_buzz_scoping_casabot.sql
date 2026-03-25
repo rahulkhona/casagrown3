@@ -178,7 +178,7 @@ BEGIN
         v_bot_id,
         '00000000-0000-0000-0000-000000000000',
         'casabot@casagrown.com',
-        crypt('casabot-system-account-not-loginable', gen_salt('bf')),
+        extensions.crypt('casabot-system-account-not-loginable', extensions.gen_salt('bf')),
         now(), 'authenticated', 'authenticated', now(), now()
     ) ON CONFLICT (id) DO NOTHING;
 
