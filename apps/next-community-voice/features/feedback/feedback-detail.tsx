@@ -17,6 +17,7 @@ export function FeedbackDetail({ id }: { id: string }) {
   const [submitting, setSubmitting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const media = useMedia()
   const isDesktop = !media.sm
   const { user } = useAuth()
@@ -177,7 +178,7 @@ export function FeedbackDetail({ id }: { id: string }) {
         {/* Staff Actions */}
         {isStaff && (
           <YStack gap="$2">
-            <XStack gap="$2" alignItems="center" backgroundColor={colors.gray[50]} padding="$3" borderRadius="$3" borderWidth={1} borderColor={colors.gray[200]}>
+            <XStack gap="$2" alignItems="center" backgroundColor={colors.gray[50]} padding="$3" borderRadius="$3" borderWidth={1} borderColor={colors.gray[200]} flexWrap="wrap">
               <ShieldCheck size={16} color={colors.green[600]} />
               <Text fontSize="$2" color={colors.gray[600]} fontWeight="500" flex={1}>Staff Actions</Text>
               {ticket.flag_count > 0 && (
@@ -193,27 +194,58 @@ export function FeedbackDetail({ id }: { id: string }) {
                   <Text fontSize="$2" color={colors.amber[700]} fontWeight="600">Dismiss Flags</Text>
                 </Button>
               )}
-              <Button
-                size="$2"
-                backgroundColor={colors.red[100]}
-                borderRadius="$3"
-                disabled={deleting}
-                onPress={async () => {
-                  if (!confirm('Delete this ticket permanently? This cannot be undone.')) return
-                  setDeleting(true)
-                  setDeleteError(null)
-                  const result = await deleteFeedback(ticket.id)
-                  if (result.success) {
-                    router.push('/board')
-                  } else {
-                    setDeleteError(result.error || 'Unknown error occurred')
-                    setDeleting(false)
-                  }
-                }}
-              >
-                <Text fontSize="$2" color={colors.red[600]} fontWeight="600">{deleting ? 'Deleting...' : 'Delete Post'}</Text>
-              </Button>
+              {!confirmingDelete && !deleting && (
+                <Button
+                  size="$2"
+                  backgroundColor={colors.red[100]}
+                  borderRadius="$3"
+                  onPress={() => { setConfirmingDelete(true); setDeleteError(null) }}
+                >
+                  <Text fontSize="$2" color={colors.red[600]} fontWeight="600">Delete Post</Text>
+                </Button>
+              )}
+              {deleting && (
+                <XStack gap="$2" alignItems="center">
+                  <Spinner size="small" color={colors.red[500]} />
+                  <Text fontSize="$2" color={colors.red[600]} fontWeight="600">Deleting...</Text>
+                </XStack>
+              )}
             </XStack>
+            {/* Inline confirmation prompt */}
+            {confirmingDelete && !deleting && (
+              <XStack backgroundColor={colors.red[50]} borderWidth={1} borderColor={colors.red[300]} borderRadius="$3" padding="$3" gap="$3" alignItems="center">
+                <Trash2 size={16} color={colors.red[500]} />
+                <Text fontSize="$3" color={colors.red[700]} fontWeight="600" flex={1}>Delete this ticket permanently? This cannot be undone.</Text>
+                <Button
+                  size="$2"
+                  backgroundColor={colors.red[500]}
+                  borderRadius="$3"
+                  onPress={async () => {
+                    setDeleting(true)
+                    setDeleteError(null)
+                    const result = await deleteFeedback(ticket.id)
+                    if (result.success) {
+                      router.push('/board')
+                    } else {
+                      setDeleteError(result.error || 'Unknown error occurred')
+                      setDeleting(false)
+                      setConfirmingDelete(false)
+                    }
+                  }}
+                >
+                  <Text fontSize="$2" color="white" fontWeight="600">Yes, Delete</Text>
+                </Button>
+                <Button
+                  size="$2"
+                  backgroundColor={colors.gray[200]}
+                  borderRadius="$3"
+                  onPress={() => setConfirmingDelete(false)}
+                >
+                  <Text fontSize="$2" color={colors.gray[700]} fontWeight="600">Cancel</Text>
+                </Button>
+              </XStack>
+            )}
+            {/* Error banner */}
             {deleteError && (
               <XStack backgroundColor={colors.red[50]} borderWidth={1} borderColor={colors.red[200]} borderRadius="$3" padding="$3" gap="$2" alignItems="flex-start">
                 <Trash2 size={16} color={colors.red[500]} style={{ marginTop: 2 }} />

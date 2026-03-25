@@ -158,7 +158,6 @@ export function FeedbackBoard({ isStaff = false, hideHeader = false }: { isStaff
 
   const handleDelete = async (e: any, ticket: FeedbackTicket) => {
     e.stopPropagation()
-    if (!confirm('Are you sure you want to delete this ticket? This cannot be undone.')) return
     setDeleteError(null)
     const result = await deleteFeedback(ticket.id)
     if (result.success) {
