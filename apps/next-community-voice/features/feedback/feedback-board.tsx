@@ -154,13 +154,18 @@ export function FeedbackBoard({ isStaff = false, hideHeader = false }: { isStaff
     }
   }
 
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
   const handleDelete = async (e: any, ticket: FeedbackTicket) => {
     e.stopPropagation()
     if (!confirm('Are you sure you want to delete this ticket? This cannot be undone.')) return
-    const success = await deleteFeedback(ticket.id)
-    if (success) {
+    setDeleteError(null)
+    const result = await deleteFeedback(ticket.id)
+    if (result.success) {
       setTickets(prev => prev.filter(t => t.id !== ticket.id))
       setTotalCount(prev => prev - 1)
+    } else {
+      setDeleteError(result.error || 'Unknown error occurred')
     }
   }
 
@@ -600,6 +605,20 @@ export function FeedbackBoard({ isStaff = false, hideHeader = false }: { isStaff
             </YStack>
           </YStack>
         </Card>
+      )}
+
+      {/* Delete Error Banner */}
+      {deleteError && (
+        <XStack backgroundColor={colors.red[50]} borderWidth={1} borderColor={colors.red[200]} borderRadius="$3" padding="$3" gap="$2" alignItems="flex-start" marginBottom="$2">
+          <Trash2 size={16} color={colors.red[500]} style={{ marginTop: 2 }} />
+          <YStack flex={1} gap="$1">
+            <Text fontSize="$3" fontWeight="600" color={colors.red[700]}>Delete failed</Text>
+            <Text fontSize="$2" color={colors.red[600]}>{deleteError}</Text>
+          </YStack>
+          <Button size="$1" chromeless onPress={() => setDeleteError(null)}>
+            <X size={14} color={colors.red[400]} />
+          </Button>
+        </XStack>
       )}
 
       {/* Results Count */}

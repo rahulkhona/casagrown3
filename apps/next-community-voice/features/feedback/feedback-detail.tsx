@@ -15,6 +15,8 @@ export function FeedbackDetail({ id }: { id: string }) {
   const [newComment, setNewComment] = useState('')
   const [attachments, setAttachments] = useState<{ type: string; url: string; name: string; file: File }[]>([])
   const [submitting, setSubmitting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const media = useMedia()
   const isDesktop = !media.sm
   const { user } = useAuth()
@@ -174,35 +176,57 @@ export function FeedbackDetail({ id }: { id: string }) {
 
         {/* Staff Actions */}
         {isStaff && (
-          <XStack gap="$2" alignItems="center" backgroundColor={colors.gray[50]} padding="$3" borderRadius="$3" borderWidth={1} borderColor={colors.gray[200]}>
-            <ShieldCheck size={16} color={colors.green[600]} />
-            <Text fontSize="$2" color={colors.gray[600]} fontWeight="500" flex={1}>Staff Actions</Text>
-            {ticket.flag_count > 0 && (
+          <YStack gap="$2">
+            <XStack gap="$2" alignItems="center" backgroundColor={colors.gray[50]} padding="$3" borderRadius="$3" borderWidth={1} borderColor={colors.gray[200]}>
+              <ShieldCheck size={16} color={colors.green[600]} />
+              <Text fontSize="$2" color={colors.gray[600]} fontWeight="500" flex={1}>Staff Actions</Text>
+              {ticket.flag_count > 0 && (
+                <Button
+                  size="$2"
+                  backgroundColor={colors.amber[100]}
+                  borderRadius="$3"
+                  onPress={async () => {
+                    const ok = await dismissAllFlags(ticket.id)
+                    if (ok) setTicket({ ...ticket, flag_count: 0, is_flagged: false })
+                  }}
+                >
+                  <Text fontSize="$2" color={colors.amber[700]} fontWeight="600">Dismiss Flags</Text>
+                </Button>
+              )}
               <Button
                 size="$2"
-                backgroundColor={colors.amber[100]}
+                backgroundColor={colors.red[100]}
                 borderRadius="$3"
+                disabled={deleting}
                 onPress={async () => {
-                  const ok = await dismissAllFlags(ticket.id)
-                  if (ok) setTicket({ ...ticket, flag_count: 0, is_flagged: false })
+                  if (!confirm('Delete this ticket permanently? This cannot be undone.')) return
+                  setDeleting(true)
+                  setDeleteError(null)
+                  const result = await deleteFeedback(ticket.id)
+                  if (result.success) {
+                    router.push('/board')
+                  } else {
+                    setDeleteError(result.error || 'Unknown error occurred')
+                    setDeleting(false)
+                  }
                 }}
               >
-                <Text fontSize="$2" color={colors.amber[700]} fontWeight="600">Dismiss Flags</Text>
+                <Text fontSize="$2" color={colors.red[600]} fontWeight="600">{deleting ? 'Deleting...' : 'Delete Post'}</Text>
               </Button>
+            </XStack>
+            {deleteError && (
+              <XStack backgroundColor={colors.red[50]} borderWidth={1} borderColor={colors.red[200]} borderRadius="$3" padding="$3" gap="$2" alignItems="flex-start">
+                <Trash2 size={16} color={colors.red[500]} style={{ marginTop: 2 }} />
+                <YStack flex={1} gap="$1">
+                  <Text fontSize="$3" fontWeight="600" color={colors.red[700]}>Delete failed</Text>
+                  <Text fontSize="$2" color={colors.red[600]}>{deleteError}</Text>
+                </YStack>
+                <Button size="$1" chromeless onPress={() => setDeleteError(null)}>
+                  <X size={14} color={colors.red[400]} />
+                </Button>
+              </XStack>
             )}
-            <Button
-              size="$2"
-              backgroundColor={colors.red[100]}
-              borderRadius="$3"
-              onPress={async () => {
-                if (!confirm('Delete this ticket permanently? This cannot be undone.')) return
-                const ok = await deleteFeedback(ticket.id)
-                if (ok) router.push('/board')
-              }}
-            >
-              <Text fontSize="$2" color={colors.red[600]} fontWeight="600">Delete Post</Text>
-            </Button>
-          </XStack>
+          </YStack>
         )}
 
         <Text fontSize={isDesktop ? '$8' : '$6'} fontWeight="700" lineHeight={isDesktop ? '$8' : '$7'}>{ticket.title}</Text>

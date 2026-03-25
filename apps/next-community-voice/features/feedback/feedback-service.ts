@@ -1107,17 +1107,17 @@ export async function unflagTicket(
     return true;
 }
 
-export async function deleteFeedback(feedbackId: string): Promise<boolean> {
+export async function deleteFeedback(feedbackId: string): Promise<{ success: boolean; error?: string }> {
     const { error } = await supabase.rpc("staff_delete_feedback", {
         p_feedback_id: feedbackId
     });
 
     if (error) {
         console.error("deleteFeedback error (RPC):", error);
-        return false;
+        return { success: false, error: error.message || error.details || JSON.stringify(error) };
     }
 
-    return true;
+    return { success: true };
 }
 
 export async function dismissAllFlags(feedbackId: string): Promise<boolean> {
