@@ -717,13 +717,16 @@ export function Navbar() {
                       screenshotUrl ? `Screenshot: ${screenshotUrl}` : '',
                     ].filter(Boolean).join('\n')
 
-                    await supabase.from('user_feedback').insert({
+                    const errorResponse = await supabase.from('user_feedback').insert({
+                      reporter_id: userId,
+                      message: contextLines,
                       author_id: userId,
                       title: autoTitle,
                       description: contextLines,
                       type: typeMap[bugType] || 'bug_report',
                       visibility: bugType === 'support' ? 'private' : 'public',
                     })
+                    if (errorResponse.error) throw errorResponse.error
                     setBugSent(true)
                     setBugMessage('')
                     setTimeout(() => { setBugOpen(false); setBugSent(false) }, 2000)

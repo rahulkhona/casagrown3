@@ -68,8 +68,11 @@ export function ErrorToastProvider({ children, userId }: { children: React.React
       const supabase = createClient()
       const { error } = await supabase.from('user_feedback').insert({
         reporter_id: userId,
-        type,
         message,
+        author_id: userId,
+        title: message.substring(0, 120) || 'Error Report',
+        description: message,
+        type,
         page_url: window.location.href,
         user_agent: navigator.userAgent,
         extra_context: {
