@@ -4,6 +4,8 @@ import styles from '../page.module.css'
 
 interface SuggestionChipsProps {
   onSelect: (text: string) => void
+  /** Prefill compose box instead of sending — used for @CasaBot chip */
+  onPrefill: (text: string) => void
   /** Number of user-authored (non-system) messages in chat */
   userMessageCount: number
 }
@@ -137,7 +139,7 @@ function getRandomChips(count: number = 3): string[] {
   return shuffled.slice(0, count)
 }
 
-export default function SuggestionChips({ onSelect, userMessageCount }: SuggestionChipsProps) {
+export default function SuggestionChips({ onSelect, onPrefill, userMessageCount }: SuggestionChipsProps) {
   const [suggestions, setSuggestions] = useState<string[]>([])
 
   useEffect(() => {
@@ -151,14 +153,14 @@ export default function SuggestionChips({ onSelect, userMessageCount }: Suggesti
       {/* Always-visible CasaBot chip */}
       <button
         className={`${styles.suggestionChip} ${styles.casabotChip}`}
-        onClick={() => onSelect('@CasaBot ')}
+        onClick={() => onPrefill('@CasaBot ')}
         title="Ask CasaBot for gardening advice"
       >
-        🌱 Ask CasaBot
+        🐝 Ask CasaBot
       </button>
 
-      {/* Random suggestion chips (only when user is new) */}
-      {userMessageCount <= 2 && suggestions.map((text, i) => (
+      {/* Random suggestion chips — always visible as conversation starters */}
+      {suggestions.map((text, i) => (
         <button 
           key={i} 
           className={styles.suggestionChip}

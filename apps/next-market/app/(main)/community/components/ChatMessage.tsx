@@ -136,7 +136,7 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
       <div className={styles.messageContent}>
         <div className={styles.messageHeader}>
           <span className={styles.authorName}>
-            {isBot ? 'CasaGrown' : (message.author_name || 'Neighbor')}
+            {isBot ? 'CasaBot' : (message.author_name || 'Neighbor')}
           </span>
           {isBot && <span className={styles.botBadge}>BOT</span>}
           <span className={styles.time}>{formatTime(message.created_at)}</span>

@@ -43,6 +43,7 @@ export default function ClientPage() {
   const composeRef = useRef<HTMLDivElement>(null)
   const [isAtBottom, setIsAtBottom] = useState(true)
   const [replyingTo, setReplyingTo] = useState<CommunityChatMessage | null>(null)
+  const [composePrefill, setComposePrefill] = useState<string | undefined>(undefined)
 
   // Push notification prompt
   const { showPrompt, modalProps } = useNotificationPrompt(user?.id)
@@ -207,6 +208,7 @@ export default function ClientPage() {
 
       // If message mentions @CasaBot, trigger AI response in background
       if (content.toLowerCase().includes('@casabot')) {
+        console.log('[CasaBot] Invoking casabot-reply for message:', msgId)
         supabase.functions.invoke('casabot-reply', {
           body: {
             message_id: msgId,
@@ -214,10 +216,11 @@ export default function ClientPage() {
             community_h3_index: profileH3,
             author_name: 'Neighbor',
           },
-        }).then(() => {
+        }).then((res) => {
+          console.log('[CasaBot] Response:', res)
           // Reload after a short delay to show the bot reply
           setTimeout(() => loadMessages(), 3000)
-        }).catch((err: unknown) => console.error('CasaBot error:', err))
+        }).catch((err: unknown) => console.error('[CasaBot] Error:', err))
       }
 
       // Ensure we're scrolled to the bottom
@@ -276,13 +279,36 @@ export default function ClientPage() {
                 currentUserId={user?.id}
                 onReply={async (parentId, content) => {
                   const supabase = createClient()
-                  await sendCommunityMessage(supabase, {
+                  const replyId = await sendCommunityMessage(supabase, {
                     h3Index: profileH3!,
                     authorId: user!.id,
                     content,
                     parentId,
                   })
                   await loadMessages()
+
+                  // Auto-trigger CasaBot if replying in a CasaBot thread
+                  // (parent message mentions @CasaBot, or parent is from CasaBot)
+                  const CASABOT_ID = 'a0000000-0000-0000-0000-00000ca5ab07'
+                  const isCasaBotThread = 
+                    content.toLowerCase().includes('@casabot') ||
+                    msg.author_id === CASABOT_ID ||
+                    msg.content?.toLowerCase().includes('@casabot')
+
+                  if (isCasaBotThread) {
+                    console.log('[CasaBot] Auto-reply in thread for:', replyId)
+                    supabase.functions.invoke('casabot-reply', {
+                      body: {
+                        message_id: replyId,
+                        content,
+                        community_h3_index: profileH3,
+                        author_name: 'Neighbor',
+                      },
+                    }).then((res) => {
+                      console.log('[CasaBot] Thread reply response:', res)
+                      setTimeout(() => loadMessages(), 3000)
+                    }).catch((err: unknown) => console.error('[CasaBot] Thread reply error:', err))
+                  }
                 }}
                 onDelete={() => {
                   const supabase = createClient()
@@ -321,10 +347,17 @@ export default function ClientPage() {
       {/* Compose Input — suggestions above, compose bar below */}
       <div className={styles.composeWrapper}>
         <SuggestionChips 
-          onSelect={(text: string) => handleSendMessage(text)} 
+          onSelect={(text: string) => handleSendMessage(text)}
+          onPrefill={(text: string) => setComposePrefill(text)}
           userMessageCount={messages.filter(m => m.author_id === user?.id && !m.is_system).length}
         />
-        <ComposeBar onSend={handleSendMessage} userId={user?.id} h3Index={profileH3} />
+        <ComposeBar
+          onSend={handleSendMessage}
+          userId={user?.id}
+          h3Index={profileH3}
+          prefillText={composePrefill}
+          onPrefillConsumed={() => setComposePrefill(undefined)}
+        />
       </div>
       <NotificationPromptModal {...modalProps} />
     </div>

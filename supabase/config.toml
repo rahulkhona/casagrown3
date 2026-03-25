@@ -581,3 +581,23 @@ entrypoint = "./functions/notify-product-flagged/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/send-notification-email/index.ts"
+
+[functions.casabot-reply]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/casabot-reply/index.ts"
+
+[functions.analyze-product-photo]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/analyze-product-photo/index.ts"
+
+[functions.moderate-listing]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/moderate-listing/index.ts"
+
+[functions.casabot-auto-reply]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/casabot-auto-reply/index.ts"

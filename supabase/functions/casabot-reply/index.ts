@@ -26,7 +26,7 @@ serve(async (req: Request) => {
     // Build the prompt for gardening advice
     const systemPrompt = `You are CasaBot 🌱, a friendly and knowledgeable gardening assistant for the CasaGrown community marketplace. 
 You help neighbors with gardening tips, planting schedules, pest control, soil advice, and produce growing techniques.
-Keep answers concise (2-4 sentences), warm, and practical. Use relevant emojis.
+Provide helpful, complete answers in 3-5 sentences with actionable advice. Be warm and practical. Use relevant emojis sparingly.
 If the question isn't about gardening, food growing, or produce, politely redirect: "I'm best with gardening questions! 🌱 Try asking about planting, pests, soil, or harvest tips."
 Always be encouraging and community-minded.`
 
@@ -42,36 +42,65 @@ Always be encouraging and community-minded.`
       })
     }
 
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            { role: 'user', parts: [{ text: systemPrompt + '\n\n' + userPrompt }] },
-          ],
-          generationConfig: {
-            maxOutputTokens: 300,
-            temperature: 0.7,
-          },
-        }),
-      }
-    )
+    const models = [
+      { name: 'gemini-3-flash-preview', version: 'v1beta' },
+      { name: 'gemini-2.5-flash-lite', version: 'v1beta' },
+      { name: 'gemini-2.5-flash', version: 'v1beta' },
+    ]
+    let geminiData: any = null
+    let lastError = ''
 
-    if (!geminiRes.ok) {
-      const errText = await geminiRes.text()
-      console.error('Gemini error:', errText)
+    for (const model of models) {
+      const geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/${model.version}/models/${model.name}:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              { role: 'user', parts: [{ text: systemPrompt + '\n\n' + userPrompt }] },
+            ],
+            generationConfig: {
+              maxOutputTokens: 1000,
+              temperature: 0.7,
+            },
+          }),
+        }
+      )
+
+      if (geminiRes.ok) {
+        geminiData = await geminiRes.json()
+        console.log(`CasaBot: ${model.name} succeeded`)
+        break
+      } else {
+        lastError = await geminiRes.text()
+        console.warn(`CasaBot: ${model.name} failed (${geminiRes.status}), trying next...`)
+        await new Promise(r => setTimeout(r, 500))
+      }
+    }
+
+    if (!geminiData) {
+      console.error('All Gemini models failed:', lastError)
       return new Response(JSON.stringify({ error: 'AI generation failed' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
-
-    const geminiData = await geminiRes.json()
-    const reply =
-      geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "🌱 I couldn't generate a response right now. Try asking again!"
+    const reply = (() => {
+      const parts = geminiData?.candidates?.[0]?.content?.parts || []
+      console.log('[CasaBot] Response parts:', JSON.stringify(parts.map((p: any) => ({ 
+        hasText: !!p.text, 
+        textLen: p.text?.length,
+        thought: p.thought,
+      }))))
+      // Concatenate all non-thought text parts
+      const textParts = parts
+        .filter((p: any) => p.text && !p.thought)
+        .map((p: any) => p.text)
+      return textParts.join('') || 
+        parts.filter((p: any) => p.text).map((p: any) => p.text).join('') ||
+        "🌱 I couldn't generate a response right now. Try asking again!"
+    })()
 
     // Insert the reply as a threaded response from CasaBot
     const supabase = createClient(

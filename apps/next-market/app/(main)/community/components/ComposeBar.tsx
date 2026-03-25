@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import MentionPicker from './MentionPicker'
 import { uploadChatImage } from '../../../../../../packages/app/features/community-chat/community-chat-service'
 import { createClient } from '../../../../lib/supabase'
@@ -9,9 +9,12 @@ interface ComposeBarProps {
   onSend: (content: string, media?: any[], mentions?: any[]) => Promise<void>
   userId?: string
   h3Index?: string
+  /** If set, prefill the compose box with this text and focus it */
+  prefillText?: string
+  onPrefillConsumed?: () => void
 }
 
-export default function ComposeBar({ onSend, userId, h3Index }: ComposeBarProps) {
+export default function ComposeBar({ onSend, userId, h3Index, prefillText, onPrefillConsumed }: ComposeBarProps) {
   const [content, setContent] = useState('')
   const [isSending, setIsSending] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -27,6 +30,21 @@ export default function ComposeBar({ onSend, userId, h3Index }: ComposeBarProps)
   const [mediaFiles, setMediaFiles] = useState<File[]>([])
   const [mediaPreviews, setMediaPreviews] = useState<string[]>([])
   const [attachMenu, setAttachMenu] = useState(false)
+
+  // Handle prefill from parent
+  useEffect(() => {
+    if (prefillText) {
+      setContent(prefillText)
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus()
+          inputRef.current.selectionStart = prefillText.length
+          inputRef.current.selectionEnd = prefillText.length
+        }
+      }, 50)
+      onPrefillConsumed?.()
+    }
+  }, [prefillText, onPrefillConsumed])
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault()

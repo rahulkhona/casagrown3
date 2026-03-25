@@ -11,8 +11,51 @@ import { formatUsd } from '../../../lib/store'
 import { useMarketStatus } from '../../../lib/useMarketStatus'
 import MarketClosedBox from '../../components/MarketClosedBox'
 import PioneerBanner from '../../components/PioneerBanner'
+import { resetTour } from '../../components/GuidedTour'
 import { LoadingSpinner } from '../../components/LoadingSpinner'
 import styles from './page.module.css'
+
+// ── Compact countdown timer for closed market ──
+function CountdownTimer({ targetDate }: { targetDate: Date }) {
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  const diff = Math.max(0, targetDate.getTime() - Date.now())
+  const d = Math.floor(diff / 86400000)
+  const h = Math.floor((diff / 3600000) % 24)
+  const m = Math.floor((diff / 60000) % 60)
+  const s = Math.floor((diff / 1000) % 60)
+  const pad = (n: number) => String(n).padStart(2, '0')
+
+  return (
+    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+      {d > 0 && (
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: '#16a34a', lineHeight: 1 }}>{d}</div>
+          <div style={{ fontSize: 8, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase' }}>day{d !== 1 ? 's' : ''}</div>
+        </div>
+      )}
+      {d > 0 && <span style={{ color: '#d1d5db', fontSize: 12, fontWeight: 700 }}>:</span>}
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: '#16a34a', lineHeight: 1 }}>{pad(h)}</div>
+        <div style={{ fontSize: 8, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase' }}>hrs</div>
+      </div>
+      <span style={{ color: '#d1d5db', fontSize: 12, fontWeight: 700 }}>:</span>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: '#16a34a', lineHeight: 1 }}>{pad(m)}</div>
+        <div style={{ fontSize: 8, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase' }}>min</div>
+      </div>
+      <span style={{ color: '#d1d5db', fontSize: 12, fontWeight: 700 }}>:</span>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: '#16a34a', lineHeight: 1 }}>{pad(s)}</div>
+        <div style={{ fontSize: 8, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase' }}>sec</div>
+      </div>
+    </div>
+  )
+}
 
 interface BoothResult {
   booth_id: string
@@ -124,7 +167,7 @@ function BrowseMarketPageInner() {
     if (addressResolved) { setProfileLoading(false); return }
     if (searchParams.has('lat')) { setProfileLoading(false); return }
     if (!user) { setProfileLoading(false); return }
-    supabase.from('profiles').select('street_address, city, state_code, zip_code, home_community_h3_index')
+    supabase.from('profiles').select('street_address, city, state_code, zip_code')
       .eq('id', user.id).single()
       .then(async ({ data: profile }) => {
         if (profile?.state_code) setBuyerStateCode(profile.state_code)
@@ -135,15 +178,34 @@ function BrowseMarketPageInner() {
           const geo = await geocodeAddress(addr)
           if (geo) { setLat(geo.lat); setLng(geo.lng); setAddressResolved(true) }
         }
-        // Fetch community member count for pioneer banner
-        if (profile?.home_community_h3_index) {
-          setUserH3(profile.home_community_h3_index)
-          supabase.rpc('get_community_member_count', { target_h3: profile.home_community_h3_index })
-            .then(({ data }) => { if (typeof data === 'number') setCommunityMemberCount(data) })
-        }
         setProfileLoading(false)
       })
   }, [user, addressResolved]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch community member count for pioneer banner (independent of address resolution)
+  useEffect(() => {
+    if (!user) return
+    supabase.from('profiles').select('home_community_h3_index')
+      .eq('id', user.id).single()
+      .then(({ data, error }) => {
+        console.log('[PioneerBanner] Profile fetch:', { h3: data?.home_community_h3_index, error: error?.message })
+        if (data?.home_community_h3_index) {
+          // Check if previously dismissed
+          try {
+            if (localStorage.getItem(`pioneer_banner_dismissed_${data.home_community_h3_index}`)) {
+              setShowPioneerBanner(false)
+              return
+            }
+          } catch {}
+          setUserH3(data.home_community_h3_index)
+          supabase.rpc('get_community_member_count', { target_h3: data.home_community_h3_index })
+            .then(({ data: count }) => {
+              console.log('[PioneerBanner] Member count:', count)
+              if (typeof count === 'number') setCommunityMemberCount(count)
+            })
+        }
+      })
+  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch allowed categories from DB when address resolves
   useEffect(() => {
@@ -419,36 +481,109 @@ function BrowseMarketPageInner() {
 
   return (
     <div className="container">
-      {/* Market Closed Box (inline, not blocking) */}
-      {!marketIsOpen && (
-        <MarketClosedBox nextOpenDate={nextOpenDate} todaySchedule={todaySchedule} />
-      )}
-
-      {/* Pioneer Banner (first 20 members) */}
+      {/* Pioneer Banner (first 20 members) — shown FIRST so it's immediately visible */}
       {showPioneerBanner && communityMemberCount !== null && communityMemberCount <= 20 && userH3 && (
-        <PioneerBanner
-          memberCount={communityMemberCount}
-          communityH3={userH3}
-          onDismiss={() => setShowPioneerBanner(false)}
-        />
+        <>
+          <PioneerBanner
+            memberCount={communityMemberCount}
+            communityH3={userH3}
+            onDismiss={() => setShowPioneerBanner(false)}
+          />
+          {/* Spacer to push content below the fixed pioneer banner */}
+          <div style={{ height: 140 }} />
+        </>
       )}
 
-      {/* When market is closed and we have demo booths, show explore section */}
-      {!marketIsOpen && demoBooths.length > 0 && (
+      {/* Compact closed market message + actions + demo header */}
+      {!marketIsOpen && (
         <div style={{
-          textAlign: 'center', padding: '20px 0 8px',
+          textAlign: 'center', padding: '16px 0 12px',
         }}>
-          <h2 style={{
-            fontSize: 18, fontWeight: 800, color: 'var(--gray-800, #1f2937)',
-            marginBottom: 4, letterSpacing: '-0.02em',
+          {/* Closed status pill with countdown */}
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 10,
+            background: 'var(--gray-50, #f9fafb)', border: '1px solid var(--gray-200, #e5e7eb)',
+            borderRadius: 14, padding: '10px 20px', marginBottom: 12,
           }}>
-            🛒 Explore Demo Products
-          </h2>
-          <p style={{
-            fontSize: 13, color: 'var(--gray-500, #6b7280)', lineHeight: 1.5, margin: 0,
+            <span style={{ fontSize: 20 }}>🌙</span>
+            <div style={{ textAlign: 'left' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--gray-800, #1f2937)' }}>
+                Market is closed
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--gray-500, #6b7280)' }}>
+                {nextOpenDate ? `Opens ${nextOpenDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })} at ${todaySchedule?.open_time || '8:00 AM'}` : 'Check back soon!'}
+              </div>
+            </div>
+            {nextOpenDate && <CountdownTimer targetDate={nextOpenDate} />}
+          </div>
+
+          {/* Action buttons row */}
+          <div style={{
+            display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap',
+            marginBottom: 16,
           }}>
-            These are example listings — explore to learn how the market works!
-          </p>
+            <button onClick={async () => {
+              const url = `${window.location.origin}/`
+              const text = 'Check out CasaGrown — a marketplace for homegrown produce from your neighbors! 🌱'
+              if (navigator.share) {
+                try { await navigator.share({ title: 'Join CasaGrown', text, url }) } catch {}
+              } else {
+                navigator.clipboard?.writeText(`${text}\n${url}`)
+                alert('Invite link copied!')
+              }
+            }} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              padding: '8px 14px', borderRadius: 999,
+              background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff',
+              fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(22,163,74,0.25)',
+            }}>
+              📣 Invite Neighbors
+            </button>
+            <button onClick={() => {
+              if (!user) { router.push('/login'); return }
+              // Request notification permission for market open reminder
+              if ('Notification' in window && Notification.permission !== 'granted') {
+                Notification.requestPermission().then(p => {
+                  alert(p === 'granted' ? '🔔 You\'ll be notified when the market opens!' : 'Please enable notifications in your browser settings.')
+                })
+              } else {
+                alert('🔔 You\'ll be notified when the market opens!')
+              }
+            }} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              padding: '8px 14px', borderRadius: 999,
+              background: '#fffbeb', color: '#92400e', border: '1px solid #fde68a',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            }}>
+              🔔 Set Reminder
+            </button>
+            <button onClick={() => resetTour()} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              padding: '8px 14px', borderRadius: 999,
+              background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            }}>
+              🔄 Guided Tour
+            </button>
+          </div>
+
+          {/* Demo products header */}
+          {demoBooths.length > 0 && (
+            <>
+              <h2 style={{
+                fontSize: 16, fontWeight: 800, color: 'var(--gray-800, #1f2937)',
+                marginBottom: 4, letterSpacing: '-0.02em',
+              }}>
+                🛒 Explore the Market
+              </h2>
+              <p style={{
+                fontSize: 12, color: 'var(--gray-500, #6b7280)', lineHeight: 1.4, margin: 0,
+              }}>
+                Browse demo listings to see how the market works
+              </p>
+            </>
+          )}
         </div>
       )}
 

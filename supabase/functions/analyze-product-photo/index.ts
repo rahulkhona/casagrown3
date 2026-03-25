@@ -10,7 +10,7 @@
 
 const AI_KEY = Deno.env.get("GEMINI_API_KEY") ?? Deno.env.get("OPENROUTER_API_KEY") ?? "";
 const AI_URL = Deno.env.get("AI_URL") ?? "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-const AI_MODEL = Deno.env.get("AI_MODEL") ?? "gemini-2.5-flash";
+const AI_MODEL = Deno.env.get("AI_MODEL") ?? "gemini-3-flash-preview";
 
 const VALID_CATEGORIES = [
   "produce", "flowers", "flower_arrangements",

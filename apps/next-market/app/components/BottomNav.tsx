@@ -15,11 +15,14 @@ function useKeyboardVisible() {
     const vv = typeof window !== 'undefined' ? window.visualViewport : null
     if (!vv) return
 
-    const initialHeight = vv.height
     const THRESHOLD = 150 // keyboard is typically 250-350px
 
     const onResize = () => {
-      setVisible(initialHeight - vv.height > THRESHOLD)
+      // Compare visualViewport height against window.innerHeight
+      // When keyboard is open, visualViewport shrinks but innerHeight stays the same
+      // When browser is resized, both change together
+      const heightDiff = window.innerHeight - vv.height
+      setVisible(heightDiff > THRESHOLD)
     }
 
     vv.addEventListener('resize', onResize)

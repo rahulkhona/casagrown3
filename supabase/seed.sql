@@ -1232,14 +1232,15 @@ INSERT INTO public.profiles (
 ) VALUES (
   'a0000000-0000-0000-0000-00000ca5ab07',
   'casabot@casagrown.com',
-  'CasaBot 🌱',
+  'CasaBot 🐝',
   '/logo.png',
   '89283470c2fffff'
 ) ON CONFLICT (id) DO UPDATE SET
-  full_name = 'CasaBot 🌱',
+  full_name = 'CasaBot 🐝',
   avatar_url = '/logo.png';
 
 -- Demo community chat messages (spread over several days for realism)
+-- Using the realistic demo booth owners from earlier in the seed
 INSERT INTO public.community_chat_messages (community_h3_index, author_id, content, is_system, is_pinned, created_at)
 VALUES
   ('89283470c2fffff', 'a0000000-0000-0000-0000-00000ca5ab07',
@@ -1264,7 +1265,7 @@ VALUES
    '💡 Have excess produce? Tap "📸 Sell Excess Produce" on the market page to share with neighbors!',
    true, false, now() - interval '1 day'),
   ('89283470c2fffff', 'b2222222-2222-2222-2222-222222222222',
-   '@CasaBot what vegetables grow well in partial shade?',
+   '@CasaBot what fruit trees grow well in partial shade around here?',
    false, false, now() - interval '12 hours'),
   ('89283470c2fffff', 'a0000000-0000-0000-0000-00000ca5ab07',
    '🌻 Ask me anything about gardening! Mention @CasaBot for planting schedules, pest control, soil tips, and more.',
