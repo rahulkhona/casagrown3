@@ -1074,14 +1074,15 @@ export async function unflagTicket(
 }
 
 export async function deleteFeedback(feedbackId: string): Promise<boolean> {
-    const { error } = await supabase
-        .from("user_feedback")
-        .delete()
-        .eq("id", feedbackId);
+    const { error } = await supabase.rpc("staff_delete_feedback", {
+        p_feedback_id: feedbackId
+    });
+
     if (error) {
-        console.error("deleteFeedback error:", error);
+        console.error("deleteFeedback error (RPC):", error);
         return false;
     }
+
     return true;
 }
 
