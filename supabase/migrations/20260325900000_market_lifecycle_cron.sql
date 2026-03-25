@@ -6,11 +6,12 @@ CREATE OR REPLACE FUNCTION public.close_market_booths()
 RETURNS void AS $$
 BEGIN
   -- Notify sellers whose booths are getting locked
-  INSERT INTO public.notifications (user_id, title, message, type)
+  INSERT INTO public.notifications (user_id, title, message, type, link_url)
   SELECT owner_id,
          'Market Closed!',
          'The market has officially closed for the day. Your storefront has been safely locked.',
-         'system'
+         'system',
+         '/my-booth'
   FROM public.market_booths
   WHERE is_open = true;
 
@@ -33,22 +34,24 @@ RETURNS void AS $$
 BEGIN
   IF ping_type = 'prep' THEN
     -- Insert "Prep" notification for sellers with inactive/closed booths but active products
-    INSERT INTO public.notifications (user_id, title, message, type)
+    INSERT INTO public.notifications (user_id, title, message, type, link_url)
     SELECT DISTINCT mb.owner_id, 
            'The Market opens tomorrow!', 
            'Review your local harvest and restock your booth shelves now.', 
-           'system'
+           'system',
+           '/my-booth'
     FROM public.market_booths mb
     JOIN public.market_products mp ON mp.seller_id = mb.owner_id
     WHERE mb.is_open = false AND mp.is_active = true;
     
   ELSIF ping_type = 'launch' THEN
     -- Insert "Launch" notification
-    INSERT INTO public.notifications (user_id, title, message, type)
+    INSERT INTO public.notifications (user_id, title, message, type, link_url)
     SELECT DISTINCT mb.owner_id, 
            'The Market opens in 1 hour!', 
            'Quickly review your inventory to safely unlock your storefront to the neighborhood.', 
-           'system'
+           'system',
+           '/my-booth'
     FROM public.market_booths mb
     JOIN public.market_products mp ON mp.seller_id = mb.owner_id
     WHERE mb.is_open = false AND mp.is_active = true;
