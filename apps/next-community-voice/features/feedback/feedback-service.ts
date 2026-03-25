@@ -1113,6 +1113,8 @@ export async function deleteFeedback(feedbackId: string): Promise<boolean> {
         .delete()
         .eq("id", feedbackId);
     if (error) {
+        // EXPLICIT DIAGNOSTIC ALERT: The user physically needs to see this context string
+        window.alert("Delete Failed! Postgres RLS Dump:\n\n" + JSON.stringify(error, null, 2));
         console.error("deleteFeedback error:", error);
         return false;
     }
