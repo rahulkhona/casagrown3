@@ -227,6 +227,7 @@ function BrowseMarketPageInner() {
       max_price: maxPrice ? parseFloat(maxPrice) : null,
       category_filter: category || null,
       buyer_state_code: buyerStateCode,
+      exclude_demos: silent,
     })
     if (error) {
       console.error('Search error:', error.message)
@@ -234,7 +235,13 @@ function BrowseMarketPageInner() {
       // Only update state if results actually changed — avoids unnecessary re-renders
       // during background polling when nothing has changed on the market.
       setBooths(prev => {
-        const next = Array.isArray(data) ? data : []
+        const next = Array.isArray(data) ? [...data] : []
+        if (silent) {
+          // Keep the demo booths we already had, because exclude_demos was true for this background poll.
+          const existingDemos = prev.filter(b => b.is_demo)
+          next.push(...existingDemos)
+        }
+
         // Include sorted product IDs in the fingerprint so we only replace when
         // the actual product set changes, not just on stale RPC responses.
         // Round distance_miles to 2dp — PostGIS floats drift slightly between calls
@@ -294,7 +301,10 @@ function BrowseMarketPageInner() {
   // Without this, booths.length / searchBooths in the dep array caused React to tear
   // down and recreate the 2-min interval on every render, causing a visible flicker.
   const refreshProducts = useCallback(async () => {
-    const productIds = booths.flatMap(b => b.matched_products.map((p: any) => p.id))
+    const productIds = booths
+      .flatMap(b => b.matched_products.map((p: any) => p.id))
+      .filter(id => !String(id).startsWith('demo-'))
+
     if (productIds.length === 0) return
     const { data } = await supabase.rpc('refresh_product_data', { product_ids: productIds })
     if (!data) return
