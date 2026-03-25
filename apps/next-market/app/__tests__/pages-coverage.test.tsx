@@ -228,7 +228,7 @@ function renderPage(mod: any, props?: any) {
 describe('orders/[id]/page.tsx', () => {
   it('renders order detail page with order data', async () => {
     const mod = await import('../(main)/orders/[id]/page')
-    const c = renderPage(mod)
+    const c = renderPage(mod, { params: Promise.resolve({ id: 'test-order-1' }) })
     await act(async () => { await new Promise(r => setTimeout(r, 100)) })
     // Page renders or hits error boundary — both exercise module code for coverage
     expect(c).toBeTruthy()
@@ -236,7 +236,7 @@ describe('orders/[id]/page.tsx', () => {
 
   it('shows order status', async () => {
     const mod = await import('../(main)/orders/[id]/page')
-    const c = renderPage(mod)
+    const c = renderPage(mod, { params: Promise.resolve({ id: 'test-order-1' }) })
     await act(async () => { await new Promise(r => setTimeout(r, 100)) })
     expect(c).toBeTruthy()
   })

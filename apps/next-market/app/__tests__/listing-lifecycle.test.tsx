@@ -153,50 +153,8 @@ vi.mock('./page.module.css', () => ({ default: new Proxy({}, { get: (_, key) => 
 beforeEach(() => { vi.clearAllMocks() })
 afterEach(() => { cleanup() })
 
-// ============================================================================
-// Listing Duration Picker
-// ============================================================================
-describe('Listing Lifecycle — Duration Picker', () => {
-
-  it('renders the Listing Duration section with 4 options', async () => {
-    const mod = await import('../(main)/my-booth/products/new/page')
-    const Component = mod.default
-    const { container } = render(React.createElement(Component))
-
-    await waitFor(() => {
-      expect(container.textContent).toContain('How long to show this listing')
-    })
-
-    // Should have 4 duration buttons
-    const durationBtns = container.querySelectorAll('[class*="durationBtn"]')
-    expect(durationBtns.length).toBe(4)
-    expect(container.textContent).toContain('3 days')
-    expect(container.textContent).toContain('7 days')
-    expect(container.textContent).toContain('14 days')
-    expect(container.textContent).toContain('30 days')
-  })
-
-  it('shows expiration date hint', async () => {
-    const mod = await import('../(main)/my-booth/products/new/page')
-    const Component = mod.default
-    const { container } = render(React.createElement(Component))
-
-    await waitFor(() => {
-      expect(container.textContent).toContain('Auto-removes')
-    })
-  })
-
-  it('defaults perishable category to 3 days', async () => {
-    const mod = await import('../(main)/my-booth/products/new/page')
-    const Component = mod.default
-    const { container } = render(React.createElement(Component))
-
-    await waitFor(() => {
-      const activeBtns = container.querySelectorAll('[class*="durationBtnActive"]')
-      expect(activeBtns.length).toBeGreaterThanOrEqual(1)
-    })
-  })
-})
+// The Listing Duration Picker was removed from the UI (duration is now auto-calculated).
+// The corresponding DOM tests have been excised.
 
 // ============================================================================
 // expires_at computation

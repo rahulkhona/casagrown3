@@ -13,6 +13,7 @@ import SuggestionChips from '../../components/SuggestionChips'
 describe('SuggestionChips', () => {
   const defaultProps = {
     onSelect: vi.fn(),
+    onPrefill: vi.fn(),
     userMessageCount: 0,
   }
 
@@ -21,30 +22,44 @@ describe('SuggestionChips', () => {
     expect(container).toBeTruthy()
   })
 
-  it('renders 3 suggestion chips for new users', () => {
+  it('renders 4 suggestion chips (1 CasaBot + 3 random) for all users', () => {
     const { container } = render(React.createElement(SuggestionChips, defaultProps))
     const chips = container.querySelectorAll('.suggestionChip')
-    expect(chips.length).toBe(3)
+    expect(chips.length).toBe(4)
   })
 
-  it('hides chips after user has sent 3+ messages', () => {
+  it('does not hide chips even after user has sent 3+ messages', () => {
     const { container } = render(
       React.createElement(SuggestionChips, { ...defaultProps, userMessageCount: 3 })
     )
     const chips = container.querySelectorAll('.suggestionChip')
-    expect(chips.length).toBe(0)
+    expect(chips.length).toBe(4)
   })
 
-  it('calls onSelect when a chip is clicked', () => {
+  it('calls onPrefill when CasaBot chip is clicked', () => {
+    const onPrefill = vi.fn()
+    const { container } = render(
+      React.createElement(SuggestionChips, { ...defaultProps, onPrefill })
+    )
+    const casabotChip = container.querySelector('.casabotChip')
+    if (casabotChip) {
+      fireEvent.click(casabotChip)
+      expect(onPrefill).toHaveBeenCalledTimes(1)
+      expect(onPrefill).toHaveBeenCalledWith('@CasaBot ')
+    }
+  })
+
+  it('calls onSelect when a random chip is clicked', () => {
     const onSelect = vi.fn()
     const { container } = render(
       React.createElement(SuggestionChips, { ...defaultProps, onSelect })
     )
-    const firstChip = container.querySelector('.suggestionChip')
-    if (firstChip) {
-      fireEvent.click(firstChip)
+    // The random chips are not .casabotChip
+    const chips = Array.from(container.querySelectorAll('.suggestionChip'))
+    const randomChip = chips.find(c => !c.classList.contains('casabotChip'))
+    if (randomChip) {
+      fireEvent.click(randomChip)
       expect(onSelect).toHaveBeenCalledTimes(1)
-      // Called with the chip text
       expect(typeof onSelect.mock.calls[0][0]).toBe('string')
       expect(onSelect.mock.calls[0][0].length).toBeGreaterThan(0)
     }

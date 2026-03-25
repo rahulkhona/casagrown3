@@ -113,7 +113,7 @@ describe('ChatMessage', () => {
     const { container } = render(
       React.createElement(ChatMessage, { ...defaultProps, message: botMessage })
     )
-    expect(container.textContent).toContain('CasaGrown')
+    expect(container.textContent).toContain('CasaBot')
   })
 
   it('renders BOT badge for system messages', () => {

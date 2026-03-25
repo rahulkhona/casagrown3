@@ -32,6 +32,80 @@ Always be encouraging and community-minded.`
 
     const userPrompt = `${author_name || 'A neighbor'} asks: "${content}"`
 
+    // Fetch the message and its parent (if any) to get the media array
+    const supabaseService = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    )
+
+    const { data: msgData, error: msgErr } = await supabaseService
+      .from('community_chat_messages')
+      .select('media, parent_id')
+      .eq('id', message_id)
+      .single()
+
+    let attachedMedia: any[] = []
+    if (!msgErr && msgData?.media?.length) {
+      attachedMedia = msgData.media
+    } else if (!msgErr && msgData?.parent_id) {
+      // If it's a reply and the reply itself has no media, check the parent message!
+      const { data: parentData } = await supabaseService
+        .from('community_chat_messages')
+        .select('media')
+        .eq('id', msgData.parent_id)
+        .single()
+      if (parentData?.media?.length) {
+        attachedMedia = parentData.media
+      }
+    }
+
+    // Prepare Gemini parts array
+    // We will inject the text prompt, and then any images we find
+    const geminiParts: any[] = [
+      { text: systemPrompt + '\n\n' + userPrompt }
+    ]
+
+    if (attachedMedia.length > 0) {
+      // Grab the first image (Gemini handles multiple, but to be safe and fast we can just process up to 3)
+      for (const mediaItem of attachedMedia.slice(0, 3)) {
+        if (!mediaItem.url && !mediaItem.storage_path) continue
+        
+        let arrayBuffer: ArrayBuffer | null = null
+        let mimeType = mediaItem.media_type || 'image/jpeg'
+
+        if (mediaItem.storage_path) {
+          console.log('[CasaBot] Downloading image from storage:', mediaItem.storage_path)
+          const { data: fileBlob, error: downloadErr } = await supabaseService.storage
+            .from('community-chat-media')
+            .download(mediaItem.storage_path)
+
+          if (!downloadErr && fileBlob) {
+            arrayBuffer = await fileBlob.arrayBuffer()
+            mimeType = fileBlob.type || mimeType
+          } else {
+            console.error('[CasaBot] Storage download error:', downloadErr)
+          }
+        }
+
+        if (arrayBuffer) {
+          try {
+            // Deno runtime supports Base64 encoding via btoa
+            const base64Data = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+            
+            geminiParts.push({
+              inlineData: {
+                mimeType,
+                data: base64Data
+              }
+            })
+            console.log('[CasaBot] Successfully attached image to Gemini prompt')
+          } catch (e) {
+            console.error('[CasaBot] Exception processing image:', e)
+          }
+        }
+      }
+    }
+
     // Call Gemini API
     const geminiKey = Deno.env.get('GEMINI_API_KEY')
     if (!geminiKey) {
@@ -58,7 +132,7 @@ Always be encouraging and community-minded.`
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [
-              { role: 'user', parts: [{ text: systemPrompt + '\n\n' + userPrompt }] },
+              { role: 'user', parts: geminiParts },
             ],
             generationConfig: {
               maxOutputTokens: 1000,
@@ -103,12 +177,8 @@ Always be encouraging and community-minded.`
     })()
 
     // Insert the reply as a threaded response from CasaBot
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    )
-
-    const { error: insertErr } = await supabase
+    // supabaseService is already initialized above!
+    const { error: insertErr } = await supabaseService
       .from('community_chat_messages')
       .insert({
         community_h3_index,

@@ -322,10 +322,10 @@ test.describe('Transaction Pipeline — Full Financial Lifecycle', () => {
         const delivId = execSync(
           `docker exec -i supabase_db_casagrown3 psql -U postgres -t -c "UPDATE market_orders SET status = 'delivered', delivered_at = now() WHERE id = (SELECT id FROM market_orders WHERE buyer_id = 'b2222222-2222-2222-2222-222222222222' AND status = 'pending' LIMIT 1) RETURNING id"`,
           { encoding: 'utf-8' },
-        ).trim()
+        ).replace(/\n*UPDATE \d+/g, '').trim()
         orderId = delivId
       } else {
-        orderId = seededId
+        orderId = seededId.replace(/\n*UPDATE \d+/g, '').trim()
       }
       console.log(`[PIPELINE] Using seeded order ${orderId} for Phase 3`)
     }
