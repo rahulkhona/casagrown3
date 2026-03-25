@@ -18,6 +18,8 @@ export default function PioneerBanner({ memberCount, communityH3, onDismiss }: P
     try {
       const key = `pioneer_banner_dismissed_${communityH3}`
       if (localStorage.getItem(key)) return
+      // Track impression the exact second it's rendered to prevent loop harassment
+      localStorage.setItem(key, '1')
     } catch {}
     const t = setTimeout(() => setVisible(true), 500)
     return () => clearTimeout(t)

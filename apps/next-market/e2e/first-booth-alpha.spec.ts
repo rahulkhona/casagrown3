@@ -170,3 +170,32 @@ test.describe('Alpha Modal First Impression', () => {
     await expect(badge).toBeVisible()
   })
 })
+
+test.describe('Celebration Banner Tracking', () => {
+  test('should show celebration banner once, and automatically suppress it on reload without clicking dismiss', async ({ page }) => {
+    // 1. Visit market and skip Alpha Modal
+    await page.goto('/market')
+    await page.evaluate(() => {
+      localStorage.setItem('casagrown_alpha_ack', 'true') // Suppress alpha
+      // Purge any existing pioneer traces
+      for (const key of Object.keys(localStorage)) {
+        if (key.includes('pioneer_banner')) localStorage.removeItem(key)
+      }
+    })
+    
+    // 2. Reload to cleanly mount PioneerBanner
+    await page.reload()
+
+    // 3. Verify Celebration Banner drops down gracefully (500ms delay)
+    // The banner text is uniquely identifiable: "Welcome to CasaGrown!"
+    const celebrationHeading = page.locator('h3:has-text("Welcome to CasaGrown!")')
+    // Wait for the animation to bring it into view automatically
+    await expect(celebrationHeading).toBeVisible({ timeout: 3000 })
+
+    // 4. Force an immediate browser reload BEFORE the user interacts with the 'X' button
+    await page.reload()
+    
+    // 5. Assert the DOM entirely suppressed the banner via the background 'useEffect'
+    await expect(celebrationHeading).toBeHidden({ timeout: 2000 })
+  })
+})
