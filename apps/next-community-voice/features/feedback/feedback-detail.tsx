@@ -295,6 +295,8 @@ export function FeedbackDetail({ id }: { id: string }) {
              
              <YStack flex={1} gap="$4">
                 <Text fontSize="$5" lineHeight="$6" color={colors.gray[800]}>{ticket.description}</Text>
+                {/* Inline screenshot from description */}
+                <DescriptionScreenshots description={ticket.description} />
                 {/* Ticket attachments */}
                 {ticket.attachments && ticket.attachments.length > 0 && (
                   <XStack gap="$2" flexWrap="wrap">
@@ -439,6 +441,40 @@ export function FeedbackDetail({ id }: { id: string }) {
         )}
       </YStack>
       </ScrollView>
+    </YStack>
+  )
+}
+
+function DescriptionScreenshots({ description }: { description: string }) {
+  // Extract Screenshot URLs from description (format: "Screenshot: https://...")
+  const screenshotMatch = description.match(/Screenshot:\s*(https?:\/\/[^\s]+)/i)
+  // Also detect any other image URLs in the text
+  const imageUrlPattern = /https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp)/gi
+  const allImageUrls = description.match(imageUrlPattern) || []
+  
+  // Combine, deduplicate
+  const urls = new Set<string>()
+  if (screenshotMatch?.[1]) urls.add(screenshotMatch[1])
+  allImageUrls.forEach(u => urls.add(u))
+  
+  if (urls.size === 0) return null
+  
+  return (
+    <YStack gap="$2" marginTop="$2">
+      {Array.from(urls).map((url, i) => (
+        <YStack key={i} borderRadius="$3" overflow="hidden" borderWidth={1} borderColor={colors.gray[200]}>
+          <a href={url} target="_blank" rel="noopener noreferrer">
+            <img
+              src={url}
+              alt={`Screenshot ${i + 1}`}
+              style={{ width: '100%', maxHeight: 400, objectFit: 'contain', backgroundColor: '#f9fafb', display: 'block' }}
+            />
+          </a>
+          <XStack padding="$2" backgroundColor={colors.gray[50]} gap="$2" alignItems="center">
+            <Text fontSize="$1" color={colors.gray[400]}>📸 Auto-captured screenshot</Text>
+          </XStack>
+        </YStack>
+      ))}
     </YStack>
   )
 }
