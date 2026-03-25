@@ -184,15 +184,17 @@ BEGIN
 
     -- Create profile for CasaBot
     INSERT INTO public.profiles (
-        id, full_name, avatar_url, home_community_h3_index
+        id, email, full_name, avatar_url, home_community_h3_index
     ) VALUES (
         v_bot_id,
+        'casabot@casagrown.com',
         'CasaBot 🌱',
         '/logo.png',
         v_h3
     ) ON CONFLICT (id) DO UPDATE SET
         full_name = 'CasaBot 🌱',
-        avatar_url = '/logo.png';
+        avatar_url = '/logo.png',
+        email = 'casabot@casagrown.com';
 
     -- 6. Seed demo community messages (only if no messages exist yet)
     IF NOT EXISTS (SELECT 1 FROM public.community_chat_messages LIMIT 1) THEN
