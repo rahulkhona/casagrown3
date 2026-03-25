@@ -2,6 +2,7 @@
 
 
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
+import { latLngToCell, gridDisk } from 'h3-js'
 import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
@@ -318,6 +319,22 @@ function BrowseMarketPageInner() {
       })
     }
     if (!silent) setLoading(false)
+
+    // Compute H3 zone IDs for the search area and cache for pulse polling
+    if (lat && lng) {
+      try {
+        // H3 resolution 5 ≈ hex edge length ~8km. Ring size scales with search radius.
+        const centerCell = latLngToCell(lat, lng, 5)
+        const ringSize = Math.max(1, Math.ceil(maxMiles / 5)) // ~5 miles per ring at res 5
+        const zoneIds = gridDisk(centerCell, ringSize)
+        const pulseKey = `${lat.toFixed(4)},${lng.toFixed(4)},${maxMiles}`
+        localStorage.setItem('market_zones', JSON.stringify(zoneIds))
+        localStorage.setItem('market_pulse_key', pulseKey)
+        // Don't reset pulse timestamp here — let the next pulse check detect changes naturally
+      } catch (e) {
+        console.warn('[ZonePulse] h3-js zone computation failed:', e)
+      }
+    }
   }, [lat, lng, fulfillment, maxMiles, search, minPrice, maxPrice, category, buyerStateCode]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (lat && lng && addressResolved) searchBooths() }, [lat, lng, fulfillment, maxMiles, category]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -329,61 +346,59 @@ function BrowseMarketPageInner() {
     return () => clearTimeout(t)
   }, [search, minPrice, maxPrice]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Two-tier polling:
-  // 1. Lightweight refresh (30s + tab focus): just update prices/inventory for visible products
-  // 2. Full spatial search (2 min): catch new/removed booths
-  //
-  // Use refs so intervals stay stable and never reset when booths or filters change.
-  // Without this, booths.length / searchBooths in the dep array caused React to tear
-  // down and recreate the 2-min interval on every render, causing a visible flicker.
-  const refreshProducts = useCallback(async () => {
-    const productIds = booths
-      .flatMap(b => b.matched_products.map((p: any) => p.id))
-      .filter(id => !String(id).startsWith('demo-'))
-
-    if (productIds.length === 0) return
-    const { data } = await supabase.rpc('refresh_product_data', { product_ids: productIds })
-    if (!data) return
-    const updates = new Map((data as any[]).map((d) => [d.id, d]))
-    // Lightweight refresh: only patch price/inventory on changed products.
-    // Never remove products here — removals are handled by the full 2-min searchBooths.
-    // This prevents visible flicker when products are still valid but the RPC
-    // momentarily returns stale data.
-    setBooths(prev => {
-      let changed = false
-      const next = prev.map(b => ({
-        ...b,
-        matched_products: b.matched_products.map((p: any) => {
-          const u = updates.get(p.id)
-          if (!u) return p
-          if (u.price_usd === p.price_usd && u.inventory === p.inventory) return p
-          changed = true
-          return { ...p, price_usd: u.price_usd, inventory: u.inventory }
-        }),
-      }))
-      return changed ? next : prev
-    })
-  }, [booths, supabase]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Keep refs in sync so intervals always call the latest version without recreating
+  // ── Zone Pulse Polling ──
+  // Instead of the old two-tier polling (30s light + 2min heavy), we check
+  // a tiny zone_pulse table every 30s. Zone IDs are computed client-side
+  // using h3-js from lat/lng + radius. If no zone has been updated since
+  // the last check, we skip entirely. If a zone changed (seller edited a
+  // product), we do a full searchBooths refresh.
   const searchBoothsRef = useRef(searchBooths)
-  const refreshProductsRef = useRef(refreshProducts)
   useEffect(() => { searchBoothsRef.current = searchBooths }, [searchBooths])
-  useEffect(() => { refreshProductsRef.current = refreshProducts }, [refreshProducts])
 
   useEffect(() => {
     if (!lat || !lng || !addressResolved) return
 
-    const lightInterval = setInterval(() => refreshProductsRef.current(), 30_000)
-    const heavyInterval = setInterval(() => searchBoothsRef.current(true), 120_000)
-    const onFocus = () => { if (!document.hidden) refreshProductsRef.current() }
+    // Invalidate cached zones if address/radius changed
+    const currentKey = `${lat.toFixed(4)},${lng.toFixed(4)},${maxMiles}`
+    const storedKey = localStorage.getItem('market_pulse_key')
+    if (storedKey !== currentKey) {
+      localStorage.removeItem('market_pulse')
+      localStorage.removeItem('market_zones')
+      localStorage.setItem('market_pulse_key', currentKey)
+    }
+
+    const checkPulse = async () => {
+      try {
+        const zonesJson = localStorage.getItem('market_zones')
+        if (!zonesJson) return // zones not computed yet (first search still in progress)
+        const zoneIds = JSON.parse(zonesJson) as string[]
+        if (zoneIds.length === 0) return
+
+        const { data, error } = await supabase.rpc('check_zone_pulse', { p_zone_ids: zoneIds })
+        if (error) { console.warn('[ZonePulse] RPC error:', error.message); return }
+
+        const pulse = String(data)
+        const cachedPulse = localStorage.getItem('market_pulse')
+
+        if (cachedPulse && pulse !== cachedPulse) {
+          // Something changed in our zones — full refresh
+          console.log('[ZonePulse] Change detected, refreshing market')
+          searchBoothsRef.current(true)
+        }
+        localStorage.setItem('market_pulse', pulse)
+      } catch (e) {
+        console.warn('[ZonePulse] Check failed:', e)
+      }
+    }
+
+    const interval = setInterval(checkPulse, 30_000)
+    const onFocus = () => { if (!document.hidden) checkPulse() }
     document.addEventListener('visibilitychange', onFocus)
     return () => {
-      clearInterval(lightInterval)
-      clearInterval(heavyInterval)
+      clearInterval(interval)
       document.removeEventListener('visibilitychange', onFocus)
     }
-  }, [lat, lng, addressResolved]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [lat, lng, maxMiles, addressResolved]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAddressSubmit = async () => {
     if (!address.trim()) return
