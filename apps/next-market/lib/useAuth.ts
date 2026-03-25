@@ -25,11 +25,18 @@ export function useAuth() {
 
   const resolveProfile = useCallback(async (sessionUser: { id: string; email?: string }) => {
     const supabase = createClient()
-    const { data: profile } = await supabase
+    const { data: profile, error } = await supabase
       .from('profiles')
       .select('is_banned, ban_reason, tos_accepted_at, profile_completed_at')
       .eq('id', sessionUser.id)
       .single()
+
+    if (error) {
+      console.error('Failed to resolve profile status (network/db error):', error)
+      // Do not overwrite tos/profile state to false if the database just timed out.
+      // Leave them as null (loading) or their previous state so the user doesn't get kicked to /onboarding.
+      return
+    }
 
     if (profile?.is_banned) {
       setIsBanned(true)
