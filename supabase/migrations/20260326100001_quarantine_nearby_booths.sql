@@ -70,16 +70,17 @@ BEGIN
         AND NOT EXISTS (
           SELECT 1 FROM quarantine_zones qz
           JOIN profiles seller_p ON seller_p.id = mp.seller_id
+          LEFT JOIN zip_codes seller_z ON seller_z.zip_code = seller_p.zip_code AND seller_z.country_iso_3 = seller_p.country_code
+          LEFT JOIN cities seller_ci ON seller_ci.id = seller_z.city_id
           WHERE qz.is_active = true
             AND qz.starts_at <= CURRENT_DATE
             AND (qz.ends_at IS NULL OR qz.ends_at >= CURRENT_DATE)
             AND (qz.category = mp.category OR qz.category = 'ALL')
             AND (
               -- County-level quarantine
-              (qz.county_id IS NOT NULL AND qz.county_id = seller_p.county_id)
+              (qz.county_id IS NOT NULL AND qz.county_id = seller_z.county_id)
               -- State-level quarantine
-              OR (qz.state_id IS NOT NULL AND qz.county_id IS NULL
-                  AND qz.state_id = (SELECT ci.state_id FROM zip_codes zc JOIN cities ci ON ci.id = zc.city_id WHERE zc.zip_code = seller_p.zip_code AND zc.country_iso_3 = seller_p.country_code LIMIT 1))
+              OR (qz.state_id IS NOT NULL AND qz.county_id IS NULL AND qz.state_id = seller_ci.state_id)
               -- Country-level quarantine
               OR (qz.country_iso_3 IS NOT NULL AND qz.state_id IS NULL AND qz.county_id IS NULL
                   AND qz.country_iso_3 = seller_p.country_code)
@@ -106,14 +107,15 @@ BEGIN
           AND NOT EXISTS (
             SELECT 1 FROM quarantine_zones qz
             JOIN profiles seller_p ON seller_p.id = mp.seller_id
+            LEFT JOIN zip_codes seller_z ON seller_z.zip_code = seller_p.zip_code AND seller_z.country_iso_3 = seller_p.country_code
+            LEFT JOIN cities seller_ci ON seller_ci.id = seller_z.city_id
             WHERE qz.is_active = true
               AND qz.starts_at <= CURRENT_DATE
               AND (qz.ends_at IS NULL OR qz.ends_at >= CURRENT_DATE)
               AND (qz.category = mp.category OR qz.category = 'ALL')
               AND (
-                (qz.county_id IS NOT NULL AND qz.county_id = seller_p.county_id)
-                OR (qz.state_id IS NOT NULL AND qz.county_id IS NULL
-                    AND qz.state_id = (SELECT ci.state_id FROM zip_codes zc JOIN cities ci ON ci.id = zc.city_id WHERE zc.zip_code = seller_p.zip_code AND zc.country_iso_3 = seller_p.country_code LIMIT 1))
+                (qz.county_id IS NOT NULL AND qz.county_id = seller_z.county_id)
+                OR (qz.state_id IS NOT NULL AND qz.county_id IS NULL AND qz.state_id = seller_ci.state_id)
                 OR (qz.country_iso_3 IS NOT NULL AND qz.state_id IS NULL AND qz.county_id IS NULL
                     AND qz.country_iso_3 = seller_p.country_code)
                 OR (qz.country_iso_3 IS NULL AND qz.state_id IS NULL AND qz.county_id IS NULL AND qz.city_id IS NULL)

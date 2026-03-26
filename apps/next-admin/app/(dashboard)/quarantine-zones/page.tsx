@@ -177,14 +177,14 @@ export default function QuarantineZonesPage() {
       cell: (item) => (
         <YStack>
           <Text fontWeight="600" fontSize="$3">{item.pest_name}</Text>
-          {item.source_url && (
+          {item.source_url ? (
             <a href={item.source_url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
               <XStack alignItems="center" gap="$1" marginTop="$1">
                 <ExternalLink size={12} color={'#3b82f6'} />
                 <Text fontSize="$1" color={'#3b82f6'}>CDFA Notice</Text>
               </XStack>
             </a>
-          )}
+          ) : null}
         </YStack>
       )
     },
@@ -349,12 +349,12 @@ export default function QuarantineZonesPage() {
             Manage agricultural pest quarantines. Sellers in quarantined areas cannot list affected produce.
           </Text>
         </YStack>
-        {!isAdding && (
+        {!isAdding ? (
           <Button backgroundColor={"#ea580c"} icon={<AlertTriangle size={16} color="white" />}
                   onPress={() => { resetForm(); setIsAdding(true) }}>
             <Text color="white" fontWeight="600">Add Quarantine</Text>
           </Button>
-        )}
+        ) : null}
       </XStack>
 
       {errorMessage ? (
@@ -364,7 +364,7 @@ export default function QuarantineZonesPage() {
         </YStack>
       ) : null}
 
-      {isAdding && (
+      {isAdding ? (
         <Card borderWidth={1} borderColor={"#fed7aa"} padding="$4" backgroundColor="white" elevation="$1">
           <YStack gap="$4">
             <XStack alignItems="center" gap="$2" borderBottomWidth={1} borderColor={colors.gray[200]} paddingBottom="$3">
@@ -436,7 +436,7 @@ export default function QuarantineZonesPage() {
               </XStack>
 
               {/* Cascading Dropdowns */}
-              {scope !== 'global' && (
+              {scope !== 'global' ? (
                 <YStack gap="$3" marginTop="$2" padding="$3" backgroundColor={colors.gray[50]} borderRadius="$3">
                   <XStack alignItems="center" gap="$2">
                     <Text fontSize="$3" color={colors.gray[500]}>Country:</Text>
@@ -445,26 +445,26 @@ export default function QuarantineZonesPage() {
                     </XStack>
                   </XStack>
                   <XStack gap="$3" flexWrap="wrap">
-                    {(scope === 'state' || scope === 'county' || scope === 'city') && (
+                    {(scope === 'state' || scope === 'county' || scope === 'city') ? (
                       <JurisdictionSelect label="State" value={selectedState} onChange={setSelectedState}
                         options={states.map((s: any) => ({ value: s.id, label: `${s.name} (${s.code})` }))}
                         placeholder="Select state..." disabled={!selectedCountry} />
-                    )}
-                    {(scope === 'county' || scope === 'city') && (
+                    ) : null}
+                    {(scope === 'county' || scope === 'city') ? (
                       <JurisdictionSelect label="County" value={selectedCounty} onChange={setSelectedCounty}
                         options={counties.map((c: any) => ({ value: c.id, label: c.name }))}
                         placeholder={counties.length === 0 ? 'Select state first' : 'Select county...'}
                         disabled={!selectedState || counties.length === 0} />
-                    )}
-                    {scope === 'city' && (
+                    ) : null}
+                    {scope === 'city' ? (
                       <JurisdictionSelect label="City" value={selectedCity} onChange={setSelectedCity}
                         options={cities.map((c: any) => ({ value: c.id, label: c.name }))}
                         placeholder={cities.length === 0 ? 'Select state first' : 'Select city...'}
                         disabled={!selectedState || cities.length === 0} />
-                    )}
+                    ) : null}
                   </XStack>
                 </YStack>
-              )}
+              ) : null}
 
               {/* Source URL */}
               <YStack gap="$1">
@@ -489,7 +489,7 @@ export default function QuarantineZonesPage() {
             </YStack>
           </YStack>
         </Card>
-      )}
+      ) : null}
 
       <YStack flex={1} paddingBottom="$8">
         <AdminDataGrid 

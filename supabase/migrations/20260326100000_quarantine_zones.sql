@@ -79,24 +79,14 @@ DECLARE
   v_state_id UUID;
   v_country_iso_3 TEXT;
 BEGIN
-  -- Resolve seller's jurisdiction from their profile
-  SELECT p.county_id, p.state_id, p.country_code
+  -- Resolve seller's jurisdiction from zip_codes table
+  -- profiles has zip_code + country_code → zip_codes has county_id and city_id
+  SELECT z.county_id, ci.state_id, p.country_code
   INTO v_county_id, v_state_id, v_country_iso_3
   FROM profiles p
-  LEFT JOIN zip_codes z ON z.zip_code = p.zip_code AND z.country_iso_3 = p.country_code
+  JOIN zip_codes z ON z.zip_code = p.zip_code AND z.country_iso_3 = p.country_code
   LEFT JOIN cities ci ON ci.id = z.city_id
   WHERE p.id = p_seller_id;
-
-  -- If seller has county_id directly on profile, use it
-  -- Otherwise try to resolve from zip code
-  IF v_county_id IS NULL THEN
-    SELECT z.county_id, ci.state_id
-    INTO v_county_id, v_state_id
-    FROM profiles p
-    JOIN zip_codes z ON z.zip_code = p.zip_code AND z.country_iso_3 = p.country_code
-    LEFT JOIN cities ci ON ci.id = z.city_id
-    WHERE p.id = p_seller_id;
-  END IF;
 
   RETURN QUERY
   SELECT
