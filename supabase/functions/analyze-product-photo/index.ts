@@ -83,7 +83,8 @@ Rules:
 - Default to "produce" category if unsure`,
     });
 
-    const aiRes = await fetch(AI_URL, {
+    // Retry once on rate limit (429) or server error (503)
+    let aiRes = await fetch(AI_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -99,11 +100,33 @@ Rules:
       }),
     });
 
+    if (aiRes.status === 429 || aiRes.status === 503) {
+      console.warn(`Gemini ${aiRes.status}, retrying after 2s...`);
+      await new Promise((r) => setTimeout(r, 2000));
+      aiRes = await fetch(AI_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${AI_KEY}`,
+          "HTTP-Referer": "https://casagrown.com",
+          "X-Title": "CasaGrown Product Analysis",
+        },
+        body: JSON.stringify({
+          model: AI_MODEL,
+          messages: [{ role: "user", content }],
+          max_tokens: 300,
+          temperature: 0.3,
+        }),
+      });
+    }
+
     if (!aiRes.ok) {
       const errText = await aiRes.text();
       console.error("Gemini API error:", aiRes.status, errText);
-      return new Response(JSON.stringify({ error: "AI analysis failed" }), {
-        status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      // Return 200 with error body — HTTP 500 causes supabase.functions.invoke
+      // to put response in res.error instead of res.data, hiding the actual message
+      return new Response(JSON.stringify({ error: `Gemini ${aiRes.status}: ${errText.slice(0, 200)}` }), {
+        status: 200, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
       });
     }
 
@@ -118,7 +141,7 @@ Rules:
     } catch {
       console.warn("Failed to parse AI response:", raw);
       return new Response(JSON.stringify({ error: "Could not parse AI response" }), {
-        status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        status: 200, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
       });
     }
 
@@ -133,7 +156,7 @@ Rules:
   } catch (err: any) {
     console.error("analyze-product-photo error:", err);
     return new Response(JSON.stringify({ error: err.message || "Internal error" }), {
-      status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      status: 200, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
     });
   }
 });
