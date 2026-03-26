@@ -119,6 +119,12 @@ function NewProductPageInner() {
   const [aiAnalyzing, setAiAnalyzing] = useState(false)
   const [aiToast, setAiToast] = useState<string | null>(null)
 
+  // Quarantine check
+  const [quarantineWarning, setQuarantineWarning] = useState<{
+    pest_name: string; county_name: string; source_url?: string; reason?: string
+  } | null>(null)
+  const [quarantineChecking, setQuarantineChecking] = useState(false)
+
   // Inline booth setup (for users without a booth)
   const [hasBooth, setHasBooth] = useState<boolean | null>(null) // null = loading
   const [inlineDelivery, setInlineDelivery] = useState(true)
@@ -240,6 +246,42 @@ function NewProductPageInner() {
     }
     loadCategories()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Check quarantine when category changes
+  useEffect(() => {
+    if (!category || !authUser?.id) {
+      setQuarantineWarning(null)
+      return
+    }
+    let cancelled = false
+    const checkQuarantine = async () => {
+      setQuarantineChecking(true)
+      try {
+        const { data, error } = await supabase.rpc('check_quarantine_for_seller', {
+          p_seller_id: authUser.id,
+          p_category: category,
+        })
+        if (cancelled) return
+        if (data && data.length > 0) {
+          const q = data[0]
+          setQuarantineWarning({
+            pest_name: q.pest_name,
+            county_name: q.county_name || q.state_name || 'your area',
+            source_url: q.source_url,
+            reason: q.reason,
+          })
+        } else {
+          setQuarantineWarning(null)
+        }
+      } catch {
+        if (!cancelled) setQuarantineWarning(null)
+      } finally {
+        if (!cancelled) setQuarantineChecking(false)
+      }
+    }
+    checkQuarantine()
+    return () => { cancelled = true }
+  }, [category, authUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load user's community h3 index for Buzz posting
   useEffect(() => {
@@ -1187,10 +1229,45 @@ function NewProductPageInner() {
             </div>
           )}
 
+          {/* ===== Quarantine Warning Banner ===== */}
+          {quarantineWarning && (
+            <div style={{
+              backgroundColor: '#fef2f2', border: '2px solid #ef4444', borderRadius: 12,
+              padding: '16px 20px', marginBottom: 16,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                <span style={{ fontSize: 24, lineHeight: 1 }}>⚠️</span>
+                <div>
+                  <strong style={{ color: '#991b1b', fontSize: 15, display: 'block', marginBottom: 4 }}>
+                    Agricultural Quarantine — Cannot List
+                  </strong>
+                  <p style={{ color: '#b91c1c', fontSize: 13, margin: '0 0 8px 0', lineHeight: 1.5 }}>
+                    <strong>{category}</strong> is currently quarantined in <strong>{quarantineWarning.county_name}</strong> due
+                    to <strong>{quarantineWarning.pest_name}</strong>.
+                    You cannot list this product until the quarantine is lifted.
+                  </p>
+                  {quarantineWarning.reason && (
+                    <p style={{ color: '#7f1d1d', fontSize: 12, margin: '0 0 4px 0', fontStyle: 'italic' }}>
+                      {quarantineWarning.reason}
+                    </p>
+                  )}
+                  {quarantineWarning.source_url && (
+                    <a href={quarantineWarning.source_url} target="_blank" rel="noopener noreferrer"
+                       style={{ color: '#1d4ed8', fontSize: 12, textDecoration: 'underline' }}>
+                      View CDFA Notice →
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ===== Submit ===== */}
-          <button type="submit" className={styles.submitBtn} disabled={validating}>
+          <button type="submit" className={styles.submitBtn} disabled={validating || !!quarantineWarning}>
             {validating
               ? '⏳ Checking product...'
+              : quarantineWarning
+              ? '🚫 Quarantined — Cannot List'
               : isEditMode ? 'Save Changes' : 'Add Product'
             }
           </button>

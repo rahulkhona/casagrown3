@@ -5,7 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { YStack, XStack, Text, Button, Sheet, ScrollView, Separator } from 'tamagui'
 import { useMedia } from 'tamagui'
-import { Menu, LogOut, Users, ShoppingBag, Settings, Award, CreditCard, Receipt, ChevronRight, Store, FileSpreadsheet, DollarSign, BarChart } from '@tamagui/lucide-icons'
+import { Menu, LogOut, Users, ShoppingBag, Settings, Award, CreditCard, Receipt, ChevronRight, Store, FileSpreadsheet, DollarSign, BarChart, AlertTriangle } from '@tamagui/lucide-icons'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@casagrown/app/features/auth/auth-hook'
 import { colors } from '@casagrown/app/design-tokens'
@@ -48,6 +48,13 @@ const MENU_GROUPS: MenuGroup[] = [
       { label: 'Market Settings & Hours', path: '/market-operations' },
       { label: 'Market Availability', path: '/market-availability' },
       { label: 'Receipt Footers', path: '/receipt-footers' },
+    ]
+  },
+  {
+    title: 'QUARANTINE ZONES',
+    icon: AlertTriangle,
+    items: [
+      { label: 'Manage Quarantines', path: '/quarantine-zones' },
     ]
   },
   {

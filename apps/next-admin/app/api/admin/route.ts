@@ -81,6 +81,8 @@ const ALLOWED_TABLES = new Set([
   'user_settlements',
   'user_balances',
   'redemptions',
+  // Quarantine zones (agricultural pest quarantines)
+  'quarantine_zones',
 ])
 
 interface AdminRequestBody {
