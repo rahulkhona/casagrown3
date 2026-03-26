@@ -107,6 +107,26 @@ Always be encouraging and community-minded.`
     }
 
     // Call Gemini API
+    const isLocal = (Deno.env.get('SUPABASE_URL') ?? '').includes('localhost') ||
+      (Deno.env.get('SUPABASE_URL') ?? '').includes('127.0.0.1')
+
+    if (isLocal) {
+      // Skip Gemini in local development to preserve free tier quota
+      console.log('[LOCAL] Skipping Gemini — returning canned CasaBot reply')
+      const reply = "🌱 [Local dev] CasaBot AI is skipped locally to preserve API quota. In production, I'd give you great gardening advice!"
+      const supabaseService2 = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+      await supabaseService2.from('community_chat_messages').insert({
+        community_h3_index,
+        author_id: CASABOT_ID,
+        parent_id: message_id,
+        content: reply,
+        is_system: true,
+      })
+      return new Response(JSON.stringify({ success: true, reply }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     const geminiKey = Deno.env.get('GEMINI_API_KEY')
     if (!geminiKey) {
       console.error('GEMINI_API_KEY not set')

@@ -11,6 +11,8 @@
 const AI_KEY = Deno.env.get("GEMINI_API_KEY") ?? Deno.env.get("OPENROUTER_API_KEY") ?? "";
 const AI_URL = Deno.env.get("AI_URL") ?? "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 const AI_MODEL = Deno.env.get("AI_MODEL") ?? "gemini-3-flash-preview";
+const IS_LOCAL = (Deno.env.get("SUPABASE_URL") ?? "").includes("localhost") ||
+  (Deno.env.get("SUPABASE_URL") ?? "").includes("127.0.0.1");
 
 const VALID_CATEGORIES = [
   "produce", "flowers", "flower_arrangements",
@@ -31,6 +33,19 @@ Deno.serve(async (req: Request) => {
     if (!image) {
       return new Response(JSON.stringify({ error: "Missing image" }), {
         status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      });
+    }
+
+    // Skip Gemini API in local development to preserve free tier quota
+    if (IS_LOCAL) {
+      console.log("[LOCAL] Skipping Gemini — returning mock product analysis");
+      return new Response(JSON.stringify({
+        name: "Local Test Product",
+        category: "produce",
+        description: "AI analysis skipped in local development. Please fill in manually.",
+        suggested_unit: "each",
+      }), {
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
       });
     }
 

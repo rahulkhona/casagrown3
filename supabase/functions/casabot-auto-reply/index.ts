@@ -122,6 +122,16 @@ serve(async (req: Request) => {
     console.log(`[CasaBot Auto] Found ${gardeningQuestions.length} gardening questions to answer`)
 
     // Call Gemini for each question
+    const isLocal = (Deno.env.get('SUPABASE_URL') ?? '').includes('localhost') ||
+      (Deno.env.get('SUPABASE_URL') ?? '').includes('127.0.0.1')
+
+    if (isLocal) {
+      console.log(`[LOCAL] Skipping Gemini auto-replies — ${gardeningQuestions.length} questions would be answered in production`)
+      return new Response(JSON.stringify({ processed: 0, checked: gardeningQuestions.length, skipped_local: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     const geminiKey = Deno.env.get('GEMINI_API_KEY')
     if (!geminiKey) {
       return new Response(JSON.stringify({ error: 'AI not configured' }), {

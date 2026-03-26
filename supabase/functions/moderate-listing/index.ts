@@ -26,6 +26,7 @@ const AI_MODEL = Deno.env.get("AI_MODEL") ?? "gemini-3-flash-preview";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const IS_LOCAL = SUPABASE_URL.includes("localhost") || SUPABASE_URL.includes("127.0.0.1");
 
 // Price sanity ranges by category ($/unit rough bounds)
 const PRICE_RANGES: Record<string, [number, number]> = {
@@ -171,7 +172,10 @@ When in doubt, APPROVE. Only flag clear violations.`,
       reason: "",
     };
 
-    if (AI_KEY) {
+    if (IS_LOCAL) {
+      // Skip Gemini in local development to preserve free tier quota
+      console.log(`⏭️ [LOCAL] Skipping Gemini moderation for "${name}" — auto-approving`);
+    } else if (AI_KEY) {
       // Build message content — text + optional image
       const content: any[] = [];
 
