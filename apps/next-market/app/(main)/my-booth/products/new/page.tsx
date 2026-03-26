@@ -754,14 +754,43 @@ function NewProductPageInner() {
       const res = await supabase.functions.invoke('analyze-product-photo', {
         body: { image: photos[0] },
       })
+
+      // Check for invocation errors (503, network failures, etc.)
+      if (res.error) {
+        console.warn('AI autofill error:', res.error)
+        setAiToast('⚠️ AI analysis unavailable — please fill in manually.')
+        setAiAnalyzing(false)
+        setTimeout(() => setAiToast(null), 5000)
+        return
+      }
+
       const data = res.data as any
-      if (data?.name) setName(data.name)
-      if (data?.category && dbCategories.some(c => c.name === data.category)) setCategory(data.category)
-      if (data?.description) setDescription(data.description)
-      if (data?.suggested_unit) setUnit(data.suggested_unit)
+
+      // Check for API-level errors returned in the response body
+      if (data?.error) {
+        console.warn('AI autofill API error:', data.error)
+        setAiToast(`⚠️ ${data.error === 'AI not configured' ? 'AI service not configured' : 'AI analysis failed'} — please fill in manually.`)
+        setAiAnalyzing(false)
+        setTimeout(() => setAiToast(null), 5000)
+        return
+      }
+
+      // Check if we got usable data
+      if (!data?.name && !data?.description && !data?.category) {
+        setAiToast('⚠️ AI could not identify the product — please fill in manually.')
+        setAiAnalyzing(false)
+        setTimeout(() => setAiToast(null), 5000)
+        return
+      }
+
+      if (data.name) setName(data.name)
+      if (data.category && dbCategories.some(c => c.name === data.category)) setCategory(data.category)
+      if (data.description) setDescription(data.description)
+      if (data.suggested_unit) setUnit(data.suggested_unit)
       setAiToast('✨ AI filled in product details — review and adjust!')
       trackClick('ai_autofill_product', { category: data?.category })
-    } catch {
+    } catch (err: any) {
+      console.warn('AI autofill exception:', err)
       setAiToast('⚠️ AI analysis failed — please fill in manually.')
     }
     setAiAnalyzing(false)
