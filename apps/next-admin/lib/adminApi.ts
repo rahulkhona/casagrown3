@@ -4,6 +4,8 @@
  * the server-side /api/admin route, which holds the service_role key.
  */
 
+import { supabase } from '@casagrown/app/features/auth/auth-hook'
+
 interface AdminFilters {
   eq?: Record<string, any>
   neq?: Record<string, any>
@@ -22,25 +24,24 @@ interface AdminResponse<T = any> {
   count?: number
 }
 
-function getAccessToken(): string | null {
-  if (typeof window === 'undefined' || !window.localStorage) return null
-  // Supabase stores session in localStorage under sb-<ref>-auth-token
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i)
-    if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
-      try {
-        const val = JSON.parse(localStorage.getItem(key) || '{}')
-        return val.access_token || null
-      } catch { return null }
-    }
+/**
+ * Get the current access token via supabase.auth.getSession().
+ * This triggers auto-refresh if the token has expired, using the
+ * long-lived refresh token stored by the Supabase client.
+ */
+async function getAccessToken(): Promise<string | null> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token || null
+  } catch {
+    return null
   }
-  return null
 }
 
 async function adminFetch<T = any>(body: Record<string, any>): Promise<AdminResponse<T>> {
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    const token = getAccessToken()
+    const token = await getAccessToken()
     if (token) {
       headers['Authorization'] = `Bearer ${token}`
     }
@@ -50,6 +51,24 @@ async function adminFetch<T = any>(body: Record<string, any>): Promise<AdminResp
       headers,
       body: JSON.stringify(body),
     })
+
+    // Auto-logout on 401 — token is truly expired/invalid
+    if (res.status === 401) {
+      console.warn('[Admin] 401 Unauthorized — clearing session and redirecting to login')
+      try {
+        await supabase.auth.signOut({ scope: 'local' })
+        // Clear localStorage Supabase keys
+        if (typeof window !== 'undefined' && window.localStorage) {
+          Object.keys(window.localStorage)
+            .filter(k => k.startsWith('sb-') || k.startsWith('supabase.'))
+            .forEach(k => window.localStorage.removeItem(k))
+        }
+      } catch { /* ignore signout errors */ }
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login'
+      }
+      return { data: null, error: 'Session expired — please log in again' }
+    }
 
     const json = await res.json()
 
