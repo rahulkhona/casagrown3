@@ -8,7 +8,7 @@
 --        < supabase/tests/database/26_zone_pulse.test.sql
 -- ============================================================================
 BEGIN;
-SELECT plan(13);
+SELECT plan(14);
 
 -- ============================================================================
 -- 1. Schema: table and columns exist
@@ -18,8 +18,9 @@ SELECT has_column('zone_pulse', 'zone_id',      'zone_pulse: zone_id');
 SELECT has_column('zone_pulse', 'last_updated',  'zone_pulse: last_updated');
 
 -- ============================================================================
--- 2. Function exists
+-- 2. Functions exist
 -- ============================================================================
+SELECT has_function('h3_to_r5',         'h3_to_r5 helper should exist');
 SELECT has_function('check_zone_pulse', 'check_zone_pulse RPC should exist');
 
 -- ============================================================================
@@ -48,7 +49,7 @@ BEGIN
   SELECT home_community_h3_index INTO v_zone FROM profiles WHERE id = v_seller_id;
 
   -- Clear any existing zone_pulse entries for clean test
-  DELETE FROM zone_pulse WHERE zone_id = v_zone;
+  DELETE FROM zone_pulse WHERE zone_id = h3_to_r5(v_zone);
 END $$;
 
 -- Insert a product — should trigger zone_pulse upsert
@@ -59,7 +60,7 @@ FROM auth.users WHERE email = 'seller@test.local';
 SELECT ok(
   EXISTS(
     SELECT 1 FROM zone_pulse zp
-    JOIN profiles p ON p.home_community_h3_index = zp.zone_id
+    JOIN profiles p ON h3_to_r5(p.home_community_h3_index) = zp.zone_id
     JOIN auth.users au ON au.id = p.id
     WHERE au.email = 'seller@test.local'
   ),
@@ -78,7 +79,7 @@ SELECT ok(
   (
     SELECT zp.last_updated > (now() - interval '5 seconds')
     FROM zone_pulse zp
-    JOIN profiles p ON p.home_community_h3_index = zp.zone_id
+    JOIN profiles p ON h3_to_r5(p.home_community_h3_index) = zp.zone_id
     JOIN auth.users au ON au.id = p.id
     WHERE au.email = 'seller@test.local'
   ),
@@ -97,7 +98,7 @@ SELECT ok(
   (
     SELECT zp.last_updated > (now() - interval '5 seconds')
     FROM zone_pulse zp
-    JOIN profiles p ON p.home_community_h3_index = zp.zone_id
+    JOIN profiles p ON h3_to_r5(p.home_community_h3_index) = zp.zone_id
     JOIN auth.users au ON au.id = p.id
     WHERE au.email = 'seller@test.local'
   ),
@@ -110,7 +111,7 @@ SELECT ok(
 SELECT ok(
   (
     SELECT check_zone_pulse(ARRAY[
-      (SELECT home_community_h3_index FROM profiles
+      (SELECT h3_to_r5(home_community_h3_index) FROM profiles
        JOIN auth.users au ON au.id = profiles.id
        WHERE au.email = 'seller@test.local')
     ]) > '1970-01-01'::timestamptz
@@ -137,7 +138,7 @@ ON CONFLICT (zone_id) DO UPDATE SET last_updated = '2020-01-01'::timestamptz;
 SELECT ok(
   (
     SELECT check_zone_pulse(ARRAY[
-      (SELECT home_community_h3_index FROM profiles
+      (SELECT h3_to_r5(home_community_h3_index) FROM profiles
        JOIN auth.users au ON au.id = profiles.id
        WHERE au.email = 'seller@test.local'),
       'test_old_zone'

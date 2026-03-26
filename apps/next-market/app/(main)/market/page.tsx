@@ -184,14 +184,21 @@ function BrowseMarketPageInner() {
   }, [user, addressResolved]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch community member count for pioneer banner (independent of address resolution)
+  // Guard: use ref to prevent duplicate dismiss checks. PioneerBanner's own useEffect
+  // sets the dismiss key on mount (impression tracking), so if this effect fires a second
+  // time (e.g., user ref changes from auth listener), it would see the key and call
+  // setShowPioneerBanner(false), hiding the banner immediately after it rendered.
+  const pioneerFetchedRef = useRef(false)
   useEffect(() => {
     if (!user) return
+    if (pioneerFetchedRef.current) return // already fetched, skip re-checking dismiss key
     supabase.from('profiles').select('home_community_h3_index')
       .eq('id', user.id).single()
       .then(({ data, error }) => {
         console.log('[PioneerBanner] Profile fetch:', { h3: data?.home_community_h3_index, error: error?.message })
         if (data?.home_community_h3_index) {
-          // Check if previously dismissed
+          pioneerFetchedRef.current = true
+          // Check if previously dismissed (only on first fetch)
           try {
             if (localStorage.getItem(`pioneer_banner_dismissed_${data.home_community_h3_index}`)) {
               setShowPioneerBanner(false)

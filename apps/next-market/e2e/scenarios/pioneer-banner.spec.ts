@@ -8,41 +8,65 @@ test.describe('Pioneer Banner E2E', () => {
     // Beth is in 89283470c2fffff, which has ~5 members in seed data
     const page = await loginAsUser(browser, 'beth')
     
-    // Clear localStorage to ensure banner hasn't been dismissed by a previous test
-    await page.evaluate(() => localStorage.clear())
+    // Remove the known dismiss key BEFORE navigating to market for the first time.
+    // The PioneerBanner component auto-sets this key on mount (impression tracking),
+    // so we need to ensure it's cleared before the first market visit.
+    // Also remove it from the reload page that loginAsUser ends on.
+    await page.evaluate(() => {
+      const keysToRemove: string[] = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key && key.startsWith('pioneer_banner_dismissed_')) {
+          keysToRemove.push(key)
+        }
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k))
+    })
     
+    // Navigate to market — this is the FIRST market visit, so the PioneerBanner
+    // should mount fresh, check localStorage (key is cleared), and start animating in
     await navigateToMarket(page)
     
-    // Banner has a 500ms delay before animating in
-    await page.waitForTimeout(1000)
+    // Banner depends on: auth → profile fetch (home_community_h3_index) → community member
+    // count RPC → React state update → PioneerBanner mount → 500ms animation delay.
+    // Give it generous time for the full async chain.
     
-    // Assert the banner text is visible
+    // Assert the banner text is visible (generous timeout for full async chain)
     const bannerHeading = page.getByText(/Welcome to CasaGrown!/i)
-    await expect(bannerHeading).toBeVisible()
+    await expect(bannerHeading).toBeVisible({ timeout: 15000 })
     
     const countText = page.getByText(/founding members/i)
-    await expect(countText).toBeVisible()
+    await expect(countText).toBeVisible({ timeout: 5000 })
     
-    // Assert the Invite and Buzz buttons exist
-    await expect(page.getByRole('button', { name: /Invite Neighbors/i })).toBeVisible()
-    await expect(page.getByRole('link', { name: /Visit Buzz/i })).toBeVisible()
+    // Assert the Invite and Buzz buttons exist (use .first() since market closed section also has Invite button)
+    await expect(page.getByRole('button', { name: /Invite Neighbors/i }).first()).toBeVisible()
+    await expect(page.getByRole('link', { name: /Visit Buzz/i }).first()).toBeVisible()
     
-    // Dismiss the banner
-    const dismissButton = page.getByRole('button', { name: '✕' })
-    await dismissButton.click()
+    // Dismiss the banner via the Dismiss button (aria-label)
+    // Use force:true because the fixed navbar partially overlaps the banner
+    const dismissButton = page.locator('button[aria-label="Dismiss"]')
+    await dismissButton.click({ force: true })
     
-    // Wait for dismiss animation (300ms)
-    await page.waitForTimeout(500)
-    
-    // Assert it is no longer visible
-    await expect(bannerHeading).not.toBeVisible()
-    
-    // Refresh the page
-    await page.reload()
+    // Wait for full dismiss chain: slideOut animation (300ms) → setTimeout(onDismiss, 300ms)
+    // → parent state update → React re-render removes element from DOM
     await page.waitForTimeout(1000)
     
-    // Verify it stays dismissed (localStorage check)
-    await expect(bannerHeading).not.toBeVisible()
+    // Verify the dismiss key is set in localStorage
+    const dismissed = await page.evaluate(() => {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key && key.startsWith('pioneer_banner_dismissed_')) return key
+      }
+      return null
+    })
+    expect(dismissed).toBeTruthy()
+    
+    // Refresh the page and verify banner stays dismissed
+    await page.reload({ waitUntil: 'networkidle' })
+    await page.waitForTimeout(2000)
+    
+    // After reload, banner should NOT appear (dismiss key in localStorage)
+    await expect(bannerHeading).not.toBeVisible({ timeout: 3000 })
     
     await page.context().close()
   })

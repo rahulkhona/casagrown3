@@ -596,24 +596,25 @@ describe("Feedback Service", () => {
     // deleteFeedback
     // =========================================================================
     describe("deleteFeedback", () => {
-        it("should delete ticket and return true on success", async () => {
-            const chain = chainable({ data: null, error: null });
-            (supabase.from as any).mockReturnValue(chain);
+        it("should delete ticket and return success on success", async () => {
+            (supabase.rpc as any).mockResolvedValue({ data: null, error: null });
 
             const result = await deleteFeedback("ticket-1");
-            expect(result).toBe(true);
-            expect(supabase.from).toHaveBeenCalledWith("user_feedback");
+            expect(result).toEqual({ success: true });
+            expect(supabase.rpc).toHaveBeenCalledWith("staff_delete_feedback", {
+                p_feedback_id: "ticket-1",
+            });
         });
 
-        it("should return false on error", async () => {
-            const chain = chainable({
+        it("should return error on failure", async () => {
+            (supabase.rpc as any).mockResolvedValue({
                 data: null,
-                error: { message: "Delete error" },
+                error: { message: "Update error" },
             });
-            (supabase.from as any).mockReturnValue(chain);
 
             const result = await deleteFeedback("ticket-1");
-            expect(result).toBe(false);
+            expect(result.success).toBe(false);
+            expect(result.error).toBeDefined();
         });
     });
 

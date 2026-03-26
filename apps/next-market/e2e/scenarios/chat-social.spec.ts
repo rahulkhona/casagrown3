@@ -146,26 +146,16 @@ test.describe('Chat & Social Flows', () => {
       `DELETE FROM market_followers WHERE follower_id = 'b2222222-2222-2222-2222-222222222222'`
     )
 
-    // Step 1: Login as Beth, browse market, click into a booth
+    // Step 1: Login as Beth and navigate directly to a booth
     const bethPage = await loginAsUser(browser, 'beth')
-    await navigateToMarket(bethPage)
-    await assertPageHealthy(bethPage)
 
-    // Find a booth link
-    const boothLinks = bethPage.locator('a[href*="/market/booth/"]')
-    const boothCount = await boothLinks.count()
+    // Get a booth ID directly from DB (market-state independent)
+    const boothId = execSql(
+      `SELECT id FROM market_booths WHERE owner_id != 'b2222222-2222-2222-2222-222222222222' LIMIT 1`
+    )
+    if (!boothId) { console.log('[FOLLOW] No booths found, skipping'); test.skip(); return }
 
-    if (boothCount === 0) {
-      // Market may be closed — test with direct booth URL
-      const boothId = execSql(
-        `SELECT id FROM market_booths LIMIT 1`
-      )
-      if (!boothId) { console.log('[FOLLOW] No booths found, skipping'); test.skip(); return }
-      await navigateTo(bethPage, `/market/booth/${boothId}`)
-    } else {
-      await boothLinks.first().click()
-      await bethPage.waitForLoadState('networkidle')
-    }
+    await navigateTo(bethPage, `/market/booth/${boothId}`)
     await assertPageHealthy(bethPage)
 
     // Step 2: Click Follow button

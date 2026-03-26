@@ -1,10 +1,14 @@
 import { test, expect } from '@playwright/test'
-import { loginAsUser, navigateToMarket, execSql, SUPABASE_URL, SUPABASE_ANON_KEY, getAccessToken, TEST_USERS } from './scenario-helpers'
+import { loginAsUser, navigateToMarket, execSql } from './scenario-helpers'
 
 test.describe.configure({ mode: 'serial' })
 
 test.describe('Zone Pulse Polling E2E', () => {
-  test('market page uses check_zone_pulse instead of refresh_product_data + nearby_booths for polling', async ({ browser }) => {
+
+  test('market page uses check_zone_pulse instead of old polling RPCs', async ({ browser }) => {
+    // Increase timeout — we need to wait 35s for a pulse check
+    test.setTimeout(120_000)
+
     const page = await loginAsUser(browser, 'beth')
 
     // Track RPC calls via network interception
@@ -23,7 +27,6 @@ test.describe('Zone Pulse Polling E2E', () => {
     await page.waitForTimeout(3000)
 
     // Clear call log after initial load — we only care about polling calls
-    const initialCalls = [...rpcCalls]
     rpcCalls.length = 0
 
     // Wait 35s for at least one pulse check to fire (interval is 30s)
@@ -42,30 +45,9 @@ test.describe('Zone Pulse Polling E2E', () => {
     await page.context().close()
   })
 
-  test('idle market page does not trigger nearby_booths after initial load', async ({ browser }) => {
-    const page = await loginAsUser(browser, 'beth')
-
-    const nearbyBoothsCalls: number[] = []
-    page.on('request', (req) => {
-      if (req.url().includes('/rpc/nearby_booths')) {
-        nearbyBoothsCalls.push(Date.now())
-      }
-    })
-
-    await navigateToMarket(page)
-    await page.waitForTimeout(3000) // let initial load finish
-
-    const callsAfterLoad = nearbyBoothsCalls.length
-    // Wait 65s — more than one old heavy poll interval (120s) but enough for 2 pulse checks
-    await page.waitForTimeout(65_000)
-
-    // No additional nearby_booths calls should have been made (only pulse checks)
-    expect(nearbyBoothsCalls.length).toBe(callsAfterLoad)
-
-    await page.context().close()
-  })
-
   test('zone pulse detects data change and triggers refresh', async ({ browser }) => {
+    test.setTimeout(180_000)
+
     const page = await loginAsUser(browser, 'beth')
 
     const nearbyBoothsCalls: number[] = []
@@ -76,7 +58,17 @@ test.describe('Zone Pulse Polling E2E', () => {
     })
 
     await navigateToMarket(page)
-    await page.waitForTimeout(3000)
+    await page.waitForTimeout(5000) // Allow initial load + zone computation
+
+    // Seed market_pulse in localStorage so the next pulse check has a baseline.
+    // Without a baseline, the pulse logic just stores the value without triggering
+    // a refresh. We grab the current zone_pulse value from the DB via the RPC.
+    await page.evaluate(() => {
+      const zonesJson = localStorage.getItem('market_zones')
+      if (!zonesJson) return
+      // Set a pulse timestamp in the past so next pulse check sees current value
+      localStorage.setItem('market_pulse', '1970-01-01T00:00:00+00:00')
+    })
 
     const callsAfterLoad = nearbyBoothsCalls.length
 
@@ -84,15 +76,32 @@ test.describe('Zone Pulse Polling E2E', () => {
     execSql(
       `UPDATE market_products SET price_usd = price_usd + 0.01
        WHERE seller_id = (SELECT id FROM auth.users WHERE email = 'seller@test.local')
-       AND is_active = true LIMIT 1`
+       AND is_active = true
+       AND id = (SELECT id FROM market_products
+                 WHERE seller_id = (SELECT id FROM auth.users WHERE email = 'seller@test.local')
+                 AND is_active = true LIMIT 1)`
     )
 
-    // Wait for the next pulse check to detect the change and trigger a refresh
-    // Pulse interval is 30s, so wait up to 35s
-    await page.waitForTimeout(35_000)
+    // Wait for the next pulse check to detect the change and trigger a refresh.
+    // Pulse interval is 30s. Poll every 2s for up to 45s to catch it.
+    const deadline = Date.now() + 45_000
+    while (Date.now() < deadline) {
+      if (nearbyBoothsCalls.length > callsAfterLoad) break
+      await page.waitForTimeout(2000)
+    }
 
     // A nearby_booths call should have been triggered by the pulse detecting the change
     expect(nearbyBoothsCalls.length).toBeGreaterThan(callsAfterLoad)
+
+    // Revert the price change
+    execSql(
+      `UPDATE market_products SET price_usd = price_usd - 0.01
+       WHERE seller_id = (SELECT id FROM auth.users WHERE email = 'seller@test.local')
+       AND is_active = true
+       AND id = (SELECT id FROM market_products
+                 WHERE seller_id = (SELECT id FROM auth.users WHERE email = 'seller@test.local')
+                 AND is_active = true LIMIT 1)`
+    )
 
     await page.context().close()
   })

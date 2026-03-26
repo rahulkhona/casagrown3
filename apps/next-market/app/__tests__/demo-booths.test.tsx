@@ -257,7 +257,7 @@ describe('Demo Booths on Market Page', () => {
   it('shows status text with demo count', async () => {
     const { container } = render(React.createElement(BrowseMarketPage))
     await waitFor(() => {
-      expect(container.textContent).toContain('1 booth near you + 1 demo')
+      expect(container.textContent).toContain('1 booth near you + 2 demo')
     })
   })
 

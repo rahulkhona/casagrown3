@@ -260,17 +260,29 @@ export async function dismissLegalConsent(page: Page): Promise<void> {
     // Check for the "Accept & Continue" button
     const acceptBtn = page.locator('button:has-text("Accept"), button:has-text("accept"), button:has-text("Continue")')
     if (await acceptBtn.first().isVisible({ timeout: 1500 }).catch(() => false)) {
-      // Click any checkboxes first (terms + privacy toggles)
+      // Click any unchecked checkboxes first (terms + privacy toggles)
       const checkboxes = page.locator('input[type="checkbox"]')
       const checkboxCount = await checkboxes.count()
       for (let i = 0; i < checkboxCount; i++) {
         if (!await checkboxes.nth(i).isChecked()) {
           await checkboxes.nth(i).check({ force: true })
+          await page.waitForTimeout(300)
         }
       }
+      // Wait for button to become enabled after checking both boxes
+      await page.waitForTimeout(500)
+      // Click the accept button (force: true to bypass any disabled state)
       await acceptBtn.first().click({ force: true })
       await page.waitForTimeout(1000)
     }
+  } catch {}
+  // Always set localStorage flags as fallback to prevent future overlays
+  try {
+    await page.evaluate(() => {
+      localStorage.setItem('casagrown_legal_consent', 'true')
+      localStorage.setItem('terms_accepted', 'true')
+      localStorage.setItem('privacy_accepted', 'true')
+    })
   } catch {}
 }
 

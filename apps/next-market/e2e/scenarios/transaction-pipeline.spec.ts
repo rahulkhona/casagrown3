@@ -30,6 +30,7 @@ import {
   getAccessToken,
   callRpc,
   preAuthAllUsers,
+  execSql,
   SUPABASE_URL,
   SUPABASE_ANON_KEY,
   TEST_USERS,
@@ -121,6 +122,10 @@ test.describe('Transaction Pipeline — Full Financial Lifecycle', () => {
 
   test.beforeAll(async () => {
     await clearMailpit()
+    // Ensure all test users have accepted ToS (prevents legal consent overlay blocking navigation)
+    execSql(
+      `UPDATE profiles SET tos_accepted_at = COALESCE(tos_accepted_at, now()) WHERE id IN (SELECT id FROM auth.users WHERE email IN ('seller@test.local','buyer@test.local','maria@test.local','raj@test.local','chen@test.local','sofia@test.local','james@test.local'))`
+    )
     // Pre-authenticate all users via API
     Object.assign(tokens, await preAuthAllUsers())
   })

@@ -8,17 +8,43 @@ CREATE TABLE IF NOT EXISTS zone_pulse (
   last_updated TIMESTAMPTZ DEFAULT now()
 );
 
--- 2. Trigger function: upsert zone_pulse on booth/product change
+-- 2. Helper: convert any H3 cell index to its resolution-5 parent.
+--    Profiles store resolution-9 indices; the client polls with resolution-5
+--    zone IDs (computed via h3-js). Pure bit manipulation, no extension needed.
+CREATE OR REPLACE FUNCTION h3_to_r5(h3_index TEXT)
+RETURNS TEXT LANGUAGE plpgsql IMMUTABLE AS $$
+DECLARE
+  val BIGINT;
+  res INT;
+  r5_val BIGINT;
+  -- 10 unused child digits (res 6–15) × 3 bits = 30 bits, all set to 1
+  unused_bits CONSTANT BIGINT := (1::bigint << 30) - 1;
+BEGIN
+  val := ('x' || lpad(h3_index, 16, '0'))::bit(64)::bigint;
+  res := ((val >> 52) & 15)::int;
+  IF res <= 5 THEN RETURN h3_index; END IF;
+
+  r5_val := val & ~(15::bigint << 52);   -- clear resolution bits
+  r5_val := r5_val | (5::bigint << 52);  -- set resolution to 5
+  r5_val := r5_val | unused_bits;        -- fill child digits 6-15 with 7
+
+  RETURN lower(to_hex(r5_val));
+END;
+$$;
+
+-- 3. Trigger function: upsert zone_pulse on booth/product change.
+--    Derives the H3 zone from the seller's profile, then converts to
+--    resolution 5 so it matches the client-side h3-js zone IDs.
 CREATE OR REPLACE FUNCTION update_zone_pulse()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE v_zone TEXT;
 BEGIN
   IF TG_TABLE_NAME = 'market_products' THEN
-    SELECT b.community_h3_index INTO v_zone
-    FROM booths b WHERE b.id = COALESCE(NEW.booth_id, OLD.booth_id);
+    SELECT h3_to_r5(pr.home_community_h3_index) INTO v_zone
+    FROM profiles pr WHERE pr.id = COALESCE(NEW.seller_id, OLD.seller_id);
   ELSE
-    -- booths table: use community_h3_index directly
-    v_zone := COALESCE(NEW.community_h3_index, OLD.community_h3_index);
+    SELECT h3_to_r5(pr.home_community_h3_index) INTO v_zone
+    FROM profiles pr WHERE pr.id = COALESCE(NEW.owner_id, OLD.owner_id);
   END IF;
 
   IF v_zone IS NOT NULL THEN
@@ -29,9 +55,9 @@ BEGIN
   RETURN COALESCE(NEW, OLD);
 END; $$;
 
--- 3. Attach triggers
+-- 4. Attach triggers to actual table names
 CREATE TRIGGER trg_zone_pulse_booths
-  AFTER INSERT OR UPDATE OR DELETE ON booths
+  AFTER INSERT OR UPDATE OR DELETE ON market_booths
   FOR EACH ROW EXECUTE FUNCTION update_zone_pulse();
 
 CREATE TRIGGER trg_zone_pulse_products
