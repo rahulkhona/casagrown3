@@ -1,6 +1,7 @@
 -- ============================================================================
 -- Migration: Add quarantine filtering to nearby_booths
 -- Excludes products in quarantined categories based on SELLER's county.
+-- Must match the EXACT signature of the existing nearby_booths function.
 -- ============================================================================
 
 SET search_path TO public, extensions;
@@ -14,7 +15,8 @@ CREATE OR REPLACE FUNCTION nearby_booths(
   min_price NUMERIC DEFAULT NULL,
   max_price NUMERIC DEFAULT NULL,
   category_filter TEXT DEFAULT NULL,
-  buyer_state_code TEXT DEFAULT NULL
+  buyer_state_code TEXT DEFAULT NULL,
+  exclude_demos BOOLEAN DEFAULT false
 )
 RETURNS TABLE(
   booth_id UUID, owner_id UUID, booth_name TEXT, description TEXT,
@@ -26,18 +28,39 @@ RETURNS TABLE(
   matched_products JSONB,
   seller_avatar_url TEXT,
   seller_avg_rating NUMERIC,
-  seller_rating_count INTEGER
+  seller_rating_count INTEGER,
+  is_demo BOOLEAN
 ) LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
   user_point geometry;
   v_never_expire BOOLEAN;
+  v_min_total INTEGER;
+  v_real_count INTEGER;
+  v_is_blocked_state BOOLEAN;
+  v_tmpl RECORD;
+  v_demo_products JSONB;
+  v_jitter_lat DOUBLE PRECISION;
+  v_jitter_lng DOUBLE PRECISION;
+  v_demo_dist DOUBLE PRECISION;
+  v_demo_rating NUMERIC;
+  v_demo_rating_count INTEGER;
 BEGIN
   user_point := ST_SetSRID(ST_MakePoint(user_lng, user_lat), 4326);
 
-  -- Check products_never_expire from typed settings
-  SELECT COALESCE(ms.products_never_expire, false) INTO v_never_expire
+  SELECT COALESCE(ms.products_never_expire, false), COALESCE(ms.demo_booth_min_total, 12)
+    INTO v_never_expire, v_min_total
   FROM market_settings ms WHERE ms.id = true;
 
+  v_is_blocked_state := false;
+  IF buyer_state_code IS NOT NULL THEN
+    SELECT EXISTS(
+      SELECT 1 FROM market_state_blocks msb
+      JOIN states s ON s.id = msb.state_id
+      WHERE s.code = buyer_state_code
+    ) INTO v_is_blocked_state;
+  END IF;
+
+  -- ── Real booths ──
   RETURN QUERY
   WITH booth_distances AS (
     SELECT b.id, b.owner_id, b.name, b.description, b.decorative_theme, b.header_image_url,
@@ -133,12 +156,78 @@ BEGIN
     COALESCE(p.prods, '[]'::jsonb) AS matched_products,
     pr.avatar_url AS seller_avatar_url,
     pr.seller_avg_rating,
-    pr.seller_rating_count
+    pr.seller_rating_count,
+    false AS is_demo
   FROM filtered f
   LEFT JOIN products p ON p.seller_id = f.owner_id
   LEFT JOIN profiles pr ON pr.id = f.owner_id
-  WHERE (product_search IS NULL AND category_filter IS NULL AND min_price IS NULL AND max_price IS NULL)
-    OR jsonb_array_length(COALESCE(p.prods, '[]'::jsonb)) > 0
+  -- ONLY show booths that have at least 1 matching active product!
+  WHERE jsonb_array_length(COALESCE(p.prods, '[]'::jsonb)) > 0
   ORDER BY f.dist_miles;
+
+  GET DIAGNOSTICS v_real_count = ROW_COUNT;
+
+  -- ── Demo booths: fill remaining slots (ONLY if not excluded via active polling) ──
+  IF NOT exclude_demos AND v_real_count < v_min_total THEN
+    FOR v_tmpl IN
+      SELECT * FROM demo_booth_templates ORDER BY random() LIMIT (v_min_total - v_real_count)
+    LOOP
+      v_jitter_lat := user_lat + (random() * 0.01 - 0.005);
+      v_jitter_lng := user_lng + (random() * 0.01 - 0.005);
+      v_demo_dist := ROUND((random() * 2.5 + 0.2)::numeric, 1)::DOUBLE PRECISION;
+
+      v_demo_rating := ROUND((v_tmpl.rating_min + random() * (v_tmpl.rating_max - v_tmpl.rating_min))::numeric, 1);
+      v_demo_rating_count := v_tmpl.rating_count_min + floor(random() * (v_tmpl.rating_count_max - v_tmpl.rating_count_min + 1))::integer;
+
+      SELECT COALESCE(jsonb_agg(prod_obj), '[]'::jsonb) INTO v_demo_products
+      FROM (
+        SELECT jsonb_build_object(
+          'id', 'demo-' || dpc.id,
+          'name', dpc.name,
+          'description', dpc.description,
+          'price_usd', CASE WHEN v_is_blocked_state THEN 0.00 ELSE dpc.price_usd END,
+          'unit', dpc.unit,
+          'photo', dpc.photo_url,
+          'inventory', (floor(random() * 20) + 5)::int,
+          'category', dpc.category,
+          'harvested_at', NULL
+        ) AS prod_obj
+        FROM demo_product_catalog dpc
+        WHERE (category_filter IS NULL OR dpc.category = category_filter)
+          AND (product_search IS NULL OR dpc.name ILIKE '%' || product_search || '%')
+          AND (min_price IS NULL OR (CASE WHEN v_is_blocked_state THEN 0 ELSE dpc.price_usd END) >= min_price)
+          AND (max_price IS NULL OR (CASE WHEN v_is_blocked_state THEN 0 ELSE dpc.price_usd END) <= max_price)
+        ORDER BY random()
+        LIMIT (4 + floor(random() * 3))::int
+      ) sub;
+
+      IF jsonb_array_length(v_demo_products) = 0 THEN
+        CONTINUE;
+      END IF;
+
+      booth_id := gen_random_uuid();
+      owner_id := gen_random_uuid();
+      booth_name := v_tmpl.booth_name;
+      description := v_tmpl.description;
+      decorative_theme := v_tmpl.decorative_theme;
+      header_image_url := NULL;
+      offers_delivery := true;
+      offers_pickup := false;
+      delivery_radius_miles := v_tmpl.delivery_radius_miles;
+      pickup_address := 'Your neighborhood';
+      delivery_windows := '["Sat 9am-12pm","Sun 10am-1pm"]'::jsonb;
+      pickup_windows := NULL;
+      distance_miles := v_demo_dist;
+      product_count := jsonb_array_length(v_demo_products)::bigint;
+      matched_products := v_demo_products;
+      seller_avatar_url := NULL;
+      seller_avg_rating := v_demo_rating;
+      seller_rating_count := v_demo_rating_count;
+      is_demo := true;
+      RETURN NEXT;
+    END LOOP;
+  END IF;
+
+  RETURN;
 END;
 $$;
