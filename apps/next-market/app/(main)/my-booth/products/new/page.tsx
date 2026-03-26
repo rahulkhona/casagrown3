@@ -745,22 +745,35 @@ function NewProductPageInner() {
     setBuzzPosting(false)
   }
 
-  // AI auto-fill from photo
+  // AI auto-fill from photo — calls analyze-product-photo edge function
   const handleAiAutoFill = async () => {
     if (photos.length === 0) return
     setAiAnalyzing(true)
     setAiToast(null)
-    try {
-      const res = await supabase.functions.invoke('analyze-product-photo', {
+
+    const tryInvoke = async (): Promise<{ data: any; error: any }> => {
+      return supabase.functions.invoke('analyze-product-photo', {
         body: { image: photos[0] },
       })
+    }
 
-      // Check for invocation errors (503, network failures, etc.)
+    try {
+      let res = await tryInvoke()
+
+      // Auto-retry once on invocation error (cold start, transient 503, etc.)
       if (res.error) {
-        console.warn('AI autofill error:', res.error)
-        setAiToast('⚠️ AI analysis unavailable — please fill in manually.')
+        console.warn('AI autofill first attempt failed, retrying:', res.error?.message || res.error)
+        await new Promise(r => setTimeout(r, 1500))
+        res = await tryInvoke()
+      }
+
+      // Check for invocation errors after retry
+      if (res.error) {
+        const errMsg = res.error?.message || res.error?.name || 'Unknown error'
+        console.warn('AI autofill error after retry:', errMsg, res.error)
+        setAiToast(`⚠️ AI analysis unavailable (${errMsg}) — please fill in manually.`)
         setAiAnalyzing(false)
-        setTimeout(() => setAiToast(null), 5000)
+        setTimeout(() => setAiToast(null), 6000)
         return
       }
 
@@ -791,10 +804,10 @@ function NewProductPageInner() {
       trackClick('ai_autofill_product', { category: data?.category })
     } catch (err: any) {
       console.warn('AI autofill exception:', err)
-      setAiToast('⚠️ AI analysis failed — please fill in manually.')
+      setAiToast(`⚠️ AI analysis failed (${err?.message || 'network error'}) — please fill in manually.`)
     }
     setAiAnalyzing(false)
-    setTimeout(() => setAiToast(null), 5000)
+    setTimeout(() => setAiToast(null), 6000)
   }
 
   // Category display names
