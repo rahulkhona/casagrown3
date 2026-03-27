@@ -370,8 +370,7 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
                   <h3 className={styles.productName}>{p.name}</h3>
                   {p.description && <p className={styles.productDesc}>{p.description}</p>}
                   <p className={styles.productPrice}>
-                    {formatUsd(p.price_usd)}
-                    <span className={styles.productUnit}>/ {p.unit}</span>
+                    {p.price_usd === 0 ? <span style={{ color: '#16a34a', fontWeight: 'bold' }}>Free</span> : <>{formatUsd(p.price_usd)}<span className={styles.productUnit}>/ {p.unit}</span></>}
                   </p>
                   <p className={styles.productQty}>
                     {p.inventory > 3 ? `${p.inventory} available` : p.inventory > 0 ? `Only ${p.inventory} left!` : 'Sold out'}

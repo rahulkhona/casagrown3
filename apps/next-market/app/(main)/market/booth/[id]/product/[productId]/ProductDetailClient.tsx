@@ -279,8 +279,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
             </div>
           )}
           <p className={styles.productPrice}>
-            <span className="price price-large">{formatUsd(product.price_usd)}</span>
-            <span className={styles.unit}>/ {product.unit}</span>
+            {product.price_usd === 0 ? <span className="price price-large" style={{ color: '#16a34a' }}>Free</span> : <><span className="price price-large">{formatUsd(product.price_usd)}</span><span className={styles.unit}>/ {product.unit}</span></>}
           </p>
           {product.description && <p className={styles.productDesc}>{product.description}</p>}
 
@@ -301,7 +300,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                 style={{ width: '100%', padding: '10px 20px', fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
                 onClick={async () => {
                   const url = typeof window !== 'undefined' ? window.location.href : ''
-                  const text = `Hey! Check out my fresh ${product.name} on CasaGrown Market 🌱\n\n${formatUsd(product.price_usd)} / ${product.unit}\n\n🛒 ${url}`
+                  const text = `Hey! Check out my fresh ${product.name} on CasaGrown Market 🌱\n\n${product.price_usd === 0 ? 'Free' : formatUsd(product.price_usd) + ' / ' + product.unit}\n\n🛒 ${url}`
                   if (navigator.share) {
                     try { await navigator.share({ title: `${product.name} on CasaGrown`, text, url }) } catch {}
                   } else {
@@ -427,7 +426,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                     ? '🔒 Closed'
                     : product.inventory === 0
                       ? 'Sold Out'
-                      : `⚡ Buy Now — ${formatUsd(product.price_usd)} / ${product.unit}`}
+                      : `⚡ ${product.price_usd === 0 ? 'Buy Now — Free' : `Buy Now — ${formatUsd(product.price_usd)} / ${product.unit}`}`}
                 </button>
 
                 {!isClosed && product.inventory > 0 && (
@@ -495,7 +494,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                     >
                       {existingCartQty > 0
                         ? `In Cart (${existingCartQty}) — Update to ${cartQty}`
-                        : `🛒 Add to Cart — ${formatUsd(product.price_usd * cartQty)}`}
+                        : `🛒 Add to Cart — ${product.price_usd === 0 ? 'Free' : formatUsd(product.price_usd * cartQty)}`}
                     </button>
 
                     {existingCartQty > 0 && (

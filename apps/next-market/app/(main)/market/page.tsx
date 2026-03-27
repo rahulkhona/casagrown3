@@ -807,7 +807,7 @@ function BrowseMarketPageInner() {
                             <div className={styles.productInfo}>
                               <span className={styles.productName}>{p.name}</span>
                               <div className={styles.productMeta}>
-                                <span className={styles.productPrice}>{formatUsd(p.price_usd)}<span className={styles.unit}>/{p.unit}</span></span>
+                                <span className={styles.productPrice}>{p.price_usd === 0 ? <span style={{ color: '#16a34a', fontWeight: 'bold' }}>Free</span> : <>{formatUsd(p.price_usd)}<span className={styles.unit}>/{p.unit}</span></>}</span>
                                 <span className={styles.qty}>{p.inventory > 0 ? `${p.inventory} avail` : 'Sold out'}</span>
                               </div>
                             </div>

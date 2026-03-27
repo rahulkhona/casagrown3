@@ -77,6 +77,7 @@ function NewProductPageInner() {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [priceUsd, setPriceUsd] = useState('')
+  const [isFree, setIsFree] = useState(false)
   const [unit, setUnit] = useState('each')
   const [quantity, setQuantity] = useState('')
   const [category, setCategory] = useState('')
@@ -210,7 +211,8 @@ function NewProductPageInner() {
       if (!data) { router.push('/my-booth'); return }
       setName(data.name || '')
       setDescription(data.description || '')
-      setPriceUsd(String(data.price_usd || ''))
+      setPriceUsd(data.price_usd === 0 ? '0' : String(data.price_usd || ''))
+      setIsFree(data.price_usd === 0)
       setUnit(data.unit || 'each')
       setQuantity(String(data.inventory || ''))
       setCategory(data.category || '')
@@ -1030,8 +1032,28 @@ function NewProductPageInner() {
             )}
             <div className={styles.row2}>
               <div className={styles.field}>
-                <label className={styles.label}>
-                  Price {restriction.isFreeOnly ? <span style={{ color: '#16a34a', fontWeight: 600 }}>(Free)</span> : <span className={styles.required}>*</span>}
+                <label className={styles.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Price {restriction.isFreeOnly ? <span style={{ color: '#16a34a', fontWeight: 600 }}>(Free)</span> : <span className={styles.required}>*</span>}</span>
+                  {!restriction.isFreeOnly && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 'normal', cursor: 'pointer', color: '#15803d' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={isFree} 
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setIsFree(checked);
+                          if (checked) {
+                            setPriceUsd('0');
+                            setErrors(p => ({ ...p, price: '' }));
+                          } else {
+                            setPriceUsd('');
+                          }
+                        }} 
+                        style={{ margin: 0 }}
+                      />
+                      Give away for free
+                    </label>
+                  )}
                 </label>
                 <div className={styles.priceInput}>
                   <span className={styles.priceCurrency}>$</span>
@@ -1040,11 +1062,11 @@ function NewProductPageInner() {
                     type="number"
                     step="0.01"
                     min="0"
-                    value={restriction.isFreeOnly ? '0' : priceUsd}
-                    onChange={e => { if (!restriction.isFreeOnly) { setPriceUsd(e.target.value); setErrors(p => ({ ...p, price: '' })) } }}
-                    placeholder={restriction.isFreeOnly ? '0.00' : '4.50'}
-                    disabled={restriction.isFreeOnly}
-                    style={restriction.isFreeOnly ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
+                    value={restriction.isFreeOnly || isFree ? '0' : priceUsd}
+                    onChange={e => { if (!restriction.isFreeOnly && !isFree) { setPriceUsd(e.target.value); setErrors(p => ({ ...p, price: '' })) } }}
+                    placeholder={restriction.isFreeOnly || isFree ? '0.00' : '4.50'}
+                    disabled={restriction.isFreeOnly || isFree}
+                    style={(restriction.isFreeOnly || isFree) ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
                   />
                 </div>
                 {errors.price && <span className={styles.error}>{errors.price}</span>}
