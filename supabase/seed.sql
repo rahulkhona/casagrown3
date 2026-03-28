@@ -1048,7 +1048,7 @@ BEGIN
     quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
     fulfillment_type, status, buyer_passcode, seller_passcode)
   SELECT 'a1111111-1111-1111-1111-111111111111', s3, b.id, p.id, 'Baby Bok Choy',
-    5, 3.50, 17.50, 1.62, 19.12, 'pickup', 'ready_for_pickup', '4821', '7359'
+    5, 3.50, 17.50, 1.62, 19.12, 'pickup', 'pending', '4821', '7359'
   FROM market_booths b, market_products p
   WHERE b.owner_id = s3 AND p.name = 'Baby Bok Choy' LIMIT 1;
 
@@ -1057,7 +1057,7 @@ BEGIN
     quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
     fulfillment_type, status, buyer_passcode, seller_passcode)
   SELECT 'a1111111-1111-1111-1111-111111111111', s4, b.id, p.id, 'Sourdough Loaf',
-    1, 8.00, 8.00, 0.74, 8.74, 'pickup', 'ready_for_pickup', '1234', '5678'
+    1, 8.00, 8.00, 0.74, 8.74, 'pickup', 'pending', '1234', '5678'
   FROM market_booths b, market_products p
   WHERE b.owner_id = s4 AND p.name = 'Sourdough Loaf' LIMIT 1;
 
@@ -1108,7 +1108,7 @@ BEGIN
     quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
     fulfillment_type, status, buyer_passcode, seller_passcode, created_at)
   SELECT 'b2222222-2222-2222-2222-222222222222', s1, b.id, p.id, 'Fresh Basil Bunch',
-    2, 3.00, 6.00, 0.56, 6.56, 'pickup', 'ready_for_pickup', '9999', '8888', now() - interval '1 day'
+    2, 3.00, 6.00, 0.56, 6.56, 'pickup', 'pending', '9999', '8888', now() - interval '1 day'
   FROM market_booths b, market_products p
   WHERE b.owner_id = s1 AND p.name = 'Fresh Basil Bunch' LIMIT 1;
 

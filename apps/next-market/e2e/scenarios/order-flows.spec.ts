@@ -160,7 +160,7 @@ test.describe('Order Flows', () => {
     // Check that the orders page has proper content
     const body = await sofiaPage.locator('body').innerText()
     const lower = body.toLowerCase()
-    const hasOrderContent = lower.includes('sales') || lower.includes('purchases') || lower.includes('selling') || lower.includes('order')
+    const hasOrderContent = lower.includes('needs action') || lower.includes('delivered') || lower.includes('selling') || lower.includes('order')
     expect(hasOrderContent).toBeTruthy()
 
     // Verify decline UI exists on order detail (if there are orders)
@@ -215,25 +215,17 @@ test.describe('Order Flows', () => {
     await bethPage.context().close()
   })
 
-  // ── S3.1 cont: Verify Orders Tab Counts ──
-  test('order tabs show correct counts and filter', async ({ browser }) => {
+  // ── S3.1 cont: Verify Unified Orders Tabs ──
+  test('unified order tabs show correct counts and filter', async ({ browser }) => {
     // Sam has seeded orders in various states
     const samPage = await loginAsUser(browser, 'sam')
 
     await navigateTo(samPage, '/orders')
     await assertPageHealthy(samPage)
 
-    // Sales tab
-    const salesBtn = samPage.getByText('Sales', { exact: false }).first()
-    if (await salesBtn.isVisible()) {
-      await salesBtn.click()
-      await samPage.waitForTimeout(500)
-      await assertPageHealthy(samPage)
-    }
-
-    // Sub-tabs: Delivery, Pickup, Disputed, Completed
-    const subTabs = ['Delivery', 'Pickup', 'Completed']
-    for (const tab of subTabs) {
+    // Primary status tabs: Needs Action, Delivered, Disputed, Completed
+    const statusTabs = ['Needs Action', 'Delivered', 'Disputed', 'Completed']
+    for (const tab of statusTabs) {
       const tabBtn = samPage.getByText(tab, { exact: false }).first()
       if (await tabBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
         await tabBtn.click()
@@ -242,22 +234,18 @@ test.describe('Order Flows', () => {
       }
     }
 
-    // Purchases tab
-    const purchasesBtn = samPage.getByText('Purchases', { exact: false }).first()
-    if (await purchasesBtn.isVisible()) {
-      await purchasesBtn.click()
-      await samPage.waitForTimeout(500)
-      await assertPageHealthy(samPage)
+    // Role filter pills: All, Buying, Selling
+    const roleFilters = ['All', 'Buying', 'Selling']
+    // Switch back to Needs Action first
+    await samPage.getByText('Needs Action', { exact: false }).first().click()
+    await samPage.waitForTimeout(500)
 
-      // Buyer sub-tabs: Delivery, Pickup, Confirmation, Disputed, Completed
-      const buyerSubTabs = ['Delivery', 'Pickup', 'Confirmation', 'Completed']
-      for (const tab of buyerSubTabs) {
-        const tabBtn = samPage.getByText(tab, { exact: false }).first()
-        if (await tabBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-          await tabBtn.click()
-          await samPage.waitForTimeout(500)
-          await assertPageHealthy(samPage)
-        }
+    for (const filter of roleFilters) {
+      const filterBtn = samPage.getByText(filter, { exact: false }).first()
+      if (await filterBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await filterBtn.click()
+        await samPage.waitForTimeout(500)
+        await assertPageHealthy(samPage)
       }
     }
 

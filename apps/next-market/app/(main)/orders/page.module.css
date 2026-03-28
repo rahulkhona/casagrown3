@@ -2,7 +2,7 @@
 
 .orderCard {
   display: block;
-  padding: 16px;
+  padding: 16px 16px 16px 20px;
   border-radius: var(--radius-xl);
   border: 1px solid var(--border);
   background: #fff;
@@ -10,44 +10,112 @@
   color: inherit;
   transition: border-color 0.15s, box-shadow 0.15s;
   cursor: pointer;
+  border-left: 4px solid var(--gray-300);
 }
 .orderCard:hover {
   border-color: var(--green-300);
   box-shadow: var(--shadow-md);
 }
 
+/* Left accent border by role */
+.cardSelling { border-left-color: var(--green-500, #22c55e); }
+.cardSelling:hover { border-left-color: var(--green-600, #16a34a); }
+.cardBuying { border-left-color: var(--blue-500, #3b82f6); }
+.cardBuying:hover { border-left-color: var(--blue-600, #2563eb); }
+
+/* Role label */
+.roleLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 4px;
+}
+.roleLabel[data-role="selling"] { color: var(--green-600, #16a34a); }
+.roleLabel[data-role="buying"] { color: var(--blue-600, #2563eb); }
+
 .orderHeader {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 12px;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .productName {
   font-size: 15px;
   font-weight: 600;
   color: var(--gray-800);
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .orderMeta {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   font-size: 12px;
   color: var(--gray-500);
   flex-wrap: wrap;
+  margin-bottom: 4px;
 }
 
-.roleBadge {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+/* Mode chips (Pickup / Delivery) */
+.modeChip {
+  display: inline-flex;
+  align-items: center;
   padding: 2px 8px;
   border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.modeChip[data-mode="pickup"] {
+  background: var(--blue-50, #eff6ff);
+  color: var(--blue-700, #1d4ed8);
+  border: 1px solid var(--blue-200, #bfdbfe);
+}
+.modeChip[data-mode="delivery"] {
+  background: var(--green-50, #f0fdf4);
+  color: var(--green-700, #15803d);
+  border: 1px solid var(--green-200, #bbf7d0);
+}
+
+/* Location line */
+.locationLine {
+  font-size: 12px;
+  color: var(--gray-500);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
+}
+
+/* Counterparty (other user) */
+.counterparty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--gray-500);
+  margin-top: 2px;
+}
+.avatarSmall {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: var(--gray-200);
+  color: var(--gray-600);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.avatarImg {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
 }
 
 .statusBadge {
@@ -57,25 +125,15 @@
   border-radius: var(--radius-full);
   color: #fff;
   white-space: nowrap;
-}
-
-.orderDetails {
-  background: var(--gray-50);
-  border-radius: var(--radius);
-  padding: 10px 14px;
-}
-
-.detailRow {
-  display: flex;
-  justify-content: space-between;
-  font-size: 13px;
-  color: var(--gray-600);
-  padding: 2px 0;
+  margin-bottom: 6px;
+  display: inline-block;
 }
 
 .totalPrice {
   font-weight: 700;
+  font-size: 16px;
   color: var(--gray-800);
+  margin-top: 4px;
 }
 
 .hint {
@@ -88,43 +146,49 @@
   border: 1px solid var(--amber-200, #fde68a);
 }
 
-.passcodeBox {
-  display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px;
-  background: var(--green-50); border-radius: var(--radius); border: 1px solid var(--green-200);
-  font-size: 13px; color: var(--green-700);
-}
-.passcodeBox strong { font-family: monospace; font-size: 16px; letter-spacing: 2px; }
-
-/* ── Role Toggle (segmented control) ── */
-.roleToggle {
+/* ── Role Filter Pills (secondary) ── */
+.roleFilters {
   display: flex;
-  background: var(--gray-100);
-  border-radius: var(--radius-xl);
-  padding: 3px;
-  margin-bottom: 12px;
-  gap: 3px;
+  gap: 6px;
+  margin-bottom: 16px;
 }
-.roleBtn {
-  flex: 1;
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  padding: 8px 12px;
-  border: none; border-radius: var(--radius-lg);
-  font-size: 13px; font-weight: 600;
-  cursor: pointer;
-  background: transparent; color: var(--gray-500);
-  transition: all 0.2s ease;
-}
-.roleBtn:hover { color: var(--gray-700); }
-.roleBtnActive {
+.filterPill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 500;
   background: #fff;
+  color: var(--gray-600);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.filterPill:hover { border-color: var(--green-300); color: var(--green-700); }
+.filterPillActive {
+  background: var(--green-50, #f0fdf4);
   color: var(--green-700);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  border-color: var(--green-300, #86efac);
+  font-weight: 600;
 }
 
-/* ── Scrollable Status Tabs ── */
+/* ── Group header (for helper / buyer groups) ── */
+.groupHeader {
+  padding: 12px 0 6px;
+  font-weight: 600;
+  font-size: 15px;
+  border-bottom: 1px solid var(--gray-200);
+  margin-bottom: 8px;
+  color: var(--gray-700);
+}
+
+/* ── Scrollable Status Tabs (primary) ── */
 .scrollTabsWrap {
   position: relative;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 .scrollTabsWrap::after {
   content: '';
@@ -141,40 +205,76 @@
   gap: 6px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;          /* Firefox */
+  scrollbar-width: none;
   padding-bottom: 2px;
-  padding-right: 32px;            /* space for fade */
+  padding-right: 32px;
 }
-.scrollTabs::-webkit-scrollbar { display: none; }  /* Chrome/Safari */
+.scrollTabs::-webkit-scrollbar { display: none; }
 
 .tabPill {
   flex-shrink: 0;
   display: flex; align-items: center; gap: 4px;
-  padding: 7px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-full);
-  font-size: 12px; font-weight: 500;
-  background: #fff; color: var(--gray-600);
+  padding: 8px 16px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  font-size: 13px; font-weight: 500;
+  background: transparent; color: var(--gray-500);
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
 }
-.tabPill:hover { border-color: var(--green-300); color: var(--green-700); }
+.tabPill:hover { color: var(--green-700); border-bottom-color: var(--green-200); }
 .tabPillActive {
-  background: var(--green-600); color: #fff;
-  border-color: var(--green-600);
+  color: var(--green-700);
+  font-weight: 700;
+  border-bottom-color: var(--green-600);
 }
-.tabPillActive:hover { background: var(--green-700); border-color: var(--green-700); color: #fff; }
 
 .tabCount {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 18px; height: 18px;
   border-radius: 9px;
   font-size: 10px; font-weight: 700;
-  background: rgba(0,0,0,0.15); color: inherit;
+  background: var(--gray-200); color: var(--gray-600);
 }
 .tabPillActive .tabCount {
-  background: rgba(255,255,255,0.3);
+  background: var(--green-100, #dcfce7);
+  color: var(--green-700);
 }
 
+/* Passcode (kept for potential future use) */
+.passcodeBox {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px;
+  background: var(--green-50); border-radius: var(--radius); border: 1px solid var(--green-200);
+  font-size: 13px; color: var(--green-700);
+}
+.passcodeBox strong { font-family: monospace; font-size: 16px; letter-spacing: 2px; }
 
+/* ── Counterparty grouping ── */
+.counterpartyGroup {
+  margin-bottom: 8px;
+}
+.counterpartyGroupHeader {
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid var(--green-200);
+  margin-bottom: 8px;
+  margin-top: 12px;
+  background: var(--green-50, #f0fdf4);
+  border-radius: 10px 10px 0 0;
+}
+.avatarLarge {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: var(--green-200);
+  color: var(--green-700);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
