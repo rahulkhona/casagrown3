@@ -34,11 +34,16 @@ interface CameraCaptureProps {
   captureLabel?: string
   /** Label for close button. Default '✕ Cancel'. */
   closeLabel?: string
+  /** Callback for skipping photo entirely without backing out of enclosing view */
+  onSkip?: () => void
+  /** Label for skip button */
+  skipLabel?: string
 }
 
 export default function CameraCapture({
   onCapture,
   onClose,
+  onSkip,
   facingMode = 'environment',
   cropSquare = false,
   cropGuide,
@@ -46,6 +51,7 @@ export default function CameraCapture({
   stampPhoto = false,
   captureLabel = '📸 Capture',
   closeLabel = '✕ Cancel',
+  skipLabel = 'Skip',
 }: CameraCaptureProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -255,9 +261,24 @@ export default function CameraCapture({
           </div>
         </div>
         <div className={styles.controls}>
-          <button type="button" className={styles.cancelBtn} onClick={handleClose}>
-            {multiCapture && captureCount > 0 ? `✓ Done (${captureCount})` : closeLabel}
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <button type="button" className={styles.cancelBtn} onClick={handleClose}>
+              {multiCapture && captureCount > 0 ? `✓ Done (${captureCount})` : closeLabel}
+            </button>
+            {onSkip && (!multiCapture || captureCount === 0) && (
+              <button 
+                type="button" 
+                className={styles.cancelBtn} 
+                style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.4)', padding: '6px 12px', fontSize: 13 }} 
+                onClick={() => {
+                  streamRef.current?.getTracks().forEach(t => t.stop())
+                  onSkip()
+                }}
+              >
+                {skipLabel}
+              </button>
+            )}
+          </div>
 
           {cameras.length > 1 && (
             <select

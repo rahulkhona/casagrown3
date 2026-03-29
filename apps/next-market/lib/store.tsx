@@ -528,7 +528,11 @@ function reducer(state: MarketState, action: Action): MarketState {
       return { ...state, booths: state.booths.map(b => b.id === action.payload.id ? { ...b, ...action.payload } : b) }
 
     case 'ADD_PRODUCT': {
-      const product: Product = { ...action.payload, id: `prod-${++idCounter}`, isActive: true }
+      const product: Product = { 
+        ...action.payload, 
+        id: `prod-${++idCounter}`, 
+        isActive: action.payload.status === 'draft' ? false : true 
+      }
       return {
         ...state, products: [...state.products, product],
         booths: state.booths.map(b => b.id === product.boothId ? { ...b, productCount: b.productCount + 1 } : b),

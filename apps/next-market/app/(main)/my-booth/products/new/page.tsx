@@ -324,14 +324,14 @@ function NewProductPageInner() {
     const effectivePrice = restriction.isFreeOnly ? '0' : priceUsd
     const parsedPrice = parseFloat(effectivePrice || '0')
     const isValidPrice = effectivePrice !== '' && effectivePrice !== null && !isNaN(parsedPrice) && parsedPrice >= 0 && (!restriction.isFreeOnly || parsedPrice === 0)
-    const needsDraft = photos.length === 0 || !isValidPrice || !quantity || parseInt(quantity) <= 0
+    const needsDraft = !name.trim() || photos.length === 0 || !isValidPrice || !quantity || parseInt(quantity) <= 0
     
     // Safety check first
     const newErrors: Record<string, string> = {}
-    if (!name.trim()) newErrors.name = 'Name is required'
     
     // Strict checks only enforced if trying to publish fully
     if (!needsDraft) {
+      if (!name.trim()) newErrors.name = 'Name is required'
       if (!isValidPrice) {
         if (effectivePrice === '' || effectivePrice === null) newErrors.price = 'Set a price (or 0 for free)'
         else if (parsedPrice < 0) newErrors.price = 'Price cannot be negative'
@@ -518,12 +518,12 @@ function NewProductPageInner() {
       const { error } = await supabase
         .from('market_products')
         .update({
-          name: name.trim(),
+          name: name.trim() || 'Untitled Draft',
           description: description.trim() || null,
           category,
           price_usd: parseFloat(priceUsd || '0'),
           unit,
-          inventory: parseInt(quantity),
+          inventory: parseInt(quantity) || 0,
           photos: editPhotoUrls,
           harvested_at: harvestedAt ? new Date(harvestedAt + 'T12:00:00').toISOString() : null,
           expires_at: getExpiryDate(),
@@ -543,27 +543,26 @@ function NewProductPageInner() {
       try { await supabase.rpc('clear_product_flags', { p_product_id: editId }) } catch { /* ignore if no flags */ }
 
       // ── AI Moderation (edit) ──
-      try {
-        const modRes = await supabase.functions.invoke('moderate-listing', {
-          body: {
-            product_id: editId,
-            seller_id: authUser.id,
-            name: name.trim(),
-            description: description.trim() || null,
-            price_usd: parseFloat(priceUsd || '0'),
-            category,
-            photo_url: editPhotoUrls[0] || null,
-          },
-        })
+      supabase.functions.invoke('moderate-listing', {
+        body: {
+          product_id: editId,
+          seller_id: authUser.id,
+          name: name.trim() || 'Untitled Draft',
+          description: description.trim() || null,
+          price_usd: parseFloat(priceUsd || '0'),
+          category,
+          photo_url: editPhotoUrls[0] || null,
+        },
+      }).then(modRes => {
         const modData = modRes.data as any
         if (modData?.status === 'flagged' && modData?.flags) {
           const messages = Object.values(modData.flags.issue_messages || {}) as string[]
           const reason = messages[0] || modData.flags.reason || 'Your listing was flagged for review.'
           dispatch({ type: 'ADD_TOAST', payload: { message: `⚠️ ${reason}`, type: 'error' } })
         }
-      } catch (modErr) {
+      }).catch(modErr => {
         console.warn('Moderation check failed (non-blocking):', modErr)
-      }
+      })
 
       setValidating(false)
       router.push('/my-booth')
@@ -608,12 +607,12 @@ function NewProductPageInner() {
       .insert({
         seller_id: authUser.id,
         market_date: marketDate,
-        name: name.trim(),
+        name: name.trim() || 'Untitled Draft',
         description: description.trim() || null,
         category,
         price_usd: parseFloat(priceUsd || '0'),
         unit,
-        inventory: parseInt(quantity),
+        inventory: parseInt(quantity) || 0,
         photos: uploadedPhotoUrls,
         harvested_at: harvestedAt ? new Date(harvestedAt + 'T12:00:00').toISOString() : null,
         expires_at: getExpiryDate(),
@@ -632,27 +631,26 @@ function NewProductPageInner() {
     }
 
     // ── AI Moderation (new product) ──
-    try {
-      const modRes = await supabase.functions.invoke('moderate-listing', {
-        body: {
-          product_id: insertedProduct.id,
-          seller_id: authUser.id,
-          name: name.trim(),
-          description: description.trim() || null,
-          price_usd: parseFloat(priceUsd || '0'),
-          category,
-          photo_url: uploadedPhotoUrls[0] || null,
-        },
-      })
+    supabase.functions.invoke('moderate-listing', {
+      body: {
+        product_id: insertedProduct.id,
+        seller_id: authUser.id,
+        name: name.trim() || 'Untitled Draft',
+        description: description.trim() || null,
+        price_usd: parseFloat(priceUsd || '0'),
+        category,
+        photo_url: uploadedPhotoUrls[0] || null,
+      },
+    }).then(modRes => {
       const modData = modRes.data as any
       if (modData?.status === 'flagged' && modData?.flags) {
         const messages = Object.values(modData.flags.issue_messages || {}) as string[]
         const reason = messages[0] || modData.flags.reason || 'Your listing was flagged for review.'
         dispatch({ type: 'ADD_TOAST', payload: { message: `⚠️ ${reason}`, type: 'error' } })
       }
-    } catch (modErr) {
+    }).catch(modErr => {
       console.warn('Moderation check failed (non-blocking):', modErr)
-    }
+    })
 
     setValidating(false)
 
@@ -696,17 +694,17 @@ function NewProductPageInner() {
     dispatch({
       type: 'ADD_PRODUCT',
       payload: {
-        boothId: authUser.id,
+        boothId: boothId!,
         boothName: boothLabel,
-        name: name.trim(),
+        name: name.trim() || 'Untitled Draft',
         description: description.trim(),
         photos,
         priceUsd: parseFloat(priceUsd || '0'),
         unit,
         category,
-        inventory: parseInt(quantity),
+        inventory: parseInt(quantity) || 0,
         marketDate,
-        status: 'active',
+        status: needsDraft ? 'draft' : 'active',
         harvestedAt: harvestedAt || undefined,
       },
     })
@@ -1316,8 +1314,10 @@ function NewProductPageInner() {
         {showCamera && (
           <CameraCapture
             facingMode="environment"
-            closeLabel="Skip Photo for Now"
-            onClose={() => setShowCamera(false)}
+            closeLabel="✕ Cancel Listing"
+            skipLabel="Skip Photo for Now"
+            onSkip={() => setShowCamera(false)}
+            onClose={() => router.back()}
             onCapture={({ file }) => {
               setShowCamera(false)
               const reader = new FileReader()
@@ -1348,7 +1348,7 @@ function NewProductPageInner() {
         {/* ===== Post-Add Share Modal ===== */}
         {showShareModal && (
           <>
-            <div className={styles.modalBackdrop} onClick={() => { setShowShareModal(false); router.push('/my-booth') }} />
+            <div className={styles.modalBackdrop} onClick={() => { setShowShareModal(false); window.location.href = '/my-booth' }} />
             <div className={styles.modal}>
               <div className={styles.modalEmoji}>✅</div>
               <h2 className={styles.modalTitle}>{addedProductName} added!</h2>
@@ -1402,7 +1402,7 @@ function NewProductPageInner() {
                 </>
               )}
 
-              <button className={styles.modalSkip} onClick={() => { setShowShareModal(false); router.push('/my-booth') }}>
+              <button className={styles.modalSkip} onClick={() => { setShowShareModal(false); window.location.href = '/my-booth' }}>
                 {publishMissing.length > 0 ? 'Go to My Booth →' : 'Skip → Go to My Booth'}
               </button>
             </div>

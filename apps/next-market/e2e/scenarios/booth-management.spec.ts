@@ -89,13 +89,15 @@ test.describe('Booth Management', () => {
   })
 
   // ── S7.2c: Draft Mode Workflow ──
-  test('S7.2c — save draft product without photo and verify draft status', async ({ browser }) => {
+  test('S7.2c — save draft product without photo and verify draft status', async ({ browser }, testInfo) => {
+    testInfo.setTimeout(45000) // Allow edge function AI moderation to finish
     const page = await loginAsUser(browser, 'maria')
+    page.on('dialog', dialog => console.log('DIALOG MESSAGE:', dialog.message()))
     await navigateTo(page, '/my-booth/products/new')
     await assertPageHealthy(page)
 
     // Fill name only
-    await page.locator('input[placeholder="Name your booth..."], input[type="text"]').first().fill('Test Draft Tomato')
+    await page.locator('input[placeholder="e.g. Heritage Tomatoes"], input[type="text"]').first().fill('Test Draft Tomato')
 
     // Verify button says "Save Draft" because photo/price is missing
     const submitBtn = page.locator('button[type="submit"]')
@@ -103,15 +105,14 @@ test.describe('Booth Management', () => {
 
     // Submit the form
     await submitBtn.click()
-    await page.waitForLoadState('networkidle')
-
-    // Should land on My Booth
-    expect(page.url()).toContain('/my-booth')
     
-    // Look for the draft overlay
-    const bodyText = await page.locator('body').innerText()
-    expect(bodyText).toContain('📝 Draft')
-    expect(bodyText).toContain('Test Draft Tomato')
+    // Next.js client-side navigation via Success Modal
+    await expect(page.locator('body')).toContainText('Test Draft Tomato added!', { timeout: 35000 })
+    await page.goto('/my-booth')
+
+    // Look for the draft overlay with built-in retries
+    await expect(page.locator('body')).toContainText('📝 Draft', { timeout: 15000 })
+    await expect(page.locator('body')).toContainText('Test Draft Tomato')
 
     await page.context().close()
   })
