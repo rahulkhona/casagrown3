@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { CommunityChatMessage, toggleMessageReaction, fetchCommunityReplies } from '../../../../../../packages/app/features/community-chat/community-chat-service'
 import { createClient } from '../../../../lib/supabase'
 import { useErrorToast } from '../../../components/ErrorToast'
+import { checkTextForViolations } from '../../../../lib/moderation'
 import styles from '../page.module.css'
 
 interface ChatMessageProps {
@@ -260,10 +261,22 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
             onSubmit={async (e) => {
               e.preventDefault()
               if (!replyText.trim() || isSendingReply) return
+              
+              const violationCheck = checkTextForViolations(replyText)
+              if (!violationCheck.isClean) {
+                showError(violationCheck.error!)
+                return
+              }
+
               setIsSendingReply(true)
               try {
                 await onReply(message.id, replyText.trim())
                 setReplyText('')
+
+                // Reset the textarea physical height since we cleared its state
+                const ta = e.currentTarget.querySelector('textarea')
+                if (ta) ta.style.height = '38px'
+
                 // Always refresh thread to show new reply
                 const supabase = createClient()
                 const replies = await fetchCommunityReplies(supabase, message.id)
@@ -273,12 +286,23 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
               }
             }}
           >
-            <input
-              type="text"
+            <textarea
               className={styles.inlineReplyInput}
               placeholder="Reply..."
               value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
+              rows={1}
+              onChange={(e) => {
+                setReplyText(e.target.value)
+                e.target.style.height = 'auto'
+                e.target.style.height = (e.target.scrollHeight) + 'px'
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  e.currentTarget.form?.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }))
+                }
+              }}
+              style={{ resize: 'none', overflowY: 'auto', minHeight: 38, maxHeight: 150, padding: '8px 12px' }}
               autoFocus={showActions}
               disabled={isSendingReply}
             />

@@ -24,6 +24,7 @@ export interface CommunityChatMessage {
   is_pinned: boolean
   edited_at: string | null
   created_at: string
+  bumped_at: string | null
   reaction_counts: Record<string, number>
   reply_count: number
   user_reactions: string[]
@@ -86,6 +87,7 @@ export async function fetchCommunityReplies(
     product_listing_id: null,
     is_pinned: false,
     reply_count: 0,
+    bumped_at: null,
     flag_count: 0
   }))
 
@@ -171,6 +173,14 @@ export async function sendCommunityMessage(
   if (error) {
     console.error('Error sending message:', error)
     throw error
+  }
+
+  // If this is a reply, bump the parent thread so it surfaces to the top of the feed
+  if (params.parentId) {
+    await supabase
+      .from('community_chat_messages')
+      .update({ bumped_at: new Date().toISOString() })
+      .eq('id', params.parentId)
   }
 
   // Handle @mentions by inserting notifications + push delivery

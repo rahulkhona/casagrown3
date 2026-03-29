@@ -20,6 +20,7 @@ import NewMessagesBadge from './components/NewMessagesBadge'
 import { useNotificationPrompt } from '../../../lib/useNotificationPrompt'
 import { NotificationPromptModal } from '../../components/NotificationPromptModal'
 import { useErrorToast } from '../../components/ErrorToast'
+import { checkTextForViolations } from '../../../lib/moderation'
 
 // How often to poll for new messages
 const POLL_INTERVAL_ACTIVE = 15000 // 15s when tab is active
@@ -200,6 +201,13 @@ export default function ClientPage() {
   // Handlers
   const handleSendMessage = async (content: string, media?: any[]) => {
     if (!profileH3 || !user) return
+    
+    // ── Pre-flight Content Moderation ──
+    const violationCheck = checkTextForViolations(content)
+    if (!violationCheck.isClean) {
+      showError(violationCheck.error!)
+      return
+    }
     
     try {
       const supabase = createClient()

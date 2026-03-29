@@ -12,6 +12,7 @@ import { trackFormSubmit, trackClick, trackError } from '../../../../../lib/anal
 import { NotificationPromptModal } from '../../../../components/NotificationPromptModal'
 import CameraCapture from '../../../../../components/CameraCapture'
 import ImageCropper from '../../../../../components/ImageCropper'
+import { checkTextForViolations } from '../../../../../lib/moderation'
 import styles from './page.module.css'
 
 // Compute the next upcoming market date from the schedule
@@ -346,41 +347,18 @@ function NewProductPageInner() {
     }
 
     // ── Inline content pre-check (profanity, drugs, weapons, adult content) ──
-    // These are deterministic — no API call needed. Block submission immediately.
-    const contentToCheck = `${name} ${description}`.toLowerCase()
-    const BLOCKED_CONTENT: Array<{ pattern: RegExp; message: string }> = [
-      { pattern: /\bf+u+c+k+\w*/i,              message: 'Please remove profanity from your listing.' },
-      { pattern: /\bsh[i!1]+t\b/i,               message: 'Please remove profanity from your listing.' },
-      { pattern: /\bmother\s*f/i,                message: 'Please remove profanity from your listing.' },
-      { pattern: /\bass+h+ol+e/i,                message: 'Please remove profanity from your listing.' },
-      { pattern: /\bb[i!1]+tch\b/i,              message: 'Please remove profanity from your listing.' },
-      { pattern: /\bc+u+n+t\b/i,                 message: 'Please remove profanity from your listing.' },
-      { pattern: /\bd[i!1]+ck\b/i,               message: 'Please remove profanity from your listing.' },
-      { pattern: /\bpussy\b/i,                   message: 'Please remove profanity from your listing.' },
-      { pattern: /\bcannabis\b|\bmarijuana\b|\bweed\b|\bthc\b|\bcbd\b/i,
-                                                  message: 'Cannabis and related products are not allowed on CasaGrown.' },
-      { pattern: /\bcocaine\b|\bheroin\b|\bmeth\b|\bfentanyl\b|\bxanax\b|\badderall\b/i,
-                                                  message: 'Controlled substances are not allowed on CasaGrown.' },
-      { pattern: /\bgun\b|\bfirearm\b|\bammunition\b|\bbullet\b|\brifle\b|\bpistol\b/i,
-                                                  message: 'Weapons and firearms are not allowed on CasaGrown.' },
-      { pattern: /\bknife\b|\bblade\b|\bsword\b|\bpepperspray\b/i,
-                                                  message: 'Weapons are not allowed on CasaGrown.' },
-      { pattern: /\bkill\b|\bmurder\b|\bstab\b|\bshoot\b|\bbomb\b/i,
-                                                  message: 'Threats and violence are not allowed on CasaGrown.' },
-      { pattern: /\bnude\b|\bnaked\b|\bporn\b|\bsex\b|\bxxxxx/i,
-                                                  message: 'Adult content is not allowed on CasaGrown.' },
-    ]
-    const blockedMatch = BLOCKED_CONTENT.find(b => b.pattern.test(contentToCheck))
-    if (blockedMatch) {
+    const contentToCheck = `${name} ${description}`
+    const violationCheck = checkTextForViolations(contentToCheck)
+    if (!violationCheck.isClean) {
       // Show error under the field(s) that actually contain the blocked content
-      const nameMatch = blockedMatch.pattern.test(name.toLowerCase())
-      const descMatch = blockedMatch.pattern.test(description.toLowerCase())
+      const nameMatch = !checkTextForViolations(name).isClean
+      const descMatch = !checkTextForViolations(description).isClean
       const fieldErrors: Record<string, string> = {}
-      if (nameMatch) fieldErrors.name = blockedMatch.message
-      if (descMatch) fieldErrors.description = blockedMatch.message
-      if (!nameMatch && !descMatch) fieldErrors.name = blockedMatch.message // fallback
+      if (nameMatch) fieldErrors.name = violationCheck.error!
+      if (descMatch) fieldErrors.description = violationCheck.error!
+      if (!nameMatch && !descMatch) fieldErrors.name = violationCheck.error! // fallback
       setErrors(fieldErrors)
-      dispatch({ type: 'ADD_TOAST', payload: { message: blockedMatch.message, type: 'error' } })
+      dispatch({ type: 'ADD_TOAST', payload: { message: `⚠️ ${violationCheck.error}`, type: 'error' } })
       return
     }
 
