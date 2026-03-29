@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { useErrorToast } from '../../../components/ErrorToast'
 import styles from '../page.module.css'
 
 interface InviteBannerProps {
@@ -8,6 +9,7 @@ interface InviteBannerProps {
 
 export default function InviteBanner({ h3Index }: InviteBannerProps) {
   const [copied, setCopied] = useState(false)
+  const { showError, showSuccess } = useErrorToast()
 
   const handleInvite = async () => {
     const inviteUrl = `${window.location.origin}/community?join=${h3Index}`
@@ -23,6 +25,7 @@ export default function InviteBanner({ h3Index }: InviteBannerProps) {
       } catch (err) {
         if ((err as Error).name !== 'AbortError') {
           console.error('Error sharing', err)
+          showError('Failed to share link.')
         }
       }
     }
@@ -31,9 +34,11 @@ export default function InviteBanner({ h3Index }: InviteBannerProps) {
     try {
       await navigator.clipboard.writeText(inviteUrl)
       setCopied(true)
+      showSuccess('Invite link copied!')
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
       console.error('Failed to copy', err)
+      showError('Failed to copy link.')
     }
   }
 

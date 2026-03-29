@@ -14,6 +14,7 @@ import { NotificationPromptModal } from '../../components/NotificationPromptModa
 import { NotificationBanner } from '../../components/NotificationBanner'
 import CameraCapture from '../../../components/CameraCapture'
 import ImageCropper from '../../../components/ImageCropper'
+import { useErrorToast } from '../../components/ErrorToast'
 
 
 import { geocodeAddress, toPostgisPoint } from '../../../lib/geocode'
@@ -111,6 +112,9 @@ export default function MyBoothPage() {
   const [boothShareCopied, setBoothShareCopied] = useState(false)
   const [boothShareMsg, setBoothShareMsg] = useState('')
   const [savedBoothId, setSavedBoothId] = useState<string | null>(null)
+  const [formError, setFormError] = useState<string | null>(null)
+  const [deleteConfProductId, setDeleteConfProductId] = useState<string | null>(null)
+  const { showError } = useErrorToast()
 
   // Drag-and-drop reordering
   const [dragIdx, setDragIdx] = useState<number | null>(null)
@@ -389,9 +393,10 @@ export default function MyBoothPage() {
       }
     }
     if (issues.length > 0) {
-      alert('⚠️ Please fix before saving:\n\n• ' + issues.join('\n• '))
+      setFormError('⚠️ Please fix before saving:\n\n• ' + issues.join('\n• '))
       return
     }
+    setFormError(null)
 
     try {
     // Map time window IDs to structured objects for DB
@@ -446,7 +451,7 @@ export default function MyBoothPage() {
         if (geo) {
           dbRow.pickup_location = toPostgisPoint(geo.lat, geo.lng)
         } else {
-          alert('⚠️ We couldn\'t verify your booth address. Please check the pickup address and try saving again.')
+          setFormError('⚠️ We couldn\'t verify your booth address. Please check the pickup address and try saving again.')
           return
         }
       }
@@ -460,7 +465,7 @@ export default function MyBoothPage() {
 
     if (error) {
       console.warn('Save failed:', error.message)
-      alert('Booth save failed: ' + error.message)
+      setFormError('Booth save failed: ' + error.message)
       return
     }
 
@@ -498,7 +503,7 @@ export default function MyBoothPage() {
     } catch (err: any) {
       console.error('Booth save error:', err)
       trackError('booth_save_failed', { error: err.message })
-      alert('Booth save failed: ' + (err.message || 'Unknown error'))
+      setFormError('Booth save failed: ' + (err.message || 'Unknown error'))
     }
   }
 
@@ -509,7 +514,7 @@ export default function MyBoothPage() {
     const { error } = await supabase.from('market_products').update({ is_deleted: true }).eq('id', productId)
     if (error) {
       setDbProducts(prev) // restore
-      dispatch({ type: 'ADD_TOAST', payload: { message: 'Failed to remove — ' + error.message, type: 'error' } })
+      showError('Failed to remove — ' + error.message)
       return
     }
   }
@@ -638,7 +643,7 @@ export default function MyBoothPage() {
                                 setDbProducts(prev => prev.filter(prod => prod.id !== p.id))
                                 setPreFlightItems(prev => ({ ...prev, expired: prev.expired.filter(x => x.id !== p.id) }))
                               } else {
-                                alert('Error removing product: ' + error.message)
+                                showError('Error removing product: ' + error.message)
                               }
                             }}
                           >
@@ -708,7 +713,7 @@ export default function MyBoothPage() {
                                 setDbProducts(prev => prev.filter(prod => prod.id !== p.id))
                                 setPreFlightItems(prev => ({ ...prev, inactive: prev.inactive.filter(x => x.id !== p.id) }))
                               } else {
-                                alert('Error removing product: ' + error.message)
+                                showError('Error removing product: ' + error.message)
                               }
                             }}
                           >
@@ -1079,8 +1084,8 @@ export default function MyBoothPage() {
                   className={styles.productRemoveBtn}
                   onMouseDown={(e) => e.stopPropagation()}
                   onTouchStart={(e) => e.stopPropagation()}
-                  onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); if (confirm('Remove this product?')) handleRemoveProduct(slot.product!.id) }}
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (confirm('Remove this product?')) handleRemoveProduct(slot.product!.id) }}
+                  onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteConfProductId(slot.product!.id) }}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteConfProductId(slot.product!.id) }}
                   title="Remove product"
                 >✕</button>
               <div onClick={() => router.push(`/my-booth/products/${slot.product!.id}`)} style={{ cursor: 'pointer' }}>
@@ -1284,6 +1289,11 @@ export default function MyBoothPage() {
       )}
 
       {/* ── Save + Share Buttons ── */}
+      {formError && (
+        <div style={{ padding: 12, background: '#fef2f2', color: '#dc2626', borderRadius: 8, fontSize: 13, marginBottom: 12, whiteSpace: 'pre-wrap' }}>
+          {formError}
+        </div>
+      )}
       <button
         className={styles.saveBtn}
         onClick={handleSaveBooth}
@@ -1389,6 +1399,41 @@ export default function MyBoothPage() {
             setUploadingBanner(false)
           }}
         />
+      )}
+
+      {/* ── Delete Confirmation Modal ── */}
+      {deleteConfProductId && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000 }} onClick={() => setDeleteConfProductId(null)} />
+          <div style={{
+            position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+            background: '#fff', width: '90%', maxWidth: 320, borderRadius: 16, padding: 24,
+            textAlign: 'center', zIndex: 1001, boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
+          }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>⚠️</div>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1f2937', margin: '0 0 8px' }}>Remove Product?</h2>
+            <p style={{ fontSize: 14, color: '#4b5563', margin: '0 0 24px', lineHeight: 1.5 }}>
+              Are you sure you want to remove this product from your booth? This cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button 
+                style={{ flex: 1, padding: 10, borderRadius: 8, background: '#f3f4f6', color: '#4b5563', fontWeight: 600, border: 'none', cursor: 'pointer' }}
+                onClick={() => setDeleteConfProductId(null)}
+              >
+                Cancel
+              </button>
+              <button 
+                style={{ flex: 1, padding: 10, borderRadius: 8, background: '#dc2626', color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer' }}
+                onClick={() => {
+                  handleRemoveProduct(deleteConfProductId)
+                  setDeleteConfProductId(null)
+                }}
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   )

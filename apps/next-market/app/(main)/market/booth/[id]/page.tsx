@@ -11,6 +11,7 @@ import BuyModal from '../../../../components/BuyModal'
 import { FlagModal } from '../../../../components/FlagModal'
 import { NotificationPromptModal } from '../../../../components/NotificationPromptModal'
 import { useNotificationPrompt } from '../../../../../lib/useNotificationPrompt'
+import { useErrorToast } from '../../../../components/ErrorToast'
 import styles from './page.module.css'
 
 export default function BoothDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -35,7 +36,7 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
 
   // Reminder state
   const [savedProductIds, setSavedProductIds] = useState<Set<string>>(new Set())
-  const [reminderToast, setReminderToast] = useState<string | null>(null)
+  const { showSuccess, showInfo } = useErrorToast()
 
   useEffect(() => {
     const load = async () => {
@@ -159,7 +160,7 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
     if (isSaved) {
       await supabase.from('product_reminders').delete().eq('user_id', user.id).eq('product_id', productId)
       setSavedProductIds(prev => { const next = new Set(prev); next.delete(productId); return next })
-      setReminderToast('Reminder removed')
+      showInfo('Reminder removed')
     } else {
       await supabase.from('product_reminders').upsert(
         { user_id: user.id, product_id: productId },
@@ -167,9 +168,8 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
       )
 
       setSavedProductIds(prev => new Set(prev).add(productId))
-      setReminderToast('🔔 Saved! We\'ll notify you when this booth opens')
+      showSuccess('🔔 Saved! We\'ll notify you when this booth opens')
     }
-    setTimeout(() => setReminderToast(null), 3000)
   }
 
   const themeColors: Record<string, { bg: string; border: string }> = {
@@ -427,7 +427,7 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
           onSuccess={(order) => {
             setBuyProduct(null)
             setProducts(prev => prev.map(p => p.id === buyProduct.id ? { ...p, inventory: Math.max(0, p.inventory - order.quantity) } : p))
-            alert(`Order placed! Hold: $${order.holdAmount.toFixed(2)}. You'll only be charged the net amount at end of day.`)
+            showSuccess(`✅ Order placed! Hold: $${order.holdAmount.toFixed(2)}. You'll only be charged the net amount at end of day.`)
             showPrompt()
           }}
         />
@@ -449,17 +449,6 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
       {/* Notification Prompt Modal */}
       <NotificationPromptModal {...modalProps} />
 
-      {/* Reminder Toast */}
-      {reminderToast && (
-        <div style={{
-          position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
-          background: 'var(--gray-900, #111)', color: '#fff', padding: '10px 20px',
-          borderRadius: 24, fontSize: 14, zIndex: 1000, boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-          animation: 'fadeInUp 0.3s ease',
-        }}>
-          {reminderToast}
-        </div>
-      )}
     </div>
   )
 }

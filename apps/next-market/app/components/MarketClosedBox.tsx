@@ -13,6 +13,7 @@ import Link from 'next/link'
 import { createClient } from '../../lib/supabase'
 import { useAuth } from '../../lib/useAuth'
 import { resetTour } from './GuidedTour'
+import { useErrorToast } from './ErrorToast'
 
 interface MarketClosedBoxProps {
   nextOpenDate: Date | null
@@ -53,6 +54,7 @@ export default function MarketClosedBox({ nextOpenDate, todaySchedule }: MarketC
   const countdown = useCountdown(nextOpenDate)
   const supabase = createClient()
   const { user, isAuthenticated, profileComplete } = useAuth()
+  const { showSuccess, showError } = useErrorToast()
 
   // Reminder state (from original)
   const [showReminder, setShowReminder] = useState(false)
@@ -135,10 +137,11 @@ export default function MarketClosedBox({ nextOpenDate, todaySchedule }: MarketC
       }, { onConflict: 'user_id,market_date' })
 
     if (error) {
-      console.error('Failed to save reminder:', error.message)
+      showError('Failed to save reminder: ' + error.message)
       return
     }
     setReminderSet(true)
+    showSuccess('Reminder set for ' + nextDateStr)
   }
 
   return (
@@ -251,7 +254,7 @@ export default function MarketClosedBox({ nextOpenDate, todaySchedule }: MarketC
                 try { await navigator.share({ title: 'Join CasaGrown Market', text, url }) } catch { /* user cancelled */ }
               } else {
                 navigator.clipboard?.writeText(`${text}\n${url}`)
-                alert('Invite link copied to clipboard!')
+                showSuccess('Invite link copied to clipboard!')
               }
             }}>
               <div style={{ ...actionIconStyle, background: 'var(--amber-100, #fef3c7)' }} className="mc-icon">📣</div>

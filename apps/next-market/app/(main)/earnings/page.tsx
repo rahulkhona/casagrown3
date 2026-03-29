@@ -11,6 +11,7 @@ import { MarketReceiptSheet, type MarketReceiptData } from '../../components/Mar
 import { useNotificationPrompt } from '../../../lib/useNotificationPrompt'
 import { NotificationPromptModal } from '../../components/NotificationPromptModal'
 import { NotificationBanner } from '../../components/NotificationBanner'
+import { useErrorToast } from '../../components/ErrorToast'
 import styles from './page.module.css'
 
 // ── Types ──
@@ -101,6 +102,7 @@ export default function EarningsPage() {
   const [receiptData, setReceiptData] = useState<MarketReceiptData | null>(null)
   const [ratingHover, setRatingHover] = useState<{ txId: string; star: number } | null>(null)
   const [ratedOrders, setRatedOrders] = useState<Record<string, number>>({})
+  const { showError, showSuccess } = useErrorToast()
 
   // 1099 Tax Reporting thresholds
   const [taxThreshold, setTaxThreshold] = useState<{ amount: number; minTxns: number; warnPct: number } | null>(null)
@@ -264,11 +266,14 @@ export default function EarningsPage() {
         p_rating: rating,
       })
       if (error || data?.error) {
-        console.error('Rating error:', error?.message || data?.error)
+        showError('Rating error: ' + (error?.message || data?.error))
         setRatedOrders(prev => { const next = { ...prev }; delete next[orderId]; return next })
+      } else {
+        showSuccess('Rating submitted successfully!')
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Rating failed:', e)
+      showError('Rating failed: ' + (e.message || 'Unknown error'))
     }
   }, [supabase])
 

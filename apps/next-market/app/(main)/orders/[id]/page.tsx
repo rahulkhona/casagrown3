@@ -13,6 +13,7 @@ import OrderChat from '../../../../components/OrderChat'
 
 import { useNotificationPrompt } from '../../../../lib/useNotificationPrompt'
 import { NotificationPromptModal } from '../../../components/NotificationPromptModal'
+import { useErrorToast } from '../../../components/ErrorToast'
 import { NotificationBanner } from '../../../components/NotificationBanner'
 import { geocodeAddress } from '../../../../lib/geocode'
 import styles from './page.module.css'
@@ -127,6 +128,7 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
   const [locationWarning, setLocationWarning] = useState<string | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const { showPrompt, modalProps } = useNotificationPrompt(user?.id)
+  const { showError } = useErrorToast()
 
   const loadOrder = useCallback(async () => {
     if (!user) return
@@ -233,8 +235,8 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
     setActionLoading(true)
     const { data, error } = await supabase.rpc(fn, args)
     setActionLoading(false)
-    if (error) { alert('Error: ' + error.message); return null }
-    if (data?.error) { alert(data.error); return null }
+    if (error) { showError('Error: ' + error.message); return null }
+    if (data?.error) { showError(data.error); return null }
     loadOrder()
     return data
   }
@@ -996,7 +998,7 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
                     const path = `${orderId}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`
                     const { error } = await supabase.storage.from('order-evidence').upload(path, photo.result.file)
                     if (error) {
-                      console.error('Storage upload error:', error)
+                      showError('Storage upload error: ' + error.message)
                     } else {
                       const { data: urlData } = supabase.storage.from('order-evidence').getPublicUrl(path)
                       proofUrls.push({

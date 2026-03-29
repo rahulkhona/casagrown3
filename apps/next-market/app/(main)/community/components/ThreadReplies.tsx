@@ -4,6 +4,7 @@ import { CommunityChatMessage, fetchCommunityReplies } from '../../../../../../p
 import { createClient } from '../../../../lib/supabase'
 import ChatMessage from './ChatMessage'
 import ComposeBar from './ComposeBar'
+import { useErrorToast } from '../../../components/ErrorToast'
 import styles from '../page.module.css'
 
 interface ThreadRepliesProps {
@@ -16,6 +17,7 @@ export default function ThreadReplies({ parentMessage, replyCount, currentUserId
   const [isExpanded, setIsExpanded] = useState(false)
   const [replies, setReplies] = useState<CommunityChatMessage[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const { showError, showInfo } = useErrorToast()
 
   const loadReplies = async () => {
     setIsLoading(true)
@@ -25,6 +27,7 @@ export default function ThreadReplies({ parentMessage, replyCount, currentUserId
       setReplies(data)
     } catch (err) {
       console.error('Failed to load replies', err)
+      showError('Failed to load replies. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -74,7 +77,7 @@ export default function ThreadReplies({ parentMessage, replyCount, currentUserId
                 message={reply}
                 currentUserId={currentUserId}
                 onDelete={() => loadReplies()} /* reload after delete */
-                onFlag={() => alert('Message flagged.')}
+                onFlag={() => showInfo('Message flagged.')}
               />
             ))}
           </div>

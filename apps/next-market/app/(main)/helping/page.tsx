@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '../../../lib/useAuth'
 import { createClient } from '../../../lib/supabase'
 import { formatUsd } from '../../../lib/store'
+import { useErrorToast } from '../../components/ErrorToast'
 import styles from './page.module.css'
 
 interface HelperOrder {
@@ -30,6 +31,7 @@ export default function HelpingPage() {
   const [orders, setOrders] = useState<HelperOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const { showError, showSuccess } = useErrorToast()
 
   const supabase = createClient()
 
@@ -37,8 +39,9 @@ export default function HelpingPage() {
     try {
       const { data, error } = await supabase.rpc('get_helper_queue')
       if (!error && data) setOrders(data)
-    } catch (e) {
+    } catch (e: any) {
       console.error('Helper queue error:', e)
+      showError('Failed to load queue: ' + (e.message || 'Unknown error'))
     } finally {
       setLoading(false)
     }
@@ -56,14 +59,16 @@ export default function HelpingPage() {
         p_proof_urls: [],
       })
       if (error) {
-        alert('Error: ' + error.message)
+        showError('Error: ' + error.message)
       } else if (data?.error) {
-        alert(data.error)
+        showError(data.error)
       } else {
+        showSuccess('Order marked as delivered! 📦✅')
         fetchQueue()
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Mark delivered error:', e)
+      showError('Failed to mark delivered: ' + (e.message || 'Unknown error'))
     } finally {
       setActionLoading(null)
     }

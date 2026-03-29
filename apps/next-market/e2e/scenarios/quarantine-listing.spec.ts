@@ -64,8 +64,8 @@ test.describe('Quarantine — Seller Listing Block', () => {
     const submitBtn = page.locator('button[type="submit"]')
     if (await submitBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       const btnText = await submitBtn.innerText()
-      // Should say "Add Product" or "Save Changes" — NOT quarantine-related
-      const isNormalButton = btnText.includes('Add Product') || btnText.includes('Save Changes') || btnText.includes('Checking')
+      // Should say "Publish Product", "Save Draft", or "Save Changes" — NOT quarantine-related
+      const isNormalButton = btnText.includes('Publish Product') || btnText.includes('Save Draft') || btnText.includes('Save Changes') || btnText.includes('Checking')
       expect(isNormalButton).toBe(true)
     }
 

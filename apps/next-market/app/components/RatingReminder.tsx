@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '../../lib/supabase'
+import { useErrorToast } from './ErrorToast'
 
 /**
  * RatingReminder — Uber-style floating rating prompt
@@ -20,6 +21,7 @@ export function RatingReminder() {
   const [hoverStar, setHoverStar] = useState(0)
   const [submitted, setSubmitted] = useState(false)
   const [dismissed, setDismissed] = useState(false)
+  const { showError } = useErrorToast()
 
   // Check for unrated orders once auth is ready
   useEffect(() => {
@@ -105,6 +107,7 @@ export function RatingReminder() {
       })
     } catch (e) {
       console.error('Rating failed:', e)
+      showError('Failed to submit rating. Please try again.')
     }
     setTimeout(() => setDismissed(true), 1500)
   }, [order])

@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { CommunityChatMessage, toggleMessageReaction, fetchCommunityReplies } from '../../../../../../packages/app/features/community-chat/community-chat-service'
 import { createClient } from '../../../../lib/supabase'
+import { useErrorToast } from '../../../components/ErrorToast'
 import styles from '../page.module.css'
 
 interface ChatMessageProps {
@@ -26,6 +27,7 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
   
   const [reactions, setReactions] = useState(message.reaction_counts)
   const [userReactions, setUserReactions] = useState<string[]>(message.user_reactions)
+  const { showError } = useErrorToast()
 
   const isOwnMessage = currentUserId === message.author_id
   const isBot = message.is_system
@@ -55,6 +57,7 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
           setThreadReplies(replies)
         } catch (err) {
           console.error('Failed to load replies', err)
+          showError('Failed to load replies.')
         } finally {
           setLoadingThread(false)
         }
@@ -80,6 +83,7 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
       await toggleMessageReaction(supabase, message.id, currentUserId, emoji, !hasReacted)
     } catch (err) {
       console.error('Failed to toggle reaction', err)
+      showError('Failed to toggle reaction. Please try again.')
       setReactions(message.reaction_counts)
       setUserReactions(message.user_reactions)
     }

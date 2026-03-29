@@ -508,10 +508,10 @@ function NewProductPageInner() {
           const ext = blob.type.includes('png') ? 'png' : 'jpg'
           const path = `${authUser.id}/${Date.now()}_${i}.${ext}`
           const { error: uploadErr } = await supabase.storage.from('product-photos').upload(path, blob, { upsert: true })
-          if (uploadErr) { alert('Photo upload failed: ' + uploadErr.message); setValidating(false); return }
+          if (uploadErr) { setErrors({ submit: 'Photo upload failed: ' + uploadErr.message }); setValidating(false); return }
           const { data: urlData } = supabase.storage.from('product-photos').getPublicUrl(path)
           if (urlData?.publicUrl) editPhotoUrls.push(urlData.publicUrl)
-        } catch (err: any) { alert('Photo upload failed: ' + (err.message || 'Unknown')); setValidating(false); return }
+        } catch (err: any) { setErrors({ submit: 'Photo upload failed: ' + (err.message || 'Unknown') }); setValidating(false); return }
       }
 
       // Edit mode: update existing product
@@ -535,7 +535,7 @@ function NewProductPageInner() {
 
       if (error) {
         setValidating(false)
-        alert('Failed to update product: ' + error.message)
+        setErrors({ submit: 'Failed to update product: ' + error.message })
         return
       }
 
@@ -587,7 +587,7 @@ function NewProductPageInner() {
         const { error: uploadErr } = await supabase.storage.from('product-photos').upload(path, blob, { upsert: true })
         if (uploadErr) {
           console.warn('Photo upload failed:', uploadErr.message)
-          alert('Photo upload failed: ' + uploadErr.message)
+          setErrors({ submit: 'Photo upload failed: ' + uploadErr.message })
           setValidating(false)
           return
         }
@@ -595,7 +595,7 @@ function NewProductPageInner() {
         if (urlData?.publicUrl) uploadedPhotoUrls.push(urlData.publicUrl)
       } catch (err: any) {
         console.warn('Photo upload error:', err)
-        alert('Photo upload failed: ' + (err.message || 'Unknown error'))
+        setErrors({ submit: 'Photo upload failed: ' + (err.message || 'Unknown error') })
         setValidating(false)
         return
       }
@@ -626,7 +626,7 @@ function NewProductPageInner() {
 
     if (error || !insertedProduct) {
       setValidating(false)
-      alert('Failed to add product: ' + (error?.message || 'Unknown error'))
+      setErrors({ submit: 'Failed to add product: ' + (error?.message || 'Unknown error') })
       return
     }
 
@@ -716,7 +716,7 @@ function NewProductPageInner() {
     } catch (err: any) {
       console.error('Product add error:', err)
       trackError('product_add_failed', { error: err?.message })
-      alert('Failed to save product: ' + (err?.message || 'Unknown error. Please try again.'))
+      setErrors({ submit: 'Failed to save product: ' + (err?.message || 'Unknown error. Please try again.') })
       setValidating(false)
     }
   }
@@ -1293,6 +1293,11 @@ function NewProductPageInner() {
           )}
 
           {/* ===== Submit ===== */}
+          {errors.submit && (
+            <div style={{ color: '#dc2626', background: '#fef2f2', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13, whiteSpace: 'pre-wrap' }}>
+              {errors.submit}
+            </div>
+          )}
           <button 
             type="submit" 
             className={styles.submitBtn} 

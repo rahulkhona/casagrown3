@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useAuth } from '../../lib/useAuth'
+import { useErrorToast } from './ErrorToast'
 
 interface PioneerBannerProps {
   memberCount: number
@@ -13,6 +14,7 @@ interface PioneerBannerProps {
 export default function PioneerBanner({ memberCount, communityH3, onDismiss }: PioneerBannerProps) {
   const [visible, setVisible] = useState(false)
   const { user } = useAuth()
+  const { showSuccess } = useErrorToast()
 
   useEffect(() => {
     try {
@@ -38,7 +40,7 @@ export default function PioneerBanner({ memberCount, communityH3, onDismiss }: P
       try { await navigator.share({ title: 'Join CasaGrown', text, url }) } catch {}
     } else {
       navigator.clipboard?.writeText(`${text}\n${url}`)
-      alert('Invite link copied!')
+      showSuccess('Invite link copied!')
     }
   }
 

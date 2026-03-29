@@ -19,6 +19,7 @@ import SuggestionChips from './components/SuggestionChips'
 import NewMessagesBadge from './components/NewMessagesBadge'
 import { useNotificationPrompt } from '../../../lib/useNotificationPrompt'
 import { NotificationPromptModal } from '../../components/NotificationPromptModal'
+import { useErrorToast } from '../../components/ErrorToast'
 
 // How often to poll for new messages
 const POLL_INTERVAL_ACTIVE = 15000 // 15s when tab is active
@@ -33,6 +34,7 @@ export default function ClientPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [profileH3, setProfileH3] = useState<string | null>(null)
   const [errorState, setErrorState] = useState<{ message: string; cta?: string; action?: () => void } | null>(null)
+  const { showError, showInfo } = useErrorToast()
 
   
   // Polling state
@@ -68,6 +70,7 @@ export default function ClientPage() {
         
       if (error) {
         console.error('Failed to fetch profile H3 index:', error)
+        showError('We encountered an error loading your community profile.')
         setErrorState({ message: 'We encountered an error loading your community profile.', cta: 'Try Again', action: () => window.location.reload() })
         return
       }
@@ -238,7 +241,7 @@ export default function ClientPage() {
       }, 100)
     } catch (err) {
       console.error('Failed to send message', err)
-      alert('Failed to send message. Please try again.')
+      showError('Failed to send message. Please try again.')
     }
   }
 
@@ -344,7 +347,7 @@ export default function ClientPage() {
                   if (user) {
                     const supabase = createClient()
                     flagMessage(supabase, msg.id, user.id).then(() => {
-                      alert('Message flagged for review.')
+                      showInfo('Message flagged for review.')
                       loadMessages()
                     })
                   }

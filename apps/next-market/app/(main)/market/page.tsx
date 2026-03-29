@@ -14,6 +14,7 @@ import MarketClosedBox from '../../components/MarketClosedBox'
 import PioneerBanner from '../../components/PioneerBanner'
 import { resetTour } from '../../components/GuidedTour'
 import { LoadingSpinner } from '../../components/LoadingSpinner'
+import { useErrorToast } from '../../components/ErrorToast'
 import styles from './page.module.css'
 
 // ── Compact countdown timer for closed market ──
@@ -128,8 +129,8 @@ function BrowseMarketPageInner() {
 
   // Product reminders (when market is closed)
   const [savedProductIds, setSavedProductIds] = useState<Set<string>>(new Set())
-  const [reminderToast, setReminderToast] = useState<string | null>(null)
   const [showDemoModal, setShowDemoModal] = useState(false)
+  const { showSuccess, showInfo } = useErrorToast()
 
   // Pioneer banner state
   const [communityMemberCount, setCommunityMemberCount] = useState<number | null>(null)
@@ -482,14 +483,13 @@ function BrowseMarketPageInner() {
     if (isSaved) {
       await supabase.from('product_reminders').delete().eq('user_id', user.id).eq('product_id', productId)
       setSavedProductIds(prev => { const next = new Set(prev); next.delete(productId); return next })
-      setReminderToast('Reminder removed')
+      showInfo('Reminder removed')
     } else {
       await supabase.from('product_reminders').upsert({ user_id: user.id, product_id: productId }, { onConflict: 'user_id,product_id', ignoreDuplicates: true })
 
       setSavedProductIds(prev => new Set(prev).add(productId))
-      setReminderToast('🔔 Saved! We\'ll notify you when this booth opens')
+      showSuccess('🔔 Saved! We\'ll notify you when this booth opens')
     }
-    setTimeout(() => setReminderToast(null), 3000)
   }
 
   const isSearching = !!search.trim()
@@ -597,7 +597,7 @@ function BrowseMarketPageInner() {
                 try { await navigator.share({ title: 'Join CasaGrown', text, url }) } catch {}
               } else {
                 navigator.clipboard?.writeText(`${text}\n${url}`)
-                alert('Invite link copied!')
+                showSuccess('Invite link copied!')
               }
             }} style={{
               display: 'inline-flex', alignItems: 'center', gap: 5,
@@ -613,10 +613,11 @@ function BrowseMarketPageInner() {
               // Request notification permission for market open reminder
               if ('Notification' in window && Notification.permission !== 'granted') {
                 Notification.requestPermission().then(p => {
-                  alert(p === 'granted' ? '🔔 You\'ll be notified when the market opens!' : 'Please enable notifications in your browser settings.')
+                  if (p === 'granted') showSuccess('🔔 You\'ll be notified when the market opens!')
+                  else showInfo('Please enable notifications in your browser settings.')
                 })
               } else {
-                alert('🔔 You\'ll be notified when the market opens!')
+                showSuccess('🔔 You\'ll be notified when the market opens!')
               }
             }} style={{
               display: 'inline-flex', alignItems: 'center', gap: 5,
@@ -844,17 +845,6 @@ function BrowseMarketPageInner() {
         </div>
       )}
 
-      {/* Reminder toast */}
-      {reminderToast && (
-        <div style={{
-          position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
-          background: 'var(--gray-900, #111)', color: '#fff', padding: '10px 20px',
-          borderRadius: 24, fontSize: 14, zIndex: 1000, boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-          animation: 'fadeInUp 0.3s ease',
-        }}>
-          {reminderToast}
-        </div>
-      )}
       {/* Demo Warning Modal */}
       {showDemoModal && (
         <div style={{

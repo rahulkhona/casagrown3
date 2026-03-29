@@ -59,7 +59,7 @@ export function ErrorToastProvider({ children, userId }: { children: React.React
 
   // ── Submit feedback (bug report from toast or general feedback) ──
   const submitFeedback = async (type: string, message: string, context?: Record<string, any>, toastId?: string) => {
-    if (!userId) { alert('Please sign in to submit feedback.'); return }
+    if (!userId) { console.error('Please sign in to submit feedback.'); return }
 
     const setLoading = toastId ? () => setReporting(toastId) : () => setFeedbackSending(true)
     setLoading()
@@ -84,8 +84,7 @@ export function ErrorToastProvider({ children, userId }: { children: React.React
       })
 
       if (error) {
-        console.error('Feedback submit failed:', error)
-        alert('Failed to submit: ' + error.message)
+        addToast('Failed to submit: ' + error.message, 'error')
       } else {
         if (toastId) {
           setReported(prev => { const next = new Set(Array.from(prev)); next.add(toastId); return next })
@@ -97,7 +96,7 @@ export function ErrorToastProvider({ children, userId }: { children: React.React
         }
       }
     } catch (err: any) {
-      alert('Failed: ' + (err.message || 'Unknown error'))
+      addToast('Failed: ' + (err.message || 'Unknown error'), 'error')
     } finally {
       if (toastId) setReporting(null)
       else setFeedbackSending(false)

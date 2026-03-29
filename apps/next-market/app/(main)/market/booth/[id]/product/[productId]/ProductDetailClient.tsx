@@ -12,6 +12,7 @@ import BuyModal from '../../../../../../components/BuyModal'
 import { FlagModal } from '../../../../../../components/FlagModal'
 import { ProductQA } from '../../../../../../components/ProductQA'
 import { NotificationPromptModal } from '../../../../../../components/NotificationPromptModal'
+import { useErrorToast } from '../../../../../../components/ErrorToast'
 import { useNotificationPrompt } from '../../../../../../../lib/useNotificationPrompt'
 import { useCart } from '../../../../../../../lib/useCart'
 import styles from './page.module.css'
@@ -39,7 +40,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
   // Reminder state
   const [reminderSet, setReminderSet] = useState(false)
   const [reminderLoading, setReminderLoading] = useState(false)
-  const [reminderToast, setReminderToast] = useState<string | null>(null)
+  const { showSuccess, showInfo, showError } = useErrorToast()
   const [sellerRating, setSellerRating] = useState<{ avg: number; count: number } | null>(null)
 
 
@@ -159,7 +160,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
         // Remove reminder
         await supabase.from('product_reminders').delete().eq('user_id', user.id).eq('product_id', productId)
         setReminderSet(false)
-        setReminderToast('Reminder removed')
+        showInfo('Reminder removed')
       } else {
         // Set product reminder
         await supabase.from('product_reminders').upsert(
@@ -168,14 +169,13 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
         )
 
         setReminderSet(true)
-        setReminderToast('🔔 Saved! We\'ll notify you when this booth opens')
+        showSuccess('🔔 Saved! We\'ll notify you when this booth opens')
       }
     } catch (err) {
       console.error('Reminder toggle failed:', err)
-      setReminderToast('Failed to set reminder')
+      showError('Failed to set reminder')
     }
     setReminderLoading(false)
-    setTimeout(() => setReminderToast(null), 3000)
   }
 
   if (loading || marketLoading) {
@@ -306,7 +306,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                   } else {
                     try { 
                       await navigator.clipboard.writeText(text)
-                      alert('Product link copied to clipboard! 📋')
+                      showSuccess('Product link copied to clipboard! 📋')
                     } catch {}
                   }
                 }}
@@ -562,7 +562,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
           onClose={() => setShowBuy(false)}
           onSuccess={(order) => {
             setShowBuy(false)
-            alert(`Order placed! Hold: $${order.holdAmount.toFixed(2)}. You'll only be charged the net amount at end of day.`)
+            showSuccess(`Order placed! Hold: $${order.holdAmount.toFixed(2)}. You'll only be charged the net amount at end of day.`)
             showPrompt()
             router.push(`/market/booth/${boothId}`)
           }}
@@ -581,18 +581,6 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
 
       {/* Notification Prompt Modal */}
       <NotificationPromptModal {...modalProps} />
-
-      {/* Reminder Toast */}
-      {reminderToast && (
-        <div style={{
-          position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
-          background: 'var(--gray-900, #111)', color: '#fff', padding: '10px 20px',
-          borderRadius: 24, fontSize: 14, zIndex: 1000, boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-          animation: 'fadeInUp 0.3s ease',
-        }}>
-          {reminderToast}
-        </div>
-      )}
 
       {/* Cart Toast */}
       {cartToast && (

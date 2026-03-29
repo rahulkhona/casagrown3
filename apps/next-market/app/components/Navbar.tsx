@@ -10,6 +10,7 @@ import styles from './Navbar.module.css'
 import { resetTour } from './GuidedTour'
 import { useCart } from '../../lib/useCart'
 import { useMarketStatus } from '../../lib/useMarketStatus'
+import { useErrorToast } from './ErrorToast'
 
 interface Notification {
   id: string
@@ -61,6 +62,7 @@ export function Navbar() {
   const [profileAvatar, setProfileAvatar] = useState<string | null>(null)
   const [unreadCount, setUnreadCount] = useState(0)
   const menuRef = useRef<HTMLDivElement>(null)
+  const { showError } = useErrorToast()
 
   // Profile gate: grey out nav items unless fully onboarded (logged in + profile complete)
   const isProfileLocked = profileComplete !== true
@@ -747,7 +749,7 @@ export function Navbar() {
                     setBugMessage('')
                     setTimeout(() => { setBugOpen(false); setBugSent(false) }, 2000)
                   } catch (err: any) {
-                    alert('Failed: ' + (err.message || 'Unknown error'))
+                    showError('Failed to submit report: ' + (err.message || 'Unknown error'))
                   } finally {
                     setBugSending(false)
                   }
