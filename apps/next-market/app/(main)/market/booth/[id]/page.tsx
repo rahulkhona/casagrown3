@@ -52,6 +52,9 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
             .from('market_products')
             .select('*')
             .eq('seller_id', boothData.owner_id)
+            .eq('is_active', true)
+            .eq('is_draft', false)
+            .eq('moderation_status', 'approved')
             .order('created_at', { ascending: true }),
           supabase
             .from('profiles')
@@ -123,6 +126,9 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
         .from('market_products')
         .select('*')
         .eq('seller_id', booth.owner_id)
+        .eq('is_active', true)
+        .eq('is_draft', false)
+        .eq('moderation_status', 'approved')
         .order('created_at', { ascending: true })
       if (prods) setProducts(prods)
     }

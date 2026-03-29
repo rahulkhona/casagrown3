@@ -101,6 +101,7 @@ Deno.serve(async (req: Request) => {
       };
       await supabase.from("market_products").update({
         moderation_status: "flagged",
+        is_active: false,
         moderation_flags: flags,
         moderation_checked_at: new Date().toISOString(),
         moderation_content_hash: contentHash,
@@ -244,12 +245,18 @@ When in doubt, APPROVE. Only flag clear violations.`,
           reason: moderationResult.reason,
         };
 
-    await supabase.from("market_products").update({
+    const updatePayload: any = {
       moderation_status: newStatus,
       moderation_flags: flags,
       moderation_content_hash: contentHash,
       moderation_checked_at: new Date().toISOString(),
-    }).eq("id", product_id);
+    };
+
+    if (newStatus === "flagged") {
+      updatePayload.is_active = false;
+    }
+
+    await supabase.from("market_products").update(updatePayload).eq("id", product_id);
 
     // ── 5. Notify seller if flagged ───────────────────────────────────────────
     if (newStatus === "flagged") {

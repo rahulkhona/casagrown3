@@ -72,7 +72,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
       }
 
       const [{ data: prod }, { data: boothData }] = await Promise.all([
-        supabase.from('market_products').select('*').eq('id', productId).single(),
+        supabase.from('market_products').select('*').eq('id', productId).eq('is_active', true).eq('is_draft', false).eq('moderation_status', 'approved').single(),
         supabase.from('market_booths').select('*').eq('id', boothId).single(),
       ])
       if (prod) setProduct(prod)
