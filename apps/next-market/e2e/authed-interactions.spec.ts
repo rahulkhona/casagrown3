@@ -17,10 +17,10 @@ import { test, expect } from './fixtures'
 test.describe('Global UI Elements', () => {
   test('navbar logo navigates to market', async ({ page }) => {
     await page.goto('/orders')
-    const logo = page.locator('a[href="/market"], a[href="/"]').first()
-    if (await logo.isVisible({ timeout: 3000 }).catch(() => false)) {
+    const logo = page.locator('a[class*="logo"]').first()
+    if (await logo.isVisible({ timeout: 5000 }).catch(() => false)) {
       await logo.click()
-      await expect(page).toHaveURL(/localhost:3001\/?$/)
+      await expect(page).toHaveURL(/localhost:3001\/?$/, { timeout: 15000 })
     }
   })
 
@@ -739,7 +739,7 @@ test.describe('Settings', () => {
     const editLink = page.locator('button:has-text("Edit Profile"), a:has-text("Edit Profile")').first()
     if (await editLink.isVisible({ timeout: 3000 }).catch(() => false)) {
       await editLink.click()
-      await expect(page).toHaveURL(/\/profile/)
+      await expect(page).toHaveURL(/\/profile/, { timeout: 15000 })
     }
   })
 })

@@ -139,6 +139,30 @@ test.describe('Chat & Social Flows', () => {
     await page.context().close()
   })
 
+  // ── S9.4: Buzz to DM Link ──
+  test('S9.4 — Community avatar navigates to DM Compose', async ({ browser }) => {
+    const page = await loginAsUser(browser, 'beth')
+    await navigateTo(page, '/community')
+    await assertPageHealthy(page)
+
+    // Locate the first non-system user message in the feed.
+    // The link should match `/messages/new?userId=...`
+    const dmLink = page.locator('a[href*="/messages/new?userId="]').first()
+    
+    if (await dmLink.count() > 0) {
+      const targetUrl = await dmLink.getAttribute('href')
+      console.log(`[BUZZ DM] Clicking DM link targeting: ${targetUrl}`)
+      await dmLink.click()
+      await page.waitForLoadState('networkidle')
+      await assertPageHealthy(page)
+
+      // Ensure Page URL matched the router instruction pointing to Inbox
+      expect(page.url()).toContain('/messages')
+    }
+
+    await page.context().close()
+  })
+
   // ── S2.4: Follow / Unfollow Lifecycle ──
   test('S2.4 — follow booth → verify on /following → unfollow → verify removed', async ({ browser }) => {
     // Clean up any existing follows for Beth first

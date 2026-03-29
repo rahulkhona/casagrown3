@@ -18,9 +18,15 @@ interface ChatMessageProps {
 
 const EMOJIS = ['👍', '❤️', '🎉', '😂', '😮', '🌱']
 
-function formatTime(dateStr: string) {
-  const date = new Date(dateStr)
-  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+function formatTime(dateStr?: string) {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  const today = new Date()
+  const isToday = d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear()
+  const timeStr = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  
+  if (isToday) return timeStr
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ', ' + timeStr
 }
 
 export default function ChatMessage({ message, currentUserId, onDelete, onFlag, onReply, isThreadReply }: ChatMessageProps) {
@@ -144,6 +150,18 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
             {isBot ? 'CasaBot' : (message.author_name || 'Neighbor')}
           </span>
           {isBot && <span className={styles.botBadge}>BOT</span>}
+          
+          {/* NEW: Inline Message Action */}
+          {!isOwnMessage && !isBot && (
+            <a 
+              href={`/messages/new?userId=${message.author_id}&name=${encodeURIComponent(message.author_name || 'Neighbor')}`}
+              style={{ fontSize: '0.75rem', background: '#dcfce3', border: '1px solid #86efac', padding: '2px 8px', borderRadius: '12px', marginLeft: 6, color: '#166534', textDecoration: 'none', fontWeight: 500 }}
+              title="Send a Direct Message"
+            >
+              💬 DM
+            </a>
+          )}
+
           <span className={styles.time}>{formatTime(message.created_at)}</span>
         </div>
         
@@ -245,7 +263,18 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
                   )}
                 </div>
                 <div className={styles.threadReplyContent}>
-                  <span className={styles.threadReplyAuthor}>{reply.author_name || 'Neighbor'}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span className={styles.threadReplyAuthor}>{reply.author_name || 'Neighbor'}</span>
+                    {reply.author_id !== '00000000-0000-0000-0000-000000000000' && currentUserId !== reply.author_id && (
+                      <a 
+                        href={`/messages/new?userId=${reply.author_id}&name=${encodeURIComponent(reply.author_name || 'Neighbor')}`}
+                        style={{ fontSize: '0.65rem', background: '#dcfce3', border: '1px solid #86efac', padding: '1px 6px', borderRadius: '12px', color: '#166534', textDecoration: 'none', fontWeight: 500 }}
+                        title="Send a Direct Message"
+                      >
+                        💬 DM
+                      </a>
+                    )}
+                  </div>
                   <span className={styles.threadReplyText}>{reply.content}</span>
                 </div>
                 <span className={styles.threadReplyTime}>{formatTime(reply.created_at)}</span>
@@ -261,6 +290,7 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
             onSubmit={async (e) => {
               e.preventDefault()
               if (!replyText.trim() || isSendingReply) return
+              const formTarget = e.currentTarget
               
               const violationCheck = checkTextForViolations(replyText)
               if (!violationCheck.isClean) {
@@ -268,13 +298,13 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
                 return
               }
 
-              setIsSendingReply(true)
               try {
+                setIsSendingReply(true)
                 await onReply(message.id, replyText.trim())
                 setReplyText('')
 
-                // Reset the textarea physical height since we cleared its state
-                const ta = e.currentTarget.querySelector('textarea')
+                // Reset the textarea physical height since we explicitly clear it
+                const ta = formTarget?.querySelector('textarea')
                 if (ta) ta.style.height = '38px'
 
                 // Always refresh thread to show new reply

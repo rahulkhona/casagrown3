@@ -106,7 +106,7 @@ export function ErrorToastProvider({ children, userId }: { children: React.React
   const typeStyles: Record<Toast['type'], { bg: string; border: string; icon: string; color: string }> = {
     error:   { bg: '#fef2f2', border: '#fca5a5', icon: '❌', color: '#991b1b' },
     warning: { bg: '#fffbeb', border: '#fcd34d', icon: '⚠️', color: '#92400e' },
-    info:    { bg: '#eff6ff', border: '#93c5fd', icon: 'ℹ️', color: '#1e40af' },
+    info:    { bg: '#1f2937', border: '#374151', icon: '✨', color: '#f9fafb' },
     success: { bg: '#f0fdf4', border: '#86efac', icon: '✅', color: '#166534' },
   }
 

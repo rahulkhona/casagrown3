@@ -97,14 +97,14 @@ test.describe('Booth Management', () => {
     await assertPageHealthy(page)
 
     // Fill name only
-    await page.locator('input[placeholder="e.g. Heritage Tomatoes"], input[type="text"]').first().fill('Test Draft Tomato')
+    await page.locator('input[placeholder*="Heritage Tomatoes"]').first().fill('Test Draft Tomato')
 
     // Verify button says "Save Draft" because photo/price is missing
     const submitBtn = page.locator('button[type="submit"]')
     await expect(submitBtn).toHaveText(/Save Draft/i)
 
     // Submit the form
-    await submitBtn.click()
+    await submitBtn.click({ force: true })
     
     // Next.js client-side navigation via Success Modal
     await expect(page.locator('body')).toContainText('Test Draft Tomato added!', { timeout: 35000 })

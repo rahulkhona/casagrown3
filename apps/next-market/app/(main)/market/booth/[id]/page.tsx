@@ -230,28 +230,40 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
           {booth.offers_pickup && <><span>•</span><span>📍 Pickup</span></>}
         </div>
         {booth.description && <p className={styles.boothDesc}>{booth.description}</p>}
-        {/* Follow button */}
+        {/* Follow & Message actions */}
         {isAuthenticated && user?.id !== booth.owner_id && (
-          <button
-            className={`${styles.followBtn} ${following ? styles.followBtnActive : ''}`}
-            onClick={async () => {
-              if (profileComplete !== true) {
-                router.push('/profile-setup')
-                return
-              }
-              if (following) {
-                await supabase.from('market_followers').delete().match({ follower_id: user!.id, booth_id: booth.id })
-                setFollowing(false)
-                setFollowerCount(c => Math.max(0, c - 1))
-              } else {
-                await supabase.from('market_followers').insert({ follower_id: user!.id, booth_id: booth.id })
-                setFollowing(true)
-                setFollowerCount(c => c + 1)
-              }
-            }}
-          >
-            {following ? '❤️ Following' : '🤍 Follow'}
-          </button>
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <button
+              className={`${styles.followBtn} ${following ? styles.followBtnActive : ''}`}
+              style={{ flex: 1 }}
+              onClick={async () => {
+                if (profileComplete !== true) {
+                  router.push('/profile-setup')
+                  return
+                }
+                if (following) {
+                  await supabase.from('market_followers').delete().match({ follower_id: user!.id, booth_id: booth.id })
+                  setFollowing(false)
+                  setFollowerCount(c => Math.max(0, c - 1))
+                } else {
+                  await supabase.from('market_followers').insert({ follower_id: user!.id, booth_id: booth.id })
+                  setFollowing(true)
+                  setFollowerCount(c => c + 1)
+                }
+              }}
+            >
+              {following ? '❤️ Following' : '🤍 Follow'}
+            </button>
+
+            {/* NEW: Message Farm Action */}
+            <Link
+              href={`/messages/new?userId=${booth.owner_id}&name=${encodeURIComponent(booth.name || 'Farm')}`}
+              className={styles.followBtn}
+              style={{ flex: 1, textDecoration: 'none', textAlign: 'center', background: 'transparent', color: 'var(--gray-700)', border: '1px solid var(--gray-300)' }}
+            >
+              💬 Message Farm
+            </Link>
+          </div>
         )}
         {followerCount > 0 && (
           <p className={styles.followerCount}>{followerCount} follower{followerCount !== 1 ? 's' : ''}</p>

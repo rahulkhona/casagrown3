@@ -511,6 +511,21 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                     )}
                   </div>
                 )}
+                
+                {/* NEW: Message Seller Button */}
+                {!isDemo && isAuthenticated && user?.id !== product.seller_id && (
+                  <Link
+                    href={`/messages/new?userId=${product.seller_id}&productId=${product.id}&name=${encodeURIComponent(booth.name || 'Seller')}`}
+                    style={{
+                      display: 'block', width: '100%', marginTop: 12, padding: '12px 20px',
+                      border: '2px solid var(--gray-300)', borderRadius: 'var(--radius-md, 12px)',
+                      background: 'none', color: 'var(--gray-700)', textAlign: 'center',
+                      fontSize: 16, fontWeight: 600, textDecoration: 'none', cursor: 'pointer',
+                    }}
+                  >
+                    💬 Message Seller
+                  </Link>
+                )}
               </>
             )}
           </div>

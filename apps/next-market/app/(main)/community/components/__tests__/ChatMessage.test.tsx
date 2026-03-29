@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import React from 'react'
-import { render, fireEvent, act } from '@testing-library/react'
+import { render, fireEvent, act, screen, waitFor } from '@testing-library/react'
 
 // Mock the supabase client
 vi.mock('../../../../lib/supabase', () => ({
@@ -45,6 +45,7 @@ const baseMessage = {
   reply_count: 0,
   user_reactions: [],
   flag_count: 0,
+  bumped_at: '2026-03-18T07:00:00Z',
 }
 
 const botMessage = {
@@ -98,6 +99,30 @@ describe('ChatMessage', () => {
   it('renders time in readable format', () => {
     const { container } = render(React.createElement(ChatMessage, defaultProps))
     expect(container.textContent).toMatch(/\d{1,2}:\d{2}/)
+  })
+
+  // ── DM Navigation ──────────────────────────────────────────────
+
+  it('renders author name as a link to DM when it is another user', () => {
+    const { container } = render(React.createElement(ChatMessage, defaultProps))
+    const link = container.querySelector(`a[title="Send a Direct Message"]`)
+    expect(link?.getAttribute('href') || '').toContain('/messages/new?userId=user-1')
+  })
+
+  it('does NOT render link to DM if message is from the current user', () => {
+    const { container } = render(
+      React.createElement(ChatMessage, { ...defaultProps, currentUserId: 'user-1' })
+    )
+    const link = container.querySelector('a')
+    expect(link).toBeFalsy()
+  })
+
+  it('does NOT render link to DM if message is from CasaBot', () => {
+    const { container } = render(
+      React.createElement(ChatMessage, { ...defaultProps, message: botMessage })
+    )
+    const link = container.querySelector('a')
+    expect(link).toBeFalsy()
   })
 
   // ── Bot/System Message Styling ───────────────────────────────
@@ -160,8 +185,8 @@ describe('ChatMessage', () => {
     const { container } = render(React.createElement(ChatMessage, defaultProps))
     const bubble = findBubble(container)
     fireEvent.click(bubble!)
-    const input = container.querySelector('input[placeholder="Reply..."]')
-    expect(input).toBeTruthy()
+    const input = screen.getByPlaceholderText('Reply...')
+    expect(input).toBeInTheDocument()
   })
 
   it('hides action bar when tapped again', () => {
@@ -207,15 +232,15 @@ describe('ChatMessage', () => {
     )
     const bubble = findBubble(container)
     fireEvent.click(bubble!)
-    const input = container.querySelector('input[placeholder="Reply..."]') as HTMLInputElement
-    fireEvent.change(input, { target: { value: 'Great point!' } })
+    const input = screen.getByPlaceholderText('Reply...')
+    fireEvent.change(input, { target: { value: 'This is a test reply!' } })
     
     const form = container.querySelector('form') as HTMLFormElement
     await act(async () => {
       fireEvent.submit(form)
     })
     
-    expect(onReply).toHaveBeenCalledWith('msg-1', 'Great point!')
+    expect(onReply).toHaveBeenCalledWith('msg-1', 'This is a test reply!')
   })
 
   it('disables send button when reply text is empty', async () => {
@@ -235,8 +260,8 @@ describe('ChatMessage', () => {
         React.createElement(ChatMessage, { ...defaultProps, message: messageWithReplies })
       )
     })
-    const input = document.querySelector('input[placeholder="Reply..."]')
-    expect(input).toBeTruthy()
+    const input = screen.getByPlaceholderText('Reply...')
+    expect(input).toBeInTheDocument()
   })
 
   // ── Media ────────────────────────────────────────────────────

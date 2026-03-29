@@ -50,6 +50,9 @@ function CartIcon() {
   )
 }
 
+const globalNotifiedIds = new Set<string>()
+let globalFirstLoad = true
+
 export function Navbar() {
   const { state, dispatch } = useMarket()
   const { profileComplete } = useAuth()
@@ -62,7 +65,7 @@ export function Navbar() {
   const [profileAvatar, setProfileAvatar] = useState<string | null>(null)
   const [unreadCount, setUnreadCount] = useState(0)
   const menuRef = useRef<HTMLDivElement>(null)
-  const { showError } = useErrorToast()
+  const { showError, showInfo } = useErrorToast()
 
   // Profile gate: grey out nav items unless fully onboarded (logged in + profile complete)
   const isProfileLocked = profileComplete !== true
@@ -136,24 +139,7 @@ export function Navbar() {
     return () => document.removeEventListener('visibilitychange', onFocus)
   }, [userId])
 
-  // Poll unread notification count every 60s (separate from profile fetch)
-  useEffect(() => {
-    if (!userId) return
-    const supabase = createClient()
-    const fetchCount = async () => {
-      const { count } = await supabase
-        .from('market_notifications')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId)
-        .is('read_at', null)
-      setUnreadCount(count || 0)
-    }
-    fetchCount()
-    const id = setInterval(fetchCount, 60_000)
-    return () => clearInterval(id)
-  }, [userId])
-
-  // Fetch notifications when panel opens
+  // Fetch notifications for panel
   const fetchNotifications = useCallback(async () => {
     if (!userId) return
     setNotifLoading(true)
@@ -167,6 +153,68 @@ export function Navbar() {
     if (data) setNotifications(data)
     setNotifLoading(false)
   }, [userId])
+
+  useEffect(() => {
+    if (!userId) return
+    const supabase = createClient()
+    const pollNotifs = async () => {
+      // 1. Fetch count for the badge
+      const { count } = await supabase
+        .from('market_notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .is('read_at', null)
+      setUnreadCount(count || 0)
+
+      // 2. Fetch actually *new* rows to pop up as a Toast (using UUIDs instead of clock-drifting dates)
+      const { data: recentNotifs } = await supabase
+        .from('market_notifications')
+        .select('id, content, link_url')
+        .eq('user_id', userId)
+        .is('read_at', null)
+        .order('created_at', { ascending: false })
+        .limit(10)
+
+      if (recentNotifs) {
+        recentNotifs.forEach(n => {
+          if (!globalNotifiedIds.has(n.id)) {
+            // Is the user already actively looking at the exact page this notification points to?
+            if (n.link_url && pathname === n.link_url) {
+                globalNotifiedIds.add(n.id)
+                // Silently dismiss DB row so the App Badge seamlessly decrements
+                supabase.from('market_notifications').delete().eq('id', n.id).then()
+                // Artificially decrement the badge immediately for snappier UI
+                setUnreadCount(prev => Math.max(0, prev - 1))
+                return // Skip showing the Toast!
+            }
+
+            // Only pop a toast alert if they aren't looking at the page naturally!
+            if (!globalFirstLoad) {
+              showInfo(n.content)
+            }
+            globalNotifiedIds.add(n.id)
+          }
+        })
+        globalFirstLoad = false
+      }
+    }
+    pollNotifs()
+    const id = setInterval(pollNotifs, 15_000)
+    
+    const forceUpdate = () => { 
+      setUnreadCount(prev => Math.max(0, prev - 1));
+      pollNotifs(); 
+      fetchNotifications(); 
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('force-badge-update', forceUpdate)
+    }
+    
+    return () => {
+      clearInterval(id)
+      if (typeof window !== 'undefined') window.removeEventListener('force-badge-update', forceUpdate)
+    }
+  }, [userId, showInfo, pathname, fetchNotifications])
 
   useEffect(() => {
     if (notifOpen) fetchNotifications()

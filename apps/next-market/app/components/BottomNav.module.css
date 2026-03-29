@@ -18,7 +18,7 @@
   transition: all 0.15s;
 }
 .tab:hover { background: var(--green-50); }
-.icon { font-size: 22px; line-height: 1; }
+.icon { font-size: 22px; line-height: 1; position: relative; }
 .label { font-size: 11px; font-weight: 500; color: var(--gray-500); }
 .tabActive .label { color: var(--green-700); font-weight: 700; }
 .tabActive { background: var(--green-50); }
