@@ -165,8 +165,8 @@ function OrdersContent() {
       const isBuyer = o.buyer_id === user!.id
       const isSeller = o.seller_id === user!.id
       // Seller: pending orders need fulfillment + disputes need response
-      // Buyer: delivered orders need confirmation + disputes
-      if (isSeller && o.status === 'pending') return true
+      // Buyer: pending orders wait for seller + delivered orders need confirmation + disputes
+      if (o.status === 'pending') return true
       if (isBuyer && o.status === 'delivered') return true
       if (['disputed', 'escalated'].includes(o.status)) return true
       return false

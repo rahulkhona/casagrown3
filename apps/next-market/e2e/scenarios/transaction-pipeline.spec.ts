@@ -419,28 +419,50 @@ test.describe('Transaction Pipeline — Full Financial Lifecycle', () => {
 
   // ── Phase 5: Settlement ──
   test('Phase 5 — run settlement and verify ledger', async ({ browser }) => {
-    // Call the settlement edge function
-    try {
-      const settleRes = await fetch(
-        `${SUPABASE_URL}/functions/v1/execute-settlement-captures`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          },
-          body: JSON.stringify({}),
-        },
-      )
+    // 1. Run the database settlement to group all completed/delivered orders
+    const { execSync } = await import('child_process')
+    let settlementId: string | null = null
 
-      if (settleRes.ok) {
-        const settleData = await settleRes.json()
-        console.log('[SETTLEMENT] Result:', JSON.stringify(settleData).substring(0, 200))
-      } else {
-        console.warn(`[SETTLEMENT] Edge function returned ${settleRes.status} — may not be deployed locally`)
-      }
+    try {
+      const settleDbRes = execSync(
+        'docker exec -i supabase_db_casagrown3 psql -U postgres -t -c "SELECT run_market_settlement()"',
+        { encoding: 'utf-8' },
+      ).trim()
+      console.log('[SETTLEMENT] DB Generator:', settleDbRes)
+      
+      const match = settleDbRes.match(/"settlement_id":\s*"([^"]+)"/)
+      if (match) settlementId = match[1]
     } catch (e) {
-      console.warn('[SETTLEMENT] Edge function not available:', e)
+      console.warn('[SETTLEMENT] Failed to run database settlement RPC:', e)
+    }
+
+    if (!settlementId) {
+      console.log('[SETTLEMENT] Skipping edge function because no settlement_id was generated (probably no orders pending settlement)')
+      // We will softly continue so the rest of the assertions can run based on existing seeded ledger data.
+    } else {
+      // 2. Call the settlement edge function to execute Stripe captures
+      try {
+        const settleRes = await fetch(
+          `${SUPABASE_URL}/functions/v1/execute-settlement-captures`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            },
+            body: JSON.stringify({ settlement_id: settlementId }),
+          },
+        )
+
+        if (settleRes.ok) {
+          const settleData = await settleRes.json()
+          console.log('[SETTLEMENT] Edge Result:', JSON.stringify(settleData).substring(0, 200))
+        } else {
+          console.warn(`[SETTLEMENT] Edge function returned ${settleRes.status} — may not be deployed locally`)
+        }
+      } catch (e) {
+        console.warn('[SETTLEMENT] Edge function not available:', e)
+      }
     }
 
     // Verify earnings page shows updated data

@@ -32,7 +32,10 @@ export function useAuth() {
       .single()
 
     if (error) {
-      console.error('Failed to resolve profile status (network/db error):', error)
+      if (error.code !== 'PGRST116') {
+        // Only warn for actual errors, ignore 0 rows returned (which happens during logout due to RLS)
+        console.warn('Failed to resolve profile status:', error.message)
+      }
       // Do not overwrite tos/profile state to false if the database just timed out.
       // Leave them as null (loading) or their previous state so the user doesn't get kicked to /onboarding.
       return

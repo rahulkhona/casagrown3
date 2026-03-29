@@ -434,6 +434,8 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
             otherUserId={isSellerOrHelper ? order.buyer_id : order.seller_id}
             myAvatar={isSellerOrHelper ? order.seller_avatar : order.buyer_avatar}
             otherAvatar={isSellerOrHelper ? order.buyer_avatar : order.seller_avatar}
+            isSeller={isSellerOrHelper}
+            fulfillmentType={order.fulfillment_type as 'pickup' | 'delivery'}
             onMessageSent={showPrompt}
           />
         </div>

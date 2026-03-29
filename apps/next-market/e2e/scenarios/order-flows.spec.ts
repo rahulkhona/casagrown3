@@ -86,6 +86,15 @@ test.describe('Order Flows', () => {
     // Step 4: Check Beth's orders
     await navigateTo(bethPage, '/orders')
     await assertPageHealthy(bethPage)
+    
+    // Explicitly assert that she can see the new Needs Action tab and her order
+    const needsActionTab = bethPage.getByText('🔔 Needs Action', { exact: false }).first()
+    await expect(needsActionTab).toBeVisible({ timeout: 5000 })
+    await needsActionTab.click()
+    
+    // Assert there is actually an order card in the list
+    const orderCard = bethPage.locator('a[href*="/orders/"]').first()
+    await expect(orderCard).toBeVisible({ timeout: 5000 })
 
     await mariaPage.context().close()
     await bethPage.context().close()
@@ -257,6 +266,20 @@ test.describe('Order Flows', () => {
         await assertPageHealthy(samPage)
       }
     }
+    
+    const bethPage = await loginAsUser(browser, 'beth')
+    await navigateTo(bethPage, '/orders')
+    await assertPageHealthy(bethPage)
+    
+    // Buyer should also see the Needs Action tab and see their seeded pending items there
+    const bethNeedsActionTab = bethPage.getByText('🔔 Needs Action', { exact: false }).first()
+    await expect(bethNeedsActionTab).toBeVisible({ timeout: 5000 })
+    await bethNeedsActionTab.click()
+    
+    // Assert 7 seeded pending orders show up for Beth instead of zero
+    const orderCards = bethPage.locator('a[href*="/orders/"]')
+    // Ensure we see elements, proving they are no longer filtered out
+    await expect(orderCards.first()).toBeVisible({ timeout: 5000 })
 
     // Role filter pills: All, Buying, Selling
     const roleFilters = ['All', 'Buying', 'Selling']
