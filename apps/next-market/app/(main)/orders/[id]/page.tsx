@@ -305,9 +305,19 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
         {order.fulfillment_type === 'delivery' && order.buyer_address && (
           <div style={{ background: 'var(--gray-50)', borderRadius: 'var(--radius-lg)', padding: '10px 14px', marginTop: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
             <span>📍</span>
-            <div>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
               <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Delivery Address</div>
-              <div style={{ color: 'var(--gray-800)' }}>{order.buyer_address}</div>
+              <div style={{ color: 'var(--gray-800)', lineHeight: '1.4' }}>{order.buyer_address}</div>
+              {isSellerOrHelper && (
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(order.buyer_address)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: 13, fontWeight: 600, color: 'var(--blue-600, #2563eb)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 2 }}
+                >
+                  🚗 Get directions
+                </a>
+              )}
             </div>
           </div>
         )}
@@ -316,20 +326,20 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
         {order.fulfillment_type === 'pickup' && order.seller_address && (
           <div style={{ background: 'var(--gray-50)', borderRadius: 'var(--radius-lg)', padding: '10px 14px', marginTop: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
             <span>📍</span>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
               <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Pickup Address</div>
-              <div style={{ color: 'var(--gray-800)' }}>{order.seller_address}</div>
+              <div style={{ color: 'var(--gray-800)', lineHeight: '1.4' }}>{order.seller_address}</div>
+              {isBuyer && (
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(order.seller_address)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: 13, fontWeight: 600, color: 'var(--blue-600, #2563eb)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 2 }}
+                >
+                  🚗 Get directions
+                </a>
+              )}
             </div>
-            {isBuyer && (
-              <a
-                href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(order.seller_address)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ fontSize: 12, fontWeight: 600, color: 'var(--primary)', whiteSpace: 'nowrap', textDecoration: 'none' }}
-              >
-                🗺️ Navigate
-              </a>
-            )}
           </div>
         )}
 
@@ -429,21 +439,10 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
 
       {/* ===== ACTION PANELS ===== */}
 
-      {/* SELLER: Pending delivery order → Navigate, Mark Delivered or Decline */}
+      {/* SELLER: Pending delivery order → Mark Delivered or Decline */}
       {isSellerOrHelper && order.status === 'pending' && order.fulfillment_type === 'delivery' && (
         <div className={styles.actionPanel}>
           <h2 className={styles.sectionTitle}>Seller Actions</h2>
-          {order.buyer_address && (
-            <a
-              href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(order.buyer_address)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-outline"
-              style={{ width: '100%', marginBottom: 8, textAlign: 'center', display: 'block', fontSize: 14 }}
-            >
-              🗺️ Navigate to Buyer
-            </a>
-          )}
           <div className={styles.actionButtons}>
             <button className="btn btn-primary" onClick={() => setShowDeliveryProof(true)}>
               📦 Mark Delivered
@@ -455,21 +454,7 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
         </div>
       )}
 
-      {/* BUYER: Pending pickup → Navigate to seller */}
-      {isBuyer && order.status === 'pending' && order.fulfillment_type === 'pickup' && order.seller_address && (
-        <div className={styles.actionPanel}>
-          <h2 className={styles.sectionTitle}>Pickup</h2>
-          <a
-            href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(order.seller_address)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-outline"
-            style={{ width: '100%', marginBottom: 8, textAlign: 'center', display: 'block', fontSize: 14 }}
-          >
-            🗺️ Navigate to Pickup
-          </a>
-        </div>
-      )}
+
 
       {/* SELLER/HELPER: Pending pickup → Hand Off to Buyer (optional photo) */}
       {isSellerOrHelper && order.status === 'pending' && order.fulfillment_type === 'pickup' && (
@@ -477,7 +462,7 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
           <h2 className={styles.sectionTitle}>Actions</h2>
           <div className={styles.actionButtons}>
             <button className="btn btn-primary" onClick={() => setShowDeliveryProof(true)}>
-              📍 Capture Pickup with Photo
+              📸 Capture Pickup with Photo
             </button>
             <button className="btn btn-primary" disabled={actionLoading}
               onClick={() => callRpc('seller_mark_delivered', { p_order_id: orderId, p_photos: [] })}>

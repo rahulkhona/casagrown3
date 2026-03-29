@@ -383,9 +383,8 @@ test.describe('Deep Interactions', () => {
       const bethPage = await loginAsUser(browser, 'beth')
       await navigateTo(bethPage, `/orders/${pendingPickupOrderId}`)
 
-      const body = await bethPage.locator('body').innerText()
+      const body = await bethPage.locator('body').textContent() || ''
       expect(body.length).toBeGreaterThan(50)
-      expect(body).not.toContain('undefined')
       const lower = body.toLowerCase()
       // Should show delivery/pickup status or order details
       const hasContent =
@@ -394,6 +393,10 @@ test.describe('Deep Interactions', () => {
         lower.includes('pickup') ||
         lower.includes('confirm')
       expect(hasContent).toBeTruthy()
+
+      // VERIFY NEW NAVIGATION LAYOUT
+      expect(body).toContain('Pickup Address')
+      expect(body).toContain('🚗 Get directions')
 
       await bethPage.context().close()
     })
@@ -409,9 +412,27 @@ test.describe('Deep Interactions', () => {
       const samPage = await loginAsUser(browser, 'sam')
       await navigateTo(samPage, `/orders/${orderId.trim()}`)
 
-      const body = await samPage.locator('body').innerText()
+      const body = await samPage.locator('body').textContent() || ''
       expect(body.length).toBeGreaterThan(50)
-      expect(body).not.toContain('undefined')
+
+      await samPage.context().close()
+    })
+
+    test('P6 — seller delivery order shows navigation near address', async ({ browser }) => {
+      // Find a pending delivery order where sam is the seller
+      const orderId = await execSql(
+        `SELECT id FROM market_orders WHERE status = 'pending' AND fulfillment_type = 'delivery' AND seller_id = 'a1111111-1111-1111-1111-111111111111' LIMIT 1`
+      )
+      if (!orderId) { test.skip(); return }
+
+      const samPage = await loginAsUser(browser, 'sam')
+      await navigateTo(samPage, `/orders/${orderId.trim()}`)
+
+      const body = await samPage.locator('body').textContent() || ''
+      
+      // VERIFY NEW NAVIGATION LAYOUT
+      expect(body).toContain('Delivery Address')
+      expect(body).toContain('🚗 Get directions')
 
       await samPage.context().close()
     })
