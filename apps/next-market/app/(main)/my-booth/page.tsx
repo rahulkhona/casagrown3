@@ -315,7 +315,8 @@ export default function MyBoothPage() {
           deliveryWindows: [],
           pickupWindows: [],
           isActive: p.is_active,
-          status: (!p.is_active ? 'inactive' : (p.market_date && p.market_date < new Date().toISOString().split('T')[0]) ? 'expired' : 'active') as any,
+          isDraft: p.is_draft,
+          status: (p.is_draft ? 'draft' : (!p.is_active ? 'inactive' : (p.market_date && p.market_date < new Date().toISOString().split('T')[0]) ? 'expired' : 'active')) as any,
           marketDate: p.market_date,
           harvestedAt: p.harvested_at,
         })))
@@ -767,7 +768,7 @@ export default function MyBoothPage() {
                // Identifies expired perishable products 
                const expired = myProducts.filter(p => p.status === 'expired' || (p.marketDate && p.marketDate < todayStr))
                // Identifies items that are out-of-stock or inactive, but not expired perishables
-               const inactive = myProducts.filter(p => !expired.includes(p) && (!p.isActive || p.inventory === 0))
+               const inactive = myProducts.filter(p => !expired.includes(p) && (!p.isActive || p.inventory === 0) && p.status !== 'draft')
                
                if (expired.length > 0 || inactive.length > 0) {
                  setPreFlightItems({ expired, inactive })
@@ -1089,14 +1090,14 @@ export default function MyBoothPage() {
                     ) : (
                       <span className={styles.productSlotEmoji}>🥬</span>
                     )}
-                    {/* Expired / Flagged overlay */}
-                    {(slot.product.status === 'expired' || !slot.product.isActive) && (
+                    {/* Expired / Flagged / Draft overlay */}
+                    {(slot.product.status === 'expired' || slot.product.status === 'draft' || !slot.product.isActive) && (
                       <div style={{
                         position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        borderRadius: 'var(--radius-md)', color: '#fff', fontWeight: 700, fontSize: 12,
+                        borderRadius: 'var(--radius-md)', color: '#fff', fontWeight: 700, fontSize: 13,
                       }}>
-                        {slot.product.status === 'expired' ? '⏰ Expired' : '⚠️ Inactive'}
+                        {slot.product.status === 'draft' ? '📝 Draft' : slot.product.status === 'expired' ? '⏰ Expired' : '⚠️ Inactive'}
                       </div>
                     )}
                   </div>

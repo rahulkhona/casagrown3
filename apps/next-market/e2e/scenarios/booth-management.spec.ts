@@ -88,6 +88,34 @@ test.describe('Booth Management', () => {
     await page.context().close()
   })
 
+  // ── S7.2c: Draft Mode Workflow ──
+  test('S7.2c — save draft product without photo and verify draft status', async ({ browser }) => {
+    const page = await loginAsUser(browser, 'maria')
+    await navigateTo(page, '/my-booth/products/new')
+    await assertPageHealthy(page)
+
+    // Fill name only
+    await page.locator('input[placeholder="Name your booth..."], input[type="text"]').first().fill('Test Draft Tomato')
+
+    // Verify button says "Save Draft" because photo/price is missing
+    const submitBtn = page.locator('button[type="submit"]')
+    await expect(submitBtn).toHaveText(/Save Draft/i)
+
+    // Submit the form
+    await submitBtn.click()
+    await page.waitForLoadState('networkidle')
+
+    // Should land on My Booth
+    expect(page.url()).toContain('/my-booth')
+    
+    // Look for the draft overlay
+    const bodyText = await page.locator('body').innerText()
+    expect(bodyText).toContain('📝 Draft')
+    expect(bodyText).toContain('Test Draft Tomato')
+
+    await page.context().close()
+  })
+
   // ── S7.3: Customization ──
   test('S7.3 — booth customization page loads', async ({ browser }) => {
     const page = await loginAsUser(browser, 'maria')

@@ -7,12 +7,15 @@
 }
 .modal {
   width: 92vw; max-width: 680px;
+  max-height: 98vh; /* Fix: Prevent overflow beyond viewport */
+  display: flex; flex-direction: column; /* Fix: Enable scrollable internal content while keeping controls at bottom */
   border-radius: 16px; overflow: hidden;
   background: #1a1a1a; box-shadow: 0 20px 60px rgba(0,0,0,0.6);
 }
 .header {
   padding: 12px 16px; background: #222;
   text-align: center;
+  flex-shrink: 0;
 }
 .headerTitle {
   font-size: 13px; color: #aaa; font-weight: 500;
@@ -22,6 +25,7 @@
 .cropArea {
   position: relative;
   width: 100%;
+  flex: 1; /* Fix: Take up remaining space robustly */
   overflow: hidden;
   background: #000;
   touch-action: none;
@@ -62,10 +66,10 @@
   box-shadow: 0 0 0 9999px rgba(0,0,0,0.4);
 }
 
-/* Controls */
 .controls {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 16px; background: #222; gap: 12px;
+  flex-shrink: 0;
 }
 .cancelBtn {
   padding: 10px 20px; border: none; border-radius: 10px;

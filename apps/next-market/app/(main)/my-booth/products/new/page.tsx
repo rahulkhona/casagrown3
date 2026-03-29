@@ -319,19 +319,26 @@ function NewProductPageInner() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const newErrors: Record<string, string> = {}
-    if (photos.length === 0) newErrors.photo = 'Please add at least one photo'
-    if (!name.trim()) newErrors.name = 'Name is required'
+    
+    // Evaluate if form lacks requirements to cleanly Publish
     const effectivePrice = restriction.isFreeOnly ? '0' : priceUsd
-    const parsedPrice = parseFloat(effectivePrice)
-    if (effectivePrice === '' || effectivePrice === null || effectivePrice === undefined || isNaN(parsedPrice)) {
-      newErrors.price = 'Set a price (or 0 for free)'
-    } else if (parsedPrice < 0) {
-      newErrors.price = 'Price cannot be negative'
-    } else if (restriction.isFreeOnly && parsedPrice !== 0) {
-      newErrors.price = 'Your state requires free sharing — price must be $0'
+    const parsedPrice = parseFloat(effectivePrice || '0')
+    const isValidPrice = effectivePrice !== '' && effectivePrice !== null && !isNaN(parsedPrice) && parsedPrice >= 0 && (!restriction.isFreeOnly || parsedPrice === 0)
+    const needsDraft = photos.length === 0 || !isValidPrice || !quantity || parseInt(quantity) <= 0
+    
+    // Safety check first
+    const newErrors: Record<string, string> = {}
+    if (!name.trim()) newErrors.name = 'Name is required'
+    
+    // Strict checks only enforced if trying to publish fully
+    if (!needsDraft) {
+      if (!isValidPrice) {
+        if (effectivePrice === '' || effectivePrice === null) newErrors.price = 'Set a price (or 0 for free)'
+        else if (parsedPrice < 0) newErrors.price = 'Price cannot be negative'
+        else newErrors.price = 'Your state requires free sharing — price must be $0'
+      }
+      if (!quantity || parseInt(quantity) <= 0) newErrors.quantity = 'How many do you have?'
     }
-    if (!quantity || parseInt(quantity) <= 0) newErrors.quantity = 'How many do you have?'
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
@@ -521,7 +528,8 @@ function NewProductPageInner() {
           harvested_at: harvestedAt ? new Date(harvestedAt + 'T12:00:00').toISOString() : null,
           expires_at: getExpiryDate(),
           market_date: marketDate,
-          is_active: true,
+          is_active: !needsDraft,
+          is_draft: needsDraft,
         })
         .eq('id', editId)
 
@@ -609,6 +617,8 @@ function NewProductPageInner() {
         photos: uploadedPhotoUrls,
         harvested_at: harvestedAt ? new Date(harvestedAt + 'T12:00:00').toISOString() : null,
         expires_at: getExpiryDate(),
+        is_active: !needsDraft,
+        is_draft: needsDraft,
       })
       .select('id')
       .single()
@@ -1285,12 +1295,19 @@ function NewProductPageInner() {
           )}
 
           {/* ===== Submit ===== */}
-          <button type="submit" className={styles.submitBtn} disabled={validating || !!quarantineWarning}>
+          <button 
+            type="submit" 
+            className={styles.submitBtn} 
+            disabled={validating || !!quarantineWarning}
+            style={(photos.length === 0 || !priceUsd || !quantity) ? { background: '#f59e0b' } : undefined}
+          >
             {validating
-              ? '⏳ Checking product...'
+              ? '⏳ Saving...'
               : quarantineWarning
               ? '🚫 Quarantined — Cannot List'
-              : isEditMode ? 'Save Changes' : 'Add Product'
+              : (photos.length === 0 || !priceUsd || !quantity) 
+                ? 'Save Draft' 
+                : (isEditMode ? 'Save Changes' : 'Publish Product')
             }
           </button>
         </form>
@@ -1299,6 +1316,7 @@ function NewProductPageInner() {
         {showCamera && (
           <CameraCapture
             facingMode="environment"
+            closeLabel="Skip Photo for Now"
             onClose={() => setShowCamera(false)}
             onCapture={({ file }) => {
               setShowCamera(false)
