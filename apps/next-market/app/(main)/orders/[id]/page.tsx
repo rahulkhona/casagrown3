@@ -111,14 +111,12 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
   const [disputePhotos, setDisputePhotos] = useState<{ preview: string; result: CaptureResult }[]>([])
   const [showDisputeCamera, setShowDisputeCamera] = useState(false)
   const searchParams = useSearchParams()
-  const [showChat, setShowChat] = useState(searchParams.get('chat') === 'open')
+  const [showChat, setShowChat] = useState(true)
   const [chatMessageCount, setChatMessageCount] = useState(0)
   const [showRefund, setShowRefund] = useState(false)
   const [refundType, setRefundType] = useState<'full' | 'partial'>('full')
   const [refundAmount, setRefundAmount] = useState('')
   const [passcodeInput, setPasscodeInput] = useState('')
-  const [showPickupDecline, setShowPickupDecline] = useState(false)
-  const [pickupDeclineReason, setPickupDeclineReason] = useState('')
   const [newMessage, setNewMessage] = useState('')
   const [countdown, setCountdown] = useState('')
   const [showDeliveryProof, setShowDeliveryProof] = useState(false)
@@ -479,11 +477,11 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
           <h2 className={styles.sectionTitle}>Actions</h2>
           <div className={styles.actionButtons}>
             <button className="btn btn-primary" onClick={() => setShowDeliveryProof(true)}>
-              📍 Hand Off with Photo
+              📍 Capture Pickup with Photo
             </button>
             <button className="btn btn-primary" disabled={actionLoading}
-              onClick={() => callRpc('seller_mark_ready_pickup', { p_order_id: orderId, p_proof: [] })}>
-              ✓ Mark Handed Off
+              onClick={() => callRpc('seller_mark_delivered', { p_order_id: orderId, p_photos: [] })}>
+              ✓ Mark as Picked Up
             </button>
             <button className="btn btn-outline" onClick={() => setShowDecline(true)}>
               ✕ Decline Order
@@ -570,7 +568,7 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
             <p className={styles.disputeReason}><strong>Reason:</strong> {dispute.reason}</p>
 
             {/* Dispute photos */}
-            {dispute.photos && dispute.photos.length > 0 && (
+            {Array.isArray(dispute.photos) && dispute.photos.length > 0 && (
               <div style={{ marginTop: 10 }}>
                 <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-500)', marginBottom: 6 }}>📸 Evidence</p>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -686,10 +684,6 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
                 disabled={actionLoading}
                 onClick={async () => {
                   await callRpc('buyer_accept_refund', { p_dispute_id: dispute.id })
-                  await supabase.from('order_chat_messages').insert({
-                    order_id: orderId, sender_id: user!.id,
-                    content: `✅ Refund accepted — ${formatUsd(dispute.refund_amount_usd || 0)} refund approved.`,
-                  })
                 }}
               >
                 ✓ Accept Refund ({formatUsd(dispute.refund_amount_usd || 0)})
@@ -704,10 +698,6 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
                 disabled={actionLoading}
                 onClick={async () => {
                   await callRpc('buyer_resolve_dispute', { p_dispute_id: dispute.id })
-                  await supabase.from('order_chat_messages').insert({
-                    order_id: orderId, sender_id: user!.id,
-                    content: '✅ Issue resolved — dispute withdrawn.',
-                  })
                 }}
               >
                 ✓ Issue Resolved (withdraw dispute)
@@ -734,8 +724,21 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
             <div className={styles.modalActions}>
               <button className="btn btn-danger" disabled={!declineReason.trim() || actionLoading}
                 onClick={async () => {
+                  setActionLoading(true)
                   await callRpc('seller_decline_order', { p_order_id: orderId, p_reason: declineReason })
+                  
+                  // Also post the decline reason in chat so buyer can respond
+                  if (user?.id) {
+                    await supabase.from('order_chat_messages').insert({
+                      order_id: orderId,
+                      sender_id: user.id,
+                      content: `❌ Order declined by seller.\nReason: ${declineReason}`
+                    })
+                  }
+
                   setShowDecline(false)
+                  setActionLoading(false)
+                  loadOrder()
                 }}>
                 Decline Order
               </button>
@@ -867,23 +870,6 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
                         p_quantity_received: disputeType === 'quantity_mismatch' ? parseInt(disputeQuantityReceived) : null,
                       })
 
-                      // Send dispute reason as first chat message (include qty + photos)
-                      const typeLabel = disputeType!.replace(/_/g, ' ')
-                      let chatMsg = `⚠️ Dispute filed: ${typeLabel.charAt(0).toUpperCase() + typeLabel.slice(1)}`
-                      if (reason !== typeLabel) chatMsg += '\n' + reason
-                      if (disputeType === 'quantity_mismatch' && disputeQuantityReceived) {
-                        chatMsg += `\nOrdered: ${order.quantity} · Received: ${disputeQuantityReceived}`
-                      }
-                      // Append photo URLs so they render inline
-                      for (const pu of photoUrls) {
-                        chatMsg += '\n' + pu.url
-                      }
-                      await supabase.from('order_chat_messages').insert({
-                        order_id: orderId,
-                        sender_id: user!.id,
-                        content: chatMsg,
-                      })
-
                       disputePhotos.forEach(p => URL.revokeObjectURL(p.preview))
                       setDisputePhotos([])
                       setDisputeType(null)
@@ -936,10 +922,6 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
                     p_refund_amount: amt,
                     p_pickup_offered: false,
                   })
-                  const msg = `💰 Refund offered: ${refundType === 'full' ? 'Full' : 'Partial'} refund of ${formatUsd(amt)}`
-                  await supabase.from('order_chat_messages').insert({
-                    order_id: orderId, sender_id: user!.id, content: msg,
-                  })
                   setShowRefund(false)
                   setShowChat(true)
                 }}>
@@ -951,31 +933,6 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
         </div>
       )}
 
-      {/* Pickup decline modal */}
-      {showPickupDecline && (
-        <div className={styles.modal}>
-          <div className={styles.modalContent}>
-            <h3>Decline Pickup</h3>
-            <p>The order will be cancelled and you will not be charged.</p>
-            <textarea
-              value={pickupDeclineReason}
-              onChange={e => setPickupDeclineReason(e.target.value)}
-              placeholder="Reason for declining (e.g., produce quality issue)..."
-              rows={3}
-            />
-            <div className={styles.modalActions}>
-              <button className="btn btn-danger" disabled={!pickupDeclineReason.trim() || actionLoading}
-                onClick={async () => {
-                  await callRpc('buyer_decline_pickup', { p_order_id: orderId, p_reason: pickupDeclineReason, p_photos: JSON.stringify([]) })
-                  setShowPickupDecline(false)
-                }}>
-                Decline Pickup
-              </button>
-              <button className="btn btn-outline" onClick={() => setShowPickupDecline(false)}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ===== DELIVERY/PICKUP PROOF MODAL ===== */}
       {showDeliveryProof && (
@@ -1063,8 +1020,7 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
                       })
                     }
                   }
-                  const rpc = order.fulfillment_type === 'pickup' ? 'seller_mark_ready_pickup' : 'seller_mark_delivered'
-                  await callRpc(rpc, { p_order_id: orderId, p_proof: proofUrls })
+                  await callRpc('seller_mark_delivered', { p_order_id: orderId, p_photos: proofUrls })
                   proofPhotos.forEach(p => URL.revokeObjectURL(p.preview))
                   setProofPhotos([])
                   setShowDeliveryProof(false)
@@ -1073,7 +1029,7 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
                 }
               }}
             >
-              {uploading ? 'Uploading & marking delivered...' : `✓ Confirm Delivery (${proofPhotos.length} photo${proofPhotos.length !== 1 ? 's' : ''})`}
+              {uploading ? 'Uploading & recording...' : `✓ Confirm ${order.fulfillment_type === 'pickup' ? 'Pickup' : 'Delivery'} (${proofPhotos.length} photo${proofPhotos.length !== 1 ? 's' : ''})`}
             </button>
           </div>
         </div>

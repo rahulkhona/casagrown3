@@ -172,9 +172,33 @@ test.describe('Order Flows', () => {
       await sofiaPage.waitForLoadState('networkidle')
       await assertPageHealthy(sofiaPage)
 
-      // Order detail page should load
-      const detailBody = await sofiaPage.locator('body').innerText()
-      expect(detailBody.length).toBeGreaterThan(50)
+      // 1. Verify Chat is open by default: we should see the chat input
+      const chatInput = sofiaPage.locator('input[placeholder*="Type a message"]')
+      await expect(chatInput).toBeVisible({ timeout: 5000 })
+
+      // 2. Perform the decline action
+      const declineBtn = sofiaPage.locator('button', { hasText: 'Decline Order' })
+      if (await declineBtn.isVisible()) {
+        await declineBtn.click()
+        
+        // Wait for modal
+        const declineModal = sofiaPage.locator('h3', { hasText: 'Decline Order' })
+        await expect(declineModal).toBeVisible()
+
+        // Enter reason and submit
+        const reasonInput = sofiaPage.locator('textarea[placeholder*="Reason for declining"]')
+        await reasonInput.fill('Out of stock unfortunately')
+        
+        const confirmDeclineBtn = sofiaPage.locator('button.btn-danger', { hasText: 'Decline Order' })
+        await confirmDeclineBtn.click()
+
+        // 3. Verify the chat now contains the decline system message
+        const systemMessage = sofiaPage.getByText('Out of stock unfortunately')
+        await expect(systemMessage).toBeVisible({ timeout: 5000 })
+        
+        const systemIcon = sofiaPage.getByText('❌ Order declined by seller')
+        await expect(systemIcon).toBeVisible({ timeout: 5000 })
+      }
     }
 
     await sofiaPage.context().close()

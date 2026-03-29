@@ -170,7 +170,7 @@ test.describe('Deep Interactions', () => {
       const result = await callRpc(bethToken, 'buyer_dispute_order', {
         p_order_id: deliveredOrderId,
         p_reason: 'Received fewer items than ordered',
-        p_photos: JSON.stringify([{ url: 'https://placeholder.test/evidence.jpg', timestamp: new Date().toISOString() }]),
+        p_photos: [{ url: 'https://placeholder.test/evidence.jpg', timestamp: new Date().toISOString() }],
         p_dispute_type: 'quantity_mismatch',
         p_quantity_received: 1,
       })
@@ -274,7 +274,7 @@ test.describe('Deep Interactions', () => {
       await callRpc(bethToken, 'buyer_dispute_order', {
         p_order_id: orders[0].id,
         p_reason: 'Wrong item delivered',
-        p_photos: JSON.stringify([]),
+        p_photos: [],
         p_dispute_type: 'wrong_item',
       })
 
@@ -319,9 +319,9 @@ test.describe('Deep Interactions', () => {
       console.log(`[PICKUP] Using order: ${pendingPickupOrderId}`)
 
       const samToken = tokens['sam']
-      const result = await callRpc(samToken, 'seller_mark_ready_pickup', {
+      const result = await callRpc(samToken, 'seller_mark_delivered', {
         p_order_id: pendingPickupOrderId,
-        p_proof: [],
+        p_photos: [],
       })
       console.log('[PICKUP] Hand off result:', JSON.stringify(result))
 
@@ -329,7 +329,6 @@ test.describe('Deep Interactions', () => {
         console.error(`[PICKUP] RPC error: ${result.error}`)
       }
       expect(result.success).toBe(true)
-      expect(result.auto_complete_at).toBeTruthy()
 
       // Verify status is 'delivered' (simplified flow mirrors delivery)
       const updated = await queryTable(samToken, 'market_orders', `id=eq.${pendingPickupOrderId}`)
@@ -574,13 +573,13 @@ test.describe('Deep Interactions', () => {
 
         const result = await callRpc(bethToken, 'helper_mark_delivered', {
           p_order_id: orderId,
-          p_proof: JSON.stringify([{
+          p_proof: [{
             url: 'https://placeholder.test/helper-delivery.jpg',
             latitude: 37.2296,
             longitude: -121.8825,
             accuracy: 10,
             timestamp: new Date().toISOString(),
-          }]),
+          }],
         })
         console.log('[HELPER] Deliver result:', JSON.stringify(result).substring(0, 200))
       } else {

@@ -403,6 +403,9 @@ export function collectConsoleErrors(page: Page): string[] {
       errors.push(text)
     }
   })
+  page.on('pageerror', (err) => {
+    errors.push(err.message)
+  })
   return errors
 }
 
