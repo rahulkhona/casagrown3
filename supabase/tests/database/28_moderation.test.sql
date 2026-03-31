@@ -6,6 +6,7 @@ ON CONFLICT DO NOTHING;
 INSERT INTO public.profiles (id, email, full_name) VALUES
   ('c8888888-8888-8888-8888-888888888888', 'm@draft.test', 'Moderator')
 ON CONFLICT DO NOTHING;
+DELETE FROM market_booths WHERE owner_id = 'c8888888-8888-8888-8888-888888888888';
 INSERT INTO market_booths (owner_id, name, is_open, offers_pickup, pickup_location)
 VALUES ('c8888888-8888-8888-8888-888888888888', 'Test Booth', true, true, ST_SetSRID(ST_MakePoint(-122.4194, 37.7749), 4326));
 

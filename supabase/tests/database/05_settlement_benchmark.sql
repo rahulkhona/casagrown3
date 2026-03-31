@@ -34,6 +34,7 @@ BEGIN
   RAISE NOTICE 'Creating 50 booths...';
   FOR i IN 1..50 LOOP
     v_user_id := ('aaaaaaaa-bbb0-0000-0000-' || LPAD(i::TEXT, 12, '0'))::UUID;
+    DELETE FROM market_booths WHERE owner_id = v_user_id;
     INSERT INTO market_booths (id, owner_id, name)
     VALUES (('bbbbbbbb-bbb0-0000-0000-' || LPAD(i::TEXT, 12, '0'))::UUID, v_user_id, 'Bench Booth ' || i)
     ON CONFLICT (id) DO NOTHING;

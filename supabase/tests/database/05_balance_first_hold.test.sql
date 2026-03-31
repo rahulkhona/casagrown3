@@ -37,7 +37,8 @@ INSERT INTO profiles (id, full_name, email) VALUES
   ('11111111-aaaa-bbbb-cccc-100000000004', 'BalDan', 'bal_dan@test.com')       -- buyer with $0 balance (all card)
 ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name;
 
--- Booths
+-- Booths (delete auto-created booths from trigger first)
+DELETE FROM market_booths WHERE owner_id = '11111111-aaaa-bbbb-cccc-100000000001';
 INSERT INTO market_booths (id, owner_id, name) VALUES
   ('22222222-aaaa-bbbb-cccc-100000000001', '11111111-aaaa-bbbb-cccc-100000000001', 'BalAlice Farm')
 ON CONFLICT (id) DO NOTHING;

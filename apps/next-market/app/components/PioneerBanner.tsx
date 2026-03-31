@@ -98,7 +98,7 @@ export default function PioneerBanner({ memberCount, communityH3, onDismiss }: P
           <p style={{ margin: '0 0 12px', fontSize: 13, lineHeight: 1.6, color: '#374151' }}>
             A vibrant community means more neighbors trading fresh produce, sharing 
             garden know-how, and discovering what grows best nearby. Help us grow your 
-            community by inviting your neighbors! Meanwhile, visit <strong>Buzz</strong> to 
+            community by inviting your neighbors! Meanwhile, visit <strong>Community</strong> to 
             connect and ask <strong>CasaBot</strong> for gardening tips and advice.
           </p>
 
@@ -119,7 +119,7 @@ export default function PioneerBanner({ memberCount, communityH3, onDismiss }: P
               background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0',
               fontSize: 12, fontWeight: 600, textDecoration: 'none',
             }}>
-              💬 Visit Buzz
+              💬 Visit Community
             </Link>
             <Link href={user ? "/my-booth/products/new?camera=true" : "/login?redirect=%2Fmy-booth%2Fproducts%2Fnew%3Fcamera%3Dtrue"} style={{
               display: 'inline-flex', alignItems: 'center', gap: 5,

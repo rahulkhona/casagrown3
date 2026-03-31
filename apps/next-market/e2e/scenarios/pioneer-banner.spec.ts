@@ -38,9 +38,9 @@ test.describe('Pioneer Banner E2E', () => {
     const countText = page.getByText(/founding members/i)
     await expect(countText).toBeVisible({ timeout: 5000 })
     
-    // Assert the Invite and Buzz buttons exist (use .first() since market closed section also has Invite button)
+    // Assert the Invite and Community buttons exist (use .first() since market closed section also has Invite button)
     await expect(page.getByRole('button', { name: /Invite Neighbors/i }).first()).toBeVisible()
-    await expect(page.getByRole('link', { name: /Visit Buzz/i }).first()).toBeVisible()
+    await expect(page.getByRole('link', { name: /Visit Community/i }).first()).toBeVisible()
     
     // Dismiss the banner via the Dismiss button (aria-label)
     // Use force:true because the fixed navbar partially overlaps the banner

@@ -212,17 +212,22 @@ describe('Demo Booths on Market Page', () => {
     expect(container.textContent).toContain('🆕 New Seller')
   })
 
-  it('demo products navigate to product detail page (not blocked)', async () => {
+  it('demo products click shows demo modal (not navigating away)', async () => {
     const { container } = render(React.createElement(BrowseMarketPage))
     await waitFor(() => {
       expect(container.textContent).toContain('Heirloom Tomatoes')
     })
 
-    // Demo product links should have real href to product detail page (not href="#")
+    // Demo product links should have href="#" (blocked navigation, shows modal instead)
     const demoProductLink = Array.from(container.querySelectorAll('a'))
-      .find(a => a.getAttribute('href')?.includes('/product/demo-101'))
+      .find(a => a.getAttribute('href') === '#' && a.textContent?.includes('Heirloom Tomatoes'))
     expect(demoProductLink).toBeTruthy()
-    expect(demoProductLink!.getAttribute('href')).toContain('/market/booth/demo-booth-1/product/demo-101')
+
+    // Clicking should open the demo modal
+    fireEvent.click(demoProductLink!)
+    await waitFor(() => {
+      expect(container.textContent).toContain('This is a Demo Listing')
+    })
   })
 
   it('demo booth header click shows warning modal', async () => {

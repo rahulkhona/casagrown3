@@ -104,7 +104,8 @@ SELECT is(
 -- 5. Full settlement + bank ledger flow
 -- ============================================================================
 
--- Create booth, product, and orders for settlement test
+-- Create booth, product, and orders for settlement test (delete auto-created booth first)
+DELETE FROM market_booths WHERE owner_id = 'cf000001-0001-0001-0001-000000000001';
 INSERT INTO market_booths (id, owner_id, name)
 VALUES ('cfbbbbbb-0001-0001-0001-000000000001', 'cf000001-0001-0001-0001-000000000001', 'CF Farm')
 ON CONFLICT (id) DO NOTHING;

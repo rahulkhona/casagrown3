@@ -26,7 +26,7 @@ test.describe('Profile & Settings', () => {
 
 test.describe('Navigation', () => {
   test('should have bottom navigation bar', async ({ page }) => {
-    await page.goto('/market')
+    await page.goto('/community')
     await page.waitForTimeout(1000)
     const bottomNav = page.locator('nav, [class*="bottomNav"]')
     if (await bottomNav.count() > 0) {
@@ -35,7 +35,7 @@ test.describe('Navigation', () => {
   })
 
   test('should navigate between main sections', async ({ page }) => {
-    await page.goto('/market')
+    await page.goto('/community')
     await page.waitForTimeout(1000)
 
     // Try navigating to orders
@@ -47,12 +47,29 @@ test.describe('Navigation', () => {
     }
   })
 
-  test('should show market open/closed status', async ({ page }) => {
+  test('should show Community tab first in nav', async ({ page }) => {
+    await page.goto('/community')
+    await page.waitForTimeout(2000)
+    const body = await page.textContent('body')
+    expect(body).toContain('Community')
+  })
+
+  test('should show correct nav icons', async ({ page }) => {
+    await page.goto('/community')
+    await page.waitForTimeout(2000)
+    const body = await page.textContent('body')
+    // Community icon
+    expect(body).toContain('👥')
+    // Market shopping bag icon
+    expect(body).toContain('🛍️')
+  })
+
+  test('should NOT show market open/closed status dot', async ({ page }) => {
     await page.goto('/market')
     await page.waitForTimeout(2000)
-    // Navbar should show market status indicator
+    // Market is always on — no status indicator should exist
     const body = await page.textContent('body')
-    expect(body).toBeTruthy()
+    expect(body).not.toContain('Market is Closed')
   })
 })
 
@@ -91,25 +108,39 @@ test.describe('Guide / How It Works', () => {
     expect(body?.toLowerCase()).toContain('how it works')
   })
 
-  test('should show accordion sections', async ({ page }) => {
+  test('should show accordion sections (no market schedule)', async ({ page }) => {
     await page.goto('/guide')
     await page.waitForTimeout(2000)
-    // Alpha section should be open by default
     const body = await page.textContent('body')
     expect(body).toContain('Alpha Testing')
-    expect(body).toContain('Market Schedule')
     expect(body).toContain('Settlements')
     expect(body).toContain('Safety')
+    // Market Schedule section has been removed (always-on market)
+    expect(body).not.toContain('Why limited hours')
   })
 
-  test('should expand accordion sections on click', async ({ page }) => {
+  test('settlement section mentions nightly/midnight', async ({ page }) => {
     await page.goto('/guide')
     await page.waitForTimeout(2000)
-    // Click on Market Schedule section
-    const scheduleBtn = page.locator('button', { hasText: 'Market Schedule' })
-    await scheduleBtn.click()
-    await page.waitForTimeout(500)
+    // Click on Settlements section to expand
+    const settlementBtn = page.locator('button', { hasText: 'Settlements' })
+    if (await settlementBtn.isVisible().catch(() => false)) {
+      await settlementBtn.click()
+      await page.waitForTimeout(500)
+      const body = await page.textContent('body')
+      // Settlement should reference nightly/midnight processing
+      const hasNightly = body?.toLowerCase().includes('nightly') || body?.toLowerCase().includes('midnight')
+      expect(hasNightly).toBe(true)
+    }
+  })
+})
+
+test.describe('Community Landing', () => {
+  test('should load community page', async ({ page }) => {
+    await page.goto('/community')
+    await page.waitForTimeout(2000)
+    await expect(page.locator('body')).toBeVisible()
     const body = await page.textContent('body')
-    expect(body).toContain('Why limited hours')
+    expect(body).toBeTruthy()
   })
 })

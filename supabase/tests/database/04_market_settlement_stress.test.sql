@@ -43,7 +43,12 @@ INSERT INTO profiles (id, full_name, email) VALUES
   ('11111111-aaaa-bbbb-cccc-000000000008', 'Hank', 'hank@test.com')     -- buyer only, never sells
 ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name;
 
--- Booths
+-- Booths (delete auto-created booths from trigger first)
+DELETE FROM market_booths WHERE owner_id IN (
+  '11111111-aaaa-bbbb-cccc-000000000001', '11111111-aaaa-bbbb-cccc-000000000003',
+  '11111111-aaaa-bbbb-cccc-000000000005', '11111111-aaaa-bbbb-cccc-000000000006',
+  '11111111-aaaa-bbbb-cccc-000000000007'
+);
 INSERT INTO market_booths (id, owner_id, name) VALUES
   ('22222222-aaaa-bbbb-cccc-000000000001', '11111111-aaaa-bbbb-cccc-000000000001', 'Alice Farm'),
   ('22222222-aaaa-bbbb-cccc-000000000003', '11111111-aaaa-bbbb-cccc-000000000003', 'Carol Kitchen'),

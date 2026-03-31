@@ -139,7 +139,7 @@ test.describe('Chat & Social Flows', () => {
     await page.context().close()
   })
 
-  // ── S9.4: Buzz to DM Link ──
+  // ── S9.4: Community to DM Link ──
   test('S9.4 — Community avatar navigates to DM Compose', async ({ browser }) => {
     const page = await loginAsUser(browser, 'beth')
     await navigateTo(page, '/community')
@@ -151,7 +151,7 @@ test.describe('Chat & Social Flows', () => {
     
     if (await dmLink.count() > 0) {
       const targetUrl = await dmLink.getAttribute('href')
-      console.log(`[BUZZ DM] Clicking DM link targeting: ${targetUrl}`)
+      console.log(`[COMMUNITY DM] Clicking DM link targeting: ${targetUrl}`)
       await dmLink.click()
       await page.waitForLoadState('networkidle')
       await assertPageHealthy(page)

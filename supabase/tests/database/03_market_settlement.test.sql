@@ -41,7 +41,8 @@ INSERT INTO profiles (id, full_name, email) VALUES
   ('aaaaaaaa-0001-0001-0001-000000000004', 'Dave Dispute', 'dave@test.com')
 ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name;
 
--- Create booths and products
+-- Create booths and products (delete auto-created booths from trigger first)
+DELETE FROM market_booths WHERE owner_id IN ('aaaaaaaa-0001-0001-0001-000000000001', 'aaaaaaaa-0001-0001-0001-000000000003');
 INSERT INTO market_booths (id, owner_id, name)
 VALUES
   ('bbbbbbbb-0001-0001-0001-000000000001', 'aaaaaaaa-0001-0001-0001-000000000001', 'Sam Farm'),

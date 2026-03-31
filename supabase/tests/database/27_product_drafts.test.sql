@@ -15,7 +15,8 @@ INSERT INTO public.profiles (id, email, full_name) VALUES
   ('b7777777-7777-7777-7777-777777777777', 'seller@draft.test', 'Test Seller')
 ON CONFLICT DO NOTHING;
 
--- Mock booth (open)
+-- Mock booth (open) — delete auto-created booth from trigger first
+DELETE FROM market_booths WHERE owner_id = 'b7777777-7777-7777-7777-777777777777';
 INSERT INTO market_booths (owner_id, name, is_open, offers_pickup, pickup_location)
 VALUES ('b7777777-7777-7777-7777-777777777777', 'Draft Booth', true, true, ST_SetSRID(ST_MakePoint(-122.4194, 37.7749), 4326));
 

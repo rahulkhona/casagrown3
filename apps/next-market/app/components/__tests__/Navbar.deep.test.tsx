@@ -115,8 +115,9 @@ describe('Navbar', () => {
     const { container } = render(React.createElement(Navbar))
     await act(async () => { await new Promise(r => setTimeout(r, 50)) })
     expect(container.textContent).toContain('CasaGrown')
-    expect(container.textContent).toContain('Market Open')
+    expect(container.textContent).toContain('Market')
     expect(container.textContent).toContain('Orders')
+    expect(container.textContent).toContain('Community')
   })
 
   it('shows profile badge when session exists', async () => {

@@ -3,12 +3,12 @@ import { loginAsUser, navigateTo } from './scenario-helpers'
 
 test.describe.configure({ mode: 'serial' })
 
-test.describe('CasaBot & Community Buzz E2E', () => {
+test.describe('CasaBot & Community E2E', () => {
   test('replying in a CasaBot thread auto-triggers CasaBot without mention', async ({ browser }) => {
     // Login as Beth (a demo user who can see the seeded messages)
     const page = await loginAsUser(browser, 'beth')
     
-    // Navigate to Community (Buzz)
+    // Navigate to Community
     await navigateTo(page, '/community')
     await page.waitForTimeout(2000)
     
