@@ -8,7 +8,7 @@ interface HelperDMModalProps {
   passcode: string
   userId: string
   onClose: () => void
-  onSent: (recipientName: string) => void
+  onSent: (recipientName: string, conversationId: string) => void
 }
 
 export function HelperDMModal({ boothName, passcode, userId, onClose, onSent }: HelperDMModalProps) {
@@ -70,16 +70,16 @@ export function HelperDMModal({ boothName, passcode, userId, onClose, onSent }: 
       const inviteMessage = [
         `Hey ${targetName}! 👋`,
         '',
-        `Would you be willing to help me out with ${boothLabel} on CasaGrown Market? I'm selling some stuff from my backyard and could really use a hand.`,
+        `I need some help managing my excess produce on CasaGrown and was wondering if you'd be able to help me out?`,
         '',
-        `It's pretty simple — just help me keep an eye on orders, hand things off to buyers when they come by, and maybe reply to a message or two. Nothing too crazy!`,
+        `It's pretty straightforward — just keep an eye on orders, hand things off to buyers when they come by, and maybe reply to a message or two.`,
         '',
-        `If you're down, here's the link to join:`,
+        `If you can, here's the link to get access to ${boothLabel}:`,
         joinUrl,
         '',
         `Passcode: ${passcode}`,
         '',
-        `Let me know what you think! 🌱`,
+        `Let me know! 🌱`,
       ].join('\n')
 
       // 1. Find or create conversation
@@ -127,7 +127,7 @@ export function HelperDMModal({ boothName, passcode, userId, onClose, onSent }: 
         }
       }
 
-      onSent(targetName)
+      onSent(targetName, convId)
     } catch (err) {
       console.warn('DM helper invite failed:', err)
       setSending(false)

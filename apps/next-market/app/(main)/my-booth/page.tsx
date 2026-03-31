@@ -1263,9 +1263,9 @@ export default function MyBoothPage() {
             passcode={helperPasscode}
             userId={user.id}
             onClose={() => setShowHelperDM(false)}
-            onSent={(recipientName: string) => {
+            onSent={(recipientName: string, conversationId: string) => {
               setShowHelperDM(false)
-              dispatch({ type: 'ADD_TOAST', payload: { message: `Helper invite sent to ${recipientName}! 💬`, type: 'success' } })
+              router.push(`/messages/${conversationId}`)
             }}
           />
         )}
