@@ -279,9 +279,9 @@ export function Navbar() {
   // Primary nav tabs (always visible on desktop)
   // locked = requires profile completion
   const primaryNav = [
-    { href: '/market', label: open ? 'Market Open' : 'Market Closed', icon: '🧺', hasStatus: true, locked: false, tour: 'nav-market' },
+    { href: '/community', label: 'Community', icon: '👥', locked: true, tour: 'nav-buzz' },
     { href: '/orders', label: 'Orders', icon: '📦', locked: true, tour: 'nav-orders' },
-    { href: '/community', label: 'Buzz', icon: '🐝', locked: true, tour: 'nav-buzz' },
+    { href: '/market', label: 'Market', icon: '🛍️', locked: false, tour: 'nav-market' },
   ]
 
   // Extended menu items (hamburger only — items NOT in BottomNav/header)
@@ -347,7 +347,6 @@ export function Navbar() {
                 data-tour={item.tour}
               >
                 <span className={styles.navIcon}>{item.icon}</span>
-                {item.hasStatus && <span className={`${styles.statusDot} ${open ? styles.statusDotOpen : styles.statusDotClosed}`} />}
                 <span className={styles.navLabel}>{item.label}</span>
               </Link>
             )

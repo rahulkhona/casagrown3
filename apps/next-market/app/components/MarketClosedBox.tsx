@@ -382,84 +382,7 @@ export default function MarketClosedBox({ nextOpenDate, todaySchedule }: MarketC
           </div>
         </div>
 
-        {/* ── Weekly Market Schedule Card ── */}
-        <div style={{
-          maxWidth: 720, width: '100%',
-          background: '#fff', borderRadius: 'var(--radius-xl, 16px)',
-          boxShadow: 'var(--shadow-lg, 0 10px 40px rgba(0,0,0,0.08))',
-          padding: '32px 28px',
-          border: '1px solid var(--gray-100, #f3f4f6)',
-        }}>
-          <h2 style={{
-            fontSize: 20, fontWeight: 800, color: 'var(--gray-900, #111827)',
-            textAlign: 'center', marginBottom: 24, letterSpacing: '-0.02em',
-          }}>
-            📅 Weekly Market Schedule
-          </h2>
 
-          {/* Schedule Grid */}
-          <div style={{
-            display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6,
-            marginBottom: 24,
-          }}>
-            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, i) => {
-              const isOpen = i === 6 // Saturday
-              return (
-                <div key={day} style={{
-                  textAlign: 'center', padding: '12px 4px',
-                  borderRadius: 'var(--radius-lg, 12px)',
-                  background: isOpen ? 'var(--green-600, #16a34a)' : 'var(--gray-50, #f9fafb)',
-                  border: isOpen ? 'none' : '1px solid var(--gray-200, #e5e7eb)',
-                  transition: 'all 0.2s',
-                }}>
-                  <div style={{
-                    fontSize: 11, fontWeight: 700,
-                    color: isOpen ? 'rgba(255,255,255,0.8)' : 'var(--gray-400, #9ca3af)',
-                    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4,
-                  }}>{day}</div>
-                  <div style={{
-                    fontSize: isOpen ? 13 : 12, fontWeight: isOpen ? 800 : 500,
-                    color: isOpen ? '#fff' : 'var(--gray-300, #d1d5db)',
-                  }}>
-                    {isOpen ? '8–11 AM' : 'Closed'}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-
-          {/* Why limited hours */}
-          <div style={{
-            padding: '16px 20px', borderRadius: 'var(--radius-lg, 12px)',
-            background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)',
-            border: '1px solid var(--green-200, #bbf7d0)',
-          }}>
-            <p style={{
-              fontSize: 14, fontWeight: 700, color: 'var(--green-800, #166534)',
-              margin: '0 0 6px',
-            }}>
-              💡 Why limited hours?
-            </p>
-            <p style={{
-              fontSize: 13, color: 'var(--gray-600, #4b5563)', lineHeight: 1.6, margin: 0,
-            }}>
-              Just like a real farmer&apos;s market, set hours create a rush of activity — fresher produce, 
-              more neighbors shopping together, and fairer access for everyone. List your produce anytime, 
-              and when the market opens, the magic happens!
-            </p>
-          </div>
-
-          {/* Buzz always-on note */}
-          <div style={{
-            marginTop: 12, padding: '12px 20px', borderRadius: 'var(--radius-lg, 12px)',
-            background: 'var(--gray-50, #f9fafb)', border: '1px solid var(--gray-200, #e5e7eb)',
-            textAlign: 'center',
-          }}>
-            <p style={{ fontSize: 13, color: 'var(--gray-600, #4b5563)', lineHeight: 1.6, margin: 0 }}>
-              🐝 While the market has set hours, <Link href="/community" style={{ color: 'var(--green-700, #15803d)', fontWeight: 700, textDecoration: 'none' }}>Buzz</Link> is always on — post, discuss, and connect with your local community anytime!
-            </p>
-          </div>
-        </div>
 
         {/* ── How It Works (matching original howItWorks) ── */}
         <div style={{ maxWidth: 720, width: '100%', textAlign: 'center' }}>
@@ -474,16 +397,16 @@ export default function MarketClosedBox({ nextOpenDate, todaySchedule }: MarketC
             gap: 8, flexWrap: 'wrap',
           }}>
             <HowStep num={1} icon="📸" title="List Your Produce"
-              desc="Snap photos of your excess fruits, veggies, or baked goods. Set your price and quantity. Open or close your booth before each market day." />
+              desc="Snap photos of your excess fruits, veggies, or baked goods. Set your price and quantity." />
             <Arrow />
-            <HowStep num={2} icon="📅" title="Market Day"
-              desc="When the market opens, neighbors browse your booth and place orders." />
+            <HowStep num={2} icon="🛒" title="Neighbors Shop"
+              desc="Neighbors browse your booth and place orders anytime the market is available." />
             <Arrow />
             <HowStep num={3} icon="📦" title="Deliver or Pickup"
               desc="Drop off at their porch or they pick up from you. Snap a photo as proof of delivery." />
             <Arrow />
-            <HowStep num={4} icon="⚖️" title="Daily Settlement"
-              desc="At market close, all orders are netted. Sales minus purchases and fees = your net earnings." />
+            <HowStep num={4} icon="⚖️" title="Nightly Settlement"
+              desc="Every night at midnight, all orders are netted. Sales minus purchases and fees = your net earnings." />
             <Arrow />
             <HowStep num={5} icon="💰" title="Withdraw"
               desc="Funds clear in ~2 days. Cash out via Venmo or PayPal, redeem as gift cards, or donate to charity." />
@@ -504,7 +427,7 @@ export default function MarketClosedBox({ nextOpenDate, todaySchedule }: MarketC
               display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
               gap: 6, flexWrap: 'wrap',
             }}>
-              <SettlementStep icon="🔔" title="Market Closes" desc="Orders finalized at 11 AM" />
+              <SettlementStep icon="🌙" title="Midnight" desc="Nightly settlement at 12 AM" />
               <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--green-400, #4ade80)', marginTop: 10 }}>→</span>
               <SettlementStep icon="⚖️" title="Netting" desc="Sales − purchases − fees = net" />
               <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--green-400, #4ade80)', marginTop: 10 }}>→</span>

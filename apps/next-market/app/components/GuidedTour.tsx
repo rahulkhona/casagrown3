@@ -15,9 +15,9 @@ interface TourStep {
 
 const STEPS: TourStep[] = [
   {
-    target: 'nav-market',
-    title: '🧺 Market',
-    description: 'Browse and buy fresh produce from your neighbors. Enter your address to find sellers near you.',
+    target: 'nav-buzz',
+    title: '👥 Community',
+    description: 'Your neighborhood hub. Share gardening tips, photos, ask questions, and connect with fellow growers.',
     position: 'top',
   },
   {
@@ -27,9 +27,15 @@ const STEPS: TourStep[] = [
     position: 'top',
   },
   {
-    target: 'nav-buzz',
-    title: '🐝 Buzz',
-    description: 'Your neighborhood community chat. Share gardening tips, photos, and connect with fellow growers.',
+    target: 'nav-messages',
+    title: '💬 Messages',
+    description: 'Direct messages with buyers, sellers, and neighbors. Send offers, request help, and coordinate.',
+    position: 'top',
+  },
+  {
+    target: 'nav-market',
+    title: '🛍️ Market',
+    description: 'Browse and buy fresh produce from your neighbors. Enter your address to find sellers near you.',
     position: 'top',
   },
   {
@@ -47,20 +53,14 @@ const STEPS: TourStep[] = [
   // Card-only explanation steps (no spotlight)
   {
     target: 'card',
-    title: '⏰ Market Hours',
-    description: 'The market is open every Saturday & Sunday, 8–11 AM. Limited hours mean fresher produce and a true community experience.',
-    position: 'bottom',
-  },
-  {
-    target: 'card',
     title: '💳 Payment Protection',
     description: 'Your card is only charged upon completed delivery — not when you place the order. All payments are handled securely through Stripe.',
     position: 'bottom',
   },
   {
     target: 'card',
-    title: '💰 Settlements & Earnings',
-    description: 'At market close, your sales minus purchases and fees equals your earnings. Settlement runs nightly and you can cash out via PayPal, gift cards, or donate.',
+    title: '💰 Nightly Settlement',
+    description: 'Every night at midnight, your sales minus purchases and fees are netted into your earnings. You can cash out via PayPal, gift cards, or donate.',
     position: 'bottom',
   },
 ]
