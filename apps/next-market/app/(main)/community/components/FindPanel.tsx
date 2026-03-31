@@ -200,6 +200,17 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
     }
 
     setLoading(false)
+
+    // Queue notifications for growers who grow what the buyer searched for
+    if (keywords.trim() && profileH3 && userId) {
+      supabase.rpc('queue_grower_search_match', {
+        p_keywords: keywords.trim(),
+        p_community_h3: profileH3,
+        p_searcher_id: userId,
+      }).then(({ error: matchErr }) => {
+        if (matchErr) console.warn('Grower match queue failed (non-blocking):', matchErr)
+      })
+    }
   }
 
   // ── Post "Looking for" message & save watch ──

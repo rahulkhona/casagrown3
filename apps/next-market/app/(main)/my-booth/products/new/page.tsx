@@ -856,20 +856,7 @@ function NewProductPageInner() {
       // Drafts: skip share modal, go straight to My Booth
       router.push(fromBuzz ? '/community' : '/my-booth')
     } else {
-      // Published: auto-post to Buzz community feed
-      if (userH3Index && authUser?.id) {
-        const buzzMsg = nextMarket
-          ? `🌿 New listing! ${name} — ${parseFloat(priceUsd) === 0 ? 'Free' : `$${priceUsd}/${unit}`}. Available this ${nextMarket.label}!`
-          : `🌿 New listing! ${name} — ${parseFloat(priceUsd) === 0 ? 'Free' : `$${priceUsd}/${unit}`}.`
-        try {
-          await supabase.from('community_chat_messages').insert({
-            community_h3_index: userH3Index,
-            author_id: authUser.id,
-            content: buzzMsg,
-            product_listing_id: addedProductId || undefined,
-          })
-        } catch { /* fire and forget */ }
-      }
+      // Published: show share modal
       setShowShareModal(true)
       showPrompt()
     }

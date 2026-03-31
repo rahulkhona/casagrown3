@@ -21,6 +21,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     return await handleDailyDigest(supabase, env, corsHeaders, siteUrl)
   } else if (action === 'seller_lifecycle') {
     return await handleSellerLifecycle(supabase, env, corsHeaders, siteUrl, body)
+  } else if (action === 'grower_digest') {
+    return await handleGrowerDigest(supabase, env, corsHeaders, siteUrl)
   } else {
     return jsonOk({ error: 'Unknown action: ' + action }, corsHeaders)
   }
@@ -448,4 +450,83 @@ async function handleSellerLifecycle(
   }
 
   return jsonOk({ pushSent, emailSentCount }, corsHeaders)
+}
+
+// ═══════════════════════════════════════════════
+// Grower Digest — Notify growers when buyers search for their produce
+// Runs 2x/day: ~11am and ~5pm local time
+// ═══════════════════════════════════════════════
+async function handleGrowerDigest(
+  supabase: any,
+  env: (k: string) => string | undefined,
+  corsHeaders: Record<string, string>,
+  siteUrl: string,
+) {
+  // Get all pending (un-notified) search matches
+  const { data: pending } = await supabase
+    .from('grower_search_notifications')
+    .select('id, grower_id, keyword')
+    .is('notified_at', null)
+    .order('created_at')
+    .limit(500)
+
+  if (!pending || pending.length === 0) {
+    return jsonOk({ sent: 0, message: 'No pending grower notifications' }, corsHeaders)
+  }
+
+  // Group by grower
+  const byGrower: Record<string, { ids: string[]; keywords: Set<string> }> = {}
+  for (const p of pending) {
+    if (!byGrower[p.grower_id]) {
+      byGrower[p.grower_id] = { ids: [], keywords: new Set() }
+    }
+    const entry = byGrower[p.grower_id]!
+    entry.ids.push(p.id)
+    entry.keywords.add(p.keyword)
+  }
+
+  const serviceKey = env('SUPABASE_SERVICE_ROLE_KEY') || ''
+  const pushUrl = (env('SUPABASE_URL') || 'http://host.docker.internal:54321') +
+    '/functions/v1/send-push-notification'
+
+  let sentCount = 0
+
+  for (const [growerId, group] of Object.entries(byGrower)) {
+    const keywords = Array.from(group.keywords)
+    const keywordList = keywords.slice(0, 3).join(', ')
+    const extra = keywords.length > 3 ? ` and ${keywords.length - 3} more` : ''
+
+    // Send push notification
+    await fetch(pushUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceKey}` },
+      body: JSON.stringify({
+        userIds: [growerId],
+        title: '🔍 Neighbors are looking for your produce!',
+        body: `People are searching for ${keywordList}${extra}. List yours on the market!`,
+        url: '/my-booth/products/new',
+        tag: 'grower-search-match',
+      }),
+    }).catch(e => console.warn('Grower push failed:', e))
+
+    // Create in-app notification
+    await supabase.from('notifications').insert({
+      user_id: growerId,
+      type: 'grower_search_match',
+      title: '🔍 Neighbors are looking for your produce!',
+      body: `People are searching for ${keywordList}${extra}. List yours on the market!`,
+      url: '/my-booth/products/new',
+      read: false,
+    }).then(() => {}).catch(() => {})
+
+    // Mark all as notified
+    await supabase
+      .from('grower_search_notifications')
+      .update({ notified_at: new Date().toISOString() })
+      .in('id', group.ids)
+
+    sentCount++
+  }
+
+  return jsonOk({ sent: sentCount, growers: Object.keys(byGrower).length }, corsHeaders)
 }

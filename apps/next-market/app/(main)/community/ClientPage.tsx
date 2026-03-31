@@ -17,6 +17,7 @@ import ChatMessage from './components/ChatMessage'
 import ComposeBar from './components/ComposeBar'
 import SuggestionChips from './components/SuggestionChips'
 import FindPanel from './components/FindPanel'
+import WelcomeCard from './components/WelcomeCard'
 import NewMessagesBadge from './components/NewMessagesBadge'
 import { useNotificationPrompt } from '../../../lib/useNotificationPrompt'
 import { NotificationPromptModal } from '../../components/NotificationPromptModal'
@@ -36,6 +37,8 @@ export default function ClientPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [profileH3, setProfileH3] = useState<string | null>(null)
   const [errorState, setErrorState] = useState<{ message: string; cta?: string; action?: () => void } | null>(null)
+  const [showWelcome, setShowWelcome] = useState(false)
+  const [profileName, setProfileName] = useState('')
   const { showError, showInfo } = useErrorToast()
 
   
@@ -69,7 +72,7 @@ export default function ClientPage() {
       const supabase = createClient()
       const { data, error } = await supabase
         .from('profiles')
-        .select('home_community_h3_index')
+        .select('home_community_h3_index, buzz_welcomed_at, full_name')
         .eq('id', user.id)
         .single()
         
@@ -82,6 +85,10 @@ export default function ClientPage() {
 
       if (data?.home_community_h3_index) {
         setProfileH3(data.home_community_h3_index)
+        setProfileName(data.full_name || '')
+        if (!data.buzz_welcomed_at) {
+          setShowWelcome(true)
+        }
       } else {
         // If they don't have a community, redirect to onboarding or show error
         console.warn('User has no home community set')
@@ -333,6 +340,16 @@ export default function ClientPage() {
             </div>
           ) : (
             <div className={styles.messageList}>
+              {showWelcome && user && (
+                <WelcomeCard
+                  userId={user.id}
+                  userName={profileName}
+                  profileH3={profileH3!}
+                  onComplete={() => setShowWelcome(false)}
+                  onSendMessage={async (msg) => { await handleSendMessage(msg) }}
+                  showPrompt={showPrompt}
+                />
+              )}
               {messages.map(msg => (
                 <ChatMessage 
                   key={msg.id} 
