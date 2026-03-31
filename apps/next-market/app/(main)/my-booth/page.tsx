@@ -12,6 +12,7 @@ import { useMarketRestriction } from '../../../lib/useMarketRestriction'
 import { useNotificationPrompt } from '../../../lib/useNotificationPrompt'
 import { NotificationPromptModal } from '../../components/NotificationPromptModal'
 import { NotificationBanner } from '../../components/NotificationBanner'
+import { HelperDMModal } from './components/HelperDMModal'
 import CameraCapture from '../../../components/CameraCapture'
 import ImageCropper from '../../../components/ImageCropper'
 import { useErrorToast } from '../../components/ErrorToast'
@@ -383,6 +384,8 @@ export default function MyBoothPage() {
   }
   const [helperPasscode, setHelperPasscodeState] = useState(genPasscode)
   const [inviteCopied, setInviteCopied] = useState(false)
+  const [showHelperDM, setShowHelperDM] = useState(false)
+  const [dmSending, setDmSending] = useState(false)
 
   // Product slots
   const totalSlots = Math.max(MIN_SLOTS, myProducts.length + SLOT_INCREMENT)
@@ -1166,12 +1169,24 @@ export default function MyBoothPage() {
         )}
       </div>
 
-      {/* ── Helpers ── */}
       {<div className={styles.boothSection}>
         <h2 className={styles.sectionTitle}>🤝 Helpers</h2>
-        <p style={{ fontSize: 14, color: 'var(--gray-500)', marginBottom: 16 }}>
-          Share the link and passcode so others can help manage your booth.
+        <p style={{ fontSize: 14, color: 'var(--gray-500)', marginBottom: 8 }}>
+          Invite someone you trust to help manage your booth — they can view orders, chat with buyers, and handle handoffs.
         </p>
+        <div style={{
+          background: 'var(--amber-50, #fffbeb)', border: '1px solid var(--amber-200, #fde68a)',
+          borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13, lineHeight: 1.6,
+          color: 'var(--amber-800, #92400e)',
+        }}>
+          <strong>💡 Who makes a great helper?</strong>
+          <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>
+            <li>Your teenager — a great way for them to earn &amp; learn!</li>
+            <li>A neighborhood teen looking for a side gig</li>
+            <li>Your gardener or landscaper</li>
+            <li>A spouse, family member, or trusted neighbor</li>
+          </ul>
+        </div>
 
         {/* Passcode display */}
         <div className={styles.passcodeCard}>
@@ -1233,7 +1248,27 @@ export default function MyBoothPage() {
           >
             📤 Share
           </button>
+          <button
+            className="btn btn-secondary"
+            onClick={() => setShowHelperDM(true)}
+          >
+            💬 DM a Neighbor
+          </button>
         </div>
+
+        {/* Helper DM Search Modal */}
+        {showHelperDM && user && (
+          <HelperDMModal
+            boothName={name}
+            passcode={helperPasscode}
+            userId={user.id}
+            onClose={() => setShowHelperDM(false)}
+            onSent={(recipientName: string) => {
+              setShowHelperDM(false)
+              dispatch({ type: 'ADD_TOAST', payload: { message: `Helper invite sent to ${recipientName}! 💬`, type: 'success' } })
+            }}
+          />
+        )}
 
         {/* Current helpers */}
         {helpers.length > 0 && (
