@@ -125,6 +125,23 @@ export function HelperDMModal({ boothName, passcode, userId, onClose, onSent }: 
         if (msgError) {
           console.warn('Failed to send helper invite message:', msgError)
         }
+
+        // 3. Zero out sender's own unread count (belt-and-suspenders)
+        const { data: conv } = await supabase
+          .from('market_conversations')
+          .select('participant_a')
+          .eq('id', convId)
+          .single()
+
+        const senderColumn = conv?.participant_a === userId ? 'unread_count_a' : 'unread_count_b'
+        await supabase.from('market_conversations')
+          .update({ [senderColumn]: 0 })
+          .eq('id', convId)
+
+        // Force badge refresh
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('force-badge-update'))
+        }
       }
 
       onSent(targetName, convId)
