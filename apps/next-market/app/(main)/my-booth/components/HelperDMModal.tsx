@@ -23,17 +23,31 @@ export function HelperDMModal({ boothName, passcode, userId, onClose, onSent }: 
       const supabase = createClient()
       const CASABOT_ID = 'a0000000-0000-0000-0000-00000ca5ab07'
 
+      // Get user's community H3 to show same-community neighbors first
+      const { data: myProfile } = await supabase
+        .from('profiles')
+        .select('home_community_h3_index')
+        .eq('id', userId)
+        .single()
+
+      const myH3 = myProfile?.home_community_h3_index
+
       let req = supabase
         .from('profiles')
         .select('id, full_name, avatar_url')
         .neq('id', userId)
         .neq('id', CASABOT_ID)
 
+      // Filter by same community if available
+      if (myH3) {
+        req = req.eq('home_community_h3_index', myH3)
+      }
+
       if (query.trim()) {
         req = req.ilike('full_name', `%${query.trim()}%`)
       }
 
-      const { data } = await req.limit(12).order('created_at', { ascending: false })
+      const { data } = await req.limit(12).order('full_name')
       if (data) setResults(data)
       setLoading(false)
     }, query.trim() ? 400 : 0)
