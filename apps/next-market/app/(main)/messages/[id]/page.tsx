@@ -669,10 +669,60 @@ export default function MessageThreadPage() {
               )}
             </div>
             
-            {/* 🏷️ Offers */}
-            <button type="button" title="Make an Offer" onClick={loadMyProducts} disabled={uploadingMedia || sending} style={{ background: '#f3f4f6', color: '#4b5563', border: 'none', width: 44, height: 44, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: uploadingMedia || sending ? 0.5 : 1 }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
-            </button>
+            {/* Action Chips */}
+            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+              <button type="button" onClick={loadMyProducts} disabled={uploadingMedia || sending}
+                style={{
+                  background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)', color: '#166534',
+                  border: '1px solid #bbf7d0', borderRadius: 16, padding: '6px 12px',
+                  fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
+                  opacity: uploadingMedia || sending ? 0.5 : 1, transition: 'all 0.15s',
+                }}>
+                🏷️ Sell
+              </button>
+              <button type="button" disabled={uploadingMedia || sending}
+                onClick={async () => {
+                  if (!user || isBlocked) return
+                  const supabase = createClient()
+                  // Get user's booth info for passcode
+                  const { data: booth } = await supabase.from('booths').select('name, helper_passcode').eq('owner_id', user.id).maybeSingle()
+                  const boothLabel = booth?.name?.trim() ? `my booth "${booth.name}"` : 'my CasaGrown booth'
+                  const passcode = booth?.helper_passcode || ''
+                  const joinUrl = passcode ? `${window.location.origin}/join-booth/${encodeURIComponent(passcode)}` : ''
+                  const helpMsg = [
+                    `Hey! 👋`,
+                    '',
+                    `I need some help managing my excess produce on CasaGrown and was wondering if you'd be able to help me out?`,
+                    '',
+                    `It's pretty straightforward — just keep an eye on orders, hand things off to buyers when they come by, and maybe reply to a message or two.`,
+                    ...(joinUrl ? [
+                      '',
+                      `If you can, here's the link to get access to ${boothLabel}:`,
+                      joinUrl,
+                      '',
+                      `Passcode: ${passcode}`,
+                    ] : []),
+                    '',
+                    `Let me know! 🌱`,
+                  ].join('\n')
+                  await supabase.from('market_chat_messages').insert({
+                    conversation_id: id,
+                    sender_id: user.id,
+                    content: helpMsg,
+                  })
+                  const { data: fetchNew } = await supabase.from('market_chat_messages').select('*, offer_product:market_products(id, name, price_usd, photos, unit, seller_id), market_chat_reactions(user_id, emoji)').eq('conversation_id', id).order('created_at', { ascending: true })
+                  if (fetchNew) setMessages(fetchNew)
+                  setTimeout(scrollToBottom, 50)
+                }}
+                style={{
+                  background: 'linear-gradient(135deg, #fffbeb, #fef3c7)', color: '#92400e',
+                  border: '1px solid #fde68a', borderRadius: 16, padding: '6px 12px',
+                  fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
+                  opacity: uploadingMedia || sending ? 0.5 : 1, transition: 'all 0.15s',
+                }}>
+                🤝 Request Help
+              </button>
+            </div>
             
             <input
               ref={inputRef}
