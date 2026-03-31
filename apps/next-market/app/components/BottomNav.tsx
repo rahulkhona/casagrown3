@@ -84,7 +84,7 @@ const tabs = [
   { href: '/community', label: 'Community', icon: '👥', locked: true, tour: 'nav-buzz' },
   { href: '/orders', label: 'Orders', icon: '📦', locked: true, tour: 'nav-orders' },
   { href: '/messages', label: 'Messages', icon: '💬', locked: true, tour: 'nav-messages' },
-  { href: '/market', label: 'Market', icon: '🛒', locked: false, tour: 'nav-market' },
+  { href: '/market', label: 'Market', icon: '🛍️', locked: false, tour: 'nav-market' },
 ]
 
 export function BottomNav() {
