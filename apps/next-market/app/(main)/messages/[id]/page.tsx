@@ -635,7 +635,7 @@ export default function MessageThreadPage() {
               onClick={async () => {
                 if (!user || isBlocked) return
                 const supabase = createClient()
-                const { data: booth } = await supabase.from('booths').select('name, helper_passcode').eq('owner_id', user.id).maybeSingle()
+                const { data: booth } = await supabase.from('market_booths').select('name, helper_passcode').eq('owner_id', user.id).maybeSingle()
                 const boothLabel = booth?.name?.trim() ? `my booth "${booth.name}"` : 'my CasaGrown booth'
                 const passcode = booth?.helper_passcode || ''
                 const joinUrl = passcode ? `${window.location.origin}/join-booth/${encodeURIComponent(passcode)}` : ''
