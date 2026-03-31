@@ -1204,16 +1204,20 @@ export default function MyBoothPage() {
             className="btn btn-secondary"
             onClick={() => {
               const joinUrl = typeof window !== 'undefined' ? `${window.location.origin}/join-booth/${encodeURIComponent(helperPasscode)}` : ''
+              const boothLabel = name?.trim() ? `my booth "${name}"` : 'my CasaGrown booth'
               const text = [
-                `Hey! 🤝 I'm selling on CasaGrown Market and could use a hand with my booth "${name}".`,
+                `Hey! 👋`,
                 '',
-                'As a helper you can:',
-                '• See and fulfill pending orders',
-                '• Chat with buyers on my behalf',
-                '• Help with delivery and pickup handoffs',
+                `I need some help managing my excess produce on CasaGrown and was wondering if you'd be able to help me out?`,
                 '',
-                `Join here: ${joinUrl}`,
+                `It's pretty straightforward — just keep an eye on orders, hand things off to buyers when they come by, and maybe reply to a message or two.`,
+                '',
+                `If you can, here's the link to get access to ${boothLabel}:`,
+                joinUrl,
+                '',
                 `Passcode: ${helperPasscode}`,
+                '',
+                `Let me know! 🌱`,
               ].join('\n')
               navigator.clipboard?.writeText(text)
               setInviteCopied(true)
@@ -1227,19 +1231,23 @@ export default function MyBoothPage() {
             className="btn btn-secondary"
             onClick={async () => {
               const joinUrl = typeof window !== 'undefined' ? `${window.location.origin}/join-booth/${encodeURIComponent(helperPasscode)}` : ''
+              const boothLabel = name?.trim() ? `my booth "${name}"` : 'my CasaGrown booth'
               const text = [
-                `Hey! 🤝 I'm selling on CasaGrown Market and could use a hand with my booth "${name}".`,
+                `Hey! 👋`,
                 '',
-                'As a helper you can:',
-                '• See and fulfill pending orders',
-                '• Chat with buyers on my behalf',
-                '• Help with delivery and pickup handoffs',
+                `I need some help managing my excess produce on CasaGrown and was wondering if you'd be able to help me out?`,
                 '',
-                `Join here: ${joinUrl}`,
+                `It's pretty straightforward — just keep an eye on orders, hand things off to buyers when they come by, and maybe reply to a message or two.`,
+                '',
+                `If you can, here's the link to get access to ${boothLabel}:`,
+                joinUrl,
+                '',
                 `Passcode: ${helperPasscode}`,
+                '',
+                `Let me know! 🌱`,
               ].join('\n')
               if (navigator.share) {
-                try { await navigator.share({ title: `Help with ${name} on CasaGrown`, text, url: joinUrl }) } catch { /* user cancelled */ }
+                try { await navigator.share({ title: `Help with ${boothLabel} on CasaGrown`, text, url: joinUrl }) } catch { /* user cancelled */ }
               } else {
                 navigator.clipboard?.writeText(text)
                 dispatch({ type: 'ADD_TOAST', payload: { message: 'Copied! 📋', type: 'success' } })
