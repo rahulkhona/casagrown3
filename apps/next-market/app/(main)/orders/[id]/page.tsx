@@ -271,7 +271,7 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
   return (
     <div className="container">
       <div className={styles.breadcrumb}>
-        <Link href="/orders">← Orders</Link>
+        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', font: 'inherit', padding: 0 }}>← Back</button>
       </div>
 
       <NotificationPromptModal {...modalProps} />

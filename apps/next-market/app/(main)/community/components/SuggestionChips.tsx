@@ -8,6 +8,10 @@ interface SuggestionChipsProps {
   onPrefill: (text: string) => void
   /** Number of user-authored (non-system) messages in chat */
   userMessageCount: number
+  /** Open the sell / add-product flow */
+  onSellClick?: () => void
+  /** Open the find / search panel */
+  onFindClick?: () => void
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -139,7 +143,7 @@ function getRandomChips(count: number = 3): string[] {
   return shuffled.slice(0, count)
 }
 
-export default function SuggestionChips({ onSelect, onPrefill, userMessageCount }: SuggestionChipsProps) {
+export default function SuggestionChips({ onSelect, onPrefill, userMessageCount, onSellClick, onFindClick }: SuggestionChipsProps) {
   const [suggestions, setSuggestions] = useState<string[]>([])
 
   useEffect(() => {
@@ -147,7 +151,7 @@ export default function SuggestionChips({ onSelect, onPrefill, userMessageCount 
   }, [])
 
   // Show random chips when user hasn't sent many messages
-  // but always show the CasaBot chip
+  // but always show the CasaBot chip + action chips
   return (
     <div className={styles.suggestionsWrapper}>
       {/* Always-visible CasaBot chip */}
@@ -158,6 +162,28 @@ export default function SuggestionChips({ onSelect, onPrefill, userMessageCount 
       >
         🐝 Ask CasaBot
       </button>
+
+      {/* Sell chip */}
+      {onSellClick && (
+        <button
+          className={`${styles.suggestionChip} ${styles.sellChip}`}
+          onClick={onSellClick}
+          title="List a product for sale"
+        >
+          🏷️ Sell
+        </button>
+      )}
+
+      {/* Find chip */}
+      {onFindClick && (
+        <button
+          className={`${styles.suggestionChip} ${styles.findChip}`}
+          onClick={onFindClick}
+          title="Find produce near you"
+        >
+          🔍 Find
+        </button>
+      )}
 
       {/* Random suggestion chips — always visible as conversation starters */}
       {suggestions.map((text, i) => (

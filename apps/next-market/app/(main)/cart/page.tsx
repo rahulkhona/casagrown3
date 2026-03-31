@@ -8,10 +8,11 @@ import { useMarketStatus } from '../../../lib/useMarketStatus'
 import { createClient } from '../../../lib/supabase'
 import { formatUsd } from '../../../lib/store'
 import { useAuth } from '../../../lib/useAuth'
+import { hasValidWindows } from '../../../lib/windowUtils'
 import styles from './page.module.css'
 
 export default function CartPage() {
-  const { items, boothGroups, removeItem, updateQty, clearBooth, clearCart, refreshItems } = useCart()
+  const { items, boothGroups, removeItem, updateQty, updateFulfillment, clearBooth, clearCart, refreshItems } = useCart()
   const { isOpen: marketIsOpen, loading: marketLoading } = useMarketStatus()
 
   const { user, isAuthenticated } = useAuth()
@@ -48,6 +49,10 @@ export default function CartPage() {
         inventory: d.inventory,
         price_usd: Number(d.price_usd),
         is_active: d.is_active,
+        expires_at: d.expires_at || null,
+        window_dates: d.window_dates || [],
+        product_delivery_windows: d.product_delivery_windows || [],
+        product_pickup_windows: d.product_pickup_windows || [],
       })))
     }
     setLoading(false)
@@ -188,9 +193,39 @@ export default function CartPage() {
         return
       }
 
-      // Step 1: Place all orders (atomic per item, inventories locked in DB)
+      // Step 1: Re-validate windows + place orders (atomic per item)
       const placedProductIds: string[] = []
       let orderTotal = 0
+
+      // Re-fetch fresh data for all products to validate windows at checkout time
+      const allProductIds = orderGroups.flatMap(g => g.items.map(i => i.product.id))
+      const { data: freshData } = await supabase.rpc('refresh_product_data', { product_ids: allProductIds })
+      const freshMap = new Map((freshData as any[] || []).map((d: any) => [d.id, d]))
+
+      // Check for expired windows per item's selected fulfillment mode
+      const expiredItems: string[] = []
+      for (const group of orderGroups) {
+        for (const item of group.items) {
+          const fresh = freshMap.get(item.product.id)
+          if (fresh && !hasValidWindows(fresh.window_dates, fresh.product_delivery_windows, fresh.product_pickup_windows, item.fulfillmentMode)) {
+            expiredItems.push(`${item.product.name} (${item.fulfillmentMode})`)
+          }
+        }
+      }
+      if (expiredItems.length > 0) {
+        setCheckoutError(`Cannot checkout: ${expiredItems.join(', ')} — ${expiredItems.length === 1 ? 'window has' : 'windows have'} passed. Remove or switch fulfillment mode.`)
+        // Trigger a refresh to update badges
+        if (freshData) {
+          refreshItems((freshData as any[]).map((d: any) => ({
+            id: d.id, inventory: d.inventory, price_usd: Number(d.price_usd),
+            is_active: d.is_active, expires_at: d.expires_at || null,
+            window_dates: d.window_dates || [], product_delivery_windows: d.product_delivery_windows || [],
+            product_pickup_windows: d.product_pickup_windows || [],
+          })))
+        }
+        setCheckingOut(false)
+        return
+      }
 
       for (const group of orderGroups) {
         for (const item of group.items) {
@@ -407,6 +442,11 @@ export default function CartPage() {
                     {item.unavailable === 'inactive' && (
                       <span className={`${styles.unavailBadge} ${styles.badgeInactive}`}>No Longer Available</span>
                     )}
+                    {item.unavailable === 'expired' && (
+                      <span className={`${styles.unavailBadge} ${styles.badgeInactive}`} style={{ background: '#fef3c7', color: '#92400e', borderColor: '#f59e0b' }}>
+                        ⏰ No {item.fulfillmentMode} windows available
+                      </span>
+                    )}
                     {item.unavailable === 'insufficient' && (
                       <>
                         <span className={`${styles.unavailBadge} ${styles.badgeInsufficient}`}>
@@ -422,6 +462,36 @@ export default function CartPage() {
                         </div>
                       </>
                     )}
+
+                    {/* Fulfillment mode selector */}
+                    <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                      {item.booth.offers_pickup && (
+                        <button
+                          onClick={() => updateFulfillment(item.product.id, 'pickup')}
+                          style={{
+                            padding: '3px 10px', fontSize: 12, borderRadius: 12,
+                            border: `1px solid ${item.fulfillmentMode === 'pickup' ? '#16a34a' : '#d1d5db'}`,
+                            background: item.fulfillmentMode === 'pickup' ? '#ecfdf5' : '#f9fafb',
+                            color: item.fulfillmentMode === 'pickup' ? '#065f46' : '#6b7280',
+                            fontWeight: item.fulfillmentMode === 'pickup' ? 600 : 400,
+                            cursor: 'pointer',
+                          }}
+                        >📍 Pickup</button>
+                      )}
+                      {item.booth.offers_delivery && (
+                        <button
+                          onClick={() => updateFulfillment(item.product.id, 'delivery')}
+                          style={{
+                            padding: '3px 10px', fontSize: 12, borderRadius: 12,
+                            border: `1px solid ${item.fulfillmentMode === 'delivery' ? '#2563eb' : '#d1d5db'}`,
+                            background: item.fulfillmentMode === 'delivery' ? '#eff6ff' : '#f9fafb',
+                            color: item.fulfillmentMode === 'delivery' ? '#1e40af' : '#6b7280',
+                            fontWeight: item.fulfillmentMode === 'delivery' ? 600 : 400,
+                            cursor: 'pointer',
+                          }}
+                        >🚗 Delivery</button>
+                      )}
+                    </div>
 
                     {/* Qty controls (only for available items) */}
                     {!item.unavailable && (
@@ -527,17 +597,15 @@ export default function CartPage() {
             <button
               className={styles.unifiedCheckoutBtn}
               onClick={handleUnifiedCheckout}
-              disabled={!marketIsOpen || checkingOut || !balanceLoaded || (needsCard && !stripeReady)}
+              disabled={checkingOut || !balanceLoaded || (needsCard && !stripeReady)}
             >
               {checkingOut
                 ? '⏳ Processing...'
                 : !balanceLoaded
                   ? '⏳ Loading...'
-                  : !marketIsOpen
-                    ? '🔒 Market Closed'
-                    : needsCard
-                      ? `Pay ${formatUsd(cardAmount)} & Place Orders`
-                      : `Place Orders — ${formatUsd(grandTotal)}`}
+                  : needsCard
+                    ? `Pay ${formatUsd(cardAmount)} & Place Orders`
+                    : `Place Orders — ${formatUsd(grandTotal)}`}
             </button>
             <p className={styles.checkoutNotice}>
               Your card is only charged after delivery is confirmed and the order is complete.

@@ -58,6 +58,7 @@ function NewProductPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const editId = searchParams.get('edit')
+  const fromBuzz = searchParams.get('from') === 'buzz'
   const isEditMode = !!editId
   const { state, dispatch } = useMarket()
   const { isAuthenticated, loading: authLoading, user: authUser } = useAuth()
@@ -83,21 +84,25 @@ function NewProductPageInner() {
   const [quantity, setQuantity] = useState('')
   const [category, setCategory] = useState('')
   const [harvestedAt, setHarvestedAt] = useState(() => {
-    // Auto-fill harvest date to today for applicable categories
-    return new Date().toISOString().split('T')[0]
+    // Auto-fill harvest date to today (local timezone)
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
   })
-  // Smart listing expiry: max(next market day, category default days)
-  const getExpiryDate = () => {
-    const categoryDays: Record<string, number> = {
-      produce: 3, flowers: 3, flower_arrangements: 3, eggs: 3,
-      honey: 10, seeds: 10, soil: 10, pots: 10, garden_equipment: 10,
+  // Smart listing expiry: based on the latest selected fulfillment window
+  const getExpiryDate = (selectedDates: string[], _dwIds: Record<string, string[]>, _pwIds: Record<string, string[]>) => {
+    // With Today/Tomorrow windows, expiry is simply end-of-latest-selected-date.
+    // Products auto-expire when their window dates pass — no complex calculation needed.
+    if (selectedDates.length > 0) {
+      // Sort dates and pick the latest one, expire at end of that day (23:59:59)
+      const sorted = [...selectedDates].sort()
+      const latest = sorted[sorted.length - 1]
+      return new Date(latest + 'T23:59:59').toISOString()
     }
-    const defaultDays = categoryDays[category] || 7
-    const fromDays = new Date(Date.now() + defaultDays * 86400000)
-    // At least until the next market day
-    const nextMarketMs = nextMarket ? new Date(nextMarket.iso + 'T23:59:59').getTime() : 0
-    const expiryMs = Math.max(fromDays.getTime(), nextMarketMs)
-    return new Date(expiryMs).toISOString()
+    // Fallback: expire end of tomorrow
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    tomorrow.setHours(23, 59, 59, 0)
+    return tomorrow.toISOString()
   }
 
   // Categories from DB
@@ -116,6 +121,7 @@ function NewProductPageInner() {
   const [buzzPosted, setBuzzPosted] = useState(false)
   const [buzzPosting, setBuzzPosting] = useState(false)
   const [userH3Index, setUserH3Index] = useState<string | null>(null)
+  const [forceDraft, setForceDraft] = useState(false)
 
   // AI auto-fill
   const [aiAnalyzing, setAiAnalyzing] = useState(false)
@@ -153,6 +159,40 @@ function NewProductPageInner() {
   const [inlineCustomEnd, setInlineCustomEnd] = useState('19:00')
   const [showInlineCustomDelivery, setShowInlineCustomDelivery] = useState(false)
   const [showInlineCustomPickup, setShowInlineCustomPickup] = useState(false)
+
+  // ── Product-level fulfillment windows ──
+  const localToday = new Date()
+  const todayStr = `${localToday.getFullYear()}-${String(localToday.getMonth()+1).padStart(2,'0')}-${String(localToday.getDate()).padStart(2,'0')}`
+  const tomorrowDate = new Date(localToday.getFullYear(), localToday.getMonth(), localToday.getDate() + 1)
+  const tomorrowStr = `${tomorrowDate.getFullYear()}-${String(tomorrowDate.getMonth()+1).padStart(2,'0')}-${String(tomorrowDate.getDate()).padStart(2,'0')}`
+  const todayDayKey = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][localToday.getDay()]
+  const tomorrowDayKey = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][tomorrowDate.getDay()]
+  const todayLabel = `Today (${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][localToday.getDay()]})`
+  const tomorrowLabel = `Tomorrow (${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][tomorrowDate.getDay()]})`
+
+  const [selectedDates, setSelectedDates] = useState<string[]>([todayStr, tomorrowStr])
+  const [productDeliveryWindows, setProductDeliveryWindows] = useState<Record<string, string[]>>({ [todayStr]: [], [tomorrowStr]: [] })
+  const [productPickupWindows, setProductPickupWindows] = useState<Record<string, string[]>>({ [todayStr]: [], [tomorrowStr]: [] })
+  const [boothOffersDelivery, setBoothOffersDelivery] = useState(true)
+  const [boothOffersPickup, setBoothOffersPickup] = useState(true)
+  const [productOffersDelivery, setProductOffersDelivery] = useState(true)
+  const [productOffersPickup, setProductOffersPickup] = useState(true)
+  const [boothDefaultsLoaded, setBoothDefaultsLoaded] = useState(false)
+  const [productCustomDelivery, setProductCustomDelivery] = useState<Record<string, Array<{ start: string; end: string }>>>({})
+  const [productCustomPickup, setProductCustomPickup] = useState<Record<string, Array<{ start: string; end: string }>>>({})
+  const [showProductCustomDel, setShowProductCustomDel] = useState<Record<string, boolean>>({})
+  const [showProductCustomPick, setShowProductCustomPick] = useState<Record<string, boolean>>({})
+  const [prodCustomStart, setProdCustomStart] = useState('17:00')
+  const [prodCustomEnd, setProdCustomEnd] = useState('19:00')
+
+  const PRODUCT_TIME_WINDOWS = [
+    { id: '8-10', label: '8–10a' },
+    { id: '10-12', label: '10–12p' },
+    { id: '12-14', label: '12–2p' },
+    { id: '14-16', label: '2–4p' },
+    { id: '16-18', label: '4–6p' },
+    { id: '18-20', label: '6–8p' },
+  ]
 
   const mapInlineWindows = (ids: string[], customs: Array<{ start: string; end: string }> = []) => {
     const preset = ids.map(id => {
@@ -200,6 +240,47 @@ function NewProductPageInner() {
       })
   }, [authUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Load booth defaults for product windows
+  useEffect(() => {
+    if (!authUser?.id || boothDefaultsLoaded) return
+    const loadBoothDefaults = async () => {
+      const { data: booth } = await supabase
+        .from('market_booths')
+        .select('offers_delivery, offers_pickup, weekly_delivery_windows, weekly_pickup_windows, delivery_windows, pickup_windows, delivery_radius_miles, pickup_address')
+        .eq('owner_id', authUser.id)
+        .single()
+      if (!booth) return
+      setBoothOffersDelivery(booth.offers_delivery ?? true)
+      // Pre-fill product-level overrides from booth defaults
+      if (booth.delivery_radius_miles) setInlineDeliveryRadius(booth.delivery_radius_miles)
+      if (booth.pickup_address) setInlinePickupAddress(booth.pickup_address)
+      setBoothOffersPickup(booth.offers_pickup ?? true)
+
+      // Parse booth weekly windows and apply today/tomorrow defaults
+      const weeklyDw = (booth.weekly_delivery_windows || {}) as Record<string, Array<{id: string}>>
+      const weeklyPw = (booth.weekly_pickup_windows || {}) as Record<string, Array<{id: string}>>
+      const todayDwDefaults = (weeklyDw[todayDayKey] || []).map(w => w.id).filter(id => !id.startsWith('custom-'))
+      const todayPwDefaults = (weeklyPw[todayDayKey] || []).map(w => w.id).filter(id => !id.startsWith('custom-'))
+      const tomorrowDwDefaults = (weeklyDw[tomorrowDayKey] || []).map(w => w.id).filter(id => !id.startsWith('custom-'))
+      const tomorrowPwDefaults = (weeklyPw[tomorrowDayKey] || []).map(w => w.id).filter(id => !id.startsWith('custom-'))
+
+      // If no weekly windows, fall back to flat windows for today
+      if (todayDwDefaults.length === 0 && tomorrowDwDefaults.length === 0) {
+        const flatDw = (booth.delivery_windows || []) as Array<{id: string}>
+        const flatPw = (booth.pickup_windows || []) as Array<{id: string}>
+        const flatDwIds = flatDw.map(w => w.id).filter(id => !id.startsWith('custom-'))
+        const flatPwIds = flatPw.map(w => w.id).filter(id => !id.startsWith('custom-'))
+        setProductDeliveryWindows({ [todayStr]: flatDwIds, [tomorrowStr]: flatDwIds })
+        setProductPickupWindows({ [todayStr]: flatPwIds, [tomorrowStr]: flatPwIds })
+      } else {
+        setProductDeliveryWindows({ [todayStr]: todayDwDefaults, [tomorrowStr]: tomorrowDwDefaults })
+        setProductPickupWindows({ [todayStr]: todayPwDefaults, [tomorrowStr]: tomorrowPwDefaults })
+      }
+      setBoothDefaultsLoaded(true)
+    }
+    loadBoothDefaults()
+  }, [authUser?.id, boothDefaultsLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Load existing product in edit mode
   useEffect(() => {
     if (!editId) return
@@ -221,6 +302,23 @@ function NewProductPageInner() {
       if (data.harvested_at) {
         setHarvestedAt(new Date(data.harvested_at).toISOString().split('T')[0])
       }
+      // Load product-level window data
+      if (data.window_dates && Array.isArray(data.window_dates) && data.window_dates.length > 0) {
+        setSelectedDates(data.window_dates)
+        const pdw = (data.product_delivery_windows || {}) as Record<string, Array<{id: string}>>
+        const ppw = (data.product_pickup_windows || {}) as Record<string, Array<{id: string}>>
+        const dwMap: Record<string, string[]> = {}
+        const pwMap: Record<string, string[]> = {}
+        for (const d of data.window_dates as string[]) {
+          dwMap[d] = (pdw[d] || []).map(w => w.id)
+          pwMap[d] = (ppw[d] || []).map(w => w.id)
+        }
+        setProductDeliveryWindows(dwMap)
+        setProductPickupWindows(pwMap)
+      }
+      // Load per-product fulfillment overrides
+      if (data.delivery_radius_miles != null) setInlineDeliveryRadius(data.delivery_radius_miles)
+      if (data.pickup_address) setInlinePickupAddress(data.pickup_address)
     }
     loadProduct()
   }, [editId]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -234,7 +332,7 @@ function NewProductPageInner() {
         .order('display_order')
       if (cats) {
         setDbCategories(cats)
-        if (!category && cats.length > 0) {
+        if (!isEditMode && !category && cats.length > 0) {
           setCategory(cats[0].name)
         }
       }
@@ -325,7 +423,7 @@ function NewProductPageInner() {
     const effectivePrice = restriction.isFreeOnly ? '0' : priceUsd
     const parsedPrice = parseFloat(effectivePrice || '0')
     const isValidPrice = effectivePrice !== '' && effectivePrice !== null && !isNaN(parsedPrice) && parsedPrice >= 0 && (!restriction.isFreeOnly || parsedPrice === 0)
-    const needsDraft = !name.trim() || photos.length === 0 || !isValidPrice || !quantity || parseInt(quantity) <= 0
+    const needsDraft = forceDraft || !name.trim() || photos.length === 0 || !isValidPrice || !quantity || parseInt(quantity) <= 0
     
     // Safety check first
     const newErrors: Record<string, string> = {}
@@ -339,6 +437,22 @@ function NewProductPageInner() {
         else newErrors.price = 'Your state requires free sharing — price must be $0'
       }
       if (!quantity || parseInt(quantity) <= 0) newErrors.quantity = 'How many do you have?'
+
+      // Fulfillment window validation
+      if (!productOffersDelivery && !productOffersPickup) {
+        newErrors.fulfillment = 'Select at least delivery or pickup'
+      } else if (selectedDates.length === 0) {
+        newErrors.fulfillment = 'Select at least one day (Today or Tomorrow)'
+      } else {
+        const hasAnyWindow = selectedDates.some(d => {
+          const dw = productOffersDelivery ? (productDeliveryWindows[d] || []).length + (productCustomDelivery[d] || []).length : 0
+          const pw = productOffersPickup ? (productPickupWindows[d] || []).length + (productCustomPickup[d] || []).length : 0
+          return dw > 0 || pw > 0
+        })
+        if (!hasAnyWindow) {
+          newErrors.fulfillment = 'Set at least one delivery or pickup window'
+        }
+      }
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -493,7 +607,7 @@ function NewProductPageInner() {
       }
 
       // Edit mode: update existing product
-      const { error } = await supabase
+      const { error, count } = await supabase
         .from('market_products')
         .update({
           name: name.trim() || 'Untitled Draft',
@@ -504,11 +618,30 @@ function NewProductPageInner() {
           inventory: parseInt(quantity) || 0,
           photos: editPhotoUrls,
           harvested_at: harvestedAt ? new Date(harvestedAt + 'T12:00:00').toISOString() : null,
-          expires_at: getExpiryDate(),
+          expires_at: getExpiryDate(selectedDates, productDeliveryWindows, productPickupWindows),
           market_date: marketDate,
           is_active: !needsDraft,
           is_draft: needsDraft,
-        })
+          delivery_radius_miles: inlineDeliveryRadius,
+          pickup_address: productOffersPickup ? inlinePickupAddress || null : null,
+          product_delivery_windows: !productOffersDelivery ? null : (() => {
+            const obj: Record<string, any[]> = {}
+            for (const d of selectedDates) {
+              const ids = productDeliveryWindows[d] || []
+              if (ids.length > 0) obj[d] = ids.map(id => { const [s] = id.split('-'); return { id, start: `${s}:00`, end: `${parseInt(s)+2}:00` } })
+            }
+            return Object.keys(obj).length > 0 ? obj : null
+          })(),
+          product_pickup_windows: !productOffersPickup ? null : (() => {
+            const obj: Record<string, any[]> = {}
+            for (const d of selectedDates) {
+              const ids = productPickupWindows[d] || []
+              if (ids.length > 0) obj[d] = ids.map(id => { const [s] = id.split('-'); return { id, start: `${s}:00`, end: `${parseInt(s)+2}:00` } })
+            }
+            return Object.keys(obj).length > 0 ? obj : null
+          })(),
+          window_dates: selectedDates,
+        }, { count: 'exact' })
         .eq('id', editId)
 
       if (error) {
@@ -516,34 +649,42 @@ function NewProductPageInner() {
         setErrors({ submit: 'Failed to update product: ' + error.message })
         return
       }
+      if (count === 0) {
+        console.error('Product update matched 0 rows — editId:', editId)
+        setValidating(false)
+        setErrors({ submit: 'Could not find the product to update. It may have been deleted.' })
+        return
+      }
 
       // Clear any community flags (reactivates the product if it was flagged)
       try { await supabase.rpc('clear_product_flags', { p_product_id: editId }) } catch { /* ignore if no flags */ }
 
-      // ── AI Moderation (edit) ──
-      supabase.functions.invoke('moderate-listing', {
-        body: {
-          product_id: editId,
-          seller_id: authUser.id,
-          name: name.trim() || 'Untitled Draft',
-          description: description.trim() || null,
-          price_usd: parseFloat(priceUsd || '0'),
-          category,
-          photo_url: editPhotoUrls[0] || null,
-        },
-      }).then(modRes => {
-        const modData = modRes.data as any
-        if (modData?.status === 'flagged' && modData?.flags) {
-          const messages = Object.values(modData.flags.issue_messages || {}) as string[]
-          const reason = messages[0] || modData.flags.reason || 'Your listing was flagged for review.'
-          dispatch({ type: 'ADD_TOAST', payload: { message: `⚠️ ${reason}`, type: 'error' } })
-        }
-      }).catch(modErr => {
-        console.warn('Moderation check failed (non-blocking):', modErr)
-      })
+      // ── AI Moderation (edit) — skip for drafts ──
+      if (!needsDraft) {
+        supabase.functions.invoke('moderate-listing', {
+          body: {
+            product_id: editId,
+            seller_id: authUser.id,
+            name: name.trim() || 'Untitled Draft',
+            description: description.trim() || null,
+            price_usd: parseFloat(priceUsd || '0'),
+            category,
+            photo_url: editPhotoUrls[0] || null,
+          },
+        }).then(modRes => {
+          const modData = modRes.data as any
+          if (modData?.status === 'flagged' && modData?.flags) {
+            const messages = Object.values(modData.flags.issue_messages || {}) as string[]
+            const reason = messages[0] || modData.flags.reason || 'Your listing was flagged for review.'
+            dispatch({ type: 'ADD_TOAST', payload: { message: `⚠️ ${reason}`, type: 'error' } })
+          }
+        }).catch(modErr => {
+          console.warn('Moderation check failed (non-blocking):', modErr)
+        })
+      }
 
       setValidating(false)
-      router.push('/my-booth')
+      router.push(fromBuzz ? '/community' : '/my-booth')
       return
     }
 
@@ -593,9 +734,28 @@ function NewProductPageInner() {
         inventory: parseInt(quantity) || 0,
         photos: uploadedPhotoUrls,
         harvested_at: harvestedAt ? new Date(harvestedAt + 'T12:00:00').toISOString() : null,
-        expires_at: getExpiryDate(),
+        expires_at: getExpiryDate(selectedDates, productDeliveryWindows, productPickupWindows),
         is_active: !needsDraft,
         is_draft: needsDraft,
+        delivery_radius_miles: inlineDeliveryRadius,
+        pickup_address: (hasBooth ? productOffersPickup : inlinePickup) ? inlinePickupAddress || null : null,
+        product_delivery_windows: !productOffersDelivery ? null : (() => {
+          const obj: Record<string, any[]> = {}
+          for (const d of selectedDates) {
+            const ids = productDeliveryWindows[d] || []
+            if (ids.length > 0) obj[d] = ids.map(id => { const [s] = id.split('-'); return { id, start: `${s}:00`, end: `${parseInt(s)+2}:00` } })
+          }
+          return Object.keys(obj).length > 0 ? obj : null
+        })(),
+        product_pickup_windows: !productOffersPickup ? null : (() => {
+          const obj: Record<string, any[]> = {}
+          for (const d of selectedDates) {
+            const ids = productPickupWindows[d] || []
+            if (ids.length > 0) obj[d] = ids.map(id => { const [s] = id.split('-'); return { id, start: `${s}:00`, end: `${parseInt(s)+2}:00` } })
+          }
+          return Object.keys(obj).length > 0 ? obj : null
+        })(),
+        window_dates: selectedDates,
       })
       .select('id')
       .single()
@@ -608,27 +768,29 @@ function NewProductPageInner() {
       return
     }
 
-    // ── AI Moderation (new product) ──
-    supabase.functions.invoke('moderate-listing', {
-      body: {
-        product_id: insertedProduct.id,
-        seller_id: authUser.id,
-        name: name.trim() || 'Untitled Draft',
-        description: description.trim() || null,
-        price_usd: parseFloat(priceUsd || '0'),
-        category,
-        photo_url: uploadedPhotoUrls[0] || null,
-      },
-    }).then(modRes => {
-      const modData = modRes.data as any
-      if (modData?.status === 'flagged' && modData?.flags) {
-        const messages = Object.values(modData.flags.issue_messages || {}) as string[]
-        const reason = messages[0] || modData.flags.reason || 'Your listing was flagged for review.'
-        dispatch({ type: 'ADD_TOAST', payload: { message: `⚠️ ${reason}`, type: 'error' } })
-      }
-    }).catch(modErr => {
-      console.warn('Moderation check failed (non-blocking):', modErr)
-    })
+    // ── AI Moderation (new product) — skip for drafts ──
+    if (!needsDraft) {
+      supabase.functions.invoke('moderate-listing', {
+        body: {
+          product_id: insertedProduct.id,
+          seller_id: authUser.id,
+          name: name.trim() || 'Untitled Draft',
+          description: description.trim() || null,
+          price_usd: parseFloat(priceUsd || '0'),
+          category,
+          photo_url: uploadedPhotoUrls[0] || null,
+        },
+      }).then(modRes => {
+        const modData = modRes.data as any
+        if (modData?.status === 'flagged' && modData?.flags) {
+          const messages = Object.values(modData.flags.issue_messages || {}) as string[]
+          const reason = messages[0] || modData.flags.reason || 'Your listing was flagged for review.'
+          dispatch({ type: 'ADD_TOAST', payload: { message: `⚠️ ${reason}`, type: 'error' } })
+        }
+      }).catch(modErr => {
+        console.warn('Moderation check failed (non-blocking):', modErr)
+      })
+    }
 
     setValidating(false)
 
@@ -689,8 +851,28 @@ function NewProductPageInner() {
 
     // Store boothId for share URL
     setBoothIdForShare(boothId)
-    setShowShareModal(true)
-    showPrompt()
+
+    if (needsDraft) {
+      // Drafts: skip share modal, go straight to My Booth
+      router.push(fromBuzz ? '/community' : '/my-booth')
+    } else {
+      // Published: auto-post to Buzz community feed
+      if (userH3Index && authUser?.id) {
+        const buzzMsg = nextMarket
+          ? `🌿 New listing! ${name} — ${parseFloat(priceUsd) === 0 ? 'Free' : `$${priceUsd}/${unit}`}. Available this ${nextMarket.label}!`
+          : `🌿 New listing! ${name} — ${parseFloat(priceUsd) === 0 ? 'Free' : `$${priceUsd}/${unit}`}.`
+        try {
+          await supabase.from('community_chat_messages').insert({
+            community_h3_index: userH3Index,
+            author_id: authUser.id,
+            content: buzzMsg,
+            product_listing_id: addedProductId || undefined,
+          })
+        } catch { /* fire and forget */ }
+      }
+      setShowShareModal(true)
+      showPrompt()
+    }
     } catch (err: any) {
       console.error('Product add error:', err)
       trackError('product_add_failed', { error: err?.message })
@@ -1007,13 +1189,11 @@ function NewProductPageInner() {
             )}
           </div>
 
-          {/* Listing duration is auto-calculated — no user selection needed */}
-
           {/* ===== Price & Quantity ===== */}
           <div className={styles.section}>
             {restriction.isFreeOnly && (
               <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 13, color: '#1e40af' }}>
-                🏛️ Free sharing mode — all products in {restriction.stateName} are listed at no cost.
+                🏡️ Free sharing mode — all products in {restriction.stateName} are listed at no cost.
               </div>
             )}
             <div className={styles.row2}>
@@ -1073,169 +1253,327 @@ function NewProductPageInner() {
             </div>
           </div>
 
-          {/* ===== Inline Booth Setup (first-time sellers only) ===== */}
-          {hasBooth === false && !isEditMode && (
-            <div className={styles.section}>
-              <label className={styles.label}>🏪 How will buyers get your product?</label>
-              <span className={styles.hint} style={{ marginBottom: 12, marginTop: 0 }}>
-                We'll set up your booth automatically. You can customize it later.
-              </span>
-              <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+          {/* ===== Fulfillment Windows ===== */}
+          <div className={styles.section}>
+            <label className={styles.label}>📅 Available For</label>
+            <p style={{ fontSize: 12, color: 'var(--gray-500)', margin: '0 0 10px' }}>
+              Booth defaults are pre-selected — override as needed.
+            </p>
+            {errors.fulfillment && <span className={styles.error}>{errors.fulfillment}</span>}
+
+            {/* Fulfillment type toggles — unified for all users */}
+            <div className={styles.fulfillmentGrid}>
+              <button
+                type="button"
+                className={`${styles.fulfillmentCard} ${(hasBooth ? productOffersDelivery : inlineDelivery) ? styles.fulfillmentCardActive : ''}`}
+                onClick={() => {
+                  if (hasBooth) {
+                    setProductOffersDelivery(prev => !prev)
+                  } else {
+                    setInlineDelivery(prev => !prev)
+                  }
+                }}
+              >
+                <span className={styles.fulfillmentCardIcon}>🚗</span>
+                <span className={styles.fulfillmentCardLabel}>I&apos;ll Deliver</span>
+                <span className={styles.fulfillmentCardSub}>Drop off at buyer&apos;s door</span>
+              </button>
+              <button
+                type="button"
+                className={`${styles.fulfillmentCard} ${(hasBooth ? productOffersPickup : inlinePickup) ? styles.fulfillmentCardActive : ''}`}
+                onClick={() => {
+                  if (hasBooth) {
+                    setProductOffersPickup(prev => !prev)
+                  } else {
+                    setInlinePickup(prev => !prev)
+                  }
+                }}
+              >
+                <span className={styles.fulfillmentCardIcon}>📍</span>
+                <span className={styles.fulfillmentCardLabel}>Pickup Available</span>
+                <span className={styles.fulfillmentCardSub}>Buyers pick up from you</span>
+              </button>
+            </div>
+
+            {/* Pickup address + delivery radius — always shown, pre-filled from booth defaults */}
+            {(hasBooth ? productOffersPickup : inlinePickup) && (
+              <div className={styles.field} style={{ marginTop: 12, marginBottom: 12 }}>
+                <label className={styles.label}>📍 Pickup Address <span className={styles.optional}>(optional)</span></label>
+                <input
+                  className={styles.input}
+                  value={inlinePickupAddress}
+                  onChange={e => setInlinePickupAddress(e.target.value)}
+                  placeholder="Where should buyers pick up?"
+                />
                 <button
                   type="button"
-                  onClick={() => setInlineDelivery(!inlineDelivery)}
                   style={{
-                    flex: 1, padding: '12px 16px', borderRadius: 10,
-                    border: inlineDelivery ? '2px solid #16a34a' : '2px solid #e5e7eb',
-                    background: inlineDelivery ? '#f0fdf4' : '#fff',
-                    cursor: 'pointer', textAlign: 'center', fontSize: 14, fontWeight: 500,
-                    color: inlineDelivery ? '#15803d' : '#6b7280',
-                    transition: 'all 0.2s',
+                    marginTop: 6, padding: '6px 14px', borderRadius: 20,
+                    border: '1px solid var(--green-300)', background: 'var(--green-50)',
+                    color: 'var(--green-700)', fontSize: 13, fontWeight: 500,
+                    cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
+                  }}
+                  onClick={async () => {
+                    if (!navigator.geolocation) {
+                      dispatch({ type: 'ADD_TOAST', payload: { message: 'Geolocation not supported', type: 'error' } })
+                      return
+                    }
+                    dispatch({ type: 'ADD_TOAST', payload: { message: '📍 Getting your location...', type: 'info' } })
+                    navigator.geolocation.getCurrentPosition(
+                      async (pos) => {
+                        try {
+                          const res = await fetch(
+                            `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json&addressdetails=1`,
+                            { headers: { 'User-Agent': 'CasaGrown/1.0' } }
+                          )
+                          const data = await res.json()
+                          if (data?.address) {
+                            const a = data.address
+                            const street = [a.house_number, a.road].filter(Boolean).join(' ')
+                            const city = a.city || a.town || a.village || ''
+                            const st = a.state || ''
+                            const zip = a.postcode || ''
+                            setInlinePickupAddress([street, city, `${st} ${zip}`.trim()].filter(Boolean).join(', '))
+                            dispatch({ type: 'ADD_TOAST', payload: { message: '✅ Address updated', type: 'success' } })
+                          }
+                        } catch {
+                          dispatch({ type: 'ADD_TOAST', payload: { message: 'Could not determine address', type: 'error' } })
+                        }
+                      },
+                      () => dispatch({ type: 'ADD_TOAST', payload: { message: 'Location access denied', type: 'error' } }),
+                      { enableHighAccuracy: true, timeout: 10000 }
+                    )
                   }}
                 >
-                  🚗 I can deliver
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setInlinePickup(!inlinePickup)}
-                  style={{
-                    flex: 1, padding: '12px 16px', borderRadius: 10,
-                    border: inlinePickup ? '2px solid #2563eb' : '2px solid #e5e7eb',
-                    background: inlinePickup ? '#eff6ff' : '#fff',
-                    cursor: 'pointer', textAlign: 'center', fontSize: 14, fontWeight: 500,
-                    color: inlinePickup ? '#1d4ed8' : '#6b7280',
-                    transition: 'all 0.2s',
-                  }}
-                >
-                  📍 Pickup available
+                  📍 Use my current location
                 </button>
               </div>
-              {!inlineDelivery && !inlinePickup && (
-                <span className={styles.error}>Please select at least one fulfillment option</span>
-              )}
-              {inlinePickup && (
-                <div className={styles.field}>
-                  <label className={styles.label}>Pickup Address <span className={styles.optional}>(optional)</span></label>
+            )}
+            {(hasBooth ? productOffersDelivery : inlineDelivery) && (
+              <div className={styles.field} style={{ marginTop: 12, marginBottom: 12 }}>
+                <label className={styles.label}>🚗 Delivery Radius</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <input
-                    className={styles.input}
-                    value={inlinePickupAddress}
-                    onChange={e => setInlinePickupAddress(e.target.value)}
-                    placeholder="Where should buyers pick up?"
+                    type="range" min={1} max={10}
+                    value={inlineDeliveryRadius}
+                    onChange={e => setInlineDeliveryRadius(parseInt(e.target.value))}
+                    style={{ flex: 1 }}
                   />
+                  <span style={{ minWidth: 50, fontSize: 14, fontWeight: 600, color: '#16a34a' }}>
+                    {inlineDeliveryRadius} mi
+                  </span>
                 </div>
-              )}
-              {inlinePickup && (
-                <div className={styles.field}>
-                  <label className={styles.label}>Pickup Windows</label>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    {INLINE_TIME_WINDOWS.map(w => (
-                      <button key={w.id} type="button" style={{
-                        padding: '8px 14px', borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                        border: inlinePickupWindows.includes(w.id) ? '2px solid #16a34a' : '1px solid #d1d5db',
-                        background: inlinePickupWindows.includes(w.id) ? '#dcfce7' : '#fff',
-                        color: inlinePickupWindows.includes(w.id) ? '#15803d' : '#6b7280',
-                        transition: 'all 0.15s',
-                      }} onClick={() => setInlinePickupWindows(prev =>
-                        prev.includes(w.id) ? prev.filter(id => id !== w.id) : [...prev, w.id]
-                      )}>
-                        {inlinePickupWindows.includes(w.id) ? '✅' : '⏰'} {w.label}
-                      </button>
-                    ))}
-                  </div>
-                  {inlineCustomPickupSlots.map((s, i) => (
-                    <div key={`cp-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-                      <span style={{ fontSize: 13, color: '#16a34a', fontWeight: 600 }}>✅ {formatTime12h(s.start)}–{formatTime12h(s.end)}</span>
-                      <button type="button" onClick={() => setInlineCustomPickupSlots(prev => prev.filter((_, j) => j !== i))}
-                        style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 16 }}>×</button>
-                    </div>
-                  ))}
-                  {showInlineCustomPickup ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-                      <input type="time" className={styles.input} value={inlineCustomStart}
-                        onChange={e => setInlineCustomStart(e.target.value)} style={{ maxWidth: 140 }} />
-                      <span style={{ color: '#9ca3af' }}>to</span>
-                      <input type="time" className={styles.input} value={inlineCustomEnd}
-                        onChange={e => setInlineCustomEnd(e.target.value)} style={{ maxWidth: 140 }} />
-                      <button type="button" onClick={() => {
-                        setInlineCustomPickupSlots(prev => [...prev, { start: inlineCustomStart, end: inlineCustomEnd }])
-                        setShowInlineCustomPickup(false)
-                      }} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #16a34a', background: '#dcfce7', color: '#15803d', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Add</button>
-                      <button type="button" onClick={() => setShowInlineCustomPickup(false)}
-                        style={{ border: 'none', background: 'none', color: '#9ca3af', cursor: 'pointer' }}>Cancel</button>
-                    </div>
-                  ) : (
-                    <button type="button" onClick={() => setShowInlineCustomPickup(true)}
-                      style={{ marginTop: 8, border: 'none', background: 'none', color: '#16a34a', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                      ➕ Custom time slot
-                    </button>
-                  )}
-                </div>
-              )}
-              {inlineDelivery && (
-                <div className={styles.field}>
-                  <label className={styles.label}>Delivery Radius</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <input
-                      type="range" min={1} max={10}
-                      value={inlineDeliveryRadius}
-                      onChange={e => setInlineDeliveryRadius(parseInt(e.target.value))}
-                      style={{ flex: 1 }}
-                    />
-                    <span style={{ minWidth: 50, fontSize: 14, fontWeight: 600, color: '#16a34a' }}>
-                      {inlineDeliveryRadius} mi
-                    </span>
-                  </div>
-                </div>
-              )}
-              {inlineDelivery && (
-                <div className={styles.field}>
-                  <label className={styles.label}>Delivery Windows</label>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    {INLINE_TIME_WINDOWS.map(w => (
-                      <button key={w.id} type="button" style={{
-                        padding: '8px 14px', borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                        border: inlineDeliveryWindows.includes(w.id) ? '2px solid #16a34a' : '1px solid #d1d5db',
-                        background: inlineDeliveryWindows.includes(w.id) ? '#dcfce7' : '#fff',
-                        color: inlineDeliveryWindows.includes(w.id) ? '#15803d' : '#6b7280',
-                        transition: 'all 0.15s',
-                      }} onClick={() => setInlineDeliveryWindows(prev =>
-                        prev.includes(w.id) ? prev.filter(id => id !== w.id) : [...prev, w.id]
-                      )}>
-                        {inlineDeliveryWindows.includes(w.id) ? '✅' : '⏰'} {w.label}
-                      </button>
-                    ))}
-                  </div>
-                  {inlineCustomDeliverySlots.map((s, i) => (
-                    <div key={`cd-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-                      <span style={{ fontSize: 13, color: '#16a34a', fontWeight: 600 }}>✅ {formatTime12h(s.start)}–{formatTime12h(s.end)}</span>
-                      <button type="button" onClick={() => setInlineCustomDeliverySlots(prev => prev.filter((_, j) => j !== i))}
-                        style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 16 }}>×</button>
-                    </div>
-                  ))}
-                  {showInlineCustomDelivery ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-                      <input type="time" className={styles.input} value={inlineCustomStart}
-                        onChange={e => setInlineCustomStart(e.target.value)} style={{ maxWidth: 110 }} />
-                      <span style={{ color: '#9ca3af' }}>to</span>
-                      <input type="time" className={styles.input} value={inlineCustomEnd}
-                        onChange={e => setInlineCustomEnd(e.target.value)} style={{ maxWidth: 110 }} />
-                      <button type="button" onClick={() => {
-                        setInlineCustomDeliverySlots(prev => [...prev, { start: inlineCustomStart, end: inlineCustomEnd }])
-                        setShowInlineCustomDelivery(false)
-                      }} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #16a34a', background: '#dcfce7', color: '#15803d', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Add</button>
-                      <button type="button" onClick={() => setShowInlineCustomDelivery(false)}
-                        style={{ border: 'none', background: 'none', color: '#9ca3af', cursor: 'pointer' }}>Cancel</button>
-                    </div>
-                  ) : (
-                    <button type="button" onClick={() => setShowInlineCustomDelivery(true)}
-                      style={{ marginTop: 8, border: 'none', background: 'none', color: '#16a34a', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                      ➕ Custom time slot
-                    </button>
-                  )}
-                </div>
-              )}
+              </div>
+            )}
+
+            {/* Day selectors — separate row */}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+              {[{ date: todayStr, label: todayLabel }, { date: tomorrowStr, label: tomorrowLabel }].map(opt => {
+                const isActive = selectedDates.includes(opt.date)
+                return (
+                  <button
+                    key={opt.date}
+                    type="button"
+                    className={`${styles.windowPill} ${isActive ? styles.windowPillActive : ''}`}
+                    style={{ padding: '8px 14px', fontSize: 13 }}
+                    onClick={() => {
+                      setSelectedDates(prev =>
+                        prev.includes(opt.date)
+                          ? prev.filter(d => d !== opt.date)
+                          : [...prev, opt.date]
+                      )
+                    }}
+                  >
+                    {isActive ? '✅' : '📅'} {opt.label}
+                  </button>
+                )
+              })}
             </div>
-          )}
+
+            {/* Window cards for each selected date */}
+            {selectedDates.map(dateStr => {
+              const isToday = dateStr === todayStr
+              const dateLabel = isToday ? todayLabel : tomorrowLabel
+              const dwIds = productDeliveryWindows[dateStr] || []
+              const pwIds = productPickupWindows[dateStr] || []
+              const now = new Date()
+              const currentHour = now.getHours()
+
+              return (
+                <div key={dateStr} className={styles.dayWindowCard}>
+                  <div className={styles.dayWindowHeader}>{dateLabel}</div>
+
+                  {/* Delivery windows */}
+                  {productOffersDelivery && boothOffersDelivery && (
+                    <div className={styles.windowGroup}>
+                      <span className={styles.windowLabel}>🚗 Delivery</span>
+                      <div className={styles.windowPills}>
+                        {PRODUCT_TIME_WINDOWS.map(w => {
+                          const [startH] = w.id.split('-').map(Number)
+                          const isPast = isToday && startH < currentHour
+                          const isSelected = dwIds.includes(w.id)
+                          return (
+                            <button
+                              key={`d-${dateStr}-${w.id}`}
+                              type="button"
+                              className={`${styles.windowPill} ${isSelected ? styles.windowPillActive : ''}`}
+                              style={isPast ? { opacity: 0.5, fontStyle: 'italic' } : undefined}
+                              onClick={() => {
+                                setProductDeliveryWindows(prev => ({
+                                  ...prev,
+                                  [dateStr]: isSelected
+                                    ? (prev[dateStr] || []).filter(id => id !== w.id)
+                                    : [...(prev[dateStr] || []), w.id]
+                                }))
+                              }}
+                            >
+                              {isSelected ? '✅' : '⏰'} {w.label}{isPast ? ' ⌛' : ''}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      {/* Custom delivery slots */}
+                      {(productCustomDelivery[dateStr] || []).map((s, i) => (
+                        <div key={`cd-${i}`} style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4, fontSize: 12 }}>
+                          <span style={{ color: 'var(--gray-600)' }}>{s.start} – {s.end}</span>
+                          <button type="button" style={{ background: 'none', border: 'none', color: 'var(--red-500)', cursor: 'pointer', fontSize: 14, padding: 0 }}
+                            onClick={() => setProductCustomDelivery(prev => ({ ...prev, [dateStr]: (prev[dateStr] || []).filter((_, j) => j !== i) }))}>×</button>
+                        </div>
+                      ))}
+                      {showProductCustomDel[dateStr] ? (
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 }}>
+                          <input type="time" className="input" value={prodCustomStart} onChange={e => setProdCustomStart(e.target.value)} style={{ maxWidth: 100, fontSize: 14, padding: '6px 8px' }} />
+                          <span style={{ fontSize: 13 }}>to</span>
+                          <input type="time" className="input" value={prodCustomEnd} onChange={e => setProdCustomEnd(e.target.value)} style={{ maxWidth: 100, fontSize: 14, padding: '6px 8px' }} />
+                          <button type="button" className="btn btn-secondary btn-sm" style={{ fontSize: 13, padding: '4px 8px' }} onClick={() => {
+                            setProductCustomDelivery(prev => ({ ...prev, [dateStr]: [...(prev[dateStr] || []), { start: prodCustomStart, end: prodCustomEnd }] }))
+                            setShowProductCustomDel(prev => ({ ...prev, [dateStr]: false }))
+                          }}>Add</button>
+                          <button type="button" style={{ background: 'none', border: 'none', color: 'var(--gray-400)', cursor: 'pointer', fontSize: 14 }}
+                            onClick={() => setShowProductCustomDel(prev => ({ ...prev, [dateStr]: false }))}>×</button>
+                        </div>
+                      ) : (
+                        <button type="button" style={{ fontSize: 13, color: 'var(--green-600)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 4, padding: 0 }}
+                          onClick={() => setShowProductCustomDel(prev => ({ ...prev, [dateStr]: true }))}>+ Custom slot</button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Pickup windows */}
+                  {productOffersPickup && boothOffersPickup && (
+                    <div className={styles.windowGroup}>
+                      <span className={styles.windowLabel}>📍 Pickup</span>
+                      <div className={styles.windowPills}>
+                        {PRODUCT_TIME_WINDOWS.map(w => {
+                          const [startH] = w.id.split('-').map(Number)
+                          const isPast = isToday && startH < currentHour
+                          const isSelected = pwIds.includes(w.id)
+                          return (
+                            <button
+                              key={`p-${dateStr}-${w.id}`}
+                              type="button"
+                              className={`${styles.windowPill} ${isSelected ? styles.windowPillActive : ''}`}
+                              style={isPast ? { opacity: 0.5, fontStyle: 'italic' } : undefined}
+                              onClick={() => {
+                                setProductPickupWindows(prev => ({
+                                  ...prev,
+                                  [dateStr]: isSelected
+                                    ? (prev[dateStr] || []).filter(id => id !== w.id)
+                                    : [...(prev[dateStr] || []), w.id]
+                                }))
+                              }}
+                            >
+                              {isSelected ? '✅' : '⏰'} {w.label}{isPast ? ' ⌛' : ''}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      {/* Custom pickup slots */}
+                      {(productCustomPickup[dateStr] || []).map((s, i) => (
+                        <div key={`cp-${i}`} style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4, fontSize: 12 }}>
+                          <span style={{ color: 'var(--gray-600)' }}>{s.start} – {s.end}</span>
+                          <button type="button" style={{ background: 'none', border: 'none', color: 'var(--red-500)', cursor: 'pointer', fontSize: 14, padding: 0 }}
+                            onClick={() => setProductCustomPickup(prev => ({ ...prev, [dateStr]: (prev[dateStr] || []).filter((_, j) => j !== i) }))}>×</button>
+                        </div>
+                      ))}
+                      {showProductCustomPick[dateStr] ? (
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 }}>
+                          <input type="time" className="input" value={prodCustomStart} onChange={e => setProdCustomStart(e.target.value)} style={{ maxWidth: 100, fontSize: 14, padding: '6px 8px' }} />
+                          <span style={{ fontSize: 13 }}>to</span>
+                          <input type="time" className="input" value={prodCustomEnd} onChange={e => setProdCustomEnd(e.target.value)} style={{ maxWidth: 100, fontSize: 14, padding: '6px 8px' }} />
+                          <button type="button" className="btn btn-secondary btn-sm" style={{ fontSize: 13, padding: '4px 8px' }} onClick={() => {
+                            setProductCustomPickup(prev => ({ ...prev, [dateStr]: [...(prev[dateStr] || []), { start: prodCustomStart, end: prodCustomEnd }] }))
+                            setShowProductCustomPick(prev => ({ ...prev, [dateStr]: false }))
+                          }}>Add</button>
+                          <button type="button" style={{ background: 'none', border: 'none', color: 'var(--gray-400)', cursor: 'pointer', fontSize: 14 }}
+                            onClick={() => setShowProductCustomPick(prev => ({ ...prev, [dateStr]: false }))}>×</button>
+                        </div>
+                      ) : (
+                        <button type="button" style={{ fontSize: 13, color: 'var(--green-600)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 4, padding: 0 }}
+                          onClick={() => setShowProductCustomPick(prev => ({ ...prev, [dateStr]: true }))}>+ Custom slot</button>
+                      )}
+                    </div>
+                  )}
+
+                  {!productOffersDelivery && !productOffersPickup && (
+                    <p style={{ fontSize: 12, color: 'var(--gray-400)', fontStyle: 'italic', margin: 0 }}>
+                      Enable delivery or pickup above to set windows.
+                    </p>
+                  )}
+
+                  {/* Day action buttons */}
+                  {(productOffersDelivery || productOffersPickup) && (
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+                      <button
+                        type="button"
+                        className={styles.windowPill}
+                        style={{ fontSize: 13, padding: '4px 10px', color: 'var(--red-600, #dc2626)' }}
+                        onClick={() => {
+                          setProductDeliveryWindows(prev => ({ ...prev, [dateStr]: [] }))
+                          setProductPickupWindows(prev => ({ ...prev, [dateStr]: [] }))
+                          setProductCustomDelivery(prev => ({ ...prev, [dateStr]: [] }))
+                          setProductCustomPickup(prev => ({ ...prev, [dateStr]: [] }))
+                        }}
+                      >
+                        🗑️ Clear
+                      </button>
+                      {(() => {
+                        const otherDate = dateStr === todayStr ? tomorrowStr : todayStr
+                        const otherLabel = dateStr === todayStr ? 'Tomorrow' : 'Today'
+                        return (
+                          <button
+                            type="button"
+                            className={styles.windowPill}
+                            style={{ fontSize: 13, padding: '4px 10px' }}
+                            onClick={() => {
+                              // Auto-select the other day if not already selected
+                              if (!selectedDates.includes(otherDate)) {
+                                setSelectedDates(prev => [...prev, otherDate])
+                              }
+                              setProductDeliveryWindows(prev => ({ ...prev, [otherDate]: [...(prev[dateStr] || [])] }))
+                              setProductPickupWindows(prev => ({ ...prev, [otherDate]: [...(prev[dateStr] || [])] }))
+                              setProductCustomDelivery(prev => ({ ...prev, [otherDate]: [...(prev[dateStr] || [])] }))
+                              setProductCustomPickup(prev => ({ ...prev, [otherDate]: [...(prev[dateStr] || [])] }))
+                            }}
+                          >
+                            📋 Copy to {otherLabel}
+                          </button>
+                        )
+                      })()}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+
+            {selectedDates.length === 0 && (
+              <div style={{ padding: 16, textAlign: 'center', color: 'var(--gray-400)', fontSize: 13, fontStyle: 'italic' }}>
+                Select at least one day to set availability windows.
+              </div>
+            )}
+          </div>
+
+          {/* Inline booth setup removed — fulfillment is unified in "Available For" section above */}
 
           {/* ===== Quarantine Warning Banner ===== */}
           {quarantineWarning && (
@@ -1281,6 +1619,7 @@ function NewProductPageInner() {
             className={styles.submitBtn} 
             disabled={validating || !!quarantineWarning}
             style={(photos.length === 0 || !priceUsd || !quantity) ? { background: '#f59e0b' } : undefined}
+            onClick={() => setForceDraft(false)}
           >
             {validating
               ? '⏳ Saving...'
@@ -1288,9 +1627,21 @@ function NewProductPageInner() {
               ? '🚫 Quarantined — Cannot List'
               : (photos.length === 0 || !priceUsd || !quantity) 
                 ? 'Save Draft' 
-                : (isEditMode ? 'Save Changes' : 'Publish Product')
+                : (isEditMode ? 'Save Changes' : '🌱 Publish Product')
             }
           </button>
+          {/* Secondary draft button — only when form is complete enough to publish */}
+          {!isEditMode && photos.length > 0 && priceUsd && quantity && !quarantineWarning && (
+            <button
+              type="submit"
+              className={`${styles.submitBtn} ${styles.submitBtnDraft}`}
+              disabled={validating}
+              onClick={() => setForceDraft(true)}
+              style={{ marginTop: 8 }}
+            >
+              📝 Save as Draft Instead
+            </button>
+          )}
         </form>
 
         {/* Camera → sends to cropper */}
@@ -1328,10 +1679,9 @@ function NewProductPageInner() {
           />
         )}
 
-        {/* ===== Post-Add Share Modal ===== */}
         {showShareModal && (
           <>
-            <div className={styles.modalBackdrop} onClick={() => { setShowShareModal(false); window.location.href = '/my-booth' }} />
+            <div className={styles.modalBackdrop} onClick={() => { setShowShareModal(false); router.back() }} />
             <div className={styles.modal}>
               <div className={styles.modalEmoji}>✅</div>
               <h2 className={styles.modalTitle}>{addedProductName} added!</h2>
@@ -1352,7 +1702,6 @@ function NewProductPageInner() {
                   <p className={styles.modalSubtitle} style={{ marginTop: 0 }}>
                     🎉 Your booth is live! Invite your neighbors to check it out.
                   </p>
-                  {/* Share actions — 2×2 grid */}
                   <div className={styles.modalActions}>
                     <button
                       className={styles.shareActionBtn}
@@ -1368,16 +1717,6 @@ function NewProductPageInner() {
                     >
                       {shareCopied ? '✅ Copied! Paste on Nextdoor' : '🏡 Share on Nextdoor'}
                     </button>
-                    {userH3Index && (
-                      <button
-                        className={styles.shareActionBtn}
-                        style={{ background: buzzPosted ? '#16a34a' : '#f59e0b' }}
-                        onClick={handleShareBuzz}
-                        disabled={buzzPosted || buzzPosting}
-                      >
-                        {buzzPosting ? '⏳ Posting...' : buzzPosted ? '✅ Posted on Buzz!' : '🐝 Share on Buzz'}
-                      </button>
-                    )}
                     <button className={styles.shareActionBtn} onClick={handleShareNative}>
                       📤 Share Link
                     </button>
@@ -1385,8 +1724,8 @@ function NewProductPageInner() {
                 </>
               )}
 
-              <button className={styles.modalSkip} onClick={() => { setShowShareModal(false); window.location.href = '/my-booth' }}>
-                {publishMissing.length > 0 ? 'Go to My Booth →' : 'Skip → Go to My Booth'}
+              <button className={styles.modalSkip} onClick={() => { setShowShareModal(false); router.back() }}>
+                Skip
               </button>
             </div>
           </>

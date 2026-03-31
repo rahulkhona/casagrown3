@@ -16,6 +16,7 @@ import styles from './page.module.css'
 import ChatMessage from './components/ChatMessage'
 import ComposeBar from './components/ComposeBar'
 import SuggestionChips from './components/SuggestionChips'
+import FindPanel from './components/FindPanel'
 import NewMessagesBadge from './components/NewMessagesBadge'
 import { useNotificationPrompt } from '../../../lib/useNotificationPrompt'
 import { NotificationPromptModal } from '../../components/NotificationPromptModal'
@@ -49,6 +50,9 @@ export default function ClientPage() {
   const [replyingTo, setReplyingTo] = useState<CommunityChatMessage | null>(null)
   const [composePrefill, setComposePrefill] = useState<string | undefined>(undefined)
 
+  // Find panel state
+  const [findActive, setFindActive] = useState(false)
+
   // Push notification prompt
   const { showPrompt, modalProps } = useNotificationPrompt(user?.id)
   
@@ -81,7 +85,7 @@ export default function ClientPage() {
       } else {
         // If they don't have a community, redirect to onboarding or show error
         console.warn('User has no home community set')
-        setErrorState({ message: 'You need to set your neighborhood location before you can join the Buzz!', cta: 'Update Profile', action: () => router.push('/settings') })
+        setErrorState({ message: 'You need to set your neighborhood location before you can join the Buzz!', cta: 'Update Profile', action: () => router.push('/profile-setup') })
       }
     }
     
@@ -253,6 +257,17 @@ export default function ClientPage() {
     }
   }
 
+  // ── Sell chip handler ──
+  const handleSellClick = () => {
+    if (!user) { router.push('/login?redirect=/community'); return }
+    router.push('/my-booth/products/new?from=buzz')
+  }
+
+  // ── Find chip handler ──
+  const handleFindClick = () => {
+    setFindActive(true)
+  }
+
   if (!isAuthenticated) return null // Handled by redirect in useEffect
   
   if (errorState) {
@@ -293,78 +308,87 @@ export default function ClientPage() {
         <span className={styles.communityHeaderName}>CasaGrown Community</span>
       </div>
 
-      {/* Message List Area */}
-      <div 
-        className={styles.messageScrollArea} 
-        ref={scrollRef}
-        onScroll={handleScroll}
-      >
-        {isLoading ? (
-          <div className={styles.loading}>Loading chat...</div>
-        ) : messages.length === 0 ? (
-          <div className={styles.emptyState}>
-            <span className={styles.emptyIcon}>👋</span>
-            <h3>Be the first to say hello!</h3>
-            <p>Start a conversation with your neighbors.</p>
-          </div>
-        ) : (
-          <div className={styles.messageList}>
-            {messages.map(msg => (
-              <ChatMessage 
-                key={msg.id} 
-                message={msg} 
-                currentUserId={user?.id}
-                onReply={async (parentId, content) => {
-                  const supabase = createClient()
-                  const replyId = await sendCommunityMessage(supabase, {
-                    h3Index: profileH3!,
-                    authorId: user!.id,
-                    content,
-                    parentId,
-                  })
-                  await loadMessages()
-
-                  // Auto-trigger CasaBot if replying in a CasaBot thread
-                  // (parent message mentions @CasaBot, or parent is from CasaBot)
-                  const CASABOT_ID = 'a0000000-0000-0000-0000-00000ca5ab07'
-                  const isCasaBotThread = 
-                    content.toLowerCase().includes('@casabot') ||
-                    msg.author_id === CASABOT_ID ||
-                    msg.content?.toLowerCase().includes('@casabot')
-
-                  if (isCasaBotThread) {
-                    console.log('[CasaBot] Auto-reply in thread for:', replyId)
-                    supabase.functions.invoke('casabot-reply', {
-                      body: {
-                        message_id: replyId,
-                        content,
-                        community_h3_index: profileH3,
-                        author_name: 'Neighbor',
-                      },
-                    }).then((res) => {
-                      console.log('[CasaBot] Thread reply response:', res)
-                      setTimeout(() => loadMessages(), 3000)
-                    }).catch((err: unknown) => console.error('[CasaBot] Thread reply error:', err))
-                  }
-                }}
-                onDelete={() => {
-                  const supabase = createClient()
-                  deleteCommunityMessage(supabase, msg.id).then(() => loadMessages())
-                }}
-                onFlag={() => {
-                  if (user) {
+      {/* Message List Area — or Find Panel overlay */}
+      {findActive ? (
+        <FindPanel
+          userId={user?.id}
+          profileH3={profileH3}
+          onClose={() => setFindActive(false)}
+          onSendMessage={async (content) => { await handleSendMessage(content) }}
+          onReloadMessages={loadMessages}
+        />
+      ) : (
+        <div 
+          className={styles.messageScrollArea} 
+          ref={scrollRef}
+          onScroll={handleScroll}
+        >
+          {isLoading ? (
+            <div className={styles.loading}>Loading chat...</div>
+          ) : messages.length === 0 ? (
+            <div className={styles.emptyState}>
+              <span className={styles.emptyIcon}>👋</span>
+              <h3>Be the first to say hello!</h3>
+              <p>Start a conversation with your neighbors.</p>
+            </div>
+          ) : (
+            <div className={styles.messageList}>
+              {messages.map(msg => (
+                <ChatMessage 
+                  key={msg.id} 
+                  message={msg} 
+                  currentUserId={user?.id}
+                  onReply={async (parentId, content) => {
                     const supabase = createClient()
-                    flagMessage(supabase, msg.id, user.id).then(() => {
-                      showInfo('Message flagged for review.')
-                      loadMessages()
+                    const replyId = await sendCommunityMessage(supabase, {
+                      h3Index: profileH3!,
+                      authorId: user!.id,
+                      content,
+                      parentId,
                     })
-                  }
-                }}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+                    await loadMessages()
+
+                    // Auto-trigger CasaBot if replying in a CasaBot thread
+                    const CASABOT_ID = 'a0000000-0000-0000-0000-00000ca5ab07'
+                    const isCasaBotThread = 
+                      content.toLowerCase().includes('@casabot') ||
+                      msg.author_id === CASABOT_ID ||
+                      msg.content?.toLowerCase().includes('@casabot')
+
+                    if (isCasaBotThread) {
+                      console.log('[CasaBot] Auto-reply in thread for:', replyId)
+                      supabase.functions.invoke('casabot-reply', {
+                        body: {
+                          message_id: replyId,
+                          content,
+                          community_h3_index: profileH3,
+                          author_name: 'Neighbor',
+                        },
+                      }).then((res) => {
+                        console.log('[CasaBot] Thread reply response:', res)
+                        setTimeout(() => loadMessages(), 3000)
+                      }).catch((err: unknown) => console.error('[CasaBot] Thread reply error:', err))
+                    }
+                  }}
+                  onDelete={() => {
+                    const supabase = createClient()
+                    deleteCommunityMessage(supabase, msg.id).then(() => loadMessages())
+                  }}
+                  onFlag={() => {
+                    if (user) {
+                      const supabase = createClient()
+                      flagMessage(supabase, msg.id, user.id).then(() => {
+                        showInfo('Message flagged for review.')
+                        loadMessages()
+                      })
+                    }
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Floating Badge for New Messages */}
       {newMessagesCount > 0 && !isAtBottom && (
@@ -387,6 +411,8 @@ export default function ClientPage() {
           onSelect={(text: string) => handleSendMessage(text)}
           onPrefill={(text: string) => setComposePrefill(text)}
           userMessageCount={messages.filter(m => m.author_id === user?.id && !m.is_system).length}
+          onSellClick={handleSellClick}
+          onFindClick={handleFindClick}
         />
         <ComposeBar
           onSend={handleSendMessage}

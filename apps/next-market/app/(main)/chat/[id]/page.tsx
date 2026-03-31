@@ -1,12 +1,14 @@
 'use client'
 
 import { use, useState, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useMarket, formatUsd } from '../../../../lib/store'
 import styles from './page.module.css'
 
 export default function ChatConversationPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const router = useRouter()
   const { state, dispatch } = useMarket()
   const conv = state.conversations.find(c => c.id === id)
   const order = conv ? state.orders.find(o => o.id === conv.orderId) : null
@@ -84,7 +86,7 @@ export default function ChatConversationPage({ params }: { params: Promise<{ id:
     <div className={styles.chatPage}>
       {/* Header */}
       <div className={styles.chatHeader}>
-        <Link href="/chat" className={styles.backBtn}>←</Link>
+        <button onClick={() => router.back()} className={styles.backBtn} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>←</button>
         <div className="avatar avatar-sm">{(isSeller ? conv.buyerName : conv.sellerName).charAt(0)}</div>
         <div style={{ flex: 1 }}>
           <strong style={{ fontSize: 14 }}>{isSeller ? conv.buyerName : conv.sellerName}</strong>

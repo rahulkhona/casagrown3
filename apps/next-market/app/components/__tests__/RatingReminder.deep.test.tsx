@@ -58,7 +58,7 @@ describe('RatingReminder', () => {
     const buyerOrder = { id: 'order-1', product_name: 'Tomatoes', seller_id: 'seller-1' }
     const sellerProfile = { full_name: 'Farm Bob' }
 
-    mockSupabase.from.mockImplementation((table: string) => {
+    ;(mockSupabase.from as any).mockImplementation((table: string) => {
       if (table === 'market_orders') return chain(buyerOrder)
       if (table === 'profiles') return chain(sellerProfile)
       return chain()
@@ -81,7 +81,7 @@ describe('RatingReminder', () => {
 
   it('shows stars that can be clicked to rate', async () => {
     const buyerOrder = { id: 'order-2', product_name: 'Apples', seller_id: 's1' }
-    mockSupabase.from.mockImplementation((table: string) => {
+    ;(mockSupabase.from as any).mockImplementation((table: string) => {
       if (table === 'market_orders') return chain(buyerOrder)
       if (table === 'profiles') return chain({ full_name: 'Seller' })
       return chain()
@@ -107,7 +107,7 @@ describe('RatingReminder', () => {
 
   it('skip button sets localStorage and dismisses', async () => {
     const buyerOrder = { id: 'order-3', product_name: 'Carrots', seller_id: 's1' }
-    mockSupabase.from.mockImplementation((table: string) => {
+    ;(mockSupabase.from as any).mockImplementation((table: string) => {
       if (table === 'market_orders') return chain(buyerOrder)
       if (table === 'profiles') return chain({ full_name: 'Seller' })
       return chain()
@@ -152,7 +152,7 @@ describe('RatingReminder', () => {
   })
 
   it('handles mouseEnter/mouseLeave on stars for hover effect', async () => {
-    mockSupabase.from.mockImplementation((table: string) => {
+    ;(mockSupabase.from as any).mockImplementation((table: string) => {
       if (table === 'market_orders') return chain({ id: 'o1', product_name: 'X', seller_id: 's1' })
       if (table === 'profiles') return chain({ full_name: 'S' })
       return chain()

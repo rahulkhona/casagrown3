@@ -37,7 +37,10 @@ export default function NewMessageTrafficCop() {
     const initConversation = async () => {
       const supabase = createClient()
 
-      // 1. Check if a conversation already exists between these two users
+      // Normalize participant order to avoid duplicate conversations
+      const [pA, pB] = [user.id, targetUserId].sort()
+
+      // 1. Check if a conversation already exists between these two users (either direction)
       const { data: existing, error: fetchError } = await supabase
         .from('market_conversations')
         .select('id')
@@ -56,19 +59,32 @@ export default function NewMessageTrafficCop() {
         return
       }
 
-      // 2. No conversation exists. Create one.
+      // 2. No conversation exists. Create one with normalized participant order.
       const { data: newConv, error: insertError } = await supabase
         .from('market_conversations')
         .insert({
-          participant_a: user.id,
-          participant_b: targetUserId,
+          participant_a: pA,
+          participant_b: pB,
         })
         .select('id')
         .single()
 
       if (insertError) {
-        console.error("Failed to create conversation:", insertError)
-        setError("Failed to create conversation.")
+        // Retry: conversation may have been created concurrently (race condition)
+        console.warn("Insert failed, retrying lookup:", insertError)
+        const { data: retryConv } = await supabase
+          .from('market_conversations')
+          .select('id')
+          .or(`and(participant_a.eq.${user.id},participant_b.eq.${targetUserId}),and(participant_a.eq.${targetUserId},participant_b.eq.${user.id})`)
+          .maybeSingle()
+        
+        if (retryConv) {
+          router.replace(`/messages/${retryConv.id}`)
+          return
+        }
+        
+        console.error("Failed to create conversation:", JSON.stringify(insertError))
+        setError("Failed to create conversation. Please try again.")
         return
       }
 

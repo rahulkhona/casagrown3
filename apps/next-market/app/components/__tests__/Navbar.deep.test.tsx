@@ -95,7 +95,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockPathname = '/market'
   // Setup profile fetch
-  mockSupabase.from.mockImplementation((table: string) => {
+  ;(mockSupabase.from as any).mockImplementation((table: string) => {
     if (table === 'profiles') return chain(mockProfile)
     if (table === 'market_notifications') return chain([])
     return chain()
@@ -226,7 +226,7 @@ describe('Navbar', () => {
       { id: 'n1', content: 'Your order is ready', link_url: '/orders/abc', read_at: null, created_at: new Date().toISOString() },
       { id: 'n2', content: 'Payment received', link_url: '/earnings', read_at: '2026-01-01', created_at: new Date(Date.now() - 3600000).toISOString() },
     ]
-    mockSupabase.from.mockImplementation((table: string) => {
+    ;(mockSupabase.from as any).mockImplementation((table: string) => {
       if (table === 'profiles') return chain(mockProfile)
       if (table === 'market_notifications') return chain(notifications)
       return chain()
@@ -253,7 +253,7 @@ describe('Navbar', () => {
     countChain.select = vi.fn().mockReturnValue(countChain)
     ;(countChain as any).then = (resolve: any) => Promise.resolve({ data: [], error: null, count: 3 }).then(resolve)
 
-    mockSupabase.from.mockImplementation((table: string) => {
+    ;(mockSupabase.from as any).mockImplementation((table: string) => {
       if (table === 'profiles') return chain(mockProfile)
       if (table === 'market_notifications') return countChain
       return chain()
@@ -277,7 +277,7 @@ describe('Navbar', () => {
     const ratingNotif = [
       { id: 'n-rate', content: 'Rate your purchase from Farm Fresh', link_url: '/orders/order-123', read_at: null, created_at: new Date().toISOString() },
     ]
-    mockSupabase.from.mockImplementation((table: string) => {
+    ;(mockSupabase.from as any).mockImplementation((table: string) => {
       if (table === 'profiles') return chain(mockProfile)
       if (table === 'market_notifications') return chain(ratingNotif)
       return chain()
@@ -306,7 +306,7 @@ describe('Navbar', () => {
     const notifications = [
       { id: 'n1', content: 'Notification 1', link_url: null, read_at: null, created_at: new Date().toISOString() },
     ]
-    mockSupabase.from.mockImplementation((table: string) => {
+    ;(mockSupabase.from as any).mockImplementation((table: string) => {
       if (table === 'profiles') return chain(mockProfile)
       if (table === 'market_notifications') return chain(notifications)
       return chain()

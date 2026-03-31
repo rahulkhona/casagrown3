@@ -326,7 +326,7 @@ describe('login/page (interaction)', () => {
     const input = c.querySelector('input[type="email"]') || c.querySelector('input')
     if (input) {
       fireEvent.change(input, { target: { value: 'test@example.com' } })
-      expect(input.value).toBe('test@example.com')
+      expect((input as HTMLInputElement).value).toBe('test@example.com')
     }
   })
 })

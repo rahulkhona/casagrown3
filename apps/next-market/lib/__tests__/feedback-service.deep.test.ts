@@ -47,7 +47,7 @@ describe('fetchTickets', () => {
         feedback_votes: [{ count: 5 }], feedback_comments: [{ count: 2 }],
       },
     ]
-    mockSupabase.from.mockImplementation((table: string) => {
+    ;(mockSupabase.from as any).mockImplementation((table: string) => {
       if (table === 'user_feedback') return chain(ticketRows)
       if (table === 'feedback_votes') return chain([])
       return chain()
@@ -64,7 +64,7 @@ describe('fetchTickets', () => {
   })
 
   it('applies search filter', async () => {
-    mockSupabase.from.mockImplementation(() => chain([]))
+    ;(mockSupabase.from as any).mockImplementation(() => chain([]))
     const { fetchTickets } = await import('../../lib/feedback-service')
     await fetchTickets({ search: 'bug fix' })
     // from().select().eq().or() should include search terms
@@ -72,7 +72,7 @@ describe('fetchTickets', () => {
   })
 
   it('applies type and status filters', async () => {
-    mockSupabase.from.mockImplementation(() => chain([]))
+    ;(mockSupabase.from as any).mockImplementation(() => chain([]))
     const { fetchTickets } = await import('../../lib/feedback-service')
     await fetchTickets({ type: 'bug_report', status: 'open' })
     expect(mockSupabase.from).toHaveBeenCalledWith('user_feedback')
@@ -83,7 +83,7 @@ describe('fetchTickets', () => {
       { id: 't1', title: 'B', description: '', type: 'feature_request', status: 'open', visibility: 'public', created_at: '', author_id: 'a1', author: { full_name: 'A' }, feedback_votes: [{ count: 2 }], feedback_comments: [{ count: 0 }] },
       { id: 't2', title: 'A', description: '', type: 'feature_request', status: 'open', visibility: 'public', created_at: '', author_id: 'a2', author: { full_name: 'B' }, feedback_votes: [{ count: 10 }], feedback_comments: [{ count: 0 }] },
     ]
-    mockSupabase.from.mockImplementation(() => chain(rows))
+    ;(mockSupabase.from as any).mockImplementation(() => chain(rows))
     const { fetchTickets } = await import('../../lib/feedback-service')
     const result = await fetchTickets({ sort: 'most_votes' })
     expect(result.tickets[0].vote_count).toBe(10)
@@ -94,7 +94,7 @@ describe('fetchTickets', () => {
     const rows = [
       { id: 't1', title: 'X', description: '', type: 'feature_request', status: 'open', visibility: 'public', created_at: '', author_id: 'a1', author: null, feedback_votes: [{ count: 1 }], feedback_comments: [{ count: 0 }] },
     ]
-    mockSupabase.from.mockImplementation((table: string) => {
+    ;(mockSupabase.from as any).mockImplementation((table: string) => {
       if (table === 'user_feedback') return chain(rows)
       if (table === 'feedback_votes') return chain([{ feedback_id: 't1' }])
       return chain()
@@ -105,7 +105,7 @@ describe('fetchTickets', () => {
   })
 
   it('returns empty on error', async () => {
-    mockSupabase.from.mockImplementation(() => chain(null, { message: 'db error' }))
+    ;(mockSupabase.from as any).mockImplementation(() => chain(null, { message: 'db error' }))
     const { fetchTickets } = await import('../../lib/feedback-service')
     const result = await fetchTickets({})
     expect(result.tickets).toEqual([])
@@ -124,7 +124,7 @@ describe('fetchTicketById', () => {
         { id: 'c1', content: 'Me too', is_official_response: false, created_at: '2026-03-02', author_id: 'a2', comment_author: { full_name: 'Bob' } },
       ],
     }
-    mockSupabase.from.mockImplementation((table: string) => {
+    ;(mockSupabase.from as any).mockImplementation((table: string) => {
       if (table === 'user_feedback') return chain(ticketRow)
       if (table === 'feedback_votes') return chain(null)
       if (table === 'feedback_media') return chain([])
@@ -140,7 +140,7 @@ describe('fetchTicketById', () => {
   })
 
   it('returns null on error', async () => {
-    mockSupabase.from.mockImplementation(() => {
+    ;(mockSupabase.from as any).mockImplementation(() => {
       const c = chain(null, { message: 'not found' })
       c.single = vi.fn().mockResolvedValue({ data: null, error: { message: 'not found' } })
       return c
@@ -153,7 +153,7 @@ describe('fetchTicketById', () => {
 
 describe('createTicket', () => {
   it('creates ticket and returns id', async () => {
-    mockSupabase.from.mockImplementation((table: string) => {
+    ;(mockSupabase.from as any).mockImplementation((table: string) => {
       if (table === 'user_feedback') {
         const c = chain({ id: 'new-t1' })
         c.insert = vi.fn().mockReturnValue(c)
@@ -172,7 +172,7 @@ describe('createTicket', () => {
   })
 
   it('returns null on insert error', async () => {
-    mockSupabase.from.mockImplementation(() => {
+    ;(mockSupabase.from as any).mockImplementation(() => {
       const c = chain(null, { message: 'insert failed' })
       c.insert = vi.fn().mockReturnValue(c)
       c.select = vi.fn().mockReturnValue(c)
@@ -185,7 +185,7 @@ describe('createTicket', () => {
   })
 
   it('handles file uploads when files provided', async () => {
-    mockSupabase.from.mockImplementation((table: string) => {
+    ;(mockSupabase.from as any).mockImplementation((table: string) => {
       if (table === 'user_feedback') {
         const c = chain()
         c.insert = vi.fn().mockReturnValue(c)
@@ -221,7 +221,7 @@ describe('createTicket', () => {
 
 describe('toggleVote', () => {
   it('inserts vote when not currently voted', async () => {
-    mockSupabase.from.mockImplementation(() => {
+    ;(mockSupabase.from as any).mockImplementation(() => {
       const c = chain()
       c.insert = vi.fn().mockResolvedValue({ error: null })
       return c
@@ -242,7 +242,7 @@ describe('toggleVote', () => {
 
 describe('addComment', () => {
   it('adds comment and returns normalized result', async () => {
-    mockSupabase.from.mockImplementation(() => {
+    ;(mockSupabase.from as any).mockImplementation(() => {
       const c = chain()
       c.insert = vi.fn().mockReturnValue(c)
       c.select = vi.fn().mockReturnValue(c)
@@ -260,7 +260,7 @@ describe('addComment', () => {
   })
 
   it('returns null on error', async () => {
-    mockSupabase.from.mockImplementation(() => {
+    ;(mockSupabase.from as any).mockImplementation(() => {
       const c = chain()
       c.insert = vi.fn().mockReturnValue(c)
       c.select = vi.fn().mockReturnValue(c)
@@ -275,7 +275,7 @@ describe('addComment', () => {
 
 describe('flagTicket / unflagTicket', () => {
   it('flagTicket inserts flag', async () => {
-    mockSupabase.from.mockImplementation(() => {
+    ;(mockSupabase.from as any).mockImplementation(() => {
       const c = chain()
       c.insert = vi.fn().mockResolvedValue({ error: null })
       return c

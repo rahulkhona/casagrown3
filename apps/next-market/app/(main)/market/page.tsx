@@ -488,7 +488,7 @@ function BrowseMarketPageInner() {
       await supabase.from('product_reminders').upsert({ user_id: user.id, product_id: productId }, { onConflict: 'user_id,product_id', ignoreDuplicates: true })
 
       setSavedProductIds(prev => new Set(prev).add(productId))
-      showSuccess('🔔 Saved! We\'ll notify you when this booth opens')
+      showSuccess('🔔 Saved! We\'ll notify you when market opens')
     }
   }
 
@@ -816,7 +816,7 @@ function BrowseMarketPageInner() {
                           {!marketIsOpen && !booth.is_demo && (
                             <button
                               onClick={(e) => toggleProductReminder(p.id, e)}
-                              title={savedProductIds.has(p.id) ? 'Remove reminder' : 'Remind me when booth opens'}
+                              title={savedProductIds.has(p.id) ? 'Remove reminder' : 'Remind me when market opens'}
                               className={styles.remindBtn}
                               style={{
                                 position: 'absolute', top: 4, right: 4,

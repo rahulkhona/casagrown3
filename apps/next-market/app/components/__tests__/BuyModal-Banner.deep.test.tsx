@@ -241,7 +241,7 @@ describe('BuyModal — deep', () => {
 
     // Default should be pickup (both offered, pickup first)
     // Should show pickup address
-    expect(container.textContent).toContain('Pickup at:')
+    expect(container.textContent).toContain('Pickup near:')
     expect(container.textContent).toContain('123 Main St')
 
     // Click delivery

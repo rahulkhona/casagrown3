@@ -50,6 +50,17 @@ const TIME_WINDOWS = [
   { id: '14-16', label: '2–4p' },
 ]
 
+const DAY_KEYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const
+type DayKey = typeof DAY_KEYS[number]
+const DAY_LABELS: Record<DayKey, string> = {
+  monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu',
+  friday: 'Fri', saturday: 'Sat', sunday: 'Sun',
+}
+type WeeklyWindows = Record<DayKey, string[]>
+type WeeklyCustomSlots = Record<DayKey, Array<{ start: string; end: string }>>
+const EMPTY_WEEKLY: WeeklyWindows = Object.fromEntries(DAY_KEYS.map(d => [d, []])) as unknown as WeeklyWindows
+const EMPTY_WEEKLY_CUSTOM: WeeklyCustomSlots = Object.fromEntries(DAY_KEYS.map(d => [d, []])) as unknown as WeeklyCustomSlots
+
 const DEFAULT_CHARITIES = [
   { id: '1', name: 'Feeding America', category: 'Hunger' },
   { id: '2', name: 'No Kid Hungry', category: 'Hunger' },
@@ -86,7 +97,8 @@ export default function MyBoothPage() {
   const [saved, setSaved] = useState(!!myBooth)
   const [showThemePicker, setShowThemePicker] = useState(false)
   const [showPhotoMenu, setShowPhotoMenu] = useState(false)
-  const [isOpen, setIsOpen] = useState(true)
+  // Day-of-week selected for editing (weekly windows)
+  const [selectedDay, setSelectedDay] = useState<DayKey>('saturday')
 
   // Delivery options
   const [offersDelivery, setOffersDelivery] = useState(myBooth?.offersDelivery ?? true)
@@ -120,10 +132,6 @@ export default function MyBoothPage() {
   const [dragIdx, setDragIdx] = useState<number | null>(null)
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
 
-  // Pre-flight modal
-  const [showPreFlightModal, setShowPreFlightModal] = useState(false)
-  const [preFlightItems, setPreFlightItems] = useState<{ expired: typeof dbProducts, inactive: typeof dbProducts }>({ expired: [], inactive: [] })
-
   // Platform fee rate (loaded from DB)
   const [platformFeePct, setPlatformFeePct] = useState(10)
   const [profileName, setProfileName] = useState<string | null>(null)
@@ -144,13 +152,9 @@ export default function MyBoothPage() {
   // Trigger notification prompt on mount
   useEffect(() => { showPrompt() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Time windows (pre-defined 2-hour slots)
-  const [deliveryWindows, setDeliveryWindows] = useState<string[]>(
-    myBooth?.deliveryWindows?.map(w => `${w.start.replace(':00', '')}-${parseInt(w.start) + 2}`) || []
-  )
-  const [pickupWindows, setPickupWindows] = useState<string[]>(
-    myBooth?.pickupWindows?.map(w => `${w.start.replace(':00', '')}-${parseInt(w.start) + 2}`) || []
-  )
+  // Weekly time windows (day-keyed)
+  const [weeklyDeliveryWindows, setWeeklyDeliveryWindows] = useState<WeeklyWindows>({ ...EMPTY_WEEKLY })
+  const [weeklyPickupWindows, setWeeklyPickupWindows] = useState<WeeklyWindows>({ ...EMPTY_WEEKLY })
   const [pickupAddress, setPickupAddress] = useState(myBooth?.pickupAddress || '')
 
   // ── Persist booth draft to localStorage so navigating to add-product and back preserves it ──
@@ -172,8 +176,8 @@ export default function MyBoothPage() {
       if (draft.paymentMethod) setPaymentMethod(draft.paymentMethod)
       if (draft.venmoHandle) setVenmoHandle(draft.venmoHandle)
       if (draft.charityName) { setCharityName(draft.charityName); setPayoutDestination('charity') }
-      if (draft.deliveryWindows) setDeliveryWindows(draft.deliveryWindows)
-      if (draft.pickupWindows) setPickupWindows(draft.pickupWindows)
+      if (draft.weeklyDeliveryWindows) setWeeklyDeliveryWindows(draft.weeklyDeliveryWindows)
+      if (draft.weeklyPickupWindows) setWeeklyPickupWindows(draft.weeklyPickupWindows)
       if (draft.bannerPreview) { setBannerPreview(draft.bannerPreview); setBannerUrl(draft.bannerPreview) }
     } catch { /* ignore */ }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -186,12 +190,12 @@ export default function MyBoothPage() {
         localStorage.setItem(BOOTH_DRAFT_KEY, JSON.stringify({
           name, theme, offersDelivery, offersPickup, deliveryRadius,
           pickupAddress, paymentMethod, venmoHandle, charityName,
-          deliveryWindows, pickupWindows, bannerPreview,
+          weeklyDeliveryWindows, weeklyPickupWindows, bannerPreview,
         }))
       } catch { /* quota */ }
     }, 500)
     return () => clearTimeout(t)
-  }, [name, theme, offersDelivery, offersPickup, deliveryRadius, pickupAddress, paymentMethod, venmoHandle, charityName, deliveryWindows, pickupWindows, bannerPreview, saved])
+  }, [name, theme, offersDelivery, offersPickup, deliveryRadius, pickupAddress, paymentMethod, venmoHandle, charityName, weeklyDeliveryWindows, weeklyPickupWindows, bannerPreview, saved])
 
   // Load booth + profile data from Supabase on mount (progressive — render booth first)
   const [boothLoaded, setBoothLoaded] = useState(false)
@@ -245,15 +249,48 @@ export default function MyBoothPage() {
       if (booth.venmo_handle) { setVenmoHandle(booth.venmo_handle); setPayoutDestination('venmo') }
       if (booth.charity_name) { setCharityName(booth.charity_name); setPayoutDestination('charity') }
       if (booth.helper_passcode) setHelperPasscodeState(booth.helper_passcode)
-      if (booth.is_open !== undefined) setIsOpen(booth.is_open)
 
-      // Parse windows from DB
-      const dwArr = (booth.delivery_windows || []) as Array<{ id: string; start: string; end: string }>
-      const pwArr = (booth.pickup_windows || []) as Array<{ id: string; start: string; end: string }>
-      setDeliveryWindows(dwArr.filter(w => !w.id.startsWith('custom-')).map(w => w.id))
-      setPickupWindows(pwArr.filter(w => !w.id.startsWith('custom-')).map(w => w.id))
-      setCustomDeliverySlots(dwArr.filter(w => w.id.startsWith('custom-')).map(w => ({ start: w.start, end: w.end })))
-      setCustomPickupSlots(pwArr.filter(w => w.id.startsWith('custom-')).map(w => ({ start: w.start, end: w.end })))
+      // Parse weekly windows from DB (new format) — fall back to flat format
+      const weeklyDw = booth.weekly_delivery_windows as Record<string, Array<{id: string; start: string; end: string}>> | null
+      const weeklyPw = booth.weekly_pickup_windows as Record<string, Array<{id: string; start: string; end: string}>> | null
+      if (weeklyDw && Object.keys(weeklyDw).length > 0) {
+        // New weekly format
+        const dwResult: WeeklyWindows = { ...EMPTY_WEEKLY }
+        const pwResult: WeeklyWindows = { ...EMPTY_WEEKLY }
+        const cdResult: WeeklyCustomSlots = { ...EMPTY_WEEKLY_CUSTOM }
+        const cpResult: WeeklyCustomSlots = { ...EMPTY_WEEKLY_CUSTOM }
+        for (const day of DAY_KEYS) {
+          const dayDw = weeklyDw[day] || []
+          const dayPw = ((weeklyPw || {} as any)[day] || []) as Array<{id: string; start: string; end: string}>
+          dwResult[day] = dayDw.filter(w => !w.id.startsWith('custom-')).map(w => w.id)
+          pwResult[day] = dayPw.filter(w => !w.id.startsWith('custom-')).map(w => w.id)
+          cdResult[day] = dayDw.filter(w => w.id.startsWith('custom-')).map(w => ({ start: w.start, end: w.end }))
+          cpResult[day] = dayPw.filter(w => w.id.startsWith('custom-')).map(w => ({ start: w.start, end: w.end }))
+        }
+        setWeeklyDeliveryWindows(dwResult)
+        setWeeklyPickupWindows(pwResult)
+        setCustomDeliverySlots(cdResult)
+        setCustomPickupSlots(cpResult)
+        // Select the first day that has windows configured
+        const firstActive = DAY_KEYS.find(d => dwResult[d].length > 0 || pwResult[d].length > 0 || cdResult[d].length > 0 || cpResult[d].length > 0)
+        if (firstActive) setSelectedDay(firstActive)
+      } else {
+        // Legacy flat format → assign all to saturday (default market day)
+        const dwArr = (booth.delivery_windows || []) as Array<{ id: string; start: string; end: string }>
+        const pwArr = (booth.pickup_windows || []) as Array<{ id: string; start: string; end: string }>
+        const dwResult: WeeklyWindows = { ...EMPTY_WEEKLY }
+        const pwResult: WeeklyWindows = { ...EMPTY_WEEKLY }
+        const cdResult: WeeklyCustomSlots = { ...EMPTY_WEEKLY_CUSTOM }
+        const cpResult: WeeklyCustomSlots = { ...EMPTY_WEEKLY_CUSTOM }
+        dwResult.saturday = dwArr.filter(w => !w.id.startsWith('custom-')).map(w => w.id)
+        pwResult.saturday = pwArr.filter(w => !w.id.startsWith('custom-')).map(w => w.id)
+        cdResult.saturday = dwArr.filter(w => w.id.startsWith('custom-')).map(w => ({ start: w.start, end: w.end }))
+        cpResult.saturday = pwArr.filter(w => w.id.startsWith('custom-')).map(w => ({ start: w.start, end: w.end }))
+        setWeeklyDeliveryWindows(dwResult)
+        setWeeklyPickupWindows(pwResult)
+        setCustomDeliverySlots(cdResult)
+        setCustomPickupSlots(cpResult)
+      }
 
       setSaved(true)
       setSavedBoothId(booth.id)
@@ -330,9 +367,9 @@ export default function MyBoothPage() {
     loadData()
   }, [user?.id, authLoading]) // re-run when auth resolves
 
-  // Custom time slots
-  const [customDeliverySlots, setCustomDeliverySlots] = useState<Array<{ start: string; end: string }>>([])
-  const [customPickupSlots, setCustomPickupSlots] = useState<Array<{ start: string; end: string }>>([])
+  // Custom time slots (weekly)
+  const [customDeliverySlots, setCustomDeliverySlots] = useState<WeeklyCustomSlots>({ ...EMPTY_WEEKLY_CUSTOM })
+  const [customPickupSlots, setCustomPickupSlots] = useState<WeeklyCustomSlots>({ ...EMPTY_WEEKLY_CUSTOM })
   const [showCustomDelivery, setShowCustomDelivery] = useState(false)
   const [showCustomPickup, setShowCustomPickup] = useState(false)
   const [customStart, setCustomStart] = useState('09:00')
@@ -375,19 +412,21 @@ export default function MyBoothPage() {
     if (!offersDelivery && !offersPickup) {
       issues.push('Enable at least one fulfillment option (delivery or pickup)')
     }
-    if (offersDelivery && deliveryWindows.length === 0 && customDeliverySlots.length === 0) {
-      issues.push('Select at least one delivery time window')
+    // Check that at least one day has windows configured
+    const hasAnyDeliveryWindow = offersDelivery && DAY_KEYS.some(d => weeklyDeliveryWindows[d].length > 0 || customDeliverySlots[d].length > 0)
+    const hasAnyPickupWindow = offersPickup && DAY_KEYS.some(d => weeklyPickupWindows[d].length > 0 || customPickupSlots[d].length > 0)
+    if (offersDelivery && !hasAnyDeliveryWindow) {
+      issues.push('Select at least one delivery time window on at least one day')
     }
-    if (offersPickup && pickupWindows.length === 0 && customPickupSlots.length === 0) {
-      issues.push('Select at least one pickup time window')
+    if (offersPickup && !hasAnyPickupWindow) {
+      issues.push('Select at least one pickup time window on at least one day')
     }
     if (offersPickup && !pickupAddress.trim()) {
       issues.push('Enter a pickup address')
     } else if (offersPickup && pickupAddress.trim()) {
-      // Validate address completeness — require state abbreviation or zip code
       const addr = pickupAddress.trim()
-      const hasState = /\b[A-Z]{2}\b/.test(addr) // e.g. "CA", "TX"
-      const hasZip = /\b\d{5}\b/.test(addr) // e.g. "95120"
+      const hasState = /\b[A-Z]{2}\b/.test(addr)
+      const hasZip = /\b\d{5}\b/.test(addr)
       if (!hasState && !hasZip) {
         issues.push('Please include your city, state, and zip code in the pickup address (e.g. "123 Main St, San Jose, CA 95120")')
       }
@@ -409,6 +448,22 @@ export default function MyBoothPage() {
       return [...preset, ...custom]
     }
 
+    // Build weekly windows for DB
+    const weeklyDwDb: Record<string, any[]> = {}
+    const weeklyPwDb: Record<string, any[]> = {}
+    // Also build flat windows for backward compatibility
+    let flatDw: any[] = []
+    let flatPw: any[] = []
+    for (const day of DAY_KEYS) {
+      const dwMapped = mapWindows(weeklyDeliveryWindows[day], customDeliverySlots[day])
+      const pwMapped = mapWindows(weeklyPickupWindows[day], customPickupSlots[day])
+      if (dwMapped.length > 0) weeklyDwDb[day] = dwMapped
+      if (pwMapped.length > 0) weeklyPwDb[day] = pwMapped
+      // Flat = union of all days (backward compat)
+      flatDw = [...flatDw, ...dwMapped.filter(w => !flatDw.some(f => f.id === w.id))]
+      flatPw = [...flatPw, ...pwMapped.filter(w => !flatPw.some(f => f.id === w.id))]
+    }
+
     const dbRow: Record<string, any> = {
       owner_id: user.id,
       name: name.trim(),
@@ -418,8 +473,10 @@ export default function MyBoothPage() {
       offers_pickup: offersPickup,
       delivery_radius_miles: parseInt(deliveryRadius) || 2,
       pickup_address: pickupAddress.trim() || null,
-      delivery_windows: mapWindows(deliveryWindows, customDeliverySlots),
-      pickup_windows: mapWindows(pickupWindows, customPickupSlots),
+      delivery_windows: flatDw,
+      pickup_windows: flatPw,
+      weekly_delivery_windows: weeklyDwDb,
+      weekly_pickup_windows: weeklyPwDb,
       payment_method: paymentMethod,
       venmo_handle: payoutDestination === 'venmo' ? venmoHandle.trim() || null : null,
       charity_name: payoutDestination === 'charity' ? charityName.trim() || null : null,
@@ -478,8 +535,8 @@ export default function MyBoothPage() {
       paymentMethod, helpers,
       venmoHandle: payoutDestination === 'venmo' ? venmoHandle.trim() || undefined : undefined,
       charityName: payoutDestination === 'charity' ? charityName.trim() || undefined : undefined,
-      deliveryWindows: mapWindows(deliveryWindows, customDeliverySlots),
-      pickupWindows: mapWindows(pickupWindows, customPickupSlots),
+      deliveryWindows: flatDw,
+      pickupWindows: flatPw,
       pickupAddress: pickupAddress.trim() || undefined,
     }
     if (myBooth) {
@@ -565,35 +622,32 @@ export default function MyBoothPage() {
       <NotificationPromptModal {...modalProps} />
       <NotificationBanner context="new order alerts and buyer messages" onEnableClick={showPrompt} />
 
-      {/* ── Market Day Badge ── */}
+      {/* ── Booth Status Badge ── */}
       <div style={{
-        background: marketOpen ? 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)' : 'var(--green-50)',
-        border: marketOpen ? '2px solid var(--green-400)' : '1px solid var(--green-200)',
+        background: 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)',
+        border: '1px solid var(--green-300)',
         borderRadius: 'var(--radius)', padding: '10px 16px', margin: '0 0 12px',
         display: 'flex', alignItems: 'center', gap: 8, fontSize: 14,
         flexWrap: 'wrap',
       }}>
-        <span style={{ fontSize: 18 }}>{marketOpen ? '🟢' : '📅'}</span>
-        {marketOpen ? (
+        <span style={{ fontSize: 18 }}>🏪</span>
+        {nextMarket ? (
           <span style={{ flex: 1 }}>
-            <strong>Market is Open!</strong>
-            <span style={{ color: 'var(--green-700)', marginLeft: 6 }}>— your booth is live for shoppers</span>
-          </span>
-        ) : nextMarket ? (
-          <span style={{ flex: 1 }}>
-            <strong>Preparing for {nextMarket.date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</strong>
-            <span style={{ color: 'var(--gray-500)', marginLeft: 6 }}>— next market day</span>
+            <strong>Next Market: {nextMarket.date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</strong>
+            <span style={{ color: 'var(--green-700)', marginLeft: 6 }}>— your booth is always available to shoppers</span>
           </span>
         ) : (
-          <span style={{ color: 'var(--gray-500)', flex: 1 }}>No upcoming market scheduled</span>
+          <span style={{ color: 'var(--green-700)', flex: 1 }}>
+            <strong>Your booth is live</strong> — shoppers can browse anytime
+          </span>
         )}
-        {/* Invite button — always visible, prominent when market is open */}
+        {/* Invite button */}
         <button
           onClick={() => { setBoothShareMsg(getBoothShareText()); setShowBoothShareModal(true) }}
           style={{
             padding: '6px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
-            background: marketOpen ? 'var(--green-600, #16a34a)' : 'var(--green-100)',
-            color: marketOpen ? '#fff' : 'var(--green-700)',
+            background: 'var(--green-600, #16a34a)',
+            color: '#fff',
             fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
             transition: 'all 0.15s',
           }}
@@ -602,226 +656,7 @@ export default function MyBoothPage() {
         </button>
       </div>
 
-      {/* ── Pre-Flight Shelf Review Modal ── */}
-      {showPreFlightModal && (
-        <>
-          <div className={styles.shareBackdrop} onClick={() => setShowPreFlightModal(false)} />
-          <div className={styles.shareModal} style={{ textAlign: 'left', maxWidth: 480, maxHeight: '80vh', overflowY: 'auto' }}>
-            <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8, color: 'var(--gray-900)' }}>Booth Preparation</h2>
-            <p style={{ fontSize: 14, color: 'var(--gray-600)', marginBottom: 20 }}>
-              Please review the items preventing your storefront from opening to buyers.
-            </p>
 
-            {preFlightItems.expired.length > 0 && (
-              <div style={{ marginBottom: 20 }}>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-900)', marginBottom: 8 }}>Expired & Removed Items</h3>
-                <p style={{ fontSize: 13, color: 'var(--gray-500)', margin: '0 0 12px 0' }}>
-                  The following items have expired and been automatically removed from your catalog. Click <strong>Refresh</strong> to quickly re-list them for the upcoming market.
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {preFlightItems.expired.map(p => {
-                    const isPerishable = ['produce', 'eggs', 'flowers', 'flower_arrangements'].includes(p.category)
-                    return (
-                      <div 
-                        key={`exp-${p.id}`} 
-                        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px', background: 'var(--red-50, #fef2f2)', border: '1px solid var(--red-200)', borderRadius: 12, cursor: 'pointer' }}
-                        onClick={() => router.push(`/my-booth/products/${p.id}`)}
-                      >
-                        <span style={{ fontSize: 24, flexShrink: 0 }}>{p.photos[0] ? <img src={p.photos[0]} style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover' }} /> : '🥬'}</span>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--gray-900)' }}>{p.name}</div>
-                          <div style={{ fontSize: 12, color: 'var(--red-700)', fontWeight: 600, marginTop: 2 }}>Expired {p.marketDate}</div>
-                        </div>
-                        {isPerishable ? (
-                          <button 
-                            className="btn btn-sm" 
-                            style={{ padding: '6px 12px', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', backgroundColor: 'var(--red-100)', color: 'var(--red-700)', border: '1px solid var(--red-200)' }}
-                            onClick={async (e) => {
-                              e.stopPropagation()
-                              const { error } = await supabase.from('market_products').update({ is_deleted: true }).eq('id', p.id)
-                              if (!error) {
-                                setDbProducts(prev => prev.filter(prod => prod.id !== p.id))
-                                setPreFlightItems(prev => ({ ...prev, expired: prev.expired.filter(x => x.id !== p.id) }))
-                              } else {
-                                showError('Error removing product: ' + error.message)
-                              }
-                            }}
-                          >
-                            🗑️ Remove
-                          </button>
-                        ) : (
-                          <button 
-                            className="btn btn-secondary btn-sm" 
-                            style={{ padding: '6px 12px', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}
-                            onClick={async (e) => {
-                              e.stopPropagation()
-                              const nextMarket = getNextMarketDate(state.marketSchedule)
-                              const newDate = nextMarket?.date.toISOString().split('T')[0] || new Date().toISOString().split('T')[0]
-                              const { error } = await supabase.from('market_products')
-                                .update({ market_date: newDate, is_active: true, updated_at: new Date().toISOString() })
-                                .eq('id', p.id)
-                              if (!error) {
-                                setDbProducts(prev => prev.map(prod =>
-                                  prod.id === p.id
-                                    ? { ...prod, marketDate: newDate, isActive: true, status: 'active' as const }
-                                    : prod
-                                ))
-                                setPreFlightItems(prev => ({ ...prev, expired: prev.expired.filter(x => x.id !== p.id) }))
-                              }
-                            }}
-                          >
-                            🔄 Refresh
-                          </button>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {preFlightItems.inactive.length > 0 && (
-              <div>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-900)', marginBottom: 8 }}>Inactive or Empty Listings</h3>
-                <p style={{ fontSize: 13, color: 'var(--gray-500)', margin: '0 0 12px 0' }}>
-                  The following listings are currently inactive or out of stock. You can quickly renew them below:
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {preFlightItems.inactive.map(p => {
-                    const isPerishable = ['produce', 'eggs', 'flowers', 'flower_arrangements'].includes(p.category)
-                    return (
-                      <div 
-                        key={`in-${p.id}`} 
-                        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px', background: 'var(--amber-50)', border: '1px solid var(--amber-200)', borderRadius: 12, cursor: 'pointer' }}
-                        onClick={() => router.push(`/my-booth/products/${p.id}`)}
-                      >
-                        <span style={{ fontSize: 24, flexShrink: 0 }}>{p.photos[0] ? <img src={p.photos[0]} style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover' }} /> : '📦'}</span>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--gray-900)' }}>{p.name}</div>
-                          <div style={{ fontSize: 12, color: 'var(--amber-700)', fontWeight: 600, marginTop: 2 }}>
-                            {p.inventory === 0 ? 'Out of stock (0 left)' : 'Hidden from Store'}
-                          </div>
-                        </div>
-                        {isPerishable ? (
-                          <button 
-                            className="btn btn-sm" 
-                            style={{ padding: '6px 12px', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', backgroundColor: 'var(--red-100)', color: 'var(--red-700)', border: '1px solid var(--red-200)' }}
-                            onClick={async (e) => {
-                              e.stopPropagation()
-                              const { error } = await supabase.from('market_products').update({ is_deleted: true }).eq('id', p.id)
-                              if (!error) {
-                                setDbProducts(prev => prev.filter(prod => prod.id !== p.id))
-                                setPreFlightItems(prev => ({ ...prev, inactive: prev.inactive.filter(x => x.id !== p.id) }))
-                              } else {
-                                showError('Error removing product: ' + error.message)
-                              }
-                            }}
-                          >
-                            🗑️ Remove
-                          </button>
-                        ) : (
-                          <button 
-                            className="btn btn-secondary btn-sm" 
-                            style={{ padding: '6px 12px', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              router.push(`/my-booth/products/${p.id}`)
-                            }}
-                          >
-                            ✍️ Renew
-                          </button>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            <button
-              className="btn btn-primary"
-              style={{ width: '100%', marginTop: 24, padding: 14, fontSize: 16, fontWeight: 700 }}
-              onClick={async () => {
-                setShowPreFlightModal(false)
-                setIsOpen(true)
-                trackClick('toggle_booth_open', { isOpen: true })
-                const { error } = await supabase
-                  .from('market_booths')
-                  .update({ is_open: true })
-                  .eq('id', savedBoothId)
-                if (error) {
-                  setIsOpen(false)
-                  dispatch({ type: 'ADD_TOAST', payload: { message: 'Failed to update — ' + error.message, type: 'error' } })
-                }
-              }}
-            >
-              Proceed & Open Booth
-            </button>
-          </div>
-        </>
-      )}
-
-      {/* ── Booth Open/Close Toggle ── */}
-      {savedBoothId && (
-        <button
-          onClick={async () => {
-            const newVal = !isOpen
-            
-            // Trigger pre-flight interceptor if attempting to open
-            if (newVal === true) {
-               const todayStr = new Date().toISOString().split('T')[0]
-               // Identifies expired perishable products 
-               const expired = myProducts.filter(p => p.status === 'expired' || (p.marketDate && p.marketDate < todayStr))
-               // Identifies items that are out-of-stock or inactive, but not expired perishables
-               const inactive = myProducts.filter(p => !expired.includes(p) && (!p.isActive || p.inventory === 0) && p.status !== 'draft')
-               
-               if (expired.length > 0 || inactive.length > 0) {
-                 setPreFlightItems({ expired, inactive })
-                 setShowPreFlightModal(true)
-                 return
-               }
-            }
-            
-            setIsOpen(newVal)
-            trackClick('toggle_booth_open', { isOpen: newVal })
-            const { error } = await supabase
-              .from('market_booths')
-              .update({ is_open: newVal })
-              .eq('id', savedBoothId)
-            if (error) {
-              setIsOpen(!newVal) // revert
-              dispatch({ type: 'ADD_TOAST', payload: { message: 'Failed to update — ' + error.message, type: 'error' } })
-            }
-          }}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 10,
-            width: '100%', padding: '12px 16px', margin: '0 0 12px',
-            borderRadius: 'var(--radius)', cursor: 'pointer',
-            border: isOpen ? '2px solid var(--green-400)' : '2px solid var(--red-300, #fca5a5)',
-            background: isOpen
-              ? 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)'
-              : 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
-            transition: 'all 0.2s',
-            fontSize: 15, fontWeight: 600,
-            color: isOpen ? 'var(--green-700)' : 'var(--red-600, #dc2626)',
-          }}
-          id="booth-open-toggle"
-        >
-          <span style={{
-            width: 44, height: 24, borderRadius: 12,
-            background: isOpen ? 'var(--green-500)' : 'var(--red-400, #f87171)',
-            position: 'relative', flexShrink: 0, transition: 'background 0.2s',
-          }}>
-            <span style={{
-              position: 'absolute', top: 2, left: isOpen ? 22 : 2,
-              width: 20, height: 20, borderRadius: '50%',
-              background: '#fff', transition: 'left 0.2s',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-            }} />
-          </span>
-          {isOpen ? '🟢 Open for Next Market' : '🔴 Closed — booth hidden from shoppers'}
-        </button>
-      )}
 
       {/* ── Compact Booth Header ── */}
       <div className={styles.boothHeader}>
@@ -952,86 +787,206 @@ export default function MyBoothPage() {
             />
           </div>
         )}
-        {offersDelivery && (
+        {(offersDelivery || offersPickup) && (
           <div style={{ marginTop: 16 }}>
-            <label className="label">Delivery Windows</label>
-            <div className={styles.windowGrid}>
-              {TIME_WINDOWS.map(w => (
+            <label className="label">📅 Default Fulfillment Windows</label>
+            <p style={{ fontSize: 13, color: 'var(--gray-500)', margin: '0 0 12px' }}>
+              Set your default delivery &amp; pickup hours for each day. These become the defaults for new product listings.
+            </p>
+
+            {/* Day-of-week tab row */}
+            <div className={styles.dayTabsRow}>
+              {DAY_KEYS.map(day => {
+                const hasDwWindows = weeklyDeliveryWindows[day].length > 0 || customDeliverySlots[day].length > 0
+                const hasPwWindows = weeklyPickupWindows[day].length > 0 || customPickupSlots[day].length > 0
+                const hasWindows = hasDwWindows || hasPwWindows
+                const isSelected = selectedDay === day
+                return (
+                  <button
+                    key={day}
+                    className={`${styles.dayTab} ${isSelected ? styles.dayTabActive : hasWindows ? styles.dayTabSelected : ''}`}
+                    onClick={() => setSelectedDay(day)}
+                  >
+                    {DAY_LABELS[day]}
+                    {hasWindows && !isSelected && <span style={{ marginLeft: 2 }}>✓</span>}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Windows for the selected day */}
+            <div style={{ background: 'var(--gray-50)', borderRadius: 'var(--radius-lg)', padding: 16, border: '1px solid var(--border)' }}>
+              <div className={styles.dayWindowsLabel}>
+                {DAY_LABELS[selectedDay]} — {selectedDay.charAt(0).toUpperCase() + selectedDay.slice(1)}
+              </div>
+
+              {/* Delivery windows for selected day */}
+              {offersDelivery && (
+                <div style={{ marginBottom: offersPickup ? 16 : 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--gray-600)', marginBottom: 6 }}>🚗 Delivery</div>
+                  <div className={styles.windowGrid}>
+                    {TIME_WINDOWS.map(w => (
+                      <button
+                        key={`d-${w.id}`}
+                        className={`${styles.windowChip} ${weeklyDeliveryWindows[selectedDay].includes(w.id) ? styles.windowChipActive : ''}`}
+                        onClick={() => {
+                          setWeeklyDeliveryWindows(prev => ({
+                            ...prev,
+                            [selectedDay]: prev[selectedDay].includes(w.id)
+                              ? prev[selectedDay].filter(id => id !== w.id)
+                              : [...prev[selectedDay], w.id]
+                          }))
+                          setSaved(false)
+                        }}
+                      >
+                        {weeklyDeliveryWindows[selectedDay].includes(w.id) ? '✅' : '⏰'} {w.label}
+                      </button>
+                    ))}
+                  </div>
+                  {customDeliverySlots[selectedDay].map((s, i) => (
+                    <div key={`cd-${i}`} className={styles.customSlotRow}>
+                      <span className={styles.customSlotLabel}>{s.start} – {s.end}</span>
+                      <button className={styles.helperRemove} onClick={() => {
+                        setCustomDeliverySlots(prev => ({
+                          ...prev,
+                          [selectedDay]: prev[selectedDay].filter((_, j) => j !== i)
+                        }))
+                        setSaved(false)
+                      }}>×</button>
+                    </div>
+                  ))}
+                  {showCustomDelivery ? (
+                    <div className={styles.customSlotRow} style={{ marginTop: 8 }}>
+                      <input type="time" className="input" value={customStart} onChange={e => setCustomStart(e.target.value)} style={{ maxWidth: 110 }} />
+                      <span>to</span>
+                      <input type="time" className="input" value={customEnd} onChange={e => setCustomEnd(e.target.value)} style={{ maxWidth: 110 }} />
+                      <button className="btn btn-secondary btn-sm" onClick={() => {
+                        setCustomDeliverySlots(prev => ({
+                          ...prev,
+                          [selectedDay]: [...prev[selectedDay], { start: customStart, end: customEnd }]
+                        }))
+                        setShowCustomDelivery(false); setSaved(false)
+                      }}>Add</button>
+                      <button className={styles.helperRemove} onClick={() => setShowCustomDelivery(false)}>×</button>
+                    </div>
+                  ) : (
+                    <button className={styles.addCustomBtn} onClick={() => setShowCustomDelivery(true)}>+ Custom slot</button>
+                  )}
+                </div>
+              )}
+
+              {/* Pickup windows for selected day */}
+              {offersPickup && (
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--gray-600)', marginBottom: 6 }}>📍 Pickup</div>
+                  <div className={styles.windowGrid}>
+                    {TIME_WINDOWS.map(w => (
+                      <button
+                        key={`p-${w.id}`}
+                        className={`${styles.windowChip} ${weeklyPickupWindows[selectedDay].includes(w.id) ? styles.windowChipActive : ''}`}
+                        onClick={() => {
+                          setWeeklyPickupWindows(prev => ({
+                            ...prev,
+                            [selectedDay]: prev[selectedDay].includes(w.id)
+                              ? prev[selectedDay].filter(id => id !== w.id)
+                              : [...prev[selectedDay], w.id]
+                          }))
+                          setSaved(false)
+                        }}
+                      >
+                        {weeklyPickupWindows[selectedDay].includes(w.id) ? '✅' : '⏰'} {w.label}
+                      </button>
+                    ))}
+                  </div>
+                  {customPickupSlots[selectedDay].map((s, i) => (
+                    <div key={`cp-${i}`} className={styles.customSlotRow}>
+                      <span className={styles.customSlotLabel}>{s.start} – {s.end}</span>
+                      <button className={styles.helperRemove} onClick={() => {
+                        setCustomPickupSlots(prev => ({
+                          ...prev,
+                          [selectedDay]: prev[selectedDay].filter((_, j) => j !== i)
+                        }))
+                        setSaved(false)
+                      }}>×</button>
+                    </div>
+                  ))}
+                  {showCustomPickup ? (
+                    <div className={styles.customSlotRow} style={{ marginTop: 8 }}>
+                      <input type="time" className="input" value={customStart} onChange={e => setCustomStart(e.target.value)} style={{ maxWidth: 110 }} />
+                      <span>to</span>
+                      <input type="time" className="input" value={customEnd} onChange={e => setCustomEnd(e.target.value)} style={{ maxWidth: 110 }} />
+                      <button className="btn btn-secondary btn-sm" onClick={() => {
+                        setCustomPickupSlots(prev => ({
+                          ...prev,
+                          [selectedDay]: [...prev[selectedDay], { start: customStart, end: customEnd }]
+                        }))
+                        setShowCustomPickup(false); setSaved(false)
+                      }}>Add</button>
+                      <button className={styles.helperRemove} onClick={() => setShowCustomPickup(false)}>×</button>
+                    </div>
+                  ) : (
+                    <button className={styles.addCustomBtn} onClick={() => setShowCustomPickup(true)}>+ Custom slot</button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Day action buttons */}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+              {/* Clear day — only when this day has windows */}
+              {(weeklyDeliveryWindows[selectedDay].length > 0 || weeklyPickupWindows[selectedDay].length > 0 || customDeliverySlots[selectedDay].length > 0 || customPickupSlots[selectedDay].length > 0) && (
                 <button
-                  key={w.id}
-                  className={`${styles.windowChip} ${deliveryWindows.includes(w.id) ? styles.windowChipActive : ''}`}
+                  className={styles.addCustomBtn}
+                  style={{ fontSize: 13, color: 'var(--red-600, #dc2626)' }}
                   onClick={() => {
-                    setDeliveryWindows(prev => prev.includes(w.id) ? prev.filter(id => id !== w.id) : [...prev, w.id])
+                    setWeeklyDeliveryWindows(prev => ({ ...prev, [selectedDay]: [] }))
+                    setWeeklyPickupWindows(prev => ({ ...prev, [selectedDay]: [] }))
+                    setCustomDeliverySlots(prev => ({ ...prev, [selectedDay]: [] }))
+                    setCustomPickupSlots(prev => ({ ...prev, [selectedDay]: [] }))
                     setSaved(false)
                   }}
                 >
-                  {deliveryWindows.includes(w.id) ? '✅' : '⏰'} {w.label}
+                  🗑️ Clear {DAY_LABELS[selectedDay]}
                 </button>
-              ))}
-            </div>
-            {customDeliverySlots.map((s, i) => (
-              <div key={`cd-${i}`} className={styles.customSlotRow}>
-                <span className={styles.customSlotLabel}>{s.start} – {s.end}</span>
-                <button className={styles.helperRemove} onClick={() => {
-                  setCustomDeliverySlots(prev => prev.filter((_, j) => j !== i)); setSaved(false)
-                }}>×</button>
-              </div>
-            ))}
-            {showCustomDelivery ? (
-              <div className={styles.customSlotRow} style={{ marginTop: 8 }}>
-                <input type="time" className="input" value={customStart} onChange={e => setCustomStart(e.target.value)} style={{ maxWidth: 110 }} />
-                <span>to</span>
-                <input type="time" className="input" value={customEnd} onChange={e => setCustomEnd(e.target.value)} style={{ maxWidth: 110 }} />
-                <button className="btn btn-secondary btn-sm" onClick={() => {
-                  setCustomDeliverySlots(prev => [...prev, { start: customStart, end: customEnd }])
-                  setShowCustomDelivery(false); setSaved(false)
-                }}>Add</button>
-                <button className={styles.helperRemove} onClick={() => setShowCustomDelivery(false)}>×</button>
-              </div>
-            ) : (
-              <button className={styles.addCustomBtn} onClick={() => setShowCustomDelivery(true)}>+ Custom slot</button>
-            )}
-          </div>
-        )}
-        {offersPickup && (
-          <div style={{ marginTop: 16 }}>
-            <label className="label">Pickup Windows</label>
-            <div className={styles.windowGrid}>
-              {TIME_WINDOWS.map(w => (
+              )}
+
+              {/* Copy to all days — only when this day has windows */}
+              {(weeklyDeliveryWindows[selectedDay].length > 0 || weeklyPickupWindows[selectedDay].length > 0 || customDeliverySlots[selectedDay].length > 0 || customPickupSlots[selectedDay].length > 0) && (
                 <button
-                  key={w.id}
-                  className={`${styles.windowChip} ${pickupWindows.includes(w.id) ? styles.windowChipActive : ''}`}
+                  className={styles.addCustomBtn}
+                  style={{ fontSize: 13 }}
                   onClick={() => {
-                    setPickupWindows(prev => prev.includes(w.id) ? prev.filter(id => id !== w.id) : [...prev, w.id])
+                    setWeeklyDeliveryWindows(prev => {
+                      const updated = { ...prev }
+                      DAY_KEYS.forEach(d => { if (d !== selectedDay) updated[d] = [...prev[selectedDay]] })
+                      return updated
+                    })
+                    setWeeklyPickupWindows(prev => {
+                      const updated = { ...prev }
+                      DAY_KEYS.forEach(d => { if (d !== selectedDay) updated[d] = [...prev[selectedDay]] })
+                      return updated
+                    })
+                    setCustomDeliverySlots(prev => {
+                      const updated = { ...prev }
+                      DAY_KEYS.forEach(d => { if (d !== selectedDay) updated[d] = [...prev[selectedDay]] })
+                      return updated
+                    })
+                    setCustomPickupSlots(prev => {
+                      const updated = { ...prev }
+                      DAY_KEYS.forEach(d => { if (d !== selectedDay) updated[d] = [...prev[selectedDay]] })
+                      return updated
+                    })
                     setSaved(false)
                   }}
                 >
-                  {pickupWindows.includes(w.id) ? '✅' : '⏰'} {w.label}
+                  📋 Copy {DAY_LABELS[selectedDay]}&apos;s windows to all days
                 </button>
-              ))}
+              )}
             </div>
-            {customPickupSlots.map((s, i) => (
-              <div key={`cp-${i}`} className={styles.customSlotRow}>
-                <span className={styles.customSlotLabel}>{s.start} – {s.end}</span>
-                <button className={styles.helperRemove} onClick={() => {
-                  setCustomPickupSlots(prev => prev.filter((_, j) => j !== i)); setSaved(false)
-                }}>×</button>
-              </div>
-            ))}
-            {showCustomPickup ? (
-              <div className={styles.customSlotRow} style={{ marginTop: 8 }}>
-                <input type="time" className="input" value={customStart} onChange={e => setCustomStart(e.target.value)} style={{ maxWidth: 110 }} />
-                <span>to</span>
-                <input type="time" className="input" value={customEnd} onChange={e => setCustomEnd(e.target.value)} style={{ maxWidth: 110 }} />
-                <button className="btn btn-secondary btn-sm" onClick={() => {
-                  setCustomPickupSlots(prev => [...prev, { start: customStart, end: customEnd }])
-                  setShowCustomPickup(false); setSaved(false)
-                }}>Add</button>
-                <button className={styles.helperRemove} onClick={() => setShowCustomPickup(false)}>×</button>
-              </div>
-            ) : (
-              <button className={styles.addCustomBtn} onClick={() => setShowCustomPickup(true)}>+ Custom slot</button>
-            )}
+
+            <div className={styles.dayWindowsHint}>
+              💡 Days with no windows selected mean no delivery/pickup that day. You can set delivery-only, pickup-only, or both per day. Each day is independent.
+            </div>
           </div>
         )}
         {offersPickup && (
@@ -1041,8 +996,54 @@ export default function MyBoothPage() {
               id="pickup-address" className="input"
               value={pickupAddress}
               onChange={e => { setPickupAddress(e.target.value); setSaved(false) }}
-              placeholder="e.g. 123 Oak Street, front porch"
+              placeholder="e.g. 123 Oak Street, San Jose, CA 95125"
             />
+            <button
+              type="button"
+              style={{
+                marginTop: 6, padding: '6px 14px', borderRadius: 20,
+                border: '1px solid var(--green-300)', background: 'var(--green-50)',
+                color: 'var(--green-700)', fontSize: 13, fontWeight: 500,
+                cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
+              }}
+              onClick={async () => {
+                if (!navigator.geolocation) {
+                  dispatch({ type: 'ADD_TOAST', payload: { message: 'Geolocation is not supported by your browser', type: 'error' } })
+                  return
+                }
+                dispatch({ type: 'ADD_TOAST', payload: { message: '📍 Getting your location...', type: 'info' } })
+                navigator.geolocation.getCurrentPosition(
+                  async (pos) => {
+                    try {
+                      const res = await fetch(
+                        `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json&addressdetails=1`,
+                        { headers: { 'User-Agent': 'CasaGrown/1.0' } }
+                      )
+                      const data = await res.json()
+                      if (data?.address) {
+                        const a = data.address
+                        const street = [a.house_number, a.road].filter(Boolean).join(' ')
+                        const city = a.city || a.town || a.village || ''
+                        const state = a.state || ''
+                        const zip = a.postcode || ''
+                        const formatted = [street, city, `${state} ${zip}`.trim()].filter(Boolean).join(', ')
+                        setPickupAddress(formatted)
+                        setSaved(false)
+                        dispatch({ type: 'ADD_TOAST', payload: { message: '✅ Address updated from your location', type: 'success' } })
+                      }
+                    } catch {
+                      dispatch({ type: 'ADD_TOAST', payload: { message: 'Could not determine address from location', type: 'error' } })
+                    }
+                  },
+                  () => {
+                    dispatch({ type: 'ADD_TOAST', payload: { message: 'Location access denied. Please allow location access and try again.', type: 'error' } })
+                  },
+                  { enableHighAccuracy: true, timeout: 10000 }
+                )
+              }}
+            >
+              📍 Use my current location
+            </button>
           </div>
         )}
       </div>

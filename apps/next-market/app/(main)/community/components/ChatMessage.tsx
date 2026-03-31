@@ -4,6 +4,7 @@ import { CommunityChatMessage, toggleMessageReaction, fetchCommunityReplies } fr
 import { createClient } from '../../../../lib/supabase'
 import { useErrorToast } from '../../../components/ErrorToast'
 import { checkTextForViolations } from '../../../../lib/moderation'
+import ProductListingCard from './ProductListingCard'
 import styles from '../page.module.css'
 
 interface ChatMessageProps {
@@ -165,21 +166,31 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
           <span className={styles.time}>{formatTime(message.created_at)}</span>
         </div>
         
-        {/* Tap the bubble to show reply input + actions */}
-        <div 
-          className={`${styles.messageBubble} ${isBot ? styles.botBubble : ''}`}
-          onClick={handleBubbleTap}
-        >
-          <p className={styles.messageText}>{message.content}</p>
-          
-          {message.media && message.media.length > 0 && (
-            <div className={styles.mediaGrid}>
-              {message.media.map((m, i) => (
-                <img key={i} src={m.url} alt="Attached media" className={styles.attachedImage} />
-              ))}
-            </div>
-          )}
-        </div>
+        {/* Product listing card OR regular text bubble */}
+        {message.product_listing_id ? (
+          <div onClick={handleBubbleTap}>
+            <ProductListingCard
+              productId={message.product_listing_id}
+              messageContent={message.content}
+              currentUserId={currentUserId}
+            />
+          </div>
+        ) : (
+          <div 
+            className={`${styles.messageBubble} ${isBot ? styles.botBubble : ''}`}
+            onClick={handleBubbleTap}
+          >
+            <p className={styles.messageText}>{message.content}</p>
+            
+            {message.media && message.media.length > 0 && (
+              <div className={styles.mediaGrid}>
+                {message.media.map((m, i) => (
+                  <img key={i} src={m.url} alt="Attached media" className={styles.attachedImage} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Tap-revealed action bar: emojis + share + delete/flag */}
         {showActions && (

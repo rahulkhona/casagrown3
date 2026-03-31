@@ -7,6 +7,8 @@ import { createClient } from '../../../../../../../lib/supabase'
 import { formatUsd } from '../../../../../../../lib/store'
 import { useAuth } from '../../../../../../../lib/useAuth'
 import { useMarketStatus } from '../../../../../../../lib/useMarketStatus'
+import { hasValidWindows } from '../../../../../../../lib/windowUtils'
+import { geocodeAddress } from '../../../../../../../lib/geocode'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import BuyModal from '../../../../../../components/BuyModal'
 import { FlagModal } from '../../../../../../components/FlagModal'
@@ -16,6 +18,16 @@ import { useErrorToast } from '../../../../../../components/ErrorToast'
 import { useNotificationPrompt } from '../../../../../../../lib/useNotificationPrompt'
 import { useCart } from '../../../../../../../lib/useCart'
 import styles from './page.module.css'
+
+// Haversine distance in meters
+function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLng = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+function metersToMiles(m: number): number { return m / 1609.344 }
 
 function ProductDetailPageInner({ params }: { params: Promise<{ id: string; productId: string }> }) {
   const { id: boothId, productId } = use(params)
@@ -51,6 +63,18 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
 
   // Detect demo product
   const isDemo = productId.startsWith('demo-')
+
+  // ── Distance checking state ──
+  const [buyerLat, setBuyerLat] = useState<number | null>(null)
+  const [buyerLng, setBuyerLng] = useState<number | null>(null)
+  const [sellerLat, setSellerLat] = useState<number | null>(null)
+  const [sellerLng, setSellerLng] = useState<number | null>(null)
+  const [distanceMiles, setDistanceMiles] = useState<number | null>(null)
+  const [withinDelivery, setWithinDelivery] = useState<boolean | null>(null)
+  const [altAddress, setAltAddress] = useState('')
+  const [checkingAltAddr, setCheckingAltAddr] = useState(false)
+  const [showAltAddrInput, setShowAltAddrInput] = useState(false)
+  const [addrLabel, setAddrLabel] = useState('Your address')
 
   useEffect(() => {
     const load = async () => {
@@ -99,6 +123,40 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
     } catch {}
   }, [productId, boothId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Geocode buyer and seller for distance checks ──
+  useEffect(() => {
+    if (!buyerAddress || isDemo) return
+    geocodeAddress(buyerAddress).then(geo => {
+      if (geo) { setBuyerLat(geo.lat); setBuyerLng(geo.lng); setAddrLabel(buyerAddress) }
+    })
+  }, [buyerAddress, isDemo])
+
+  useEffect(() => {
+    if (!booth?.pickup_address || isDemo) return
+    geocodeAddress(booth.pickup_address).then(geo => {
+      if (geo) { setSellerLat(geo.lat); setSellerLng(geo.lng) }
+    })
+  }, [booth?.pickup_address, isDemo])
+
+  useEffect(() => {
+    if (buyerLat == null || buyerLng == null || sellerLat == null || sellerLng == null) return
+    const dist = metersToMiles(haversineMeters(buyerLat, buyerLng, sellerLat, sellerLng))
+    setDistanceMiles(Math.round(dist * 10) / 10)
+    if (booth?.offers_delivery) {
+      setWithinDelivery(dist <= (booth.delivery_radius_miles || 5))
+    }
+  }, [buyerLat, buyerLng, sellerLat, sellerLng, booth?.delivery_radius_miles, booth?.offers_delivery])
+
+  const handleCheckAltAddress = async () => {
+    if (!altAddress.trim()) return
+    setCheckingAltAddr(true)
+    const geo = await geocodeAddress(altAddress.trim())
+    if (geo) { setBuyerLat(geo.lat); setBuyerLng(geo.lng); setAddrLabel(altAddress.trim()) }
+    setCheckingAltAddr(false)
+    setShowAltAddrInput(false)
+    setAltAddress('')
+  }
+
   // Load existing product reminder
   useEffect(() => {
     if (!user || !productId) return
@@ -135,13 +193,13 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
     return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onFocus) }
   }, [product?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Determine closed state
-  const boothClosed = booth && booth.is_open === false
-  const isClosed = !marketIsOpen || boothClosed
-
-  const closedReason = isClosed
-    ? 'This booth is currently closed'
-    : null
+  // Window-based availability: check if product has any valid fulfillment windows
+  const windowsExpired = product ? !hasValidWindows(
+    product.window_dates,
+    product.product_delivery_windows,
+    product.product_pickup_windows,
+  ) : false
+  const isClosed = windowsExpired  // used by existing UI logic
 
   // Toggle product reminder
   const toggleReminder = async () => {
@@ -169,7 +227,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
         )
 
         setReminderSet(true)
-        showSuccess('🔔 Saved! We\'ll notify you when this booth opens')
+        showSuccess('🔔 Saved! We\'ll notify you when market opens')
       }
     } catch (err) {
       console.error('Reminder toggle failed:', err)
@@ -316,8 +374,8 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
             </div>
           )}
 
-          {/* Market/Booth Closed Banner + Reminder */}
-          {isClosed && (
+          {/* Windows Expired Banner + Reminder */}
+          {windowsExpired && (
             <div style={{
               background: 'linear-gradient(135deg, #fefce8 0%, #fef9c3 100%)',
               border: '1px solid #fbbf24',
@@ -326,16 +384,11 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
               marginTop: 16,
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <span style={{ fontSize: 20 }}>🕐</span>
-                <strong style={{ color: '#92400e', fontSize: 15 }}>{closedReason}</strong>
+                <span style={{ fontSize: 20 }}>⏰</span>
+                <strong style={{ color: '#92400e', fontSize: 15 }}>No delivery or pickup windows available</strong>
               </div>
-              {!marketIsOpen && nextOpenStr && (
-                <p style={{ margin: '0 0 12px', fontSize: 13, color: '#a16207' }}>
-                  Next market open: <strong>{nextOpenStr}</strong>
-                </p>
-              )}
               <p style={{ margin: '0 0 12px', fontSize: 13, color: '#92400e' }}>
-                Set a reminder and we&apos;ll notify you when this booth opens!
+                This product&apos;s fulfillment windows have passed. Set a reminder to be notified when it&apos;s available again!
               </p>
               <button
                 onClick={toggleReminder}
@@ -354,7 +407,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                 }}
               >
                 {reminderLoading ? '⏳' : reminderSet ? '✅' : '🔔'}
-                {reminderLoading ? 'Saving...' : reminderSet ? 'Reminder Set — Tap to Remove' : 'Remind Me When Booth Opens'}
+                {reminderLoading ? 'Saving...' : reminderSet ? 'Reminder Set — Tap to Remove' : 'Remind Me When Market Opens'}
               </button>
             </div>
           )}
@@ -420,16 +473,16 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                     }
                     setShowBuy(true)
                   }}
-                  disabled={product.inventory === 0 || isClosed}
+                  disabled={product.inventory === 0 || windowsExpired}
                 >
-                  {isClosed
-                    ? '🔒 Closed'
+                  {windowsExpired
+                    ? '⏰ No Windows Available'
                     : product.inventory === 0
                       ? 'Sold Out'
                       : `⚡ ${product.price_usd === 0 ? 'Buy Now — Free' : `Buy Now — ${formatUsd(product.price_usd)} / ${product.unit}`}`}
                 </button>
 
-                {!isClosed && product.inventory > 0 && (
+                {!windowsExpired && product.inventory > 0 && (
                   <div style={{ marginTop: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                       <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--gray-600)' }}>Qty:</span>
@@ -542,11 +595,23 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
             <h3 className={styles.sectionLabel}>Fulfillment Options</h3>
             <div className={styles.deliveryOptions}>
               {booth.offers_delivery && (
-                <div className={styles.deliveryOption}>
+                <div className={styles.deliveryOption} style={{
+                  background: withinDelivery === true ? '#f0fdf4' : withinDelivery === false ? '#fef2f2' : undefined,
+                  border: withinDelivery === true ? '1px solid #86efac' : withinDelivery === false ? '1px solid #fca5a5' : undefined,
+                  borderRadius: 8, padding: withinDelivery != null ? '8px 10px' : undefined,
+                }}>
                   <span>🚗</span>
                   <div>
                     <strong>Delivery</strong>
-                    {booth.delivery_radius_miles && <small>Within {booth.delivery_radius_miles} miles</small>}
+                    {distanceMiles != null ? (
+                      withinDelivery ? (
+                        <small style={{ color: '#15803d', fontWeight: 600 }}>✅ Within range ({distanceMiles} mi)</small>
+                      ) : (
+                        <small style={{ color: '#dc2626', fontWeight: 600 }}>❌ Outside range ({distanceMiles} mi — max {booth.delivery_radius_miles} mi)</small>
+                      )
+                    ) : (
+                      <small>Within {booth.delivery_radius_miles} miles</small>
+                    )}
                   </div>
                 </div>
               )}
@@ -555,11 +620,64 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                   <span>📍</span>
                   <div>
                     <strong>Pickup</strong>
-                    {booth.pickup_address && <small>{booth.pickup_address}</small>}
+                    {distanceMiles != null ? (
+                      <small style={{ fontWeight: 600 }}>{distanceMiles} mi from you</small>
+                    ) : (booth.pickup_display_address || booth.pickup_address) ? (
+                      <small>{booth.pickup_display_address || booth.pickup_address}</small>
+                    ) : null}
                   </div>
                 </div>
               )}
             </div>
+
+            {/* Distance check controls */}
+            {!isDemo && (booth.offers_delivery || booth.offers_pickup) && product.seller_id !== user?.id && (
+              <div style={{ marginTop: 8 }}>
+                {distanceMiles != null && (
+                  <p style={{ fontSize: 12, color: 'var(--gray-400)', margin: '0 0 4px' }}>
+                    📍 From: {addrLabel.length > 50 ? addrLabel.slice(0, 50) + '…' : addrLabel}
+                  </p>
+                )}
+                {!showAltAddrInput ? (
+                  <button
+                    onClick={() => setShowAltAddrInput(true)}
+                    style={{
+                      background: 'none', border: 'none', color: 'var(--green-600)',
+                      fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: 0,
+                    }}
+                  >
+                    {distanceMiles != null ? '🔄 Check another address' : '📍 Check your distance'}
+                  </button>
+                ) : (
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4 }}>
+                    <input
+                      style={{
+                        flex: 1, padding: '6px 10px', border: '1px solid var(--gray-200)',
+                        borderRadius: 6, fontSize: 13, fontFamily: 'inherit', outline: 'none',
+                      }}
+                      placeholder="Enter address to check..."
+                      value={altAddress}
+                      onChange={e => setAltAddress(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleCheckAltAddress()}
+                      autoFocus
+                    />
+                    <button
+                      onClick={handleCheckAltAddress}
+                      disabled={checkingAltAddr || !altAddress.trim()}
+                      style={{
+                        width: 28, height: 28, borderRadius: '50%', background: 'var(--green-600)',
+                        color: '#fff', border: 'none', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                        opacity: checkingAltAddr || !altAddress.trim() ? 0.4 : 1,
+                      }}
+                    >{checkingAltAddr ? '…' : '→'}</button>
+                    <button
+                      onClick={() => { setShowAltAddrInput(false); setAltAddress('') }}
+                      style={{ background: 'none', border: 'none', color: 'var(--gray-400)', cursor: 'pointer', fontSize: 14 }}
+                    >✕</button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -35,7 +35,15 @@ const PRICE_RANGES: Record<string, [number, number]> = {
   herbs: [0.5, 20],
   fruits: [0.5, 50],
   produce: [0.1, 200],
-  other: [0.1, 200],
+  flowers: [0.5, 100],
+  flower_arrangements: [1, 200],
+  garden_equipment: [0.5, 500],
+  pots: [0.5, 300],
+  soil: [0.5, 100],
+  seeds: [0.1, 50],
+  eggs: [0.5, 30],
+  honey: [1, 100],
+  other: [0.1, 500],
 };
 
 // Profanity keyword check — deterministic, no LLM needed
@@ -70,7 +78,8 @@ Deno.serve(async (req: Request) => {
     // ── 1. Price sanity (no API call needed) ──────────────────────────────────
     const range = PRICE_RANGES[category] || PRICE_RANGES["other"] || [0.1, 200];
     const [minP, maxP] = range;
-    const priceOk = price_usd == null || (price_usd >= minP && price_usd <= maxP);
+    // $0 is valid — CasaGrown allows free giveaways
+    const priceOk = price_usd == null || price_usd === 0 || (price_usd >= minP && price_usd <= maxP);
 
     // ── 2. Content hash — skip if identical to last check ───────────────────
     const contentHash = await sha256(`${name}|${description}|${photo_url}`);
@@ -137,12 +146,14 @@ Listing:
 Name: ${name}
 Category: ${category}
 Description: ${description || "(none)"}
-Price: $${price_usd ?? "not set"} per unit
+Price: $${price_usd ?? "not set"} per unit${price_usd === 0 ? " (FREE giveaway — this is allowed and encouraged)" : ""}
 Price sanity: ${priceOk ? "OK" : "SUSPICIOUS — outside normal range for " + category}
 
 APPROVE if the listing is:
-- Fresh fruits, vegetables, herbs, citrus, edible plants or seeds, honey, eggs, or other homegrown/backyard food products
-- Listed in an appropriate category (vegetables, citrus, herbs, fruits, other)
+- Fresh fruits, vegetables, herbs, citrus, edible plants, or other homegrown food products (produce, eggs, honey, preserves)
+- Flowers, flower arrangements, or ornamental plants
+- Garden supplies: pots, planters, soil, compost, mulch, seeds, seedlings, garden tools, or equipment
+- Any item that fits the CasaGrown marketplace categories: produce, flowers, flower_arrangements, garden_equipment, pots, soil, seeds, eggs, honey
 - Described in normal, polite language
 - Photo shows the actual product or a reasonable representation of it
 
@@ -150,18 +161,19 @@ FLAG (set approved=false) if the listing contains:
 - Drugs, cannabis, marijuana, controlled substances, or banned substances of any kind
 - Alcohol, wine, beer, spirits, or fermented beverages sold as a product
 - Tobacco, cigarettes, vaping products, or nicotine products
-- Weapons, knives (beyond kitchen tools), firearms, ammunition, or dangerous items
+- Weapons, knives (beyond kitchen/garden tools), firearms, ammunition, or dangerous items
 - Sexually explicit language, nudity, or adult content in text or photo
 - Hate speech, racial slurs, abusive language, or personal attacks
 - Threats of violence or intimidation language
 - Profanity, swear words, obscene or vulgar language of any kind (e.g. f-word, s-word, or similar offensive terms) — use code "profanity_offensive_language"
-- Products clearly not in the listed category (e.g. "tomatoes" with a photo of shoes)
-- Commercial packaged factory food (Costco boxes, branded products) — this is homegrown only
+- Products that are clearly commercial electronics, clothing, furniture, vehicles, or other items completely unrelated to gardening, growing, or homemade goods
 - Scam patterns (fake contact info, "DM for real price", guaranteed income claims)
 - Photo that clearly shows something entirely unrelated to the listing name
 
-IMPORTANT: Be LENIENT with legitimate produce. Small growers may have imperfect photos or simple descriptions.
-When in doubt, APPROVE. Only flag clear violations.`,
+IMPORTANT: Be LENIENT. Small growers may have imperfect photos or simple descriptions.
+Garden-related items like pots, tools, soil, and seeds are ALWAYS allowed — they are core marketplace categories.
+When in doubt, APPROVE. Only flag clear violations.
+NOTE: $0 (free) listings are VALID — CasaGrown encourages free sharing and giveaways. Do NOT flag a $0 price as "price_unrealistic".`,
       },
     ];
 

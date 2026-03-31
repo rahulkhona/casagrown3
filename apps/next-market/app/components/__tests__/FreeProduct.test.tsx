@@ -125,19 +125,19 @@ describe('BuyModal — Free Product ($0)', () => {
 // ============================================================================
 describe('Free Product — Price Display Logic', () => {
   it('formats paid product as currency string', () => {
-    const price = 4.50
+    const price: number = 4.50
     const display = price === 0 ? 'Free' : `$${price.toFixed(2)}`
     expect(display).toBe('$4.50')
   })
 
   it('formats $0 product as "Free"', () => {
-    const price = 0
+    const price: number = 0
     const display = price === 0 ? 'Free' : `$${price.toFixed(2)}`
     expect(display).toBe('Free')
   })
 
   it('formats $0.00 product as "Free" (floating point)', () => {
-    const price = 0.00
+    const price: number = 0.00
     const display = price === 0 ? 'Free' : `$${price.toFixed(2)}`
     expect(display).toBe('Free')
   })
@@ -158,7 +158,7 @@ describe('Free Product — CTA Button Text', () => {
   })
 
   it('Buy Now button shows price for paid products', () => {
-    const price_usd = 4.50
+    const price_usd: number = 4.50
     const unit = 'basket'
     const formatUsd = (v: number) => `$${v.toFixed(2)}`
     const buttonText = price_usd === 0
@@ -178,8 +178,8 @@ describe('Free Product — CTA Button Text', () => {
   })
 
   it('Add to Cart button shows total for paid products', () => {
-    const price_usd = 4.50
-    const cartQty = 3
+    const price_usd: number = 4.50
+    const cartQty: number = 3
     const formatUsd = (v: number) => `$${v.toFixed(2)}`
     const buttonText = price_usd === 0
       ? '🛒 Add to Cart — Free'
@@ -189,7 +189,7 @@ describe('Free Product — CTA Button Text', () => {
 
   it('Booth Buy button text is always "Buy" (same for free and paid)', () => {
     // After fix: booth page always shows "Buy" regardless of price
-    const inventory = 10
+    const inventory: number = 10
     const isClosed = false
     const boothButtonText = isClosed ? '🔒 Closed' : inventory === 0 ? 'Sold Out' : 'Buy'
     expect(boothButtonText).toBe('Buy')
@@ -238,7 +238,7 @@ describe('Free Product — Share Text', () => {
 describe('Free Product — OG Title', () => {
   it('generates OG title with "Free" for $0 products', () => {
     const productName = 'Backyard Lemons'
-    const priceUsd = 0
+    const priceUsd: number = 0
     const unit = 'bag'
     const title = priceUsd === 0
       ? `${productName} — Free`
@@ -248,7 +248,7 @@ describe('Free Product — OG Title', () => {
 
   it('generates OG title with price for paid products', () => {
     const productName = 'Heritage Tomatoes'
-    const priceUsd = 4.50
+    const priceUsd: number = 4.50
     const unit = 'basket'
     const title = priceUsd === 0
       ? `${productName} — Free`
@@ -270,7 +270,7 @@ describe('Free Product — Marketplace Feed Display', () => {
   })
 
   it('displays formatted price for paid products in feed', () => {
-    const price_usd = 3.00
+    const price_usd: number = 3.00
     const formatUsd = (v: number) => `$${v.toFixed(2)}`
     const priceDisplay = price_usd === 0 ? 'Free' : `${formatUsd(price_usd)}`
     expect(priceDisplay).toBe('$3.00')

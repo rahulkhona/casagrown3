@@ -42,7 +42,7 @@ export default function SettingsPage() {
       <div className="card" style={{ padding: 20, marginBottom: 12 }}>
         <strong style={{ fontSize: 15 }}>👤 Account</strong>
         <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <button className="btn btn-outline" style={{ width: '100%', justifyContent: 'flex-start' }} onClick={() => router.push('/profile')}>
+          <button className="btn btn-outline" style={{ width: '100%', justifyContent: 'flex-start' }} onClick={() => router.push('/profile-setup')}>
             ✏️ Edit Profile
           </button>
           {state.isAuthenticated && (

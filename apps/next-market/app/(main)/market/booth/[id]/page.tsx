@@ -6,6 +6,7 @@ import { createClient } from '../../../../../lib/supabase'
 import { formatUsd } from '../../../../../lib/store'
 import { useAuth } from '../../../../../lib/useAuth'
 import { useMarketStatus } from '../../../../../lib/useMarketStatus'
+import { hasValidWindows } from '../../../../../lib/windowUtils'
 import { useRouter, usePathname } from 'next/navigation'
 import BuyModal from '../../../../components/BuyModal'
 import { FlagModal } from '../../../../components/FlagModal'
@@ -145,9 +146,9 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
     }
   }, [booth?.id, products.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Determine closed state
-  const boothClosed = booth && booth.is_open === false
-  const isClosed = !marketIsOpen || boothClosed
+  // With window-based fulfillment, buying is always available as long as product has inventory
+  // and valid fulfillment windows. No market schedule gating.
+  const isClosed = false
 
   // Toggle product reminder
   const toggleProductReminder = async (productId: string, e: React.MouseEvent) => {
@@ -168,7 +169,7 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
       )
 
       setSavedProductIds(prev => new Set(prev).add(productId))
-      showSuccess('🔔 Saved! We\'ll notify you when this booth opens')
+      showSuccess('🔔 Saved! We\'ll notify you when market opens')
     }
   }
 
@@ -295,8 +296,8 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
               <div className={styles.fulfillmentCard}>
                 <div style={{ fontSize: 28 }}>📍</div>
                 <strong>Pickup</strong>
-                {booth.pickup_address && (
-                  <span className={styles.fulfillmentDetail}>{booth.pickup_address}</span>
+                {(booth.pickup_display_address || booth.pickup_address) && (
+                  <span className={styles.fulfillmentDetail}>{booth.pickup_display_address || booth.pickup_address}</span>
                 )}
                 {booth.pickup_windows && (booth.pickup_windows as any[]).length > 0 && (
                   <div className={styles.windowList}>
@@ -311,7 +312,7 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       )}
 
-      {/* Market/Booth Closed Banner */}
+      {/* Market Closed Banner */}
       {isClosed && (
         <div style={{
           background: 'linear-gradient(135deg, #fefce8 0%, #fef9c3 100%)',
@@ -323,10 +324,10 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 20 }}>🕐</span>
             <strong style={{ color: '#92400e', fontSize: 15 }}>
-              This booth is currently closed
+              Market is currently closed
             </strong>
           </div>
-          {!marketIsOpen && nextOpenStr && (
+          {nextOpenStr && (
             <p style={{ margin: '8px 0 0', fontSize: 13, color: '#a16207' }}>
               Next market open: <strong>{nextOpenStr}</strong> — tap 🔔 on any product to get notified!
             </p>
@@ -360,7 +361,7 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
                   {isClosed && (
                     <button
                       onClick={(e) => toggleProductReminder(p.id, e)}
-                      title={savedProductIds.has(p.id) ? 'Remove reminder' : 'Remind me when booth opens'}
+                      title={savedProductIds.has(p.id) ? 'Remove reminder' : 'Remind me when market opens'}
                       style={{
                         position: 'absolute', top: 6, right: 6,
                         background: savedProductIds.has(p.id) ? 'var(--green-100, #dcfce7)' : 'rgba(255,255,255,0.9)',
@@ -403,7 +404,7 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
                       style={{ width: '100%', fontSize: 13, padding: '6px 12px', marginTop: 8 }}
                       onClick={(e) => {
                         e.preventDefault(); e.stopPropagation()
-                        if (isClosed) return
+                        if (!hasValidWindows(p.window_dates, p.product_delivery_windows, p.product_pickup_windows)) return
                         if (!isAuthenticated) {
                           const productUrl = `/market/booth/${id}/product/${p.id}`
                           router.push(`/login?redirect=${encodeURIComponent(productUrl)}`)
@@ -415,10 +416,10 @@ export default function BoothDetailPage({ params }: { params: Promise<{ id: stri
                         }
                         setBuyProduct(p)
                       }}
-                      disabled={p.inventory === 0 || isClosed}
+                      disabled={p.inventory === 0 || !hasValidWindows(p.window_dates, p.product_delivery_windows, p.product_pickup_windows)}
                     >
-                      {isClosed
-                        ? '🔒 Closed'
+                      {!hasValidWindows(p.window_dates, p.product_delivery_windows, p.product_pickup_windows)
+                        ? '⏰ No Windows'
                         : p.inventory === 0 ? 'Sold Out' : 'Buy'}
                     </button>
                 </div>

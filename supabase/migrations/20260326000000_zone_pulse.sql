@@ -36,7 +36,7 @@ $$;
 --    Derives the H3 zone from the seller's profile, then converts to
 --    resolution 5 so it matches the client-side h3-js zone IDs.
 CREATE OR REPLACE FUNCTION update_zone_pulse()
-RETURNS TRIGGER LANGUAGE plpgsql AS $$
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE v_zone TEXT;
 BEGIN
   IF TG_TABLE_NAME = 'market_products' THEN

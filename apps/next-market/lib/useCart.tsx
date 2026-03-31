@@ -17,6 +17,7 @@ import {
   useCallback,
   type ReactNode,
 } from 'react'
+import { hasValidWindows } from './windowUtils'
 
 /* ── Types ──────────────────────────────────────────────────────── */
 
@@ -43,12 +44,18 @@ export interface CartItem {
   product: CartProduct
   booth: CartBooth
   qty: number
+  /** Buyer's selected fulfillment mode for this item */
+  fulfillmentMode: 'delivery' | 'pickup'
   /** Set by cart page when checking fresh data */
-  unavailable?: 'sold_out' | 'insufficient' | 'inactive'
+  unavailable?: 'sold_out' | 'insufficient' | 'inactive' | 'expired'
   /** Latest known inventory (refreshed on cart page) */
   latestInventory?: number
   /** Price may have changed since adding */
   latestPrice?: number
+  /** Window data for validation */
+  windowDates?: any[]
+  productDeliveryWindows?: any[]
+  productPickupWindows?: any[]
 }
 
 export interface BoothGroup {
@@ -67,12 +74,13 @@ interface CartState {
 }
 
 type CartAction =
-  | { type: 'ADD_ITEM'; product: CartProduct; booth: CartBooth; qty: number }
+  | { type: 'ADD_ITEM'; product: CartProduct; booth: CartBooth; qty: number; fulfillmentMode?: 'delivery' | 'pickup' }
   | { type: 'REMOVE_ITEM'; productId: string }
   | { type: 'UPDATE_QTY'; productId: string; qty: number }
+  | { type: 'UPDATE_FULFILLMENT'; productId: string; mode: 'delivery' | 'pickup' }
   | { type: 'CLEAR_CART' }
   | { type: 'CLEAR_BOOTH'; boothId: string }
-  | { type: 'REFRESH_ITEMS'; updates: Array<{ id: string; inventory: number; price_usd: number; is_active: boolean }> }
+  | { type: 'REFRESH_ITEMS'; updates: Array<{ id: string; inventory: number; price_usd: number; is_active: boolean; expires_at?: string | null; window_dates?: any[]; product_delivery_windows?: any[]; product_pickup_windows?: any[] }> }
   | { type: 'LOAD'; state: CartState }
 
 const STORAGE_KEY = 'casagrown_cart'
@@ -80,6 +88,7 @@ const STORAGE_KEY = 'casagrown_cart'
 function cartReducer(state: CartState, action: CartAction): CartState {
   switch (action.type) {
     case 'ADD_ITEM': {
+      const defaultMode = action.fulfillmentMode || (action.booth.offers_pickup ? 'pickup' : 'delivery')
       const existing = state.items.findIndex(i => i.product.id === action.product.id)
       let items: CartItem[]
       if (existing >= 0) {
@@ -94,6 +103,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
           product: action.product,
           booth: action.booth,
           qty: action.qty,
+          fulfillmentMode: defaultMode,
         }]
       }
       return { items, lastUpdated: Date.now() }
@@ -115,6 +125,16 @@ function cartReducer(state: CartState, action: CartAction): CartState {
         lastUpdated: Date.now(),
       }
 
+    case 'UPDATE_FULFILLMENT':
+      return {
+        items: state.items.map(i =>
+          i.product.id === action.productId
+            ? { ...i, fulfillmentMode: action.mode, unavailable: undefined }
+            : i
+        ),
+        lastUpdated: Date.now(),
+      }
+
     case 'CLEAR_CART':
       return { items: [], lastUpdated: Date.now() }
 
@@ -131,7 +151,20 @@ function cartReducer(state: CartState, action: CartAction): CartState {
         if (!update) return item
 
         let unavailable: CartItem['unavailable']
-        if (!update.is_active) unavailable = 'inactive'
+        if (!update.is_active) {
+          // Check if it's specifically a window expiry (for the item's fulfillment mode)
+          if (!hasValidWindows(update.window_dates, update.product_delivery_windows, update.product_pickup_windows, item.fulfillmentMode)) {
+            unavailable = 'expired'
+          } else if (update.expires_at && new Date(update.expires_at) < new Date()) {
+            unavailable = 'expired'
+          } else {
+            unavailable = 'inactive'
+          }
+        }
+        else if (!hasValidWindows(update.window_dates, update.product_delivery_windows, update.product_pickup_windows, item.fulfillmentMode)) {
+          // Product is active but windows for this fulfillment mode have passed
+          unavailable = 'expired'
+        }
         else if (update.inventory === 0) unavailable = 'sold_out'
         else if (update.inventory < item.qty) unavailable = 'insufficient'
 
@@ -140,6 +173,10 @@ function cartReducer(state: CartState, action: CartAction): CartState {
           latestInventory: update.inventory,
           latestPrice: update.price_usd,
           unavailable,
+          // Store window data for display
+          windowDates: update.window_dates,
+          productDeliveryWindows: update.product_delivery_windows,
+          productPickupWindows: update.product_pickup_windows,
         }
       })
       return { ...state, items }
@@ -161,12 +198,13 @@ interface CartContextValue {
   items: CartItem[]
   itemCount: number
   boothGroups: BoothGroup[]
-  addItem: (product: CartProduct, booth: CartBooth, qty: number) => void
+  addItem: (product: CartProduct, booth: CartBooth, qty: number, fulfillmentMode?: 'delivery' | 'pickup') => void
   removeItem: (productId: string) => void
   updateQty: (productId: string, qty: number) => void
+  updateFulfillment: (productId: string, mode: 'delivery' | 'pickup') => void
   clearCart: () => void
   clearBooth: (boothId: string) => void
-  refreshItems: (updates: Array<{ id: string; inventory: number; price_usd: number; is_active: boolean }>) => void
+  refreshItems: (updates: Array<{ id: string; inventory: number; price_usd: number; is_active: boolean; expires_at?: string | null; window_dates?: any[]; product_delivery_windows?: any[]; product_pickup_windows?: any[] }>) => void
   getItemQty: (productId: string) => number
 }
 
@@ -220,8 +258,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const itemCount = state.items.reduce((sum, i) => sum + i.qty, 0)
 
-  const addItem = useCallback((product: CartProduct, booth: CartBooth, qty: number) => {
-    dispatch({ type: 'ADD_ITEM', product, booth, qty })
+  const addItem = useCallback((product: CartProduct, booth: CartBooth, qty: number, fulfillmentMode?: 'delivery' | 'pickup') => {
+    dispatch({ type: 'ADD_ITEM', product, booth, qty, fulfillmentMode })
   }, [])
 
   const removeItem = useCallback((productId: string) => {
@@ -230,6 +268,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const updateQty = useCallback((productId: string, qty: number) => {
     dispatch({ type: 'UPDATE_QTY', productId, qty })
+  }, [])
+
+  const updateFulfillment = useCallback((productId: string, mode: 'delivery' | 'pickup') => {
+    dispatch({ type: 'UPDATE_FULFILLMENT', productId, mode })
   }, [])
 
   const clearCart = useCallback(() => {
@@ -241,7 +283,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'CLEAR_BOOTH', boothId })
   }, [])
 
-  const refreshItems = useCallback((updates: Array<{ id: string; inventory: number; price_usd: number; is_active: boolean }>) => {
+  const refreshItems = useCallback((updates: Array<{ id: string; inventory: number; price_usd: number; is_active: boolean; expires_at?: string | null; window_dates?: any[]; product_delivery_windows?: any[]; product_pickup_windows?: any[] }>) => {
     dispatch({ type: 'REFRESH_ITEMS', updates })
   }, [])
 
@@ -257,6 +299,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       addItem,
       removeItem,
       updateQty,
+      updateFulfillment,
       clearCart,
       clearBooth,
       refreshItems,

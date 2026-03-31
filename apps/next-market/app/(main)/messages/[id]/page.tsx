@@ -53,6 +53,7 @@ export default function MessageThreadPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
   const [showAttachMenu, setShowAttachMenu] = useState(false)
   const [showCamera, setShowCamera] = useState(false)
   const [cropSrc, setCropSrc] = useState<string | null>(null)
@@ -389,9 +390,9 @@ export default function MessageThreadPage() {
 
       {/* Sticky Header */}
       <header style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', background: 'white', borderBottom: '1px solid #e5e7eb', flexShrink: 0, position: 'relative' }}>
-        <Link href="/messages" style={{ marginRight: 16, textDecoration: 'none', color: '#16a34a', fontSize: '1.25rem', padding: '4px 8px' }}>
+        <button onClick={() => router.back()} style={{ marginRight: 16, textDecoration: 'none', color: '#16a34a', fontSize: '1.25rem', padding: '4px 8px', background: 'none', border: 'none', cursor: 'pointer' }}>
           ←
-        </Link>
+        </button>
         <div style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: '#e5e7eb', overflow: 'hidden', marginRight: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {otherUser?.avatar_url ? (
             <img src={otherUser.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />

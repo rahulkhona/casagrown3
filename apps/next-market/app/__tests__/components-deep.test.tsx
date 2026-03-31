@@ -224,12 +224,14 @@ describe('MarketReceiptSheet', () => {
       const { MarketReceiptSheet } = await import('../components/MarketReceiptSheet')
       const { container } = render(
         React.createElement(MarketReceiptSheet, {
-          order: {
-            id: 'order-1', product_name: 'Tomatoes', quantity: 3,
-            unit_price_usd: 5.99, subtotal_usd: 17.97,
-            tax_rate_pct: 8.5, tax_amount_usd: 1.53,
-            total_usd: 19.50, status: 'completed',
-            created_at: '2026-03-15', fulfillment_type: 'delivery',
+          visible: true,
+          data: {
+            orderId: 'order-1', date: '2026-03-15', status: 'completed',
+            sellerName: 'Farm Fresh', boothName: 'Farm Fresh Booth',
+            buyerName: 'Test Buyer',
+            productName: 'Tomatoes', quantity: 3, unitPrice: 5.99,
+            subtotal: 17.97, taxRate: 8.5, taxAmount: 1.53,
+            total: 19.50, fulfillment: 'delivery', viewAs: 'buyer' as const,
           },
           onClose: vi.fn(),
         })
@@ -304,7 +306,8 @@ describe('NotificationPromptModal', () => {
       const { NotificationPromptModal } = await import('../components/NotificationPromptModal')
       const { container } = render(
         React.createElement(NotificationPromptModal, {
-          isOpen: true, onClose: vi.fn(), onEnable: vi.fn(), onDismiss: vi.fn(),
+          visible: true, variant: 'first-time' as const,
+          onEnable: vi.fn(), onDismiss: vi.fn(), onPermanentDismiss: vi.fn(),
         })
       )
       expect(container).toBeTruthy()
@@ -320,7 +323,7 @@ describe('NotificationPromptModal', () => {
 describe('ProductQA', () => {
   it('renders Q&A section', async () => {
     try {
-      const ProductQA = (await import('../components/ProductQA')).default
+      const { ProductQA } = await import('../components/ProductQA')
       const { container } = render(
         React.createElement(ProductQA, {
           productId: 'prod-1', sellerId: 'seller-1',

@@ -7,17 +7,19 @@ import { formatUsd } from '../../lib/store'
 import { trackClick, trackError } from '../../lib/analytics'
 import { useNotificationPrompt } from '../../lib/useNotificationPrompt'
 import { useMarketStatus, isProductExpired } from '../../lib/useMarketStatus'
+import { hasValidWindows } from '../../lib/windowUtils'
 import { NotificationPromptModal } from './NotificationPromptModal'
 import styles from './BuyModal.module.css'
 
 interface BuyModalProps {
   product: {
     id: string; name: string; price_usd: number; unit: string;
-    inventory: number; category: string; photos?: string[]; market_date?: string
+    inventory: number; category: string; photos?: string[]; market_date?: string; expires_at?: string;
+    window_dates?: any[]; product_delivery_windows?: any[]; product_pickup_windows?: any[]
   }
   booth: {
     id: string; name: string; offers_delivery: boolean; offers_pickup: boolean;
-    pickup_address?: string; delivery_radius_miles?: number
+    pickup_address?: string; pickup_display_address?: string; delivery_radius_miles?: number
   }
   buyerZip?: string
   buyerAddress?: string
@@ -51,7 +53,15 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
   // Market hours + product expiry
   const { isOpen: marketIsOpen, todaySchedule, productsNeverExpire, loading: marketLoading } = useMarketStatus()
   const productExpired = product.market_date ? isProductExpired(product.market_date, productsNeverExpire) : false
-  const canOrder = marketIsOpen && !productExpired
+
+  // Window data state (fetched fresh or from props)
+  const [windowDates, setWindowDates] = useState<any[]>(product.window_dates || [])
+  const [deliveryWindows, setDeliveryWindows] = useState<any[]>(product.product_delivery_windows || [])
+  const [pickupWindows, setPickupWindows] = useState<any[]>(product.product_pickup_windows || [])
+
+  // Mode-specific window check: does the selected fulfillment mode have valid windows?
+  const windowsValid = hasValidWindows(windowDates, deliveryWindows, pickupWindows, fulfillment)
+  const canOrder = !productExpired && windowsValid
 
   const subtotal = currentPrice * qty
   const computedTax = +(subtotal * (taxInfo?.rate || 0) / 100).toFixed(2)
@@ -72,13 +82,17 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
     const fetchFresh = async () => {
       const { data } = await supabase
         .from('market_products')
-        .select('price_usd, inventory')
+        .select('price_usd, inventory, window_dates, product_delivery_windows, product_pickup_windows')
         .eq('id', product.id)
         .single()
       if (data) {
         setCurrentPrice(Number(data.price_usd))
         setAvailable(data.inventory)
         if (qty > data.inventory) setQty(Math.max(1, data.inventory))
+        // Refresh window data
+        if (data.window_dates) setWindowDates(data.window_dates)
+        if (data.product_delivery_windows) setDeliveryWindows(data.product_delivery_windows)
+        if (data.product_pickup_windows) setPickupWindows(data.product_pickup_windows)
       }
     }
     fetchFresh()
@@ -196,6 +210,10 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
     if (!user) { setError('Please sign in to make a purchase'); return }
     if (qty > available) { setError(`Only ${available} available`); return }
     if (fulfillment === 'delivery' && !deliveryAddress.trim()) { setError('Please enter a delivery address'); return }
+    if (!hasValidWindows(windowDates, deliveryWindows, pickupWindows, fulfillment)) {
+      setError(`No ${fulfillment} windows available. ${fulfillment === 'delivery' ? 'Try switching to Pickup.' : 'Try switching to Delivery.'}`)
+      return
+    }
     if (needsCard && (!stripeReady || !cardElementRef.current)) { setError('Card form is loading, please wait'); return }
 
     setLoading(true)
@@ -299,20 +317,21 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
         <div className={styles.body}>
           {error && <div className={styles.error}>{error}</div>}
 
-          {/* Market closed banner */}
-          {!marketLoading && !marketIsOpen && (
-            <div className={styles.error} style={{ background: '#fef3c7', color: '#92400e', borderColor: '#fcd34d' }}>
-              🕐 <strong>Market is currently closed.</strong>
-              {todaySchedule
-                ? ` Hours today: ${todaySchedule.open_time} – ${todaySchedule.close_time}.`
-                : ' The market is not open today. Check back on a market day!'}
-            </div>
-          )}
+
 
           {/* Expired product banner */}
           {productExpired && (
             <div className={styles.error} style={{ background: '#fef2f2', color: '#991b1b', borderColor: '#fca5a5' }}>
               ⏰ <strong>This product was listed for a previous market day</strong> ({product.market_date}) and is no longer available.
+            </div>
+          )}
+
+          {/* No valid windows for selected mode */}
+          {!productExpired && !windowsValid && (
+            <div className={styles.error} style={{ background: '#fef3c7', color: '#92400e', borderColor: '#fcd34d' }}>
+              ⏰ <strong>No {fulfillment} windows available.</strong> {fulfillment === 'delivery'
+                ? 'Try switching to Pickup if available.'
+                : 'Try switching to Delivery if available.'}
             </div>
           )}
 
@@ -350,11 +369,11 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
               )}
             </div>
 
-            {/* Pickup address */}
-            {fulfillment === 'pickup' && booth.pickup_address && (
+            {/* Pickup address (approximate — full address shown after purchase) */}
+            {fulfillment === 'pickup' && (booth.pickup_display_address || booth.pickup_address) && (
               <div className={styles.addressInfo}>
                 <span className={styles.addressIcon}>📍</span>
-                <span>Pickup at: <strong>{booth.pickup_address}</strong></span>
+                <span>Pickup near: <strong>{booth.pickup_display_address || booth.pickup_address}</strong></span>
               </div>
             )}
 
@@ -451,7 +470,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
         {/* Footer */}
         <div className={styles.footer}>
           <button className={styles.orderBtn} disabled={loading || available === 0 || !canOrder || (!isFreeProduct && needsCard && !stripeReady)} onClick={handleOrder}>
-            {loading ? 'Processing...' : !marketIsOpen ? '🔒 Market Closed' : productExpired ? '⏰ Product Expired' : available === 0 ? 'Sold Out' : isFreeProduct ? `🌱 Claim (Free) — ${qty} ${product.unit}${qty > 1 ? 's' : ''}` : `Place Order — ${formatUsd(total)}`}
+            {loading ? 'Processing...' : productExpired ? '⏰ Product Expired' : !windowsValid ? `⏰ No ${fulfillment} windows` : available === 0 ? 'Sold Out' : isFreeProduct ? `🌱 Claim (Free) — ${qty} ${product.unit}${qty > 1 ? 's' : ''}` : `Place Order — ${formatUsd(total)}`}
           </button>
           {!isFreeProduct && (
           <p className={styles.holdNotice}>

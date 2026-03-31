@@ -27,6 +27,8 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const [geolocating, setGeolocating] = useState(false)
+  const [cachedLat, setCachedLat] = useState<number | null>(null)
+  const [cachedLng, setCachedLng] = useState<number | null>(null)
 
   // Camera & Cropper
   const [showCamera, setShowCamera] = useState(false)
@@ -74,16 +76,48 @@ export default function ProfilePage() {
     setError('')
 
     try {
+      // Geocode address to compute H3 community index
+      let h3Index: string | null = null
+      let geoLat: number | null = cachedLat
+      let geoLng: number | null = cachedLng
+      
+      if (form.street && form.city && form.state) {
+        try {
+          if (!geoLat || !geoLng) {
+            const { geocodeAddress } = await import('../../../lib/geocode')
+            const geo = await geocodeAddress(`${form.street}, ${form.city}, ${form.state} ${form.zip?.split('-')[0] || ''}`)
+            if (geo) {
+              geoLat = geo.lat
+              geoLng = geo.lng
+            }
+          }
+          if (geoLat && geoLng) {
+            const { latLngToCell } = await import('h3-js')
+            h3Index = latLngToCell(geoLat, geoLng, 7)
+          }
+        } catch (err) {
+          console.warn('H3 computation failed:', err)
+        }
+      }
+
+      const profileUpdate: Record<string, any> = {
+        full_name: form.name,
+        street_address: form.street,
+        city: form.city,
+        state_code: form.state,
+        zip_plus4: form.zip,
+        avatar_url: avatarUrl || null,
+      }
+      if (h3Index) {
+        profileUpdate.home_community_h3_index = h3Index
+      }
+      if (geoLat !== null && geoLng !== null) {
+        profileUpdate.home_location = `SRID=4326;POINT(${geoLng} ${geoLat})`
+      }
+
       const { error: updateErr } = await supabase
         .from('profiles')
-        .update({
-          full_name: form.name,
-          street_address: form.street,
-          city: form.city,
-          state_code: form.state,
-          zip_plus4: form.zip,
-          avatar_url: avatarUrl || null,
-        })
+        .update(profileUpdate)
         .eq('id', user.id)
 
       if (updateErr) {
@@ -121,6 +155,8 @@ export default function ProfilePage() {
             state: addr.state ? (addr['ISO3166-2-lvl4']?.split('-')[1] || addr.state.slice(0, 2)).toUpperCase() : '',
             zip: addr.postcode?.split('-')[0] || '',
           }))
+          setCachedLat(pos.coords.latitude)
+          setCachedLng(pos.coords.longitude)
         } catch {
           setError('Could not look up address from location')
         }

@@ -31,6 +31,8 @@ function ProfileSetupPageInner() {
   const [showCamera, setShowCamera] = useState(false)
   const [cropSrc, setCropSrc] = useState<string | null>(null)
   const [geolocating, setGeolocating] = useState(false)
+  const [cachedLat, setCachedLat] = useState<number | null>(null)
+  const [cachedLng, setCachedLng] = useState<number | null>(null)
 
   // Pre-fill from existing profile
   useEffect(() => {
@@ -89,6 +91,8 @@ function ProfileSetupPageInner() {
           setCity(addr.city || addr.town || addr.village || addr.hamlet || '')
           setStateCode(addr.state ? (addr['ISO3166-2-lvl4']?.split('-')[1] || addr.state.slice(0, 2)).toUpperCase() : '')
           setZip(addr.postcode?.split('-')[0] || '')
+          setCachedLat(pos.coords.latitude)
+          setCachedLng(pos.coords.longitude)
         } catch {
           setError('Could not look up address from location')
         }
@@ -147,20 +151,30 @@ function ProfileSetupPageInner() {
 
       // ── 2. Compute h3 index from geocoded coordinates ──
       let h3Index: string | null = null
-      let geoLat: number | null = null
-      let geoLng: number | null = null
+      let geoLat: number | null = cachedLat
+      let geoLng: number | null = cachedLng
       try {
-        const geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(`${validatedStreet}, ${validatedCity}, ${validatedState} ${validatedZipPlus4.split('-')[0]}`)}&limit=1`
-        const geoRes = await fetch(geocodeUrl)
-        const geoData = await geoRes.json()
-        if (geoData?.[0]?.lat && geoData?.[0]?.lon) {
-          geoLat = parseFloat(geoData[0].lat)
-          geoLng = parseFloat(geoData[0].lon)
+        // Use cached GPS coords if available, otherwise geocode the address
+        if (!geoLat || !geoLng) {
+          const { geocodeAddress } = await import('../../../lib/geocode')
+          const geo = await geocodeAddress(`${validatedStreet}, ${validatedCity}, ${validatedState} ${validatedZipPlus4.split('-')[0]}`)
+          if (geo) {
+            geoLat = geo.lat
+            geoLng = geo.lng
+          }
+        }
+        if (geoLat && geoLng) {
           const { latLngToCell } = await import('h3-js')
           h3Index = latLngToCell(geoLat, geoLng, 7)
         }
       } catch (err) {
         console.warn('H3 computation failed:', err)
+      }
+
+      if (!h3Index) {
+        setError('Could not determine your neighborhood. Please check your address and try again.')
+        setSaving(false)
+        return
       }
 
       // ── 3. Save profile with all jurisdiction data ──
