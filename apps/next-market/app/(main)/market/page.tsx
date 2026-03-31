@@ -799,8 +799,9 @@ function BrowseMarketPageInner() {
                       {products.slice(0, isSearching ? 6 : 4).map((p: any) => (
                         <div key={p.id} style={{ position: 'relative' }}>
                           <Link
-                            href={`/market/booth/${booth.booth_id}/product/${p.id}`}
+                            href={booth.is_demo ? '#' : `/market/booth/${booth.booth_id}/product/${p.id}`}
                             className={styles.productCard}
+                            onClick={e => { if (booth.is_demo) { e.preventDefault(); setShowDemoModal(true) } }}
                           >
                             <div className={styles.productThumb}>
                               {p.photo ? <img src={p.photo} alt={p.name} /> : <span>{categoryIcons[p.category] || '📦'}</span>}
@@ -834,7 +835,11 @@ function BrowseMarketPageInner() {
                         </div>
                       ))}
                       {products.length > (isSearching ? 6 : 4) && (
-                        <Link href={`/market/booth/${booth.booth_id}`} className={styles.moreCard}>+{products.length - (isSearching ? 6 : 4)}</Link>
+                        <Link
+                          href={booth.is_demo ? '#' : `/market/booth/${booth.booth_id}`}
+                          className={styles.moreCard}
+                          onClick={e => { if (booth.is_demo) { e.preventDefault(); setShowDemoModal(true) } }}
+                        >+{products.length - (isSearching ? 6 : 4)}</Link>
                       )}
                     </div>
                   )}
