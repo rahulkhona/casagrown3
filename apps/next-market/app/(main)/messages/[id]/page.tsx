@@ -618,6 +618,63 @@ export default function MessageThreadPage() {
 
       {/* Compose Footer */}
       <footer style={{ background: 'white', padding: '12px 16px', borderTop: (mediaPreviews.length > 0 || replyingToMessage) ? 'none' : '1px solid #e5e7eb', zIndex: 10, position: 'relative' }}>
+        {/* Action Chips Row — above compose, Buzz-consistent */}
+        {!isBlocked && (
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8, overflowX: 'auto', scrollbarWidth: 'none' }}>
+            <button type="button" onClick={loadMyProducts} disabled={uploadingMedia || sending}
+              style={{
+                flexShrink: 0, background: 'linear-gradient(135deg, #fffbeb, #fef3c7)',
+                border: '1px solid #f59e0b', padding: '6px 12px', borderRadius: 9999,
+                fontSize: '0.8rem', color: '#92400e', cursor: 'pointer', whiteSpace: 'nowrap',
+                transition: 'all 0.15s', fontWeight: 600, boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                opacity: uploadingMedia || sending ? 0.5 : 1,
+              }}>
+              &#x1f3f7;&#xfe0f; Sell
+            </button>
+            <button type="button" disabled={uploadingMedia || sending}
+              onClick={async () => {
+                if (!user || isBlocked) return
+                const supabase = createClient()
+                const { data: booth } = await supabase.from('booths').select('name, helper_passcode').eq('owner_id', user.id).maybeSingle()
+                const boothLabel = booth?.name?.trim() ? `my booth "${booth.name}"` : 'my CasaGrown booth'
+                const passcode = booth?.helper_passcode || ''
+                const joinUrl = passcode ? `${window.location.origin}/join-booth/${encodeURIComponent(passcode)}` : ''
+                const helpMsg = [
+                  `Hey! \ud83d\udc4b`,
+                  '',
+                  `I need some help managing my excess produce on CasaGrown and was wondering if you'd be able to help me out?`,
+                  '',
+                  `It's pretty straightforward \u2014 just keep an eye on orders, hand things off to buyers when they come by, and maybe reply to a message or two.`,
+                  ...(joinUrl ? [
+                    '',
+                    `If you can, here's the link to get access to ${boothLabel}:`,
+                    joinUrl,
+                    '',
+                    `Passcode: ${passcode}`,
+                  ] : []),
+                  '',
+                  `Let me know! \ud83c\udf31`,
+                ].join('\n')
+                await supabase.from('market_chat_messages').insert({
+                  conversation_id: id,
+                  sender_id: user.id,
+                  content: helpMsg,
+                })
+                const { data: fetchNew } = await supabase.from('market_chat_messages').select('*, offer_product:market_products(id, name, price_usd, photos, unit, seller_id), market_chat_reactions(user_id, emoji)').eq('conversation_id', id).order('created_at', { ascending: true })
+                if (fetchNew) setMessages(fetchNew)
+                setTimeout(scrollToBottom, 50)
+              }}
+              style={{
+                flexShrink: 0, background: 'linear-gradient(135deg, var(--green-50), var(--amber-50))',
+                border: '1px solid var(--green-300)', padding: '6px 12px', borderRadius: 9999,
+                fontSize: '0.8rem', color: 'var(--green-700)', cursor: 'pointer', whiteSpace: 'nowrap',
+                transition: 'all 0.15s', fontWeight: 600, boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                opacity: uploadingMedia || sending ? 0.5 : 1,
+              }}>
+              &#x1f91d; Request Help
+            </button>
+          </div>
+        )}
         {isBlocked ? (
           <div style={{ textAlign: 'center', padding: '12px', background: '#f3f4f6', borderRadius: 20, color: '#6b7280', fontSize: '0.875rem' }}>
             This conversation is blocked and cannot receive new messages.
@@ -667,61 +724,6 @@ export default function MessageThreadPage() {
                   </div>
                 </>
               )}
-            </div>
-            
-            {/* Action Chips */}
-            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-              <button type="button" onClick={loadMyProducts} disabled={uploadingMedia || sending}
-                style={{
-                  background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)', color: '#166534',
-                  border: '1px solid #bbf7d0', borderRadius: 16, padding: '6px 12px',
-                  fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
-                  opacity: uploadingMedia || sending ? 0.5 : 1, transition: 'all 0.15s',
-                }}>
-                🏷️ Sell
-              </button>
-              <button type="button" disabled={uploadingMedia || sending}
-                onClick={async () => {
-                  if (!user || isBlocked) return
-                  const supabase = createClient()
-                  // Get user's booth info for passcode
-                  const { data: booth } = await supabase.from('booths').select('name, helper_passcode').eq('owner_id', user.id).maybeSingle()
-                  const boothLabel = booth?.name?.trim() ? `my booth "${booth.name}"` : 'my CasaGrown booth'
-                  const passcode = booth?.helper_passcode || ''
-                  const joinUrl = passcode ? `${window.location.origin}/join-booth/${encodeURIComponent(passcode)}` : ''
-                  const helpMsg = [
-                    `Hey! 👋`,
-                    '',
-                    `I need some help managing my excess produce on CasaGrown and was wondering if you'd be able to help me out?`,
-                    '',
-                    `It's pretty straightforward — just keep an eye on orders, hand things off to buyers when they come by, and maybe reply to a message or two.`,
-                    ...(joinUrl ? [
-                      '',
-                      `If you can, here's the link to get access to ${boothLabel}:`,
-                      joinUrl,
-                      '',
-                      `Passcode: ${passcode}`,
-                    ] : []),
-                    '',
-                    `Let me know! 🌱`,
-                  ].join('\n')
-                  await supabase.from('market_chat_messages').insert({
-                    conversation_id: id,
-                    sender_id: user.id,
-                    content: helpMsg,
-                  })
-                  const { data: fetchNew } = await supabase.from('market_chat_messages').select('*, offer_product:market_products(id, name, price_usd, photos, unit, seller_id), market_chat_reactions(user_id, emoji)').eq('conversation_id', id).order('created_at', { ascending: true })
-                  if (fetchNew) setMessages(fetchNew)
-                  setTimeout(scrollToBottom, 50)
-                }}
-                style={{
-                  background: 'linear-gradient(135deg, #fffbeb, #fef3c7)', color: '#92400e',
-                  border: '1px solid #fde68a', borderRadius: 16, padding: '6px 12px',
-                  fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
-                  opacity: uploadingMedia || sending ? 0.5 : 1, transition: 'all 0.15s',
-                }}>
-                🤝 Request Help
-              </button>
             </div>
             
             <input
