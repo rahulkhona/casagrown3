@@ -156,58 +156,59 @@ export default function SuggestionChips({ onSelect, onPrefill, userMessageCount,
   // but always show the CasaBot chip + action chips
   return (
     <div className={styles.suggestionsWrapper}>
-      {/* Always-visible CasaBot chip */}
-      <button
-        className={`${styles.suggestionChip} ${styles.casabotChip}`}
-        onClick={() => onPrefill('@CasaBot ')}
-        title="Ask CasaBot for gardening advice"
-      >
-        🐝 Ask CasaBot
-      </button>
+      {/* Row 1: Conversation starters */}
+      <div className={styles.starterChipsRow}>
+        {suggestions.map((text, i) => (
+          <button 
+            key={i} 
+            className={styles.suggestionChip}
+            onClick={() => onSelect(text)}
+          >
+            {text}
+          </button>
+        ))}
+      </div>
 
-      {/* Sell chip */}
-      {onSellClick && (
+      {/* Row 2: Action chips (closer to compose box) */}
+      <div className={styles.actionChipsRow}>
         <button
-          className={`${styles.suggestionChip} ${styles.sellChip}`}
-          onClick={onSellClick}
-          title="List a product for sale"
+          className={`${styles.suggestionChip} ${styles.casabotChip}`}
+          onClick={() => onPrefill('@CasaBot ')}
+          title="Ask CasaBot for gardening advice"
         >
-          🏷️ Sell
+          🐝 Ask CasaBot
         </button>
-      )}
 
-      {/* Find chip */}
-      {onFindClick && (
-        <button
-          className={`${styles.suggestionChip} ${styles.findChip}`}
-          onClick={onFindClick}
-          title="Find produce near you"
-        >
-          🔍 Find
-        </button>
-      )}
+        {onSellClick && (
+          <button
+            className={`${styles.suggestionChip} ${styles.sellChip}`}
+            onClick={onSellClick}
+            title="List a product for sale"
+          >
+            🏷️ Sell
+          </button>
+        )}
 
-      {/* Notify Me chip */}
-      {onNotifyClick && (
-        <button
-          className={`${styles.suggestionChip} ${styles.notifyChip}`}
-          onClick={onNotifyClick}
-          title="Tell us what you grow & get notified when neighbors search"
-        >
-          🔔 Notify Me
-        </button>
-      )}
+        {onFindClick && (
+          <button
+            className={`${styles.suggestionChip} ${styles.findChip}`}
+            onClick={onFindClick}
+            title="Find produce near you"
+          >
+            🔍 Find
+          </button>
+        )}
 
-      {/* Random suggestion chips — always visible as conversation starters */}
-      {suggestions.map((text, i) => (
-        <button 
-          key={i} 
-          className={styles.suggestionChip}
-          onClick={() => onSelect(text)}
-        >
-          {text}
-        </button>
-      ))}
+        {onNotifyClick && (
+          <button
+            className={`${styles.suggestionChip} ${styles.notifyChip}`}
+            onClick={onNotifyClick}
+            title="Tell us what you grow & get notified when neighbors search"
+          >
+            🔔 Notify Me
+          </button>
+        )}
+      </div>
     </div>
   )
 }

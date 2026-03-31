@@ -807,12 +807,24 @@
 .suggestionsWrapper {
   padding: 0.375rem 0;
   display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.actionChipsRow {
+  display: flex;
+  gap: 0.375rem;
+  flex-shrink: 0;
+}
+
+.starterChipsRow {
+  display: flex;
   gap: 0.375rem;
   overflow-x: auto;
   scrollbar-width: none;
 }
 
-.suggestionsWrapper::-webkit-scrollbar { display: none; }
+.starterChipsRow::-webkit-scrollbar { display: none; }
 
 .suggestionChip {
   flex-shrink: 0;
