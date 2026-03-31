@@ -65,20 +65,21 @@ export function HelperDMModal({ boothName, passcode, userId, onClose, onSent }: 
         ? `${window.location.origin}/join-booth/${encodeURIComponent(passcode)}`
         : ''
 
+      const boothLabel = boothName?.trim() ? `my booth "${boothName}"` : 'my CasaGrown booth'
+
       const inviteMessage = [
-        `Hey ${targetName}! 🤝`,
+        `Hey ${targetName}! 👋`,
         '',
-        `I'm selling on CasaGrown Market and could use a hand with my booth "${boothName}".`,
+        `Would you be willing to help me out with ${boothLabel} on CasaGrown Market? I'm selling some stuff from my backyard and could really use a hand.`,
         '',
-        'As a helper you can:',
-        '• See and fulfill pending orders',
-        '• Chat with buyers on my behalf',
-        '• Help with delivery and pickup handoffs',
+        `It's pretty simple — just help me keep an eye on orders, hand things off to buyers when they come by, and maybe reply to a message or two. Nothing too crazy!`,
         '',
-        `Join here: ${joinUrl}`,
+        `If you're down, here's the link to join:`,
+        joinUrl,
+        '',
         `Passcode: ${passcode}`,
         '',
-        'Would love your help! 🌱',
+        `Let me know what you think! 🌱`,
       ].join('\n')
 
       // 1. Find or create conversation
