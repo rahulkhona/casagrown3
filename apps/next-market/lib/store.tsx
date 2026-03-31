@@ -469,7 +469,7 @@ const initialState: MarketState = {
   earnings: { available: 245.80, pending: 13.71, totalSales: 892.50, salesCount: 67, redeemed: 632.99 },
   marketSchedule: MARKET_SCHEDULE,
   productsNeverExpire: false,
-  marketNeverCloses: false,
+  marketNeverCloses: true,
   toasts: [],
 }
 

@@ -240,7 +240,7 @@ function ProfileSetupPageInner() {
       if (redirectTo) {
         router.push(redirectTo.includes('?') ? `${redirectTo}&autoBuy=true` : `${redirectTo}?autoBuy=true`)
       } else {
-        router.push('/market')
+        router.push('/community')
       }
     } catch (err: any) {
       console.error('Profile save failed:', err)

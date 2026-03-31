@@ -42,7 +42,7 @@ function LoginPageInner() {
       } else if (redirectTo) {
         router.replace(redirectTo)
       } else {
-        router.replace('/market')
+        router.replace('/community')
       }
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -107,7 +107,7 @@ function LoginPageInner() {
       } else if (redirectTo) {
         router.push(redirectTo.includes('?') ? `${redirectTo}&autoBuy=true` : `${redirectTo}?autoBuy=true`)
       } else {
-        router.push('/market')
+        router.push('/community')
       }
     }
   }

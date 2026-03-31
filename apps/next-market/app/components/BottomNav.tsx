@@ -81,10 +81,10 @@ function useKeyboardVisible() {
 }
 
 const tabs = [
-  { href: '/market', label: 'Market', icon: '🧺', hasStatus: true, locked: false, tour: 'nav-market' },
+  { href: '/community', label: 'Buzz', icon: '🐝', locked: true, tour: 'nav-buzz' },
   { href: '/orders', label: 'Orders', icon: '📦', locked: true, tour: 'nav-orders' },
   { href: '/messages', label: 'Messages', icon: '💬', locked: true, tour: 'nav-messages' },
-  { href: '/community', label: 'Buzz', icon: '🐝', locked: true, tour: 'nav-buzz' },
+  { href: '/market', label: 'Market', icon: '🧲', locked: false, tour: 'nav-market' },
 ]
 
 export function BottomNav() {
@@ -92,7 +92,6 @@ export function BottomNav() {
   const router = useRouter()
   const { state } = useMarket()
   const { user, profileComplete, isAuthenticated } = useAuth()
-  const open = isMarketOpen(state.marketSchedule, state.marketNeverCloses)
   const keyboardOpen = useKeyboardVisible()
   const unreadCount = useUnreadMessageCount(user?.id)
 
@@ -139,13 +138,6 @@ export function BottomNav() {
               )}
             </span>
             <span className={styles.label}>
-              {tab.hasStatus && (
-                <span style={{
-                  display: 'inline-block', width: 6, height: 6, borderRadius: '50%',
-                  background: open ? '#22c55e' : '#ef4444',
-                  marginRight: 4, verticalAlign: 'middle',
-                }} />
-              )}
               {tab.label}
             </span>
           </Link>
