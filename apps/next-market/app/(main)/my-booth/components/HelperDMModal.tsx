@@ -116,11 +116,14 @@ export function HelperDMModal({ boothName, passcode, userId, onClose, onSent }: 
 
       // 2. Send the invite message
       if (convId) {
-        await supabase.from('market_messages').insert({
+        const { error: msgError } = await supabase.from('market_chat_messages').insert({
           conversation_id: convId,
           sender_id: userId,
           content: inviteMessage,
         })
+        if (msgError) {
+          console.warn('Failed to send helper invite message:', msgError)
+        }
       }
 
       onSent(targetName)
