@@ -174,14 +174,13 @@ export default function WelcomeCard({ userId, userName, profileH3, onComplete, o
             Welcome to Buzz! 🐝
           </h3>
           <p style={{ fontSize: 14, color: 'var(--gray-600)', lineHeight: 1.6, margin: '0 0 12px' }}>
-            This is your <strong>neighborhood feed</strong> — here you can:
+            Your <strong>neighborhood marketplace</strong> — here you can:
           </p>
           <ul style={{ fontSize: 13, color: 'var(--gray-600)', lineHeight: 1.8, margin: '0 0 16px', paddingLeft: 20 }}>
-            <li>🌱 Share what&apos;s growing in your garden</li>
-            <li>🔍 Find fresh produce from neighbors</li>
-            <li>💬 Chat about gardening tips &amp; recipes</li>
-            <li>📦 List products to sell or give away</li>
-            <li>🔔 Get notified when people search for what you grow</li>
+            <li>🌱 Sell excess produce &amp; gardening items to your neighbors</li>
+            <li>🛒 Buy fresh produce &amp; gardening items from neighbors nearby</li>
+            <li>🥗 Eat fresh, eat local — and save money while doing it</li>
+            <li>🤖 Get gardening tips from your community &amp; CasaBot AI</li>
           </ul>
           <button
             className={styles.welcomeBtn}
@@ -234,16 +233,49 @@ export default function WelcomeCard({ userId, userName, profileH3, onComplete, o
             </button>
           </div>
 
+          {/* Selected items summary */}
           {selectedList.length > 0 && (
-            <div style={{ marginTop: 16 }}>
+            <div style={{ marginTop: 12 }}>
+              <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--green-700)', margin: '0 0 6px' }}>
+                🌱 You grow ({selectedList.length}):
+              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {selectedList.map(name => {
+                  const p = produces.find(pr => pr.name === name)
+                  return (
+                    <span
+                      key={name}
+                      style={{
+                        padding: '3px 10px', borderRadius: 14,
+                        background: 'var(--green-100)', color: 'var(--green-800)',
+                        fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4,
+                      }}
+                    >
+                      {p?.emoji || '🌱'} {name}
+                      <button
+                        onClick={() => toggleProduce(name)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--gray-500)', padding: '0 0 0 2px' }}
+                      >×</button>
+                    </span>
+                  )
+                })}
+              </div>
+
               {/* Notification opt-in */}
-              <label className={styles.welcomeToggle}>
+              <label className={styles.welcomeToggle} style={{ marginTop: 10 }}>
                 <input
                   type="checkbox"
                   checked={notifyOnSearch}
                   onChange={e => setNotifyOnSearch(e.target.checked)}
                 />
-                <span>🔔 Notify me when neighbors search for what I grow</span>
+                <div>
+                  <span style={{ fontWeight: 600 }}>🔔 Notify me when neighbors search for what I grow</span>
+                  <span style={{ display: 'block', fontSize: 11, color: 'var(--gray-500)', marginTop: 2 }}>
+                    {typeof Notification !== 'undefined' && Notification.permission === 'denied'
+                      ? '⚠️ Notifications are blocked. Enable them in your browser settings to receive alerts.'
+                      : 'We\u2019ll send you a push notification so you can list it on the market.'}
+                  </span>
+                </div>
               </label>
             </div>
           )}

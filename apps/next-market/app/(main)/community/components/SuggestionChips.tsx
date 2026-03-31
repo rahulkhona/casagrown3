@@ -12,6 +12,8 @@ interface SuggestionChipsProps {
   onSellClick?: () => void
   /** Open the find / search panel */
   onFindClick?: () => void
+  /** Open the notify-me / grower management panel */
+  onNotifyClick?: () => void
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -143,7 +145,7 @@ function getRandomChips(count: number = 3): string[] {
   return shuffled.slice(0, count)
 }
 
-export default function SuggestionChips({ onSelect, onPrefill, userMessageCount, onSellClick, onFindClick }: SuggestionChipsProps) {
+export default function SuggestionChips({ onSelect, onPrefill, userMessageCount, onSellClick, onFindClick, onNotifyClick }: SuggestionChipsProps) {
   const [suggestions, setSuggestions] = useState<string[]>([])
 
   useEffect(() => {
@@ -182,6 +184,17 @@ export default function SuggestionChips({ onSelect, onPrefill, userMessageCount,
           title="Find produce near you"
         >
           🔍 Find
+        </button>
+      )}
+
+      {/* Notify Me chip */}
+      {onNotifyClick && (
+        <button
+          className={`${styles.suggestionChip} ${styles.notifyChip}`}
+          onClick={onNotifyClick}
+          title="Tell us what you grow & get notified when neighbors search"
+        >
+          🔔 Notify Me
         </button>
       )}
 

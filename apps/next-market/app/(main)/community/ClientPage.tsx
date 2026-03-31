@@ -17,6 +17,7 @@ import ChatMessage from './components/ChatMessage'
 import ComposeBar from './components/ComposeBar'
 import SuggestionChips from './components/SuggestionChips'
 import FindPanel from './components/FindPanel'
+import NotifyPanel from './components/NotifyPanel'
 import WelcomeCard from './components/WelcomeCard'
 import NewMessagesBadge from './components/NewMessagesBadge'
 import { useNotificationPrompt } from '../../../lib/useNotificationPrompt'
@@ -55,6 +56,7 @@ export default function ClientPage() {
 
   // Find panel state
   const [findActive, setFindActive] = useState(false)
+  const [notifyActive, setNotifyActive] = useState(false)
 
   // Push notification prompt
   const { showPrompt, modalProps } = useNotificationPrompt(user?.id)
@@ -315,7 +317,7 @@ export default function ClientPage() {
         <span className={styles.communityHeaderName}>CasaGrown Community</span>
       </div>
 
-      {/* Message List Area — or Find Panel overlay */}
+      {/* Message List Area — or Find/Notify Panel overlay */}
       {findActive ? (
         <FindPanel
           userId={user?.id}
@@ -323,6 +325,11 @@ export default function ClientPage() {
           onClose={() => setFindActive(false)}
           onSendMessage={async (content) => { await handleSendMessage(content) }}
           onReloadMessages={loadMessages}
+        />
+      ) : notifyActive && user ? (
+        <NotifyPanel
+          userId={user.id}
+          onClose={() => setNotifyActive(false)}
         />
       ) : (
         <div 
@@ -332,23 +339,15 @@ export default function ClientPage() {
         >
           {isLoading ? (
             <div className={styles.loading}>Loading chat...</div>
-          ) : messages.length === 0 ? (
-            <div className={styles.emptyState}>
-              <span className={styles.emptyIcon}>👋</span>
-              <h3>Be the first to say hello!</h3>
-              <p>Start a conversation with your neighbors.</p>
-            </div>
           ) : (
             <div className={styles.messageList}>
-              {showWelcome && user && (
-                <WelcomeCard
-                  userId={user.id}
-                  userName={profileName}
-                  profileH3={profileH3!}
-                  onComplete={() => setShowWelcome(false)}
-                  onSendMessage={async (msg) => { await handleSendMessage(msg) }}
-                  showPrompt={showPrompt}
-                />
+
+              {messages.length === 0 && !showWelcome && (
+                <div className={styles.emptyState}>
+                  <span className={styles.emptyIcon}>👋</span>
+                  <h3>Be the first to say hello!</h3>
+                  <p>Start a conversation with your neighbors.</p>
+                </div>
               )}
               {messages.map(msg => (
                 <ChatMessage 
@@ -422,6 +421,18 @@ export default function ClientPage() {
         />
       )}
 
+      {/* Welcome Card for new users — appears above compose bar */}
+      {showWelcome && user && !findActive && (
+        <WelcomeCard
+          userId={user.id}
+          userName={profileName}
+          profileH3={profileH3!}
+          onComplete={() => setShowWelcome(false)}
+          onSendMessage={async (msg) => { await handleSendMessage(msg) }}
+          showPrompt={showPrompt}
+        />
+      )}
+
       {/* Compose Input — suggestions above, compose bar below */}
       <div className={styles.composeWrapper}>
         <SuggestionChips 
@@ -430,6 +441,7 @@ export default function ClientPage() {
           userMessageCount={messages.filter(m => m.author_id === user?.id && !m.is_system).length}
           onSellClick={handleSellClick}
           onFindClick={handleFindClick}
+          onNotifyClick={() => setNotifyActive(true)}
         />
         <ComposeBar
           onSend={handleSendMessage}

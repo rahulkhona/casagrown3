@@ -868,6 +868,18 @@
   border-color: #2563eb !important;
 }
 
+.notifyChip {
+  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+  border-color: #f59e0b !important;
+  color: #92400e !important;
+  font-weight: 600;
+}
+
+.notifyChip:hover {
+  background: linear-gradient(135deg, #fef3c7, #fde68a) !important;
+  border-color: #d97706 !important;
+}
+
 /* ─── Find Panel ─────────────────────────────────────────────── */
 .findPanel {
   display: flex;
