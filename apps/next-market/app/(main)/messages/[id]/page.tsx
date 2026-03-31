@@ -548,7 +548,7 @@ export default function MessageThreadPage() {
                       </div>
                     </div>
                     <Link href={`/market/booth/${msg.offer_product.seller_id}/product/${msg.offer_product.id}`} style={{ display: 'block', width: '100%', textAlign: 'center', background: '#111827', color: 'white', padding: '6px 0', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-                      Add to Cart →
+                      View Product →
                     </Link>
                   </div>
                 )}
