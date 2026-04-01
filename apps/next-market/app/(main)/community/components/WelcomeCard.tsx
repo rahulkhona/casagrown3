@@ -171,7 +171,7 @@ export default function WelcomeCard({ userId, userName, profileH3, onComplete, o
       {step === 0 && (
         <div className={styles.welcomeBody}>
           <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 8px', color: 'var(--gray-800)' }}>
-            Welcome to Buzz! 🐝
+            Welcome to CasaGrown Community! 🐝
           </h3>
           <p style={{ fontSize: 14, color: 'var(--gray-600)', lineHeight: 1.6, margin: '0 0 12px' }}>
             Your <strong>neighborhood marketplace</strong> — here you can:
@@ -300,7 +300,7 @@ export default function WelcomeCard({ userId, userName, profileH3, onComplete, o
             Say hello to your neighbors! 👋
           </h3>
           <p style={{ fontSize: 13, color: 'var(--gray-500)', margin: '0 0 12px' }}>
-            Edit the message below and post it to Buzz, or skip.
+            Edit the message below and post it to Community, or skip.
           </p>
           <textarea
             className={styles.welcomeTextarea}
@@ -316,7 +316,7 @@ export default function WelcomeCard({ userId, userName, profileH3, onComplete, o
               disabled={saving}
               style={{ flex: 1 }}
             >
-              {saving ? 'Posting...' : introMessage.trim() ? '🐝 Post & Join Buzz' : '✅ Join Buzz'}
+              {saving ? 'Posting...' : introMessage.trim() ? '🐝 Post & Join Community' : '✅ Join Community'}
             </button>
             <button
               className={styles.welcomeSkip}

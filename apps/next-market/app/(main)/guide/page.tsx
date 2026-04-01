@@ -103,17 +103,17 @@ const SECTIONS: Section[] = [
   {
     id: 'community',
     icon: '🐝',
-    title: 'Community Buzz',
+    title: 'Community',
     content: (
       <>
-        <p><strong>Buzz</strong> is our neighborhood community chat. Here you can:</p>
+        <p><strong>Community</strong> is our neighborhood community chat. Here you can:</p>
         <ul>
           <li>Share gardening tips and harvest photos</li>
           <li>Ask questions about growing produce</li>
           <li>Coordinate with neighbors for bulk orders</li>
           <li>Get notified about new booths in your area</li>
         </ul>
-        <p>Buzz conversations are organized by neighborhood — you&apos;ll see posts from people near you.</p>
+        <p>Community conversations are organized by neighborhood — you&apos;ll see posts from people near you.</p>
       </>
     ),
   },

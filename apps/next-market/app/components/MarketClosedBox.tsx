@@ -240,9 +240,9 @@ export default function MarketClosedBox({ nextOpenDate, todaySchedule }: MarketC
               <div className="mc-body">
                 <h3 style={actionTitleStyle}>Join the Community</h3>
                 <p style={actionDescStyle} className="mc-desc">
-                  Connect with neighbors on Buzz — share gardening tips, coordinate harvests, and build community!
+                  Connect with neighbors on Community — share gardening tips, coordinate harvests, and build community!
                 </p>
-                <span style={actionBtnStyle}>Open Buzz →</span>
+                <span style={actionBtnStyle}>Open Community →</span>
               </div>
             </Link>
 

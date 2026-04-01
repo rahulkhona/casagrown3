@@ -223,7 +223,7 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
     await onSendMessage(message)
     setLookingForPosted(true)
     onReloadMessages()
-    showSuccess('Posted to Buzz! Your neighbors will see your request.')
+    showSuccess('Posted to Community! Your neighbors will see your request.')
   }
 
   const handleSaveWatch = async () => {
@@ -392,10 +392,10 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
               {/* Post "Looking for" message */}
               {!lookingForPosted ? (
                 <button className={styles.findPostBtn} onClick={handlePostLookingFor}>
-                  📣 Post "Looking for {keywords}" to Buzz
+                  📣 Post "Looking for {keywords}" to Community
                 </button>
               ) : (
-                <p className={styles.findPostedConfirm}>✅ Posted to Buzz!</p>
+                <p className={styles.findPostedConfirm}>✅ Posted to Community!</p>
               )}
 
               {/* Save watch for notifications */}

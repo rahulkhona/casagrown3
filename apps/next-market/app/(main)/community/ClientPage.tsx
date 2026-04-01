@@ -94,7 +94,7 @@ export default function ClientPage() {
       } else {
         // If they don't have a community, redirect to onboarding or show error
         console.warn('User has no home community set')
-        setErrorState({ message: 'You need to set your neighborhood location before you can join the Buzz!', cta: 'Update Profile', action: () => router.push('/profile-setup') })
+        setErrorState({ message: 'You need to set your neighborhood location before you can join the Community!', cta: 'Update Profile', action: () => router.push('/profile-setup') })
       }
     }
     

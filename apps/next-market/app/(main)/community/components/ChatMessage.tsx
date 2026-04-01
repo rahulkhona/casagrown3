@@ -101,11 +101,11 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
   const handleShare = async () => {
     setShowActions(false)
     const truncated = message.content.length > 200 ? message.content.slice(0, 200) + '…' : message.content
-    const shareText = `💬 From CasaGrown Buzz:\n\n"${truncated}"\n\nJoin the neighborhood chat 👇`
+    const shareText = `💬 From CasaGrown Community:\n\n"${truncated}"\n\nJoin the neighborhood chat 👇`
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'CasaGrown Buzz — Neighborhood Chat',
+          title: 'CasaGrown Community — Neighborhood Chat',
           text: shareText,
           url: `${window.location.origin}/community`,
         })
