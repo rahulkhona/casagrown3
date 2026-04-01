@@ -56,11 +56,19 @@ export default function CameraCapture({
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([])
   const [activeCameraIdx, setActiveCameraIdx] = useState(0)
   const [geoPosition, setGeoPosition] = useState<GeolocationPosition | null>(null)
+  const [useFileFallback, setUseFileFallback] = useState(false)
 
   const startStream = useCallback(async (deviceId?: string) => {
+    // navigator.mediaDevices is only available in secure contexts (HTTPS or localhost).
+    // On LAN IP over HTTP, fall back to file-input picker.
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error('INSECURE_CONTEXT')
+    }
+
     // Stop any existing stream
     streamRef.current?.getTracks().forEach(t => t.stop())
 
@@ -101,6 +109,11 @@ export default function CameraCapture({
       } catch (err: any) {
         // AbortError happens when React StrictMode double-mounts — ignore it
         if (err?.name === 'AbortError') return
+        // Insecure context (LAN IP over HTTP) — show file picker fallback
+        if (err?.message === 'INSECURE_CONTEXT') {
+          if (mounted) setUseFileFallback(true)
+          return
+        }
         // Other errors (permission denied, no camera) — close
         console.error('Camera init error:', err)
         if (mounted) onClose()
@@ -224,6 +237,45 @@ export default function CameraCapture({
   return (
     <div className={styles.overlay}>
       <div className={styles.modal}>
+        {useFileFallback ? (
+          /* File-input fallback for insecure contexts (LAN IP over HTTP) */
+          <div style={{ padding: 24, textAlign: 'center' }}>
+            <p style={{ color: '#fff', marginBottom: 16, fontSize: 14, lineHeight: 1.5 }}>
+              📷 Camera requires HTTPS. Use your gallery instead:
+            </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (!file) return
+                const meta: CaptureMetadata = { timestamp: new Date().toISOString() }
+                if (geoPosition) {
+                  meta.latitude = geoPosition.coords.latitude
+                  meta.longitude = geoPosition.coords.longitude
+                  meta.accuracy = geoPosition.coords.accuracy
+                }
+                onCapture({ file, meta })
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              style={{ padding: '12px 24px', borderRadius: 12, border: 'none', background: 'var(--green-500, #22c55e)', color: '#fff', fontWeight: 600, fontSize: 16, cursor: 'pointer' }}
+            >
+              📸 Take Photo / Choose from Gallery
+            </button>
+            <div style={{ marginTop: 12 }}>
+              <button type="button" className={styles.cancelBtn} onClick={onClose}>
+                {closeLabel}
+              </button>
+            </div>
+          </div>
+        ) : (
+        <>
         <div className={styles.videoWrap}>
           <video ref={videoRef} autoPlay playsInline muted className={styles.video} />
           {cropGuide === 'banner' && (
@@ -298,6 +350,8 @@ export default function CameraCapture({
             {captureLabel}
           </button>
         </div>
+        </>
+        )}
       </div>
     </div>
   )
