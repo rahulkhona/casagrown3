@@ -59,8 +59,10 @@ function NewProductPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const editId = searchParams.get('edit')
+  const prefillId = searchParams.get('prefill') // Re-list from daily digest
   const fromBuzz = searchParams.get('from') === 'buzz'
   const isEditMode = !!editId
+  const [prefilled, setPrefilled] = useState(false)
   const { state, dispatch } = useMarket()
   const { isAuthenticated, loading: authLoading, user: authUser } = useAuth()
   const supabase = createClient()
@@ -323,6 +325,28 @@ function NewProductPageInner() {
     }
     loadProduct()
   }, [editId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pre-fill from a past product (daily digest "Re-list" link)
+  useEffect(() => {
+    if (!prefillId || editId) return // don't prefill if already in edit mode
+    const loadPrefill = async () => {
+      const { data } = await supabase
+        .from('market_products')
+        .select('name, description, category, price_usd, unit, photos')
+        .eq('id', prefillId)
+        .single()
+      if (!data) return
+      setName(data.name || '')
+      setDescription(data.description || '')
+      if (data.category) setCategory(data.category)
+      setPriceUsd(data.price_usd === 0 ? '0' : String(data.price_usd || ''))
+      setIsFree(data.price_usd === 0)
+      setUnit(data.unit || 'each')
+      if (data.photos?.length) setPhotos(data.photos)
+      setPrefilled(true)
+    }
+    loadPrefill()
+  }, [prefillId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load categories and restrictions from Supabase
   useEffect(() => {
@@ -1033,6 +1057,23 @@ function NewProductPageInner() {
     <div className={styles.page}>
       <div className={styles.container}>
         <h1 className={styles.title}>{isEditMode ? 'Edit Product' : 'Add Product'}</h1>
+
+        {prefilled && (
+          <div style={{
+            background: 'linear-gradient(135deg, #e8f5e9, #f1f8e9)',
+            border: '1px solid #a5d6a7',
+            borderRadius: 12,
+            padding: '12px 16px',
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            fontSize: 14,
+          }}>
+            <span style={{ fontSize: 20 }}>🔄</span>
+            <span>Pre-filled from your previous listing. Review and publish as a <strong>new listing</strong>.</span>
+          </div>
+        )}
 
         {/* ===== Market Day — display only ===== */}
         <div className={styles.section}>
