@@ -127,6 +127,13 @@ function BrowseMarketPageInner() {
   const [profileLoading, setProfileLoading] = useState(true)
   const [buyerStateCode, setBuyerStateCode] = useState<string | null>(null)
 
+  // Pagination state for infinite scroll
+  const PAGE_SIZE = 20
+  const [boothOffset, setBoothOffset] = useState(0)
+  const [hasMoreBooths, setHasMoreBooths] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
+
   // Product reminders (when market is closed)
   const [savedProductIds, setSavedProductIds] = useState<Set<string>>(new Set())
   const [showDemoModal, setShowDemoModal] = useState(false)
@@ -161,60 +168,55 @@ function BrowseMarketPageInner() {
 
   useEffect(() => { if (addressResolved) syncUrl() }, [syncUrl, addressResolved])
 
-  // Load user's address from profile — only if no URL state and not already resolved.
-  // Guard against addressResolved prevents re-geocoding on Supabase token refresh, which
-  // fires onAuthStateChange with a new user object reference and would otherwise cause
-  // lat/lng to be reset, triggering a non-silent searchBooths() and a visible spinner.
-  useEffect(() => {
-    if (addressResolved) { setProfileLoading(false); return }
-    if (searchParams.has('lat')) { setProfileLoading(false); return }
-    if (!user) { setProfileLoading(false); return }
-    supabase.from('profiles').select('street_address, city, state_code, zip_code')
-      .eq('id', user.id).single()
-      .then(async ({ data: profile }) => {
-        if (profile?.state_code) setBuyerStateCode(profile.state_code)
-        if (profile?.street_address) {
-          const addr = [profile.street_address, profile.city, profile.state_code].filter(Boolean).join(', ')
-          setAddress(addr)
-          if (profile.zip_code) setZipCode(profile.zip_code)
-          const geo = await geocodeAddress(addr)
-          if (geo) { setLat(geo.lat); setLng(geo.lng); setAddressResolved(true) }
-        }
-        setProfileLoading(false)
-      })
-  }, [user, addressResolved]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Fetch community member count for pioneer banner (independent of address resolution)
-  // Guard: use ref to prevent duplicate dismiss checks. PioneerBanner's own useEffect
-  // sets the dismiss key on mount (impression tracking), so if this effect fires a second
-  // time (e.g., user ref changes from auth listener), it would see the key and call
-  // setShowPioneerBanner(false), hiding the banner immediately after it rendered.
+  // Consolidated profile fetch — address + pioneer banner h3 in a single query.
+  // Guard against addressResolved prevents re-geocoding on Supabase token refresh.
   const pioneerFetchedRef = useRef(false)
   useEffect(() => {
-    if (!user) return
-    if (pioneerFetchedRef.current) return // already fetched, skip re-checking dismiss key
-    supabase.from('profiles').select('home_community_h3_index')
+    if (addressResolved && pioneerFetchedRef.current) { setProfileLoading(false); return }
+    if (searchParams.has('lat') && pioneerFetchedRef.current) { setProfileLoading(false); return }
+    if (!user) { setProfileLoading(false); return }
+
+    supabase.from('profiles')
+      .select('street_address, city, state_code, zip_code, home_community_h3_index')
       .eq('id', user.id).single()
-      .then(({ data, error }) => {
-        console.log('[PioneerBanner] Profile fetch:', { h3: data?.home_community_h3_index, error: error?.message })
-        if (data?.home_community_h3_index) {
+      .then(async ({ data: profile, error }) => {
+        if (error) { console.error('Profile fetch error:', error.message); setProfileLoading(false); return }
+        // Address resolution (skip if already resolved from URL)
+        if (!addressResolved && !searchParams.has('lat')) {
+          if (profile?.state_code) setBuyerStateCode(profile.state_code)
+          if (profile?.street_address) {
+            const addr = [profile.street_address, profile.city, profile.state_code].filter(Boolean).join(', ')
+            setAddress(addr)
+            if (profile.zip_code) setZipCode(profile.zip_code)
+            const geo = await geocodeAddress(addr)
+            if (geo) { setLat(geo.lat); setLng(geo.lng); setAddressResolved(true) }
+          }
+        } else if (profile?.state_code) {
+          setBuyerStateCode(profile.state_code)
+        }
+
+        // Pioneer banner (only once)
+        if (!pioneerFetchedRef.current && profile?.home_community_h3_index) {
           pioneerFetchedRef.current = true
-          // Check if previously dismissed (only on first fetch)
           try {
-            if (localStorage.getItem(`pioneer_banner_dismissed_${data.home_community_h3_index}`)) {
+            if (localStorage.getItem(`pioneer_banner_dismissed_${profile.home_community_h3_index}`)) {
               setShowPioneerBanner(false)
+              setProfileLoading(false)
               return
             }
           } catch {}
-          setUserH3(data.home_community_h3_index)
-          supabase.rpc('get_community_member_count', { target_h3: data.home_community_h3_index })
+          setUserH3(profile.home_community_h3_index)
+          supabase.rpc('get_community_member_count', { target_h3: profile.home_community_h3_index })
             .then(({ data: count }) => {
-              console.log('[PioneerBanner] Member count:', count)
               if (typeof count === 'number') setCommunityMemberCount(count)
             })
+        } else if (!profile?.home_community_h3_index) {
+          pioneerFetchedRef.current = true
         }
+
+        setProfileLoading(false)
       })
-  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, addressResolved]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch allowed categories from DB when address resolves
   useEffect(() => {
@@ -257,6 +259,8 @@ function BrowseMarketPageInner() {
       category_filter: category || null,
       buyer_state_code: buyerStateCode,
       exclude_demos: shouldExcludeDemos,
+      p_limit: PAGE_SIZE,
+      p_offset: silent ? boothOffset : 0,
     })
     if (error) {
       console.error('Search error:', error.message)
@@ -326,7 +330,13 @@ function BrowseMarketPageInner() {
         return prev
       })
     }
-    if (!silent) setLoading(false)
+    if (!silent) {
+      setLoading(false)
+      // Reset pagination on fresh search
+      setBoothOffset(0)
+      const resultCount = Array.isArray(data) ? data.filter((b: BoothResult) => !b.is_demo).length : 0
+      setHasMoreBooths(resultCount >= PAGE_SIZE)
+    }
 
     // Compute H3 zone IDs for the search area and cache for pulse polling
     if (lat && lng) {
@@ -353,6 +363,46 @@ function BrowseMarketPageInner() {
     const t = setTimeout(searchBooths, 500)
     return () => clearTimeout(t)
   }, [search, minPrice, maxPrice]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load more booths (infinite scroll)
+  const loadMoreBooths = useCallback(async () => {
+    if (!lat || !lng || loadingMore || !hasMoreBooths) return
+    setLoadingMore(true)
+    const nextOffset = boothOffset + PAGE_SIZE
+    const { data, error } = await supabase.rpc('nearby_booths', {
+      user_lat: lat, user_lng: lng,
+      max_miles: maxMiles,
+      fulfillment_filter: fulfillment,
+      product_search: search.trim() || null,
+      min_price: minPrice ? parseFloat(minPrice) : null,
+      max_price: maxPrice ? parseFloat(maxPrice) : null,
+      category_filter: category || null,
+      buyer_state_code: buyerStateCode,
+      exclude_demos: true, // no demos on subsequent pages
+      p_limit: PAGE_SIZE,
+      p_offset: nextOffset,
+    })
+    if (!error && Array.isArray(data)) {
+      const realBooths = data.filter((b: BoothResult) => !b.is_demo)
+      if (realBooths.length > 0) {
+        setBooths(prev => [...prev, ...realBooths])
+        setBoothOffset(nextOffset)
+      }
+      setHasMoreBooths(realBooths.length >= PAGE_SIZE)
+    }
+    setLoadingMore(false)
+  }, [lat, lng, loadingMore, hasMoreBooths, boothOffset, maxMiles, fulfillment, search, minPrice, maxPrice, category, buyerStateCode]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // IntersectionObserver for infinite scroll sentinel
+  useEffect(() => {
+    if (!sentinelRef.current || !hasMoreBooths) return
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0]?.isIntersecting) loadMoreBooths() },
+      { rootMargin: '200px' }
+    )
+    observer.observe(sentinelRef.current)
+    return () => observer.disconnect()
+  }, [hasMoreBooths, loadMoreBooths])
 
   // ── Zone Pulse Polling ──
   // Instead of the old two-tier polling (30s light + 2min heavy), we check
@@ -847,6 +897,17 @@ function BrowseMarketPageInner() {
               </div>
             )
           })}
+
+          {/* Infinite scroll sentinel */}
+          {hasMoreBooths && !loading && (
+            <div ref={sentinelRef} style={{ padding: 20, textAlign: 'center' }}>
+              {loadingMore && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: 'var(--gray-500)', fontSize: 14 }}>
+                  <LoadingSpinner /> Loading more booths…
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

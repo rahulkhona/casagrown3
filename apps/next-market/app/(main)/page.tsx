@@ -12,7 +12,7 @@ export default function HomePage() {
   const router = useRouter()
   const [checking, setChecking] = useState(true)
 
-  // Check auth on mount — redirect fully-set-up users to market
+  // Check auth on mount — redirect fully-set-up users to community
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -30,8 +30,8 @@ export default function HomePage() {
         .single()
 
       if (profile?.full_name && profile?.street_address && !needsTosAcceptance(profile?.tos_accepted_at)) {
-        // Fully set-up users go straight to market
-        router.replace('/market')
+        // Fully set-up users go straight to community
+        router.replace('/community')
         return
       }
       // Not fully set up — just show the landing page (don't force ToS here)
@@ -124,23 +124,23 @@ export default function HomePage() {
         <div className="container">
           <h2 className={styles.sectionTitle}>How the Market Works</h2>
           <p className={styles.sectionSubtitle}>
-            Just like your neighborhood farmer&apos;s market — we open at set times so everyone shops together
+            Your neighborhood marketplace — always open, always fresh
           </p>
 
           {/* Schedule Highlight */}
           <div className={styles.scheduleHighlight}>
-            <div className={styles.scheduleIcon}>🕐</div>
+            <div className={styles.scheduleIcon}>🌿</div>
             <div className={styles.scheduleInfo}>
               <h3 className={styles.scheduleMainText}>
-                Market Opens Every <span className={styles.scheduleAccent}>Saturday 8:00 – 11:00 AM</span>
+                Market is <span className={styles.scheduleAccent}>Always Open</span>
               </h3>
               <p className={styles.scheduleSubText}>
-                Limited hours mean fresher produce, fairer access, and a true community shopping experience. 
-                We&apos;ll notify you before the market opens!
+                Browse, buy, and sell anytime. Products are always fresh — listings expire automatically 
+                so you only see what&apos;s truly available.
               </p>
               <p className={styles.scheduleBuzzNote}>
-                🐝 While the market has set hours, <Link href="/community" className={styles.buzzLink}>Buzz</Link> is always on — post, 
-                discuss, and connect with your local community anytime!
+                👥 Visit <Link href="/community" className={styles.buzzLink}>Community</Link> to post, 
+                discuss, and connect with your local neighbors anytime!
               </p>
             </div>
           </div>
@@ -158,9 +158,9 @@ export default function HomePage() {
             <div className={styles.stepCard}>
               <div className={styles.stepNumber}>2</div>
               <div className={styles.stepEmoji}>📅</div>
-              <h4 className={styles.stepTitle}>Market Day Opens</h4>
+              <h4 className={styles.stepTitle}>Browse &amp; Buy</h4>
               <p className={styles.stepDesc}>
-                When the market opens on Saturday, neighbors browse your booth and place orders.
+                Neighbors browse your booth and place orders anytime. Fresh produce is always available.
               </p>
             </div>
             <div className={styles.stepCard}>
@@ -174,9 +174,9 @@ export default function HomePage() {
             <div className={styles.stepCard}>
               <div className={styles.stepNumber}>4</div>
               <div className={styles.stepEmoji}>⚖️</div>
-              <h4 className={styles.stepTitle}>Daily Settlement</h4>
+              <h4 className={styles.stepTitle}>Nightly Settlement</h4>
               <p className={styles.stepDesc}>
-                At market close, all orders are netted. Your sales minus purchases and fees equals your earnings.
+                Every night at midnight, all orders are netted. Your sales minus purchases and fees equals your earnings.
               </p>
             </div>
             <div className={styles.stepCard}>
@@ -196,8 +196,8 @@ export default function HomePage() {
               <div className={styles.settlementStep}>
                 <div className={styles.settlementIcon}>🔔</div>
                 <div className={styles.settlementText}>
-                  <strong>Market Closes</strong>
-                  <span>At 11:00 AM, the market closes and all orders for the day are finalized.</span>
+                  <strong>Nightly Settlement</strong>
+                <span>Every night at midnight, all completed orders for the day are settled.</span>
                 </div>
               </div>
               <div className={styles.settlementArrow}>→</div>
@@ -250,7 +250,7 @@ export default function HomePage() {
               { icon: '🔒', title: 'Secure Payments', desc: 'Credit card holds via Stripe. You\'re only charged after delivery.' },
               { icon: '📷', title: 'Proof of Delivery', desc: 'Photo proof for deliveries. QR/passcode verification for pickups.' },
               { icon: '⚖️', title: 'Dispute Resolution', desc: 'Fair process: sellers offer discounts, buyers can accept or escalate.' },
-              { icon: '📊', title: 'Net Settlements', desc: 'Orders are netted at market close to minimize processing fees.' },
+              { icon: '📊', title: 'Net Settlements', desc: 'Orders are netted nightly at midnight to minimize processing fees.' },
               { icon: '📋', title: '1099 Compliance', desc: 'Automatic tracking toward state and federal reporting thresholds.' },
               { icon: '🔔', title: 'Real-time Updates', desc: 'Push notifications for orders, messages, and market openings.' },
             ].map((item, i) => (

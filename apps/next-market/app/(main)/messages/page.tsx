@@ -119,7 +119,7 @@ export default function MessagesInboxPage() {
         <div style={{ padding: '4rem 2rem', textAlign: 'center', color: '#6b7280' }}>
           <div style={{ fontSize: '3rem', marginBottom: 16 }}>📬</div>
           <h2 style={{ color: '#374151', fontSize: '1.25rem', marginBottom: 8 }}>Your inbox is empty</h2>
-          <p style={{ fontSize: '0.875rem' }}>Start a private conversation from a Farmer's Booth or the public Buzz feed!</p>
+          <p style={{ fontSize: '0.875rem' }}>Start a private conversation from a Farmer's Booth or the Community feed!</p>
         </div>
       ) : (
         <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>

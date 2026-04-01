@@ -5,6 +5,7 @@ import { createClient } from '../../../../lib/supabase'
 import { useErrorToast } from '../../../components/ErrorToast'
 import { checkTextForViolations } from '../../../../lib/moderation'
 import ProductListingCard from './ProductListingCard'
+import { ShareIcon } from '../../../components/icons'
 import styles from '../page.module.css'
 
 interface ChatMessageProps {
@@ -206,7 +207,7 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
             ))}
             <span className={styles.tapActionDivider} />
             <button className={styles.tapActionBtn} onClick={handleShare} title="Share">
-              ↗
+              <ShareIcon size={14} />
             </button>
             {isOwnMessage ? (
               <button 

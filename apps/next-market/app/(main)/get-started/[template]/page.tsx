@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useMarket, type Booth } from '../../../../lib/store'
+import { PersonPlusIcon } from '../../../components/icons'
 import styles from './page.module.css'
 
 // =============================================================================
@@ -506,7 +507,7 @@ export default function BoothSetupPage() {
                 {inviteCopied ? '✅ Copied!' : '📋 Copy Link + Passcode'}
               </button>
               <button className={styles.shareBtn} onClick={shareInvite}>
-                📤 Share
+                <PersonPlusIcon size={14} /> Share
               </button>
             </div>
 

@@ -12,7 +12,9 @@ export const test = base.extend({
     // After every page.goto, dismiss the alpha modal if visible
     const originalGoto = page.goto.bind(page)
     page.goto = async (url: string, options?: any) => {
-      const result = await originalGoto(url, options)
+      const result = await originalGoto(url, { waitUntil: 'domcontentloaded', ...options })
+      // Wait briefly for React hydration after DOM is ready
+      await page.waitForTimeout(1500)
       // Set localStorage to skip the alpha modal on all future navigations
       await page.evaluate(() => {
         try { localStorage.setItem('casagrown_alpha_ack', 'true') } catch {}

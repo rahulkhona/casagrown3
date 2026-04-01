@@ -79,6 +79,8 @@ export default function ComposeBar({ onSend, userId, h3Index, prefillText, onPre
         inputRef.current.style.height = 'auto'
         inputRef.current.focus()
       }
+    } catch {
+      // Moderation or network error — text is preserved for user to edit
     } finally {
       setIsSending(false)
     }

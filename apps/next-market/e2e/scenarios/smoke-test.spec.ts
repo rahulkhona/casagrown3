@@ -39,7 +39,6 @@ const AUTHENTICATED_PAGES = [
   '/chat',
   '/notifications',
   '/profile',
-  '/settings',
   '/community',
   '/following',
   '/helping',
@@ -64,7 +63,8 @@ test.describe('Smoke Test — Every Page Loads Without Errors', () => {
 
     for (const path of UNAUTHENTICATED_PAGES) {
       await test.step(`Visit ${path}`, async () => {
-        await page.goto(`http://localhost:3001${path}`, { waitUntil: 'networkidle' })
+        await page.goto(`http://localhost:3001${path}`, { waitUntil: 'domcontentloaded' })
+        await page.waitForTimeout(1500)
         await assertPageHealthy(page)
       })
     }

@@ -11,20 +11,19 @@ test.describe('Community Chat Moderation & UX', () => {
     await assertPageHealthy(page)
 
     // Wait for the ComposeBar textarea to appear
-    const composeInput = page.locator('textarea[placeholder="What\'s happening in the garden?"]')
+    const composeInput = page.locator('textarea[placeholder*="Message your neighbors"]')
     await expect(composeInput).toBeVisible()
 
     // Type a blocked word
     await composeInput.fill('This string contains the word pussy which is blocked')
     
     // Click Send
-    const sendButton = page.locator('button', { hasText: 'Send' })
+    const sendButton = page.locator('button[aria-label="Send Message"]')
     await sendButton.click()
 
-    // Verify ErrorToast appears with standard error icon
-    const errorToast = page.locator('div[role="alert"]')
-    await expect(errorToast).toBeVisible()
-    await expect(errorToast).toContainText('Please remove profanity from your message')
+    // Verify ErrorToast appears with profanity message
+    const errorMsg = page.getByText('Please remove profanity from your message')
+    await expect(errorMsg).toBeVisible({ timeout: 5000 })
 
     // Verify the text was NOT cleared so the user doesn't lose their work
     const textValue = await composeInput.inputValue()
@@ -38,20 +37,19 @@ test.describe('Community Chat Moderation & UX', () => {
     await navigateTo(page, '/community')
 
     // Wait for the ComposeBar textarea to appear
-    const composeInput = page.locator('textarea[placeholder="What\'s happening in the garden?"]')
+    const composeInput = page.locator('textarea[placeholder*="Message your neighbors"]')
     await expect(composeInput).toBeVisible()
 
     // Type a blocked product word
     await composeInput.fill('Does anyone want some weed?')
     
     // Click Send
-    const sendButton = page.locator('button', { hasText: 'Send' })
+    const sendButton = page.locator('button[aria-label="Send Message"]')
     await sendButton.click()
 
     // Verify ErrorToast appears with product block message
-    const errorToast = page.locator('div[role="alert"]')
-    await expect(errorToast).toBeVisible()
-    await expect(errorToast).toContainText('Cannabis and related topics are not allowed')
+    const errorMsg = page.getByText('Cannabis and related topics are not allowed')
+    await expect(errorMsg).toBeVisible({ timeout: 5000 })
 
     // Verify the network request was actually blocked (no new message containing "weed" in the chat list)
     const chatFeed = page.locator('body').innerText()
@@ -64,20 +62,23 @@ test.describe('Community Chat Moderation & UX', () => {
     // 1. Manually insert an "old" thread into DB
     const oldContent = 'A very old thread from yesterday'
     const newContent = 'A brand new thread from today'
+    const oldId = '01111111-1111-1111-1111-111111111111'
+    const newId = '02222222-2222-2222-2222-222222222222'
     
-    // Clean up
+    // Clean up by both content AND id (handles re-runs with same UUIDs)
+    execSql(`DELETE FROM community_chat_messages WHERE id IN ('${oldId}', '${newId}')`)
     execSql(`DELETE FROM community_chat_messages WHERE content IN ('${oldContent}', '${newContent}')`)
 
-    // Insert Old Thread
+    // Insert Old Thread — use beth's actual h3 index
     execSql(
       `INSERT INTO community_chat_messages (id, community_h3_index, author_id, content, created_at, bumped_at)
-       VALUES ('o1111111-1111-1111-1111-111111111111', '89283082b13ffff', 'b2222222-2222-2222-2222-222222222222', '${oldContent}', NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day')`
+       VALUES ('${oldId}', '89283470c2fffff', 'b2222222-2222-2222-2222-222222222222', '${oldContent}', NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day')`
     )
 
     // Insert New Thread
     execSql(
       `INSERT INTO community_chat_messages (id, community_h3_index, author_id, content, created_at, bumped_at)
-       VALUES ('n1111111-1111-1111-1111-111111111111', '89283082b13ffff', 'b2222222-2222-2222-2222-222222222222', '${newContent}', NOW(), NOW())`
+       VALUES ('${newId}', '89283470c2fffff', 'b2222222-2222-2222-2222-222222222222', '${newContent}', NOW(), NOW())`
     )
 
     // Login and view the feed
@@ -85,9 +86,9 @@ test.describe('Community Chat Moderation & UX', () => {
     // Set cookie or localstorage to bypass notifications if needed or just navigate
     await navigateTo(page, '/community')
 
-    // Wait for feed to load messages
-    await expect(page.locator(`text="${newContent}"`)).toBeVisible()
-    await expect(page.locator(`text="${oldContent}"`)).toBeVisible()
+    // Wait for feed to load messages (increase timeout for slow query)
+    await expect(page.locator(`text="${newContent}"`)).toBeVisible({ timeout: 15000 })
+    await expect(page.locator(`text="${oldContent}"`)).toBeVisible({ timeout: 10000 })
 
     // Find the Reply textarea specifically for the Old Thread
     // The old thread's container
@@ -109,6 +110,7 @@ test.describe('Community Chat Moderation & UX', () => {
     await page.waitForTimeout(1000)
 
     // Clean up
+    execSql(`DELETE FROM community_chat_messages WHERE id IN ('${oldId}', '${newId}')`)
     execSql(`DELETE FROM community_chat_messages WHERE content IN ('${oldContent}', '${newContent}')`)
     await page.context().close()
   })

@@ -13,6 +13,7 @@ import { NotificationPromptModal } from '../../../../components/NotificationProm
 import CameraCapture from '../../../../../components/CameraCapture'
 import ImageCropper from '../../../../../components/ImageCropper'
 import { checkTextForViolations } from '../../../../../lib/moderation'
+import { ShareIcon } from '../../../../components/icons'
 import styles from './page.module.css'
 
 // Compute the next upcoming market date from the schedule
@@ -684,7 +685,12 @@ function NewProductPageInner() {
       }
 
       setValidating(false)
-      router.push(fromBuzz ? '/community' : '/my-booth')
+      if (needsDraft) {
+        // Draft edits: stay on the page
+        dispatch({ type: 'ADD_TOAST', payload: { message: '📝 Draft saved! Continue editing when ready.', type: 'success' } })
+      } else {
+        router.push(fromBuzz ? '/community' : '/my-booth')
+      }
       return
     }
 
@@ -853,8 +859,10 @@ function NewProductPageInner() {
     setBoothIdForShare(boothId)
 
     if (needsDraft) {
-      // Drafts: skip share modal, go straight to My Booth
-      router.push(fromBuzz ? '/community' : '/my-booth')
+      // Drafts: stay on the page so user can continue editing
+      dispatch({ type: 'ADD_TOAST', payload: { message: '📝 Draft saved! Continue editing when ready.', type: 'success' } })
+      // Update the URL to edit mode so future saves are updates, not inserts
+      window.history.replaceState({}, '', `/my-booth/products/new?edit=${insertedProduct.id}`)
     } else {
       // Published: show share modal
       setShowShareModal(true)
@@ -1705,7 +1713,7 @@ function NewProductPageInner() {
                       {shareCopied ? '✅ Copied! Paste on Nextdoor' : '🏡 Share on Nextdoor'}
                     </button>
                     <button className={styles.shareActionBtn} onClick={handleShareNative}>
-                      📤 Share Link
+                      <ShareIcon size={14} /> Share Link
                     </button>
                   </div>
                 </>

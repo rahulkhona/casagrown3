@@ -210,8 +210,8 @@ function TermsPageInner() {
       if (template) {
         router.push(`/get-started/${template}`)
       } else if (profile?.full_name && profile?.street_address) {
-        // Profile already complete — go to redirect target or market
-        router.push(redirectTo || '/market')
+        // Profile already complete — go to redirect target or community
+        router.push(redirectTo || '/community')
       } else {
         const redirectParam = redirectTo ? `?redirect=${encodeURIComponent(redirectTo)}` : ''
         router.push(`/profile-setup${redirectParam}`)

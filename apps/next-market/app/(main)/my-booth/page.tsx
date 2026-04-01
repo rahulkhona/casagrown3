@@ -16,6 +16,7 @@ import { HelperDMModal } from './components/HelperDMModal'
 import CameraCapture from '../../../components/CameraCapture'
 import ImageCropper from '../../../components/ImageCropper'
 import { useErrorToast } from '../../components/ErrorToast'
+import { ShareIcon, PersonPlusIcon } from '../../components/icons'
 
 
 import { geocodeAddress, toPostgisPoint } from '../../../lib/geocode'
@@ -655,7 +656,7 @@ export default function MyBoothPage() {
             transition: 'all 0.15s',
           }}
         >
-          📤 Invite Neighbors
+          📣 Invite Neighbors
         </button>
       </div>
 
@@ -1254,7 +1255,7 @@ export default function MyBoothPage() {
               }
             }}
           >
-            📤 Share
+            <PersonPlusIcon size={14} /> Share
           </button>
           <button
             className="btn btn-secondary"
@@ -1352,7 +1353,7 @@ export default function MyBoothPage() {
           style={{ marginTop: 8, background: 'var(--white)', color: 'var(--green-700)', border: '2px solid var(--green-200)' }}
           onClick={() => { setBoothShareMsg(getBoothShareText()); setShowBoothShareModal(true) }}
         >
-          📤 Share My Booth
+          <ShareIcon size={14} /> Share My Booth
         </button>
       )}
 
@@ -1394,7 +1395,7 @@ export default function MyBoothPage() {
                   }
                 }}
               >
-                📤 Share
+                <ShareIcon size={14} /> Share
               </button>
             </div>
             <button

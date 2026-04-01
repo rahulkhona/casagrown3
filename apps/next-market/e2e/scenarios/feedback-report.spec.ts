@@ -16,7 +16,7 @@ test.describe('Header Bug Report Feature', () => {
 
     // Type a test message
     const uniqueBugMessage = `E2E Playwright Bug Report Test ${Date.now()}`
-    await page.locator('textarea').fill(uniqueBugMessage)
+    await page.locator('textarea[placeholder*="What went wrong"]').fill(uniqueBugMessage)
 
     // Submit the report
     await page.getByRole('button', { name: /Submit Report/i }).click()

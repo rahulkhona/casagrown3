@@ -12,7 +12,7 @@ test.describe('Terms of Service Page', () => {
 
   test('switching tabs shows different content', async ({ page }) => {
     await page.goto('/terms')
-
+    await page.waitForTimeout(2000)
     // Terms tab should show amendments or seller representations
     await expect(
       page.getByText('Seller Representations')

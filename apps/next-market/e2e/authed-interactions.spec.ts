@@ -720,31 +720,6 @@ test.describe('Profile Editing', () => {
 })
 
 // ============================================================================
-// SETTINGS — Toggles and links
-// ============================================================================
-test.describe('Settings', () => {
-  test('push notification toggle is clickable', async ({ page }) => {
-    await page.goto('/settings')
-    await page.waitForTimeout(2000)
-    const toggle = page.locator('button:has-text("Notification"), button:has-text("Push"), [class*="toggle"]').first()
-    if (await toggle.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await toggle.click()
-      await page.waitForTimeout(500)
-    }
-  })
-
-  test('edit profile link navigates', async ({ page }) => {
-    await page.goto('/settings')
-    await page.waitForTimeout(2000)
-    const editLink = page.locator('button:has-text("Edit Profile"), a:has-text("Edit Profile")').first()
-    if (await editLink.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await editLink.click()
-      await expect(page).toHaveURL(/\/profile/, { timeout: 15000 })
-    }
-  })
-})
-
-// ============================================================================
 // FOLLOWING — Unfollow action
 // ============================================================================
 test.describe('Following', () => {

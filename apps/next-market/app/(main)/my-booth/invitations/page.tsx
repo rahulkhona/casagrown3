@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useMarket } from '../../../../lib/store'
 import { trackClick } from '../../../../lib/analytics'
 import styles from './page.module.css'
+import { ShareIcon } from '../../../components/icons'
 
 export default function InvitationsPage() {
   const { state, dispatch } = useMarket()
@@ -114,7 +115,7 @@ Fresh. Local. Trusted.`
             copyMessage()
           }
         }}>
-          <span className={styles.shareIcon}>📤</span>
+          <span className={styles.shareIcon}><ShareIcon size={20} /></span>
           <span>Share</span>
           <span className={styles.shareSub}>Opens your device&apos;s share menu</span>
         </button>

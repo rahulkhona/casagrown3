@@ -12,6 +12,7 @@ import { geocodeAddress } from '../../../../../../../lib/geocode'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import BuyModal from '../../../../../../components/BuyModal'
 import { FlagModal } from '../../../../../../components/FlagModal'
+import { ShareIcon } from '../../../../../../components/icons'
 import { ProductQA } from '../../../../../../components/ProductQA'
 import { NotificationPromptModal } from '../../../../../../components/NotificationPromptModal'
 import { useErrorToast } from '../../../../../../components/ErrorToast'
@@ -369,7 +370,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                   }
                 }}
               >
-                📤 Share Product
+                <ShareIcon size={16} /> Share Product
               </button>
             </div>
           )}

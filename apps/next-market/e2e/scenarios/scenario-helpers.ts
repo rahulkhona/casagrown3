@@ -218,7 +218,7 @@ async function ensureUserIdentity(email: string, password: string): Promise<{ ac
 export async function navigateTo(page: Page, path: string): Promise<void> {
   // Routes with real-time connections (Supabase realtime, etc.) prevent
   // networkidle from resolving. Use domcontentloaded + settle delay for those.
-  const realtimeRoutes = ['/cart', '/chat', '/community']
+  const realtimeRoutes = ['/cart', '/chat', '/community', '/market', '/orders']
   const isRealtime = realtimeRoutes.some(r => path === r || path.startsWith(r + '/') || path.startsWith(r + '?'))
 
   if (isRealtime) {
@@ -244,8 +244,9 @@ export async function navigateTo(page: Page, path: string): Promise<void> {
 export async function navigateToMarket(page: Page): Promise<void> {
   await page.goto(
     `${BASE_URL}/market?addr=${encodeURIComponent(TEST_ADDRESS)}&lat=${TEST_LAT}&lng=${TEST_LNG}`,
-    { waitUntil: 'networkidle' },
+    { waitUntil: 'domcontentloaded', timeout: 30_000 },
   )
+  await page.waitForTimeout(2000)
   await dismissLegalConsent(page)
   await dismissAlphaBanner(page)
   await dismissNotificationOverlay(page)

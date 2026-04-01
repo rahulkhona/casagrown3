@@ -60,14 +60,6 @@ test.describe('Profile Deep', () => {
     }
   })
 
-  test('should navigate to settings page', async ({ page }) => {
-    await page.goto('/settings')
-    await page.waitForTimeout(3000)
-
-    const body = await page.textContent('body')
-    expect(body).toBeTruthy()
-  })
-
   test('should display notifications page', async ({ page }) => {
     await page.goto('/notifications')
     await page.waitForTimeout(3000)

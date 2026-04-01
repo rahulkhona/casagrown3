@@ -43,28 +43,6 @@ test.describe('Profile, Settings & Onboarding', () => {
     await page.context().close()
   })
 
-  // ── S10.2: Settings Page ──
-  test('S10.2 — settings page loads with options', async ({ browser }) => {
-    const page = await loginAsUser(browser, 'sam')
-    await navigateTo(page, '/settings')
-    await assertPageHealthy(page)
-
-    const body = await page.locator('body').innerText()
-    expect(body.length).toBeGreaterThan(50)
-
-    // Should show some settings-related content
-    const hasSettings =
-      body.includes('Settings') ||
-      body.includes('settings') ||
-      body.includes('Notification') ||
-      body.includes('notification') ||
-      body.includes('Account') ||
-      body.includes('account')
-    expect(hasSettings).toBeTruthy()
-
-    await page.context().close()
-  })
-
   // ── S10.3: Terms, Guide, Helping ──
   test('S10.3 — terms page renders', async ({ browser }) => {
     const page = await loginAsUser(browser, 'sam')

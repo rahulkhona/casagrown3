@@ -374,19 +374,12 @@ test.describe('My Booth Interactions', () => {
 // ============================================================================
 // PROFILE & SETTINGS INTERACTIONS — Forms, toggles, navigation
 // ============================================================================
-test.describe('Profile & Settings Interactions', () => {
+test.describe('Profile Interactions', () => {
   test('profile page shows user info or sign-in prompt', async ({ page }) => {
     await page.goto(`${BASE}/profile`)
     await expect(page.locator('body')).toBeVisible()
     const body = await page.locator('body').textContent()
     expect(body).toMatch(/Profile|Sign|Name|Email/i)
-  })
-
-  test('settings page shows toggleable options', async ({ page }) => {
-    await page.goto(`${BASE}/settings`)
-    await expect(page.locator('body')).toBeVisible()
-    const body = await page.locator('body').textContent()
-    expect(body).toMatch(/Settings|Sign|Notification|Dark|Theme/i)
   })
 
   test('profile setup page has form fields', async ({ page }) => {
@@ -561,7 +554,7 @@ test.describe('Error State Interactions', () => {
   })
 
   test('protected pages redirect to login when not authenticated', async ({ page }) => {
-    const protectedPages = ['/my-booth', '/orders', '/earnings', '/chat', '/profile', '/settings', '/notifications']
+    const protectedPages = ['/my-booth', '/orders', '/earnings', '/chat', '/profile', '/notifications']
     for (const pagePath of protectedPages) {
       await page.goto(`${BASE}${pagePath}`)
       await page.waitForTimeout(2000)

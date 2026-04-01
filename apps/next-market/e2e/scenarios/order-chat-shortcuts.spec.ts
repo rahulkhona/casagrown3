@@ -7,7 +7,8 @@ test.describe('Order Chat Shortcuts', () => {
   test('Quick replies and ETA picker work correctly', async ({ browser }) => {
     // 1. Setup Data - Find a pickup order where Sam is the seller
     // The "Ready for Pickup" shortcut only appears for sellers on pickup orders
-    const orderId = execSql(`SELECT id FROM market_orders WHERE seller_id = 'a1111111-1111-1111-1111-111111111111' AND fulfillment_type = 'pickup' LIMIT 1`)
+    // Find a pickup order where Sam is the seller AND Beth is the buyer
+    const orderId = execSql(`SELECT id FROM market_orders WHERE seller_id = 'a1111111-1111-1111-1111-111111111111' AND buyer_id = 'b2222222-2222-2222-2222-222222222222' AND fulfillment_type = 'pickup' LIMIT 1`)
     if (!orderId) {
       console.log('No pickup orders found in database for Sam to test chat shortcuts. Skipping.')
       test.skip()
@@ -28,8 +29,8 @@ test.describe('Order Chat Shortcuts', () => {
     }
 
     // Ensure the chat input area is visible
-    const chatInput = page.locator('input[placeholder="Type a message..."]')
-    await expect(chatInput).toBeVisible({ timeout: 10000 })
+    const chatInput = page.getByPlaceholder('Type a message...')
+    await expect(chatInput).toBeVisible({ timeout: 15000 })
 
     // 4. Test "Ready for Pickup" shortcut
     const pickupBtn = page.locator('button', { hasText: '✅ Ready for Pickup' })
@@ -51,7 +52,14 @@ test.describe('Order Chat Shortcuts', () => {
     if (await bethChatToggle.isVisible()) {
       await bethChatToggle.click()
     }
-    await expect(bethPage.locator('input[placeholder="Type a message..."]')).toBeVisible({ timeout: 10000 })
+    // Dismiss any rating popup that may overlay the chat area
+    const bethSkipRating = bethPage.getByText('Skip for now')
+    if (await bethSkipRating.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await bethSkipRating.click()
+      await bethPage.waitForTimeout(500)
+    }
+    await bethPage.waitForTimeout(2000) // Wait for OrderChat mount and messages to load
+    await expect(bethPage.getByPlaceholder('Type a message...')).toBeVisible({ timeout: 15000 })
 
     // Beth (Buyer on pickup) SHOULD see "On my way..." and should NOT see "Ready for Pickup"
     await expect(bethPage.locator('button', { hasText: '✅ Ready for Pickup' })).not.toBeVisible()

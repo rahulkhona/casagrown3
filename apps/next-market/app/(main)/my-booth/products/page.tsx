@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useMarket, formatUsd, type Product } from '../../../../lib/store'
+import { ShareIcon } from '../../../components/icons'
 import styles from './page.module.css'
 
 export default function ProductsListPage() {
@@ -223,7 +224,7 @@ export default function ProductsListPage() {
                 📋 Copy Invite
               </button>
               <button className={styles.modalActionBtn} onClick={handleInviteShare}>
-                📤 Share
+                <ShareIcon size={14} /> Share
               </button>
             </div>
             <button className={styles.modalClose} onClick={() => setInviteProduct(null)}>

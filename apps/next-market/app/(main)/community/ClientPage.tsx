@@ -219,7 +219,7 @@ export default function ClientPage() {
     const violationCheck = checkTextForViolations(content)
     if (!violationCheck.isClean) {
       showError(violationCheck.error!)
-      return
+      throw new Error(violationCheck.error!) // Throw so ComposeBar doesn't clear the input
     }
     
     try {
