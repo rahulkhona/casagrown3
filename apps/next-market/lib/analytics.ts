@@ -15,7 +15,15 @@ let _txnId: string | null = null
 let _userId: string | null = null
 
 function uuid() {
-  return crypto.randomUUID()
+  // crypto.randomUUID() is only available in secure contexts (HTTPS or localhost).
+  // When testing via LAN IP (e.g. 192.168.x.x:3001), fall back to Math.random.
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
+  })
 }
 
 /** Detect if running as installed PWA (standalone display mode) */
