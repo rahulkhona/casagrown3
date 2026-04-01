@@ -56,7 +56,7 @@ SELECT col_default_is('public', 'market_products', 'is_draft', 'false', 'is_draf
 SELECT results_eq(
   $$
     SELECT (p->>'name')::text
-    FROM nearby_booths(37.7749, -122.4194, 10, 'all', NULL, NULL, NULL, NULL, NULL, false),
+    FROM nearby_booths(user_lat := 37.7749::float8, user_lng := -122.4194::float8, max_miles := 10::float8, p_limit := 100),
     jsonb_array_elements(matched_products) AS p
     WHERE owner_id = 'b7777777-7777-7777-7777-777777777777'
   $$,

@@ -51,9 +51,9 @@ ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO market_products (id, seller_id, market_date, name, category, price_usd, unit, inventory, is_active)
 VALUES
-  ('cccccccc-0001-0001-0001-000000000001', 'aaaaaaaa-0001-0001-0001-000000000001', CURRENT_DATE, 'Tomatoes', 'produce', 5.00, 'lb', 100, true),
-  ('cccccccc-0001-0001-0001-000000000002', 'aaaaaaaa-0001-0001-0001-000000000001', CURRENT_DATE, 'Peppers', 'produce', 4.00, 'lb', 50, true),
-  ('cccccccc-0001-0001-0001-000000000003', 'aaaaaaaa-0001-0001-0001-000000000003', CURRENT_DATE, 'Basil', 'flowers', 3.00, 'bunch', 80, true)
+  ('cccccccc-0001-0001-0001-000000000001', 'aaaaaaaa-0001-0001-0001-000000000001', CURRENT_DATE + 200, 'Tomatoes', 'produce', 5.00, 'lb', 100, true),
+  ('cccccccc-0001-0001-0001-000000000002', 'aaaaaaaa-0001-0001-0001-000000000001', CURRENT_DATE + 200, 'Peppers', 'produce', 4.00, 'lb', 50, true),
+  ('cccccccc-0001-0001-0001-000000000003', 'aaaaaaaa-0001-0001-0001-000000000003', CURRENT_DATE + 200, 'Basil', 'flowers', 3.00, 'bunch', 80, true)
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
@@ -148,22 +148,22 @@ VALUES
   ('dddddddd-0001-0001-0001-000000000001',
    'aaaaaaaa-0001-0001-0001-000000000002', 'aaaaaaaa-0001-0001-0001-000000000001',
    'bbbbbbbb-0001-0001-0001-000000000001', 'cccccccc-0001-0001-0001-000000000001', 'Tomatoes',
-   4, 5.00, 20.00, 0, 0, 10, 2.00, 20.00, 'pickup', 'completed', CURRENT_DATE::timestamptz),
+   4, 5.00, 20.00, 0, 0, 10, 2.00, 20.00, 'pickup', 'completed', (CURRENT_DATE + 200)::timestamptz),
   -- Maria buys from Sam: $12
   ('dddddddd-0001-0001-0001-000000000002',
    'aaaaaaaa-0001-0001-0001-000000000003', 'aaaaaaaa-0001-0001-0001-000000000001',
    'bbbbbbbb-0001-0001-0001-000000000001', 'cccccccc-0001-0001-0001-000000000002', 'Peppers',
-   3, 4.00, 12.00, 0, 0, 10, 1.20, 12.00, 'delivery', 'completed', CURRENT_DATE::timestamptz),
+   3, 4.00, 12.00, 0, 0, 10, 1.20, 12.00, 'delivery', 'completed', (CURRENT_DATE + 200)::timestamptz),
   -- Beth buys from Maria: $9
   ('dddddddd-0001-0001-0001-000000000003',
    'aaaaaaaa-0001-0001-0001-000000000002', 'aaaaaaaa-0001-0001-0001-000000000003',
    'bbbbbbbb-0001-0001-0001-000000000002', 'cccccccc-0001-0001-0001-000000000003', 'Basil',
-   3, 3.00, 9.00, 0, 0, 10, 0.90, 9.00, 'pickup', 'completed', CURRENT_DATE::timestamptz),
+   3, 3.00, 9.00, 0, 0, 10, 0.90, 9.00, 'pickup', 'completed', (CURRENT_DATE + 200)::timestamptz),
   -- Sam buys from Maria: $6
   ('dddddddd-0001-0001-0001-000000000004',
    'aaaaaaaa-0001-0001-0001-000000000001', 'aaaaaaaa-0001-0001-0001-000000000003',
    'bbbbbbbb-0001-0001-0001-000000000002', 'cccccccc-0001-0001-0001-000000000003', 'Basil',
-   2, 3.00, 6.00, 0, 0, 10, 0.60, 6.00, 'pickup', 'completed', CURRENT_DATE::timestamptz);
+   2, 3.00, 6.00, 0, 0, 10, 0.60, 6.00, 'pickup', 'completed', (CURRENT_DATE + 200)::timestamptz);
 
 -- Create Stripe holds for buyers
 INSERT INTO market_holds (id, buyer_id, stripe_payment_intent_id, stripe_client_secret, hold_amount_cents, spent_amount_cents, status)
@@ -176,24 +176,24 @@ VALUES
 -- ============================================================================
 
 SELECT lives_ok(
-  $$SELECT run_market_settlement(CURRENT_DATE)$$,
+  $$SELECT run_market_settlement(CURRENT_DATE + 200)$$,
   'run_market_settlement executes without error'
 );
 
 SELECT is(
-  (SELECT COUNT(*) FROM market_settlements WHERE market_date = CURRENT_DATE),
+  (SELECT COUNT(*) FROM market_settlements WHERE market_date = CURRENT_DATE + 200),
   1::BIGINT,
   'One settlement created for today'
 );
 
 SELECT isnt(
-  (SELECT status::text FROM market_settlements WHERE market_date = CURRENT_DATE),
+  (SELECT status::text FROM market_settlements WHERE market_date = CURRENT_DATE + 200),
   'reconciliation_failed',
   'Settlement should NOT have failed reconciliation'
 );
 
 SELECT is(
-  (SELECT status::text FROM market_settlements WHERE market_date = CURRENT_DATE),
+  (SELECT status::text FROM market_settlements WHERE market_date = CURRENT_DATE + 200),
   'funds_pending',
   'Settlement should be in funds_pending state'
 );
@@ -204,28 +204,28 @@ SELECT is(
 
 SELECT is(
   (SELECT gross_sales_usd FROM user_settlements us JOIN market_settlements ms ON ms.id = us.settlement_id
-   WHERE us.user_id = 'aaaaaaaa-0001-0001-0001-000000000001' AND ms.market_date = CURRENT_DATE),
+   WHERE us.user_id = 'aaaaaaaa-0001-0001-0001-000000000001' AND ms.market_date = CURRENT_DATE + 200),
   32.00::NUMERIC(10,2),
   'Sam: gross_sales = $32.00'
 );
 
 SELECT is(
   (SELECT total_purchases_usd FROM user_settlements us JOIN market_settlements ms ON ms.id = us.settlement_id
-   WHERE us.user_id = 'aaaaaaaa-0001-0001-0001-000000000001' AND ms.market_date = CURRENT_DATE),
+   WHERE us.user_id = 'aaaaaaaa-0001-0001-0001-000000000001' AND ms.market_date = CURRENT_DATE + 200),
   6.00::NUMERIC(10,2),
   'Sam: total_purchases = $6.00'
 );
 
 SELECT is(
   (SELECT platform_fees_usd FROM user_settlements us JOIN market_settlements ms ON ms.id = us.settlement_id
-   WHERE us.user_id = 'aaaaaaaa-0001-0001-0001-000000000001' AND ms.market_date = CURRENT_DATE),
+   WHERE us.user_id = 'aaaaaaaa-0001-0001-0001-000000000001' AND ms.market_date = CURRENT_DATE + 200),
   3.20::NUMERIC(10,2),
   'Sam: platform_fees = $3.20'
 );
 
 SELECT is(
   (SELECT net_payout_usd FROM user_settlements us JOIN market_settlements ms ON ms.id = us.settlement_id
-   WHERE us.user_id = 'aaaaaaaa-0001-0001-0001-000000000001' AND ms.market_date = CURRENT_DATE),
+   WHERE us.user_id = 'aaaaaaaa-0001-0001-0001-000000000001' AND ms.market_date = CURRENT_DATE + 200),
   22.80::NUMERIC(10,2),
   'Sam: net_payout = $22.80'
 );
@@ -236,21 +236,21 @@ SELECT is(
 
 SELECT is(
   (SELECT gross_sales_usd FROM user_settlements us JOIN market_settlements ms ON ms.id = us.settlement_id
-   WHERE us.user_id = 'aaaaaaaa-0001-0001-0001-000000000002' AND ms.market_date = CURRENT_DATE),
+   WHERE us.user_id = 'aaaaaaaa-0001-0001-0001-000000000002' AND ms.market_date = CURRENT_DATE + 200),
   0.00::NUMERIC(10,2),
   'Beth: gross_sales = $0.00'
 );
 
 SELECT is(
   (SELECT total_purchases_usd FROM user_settlements us JOIN market_settlements ms ON ms.id = us.settlement_id
-   WHERE us.user_id = 'aaaaaaaa-0001-0001-0001-000000000002' AND ms.market_date = CURRENT_DATE),
+   WHERE us.user_id = 'aaaaaaaa-0001-0001-0001-000000000002' AND ms.market_date = CURRENT_DATE + 200),
   29.00::NUMERIC(10,2),
   'Beth: total_purchases = $29.00'
 );
 
 SELECT is(
   (SELECT net_payout_usd FROM user_settlements us JOIN market_settlements ms ON ms.id = us.settlement_id
-   WHERE us.user_id = 'aaaaaaaa-0001-0001-0001-000000000002' AND ms.market_date = CURRENT_DATE),
+   WHERE us.user_id = 'aaaaaaaa-0001-0001-0001-000000000002' AND ms.market_date = CURRENT_DATE + 200),
   (-29.00)::NUMERIC(10,2),
   'Beth: net_payout = -$29.00 (net buyer)'
 );
@@ -261,14 +261,14 @@ SELECT is(
 
 SELECT is(
   (SELECT gross_sales_usd FROM user_settlements us JOIN market_settlements ms ON ms.id = us.settlement_id
-   WHERE us.user_id = 'aaaaaaaa-0001-0001-0001-000000000003' AND ms.market_date = CURRENT_DATE),
+   WHERE us.user_id = 'aaaaaaaa-0001-0001-0001-000000000003' AND ms.market_date = CURRENT_DATE + 200),
   15.00::NUMERIC(10,2),
   'Maria: gross_sales = $15.00'
 );
 
 SELECT is(
   (SELECT net_payout_usd FROM user_settlements us JOIN market_settlements ms ON ms.id = us.settlement_id
-   WHERE us.user_id = 'aaaaaaaa-0001-0001-0001-000000000003' AND ms.market_date = CURRENT_DATE),
+   WHERE us.user_id = 'aaaaaaaa-0001-0001-0001-000000000003' AND ms.market_date = CURRENT_DATE + 200),
   1.50::NUMERIC(10,2),
   'Maria: net_payout = $1.50'
 );
@@ -312,7 +312,7 @@ SELECT is(
 -- Total captured across settlement
 SELECT is(
   (SELECT SUM(capture_amount_usd) FROM settlement_captures sc
-   JOIN market_settlements ms ON ms.id = sc.settlement_id WHERE ms.market_date = CURRENT_DATE),
+   JOIN market_settlements ms ON ms.id = sc.settlement_id WHERE ms.market_date = CURRENT_DATE + 200),
   35.00::NUMERIC(10,2),
   'Total captured across all holds = $35.00'
 );
@@ -341,12 +341,12 @@ SELECT ok(
 -- ============================================================================
 
 SELECT ok(
-  (SELECT (reconciliation_check->>'check1_ledger_consistency')::boolean FROM market_settlements WHERE market_date = CURRENT_DATE),
+  (SELECT (reconciliation_check->>'check1_ledger_consistency')::boolean FROM market_settlements WHERE market_date = CURRENT_DATE + 200),
   'Reconciliation check 1 (ledger consistency) passed'
 );
 
 SELECT ok(
-  (SELECT (reconciliation_check->>'check2_settlement_balance')::boolean FROM market_settlements WHERE market_date = CURRENT_DATE),
+  (SELECT (reconciliation_check->>'check2_settlement_balance')::boolean FROM market_settlements WHERE market_date = CURRENT_DATE + 200),
   'Reconciliation check 2 (settlement balance) passed'
 );
 
@@ -355,7 +355,7 @@ SELECT ok(
 -- ============================================================================
 
 SELECT is(
-  (SELECT (run_market_settlement(CURRENT_DATE))->>'error'),
+  (SELECT (run_market_settlement(CURRENT_DATE + 200))->>'error'),
   'No unsettled orders to process',
   'Re-running settlement returns no unsettled orders (all already tagged)'
 );
@@ -388,7 +388,7 @@ SELECT is(
 
 SELECT lives_ok(
   $$SELECT confirm_settlement_funds_received(
-    (SELECT id FROM market_settlements WHERE market_date = CURRENT_DATE),
+    (SELECT id FROM market_settlements WHERE market_date = CURRENT_DATE + 200),
     'po_test_payout_123',
     33.39
   )$$,
@@ -397,27 +397,27 @@ SELECT lives_ok(
 
 -- Settlement cleared
 SELECT is(
-  (SELECT status::text FROM market_settlements WHERE market_date = CURRENT_DATE),
+  (SELECT status::text FROM market_settlements WHERE market_date = CURRENT_DATE + 200),
   'cleared',
   'Settlement status = cleared after funds received'
 );
 
 -- Stripe payout info recorded
 SELECT is(
-  (SELECT stripe_payout_id FROM market_settlements WHERE market_date = CURRENT_DATE),
+  (SELECT stripe_payout_id FROM market_settlements WHERE market_date = CURRENT_DATE + 200),
   'po_test_payout_123',
   'Stripe payout ID recorded on settlement'
 );
 
 SELECT is(
-  (SELECT stripe_payout_amount_usd FROM market_settlements WHERE market_date = CURRENT_DATE),
+  (SELECT stripe_payout_amount_usd FROM market_settlements WHERE market_date = CURRENT_DATE + 200),
   33.39::NUMERIC(10,2),
   'Stripe payout amount recorded = $33.39 (after fees)'
 );
 
 -- Check 3 passed
 SELECT ok(
-  (SELECT (reconciliation_check->>'check3_stripe_reconciliation')::boolean FROM market_settlements WHERE market_date = CURRENT_DATE),
+  (SELECT (reconciliation_check->>'check3_stripe_reconciliation')::boolean FROM market_settlements WHERE market_date = CURRENT_DATE + 200),
   'Reconciliation check 3 (Stripe reconciliation) passed'
 );
 
@@ -439,7 +439,7 @@ SELECT is(
 
 SELECT is(
   (SELECT us.status FROM user_settlements us JOIN market_settlements ms ON ms.id = us.settlement_id
-   WHERE us.user_id = 'aaaaaaaa-0001-0001-0001-000000000001' AND ms.market_date = CURRENT_DATE),
+   WHERE us.user_id = 'aaaaaaaa-0001-0001-0001-000000000001' AND ms.market_date = CURRENT_DATE + 200),
   'available',
   'Sam: user_settlement status = available'
 );

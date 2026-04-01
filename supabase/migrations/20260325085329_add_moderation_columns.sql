@@ -14,3 +14,6 @@ ADD COLUMN IF NOT EXISTS moderation_checked_at timestamp with time zone;
 ALTER TABLE public.market_products
 ADD CONSTRAINT market_products_moderation_status_check 
 CHECK (moderation_status IN ('pending', 'approved', 'flagged'));
+
+-- Auto-approve all pre-existing products (market is always-on, no moderation workflow yet)
+UPDATE public.market_products SET moderation_status = 'approved' WHERE moderation_status = 'pending';

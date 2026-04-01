@@ -91,6 +91,7 @@ BEGIN
   products AS (
     SELECT mp.seller_id,
       COUNT(*) FILTER (WHERE mp.is_active AND NOT mp.is_draft
+        AND COALESCE(mp.moderation_status, 'approved') = 'approved'
         AND (v_never_expire OR mp.expires_at IS NULL OR mp.expires_at > now())
         AND NOT EXISTS (
           SELECT 1 FROM quarantine_zones qz
@@ -122,6 +123,7 @@ BEGIN
             'product_pickup_windows', mp.product_pickup_windows
           ) ORDER BY mp.created_at
         ) FILTER (WHERE mp.is_active AND NOT mp.is_draft
+          AND COALESCE(mp.moderation_status, 'approved') = 'approved'
           AND (v_never_expire OR mp.expires_at IS NULL OR mp.expires_at > now())
           AND (product_search IS NULL OR NOT EXISTS (
             SELECT 1 FROM unnest(string_to_array(lower(product_search), ' ')) AS word

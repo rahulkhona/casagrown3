@@ -45,16 +45,15 @@ SELECT ok(
 );
 
 -- T4: Trigger forces price_usd = 0 for NY seller's product
-INSERT INTO market_products (id, seller_id, name, price_usd, unit, inventory, is_active, market_date, category)
+INSERT INTO market_products (id, seller_id, name, price_usd, unit, inventory, is_active, market_date, category, moderation_status)
 VALUES (
   'e0e01111-0001-4a00-a001-000000000001',
   '44444444-4444-4444-4444-444444444444',
-  'FREETEST Product', 10.00, 'each', 5, true, CURRENT_DATE + 7, 'produce'
+  'FREETEST Product', 10.00, 'each', 5, true, CURRENT_DATE + 7, 'produce', 'approved'
 );
 
 -- Update the Seeded booth to ensure it stays open for the test framework
-UPDATE market_booths SET is_open = true WHERE id = 'b0000000-0000-0000-0000-000000000002';
-UPDATE market_booths SET is_open = true WHERE owner_id = '44444444-4444-4444-4444-444444444444';
+-- is_open is always true since migration 20260331000000
 
 SELECT ok(
   (SELECT price_usd FROM market_products WHERE id = 'e0e01111-0001-4a00-a001-000000000001') = 0,
@@ -65,7 +64,7 @@ SELECT ok(
 -- Sofia's booth should not appear for a CA buyer
 SELECT ok(
   NOT EXISTS(
-    SELECT 1 FROM nearby_booths(37.33::float8, -121.89::float8, 5000.0::float8, null::text, null::text, null::numeric, null::numeric, null::text, 'CA'::text)
+    SELECT 1 FROM nearby_booths(user_lat := 37.33::float8, user_lng := -121.89::float8, max_miles := 5000.0::float8, buyer_state_code := 'CA'::text, p_limit := 100)
     WHERE owner_id = '44444444-4444-4444-4444-444444444444'
   ),
   'NY seller booth excluded for CA buyer via state isolation'
@@ -74,7 +73,7 @@ SELECT ok(
 -- T6: nearby_booths with buyer_state_code=NULL returns all (backward compat)
 SELECT ok(
   EXISTS(
-    SELECT 1 FROM nearby_booths(37.33::float8, -121.89::float8, 5000.0::float8, null::text, null::text, null::numeric, null::numeric, null::text, null::text)
+    SELECT 1 FROM nearby_booths(user_lat := 37.33::float8, user_lng := -121.89::float8, max_miles := 5000.0::float8, p_limit := 100)
     WHERE owner_id = '44444444-4444-4444-4444-444444444444'
   ),
   'NULL buyer_state_code returns all booths (backward compat)'
@@ -83,7 +82,7 @@ SELECT ok(
 -- Cleanup
 DELETE FROM market_products WHERE id = 'e0e01111-0001-4a00-a001-000000000001';
 UPDATE profiles SET state_code = 'CA' WHERE id = '44444444-4444-4444-4444-444444444444';
-UPDATE market_booths SET is_open = false WHERE owner_id = '44444444-4444-4444-4444-444444444444';
+-- is_open is always true since migration 20260331000000
 DELETE FROM market_state_blocks;
 
 SELECT * FROM finish();

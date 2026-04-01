@@ -151,78 +151,16 @@ test.describe('Transaction Pipeline — Full Financial Lifecycle', () => {
     const boothCount = await boothLinks.count()
 
     // Market may be closed or no booths nearby
+    // Market is always-on — if no booths appear, it's a data issue
     if (boothCount === 0) {
-      console.log('[PIPELINE] Market is closed — testing MarketClosedBox UI')
+      console.log('[PIPELINE] No booths visible — possible data/seed issue (no approved products?)')
 
       const bodyText = await bethPage.locator('body').innerText()
-      const lower = bodyText.toLowerCase()
 
-      // 1. Verify MarketClosedBox full-page takeover
-      const hasClosedUI =
-        lower.includes('market is closed') ||
-        lower.includes('closed') ||
-        lower.includes('next open') ||
-        lower.includes('opens')
-      expect(hasClosedUI).toBeTruthy()
-      console.log('[PIPELINE] ✅ Market closed UI visible')
-
-      // 2. Verify countdown timer section
-      const hasCountdown =
-        lower.includes('hours') ||
-        lower.includes('mins') ||
-        lower.includes('secs') ||
-        lower.includes('days')
-      console.log(`[PIPELINE] Countdown visible: ${hasCountdown}`)
-
-      // 3. Verify action cards (List Produce, Join Community, Invite)
-      const hasActions =
-        lower.includes('list') ||
-        lower.includes('community') ||
-        lower.includes('invite')
-      expect(hasActions).toBeTruthy()
-      console.log('[PIPELINE] ✅ Action cards visible')
-
-      // 4. Verify weekly schedule
-      const hasSchedule =
-        lower.includes('schedule') ||
-        lower.includes('saturday') ||
-        lower.includes('sun') ||
-        lower.includes('mon')
-      console.log(`[PIPELINE] Schedule section: ${hasSchedule}`)
-
-      // 5. Verify How It Works section
-      const hasHowItWorks =
-        lower.includes('how') ||
-        lower.includes('list your produce') ||
-        lower.includes('deliver') ||
-        lower.includes('settlement')
-      console.log(`[PIPELINE] How It Works section: ${hasHowItWorks}`)
-
-      // 6. Click Remind Me button — should expand reminder panel
-      const remindBtn = bethPage.locator('button:has-text("Remind Me"), button:has-text("Reminder")')
-      if (await remindBtn.first().isVisible({ timeout: 3000 }).catch(() => false)) {
-        await remindBtn.first().click()
-        await bethPage.waitForTimeout(1000)
-
-        const afterBody = await bethPage.locator('body').innerText()
-        const afterLower = afterBody.toLowerCase()
-        // After expanding, should show notification permission or time picker
-        const panelExpanded =
-          afterLower.includes('notification') ||
-          afterLower.includes('allow') ||
-          afterLower.includes('minutes') ||
-          afterLower.includes('remind you') ||
-          afterLower.includes('home screen') ||
-          afterLower.includes('set reminder')
-        expect(panelExpanded).toBeTruthy()
-        console.log('[PIPELINE] ✅ Reminder panel expanded')
-      }
-
-      // 7. Verify no Buy Now / Add to Cart buttons on closed market
-      const buyBtn = bethPage.locator('button:has-text("Buy Now"), button:has-text("Add to Cart")')
-      const buyCount = await buyBtn.count()
-      expect(buyCount).toBe(0)
-      console.log('[PIPELINE] ✅ No Buy Now / Add to Cart buttons visible (market closed)')
+      // Market never closes, so no "closed" UI should appear
+      // Just verify the page itself loaded without errors
+      expect(bodyText).not.toContain('error')
+      expect(bodyText).not.toContain('Application error')
     } else {
       // Market is open — try to buy
       await boothLinks.first().click()

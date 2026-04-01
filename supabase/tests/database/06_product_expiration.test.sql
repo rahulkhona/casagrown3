@@ -5,32 +5,30 @@
 BEGIN;
 SELECT plan(6);
 
--- Ensure products_never_expire is false and all testing booths are open
-UPDATE market_settings SET products_never_expire = false WHERE id = true;
-UPDATE market_booths SET is_open = true;
+-- is_open is always true since migration 20260331000000
 
 -- Active product with future market_date (seller: 22222222-2222-2222-2222-222222222222)
-INSERT INTO market_products (id, seller_id, name, price_usd, unit, inventory, is_active, market_date, category, expires_at)
+INSERT INTO market_products (id, seller_id, name, price_usd, unit, inventory, is_active, market_date, category, expires_at, moderation_status)
 VALUES (
   'f0f01111-0001-4e00-f001-000000000001',
   '22222222-2222-2222-2222-222222222222',
   'EXPTEST Fresh Tomatoes',
-  5.00, 'basket', 10, true, CURRENT_DATE + 1, 'produce', now() + interval '5 days'
+  5.00, 'basket', 10, true, CURRENT_DATE + 1, 'produce', now() + interval '5 days', 'approved'
 );
 
 -- Expired product (market_date in the past)
-INSERT INTO market_products (id, seller_id, name, price_usd, unit, inventory, is_active, market_date, category, expires_at)
+INSERT INTO market_products (id, seller_id, name, price_usd, unit, inventory, is_active, market_date, category, expires_at, moderation_status)
 VALUES (
   'f0f02222-0002-4e00-f002-000000000002',
   '22222222-2222-2222-2222-222222222222',
   'EXPTEST Old Lettuce',
-  3.00, 'head', 5, true, CURRENT_DATE - 7, 'produce', now() - interval '2 days'
+  3.00, 'head', 5, true, CURRENT_DATE - 7, 'produce', now() - interval '2 days', 'approved'
 );
 
 -- T1: Active product appears in nearby_booths
 SELECT ok(
   EXISTS(
-    SELECT 1 FROM nearby_booths(37.33::float8, -121.89::float8, 50.0::float8, null::text, null::text, null::numeric, null::numeric, null::text, null::text)
+    SELECT 1 FROM nearby_booths(user_lat := 37.33::float8, user_lng := -121.89::float8, max_miles := 50.0::float8, p_limit := 100)
     WHERE matched_products::text ILIKE '%EXPTEST Fresh Tomatoes%'
   ),
   'Active future-dated product appears in nearby_booths'
@@ -39,7 +37,7 @@ SELECT ok(
 -- T2: Expired product does NOT appear
 SELECT ok(
   NOT EXISTS(
-    SELECT 1 FROM nearby_booths(37.33::float8, -121.89::float8, 50.0::float8, null::text, null::text, null::numeric, null::numeric, null::text, null::text)
+    SELECT 1 FROM nearby_booths(user_lat := 37.33::float8, user_lng := -121.89::float8, max_miles := 50.0::float8, p_limit := 100)
     WHERE matched_products::text ILIKE '%EXPTEST Old Lettuce%'
   ),
   'Expired product is filtered from nearby_booths'
@@ -61,7 +59,7 @@ SELECT ok(
 UPDATE market_products SET market_date = CURRENT_DATE + 1, expires_at = now() + interval '5 days', is_deleted = false WHERE id = 'f0f02222-0002-4e00-f002-000000000002';
 SELECT ok(
   EXISTS(
-    SELECT 1 FROM nearby_booths(37.33::float8, -121.89::float8, 50.0::float8, null::text, null::text, null::numeric, null::numeric, null::text, null::text)
+    SELECT 1 FROM nearby_booths(user_lat := 37.33::float8, user_lng := -121.89::float8, max_miles := 50.0::float8, p_limit := 100)
     WHERE matched_products::text ILIKE '%EXPTEST Old Lettuce%'
   ),
   'Re-listed product appears in nearby_booths'
@@ -72,13 +70,13 @@ UPDATE market_products SET market_date = CURRENT_DATE - 7, expires_at = now() - 
 UPDATE market_settings SET products_never_expire = true WHERE id = true;
 SELECT ok(
   EXISTS(
-    SELECT 1 FROM nearby_booths(37.33::float8, -121.89::float8, 50.0::float8, null::text, null::text, null::numeric, null::numeric, null::text, null::text)
+    SELECT 1 FROM nearby_booths(user_lat := 37.33::float8, user_lng := -121.89::float8, max_miles := 50.0::float8, p_limit := 100)
     WHERE matched_products::text ILIKE '%EXPTEST Old Lettuce%'
   ),
   'products_never_expire=true shows expired products'
 );
 
--- Cleanup
+-- Cleanup: reset products_never_expire
 UPDATE market_settings SET products_never_expire = false WHERE id = true;
 
 SELECT * FROM finish();

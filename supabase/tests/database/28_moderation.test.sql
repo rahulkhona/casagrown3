@@ -16,9 +16,8 @@ INSERT INTO market_products (
   'c8888888-8888-8888-8888-888888888888', 'Pending Oranges', 'Not approved', 'produce', 6, 'bag', 10, true, false, 'pending', CURRENT_DATE, now() + interval '30 days'
 );
 
-SELECT results_eq(
-  $$ SELECT (p->>'name')::text FROM nearby_booths(37.7749, -122.4194, 10), jsonb_array_elements(matched_products) AS p WHERE owner_id='c8888888-8888-8888-8888-888888888888' $$,
-  $$ VALUES (NULL::text) $$,
-  'Check if pending oranges returns'
+SELECT is_empty(
+  $$ SELECT (p->>'name')::text FROM nearby_booths(user_lat := 37.7749::float8, user_lng := -122.4194::float8, max_miles := 10::float8, p_limit := 100), jsonb_array_elements(matched_products) AS p WHERE owner_id='c8888888-8888-8888-8888-888888888888' $$,
+  'Pending oranges are excluded from nearby_booths (moderation_status != approved)'
 );
 ROLLBACK;

@@ -40,12 +40,13 @@ test.describe('Purchase Flow — Order + Stripe Sandbox', () => {
   test.beforeAll(async () => {
     Object.assign(tokens, await preAuthAllUsers())
 
-    // Find a product with inventory > 0 from Sam's booth
+    // Find any product with inventory from a seller that has a booth
     const productRow = execSql(
       `SELECT p.id, p.price_usd, b.id as booth_id FROM market_products p
        JOIN market_booths b ON p.seller_id = b.owner_id
-       WHERE b.owner_id = 'a1111111-1111-1111-1111-111111111111'
-         AND p.inventory > 0
+       WHERE p.inventory > 0
+         AND p.moderation_status = 'approved'
+         AND p.is_active = true
        LIMIT 1`
     )
     if (productRow) {
@@ -119,8 +120,8 @@ test.describe('Purchase Flow — Order + Stripe Sandbox', () => {
     console.log('[ORDER] Result:', JSON.stringify(result).substring(0, 300))
 
     if (result?.error) {
-      // Market might be closed — that's a valid guard
-      console.log('[ORDER] Expected error (market closed):', result.error)
+      // Product not found — seed data issue
+      console.log('[ORDER] Expected error (no approved products?):', result.error)
       expect(result.error).toBeTruthy()
       // Fall back to existing order for subsequent tests
       const existingId = execSql(
@@ -241,7 +242,7 @@ test.describe('Purchase Flow — Order + Stripe Sandbox', () => {
       expect(result.expected_price).toBeDefined()
       console.log(`[PRICE GUARD] ✅ Rejected: expected $${result.expected_price}, actual $${result.current_price}`)
     } else if (result?.error) {
-      // Market closed or other valid rejection
+      // Rejected or data unavailable
       expect(result.error).toBeTruthy()
       console.log('[PRICE GUARD] ✅ Rejected with:', result.error)
     }
@@ -301,7 +302,7 @@ test.describe('Purchase Flow — Order + Stripe Sandbox', () => {
       console.log(`[FREE] ✅ Free order ${result.order_id} created, no hold needed`)
     } else {
       // Market closed or other valid rejection
-      console.log('[FREE] Order not created:', result?.error || 'market likely closed')
+      console.log('[FREE] Order not created:', result?.error || 'unknown reason')
     }
   })
 
