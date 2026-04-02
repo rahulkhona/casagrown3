@@ -125,6 +125,7 @@ function NewProductPageInner() {
   const [buzzPosting, setBuzzPosting] = useState(false)
   const [userH3Index, setUserH3Index] = useState<string | null>(null)
   const [forceDraft, setForceDraft] = useState(false)
+  const [locationDenied, setLocationDenied] = useState(false)
 
   // AI auto-fill
   const [aiAnalyzing, setAiAnalyzing] = useState(false)
@@ -225,8 +226,10 @@ function NewProductPageInner() {
     // Request location permission early — needed for quarantine zone checks
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
-        () => { /* permission granted — position will be used by quarantine check */ },
-        () => { /* denied or unavailable — quarantine check still works via profile address */ },
+        () => { /* permission granted */ },
+        (err) => {
+          if (err.code === 1) setLocationDenied(true)
+        },
         { timeout: 5000 }
       )
     }
@@ -1421,13 +1424,25 @@ function NewProductPageInner() {
                           dispatch({ type: 'ADD_TOAST', payload: { message: 'Could not determine address', type: 'error' } })
                         }
                       },
-                      () => dispatch({ type: 'ADD_TOAST', payload: { message: 'Location access denied', type: 'error' } }),
+                      (err) => {
+                        if (err.code === 1) {
+                          setLocationDenied(true)
+                          dispatch({ type: 'ADD_TOAST', payload: { message: 'Location access denied — see instructions below', type: 'error' } })
+                        } else {
+                          dispatch({ type: 'ADD_TOAST', payload: { message: 'Could not get location — please enter address manually', type: 'error' } })
+                        }
+                      },
                       { enableHighAccuracy: true, timeout: 10000 }
                     )
                   }}
                 >
                   📍 Use my current location
                 </button>
+                {locationDenied && (
+                  <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--amber-700, #b45309)', lineHeight: 1.4 }}>
+                    🔒 Location is blocked. To enable: tap the <strong>lock icon</strong> (or ⋮) in your browser’s address bar → <strong>Site settings</strong> → set <strong>Location</strong> to Allow, then reload.
+                  </p>
+                )}
               </div>
             )}
             {(hasBooth ? productOffersDelivery : inlineDelivery) && (

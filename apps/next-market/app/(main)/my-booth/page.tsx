@@ -129,6 +129,7 @@ export default function MyBoothPage() {
   const [formError, setFormError] = useState<string | null>(null)
   const [deleteConfProductId, setDeleteConfProductId] = useState<string | null>(null)
   const { showError } = useErrorToast()
+  const [locationDenied, setLocationDenied] = useState(false)
 
   // Drag-and-drop reordering
   const [dragIdx, setDragIdx] = useState<number | null>(null)
@@ -1039,8 +1040,13 @@ export default function MyBoothPage() {
                       dispatch({ type: 'ADD_TOAST', payload: { message: 'Could not determine address from location', type: 'error' } })
                     }
                   },
-                  () => {
-                    dispatch({ type: 'ADD_TOAST', payload: { message: 'Location access denied. Please allow location access and try again.', type: 'error' } })
+                  (err) => {
+                    if (err.code === 1) {
+                      setLocationDenied(true)
+                      dispatch({ type: 'ADD_TOAST', payload: { message: 'Location access denied — see instructions below', type: 'error' } })
+                    } else {
+                      dispatch({ type: 'ADD_TOAST', payload: { message: 'Could not get location — please enter address manually', type: 'error' } })
+                    }
                   },
                   { enableHighAccuracy: true, timeout: 10000 }
                 )
@@ -1048,6 +1054,11 @@ export default function MyBoothPage() {
             >
               📍 Use my current location
             </button>
+            {locationDenied && (
+              <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--amber-700, #b45309)', lineHeight: 1.4 }}>
+                🔒 Location is blocked. To enable: tap the <strong>lock icon</strong> (or ⋮) in your browser's address bar → <strong>Site settings</strong> → set <strong>Location</strong> to Allow, then reload.
+              </p>
+            )}
           </div>
         )}
       </div>
