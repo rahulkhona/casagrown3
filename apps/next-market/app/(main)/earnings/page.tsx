@@ -387,7 +387,9 @@ export default function EarningsPage() {
           <div className={styles.summaryCard} style={{ borderColor: 'var(--green-300)' }}>
             <span className={styles.summaryLabel}>Available</span>
             <span className={styles.summaryValue} style={{ color: 'var(--green-700)' }}>{formatUsd(summary?.available_usd || 0)}</span>
-            <Link href="/earnings/payout" className="btn btn-primary btn-sm" style={{ marginTop: 8 }}>Payout →</Link>
+            {(summary?.available_usd || 0) > 0 && (
+              <Link href="/earnings/payout" className="btn btn-primary btn-sm" style={{ marginTop: 12 }}>Payout →</Link>
+            )}
           </div>
           <div className={styles.summaryCard}>
             <span className={styles.summaryLabel}>Unsettled</span>
@@ -415,11 +417,6 @@ export default function EarningsPage() {
             <span className={styles.summaryLabel}>Cash Spent (CC)</span>
             <span className={styles.summaryValue}>{formatUsd(summary?.total_cc_charged || 0)}</span>
             <span className={styles.summaryHint}>Net card charges after netting</span>
-          </div>
-          <div className={styles.summaryCard} style={{ borderColor: 'var(--green-300)', background: 'var(--green-50)' }}>
-            <span className={styles.summaryLabel}>🌱 Grocery Savings</span>
-            <span className={styles.summaryValue} style={{ color: 'var(--green-700)' }}>{formatUsd(Math.max(0, (summary?.total_sales || 0) - (summary?.total_cc_charged || 0)))}</span>
-            <span className={styles.summaryHint}>Sales offset your purchases</span>
           </div>
         </div>
 
