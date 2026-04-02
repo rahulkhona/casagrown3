@@ -284,6 +284,178 @@ VALUES
   ('c3333333-3333-3333-3333-333333333333', 'reward', 5000, 5000, now() + interval '1 second', '{"reason":"E2E test seed"}');
 
 -- =============================================================================
+-- 11b. ORDER-TESTING USERS — Alex Adams & Taylor Torres
+-- Both live on the same block in Willow Glen (1021 & 1045 Lincoln Ave, 95125).
+-- Same H3 zone, same GPS point, 10mi delivery radius → always in range.
+-- Login: alex@test.local / TestPassword123!
+--        taylor@test.local / TestPassword123!
+-- =============================================================================
+
+-- Alex Adams — auth
+INSERT INTO auth.users (
+  id, instance_id, aud, role,
+  email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data,
+  created_at, updated_at,
+  confirmation_token, recovery_token, email_change_token_new, email_change
+) VALUES (
+  'd4444444-4444-4444-4444-444444444444',
+  '00000000-0000-0000-0000-000000000000',
+  'authenticated', 'authenticated',
+  'alex@test.local',
+  '$2a$06$FbG0qaw0v4J3GOm/y5tduulnL0cYxDpju9ZoHH9mNJW.GgeaC.xve',
+  now(),
+  '{"provider":"email","providers":["email"]}',
+  '{"full_name":"Alex Adams"}',
+  now(), now(),
+  '', '', '', ''
+) ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO auth.identities (
+  id, user_id, provider_id, provider,
+  identity_data, last_sign_in_at, created_at, updated_at
+) VALUES (
+  'd4444444-4444-4444-4444-444444444444',
+  'd4444444-4444-4444-4444-444444444444',
+  'alex@test.local', 'email',
+  jsonb_build_object('sub', 'd4444444-4444-4444-4444-444444444444', 'email', 'alex@test.local'),
+  now(), now(), now()
+) ON CONFLICT (provider_id, provider) DO NOTHING;
+
+-- Taylor Torres — auth
+INSERT INTO auth.users (
+  id, instance_id, aud, role,
+  email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data,
+  created_at, updated_at,
+  confirmation_token, recovery_token, email_change_token_new, email_change
+) VALUES (
+  'e5555555-5555-5555-5555-555555555555',
+  '00000000-0000-0000-0000-000000000000',
+  'authenticated', 'authenticated',
+  'taylor@test.local',
+  '$2a$06$FbG0qaw0v4J3GOm/y5tduulnL0cYxDpju9ZoHH9mNJW.GgeaC.xve',
+  now(),
+  '{"provider":"email","providers":["email"]}',
+  '{"full_name":"Taylor Torres"}',
+  now(), now(),
+  '', '', '', ''
+) ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO auth.identities (
+  id, user_id, provider_id, provider,
+  identity_data, last_sign_in_at, created_at, updated_at
+) VALUES (
+  'e5555555-5555-5555-5555-555555555555',
+  'e5555555-5555-5555-5555-555555555555',
+  'taylor@test.local', 'email',
+  jsonb_build_object('sub', 'e5555555-5555-5555-5555-555555555555', 'email', 'taylor@test.local'),
+  now(), now(), now()
+) ON CONFLICT (provider_id, provider) DO NOTHING;
+
+-- Alex & Taylor — profiles (same GPS point, same H3 zone)
+INSERT INTO public.profiles (
+  id, email, full_name, home_community_h3_index, referral_code,
+  phone_verified, tos_accepted_at, profile_completed_at,
+  zip_code, street_address, city, state_code, phone_number,
+  nearby_community_h3_indices, home_location
+) VALUES
+  ('d4444444-4444-4444-4444-444444444444', 'alex@test.local', 'Alex Adams',
+   '89283470c2fffff', 'ALEX01', true, NOW(), NOW(),
+   '95125', '1021 Lincoln Ave', 'San Jose', 'CA', '+14085553456',
+   ARRAY['89283470c6fffff', '89283470cafffff'],
+   ST_SetSRID(ST_MakePoint(-121.8950, 37.3080), 4326)),
+  ('e5555555-5555-5555-5555-555555555555', 'taylor@test.local', 'Taylor Torres',
+   '89283470c2fffff', 'TAYLOR01', true, NOW(), NOW(),
+   '95125', '1045 Lincoln Ave', 'San Jose', 'CA', '+14085554567',
+   ARRAY['89283470c6fffff', '89283470cafffff'],
+   ST_SetSRID(ST_MakePoint(-121.8952, 37.3079), 4326))
+ON CONFLICT (id) DO UPDATE SET
+  full_name = EXCLUDED.full_name,
+  home_community_h3_index = EXCLUDED.home_community_h3_index,
+  referral_code = EXCLUDED.referral_code,
+  phone_verified = EXCLUDED.phone_verified,
+  tos_accepted_at = EXCLUDED.tos_accepted_at,
+  profile_completed_at = EXCLUDED.profile_completed_at,
+  zip_code = EXCLUDED.zip_code,
+  street_address = EXCLUDED.street_address,
+  city = EXCLUDED.city,
+  state_code = EXCLUDED.state_code,
+  phone_number = EXCLUDED.phone_number,
+  nearby_community_h3_indices = EXCLUDED.nearby_community_h3_indices,
+  home_location = EXCLUDED.home_location;
+
+-- Mark all test users as having completed the community welcome
+UPDATE public.profiles SET buzz_welcomed_at = NOW()
+WHERE id IN (
+  'a1111111-1111-1111-1111-111111111111',
+  'b2222222-2222-2222-2222-222222222222',
+  'c3333333-3333-3333-3333-333333333333',
+  'd4444444-4444-4444-4444-444444444444',
+  'e5555555-5555-5555-5555-555555555555'
+);
+
+-- Alex & Taylor — points
+INSERT INTO public.point_ledger (user_id, type, amount, balance_after, created_at, metadata)
+VALUES
+  ('d4444444-4444-4444-4444-444444444444', 'reward', 5000, 5000, now() + interval '1 second', '{"reason":"E2E test seed"}'),
+  ('e5555555-5555-5555-5555-555555555555', 'reward', 5000, 5000, now() + interval '1 second', '{"reason":"E2E test seed"}');
+
+-- Alex's booth — 10mi delivery radius, same GPS as profile
+INSERT INTO market_booths (owner_id, name, description, decorative_theme,
+  offers_delivery, offers_pickup, delivery_radius_miles, pickup_address,
+  delivery_windows, pickup_windows, payment_method, pickup_location
+) VALUES (
+  'd4444444-4444-4444-4444-444444444444',
+  'Alex''s Fresh Picks', 'Backyard garden produce — fresh daily in Willow Glen', 'harvest',
+  true, true, 10, '1021 Lincoln Ave, San Jose, CA 95125',
+  '[{"id":"8-10","start":"08:00","end":"10:00"},{"id":"10-12","start":"10:00","end":"12:00"}]'::jsonb,
+  '[{"id":"9-11","start":"09:00","end":"11:00"}]'::jsonb,
+  'automatic', ST_SetSRID(ST_MakePoint(-121.8950, 37.3080), 4326)
+) ON CONFLICT (owner_id) DO UPDATE SET
+  name = EXCLUDED.name, description = EXCLUDED.description,
+  offers_delivery = EXCLUDED.offers_delivery, offers_pickup = EXCLUDED.offers_pickup,
+  delivery_radius_miles = EXCLUDED.delivery_radius_miles, pickup_address = EXCLUDED.pickup_address,
+  delivery_windows = EXCLUDED.delivery_windows, pickup_windows = EXCLUDED.pickup_windows,
+  pickup_location = EXCLUDED.pickup_location;
+
+-- Taylor's booth — 10mi delivery radius, same GPS as profile
+INSERT INTO market_booths (owner_id, name, description, decorative_theme,
+  offers_delivery, offers_pickup, delivery_radius_miles, pickup_address,
+  delivery_windows, pickup_windows, payment_method, pickup_location
+) VALUES (
+  'e5555555-5555-5555-5555-555555555555',
+  'Taylor''s Garden Stand', 'Organic herbs and heirloom veggies from my patio garden', 'floral',
+  true, true, 10, '1045 Lincoln Ave, San Jose, CA 95125',
+  '[{"id":"8-10","start":"08:00","end":"10:00"},{"id":"14-16","start":"14:00","end":"16:00"}]'::jsonb,
+  '[{"id":"10-12","start":"10:00","end":"12:00"}]'::jsonb,
+  'automatic', ST_SetSRID(ST_MakePoint(-121.8952, 37.3079), 4326)
+) ON CONFLICT (owner_id) DO UPDATE SET
+  name = EXCLUDED.name, description = EXCLUDED.description,
+  offers_delivery = EXCLUDED.offers_delivery, offers_pickup = EXCLUDED.offers_pickup,
+  delivery_radius_miles = EXCLUDED.delivery_radius_miles, pickup_address = EXCLUDED.pickup_address,
+  delivery_windows = EXCLUDED.delivery_windows, pickup_windows = EXCLUDED.pickup_windows,
+  pickup_location = EXCLUDED.pickup_location;
+
+-- Alex's products (5 items)
+INSERT INTO market_products (seller_id, market_date, name, description, category, price_usd, unit, inventory, photos, harvested_at, moderation_status) VALUES
+  ('d4444444-4444-4444-4444-444444444444', CURRENT_DATE, 'Beefsteak Tomatoes', 'Huge vine-ripened beefsteak tomatoes, 1 lb each', 'produce', 4.00, 'each', 15, '{}', now(), 'approved'),
+  ('d4444444-4444-4444-4444-444444444444', CURRENT_DATE, 'Sugar Snap Peas', 'Crisp sweet sugar snap peas, perfect for snacking', 'produce', 5.00, 'bag', 12, '{}', now(), 'approved'),
+  ('d4444444-4444-4444-4444-444444444444', CURRENT_DATE, 'Garden Salad Mix', 'Mixed greens with arugula, spinach, and butter lettuce', 'produce', 6.00, 'bag', 10, '{}', now(), 'approved'),
+  ('d4444444-4444-4444-4444-444444444444', CURRENT_DATE, 'Fresh Cilantro', 'Aromatic cilantro bunches, great for salsa', 'produce', 2.00, 'bunch', 25, '{}', now(), 'approved'),
+  ('d4444444-4444-4444-4444-444444444444', CURRENT_DATE, 'Backyard Peaches', 'Sweet O''Henry peaches from my backyard tree', 'produce', 5.50, 'bag', 8, '{}', now(), 'approved')
+ON CONFLICT DO NOTHING;
+
+-- Taylor's products (5 items)
+INSERT INTO market_products (seller_id, market_date, name, description, category, price_usd, unit, inventory, photos, harvested_at, moderation_status) VALUES
+  ('e5555555-5555-5555-5555-555555555555', CURRENT_DATE, 'Italian Basil', 'Large-leaf Genovese basil, just harvested', 'produce', 3.00, 'bunch', 20, '{}', now(), 'approved'),
+  ('e5555555-5555-5555-5555-555555555555', CURRENT_DATE, 'Cherry Peppers', 'Sweet cherry peppers, red and yellow mix', 'produce', 4.50, 'bag', 14, '{}', now(), 'approved'),
+  ('e5555555-5555-5555-5555-555555555555', CURRENT_DATE, 'Heirloom Carrots', 'Rainbow heirloom carrots — purple, orange, yellow', 'produce', 4.00, 'bunch', 16, '{}', now(), 'approved'),
+  ('e5555555-5555-5555-5555-555555555555', CURRENT_DATE, 'Fresh Rosemary', 'Woody rosemary sprigs from my herb garden', 'produce', 2.50, 'bunch', 18, '{}', now(), 'approved'),
+  ('e5555555-5555-5555-5555-555555555555', CURRENT_DATE, 'Backyard Figs', 'Sweet Black Mission figs, tree-ripened', 'produce', 7.00, 'pint', 6, '{}', now(), 'approved')
+ON CONFLICT DO NOTHING;
+
+-- =============================================================================
 -- 12. Test Posts (with complete detail rows)
 -- =============================================================================
 
