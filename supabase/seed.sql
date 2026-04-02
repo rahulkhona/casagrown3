@@ -953,7 +953,28 @@ BEGIN
   ON CONFLICT (owner_id) DO UPDATE SET name=EXCLUDED.name;
 
   INSERT INTO market_products (seller_id,market_date,name,description,category,price_usd,unit,inventory,photos,harvested_at) VALUES
-    ('a1111111-1111-1111-1111-111111111111',CURRENT_DATE,'Heirloom Peppers','Mixed hot and sweet peppers','produce',4.50,'basket',10,'{}',now())
+    ('a1111111-1111-1111-1111-111111111111',CURRENT_DATE,'Heirloom Peppers','Mixed hot and sweet peppers','produce',4.50,'basket',10,'{}',now()),
+    ('a1111111-1111-1111-1111-111111111111',CURRENT_DATE,'Sweet Corn','Golden bantam corn, picked today','produce',3.00,'each',20,'{}',now()),
+    ('a1111111-1111-1111-1111-111111111111',CURRENT_DATE,'Fresh Eggs','Free-range eggs from happy chickens','eggs',6.00,'dozen',8,'{}',now()),
+    ('a1111111-1111-1111-1111-111111111111',CURRENT_DATE,'Organic Honey','Raw wildflower honey, unfiltered','honey',10.00,'jar',5,'{}',NULL),
+    ('a1111111-1111-1111-1111-111111111111',CURRENT_DATE,'Sunflower Bouquet','Bright cheerful sunflowers from our garden','flowers',8.00,'bunch',6,'{}',now())
+  ON CONFLICT DO NOTHING;
+
+  -- Give buyer@test a booth + products (so seller can buy from buyer)
+  INSERT INTO market_booths (owner_id,name,description,decorative_theme,offers_delivery,offers_pickup,delivery_radius_miles,pickup_address,delivery_windows,pickup_windows,payment_method,pickup_location) VALUES
+    ('b2222222-2222-2222-2222-222222222222','Beth''s Backyard Harvest','Fresh seasonal produce from my backyard garden','cottage',true,true,4,'456 Buyer Ln, San Jose',
+     '[{"id":"9-11","start":"09:00","end":"11:00"},{"id":"14-16","start":"14:00","end":"16:00"}]'::jsonb,
+     '[{"id":"9-11","start":"09:00","end":"11:00"}]'::jsonb,
+     'automatic',ST_SetSRID(ST_MakePoint(-121.87,37.24),4326))
+  ON CONFLICT (owner_id) DO UPDATE SET name=EXCLUDED.name, description=EXCLUDED.description, offers_delivery=true, offers_pickup=true, delivery_windows=EXCLUDED.delivery_windows, pickup_windows=EXCLUDED.pickup_windows, pickup_address=EXCLUDED.pickup_address, pickup_location=EXCLUDED.pickup_location;
+
+  INSERT INTO market_products (seller_id,market_date,name,description,category,price_usd,unit,inventory,photos,harvested_at) VALUES
+    ('b2222222-2222-2222-2222-222222222222',CURRENT_DATE,'Roma Tomatoes','Meaty paste tomatoes, great for sauce','produce',4.00,'basket',15,'{}',now()),
+    ('b2222222-2222-2222-2222-222222222222',CURRENT_DATE,'Purple Basil','Beautiful purple Genovese basil','produce',3.50,'bunch',12,'{}',now()),
+    ('b2222222-2222-2222-2222-222222222222',CURRENT_DATE,'Fresh Mint','Spearmint from raised beds, pesticide free','produce',2.50,'bunch',20,'{}',now()),
+    ('b2222222-2222-2222-2222-222222222222',CURRENT_DATE,'Strawberries','Sweet Seascape variety, just picked today','produce',5.00,'pint',10,'{}',now()),
+    ('b2222222-2222-2222-2222-222222222222',CURRENT_DATE,'Lavender Bundle','Dried French lavender from my garden','flowers',4.00,'bunch',8,'{}',NULL),
+    ('b2222222-2222-2222-2222-222222222222',CURRENT_DATE,'Lemon Cucumbers','Round, sweet lemon cucumbers','produce',3.00,'bag',14,'{}',now())
   ON CONFLICT DO NOTHING;
 
   -- ── SELLER@TEST AS SELLER (login as seller@test to manage) ──
