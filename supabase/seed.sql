@@ -241,21 +241,24 @@ INSERT INTO public.profiles (
   id, email, full_name, home_community_h3_index, referral_code,
   phone_verified, tos_accepted_at, profile_completed_at,
   zip_code, street_address, city, state_code, phone_number,
-  nearby_community_h3_indices
+  nearby_community_h3_indices, home_location
 )
 VALUES
   ('a1111111-1111-1111-1111-111111111111', 'seller@test.local', 'Sam Seller',
    '89283470c2fffff', 'SELLER01', true, NOW(), NOW(),
-   '95125', '973 Wallace Dr', 'San Jose', 'CA', '+14085551234',
-   ARRAY['89283470c6fffff', '89283470cafffff']),
+   '95125', '1168 Lincoln Ave', 'San Jose', 'CA', '+14085551234',
+   ARRAY['89283470c6fffff', '89283470cafffff'],
+   ST_SetSRID(ST_MakePoint(-121.8977, 37.3084), 4326)),
   ('b2222222-2222-2222-2222-222222222222', 'buyer@test.local', 'Beth Buyer',
    '89283470c2fffff', 'BUYER01', false, NOW(), NOW(),
-   '95120', '123 Main St', 'San Jose', 'CA', '+14085555678',
-   ARRAY['89283470c6fffff', '89283470cafffff']),
+   '95125', '1247 Minnesota Ave', 'San Jose', 'CA', '+14085555678',
+   ARRAY['89283470c6fffff', '89283470cafffff'],
+   ST_SetSRID(ST_MakePoint(-121.8983, 37.3068), 4326)),
   ('c3333333-3333-3333-3333-333333333333', 'martinez@test.local', 'Maria Martinez',
    '89283470c2fffff', 'MARIA01', true, NOW(), NOW(),
    '95123', '456 Oak Ave', 'San Jose', 'CA', '+14085559012',
-   ARRAY['89283470c6fffff', '89283470cafffff'])
+   ARRAY['89283470c6fffff', '89283470cafffff'],
+   ST_SetSRID(ST_MakePoint(-121.8820, 37.2290), 4326))
 ON CONFLICT (id) DO UPDATE SET
   full_name = EXCLUDED.full_name,
   home_community_h3_index = EXCLUDED.home_community_h3_index,
@@ -268,7 +271,8 @@ ON CONFLICT (id) DO UPDATE SET
   city = EXCLUDED.city,
   state_code = EXCLUDED.state_code,
   phone_number = EXCLUDED.phone_number,
-  nearby_community_h3_indices = EXCLUDED.nearby_community_h3_indices;
+  nearby_community_h3_indices = EXCLUDED.nearby_community_h3_indices,
+  home_location = EXCLUDED.home_location;
 
 -- Seed points for both users (enough for test transactions)
 -- Using 2000 to ensure enough points after cashout test (−500 pts) for the
@@ -946,10 +950,11 @@ BEGIN
 
   -- Give seller@test a booth + product
   INSERT INTO market_booths (owner_id,name,description,decorative_theme,offers_delivery,offers_pickup,delivery_radius_miles,pickup_address,delivery_windows,pickup_windows,payment_method,pickup_location) VALUES
-    ('a1111111-1111-1111-1111-111111111111','Test Seller''s Garden','Fresh garden produce from local backyard','harvest',true,true,5,'123 Test St, San Jose',
+    ('a1111111-1111-1111-1111-111111111111','Test Seller''s Garden','Fresh garden produce from local backyard','harvest',
+     true,true,5,'1168 Lincoln Ave, San Jose, CA 95125',
      '[{"id":"8-10","start":"08:00","end":"10:00"}]'::jsonb,
      '[{"id":"8-10","start":"08:00","end":"10:00"}]'::jsonb,
-     'automatic',ST_SetSRID(ST_MakePoint(-121.88,37.23),4326))
+     'automatic',ST_SetSRID(ST_MakePoint(-121.8977,37.3084),4326))
   ON CONFLICT (owner_id) DO UPDATE SET name=EXCLUDED.name;
 
   INSERT INTO market_products (seller_id,market_date,name,description,category,price_usd,unit,inventory,photos,harvested_at) VALUES
@@ -962,10 +967,10 @@ BEGIN
 
   -- Give buyer@test a booth + products (so seller can buy from buyer)
   INSERT INTO market_booths (owner_id,name,description,decorative_theme,offers_delivery,offers_pickup,delivery_radius_miles,pickup_address,delivery_windows,pickup_windows,payment_method,pickup_location) VALUES
-    ('b2222222-2222-2222-2222-222222222222','Beth''s Backyard Harvest','Fresh seasonal produce from my backyard garden','cottage',true,true,4,'456 Buyer Ln, San Jose',
+    ('b2222222-2222-2222-2222-222222222222','Beth''s Backyard Harvest','Fresh seasonal produce from my backyard garden','cottage',true,true,4,'1247 Minnesota Ave, San Jose, CA 95125',
      '[{"id":"9-11","start":"09:00","end":"11:00"},{"id":"14-16","start":"14:00","end":"16:00"}]'::jsonb,
      '[{"id":"9-11","start":"09:00","end":"11:00"}]'::jsonb,
-     'automatic',ST_SetSRID(ST_MakePoint(-121.87,37.24),4326))
+     'automatic',ST_SetSRID(ST_MakePoint(-121.8983,37.3068),4326))
   ON CONFLICT (owner_id) DO UPDATE SET name=EXCLUDED.name, description=EXCLUDED.description, offers_delivery=true, offers_pickup=true, delivery_windows=EXCLUDED.delivery_windows, pickup_windows=EXCLUDED.pickup_windows, pickup_address=EXCLUDED.pickup_address, pickup_location=EXCLUDED.pickup_location;
 
   INSERT INTO market_products (seller_id,market_date,name,description,category,price_usd,unit,inventory,photos,harvested_at) VALUES
