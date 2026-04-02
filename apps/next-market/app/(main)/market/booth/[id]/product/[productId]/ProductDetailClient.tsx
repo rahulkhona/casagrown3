@@ -575,31 +575,74 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                   </div>
                 )}
 
-                {/* Fulfillment mode toggle — shown when booth offers both */}
+                {/* Fulfillment mode selector — shown when booth offers both */}
                 {booth.offers_pickup && booth.offers_delivery && !windowsExpired && product.inventory > 0 && (
-                  <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-                    <button
-                      style={{
-                        flex: 1, padding: '8px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-                        cursor: 'pointer', transition: 'all 0.2s', border: '2px solid',
-                        borderColor: selectedFulfillment === 'pickup' ? 'var(--green-600, #16a34a)' : 'var(--gray-200)',
-                        background: selectedFulfillment === 'pickup' ? 'var(--green-50, #f0fdf4)' : 'white',
-                        color: selectedFulfillment === 'pickup' ? 'var(--green-700, #15803d)' : 'var(--gray-500)',
-                      }}
-                      onClick={() => setSelectedFulfillment('pickup')}
-                      aria-pressed={selectedFulfillment === 'pickup'}
-                    >📍 Pickup</button>
-                    <button
-                      style={{
-                        flex: 1, padding: '8px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-                        cursor: 'pointer', transition: 'all 0.2s', border: '2px solid',
-                        borderColor: selectedFulfillment === 'delivery' ? 'var(--green-600, #16a34a)' : 'var(--gray-200)',
-                        background: selectedFulfillment === 'delivery' ? 'var(--green-50, #f0fdf4)' : 'white',
-                        color: selectedFulfillment === 'delivery' ? 'var(--green-700, #15803d)' : 'var(--gray-500)',
-                      }}
-                      onClick={() => setSelectedFulfillment('delivery')}
-                      aria-pressed={selectedFulfillment === 'delivery'}
-                    >🚗 Delivery</button>
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>
+                      How would you like to get it?
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {/* Pickup card */}
+                      <button
+                        style={{
+                          flex: 1, padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
+                          transition: 'all 0.2s', border: '2px solid',
+                          borderColor: selectedFulfillment === 'pickup' ? 'var(--green-600, #16a34a)' : 'var(--gray-200)',
+                          background: selectedFulfillment === 'pickup' ? 'var(--green-50, #f0fdf4)' : 'white',
+                          textAlign: 'left', display: 'flex', alignItems: 'flex-start', gap: 8,
+                        }}
+                        onClick={() => setSelectedFulfillment('pickup')}
+                        aria-pressed={selectedFulfillment === 'pickup'}
+                      >
+                        <span style={{
+                          width: 18, height: 18, borderRadius: '50%', border: '2px solid',
+                          borderColor: selectedFulfillment === 'pickup' ? 'var(--green-600, #16a34a)' : 'var(--gray-300)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1,
+                        }}>
+                          {selectedFulfillment === 'pickup' && (
+                            <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--green-600, #16a34a)' }} />
+                          )}
+                        </span>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: selectedFulfillment === 'pickup' ? 'var(--green-700, #15803d)' : 'var(--gray-700)' }}>
+                            📍 Pickup
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 2 }}>
+                            {booth.pickup_display_address || booth.pickup_address || 'Seller location'}
+                          </div>
+                        </div>
+                      </button>
+                      {/* Delivery card */}
+                      <button
+                        style={{
+                          flex: 1, padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
+                          transition: 'all 0.2s', border: '2px solid',
+                          borderColor: selectedFulfillment === 'delivery' ? 'var(--green-600, #16a34a)' : 'var(--gray-200)',
+                          background: selectedFulfillment === 'delivery' ? 'var(--green-50, #f0fdf4)' : 'white',
+                          textAlign: 'left', display: 'flex', alignItems: 'flex-start', gap: 8,
+                        }}
+                        onClick={() => setSelectedFulfillment('delivery')}
+                        aria-pressed={selectedFulfillment === 'delivery'}
+                      >
+                        <span style={{
+                          width: 18, height: 18, borderRadius: '50%', border: '2px solid',
+                          borderColor: selectedFulfillment === 'delivery' ? 'var(--green-600, #16a34a)' : 'var(--gray-300)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1,
+                        }}>
+                          {selectedFulfillment === 'delivery' && (
+                            <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--green-600, #16a34a)' }} />
+                          )}
+                        </span>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: selectedFulfillment === 'delivery' ? 'var(--green-700, #15803d)' : 'var(--gray-700)' }}>
+                            🚗 Delivery
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 2 }}>
+                            Within {booth.delivery_radius_miles || 10} miles
+                          </div>
+                        </div>
+                      </button>
+                    </div>
                   </div>
                 )}
 
