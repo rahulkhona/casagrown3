@@ -668,6 +668,54 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                         </div>
                       ) : null
                     })()}
+                    {/* Delivery address check — inline under delivery */}
+                    {!isDemo && product.seller_id !== user?.id && (
+                      <div style={{ marginTop: 6 }}>
+                        {distanceMiles != null && (
+                          <p style={{ fontSize: 11, color: 'var(--gray-400)', margin: '0 0 2px' }}>
+                            📍 {addrLabel.length > 40 ? addrLabel.slice(0, 40) + '…' : addrLabel}
+                          </p>
+                        )}
+                        {!showAltAddrInput ? (
+                          <button
+                            onClick={() => setShowAltAddrInput(true)}
+                            style={{
+                              background: 'none', border: 'none', color: 'var(--green-600)',
+                              fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0,
+                            }}
+                          >
+                            {distanceMiles != null ? '🔄 Check another address' : '📍 Check your distance'}
+                          </button>
+                        ) : (
+                          <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginTop: 4 }}>
+                            <input
+                              style={{
+                                flex: 1, padding: '4px 8px', border: '1px solid var(--gray-200)',
+                                borderRadius: 6, fontSize: 12, fontFamily: 'inherit', outline: 'none',
+                              }}
+                              placeholder="Enter address..."
+                              value={altAddress}
+                              onChange={e => setAltAddress(e.target.value)}
+                              onKeyDown={e => e.key === 'Enter' && handleCheckAltAddress()}
+                              autoFocus
+                            />
+                            <button
+                              onClick={handleCheckAltAddress}
+                              disabled={checkingAltAddr || !altAddress.trim()}
+                              style={{
+                                width: 24, height: 24, borderRadius: '50%', background: 'var(--green-600)',
+                                color: '#fff', border: 'none', fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                                opacity: checkingAltAddr || !altAddress.trim() ? 0.4 : 1,
+                              }}
+                            >{checkingAltAddr ? '…' : '→'}</button>
+                            <button
+                              onClick={() => { setShowAltAddrInput(false); setAltAddress('') }}
+                              style={{ background: 'none', border: 'none', color: 'var(--gray-400)', cursor: 'pointer', fontSize: 12 }}
+                            >✕</button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -683,9 +731,6 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                         <small style={{ display: 'block' }}>{displayAddr}</small>
                       ) : null
                     })()}
-                    {distanceMiles != null && (
-                      <small style={{ fontWeight: 600 }}>{distanceMiles} mi from you</small>
-                    )}
                     {/* Pickup time windows */}
                     {(() => {
                       const days = getWindowDays(product.window_dates, product.product_pickup_windows)
@@ -712,55 +757,6 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                 </div>
               )}
             </div>
-
-            {/* Distance check controls */}
-            {!isDemo && (booth.offers_delivery || booth.offers_pickup) && product.seller_id !== user?.id && (
-              <div style={{ marginTop: 8 }}>
-                {distanceMiles != null && (
-                  <p style={{ fontSize: 12, color: 'var(--gray-400)', margin: '0 0 4px' }}>
-                    📍 From: {addrLabel.length > 50 ? addrLabel.slice(0, 50) + '…' : addrLabel}
-                  </p>
-                )}
-                {!showAltAddrInput ? (
-                  <button
-                    onClick={() => setShowAltAddrInput(true)}
-                    style={{
-                      background: 'none', border: 'none', color: 'var(--green-600)',
-                      fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: 0,
-                    }}
-                  >
-                    {distanceMiles != null ? '🔄 Check another address' : '📍 Check your distance'}
-                  </button>
-                ) : (
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4 }}>
-                    <input
-                      style={{
-                        flex: 1, padding: '6px 10px', border: '1px solid var(--gray-200)',
-                        borderRadius: 6, fontSize: 13, fontFamily: 'inherit', outline: 'none',
-                      }}
-                      placeholder="Enter address to check..."
-                      value={altAddress}
-                      onChange={e => setAltAddress(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && handleCheckAltAddress()}
-                      autoFocus
-                    />
-                    <button
-                      onClick={handleCheckAltAddress}
-                      disabled={checkingAltAddr || !altAddress.trim()}
-                      style={{
-                        width: 28, height: 28, borderRadius: '50%', background: 'var(--green-600)',
-                        color: '#fff', border: 'none', fontWeight: 700, fontSize: 14, cursor: 'pointer',
-                        opacity: checkingAltAddr || !altAddress.trim() ? 0.4 : 1,
-                      }}
-                    >{checkingAltAddr ? '…' : '→'}</button>
-                    <button
-                      onClick={() => { setShowAltAddrInput(false); setAltAddress('') }}
-                      style={{ background: 'none', border: 'none', color: 'var(--gray-400)', cursor: 'pointer', fontSize: 14 }}
-                    >✕</button>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         </div>
       </div>

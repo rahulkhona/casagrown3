@@ -88,7 +88,7 @@ export function ProductQA({ productId, sellerId, isDemo, productName, productDes
     return (
       <div className={styles.qaSection}>
         <h3 className={styles.qaTitle}>
-          💬 Questions & Answers
+          Questions & Answers
           <span className={styles.qaCount} style={{ background: '#f0fdf4', color: '#15803d' }}>🌿 Demo</span>
         </h3>
 
@@ -388,7 +388,7 @@ export function ProductQA({ productId, sellerId, isDemo, productName, productDes
   return (
     <div className={styles.qaSection}>
       <h3 className={styles.qaTitle}>
-        💬 Questions & Answers
+        Questions & Answers
         {questions.length > 0 && <span className={styles.qaCount}>{questions.length}</span>}
       </h3>
 
@@ -432,7 +432,7 @@ export function ProductQA({ productId, sellerId, isDemo, productName, productDes
       {/* Questions list */}
       {questions.length === 0 ? (
         <div className={styles.emptyState}>
-          <span className={styles.emptyIcon}>💬</span>
+          <span className={styles.emptyIcon}>❓</span>
           <p>No questions yet — be the first to ask!</p>
         </div>
       ) : (

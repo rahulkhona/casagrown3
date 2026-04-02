@@ -315,6 +315,46 @@ export default function ProductListingCard({ productId, currentUserId }: Product
                       </div>
                     ) : null
                   })()}
+                  {/* Address check — under delivery only */}
+                  {!isSeller && (
+                    <div style={{ marginTop: 4 }}>
+                      {distanceMiles != null && (
+                        <span className={styles.plcAddressFrom} style={{ display: 'block', marginBottom: 2 }}>
+                          📍 {addressLabel.length > 30 ? addressLabel.slice(0, 30) + '…' : addressLabel}
+                        </span>
+                      )}
+                      {!showAltInput ? (
+                        <button
+                          className={styles.plcCheckBtn}
+                          onClick={(e) => { e.preventDefault(); setShowAltInput(true) }}
+                        >
+                          {distanceMiles != null ? '🔄 Check another address' : '📍 Check your distance'}
+                        </button>
+                      ) : (
+                        <div className={styles.plcAltForm}>
+                          <input
+                            className={styles.plcAltInput}
+                            placeholder="Enter address..."
+                            value={altAddress}
+                            onChange={e => setAltAddress(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleCheckAddress()}
+                            autoFocus
+                          />
+                          <button
+                            className={styles.plcAltSubmit}
+                            onClick={handleCheckAddress}
+                            disabled={checkingAddress || !altAddress.trim()}
+                          >
+                            {checkingAddress ? '...' : '→'}
+                          </button>
+                          <button
+                            className={styles.plcAltCancel}
+                            onClick={() => { setShowAltInput(false); setAltAddress('') }}
+                          >✕</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -330,9 +370,6 @@ export default function ProductListingCard({ productId, currentUserId }: Product
                       <span className={styles.plcFulfillmentHint}>{displayAddr}</span>
                     ) : null
                   })()}
-                  {distanceMiles != null && (
-                    <span className={styles.plcFulfillmentHint}>{distanceMiles} mi from you</span>
-                  )}
                   {(() => {
                     const days = getWindowDays(product.window_dates, product.product_pickup_windows)
                     return days.length > 0 ? (
@@ -350,47 +387,6 @@ export default function ProductListingCard({ productId, currentUserId }: Product
                     ) : null
                   })()}
                 </div>
-              </div>
-            )}
-
-            {/* Address check section */}
-            {(booth.offers_delivery || booth.offers_pickup) && !isSeller && (
-              <div className={styles.plcAddressCheck}>
-                {distanceMiles != null && (
-                  <span className={styles.plcAddressFrom}>
-                    📍 Your location: {addressLabel.length > 40 ? addressLabel.slice(0, 40) + '…' : addressLabel}
-                  </span>
-                )}
-                {!showAltInput ? (
-                  <button
-                    className={styles.plcCheckBtn}
-                    onClick={(e) => { e.preventDefault(); setShowAltInput(true) }}
-                  >
-                    {distanceMiles != null ? '🔄 Check another address' : '📍 Check your distance'}
-                  </button>
-                ) : (
-                  <div className={styles.plcAltForm}>
-                    <input
-                      className={styles.plcAltInput}
-                      placeholder="Enter address to check..."
-                      value={altAddress}
-                      onChange={e => setAltAddress(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && handleCheckAddress()}
-                      autoFocus
-                    />
-                    <button
-                      className={styles.plcAltSubmit}
-                      onClick={handleCheckAddress}
-                      disabled={checkingAddress || !altAddress.trim()}
-                    >
-                      {checkingAddress ? '...' : '→'}
-                    </button>
-                    <button
-                      className={styles.plcAltCancel}
-                      onClick={() => { setShowAltInput(false); setAltAddress('') }}
-                    >✕</button>
-                  </div>
-                )}
               </div>
             )}
           </div>
