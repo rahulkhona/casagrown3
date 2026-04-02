@@ -775,7 +775,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
               fontSize: 16, fontWeight: 600, textDecoration: 'none', cursor: 'pointer',
             }}
           >
-            💬 Message Seller
+            💬 DM {booth.name || 'Seller'}
           </Link>
         </div>
       )}
