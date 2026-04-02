@@ -45,7 +45,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
   const [loading, setLoading] = useState(true)
   const [photoIndex, setPhotoIndex] = useState(0)
   const [showBuy, setShowBuy] = useState(false)
-  const [selectedFulfillment, setSelectedFulfillment] = useState<'delivery' | 'pickup'>('pickup')
+  const [selectedFulfillment, setSelectedFulfillment] = useState<'delivery' | 'pickup' | null>(null)
   const [buyerZip, setBuyerZip] = useState('')
   const [buyerAddress, setBuyerAddress] = useState('')
   const [showFlag, setShowFlag] = useState(false)
@@ -91,6 +91,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
           if (cachedBooth) {
             const bd = JSON.parse(cachedBooth)
             setBooth(bd)
+            if (!selectedFulfillment) setSelectedFulfillment(bd.offers_pickup ? 'pickup' : 'delivery')
             if (bd.seller_avg_rating) {
               setSellerRating({ avg: bd.seller_avg_rating, count: bd.seller_rating_count || 0 })
             }
@@ -127,6 +128,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
           boothData.pickup_display_address = anonymizeAddress(boothData.pickup_address)
         }
         setBooth(boothData)
+        if (!selectedFulfillment) setSelectedFulfillment(boothData.offers_pickup ? 'pickup' : 'delivery')
       }
       setLoading(false)
     }
@@ -585,6 +587,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                         color: selectedFulfillment === 'pickup' ? 'var(--green-700, #15803d)' : 'var(--gray-500)',
                       }}
                       onClick={() => setSelectedFulfillment('pickup')}
+                      aria-pressed={selectedFulfillment === 'pickup'}
                     >📍 Pickup</button>
                     <button
                       style={{
@@ -595,6 +598,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                         color: selectedFulfillment === 'delivery' ? 'var(--green-700, #15803d)' : 'var(--gray-500)',
                       }}
                       onClick={() => setSelectedFulfillment('delivery')}
+                      aria-pressed={selectedFulfillment === 'delivery'}
                     >🚗 Delivery</button>
                   </div>
                 )}
@@ -661,7 +665,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                             delivery_radius_miles: booth.delivery_radius_miles,
                           },
                           cartQty,
-                          selectedFulfillment
+                          selectedFulfillment || (booth.offers_pickup ? 'pickup' : 'delivery')
                         )
                         setCartToast(existingCartQty > 0 ? `Cart updated! (${cartQty} ${product.unit}${cartQty > 1 ? 's' : ''})` : `Added to cart! 🛒`)
                         setTimeout(() => setCartToast(null), 3000)
