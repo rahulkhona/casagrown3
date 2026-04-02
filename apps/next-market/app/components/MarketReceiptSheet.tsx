@@ -199,9 +199,14 @@ export function MarketReceiptSheet({ visible, data, onClose }: Props) {
                 </div>
                 {data.netPayout != null && (
                   <div className={`${styles.row} ${styles.payoutRow}`}>
-                    <span className={styles.payoutLabel}>You Received</span>
+                    <span className={styles.payoutLabel}>{data.settlementId ? 'You Received' : 'You Will Receive'}</span>
                     <span className={styles.payoutValue}>{formatUsd(data.netPayout)}</span>
                   </div>
+                )}
+                {!data.settlementId && (
+                  <p style={{ fontSize: 10, color: 'var(--gray-400)', margin: '4px 0 0', lineHeight: 1.4 }}>
+                    Earnings are available after market settlement.
+                  </p>
                 )}
               </div>
             </>

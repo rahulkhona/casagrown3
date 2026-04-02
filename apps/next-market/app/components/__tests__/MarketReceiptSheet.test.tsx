@@ -60,7 +60,7 @@ describe('MarketReceiptSheet', () => {
     )
     expect(container.textContent).toContain('Sale Receipt')
     expect(container.textContent).toContain('Platform Fee')
-    expect(container.textContent).toContain('You Received')
+    expect(container.textContent).toContain('You Will Receive')
   })
 
   it('shows truncated order ID', () => {

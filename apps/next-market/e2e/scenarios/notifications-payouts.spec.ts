@@ -353,7 +353,7 @@ test.describe('Notifications & Payouts', () => {
 
       if (email) {
         // Seller receipt should contain financial section
-        expect(email.body).toMatch(/Financial Summary|Platform Fee|You Received/i)
+        expect(email.body).toMatch(/Financial Summary|Platform Fee|You (Will )?Receive/i)
         // Should contain fee rate
         expect(email.body).toMatch(/\d+%/)
         // Should contain payout amount with 'pts'
