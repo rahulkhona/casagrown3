@@ -269,7 +269,7 @@ export default function EarningsPage() {
         showError('Rating error: ' + (error?.message || data?.error))
         setRatedOrders(prev => { const next = { ...prev }; delete next[orderId]; return next })
       } else {
-        showSuccess('Rating submitted successfully!')
+        showSuccess(data?.updated ? 'Rating updated!' : 'Rating submitted!')
       }
     } catch (e: any) {
       console.error('Rating failed:', e)
