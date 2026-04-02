@@ -104,16 +104,24 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
       ])
       if (prod) setProduct(prod)
       if (boothData) {
-        setBooth(boothData)
-        // Fetch seller rating
+        // Fetch seller profile for rating + pickup address fallback
         const { data: profileData } = await supabase
           .from('profiles')
-          .select('seller_avg_rating, seller_rating_count')
+          .select('seller_avg_rating, seller_rating_count, street_address, city, state_code, zip_plus4')
           .eq('id', boothData.owner_id)
           .single()
         if (profileData && profileData.seller_rating_count >= 5) {
           setSellerRating({ avg: profileData.seller_avg_rating, count: profileData.seller_rating_count })
         }
+        // Derive pickup address from seller profile if not set on booth
+        if (!boothData.pickup_address && profileData?.street_address) {
+          const fullAddr = [profileData.street_address, profileData.city, profileData.state_code, profileData.zip_plus4].filter(Boolean).join(', ')
+          boothData.pickup_address = fullAddr
+          boothData.pickup_display_address = anonymizeAddress(fullAddr)
+        } else if (boothData.pickup_address && !boothData.pickup_display_address) {
+          boothData.pickup_display_address = anonymizeAddress(boothData.pickup_address)
+        }
+        setBooth(boothData)
       }
       setLoading(false)
     }
@@ -590,14 +598,15 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                   </div>
                 )}
                 
-                {/* NEW: Message Seller Button */}
+                {/* Message Seller Button — always available for buyers */}
                 {!isDemo && isAuthenticated && user?.id !== product.seller_id && (
                   <Link
                     href={`/messages/new?userId=${product.seller_id}&productId=${product.id}&name=${encodeURIComponent(booth.name || 'Seller')}`}
                     style={{
-                      display: 'block', width: '100%', marginTop: 12, padding: '12px 20px',
-                      border: '2px solid var(--gray-300)', borderRadius: 'var(--radius-md, 12px)',
-                      background: 'none', color: 'var(--gray-700)', textAlign: 'center',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      width: '100%', marginTop: 12, padding: '12px 20px',
+                      border: '2px solid var(--green-200, #bbf7d0)', borderRadius: 'var(--radius-md, 12px)',
+                      background: 'var(--green-50, #f0fdf4)', color: 'var(--green-700, #15803d)', textAlign: 'center',
                       fontSize: 16, fontWeight: 600, textDecoration: 'none', cursor: 'pointer',
                     }}
                   >

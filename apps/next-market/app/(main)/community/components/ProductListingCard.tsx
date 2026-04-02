@@ -90,8 +90,26 @@ export default function ProductListingCard({ productId, currentUserId }: Product
         .select('id, name, offers_delivery, offers_pickup, delivery_radius_miles, pickup_address, pickup_display_address, owner_id')
         .eq('owner_id', prod.seller_id)
         .single()
-      
-      if (b && !cancelled) setBooth(b)
+      if (b && !cancelled) {
+        // Derive pickup address from seller profile if not set on booth
+        if (!b.pickup_address || !b.pickup_display_address) {
+          const { data: sellerProfile } = await supabase
+            .from('profiles')
+            .select('street_address, city, state_code, zip_plus4')
+            .eq('id', prod.seller_id)
+            .single()
+          if (sellerProfile?.street_address) {
+            if (!b.pickup_address) {
+              const fullAddr = [sellerProfile.street_address, sellerProfile.city, sellerProfile.state_code, sellerProfile.zip_plus4].filter(Boolean).join(', ')
+              b.pickup_address = fullAddr
+              b.pickup_display_address = anonymizeAddress(fullAddr)
+            } else if (!b.pickup_display_address) {
+              b.pickup_display_address = anonymizeAddress(b.pickup_address)
+            }
+          }
+        }
+        setBooth(b)
+      }
       setLoading(false)
     }
     load()
