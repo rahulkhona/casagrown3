@@ -33,6 +33,7 @@ function ProfileSetupPageInner() {
   const [geolocating, setGeolocating] = useState(false)
   const [cachedLat, setCachedLat] = useState<number | null>(null)
   const [cachedLng, setCachedLng] = useState<number | null>(null)
+  const [locationDenied, setLocationDenied] = useState(false)
 
   // Pre-fill from existing profile
   useEffect(() => {
@@ -98,7 +99,7 @@ function ProfileSetupPageInner() {
         }
         setGeolocating(false)
       },
-      () => { setError('Location access denied'); setGeolocating(false) },
+      () => { setError('Location access denied'); setGeolocating(false); setLocationDenied(true) },
       { enableHighAccuracy: true, timeout: 10000 }
     )
   }
@@ -350,6 +351,11 @@ function ProfileSetupPageInner() {
                 {geolocating ? '⏳ Locating...' : '📍 Use My Location'}
               </button>
             </div>
+            {locationDenied && (
+              <p style={{ margin: '4px 0 0', fontSize: 11, color: '#b45309', lineHeight: 1.4 }}>
+                🔒 To enable: tap the <strong>lock icon</strong> in your address bar → <strong>Site settings</strong> → allow <strong>Location</strong>, then reload.
+              </p>
+            )}
             <input id="street" type="text" className="input" placeholder="123 Main St"
               value={streetAddress} onChange={e => setStreetAddress(e.target.value)} required />
           </div>

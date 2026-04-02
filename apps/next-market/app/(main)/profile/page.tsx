@@ -29,6 +29,7 @@ export default function ProfilePage() {
   const [geolocating, setGeolocating] = useState(false)
   const [cachedLat, setCachedLat] = useState<number | null>(null)
   const [cachedLng, setCachedLng] = useState<number | null>(null)
+  const [locationDenied, setLocationDenied] = useState(false)
 
   // Camera & Cropper
   const [showCamera, setShowCamera] = useState(false)
@@ -162,7 +163,7 @@ export default function ProfilePage() {
         }
         setGeolocating(false)
       },
-      () => { setError('Location access denied'); setGeolocating(false) },
+      () => { setError('Location access denied'); setGeolocating(false); setLocationDenied(true) },
       { enableHighAccuracy: true, timeout: 10000 }
     )
   }
@@ -288,6 +289,11 @@ export default function ProfilePage() {
             </button>
           </div>
           <input id="street" className="input" value={form.street} onChange={e => setForm({ ...form, street: e.target.value })} placeholder="123 Main St" />
+          {locationDenied && (
+            <p style={{ margin: '4px 0 0', fontSize: 11, color: '#b45309', lineHeight: 1.4 }}>
+              🔒 To enable: tap the <strong>lock icon</strong> in your address bar → <strong>Site settings</strong> → allow <strong>Location</strong>, then reload.
+            </p>
+          )}
         </div>
 
         <div className="form-row">

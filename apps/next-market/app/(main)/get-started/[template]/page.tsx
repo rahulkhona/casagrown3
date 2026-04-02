@@ -84,6 +84,7 @@ export default function BoothSetupPage() {
 
   // Geolocation
   const [locating, setLocating] = useState(false)
+  const [locationDenied, setLocationDenied] = useState(false)
 
   // --- Optional sections ---
   const [showPhone, setShowPhone] = useState(false)
@@ -175,7 +176,7 @@ export default function BoothSetupPage() {
         } catch { /* silent */ }
         setLocating(false)
       },
-      () => setLocating(false),
+      () => { setLocating(false); setLocationDenied(true) },
       { enableHighAccuracy: true, timeout: 10000 }
     )
   }
@@ -317,6 +318,11 @@ export default function BoothSetupPage() {
               {locating ? '⏳ Locating...' : '📍 Use My Location'}
             </button>
           </div>
+          {locationDenied && (
+            <p style={{ margin: '4px 0 0', fontSize: 11, color: '#b45309', lineHeight: 1.4 }}>
+              🔒 To enable: tap the <strong>lock icon</strong> in your address bar → <strong>Site settings</strong> → allow <strong>Location</strong>, then reload.
+            </p>
+          )}
           <div className={styles.formGroup}>
             <label className={styles.label}>Full Name <span className={styles.required}>*</span></label>
             <input className={`${styles.input} ${errors.fullName ? styles.inputError : ''}`} value={fullName} onChange={e => { setFullName(e.target.value); setErrors(p => ({ ...p, fullName: '' })) }} placeholder="Your full name" />

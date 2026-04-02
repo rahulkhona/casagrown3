@@ -111,6 +111,7 @@ function BrowseMarketPageInner() {
   const [lng, setLng] = useState<number | null>(searchParams.has('lng') ? parseFloat(searchParams.get('lng')!) : saved?.has('lng') ? parseFloat(saved.get('lng')!) : null)
   const [locationLoading, setLocationLoading] = useState(false)
   const [locationError, setLocationError] = useState('')
+  const [locationDenied, setLocationDenied] = useState(false)
   const [addressResolved, setAddressResolved] = useState(searchParams.has('lat') || (saved?.has('lat') ?? false))
   const [zipCode, setZipCode] = useState(searchParams.get('zip') || saved?.get('zip') || '')
 
@@ -503,7 +504,7 @@ function BrowseMarketPageInner() {
         } catch { /* ignore */ }
         setAddressResolved(true); setLocationLoading(false)
       },
-      () => { setLocationError('Location access denied. Please type your address.'); setLocationLoading(false) },
+      () => { setLocationError('Location access denied.'); setLocationLoading(false); setLocationDenied(true) },
       { timeout: 5000 }
     )
   }
@@ -589,6 +590,11 @@ function BrowseMarketPageInner() {
             </div>
           </div>
           {locationError && <p className="form-error" style={{ marginTop: 8 }}>{locationError}</p>}
+          {locationDenied && (
+            <p style={{ marginTop: 4, fontSize: 11, color: '#b45309', lineHeight: 1.4 }}>
+              🔒 To enable: tap the <strong>lock icon</strong> in your address bar → <strong>Site settings</strong> → allow <strong>Location</strong>, then reload.
+            </p>
+          )}
         </div>
       </div>
     )
