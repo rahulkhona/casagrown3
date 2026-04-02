@@ -50,6 +50,7 @@ interface PayoutStatus {
   verified: boolean
   verification_pending: boolean
   verification_sent_at: string | null
+  verification_amount: number | null
   attempts: number
 }
 
@@ -938,6 +939,16 @@ export default function PayoutPage() {
                         </p>
                       </div>
                     </div>
+                    {typeof window !== 'undefined' && window.location.hostname === 'localhost' && payoutStatus.verification_amount && (
+                      <div style={{
+                        padding: '8px 12px', borderRadius: 8, marginBottom: 10,
+                        background: 'var(--blue-50, #eff6ff)', border: '1px solid var(--blue-200, #bfdbfe)',
+                      }}>
+                        <p style={{ margin: 0, fontSize: 12, color: 'var(--blue-700, #1d4ed8)' }}>
+                          🧪 <strong>Sandbox mode:</strong> Enter <strong>${payoutStatus.verification_amount.toFixed(2)}</strong> to verify
+                        </p>
+                      </div>
+                    )}
                     <div style={{ display: 'flex', gap: 8 }}>
                       <input className="input" type="number" step="0.01" min="0.01" max="0.99" placeholder="$0.??"
                         value={verifyAmount} onChange={e => setVerifyAmount(e.target.value)}

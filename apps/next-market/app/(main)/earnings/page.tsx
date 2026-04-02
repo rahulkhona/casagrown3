@@ -554,7 +554,56 @@ export default function EarningsPage() {
                               {tx.metadata.card_last4 && <div className={styles.metaItem}><span className={styles.metaLabel}>Card:</span> •••• {tx.metadata.card_last4}</div>}
                             </>
                           )}
-                          {tx.metadata.settlement_id && <div className={styles.metaItem}><span className={styles.metaLabel}>Settlement:</span> {tx.metadata.settlement_id.substring(0, 8)}...</div>}
+                          {tx.tx_type === 'settlement_credit' && tx.metadata.orders && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                              {/* Settlement status + availability */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                <span style={{
+                                  fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 10,
+                                  background: tx.metadata.settlement_status === 'cleared' ? 'var(--green-100, #dcfce7)' : 'var(--amber-100, #fef3c7)',
+                                  color: tx.metadata.settlement_status === 'cleared' ? 'var(--green-700, #15803d)' : 'var(--amber-700, #b45309)',
+                                }}>
+                                  {tx.metadata.settlement_status === 'cleared' ? '✓ Cleared' : '⏳ Pending clearance'}
+                                </span>
+                                {tx.metadata.available_at && tx.metadata.settlement_status !== 'cleared' && (
+                                  <span style={{ fontSize: 11, color: 'var(--gray-500)' }}>
+                                    Est. available: {new Date(tx.metadata.available_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                  </span>
+                                )}
+                                {tx.metadata.market_date && (
+                                  <span style={{ fontSize: 11, color: 'var(--gray-400)' }}>
+                                    Market: {new Date(tx.metadata.market_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                  </span>
+                                )}
+                              </div>
+                              {/* Order breakdown */}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                {(tx.metadata.orders as any[]).map((o: any, i: number) => (
+                                  <div key={i} style={{
+                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                    padding: '4px 8px', borderRadius: 6,
+                                    background: 'var(--gray-50, #f9fafb)', fontSize: 12,
+                                  }}>
+                                    <span style={{ color: 'var(--gray-700)' }}>
+                                      {o.product} × {o.qty}
+                                      <span style={{ color: 'var(--gray-400)', marginLeft: 6 }}>
+                                        {o.fulfillment === 'delivery' ? '🚗' : '📍'} {o.buyer}
+                                      </span>
+                                    </span>
+                                    <span style={{ fontWeight: 600, color: 'var(--gray-700)' }}>{formatUsd(o.amount)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                              {/* Fees + net */}
+                              <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--gray-500)', paddingTop: 4, borderTop: '1px solid var(--gray-100)' }}>
+                                {tx.metadata.fees > 0 && <span>Fees: -{formatUsd(tx.metadata.fees)}</span>}
+                                <span style={{ fontWeight: 600, color: 'var(--green-700, #15803d)' }}>
+                                  Net: {formatUsd(tx.metadata.net_payout)}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                          {tx.metadata.settlement_id && tx.tx_type !== 'settlement_credit' && <div className={styles.metaItem}><span className={styles.metaLabel}>Settlement:</span> {tx.metadata.settlement_id.substring(0, 8)}...</div>}
                         </div>
                       )}
                     </div>
