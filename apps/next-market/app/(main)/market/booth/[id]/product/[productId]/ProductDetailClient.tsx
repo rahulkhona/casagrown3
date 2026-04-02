@@ -502,7 +502,17 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                       onClick={() => setCartQty(Math.max(1, cartQty - 1))}
                       disabled={cartQty <= 1}
                     >−</button>
-                    <span style={{ fontSize: 18, fontWeight: 600, minWidth: 28, textAlign: 'center' }}>{cartQty}</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={product.inventory}
+                      value={cartQty}
+                      onChange={e => {
+                        const v = parseInt(e.target.value, 10)
+                        if (!isNaN(v)) setCartQty(Math.max(1, Math.min(product.inventory, v)))
+                      }}
+                      style={{ width: 48, fontSize: 18, fontWeight: 600, textAlign: 'center', border: '1px solid var(--gray-200)', borderRadius: 6, padding: '2px 0', appearance: 'textfield', MozAppearance: 'textfield', WebkitAppearance: 'none' } as any}
+                    />
                     <button
                       className="btn"
                       style={{ width: 34, height: 34, padding: 0, fontSize: 18, borderRadius: '50%' }}
