@@ -1,8 +1,9 @@
 -- ===========================================================================
 -- pgTAP test: Order Status Notifications
+-- Tests both INSERT trigger (order placed) and UPDATE trigger (status changes)
 -- ===========================================================================
 BEGIN;
-SELECT plan(12);
+SELECT plan(16);
 
 -- ── Setup ──────────────────────────────────────────────────────────────
 INSERT INTO auth.users (id, email, instance_id, aud, role, created_at, updated_at)
@@ -27,7 +28,7 @@ DELETE FROM market_notifications WHERE user_id IN (
   'ff000000-0000-0000-0000-000000000a01', 'ff000000-0000-0000-0000-000000000a02'
 );
 
--- ── Orders (using actual market_orders columns) ────────────────────────
+-- ── Orders (INSERT fires trg_market_order_placed_notification) ─────────
 INSERT INTO market_orders (
   id, buyer_id, seller_id, booth_id, product_id, product_name,
   quantity, unit_price_usd, subtotal_usd, tax_amount_usd, platform_fee_usd, total_usd,
@@ -52,7 +53,21 @@ SELECT
   'Test Tomatoes', 1, 5.00, 5.00, 0.45, 0.50, 5.95, 'pickup', 'pending'
 FROM market_booths b WHERE b.owner_id = 'ff000000-0000-0000-0000-000000000a02';
 
--- ── (1) Delivered — delivery ───────────────────────────────────────────
+-- ── (1-2) ORDER PLACED — INSERT trigger fires ─────────────────────────
+SELECT ok(
+  EXISTS(SELECT 1 FROM market_notifications
+    WHERE user_id = 'ff000000-0000-0000-0000-000000000a02' AND content LIKE '%New order%'),
+  'Order placed: seller gets new-order notification on INSERT'
+);
+
+SELECT ok(
+  EXISTS(SELECT 1 FROM market_notifications
+    WHERE user_id = 'ff000000-0000-0000-0000-000000000a02'
+      AND link_url = '/orders/ff000000-0000-0000-0000-000000000d01'),
+  'Order placed: notification deep-links to the order'
+);
+
+-- ── (3) Delivered — delivery ───────────────────────────────────────────
 UPDATE market_orders SET status = 'delivered' WHERE id = 'ff000000-0000-0000-0000-000000000d01';
 
 SELECT ok(
@@ -61,7 +76,7 @@ SELECT ok(
   'Delivery order: buyer gets delivered notification'
 );
 
--- ── (2) Delivered — pickup ─────────────────────────────────────────────
+-- ── (4) Delivered — pickup ─────────────────────────────────────────────
 UPDATE market_orders SET status = 'delivered' WHERE id = 'ff000000-0000-0000-0000-000000000d02';
 
 SELECT ok(
@@ -70,7 +85,7 @@ SELECT ok(
   'Pickup order: buyer gets ready-for-pickup notification'
 );
 
--- ── (3) Completed — buyer ──────────────────────────────────────────────
+-- ── (5) Completed — buyer ──────────────────────────────────────────────
 UPDATE market_orders SET status = 'completed' WHERE id = 'ff000000-0000-0000-0000-000000000d01';
 
 SELECT ok(
@@ -79,14 +94,14 @@ SELECT ok(
   'Completed: buyer gets completion notification'
 );
 
--- ── (4) Completed — seller ─────────────────────────────────────────────
+-- ── (6) Completed — seller ─────────────────────────────────────────────
 SELECT ok(
   EXISTS(SELECT 1 FROM market_notifications
     WHERE user_id = 'ff000000-0000-0000-0000-000000000a02' AND content LIKE '%Sale completed%'),
   'Completed: seller gets sale completed notification'
 );
 
--- ── (5) Cancelled ──────────────────────────────────────────────────────
+-- ── (7) Cancelled ──────────────────────────────────────────────────────
 UPDATE market_orders SET status = 'cancelled' WHERE id = 'ff000000-0000-0000-0000-000000000d02';
 
 SELECT ok(
@@ -95,7 +110,7 @@ SELECT ok(
   'Cancelled: buyer gets cancellation notification'
 );
 
--- ── (6-7) Deep links ───────────────────────────────────────────────────
+-- ── (8-9) Deep links ───────────────────────────────────────────────────
 SELECT ok(
   EXISTS(SELECT 1 FROM market_notifications
     WHERE user_id = 'ff000000-0000-0000-0000-000000000a01'
@@ -110,20 +125,29 @@ SELECT ok(
   'Notification deep-links to pickup order'
 );
 
--- ── (8-10) Infrastructure ──────────────────────────────────────────────
+-- ── (10-13) Infrastructure ─────────────────────────────────────────────
 SELECT has_function('notify_market_event');
 SELECT has_trigger('market_orders', 'trg_market_order_status_notifications');
+SELECT has_trigger('market_orders', 'trg_market_order_placed_notification');
 SELECT has_table('market_notifications');
 
--- ── (11-12) Notification counts ────────────────────────────────────────
+-- ── (14-16) Notification counts ────────────────────────────────────────
 SELECT ok(
   (SELECT count(*) FROM market_notifications WHERE user_id = 'ff000000-0000-0000-0000-000000000a01') >= 4,
   'Buyer received at least 4 notifications'
 );
 
 SELECT ok(
-  (SELECT count(*) FROM market_notifications WHERE user_id = 'ff000000-0000-0000-0000-000000000a02') >= 1,
-  'Seller received at least 1 notification'
+  (SELECT count(*) FROM market_notifications WHERE user_id = 'ff000000-0000-0000-0000-000000000a02') >= 3,
+  'Seller received at least 3 notifications (2 order-placed + 1 sale-completed)'
+);
+
+-- Verify the order-placed notifications mention the buyer name
+SELECT ok(
+  EXISTS(SELECT 1 FROM market_notifications
+    WHERE user_id = 'ff000000-0000-0000-0000-000000000a02'
+      AND content LIKE '%Notif Buyer%'),
+  'Order-placed notification includes buyer display name'
 );
 
 SELECT * FROM finish();
