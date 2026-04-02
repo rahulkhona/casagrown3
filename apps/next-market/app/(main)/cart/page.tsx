@@ -358,7 +358,9 @@ export default function CartPage() {
           <p className={styles.emptyDesc}>
             Browse the market and add some fresh produce!
           </p>
-          <Link href="/market" className="btn btn-primary">Browse Market</Link>
+          <button className="btn btn-primary" onClick={() => router.back()}>
+            ← Go Back
+          </button>
         </div>
       </div>
     )
