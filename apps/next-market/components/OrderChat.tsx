@@ -86,13 +86,23 @@ export default function OrderChat({ orderId, otherUserName, otherUserId, myAvata
       content,
     })
 
+    // Notify the other party (in-app bell notification)
+    if (otherUserId) {
+      const myName = (user as any).user_metadata?.full_name || user.email?.split('@')[0] || 'Someone'
+      await supabase.from('market_notifications').insert({
+        user_id: otherUserId,
+        content: `💬 ${myName}: ${content.length > 80 ? content.slice(0, 80) + '…' : content}`,
+        link_url: `/orders/${orderId}`,
+      })
+    }
+
     // Immediately load to show own message
     await loadMessages()
     setSending(false)
     onMessageSent?.()
   }
 
-  const sendQuickReply = async (text: string) => {
+  const sendQuickReply = async (text: string, skipNotification = false) => {
     if (!user || sending) return
     setSending(true)
     await supabase.from('order_chat_messages').insert({
@@ -100,6 +110,18 @@ export default function OrderChat({ orderId, otherUserName, otherUserId, myAvata
       sender_id: user.id,
       content: text,
     })
+
+    // Notify the other party (in-app bell notification) unless skipped
+    // (e.g. 'Ready for Pickup' already triggers a full notification via the DB trigger)
+    if (otherUserId && !skipNotification) {
+      const myName = (user as any).user_metadata?.full_name || user.email?.split('@')[0] || 'Someone'
+      await supabase.from('market_notifications').insert({
+        user_id: otherUserId,
+        content: `💬 ${myName}: ${text.length > 80 ? text.slice(0, 80) + '…' : text}`,
+        link_url: `/orders/${orderId}`,
+      })
+    }
+
     await loadMessages()
     setSending(false)
     onMessageSent?.()
@@ -224,7 +246,7 @@ export default function OrderChat({ orderId, otherUserName, otherUserId, myAvata
         <div className={styles.quickRepliesContainer}>
           {isSeller && fulfillmentType === 'pickup' && orderStatus === 'pending' && (
             <button onClick={async () => {
-              await sendQuickReply('Your order is ready for pickup!')
+              await sendQuickReply('Your order is ready for pickup!', true)
               // Also transition order status to 'delivered' so buyer gets notifications
               const { data } = await supabase.rpc('seller_mark_delivered', { p_order_id: orderId, p_photos: [] })
               if (data?.success) onStatusChange?.()
