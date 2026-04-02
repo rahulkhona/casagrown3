@@ -256,7 +256,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     return Array.from(map.values())
   })()
 
-  const itemCount = state.items.reduce((sum, i) => sum + i.qty, 0)
+  const itemCount = state.items.length
 
   const addItem = useCallback((product: CartProduct, booth: CartBooth, qty: number, fulfillmentMode?: 'delivery' | 'pickup') => {
     dispatch({ type: 'ADD_ITEM', product, booth, qty, fulfillmentMode })
