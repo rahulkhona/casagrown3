@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '../../../../lib/supabase'
 import { geocodeAddress } from '../../../../lib/geocode'
+import { formatWindowSummary, anonymizeAddress } from '../../../../lib/windowDisplay'
 import styles from '../page.module.css'
 
 // Haversine distance in meters
@@ -34,6 +35,9 @@ interface ProductData {
   is_active: boolean
   seller_id: string
   expires_at: string | null
+  window_dates: string[] | null
+  product_delivery_windows: any[] | null
+  product_pickup_windows: any[] | null
 }
 
 interface BoothData {
@@ -74,7 +78,7 @@ export default function ProductListingCard({ productId, currentUserId }: Product
       setLoading(true)
       const { data: prod } = await supabase
         .from('market_products')
-        .select('id, name, description, price_usd, unit, photos, category, inventory, is_active, seller_id, expires_at')
+        .select('id, name, description, price_usd, unit, photos, category, inventory, is_active, seller_id, expires_at, window_dates, product_delivery_windows, product_pickup_windows')
         .eq('id', productId)
         .single()
       
@@ -277,6 +281,11 @@ export default function ProductListingCard({ productId, currentUserId }: Product
                   ) : (
                     <span className={styles.plcFulfillmentHint}>Within {booth.delivery_radius_miles} mi</span>
                   )}
+                  {product.window_dates && (
+                    <span className={styles.plcFulfillmentHint} style={{ display: 'block', marginTop: 2 }}>
+                      {formatWindowSummary(product.window_dates, product.product_delivery_windows) || ''}
+                    </span>
+                  )}
                 </div>
               </div>
             )}
@@ -286,11 +295,20 @@ export default function ProductListingCard({ productId, currentUserId }: Product
                 <span className={styles.plcFulfillmentIcon}>📍</span>
                 <div className={styles.plcFulfillmentText}>
                   <span className={styles.plcFulfillmentLabel}>Pickup</span>
-                  {distanceMiles != null ? (
+                  {(() => {
+                    const displayAddr = booth.pickup_display_address || anonymizeAddress(booth.pickup_address)
+                    return displayAddr ? (
+                      <span className={styles.plcFulfillmentHint}>{displayAddr}</span>
+                    ) : null
+                  })()}
+                  {distanceMiles != null && (
                     <span className={styles.plcFulfillmentHint}>{distanceMiles} mi from you</span>
-                  ) : booth.pickup_display_address ? (
-                    <span className={styles.plcFulfillmentHint}>{booth.pickup_display_address}</span>
-                  ) : null}
+                  )}
+                  {product.window_dates && (
+                    <span className={styles.plcFulfillmentHint} style={{ display: 'block', marginTop: 2 }}>
+                      {formatWindowSummary(product.window_dates, product.product_pickup_windows) || ''}
+                    </span>
+                  )}
                 </div>
               </div>
             )}

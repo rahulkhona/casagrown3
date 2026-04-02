@@ -9,6 +9,7 @@ import { useAuth } from '../../../../../../../lib/useAuth'
 import { useMarketStatus } from '../../../../../../../lib/useMarketStatus'
 import { hasValidWindows } from '../../../../../../../lib/windowUtils'
 import { geocodeAddress } from '../../../../../../../lib/geocode'
+import { formatWindowSchedule, anonymizeAddress } from '../../../../../../../lib/windowDisplay'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import BuyModal from '../../../../../../components/BuyModal'
 import { FlagModal } from '../../../../../../components/FlagModal'
@@ -125,12 +126,32 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
   }, [productId, boothId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Geocode buyer and seller for distance checks ──
+  // First try localStorage (from market browse), then fall back to profile address
   useEffect(() => {
-    if (!buyerAddress || isDemo) return
-    geocodeAddress(buyerAddress).then(geo => {
-      if (geo) { setBuyerLat(geo.lat); setBuyerLng(geo.lng); setAddrLabel(buyerAddress) }
-    })
-  }, [buyerAddress, isDemo])
+    if (isDemo) return
+    // Try localStorage first
+    const saved = new URLSearchParams(localStorage.getItem('market_search') || '')
+    const savedAddr = saved.get('addr') || ''
+    if (savedAddr) {
+      setAddrLabel(savedAddr)
+      geocodeAddress(savedAddr).then(geo => {
+        if (geo) { setBuyerLat(geo.lat); setBuyerLng(geo.lng) }
+      })
+      return
+    }
+    // Fall back to profile address
+    if (!user) return
+    supabase.from('profiles').select('street_address, city, state_code').eq('id', user.id).single()
+      .then(({ data: profile }) => {
+        if (profile?.street_address) {
+          const addr = [profile.street_address, profile.city, profile.state_code].filter(Boolean).join(', ')
+          setAddrLabel(addr)
+          geocodeAddress(addr).then(geo => {
+            if (geo) { setBuyerLat(geo.lat); setBuyerLng(geo.lng) }
+          })
+        }
+      })
+  }, [user, isDemo]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!booth?.pickup_address || isDemo) return
@@ -613,6 +634,20 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                     ) : (
                       <small>Within {booth.delivery_radius_miles} miles</small>
                     )}
+                    {/* Delivery time windows */}
+                    {(() => {
+                      const schedule = formatWindowSchedule(product.window_dates, product.product_delivery_windows)
+                      return schedule.length > 0 ? (
+                        <div style={{ marginTop: 4 }}>
+                          {schedule.map(s => (
+                            <div key={s.date} style={{ fontSize: 12, color: 'var(--gray-600)' }}>
+                              <strong style={{ color: 'var(--green-700, #15803d)' }}>{s.label}:</strong>{' '}
+                              {s.windows.join(', ')}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null
+                    })()}
                   </div>
                 </div>
               )}
@@ -621,11 +656,30 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                   <span>📍</span>
                   <div>
                     <strong>Pickup</strong>
-                    {distanceMiles != null ? (
+                    {/* Anonymized location */}
+                    {(() => {
+                      const displayAddr = booth.pickup_display_address || anonymizeAddress(booth.pickup_address)
+                      return displayAddr ? (
+                        <small style={{ display: 'block' }}>{displayAddr}</small>
+                      ) : null
+                    })()}
+                    {distanceMiles != null && (
                       <small style={{ fontWeight: 600 }}>{distanceMiles} mi from you</small>
-                    ) : (booth.pickup_display_address || booth.pickup_address) ? (
-                      <small>{booth.pickup_display_address || booth.pickup_address}</small>
-                    ) : null}
+                    )}
+                    {/* Pickup time windows */}
+                    {(() => {
+                      const schedule = formatWindowSchedule(product.window_dates, product.product_pickup_windows)
+                      return schedule.length > 0 ? (
+                        <div style={{ marginTop: 4 }}>
+                          {schedule.map(s => (
+                            <div key={s.date} style={{ fontSize: 12, color: 'var(--gray-600)' }}>
+                              <strong style={{ color: 'var(--green-700, #15803d)' }}>{s.label}:</strong>{' '}
+                              {s.windows.join(', ')}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null
+                    })()}
                   </div>
                 </div>
               )}
