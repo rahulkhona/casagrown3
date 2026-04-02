@@ -45,6 +45,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
   const [loading, setLoading] = useState(true)
   const [photoIndex, setPhotoIndex] = useState(0)
   const [showBuy, setShowBuy] = useState(false)
+  const [selectedFulfillment, setSelectedFulfillment] = useState<'delivery' | 'pickup'>('pickup')
   const [buyerZip, setBuyerZip] = useState('')
   const [buyerAddress, setBuyerAddress] = useState('')
   const [showFlag, setShowFlag] = useState(false)
@@ -572,6 +573,32 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                   </div>
                 )}
 
+                {/* Fulfillment mode toggle — shown when booth offers both */}
+                {booth.offers_pickup && booth.offers_delivery && !windowsExpired && product.inventory > 0 && (
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+                    <button
+                      style={{
+                        flex: 1, padding: '8px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                        cursor: 'pointer', transition: 'all 0.2s', border: '2px solid',
+                        borderColor: selectedFulfillment === 'pickup' ? 'var(--green-600, #16a34a)' : 'var(--gray-200)',
+                        background: selectedFulfillment === 'pickup' ? 'var(--green-50, #f0fdf4)' : 'white',
+                        color: selectedFulfillment === 'pickup' ? 'var(--green-700, #15803d)' : 'var(--gray-500)',
+                      }}
+                      onClick={() => setSelectedFulfillment('pickup')}
+                    >📍 Pickup</button>
+                    <button
+                      style={{
+                        flex: 1, padding: '8px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                        cursor: 'pointer', transition: 'all 0.2s', border: '2px solid',
+                        borderColor: selectedFulfillment === 'delivery' ? 'var(--green-600, #16a34a)' : 'var(--gray-200)',
+                        background: selectedFulfillment === 'delivery' ? 'var(--green-50, #f0fdf4)' : 'white',
+                        color: selectedFulfillment === 'delivery' ? 'var(--green-700, #15803d)' : 'var(--gray-500)',
+                      }}
+                      onClick={() => setSelectedFulfillment('delivery')}
+                    >🚗 Delivery</button>
+                  </div>
+                )}
+
                 {/* Buy Now + Add to Cart — side by side */}
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button
@@ -633,7 +660,8 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                             pickup_address: booth.pickup_address,
                             delivery_radius_miles: booth.delivery_radius_miles,
                           },
-                          cartQty
+                          cartQty,
+                          selectedFulfillment
                         )
                         setCartToast(existingCartQty > 0 ? `Cart updated! (${cartQty} ${product.unit}${cartQty > 1 ? 's' : ''})` : `Added to cart! 🛒`)
                         setTimeout(() => setCartToast(null), 3000)
