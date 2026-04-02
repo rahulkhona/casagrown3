@@ -112,12 +112,15 @@ export default function ClientPage() {
       setLastFetchTime(new Date().toISOString())
       setIsLoading(false)
       
-      // Auto-scroll to bottom on initial load
-      setTimeout(() => {
+      // Auto-scroll to bottom on initial load (multiple attempts for slow phones)
+      const scrollToBottom = () => {
         if (scrollRef.current) {
           scrollRef.current.scrollTop = scrollRef.current.scrollHeight
         }
-      }, 100)
+      }
+      requestAnimationFrame(scrollToBottom)
+      setTimeout(scrollToBottom, 200)
+      setTimeout(scrollToBottom, 600)
     } catch (err) {
       console.error('Failed to load messages', err)
       setIsLoading(false)

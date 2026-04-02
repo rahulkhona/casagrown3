@@ -222,6 +222,14 @@ function NewProductPageInner() {
     if (searchParams.get('camera') === 'true' && !isEditMode && photos.length === 0) {
       setShowCamera(true)
     }
+    // Request location permission early — needed for quarantine zone checks
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        () => { /* permission granted — position will be used by quarantine check */ },
+        () => { /* denied or unavailable — quarantine check still works via profile address */ },
+        { timeout: 5000 }
+      )
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Check if user already has a booth
@@ -523,6 +531,21 @@ function NewProductPageInner() {
       // Auto-create a booth using inline form values — publish immediately
       const boothName = inlineProfileName ? `${inlineProfileName}'s Booth` : 'My Booth'
 
+      // Build weekly windows from product's selected windows so the booth is fully configured
+      const autoWeeklyDw: Record<string, any[]> = {}
+      const autoWeeklyPw: Record<string, any[]> = {}
+      const flatDw = inlineDelivery ? mapInlineWindows(inlineDeliveryWindows, inlineCustomDeliverySlots) : []
+      const flatPw = inlinePickup ? mapInlineWindows(inlinePickupWindows, inlineCustomPickupSlots) : []
+      // Apply the product's windows to today and tomorrow's day-of-week
+      if (flatDw.length > 0) {
+        autoWeeklyDw[todayDayKey] = flatDw
+        autoWeeklyDw[tomorrowDayKey] = flatDw
+      }
+      if (flatPw.length > 0) {
+        autoWeeklyPw[todayDayKey] = flatPw
+        autoWeeklyPw[tomorrowDayKey] = flatPw
+      }
+
       const { data: newBooth, error: boothErr } = await supabase
         .from('market_booths')
         .insert({
@@ -533,8 +556,10 @@ function NewProductPageInner() {
           offers_pickup: inlinePickup,
           delivery_radius_miles: inlineDeliveryRadius,
           pickup_address: inlinePickup ? inlinePickupAddress || null : null,
-          delivery_windows: inlineDelivery ? mapInlineWindows(inlineDeliveryWindows, inlineCustomDeliverySlots) : [],
-          pickup_windows: inlinePickup ? mapInlineWindows(inlinePickupWindows, inlineCustomPickupSlots) : [],
+          delivery_windows: flatDw,
+          pickup_windows: flatPw,
+          weekly_delivery_windows: autoWeeklyDw,
+          weekly_pickup_windows: autoWeeklyPw,
           payment_method: 'automatic',
           decorative_theme: 'floral',
         })
@@ -828,7 +853,7 @@ function NewProductPageInner() {
     // Requirements: ≥1 product (we just added one) + delivery or pickup + payment configured
     const { data: booth } = await supabase
       .from('market_booths')
-      .select('offers_delivery, offers_pickup, delivery_windows, pickup_windows, payment_method, venmo_handle, charity_name, status')
+      .select('offers_delivery, offers_pickup, delivery_windows, pickup_windows, weekly_delivery_windows, weekly_pickup_windows, payment_method, venmo_handle, charity_name, status')
       .eq('id', boothId)
       .single()
 
@@ -836,8 +861,15 @@ function NewProductPageInner() {
     const missing: string[] = []
     if (booth) {
       const hasFulfillment = booth.offers_delivery || booth.offers_pickup
-      const hasWindows = (booth.offers_delivery ? ((booth.delivery_windows as any[])?.length > 0) : true) &&
-                         (booth.offers_pickup ? ((booth.pickup_windows as any[])?.length > 0) : true)
+      // Check both flat and weekly windows for completeness
+      const weeklyDw = booth.weekly_delivery_windows as Record<string, any[]> | null
+      const weeklyPw = booth.weekly_pickup_windows as Record<string, any[]> | null
+      const hasFlatDw = (booth.delivery_windows as any[])?.length > 0
+      const hasFlatPw = (booth.pickup_windows as any[])?.length > 0
+      const hasWeeklyDw = weeklyDw && Object.values(weeklyDw).some(arr => arr?.length > 0)
+      const hasWeeklyPw = weeklyPw && Object.values(weeklyPw).some(arr => arr?.length > 0)
+      const hasWindows = (booth.offers_delivery ? (hasFlatDw || hasWeeklyDw) : true) &&
+                         (booth.offers_pickup ? (hasFlatPw || hasWeeklyPw) : true)
       const hasPayment = booth.payment_method === 'manual' ||
         booth.payment_method === 'automatic' ||
         (booth.payment_method === 'venmo' && booth.venmo_handle) ||
@@ -983,9 +1015,22 @@ function NewProductPageInner() {
     setAiToast(null)
 
     const tryInvoke = async (): Promise<{ data: any; error: any }> => {
-      return supabase.functions.invoke('analyze-product-photo', {
-        body: { image: photos[0] },
-      })
+      // 15s timeout to prevent hanging on slow/unreachable edge functions
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 15000)
+      try {
+        const res = await supabase.functions.invoke('analyze-product-photo', {
+          body: { image: photos[0] },
+        })
+        clearTimeout(timeout)
+        return res
+      } catch (err: any) {
+        clearTimeout(timeout)
+        if (err?.name === 'AbortError') {
+          return { data: null, error: { message: 'Request timed out (15s)' } }
+        }
+        throw err
+      }
     }
 
     try {
