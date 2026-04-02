@@ -20,10 +20,12 @@ interface OrderChatProps {
   otherAvatar?: string
   isSeller?: boolean
   fulfillmentType?: 'pickup' | 'delivery'
+  orderStatus?: string
   onMessageSent?: () => void
+  onStatusChange?: () => void
 }
 
-export default function OrderChat({ orderId, otherUserName, otherUserId, myAvatar, otherAvatar, isSeller = false, fulfillmentType = 'pickup', onMessageSent }: OrderChatProps) {
+export default function OrderChat({ orderId, otherUserName, otherUserId, myAvatar, otherAvatar, isSeller = false, fulfillmentType = 'pickup', orderStatus = 'pending', onMessageSent, onStatusChange }: OrderChatProps) {
   const supabase = useMemo(() => createClient(), [])
   const { user } = useAuth()
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -103,15 +105,25 @@ export default function OrderChat({ orderId, otherUserName, otherUserId, myAvata
     onMessageSent?.()
   }
 
-  const handleEtaSubmit = () => {
+  const handleEtaSubmit = async () => {
     if (!etaValue.trim()) {
       setEtaMode(false)
       return
     }
-    const text = `I'm on my way!\nETA: ${etaValue.trim()}`
+    const eta = etaValue.trim()
+    const text = `I'm on my way!\nETA: ${eta}`
     setEtaMode(false)
     setEtaValue('')
-    sendQuickReply(text)
+    await sendQuickReply(text)
+    // Notify the other party
+    if (user && otherUserId) {
+      const myName = (user as any).user_metadata?.full_name || user.email?.split('@')[0] || 'Someone'
+      await supabase.from('market_notifications').insert({
+        user_id: otherUserId,
+        content: `🚗 ${myName} is on their way! ETA: ${eta}`,
+        link_url: `/orders/${orderId}`,
+      })
+    }
   }
 
   if (!user) return null
@@ -210,11 +222,19 @@ export default function OrderChat({ orderId, otherUserName, otherUserId, myAvata
         </div>
       ) : (
         <div className={styles.quickRepliesContainer}>
-          {isSeller && fulfillmentType === 'pickup' && (
-            <button onClick={() => sendQuickReply('Your order is ready for pickup!')} className={styles.quickReplyChip}>✅ Ready for Pickup</button>
+          {isSeller && fulfillmentType === 'pickup' && orderStatus === 'pending' && (
+            <button onClick={async () => {
+              await sendQuickReply('Your order is ready for pickup!')
+              // Also transition order status to 'delivered' so buyer gets notifications
+              const { data } = await supabase.rpc('seller_mark_delivered', { p_order_id: orderId, p_photos: [] })
+              if (data?.success) onStatusChange?.()
+            }} className={styles.quickReplyChip}>✅ Ready for Pickup</button>
           )}
-          {((isSeller && fulfillmentType === 'delivery') || (!isSeller && fulfillmentType === 'pickup')) && (
+          {isSeller && fulfillmentType === 'delivery' && orderStatus === 'pending' && (
             <button onClick={() => setEtaMode(true)} className={styles.quickReplyChip}>🚗 On my way...</button>
+          )}
+          {!isSeller && fulfillmentType === 'pickup' && orderStatus === 'delivered' && (
+            <button onClick={() => setEtaMode(true)} className={styles.quickReplyChip}>🚗 On my way to pick up...</button>
           )}
         </div>
       )}

@@ -436,7 +436,9 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
             otherAvatar={isSellerOrHelper ? order.buyer_avatar : order.seller_avatar}
             isSeller={isSellerOrHelper}
             fulfillmentType={order.fulfillment_type as 'pickup' | 'delivery'}
+            orderStatus={order.status}
             onMessageSent={showPrompt}
+            onStatusChange={loadOrder}
           />
         </div>
       )}
