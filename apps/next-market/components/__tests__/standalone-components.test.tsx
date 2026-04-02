@@ -265,7 +265,7 @@ describe('OrderChat', () => {
     await act(async () => { await new Promise(r => setTimeout(r, 50)) })
 
     expect(container.textContent).toContain('Bob Seller')
-    expect(container.textContent).toContain('Start a conversation')
+    expect(container.textContent).toContain('Add a note about this order')
   })
 
   it('renders messages with bubbles', async () => {

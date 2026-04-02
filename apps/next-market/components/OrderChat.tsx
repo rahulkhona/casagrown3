@@ -129,8 +129,8 @@ export default function OrderChat({ orderId, otherUserName, otherUserId, myAvata
       <div className={styles.messageList}>
         {messages.length === 0 && (
           <div className={styles.emptyState}>
-            <span>💬</span>
-            <p>Start a conversation about this order</p>
+            <span>📋</span>
+            <p>Add a note about this order</p>
           </div>
         )}
         {messages.map((msg) => {
