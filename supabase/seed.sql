@@ -916,31 +916,31 @@ BEGIN
   ON CONFLICT (owner_id) DO UPDATE SET name=EXCLUDED.name, description=EXCLUDED.description, pickup_location=EXCLUDED.pickup_location, delivery_windows=EXCLUDED.delivery_windows, pickup_windows=EXCLUDED.pickup_windows;
 
   -- Products (with photos from /public/products/)
-  INSERT INTO market_products (seller_id,market_date,name,description,category,price_usd,unit,inventory,photos,harvested_at) VALUES
-    (s1,CURRENT_DATE,'Heritage Tomatoes','Mix of Brandywine, Cherokee Purple, and Green Zebra','produce',5.00,'basket',20,'{"/products/heritage-tomatoes.png"}',now()-interval '1 day'),
-    (s1,CURRENT_DATE,'Fresh Basil Bunch','Fragrant Genovese basil, just picked','produce',3.00,'bunch',15,'{"/products/fresh-basil.png"}',now()),
-    (s1,CURRENT_DATE,'Organic Zucchini','Tender young zucchini from raised beds','produce',4.00,'bag',12,'{"/products/organic-zucchini.png"}',now()-interval '6 hours'),
-    (s1,CURRENT_DATE,'Bell Pepper Mix','Red, yellow, and orange sweet peppers','produce',4.50,'bag',10,'{"/products/bell-peppers.png"}',now()-interval '1 day'),
-    (s1,CURRENT_DATE,'Cherry Tomato Pint','Sweet Sungold and chocolate cherry tomatoes','produce',4.00,'pint',25,'{"/products/heritage-tomatoes.png"}',now()),
-    (s2,CURRENT_DATE,'Meyer Lemons','Sweet-tart Meyer lemons, tree-ripened','produce',3.50,'bag',30,'{"/products/meyer-lemons.png"}',now()-interval '2 days'),
-    (s2,CURRENT_DATE,'Valencia Oranges','Juicy Valencia oranges, perfect for juicing','produce',4.00,'bag',25,'{"/products/valencia-oranges.png"}',now()-interval '1 day'),
-    (s2,CURRENT_DATE,'Persian Limes','Bright green limes from my backyard tree','produce',3.00,'bag',20,'{"/products/persian-limes.png"}',now()),
-    (s2,CURRENT_DATE,'Ruby Grapefruit','Deep red flesh, naturally sweet','produce',5.00,'each',15,'{"/products/ruby-grapefruit.png"}',now()-interval '3 days'),
-    (s2,CURRENT_DATE,'Kumquats','Tiny, zesty kumquats — eat them whole!','produce',6.00,'pint',8,'{"/products/meyer-lemons.png"}',now()),
-    (s3,CURRENT_DATE,'Baby Bok Choy','Tender baby bok choy, perfect for stir-fry','produce',3.50,'bunch',20,'{}',now()),
-    (s3,CURRENT_DATE,'Chinese Long Beans','Crisp yard-long beans, freshly picked','produce',4.00,'bunch',15,'{}',now()-interval '6 hours'),
-    (s3,CURRENT_DATE,'Daikon Radish','Large white daikon, great for soups and salads','produce',2.50,'each',12,'{}',now()-interval '1 day'),
-    (s3,CURRENT_DATE,'Japanese Eggplant','Slender purple eggplant, no bitterness','produce',5.00,'bag',10,'{}',now()-interval '12 hours'),
-    (s4,CURRENT_DATE,'Sourdough Loaf','Artisan sourdough, 24-hour ferment, crispy crust','produce',8.00,'loaf',6,'{"/products/sourdough-loaf.png"}',NULL),
-    (s4,CURRENT_DATE,'Focaccia with Rosemary','Fluffy Italian focaccia topped with garden rosemary','produce',7.00,'half',8,'{"/products/herb-focaccia.png"}',NULL),
-    (s4,CURRENT_DATE,'Strawberry Jam','Small-batch jam from local strawberries','produce',6.50,'jar',10,'{"/products/strawberry-jam.png"}',NULL),
-    (s4,CURRENT_DATE,'Fresh Rosemary','Woody sprigs of fragrant rosemary','produce',2.00,'bunch',20,'{"/products/fresh-basil.png"}',now()),
-    (s4,CURRENT_DATE,'Apple Cinnamon Pie','Homemade pie with Granny Smith apples','produce',12.00,'pie',3,'{"/products/apple-pie.png"}',NULL),
-    (s5,CURRENT_DATE,'Raw Wildflower Honey','Pure raw honey from local hives, unfiltered','honey',12.00,'jar',8,'{"/products/strawberry-jam.png"}',NULL),
-    (s5,CURRENT_DATE,'Microgreens Mix','Sunflower, radish, and pea shoot mix','produce',5.00,'box',15,'{"/products/fresh-basil.png"}',now()),
-    (s5,CURRENT_DATE,'Fresh Mint Bundle','Spearmint and peppermint, great for tea','produce',2.50,'bunch',25,'{"/products/fresh-basil.png"}',now()),
-    (s5,CURRENT_DATE,'Thai Basil','Aromatic Thai basil with purple stems','produce',3.00,'bunch',18,'{"/products/fresh-basil.png"}',now()),
-    (s5,CURRENT_DATE,'Lavender Sachets','Dried lavender from my garden, handmade sachets','flowers',4.00,'each',12,'{}',NULL);
+  INSERT INTO market_products (seller_id,market_date,name,description,category,price_usd,unit,inventory,photos,harvested_at,moderation_status) VALUES
+    (s1,CURRENT_DATE,'Heritage Tomatoes','Mix of Brandywine, Cherokee Purple, and Green Zebra','produce',5.00,'basket',20,'{"/products/heritage-tomatoes.png"}',now()-interval '1 day','approved'),
+    (s1,CURRENT_DATE,'Fresh Basil Bunch','Fragrant Genovese basil, just picked','produce',3.00,'bunch',15,'{"/products/fresh-basil.png"}',now(),'approved'),
+    (s1,CURRENT_DATE,'Organic Zucchini','Tender young zucchini from raised beds','produce',4.00,'bag',12,'{"/products/organic-zucchini.png"}',now()-interval '6 hours','approved'),
+    (s1,CURRENT_DATE,'Bell Pepper Mix','Red, yellow, and orange sweet peppers','produce',4.50,'bag',10,'{"/products/bell-peppers.png"}',now()-interval '1 day','approved'),
+    (s1,CURRENT_DATE,'Cherry Tomato Pint','Sweet Sungold and chocolate cherry tomatoes','produce',4.00,'pint',25,'{"/products/heritage-tomatoes.png"}',now(),'approved'),
+    (s2,CURRENT_DATE,'Meyer Lemons','Sweet-tart Meyer lemons, tree-ripened','produce',3.50,'bag',30,'{"/products/meyer-lemons.png"}',now()-interval '2 days','approved'),
+    (s2,CURRENT_DATE,'Valencia Oranges','Juicy Valencia oranges, perfect for juicing','produce',4.00,'bag',25,'{"/products/valencia-oranges.png"}',now()-interval '1 day','approved'),
+    (s2,CURRENT_DATE,'Persian Limes','Bright green limes from my backyard tree','produce',3.00,'bag',20,'{"/products/persian-limes.png"}',now(),'approved'),
+    (s2,CURRENT_DATE,'Ruby Grapefruit','Deep red flesh, naturally sweet','produce',5.00,'each',15,'{"/products/ruby-grapefruit.png"}',now()-interval '3 days','approved'),
+    (s2,CURRENT_DATE,'Kumquats','Tiny, zesty kumquats — eat them whole!','produce',6.00,'pint',8,'{"/products/meyer-lemons.png"}',now(),'approved'),
+    (s3,CURRENT_DATE,'Baby Bok Choy','Tender baby bok choy, perfect for stir-fry','produce',3.50,'bunch',20,'{}',now(),'approved'),
+    (s3,CURRENT_DATE,'Chinese Long Beans','Crisp yard-long beans, freshly picked','produce',4.00,'bunch',15,'{}',now()-interval '6 hours','approved'),
+    (s3,CURRENT_DATE,'Daikon Radish','Large white daikon, great for soups and salads','produce',2.50,'each',12,'{}',now()-interval '1 day','approved'),
+    (s3,CURRENT_DATE,'Japanese Eggplant','Slender purple eggplant, no bitterness','produce',5.00,'bag',10,'{}',now()-interval '12 hours','approved'),
+    (s4,CURRENT_DATE,'Sourdough Loaf','Artisan sourdough, 24-hour ferment, crispy crust','produce',8.00,'loaf',6,'{"/products/sourdough-loaf.png"}',NULL,'approved'),
+    (s4,CURRENT_DATE,'Focaccia with Rosemary','Fluffy Italian focaccia topped with garden rosemary','produce',7.00,'half',8,'{"/products/herb-focaccia.png"}',NULL,'approved'),
+    (s4,CURRENT_DATE,'Strawberry Jam','Small-batch jam from local strawberries','produce',6.50,'jar',10,'{"/products/strawberry-jam.png"}',NULL,'approved'),
+    (s4,CURRENT_DATE,'Fresh Rosemary','Woody sprigs of fragrant rosemary','produce',2.00,'bunch',20,'{"/products/fresh-basil.png"}',now(),'approved'),
+    (s4,CURRENT_DATE,'Apple Cinnamon Pie','Homemade pie with Granny Smith apples','produce',12.00,'pie',3,'{"/products/apple-pie.png"}',NULL,'approved'),
+    (s5,CURRENT_DATE,'Raw Wildflower Honey','Pure raw honey from local hives, unfiltered','honey',12.00,'jar',8,'{"/products/strawberry-jam.png"}',NULL,'approved'),
+    (s5,CURRENT_DATE,'Microgreens Mix','Sunflower, radish, and pea shoot mix','produce',5.00,'box',15,'{"/products/fresh-basil.png"}',now(),'approved'),
+    (s5,CURRENT_DATE,'Fresh Mint Bundle','Spearmint and peppermint, great for tea','produce',2.50,'bunch',25,'{"/products/fresh-basil.png"}',now(),'approved'),
+    (s5,CURRENT_DATE,'Thai Basil','Aromatic Thai basil with purple stems','produce',3.00,'bunch',18,'{"/products/fresh-basil.png"}',now(),'approved'),
+    (s5,CURRENT_DATE,'Lavender Sachets','Dried lavender from my garden, handmade sachets','flowers',4.00,'each',12,'{}',NULL,'approved');
 
   -- ============================================================
   --  Market Orders seed — comprehensive test scenarios
@@ -955,14 +955,14 @@ BEGIN
      '[{"id":"8-10","start":"08:00","end":"10:00"}]'::jsonb,
      '[{"id":"8-10","start":"08:00","end":"10:00"}]'::jsonb,
      'automatic',ST_SetSRID(ST_MakePoint(-121.8977,37.3084),4326))
-  ON CONFLICT (owner_id) DO UPDATE SET name=EXCLUDED.name;
+  ON CONFLICT (owner_id) DO UPDATE SET name=EXCLUDED.name, description=EXCLUDED.description, offers_delivery=EXCLUDED.offers_delivery, offers_pickup=EXCLUDED.offers_pickup, delivery_radius_miles=EXCLUDED.delivery_radius_miles, pickup_address=EXCLUDED.pickup_address, delivery_windows=EXCLUDED.delivery_windows, pickup_windows=EXCLUDED.pickup_windows, pickup_location=EXCLUDED.pickup_location;
 
-  INSERT INTO market_products (seller_id,market_date,name,description,category,price_usd,unit,inventory,photos,harvested_at) VALUES
-    ('a1111111-1111-1111-1111-111111111111',CURRENT_DATE,'Heirloom Peppers','Mixed hot and sweet peppers','produce',4.50,'basket',10,'{}',now()),
-    ('a1111111-1111-1111-1111-111111111111',CURRENT_DATE,'Sweet Corn','Golden bantam corn, picked today','produce',3.00,'each',20,'{}',now()),
-    ('a1111111-1111-1111-1111-111111111111',CURRENT_DATE,'Fresh Eggs','Free-range eggs from happy chickens','eggs',6.00,'dozen',8,'{}',now()),
-    ('a1111111-1111-1111-1111-111111111111',CURRENT_DATE,'Organic Honey','Raw wildflower honey, unfiltered','honey',10.00,'jar',5,'{}',NULL),
-    ('a1111111-1111-1111-1111-111111111111',CURRENT_DATE,'Sunflower Bouquet','Bright cheerful sunflowers from our garden','flowers',8.00,'bunch',6,'{}',now())
+  INSERT INTO market_products (seller_id,market_date,name,description,category,price_usd,unit,inventory,photos,harvested_at,moderation_status) VALUES
+    ('a1111111-1111-1111-1111-111111111111',CURRENT_DATE,'Heirloom Peppers','Mixed hot and sweet peppers','produce',4.50,'basket',10,'{}',now(),'approved'),
+    ('a1111111-1111-1111-1111-111111111111',CURRENT_DATE,'Sweet Corn','Golden bantam corn, picked today','produce',3.00,'each',20,'{}',now(),'approved'),
+    ('a1111111-1111-1111-1111-111111111111',CURRENT_DATE,'Fresh Eggs','Free-range eggs from happy chickens','eggs',6.00,'dozen',8,'{}',now(),'approved'),
+    ('a1111111-1111-1111-1111-111111111111',CURRENT_DATE,'Organic Honey','Raw wildflower honey, unfiltered','honey',10.00,'jar',5,'{}',NULL,'approved'),
+    ('a1111111-1111-1111-1111-111111111111',CURRENT_DATE,'Sunflower Bouquet','Bright cheerful sunflowers from our garden','flowers',8.00,'bunch',6,'{}',now(),'approved')
   ON CONFLICT DO NOTHING;
 
   -- Give buyer@test a booth + products (so seller can buy from buyer)
@@ -973,13 +973,13 @@ BEGIN
      'automatic',ST_SetSRID(ST_MakePoint(-121.8983,37.3068),4326))
   ON CONFLICT (owner_id) DO UPDATE SET name=EXCLUDED.name, description=EXCLUDED.description, offers_delivery=true, offers_pickup=true, delivery_windows=EXCLUDED.delivery_windows, pickup_windows=EXCLUDED.pickup_windows, pickup_address=EXCLUDED.pickup_address, pickup_location=EXCLUDED.pickup_location;
 
-  INSERT INTO market_products (seller_id,market_date,name,description,category,price_usd,unit,inventory,photos,harvested_at) VALUES
-    ('b2222222-2222-2222-2222-222222222222',CURRENT_DATE,'Roma Tomatoes','Meaty paste tomatoes, great for sauce','produce',4.00,'basket',15,'{}',now()),
-    ('b2222222-2222-2222-2222-222222222222',CURRENT_DATE,'Purple Basil','Beautiful purple Genovese basil','produce',3.50,'bunch',12,'{}',now()),
-    ('b2222222-2222-2222-2222-222222222222',CURRENT_DATE,'Fresh Mint','Spearmint from raised beds, pesticide free','produce',2.50,'bunch',20,'{}',now()),
-    ('b2222222-2222-2222-2222-222222222222',CURRENT_DATE,'Strawberries','Sweet Seascape variety, just picked today','produce',5.00,'pint',10,'{}',now()),
-    ('b2222222-2222-2222-2222-222222222222',CURRENT_DATE,'Lavender Bundle','Dried French lavender from my garden','flowers',4.00,'bunch',8,'{}',NULL),
-    ('b2222222-2222-2222-2222-222222222222',CURRENT_DATE,'Lemon Cucumbers','Round, sweet lemon cucumbers','produce',3.00,'bag',14,'{}',now())
+  INSERT INTO market_products (seller_id,market_date,name,description,category,price_usd,unit,inventory,photos,harvested_at,moderation_status) VALUES
+    ('b2222222-2222-2222-2222-222222222222',CURRENT_DATE,'Roma Tomatoes','Meaty paste tomatoes, great for sauce','produce',4.00,'basket',15,'{}',now(),'approved'),
+    ('b2222222-2222-2222-2222-222222222222',CURRENT_DATE,'Purple Basil','Beautiful purple Genovese basil','produce',3.50,'bunch',12,'{}',now(),'approved'),
+    ('b2222222-2222-2222-2222-222222222222',CURRENT_DATE,'Fresh Mint','Spearmint from raised beds, pesticide free','produce',2.50,'bunch',20,'{}',now(),'approved'),
+    ('b2222222-2222-2222-2222-222222222222',CURRENT_DATE,'Strawberries','Sweet Seascape variety, just picked today','produce',5.00,'pint',10,'{}',now(),'approved'),
+    ('b2222222-2222-2222-2222-222222222222',CURRENT_DATE,'Lavender Bundle','Dried French lavender from my garden','flowers',4.00,'bunch',8,'{}',NULL,'approved'),
+    ('b2222222-2222-2222-2222-222222222222',CURRENT_DATE,'Lemon Cucumbers','Round, sweet lemon cucumbers','produce',3.00,'bag',14,'{}',now(),'approved')
   ON CONFLICT DO NOTHING;
 
   -- ── SELLER@TEST AS SELLER (login as seller@test to manage) ──
