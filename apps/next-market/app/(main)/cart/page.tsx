@@ -295,7 +295,10 @@ export default function CartPage() {
           }
           const { error: stripeErr } = await stripeRef.current.confirmCardPayment(
             holdResult.clientSecret,
-            { payment_method: { card: cardElementRef.current } },
+            {
+              payment_method: { card: cardElementRef.current },
+              return_url: `${window.location.origin}/orders`,
+            },
           )
           if (stripeErr) {
             setCheckoutError(stripeErr.message || 'Card declined')

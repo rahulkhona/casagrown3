@@ -264,7 +264,10 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
       if (holdResult.requiresCardEntry && stripeRef.current && cardElementRef.current) {
         const { error: stripeErr } = await stripeRef.current.confirmCardPayment(
           holdResult.clientSecret,
-          { payment_method: { card: cardElementRef.current } },
+          {
+            payment_method: { card: cardElementRef.current },
+            return_url: `${window.location.origin}/orders`,
+          },
         )
         if (stripeErr) {
           setError(stripeErr.message || 'Card declined')
