@@ -38,33 +38,48 @@ function parseTime(timeStr: string): { hours: number; minutes: number } | null {
  */
 export function hasValidWindows(
   windowDates?: any[] | null,
-  deliveryWindows?: TimeWindow[] | null,
-  pickupWindows?: TimeWindow[] | null,
+  deliveryWindows?: TimeWindow[] | Record<string, TimeWindow[]> | null,
+  pickupWindows?: TimeWindow[] | Record<string, TimeWindow[]> | null,
   mode?: 'delivery' | 'pickup',
 ): boolean {
   // No dates configured = no restrictions, product is always available
   if (!windowDates || !Array.isArray(windowDates) || windowDates.length === 0) return true
 
-  // Normalize inputs — database may store {} instead of []
-  const safeDelivery = Array.isArray(deliveryWindows) ? deliveryWindows : []
-  const safePickup = Array.isArray(pickupWindows) ? pickupWindows : []
+  const now = new Date()
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 
-  // Select windows based on mode
-  let allWindows: TimeWindow[]
-  if (mode === 'delivery') {
-    allWindows = safeDelivery
-  } else if (mode === 'pickup') {
-    allWindows = safePickup
-  } else {
-    // No mode specified — check both
-    allWindows = [...safeDelivery, ...safePickup]
+  // Helper: flatten per-date object OR flat array into TimeWindow[] for a given date
+  function getWindowsForDate(
+    windows: TimeWindow[] | Record<string, TimeWindow[]> | null | undefined,
+    dateStr: string,
+  ): TimeWindow[] {
+    if (!windows) return []
+    if (Array.isArray(windows)) return windows  // legacy flat array — applies to all dates
+    if (typeof windows === 'object') {
+      // Per-date object: { "2026-04-01": [...], "2026-04-02": [...] }
+      return (windows as Record<string, TimeWindow[]>)[dateStr] || []
+    }
+    return []
   }
 
-  // No time windows for the selected mode = not available for that mode
-  // (but if no mode specified and no windows at all, fall back to date check)
-  if (allWindows.length === 0) {
-    if (mode) return false  // Specific mode requested but no windows for it
-    // No mode specified & no windows — check dates only
+  // Helper: check if any windows exist at all (across all dates)
+  function hasAnyWindows(windows: TimeWindow[] | Record<string, TimeWindow[]> | null | undefined): boolean {
+    if (!windows) return false
+    if (Array.isArray(windows)) return windows.length > 0
+    if (typeof windows === 'object') {
+      return Object.values(windows as Record<string, TimeWindow[]>).some(arr => Array.isArray(arr) && arr.length > 0)
+    }
+    return false
+  }
+
+  // Check if the selected mode has any windows at all
+  const hasDelivery = hasAnyWindows(deliveryWindows)
+  const hasPickup = hasAnyWindows(pickupWindows)
+
+  if (mode === 'delivery' && !hasDelivery) return false
+  if (mode === 'pickup' && !hasPickup) return false
+  if (!mode && !hasDelivery && !hasPickup) {
+    // No windows at all — fall back to date-only check
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     return windowDates.some(dateStr => {
@@ -74,20 +89,32 @@ export function hasValidWindows(
     })
   }
 
-  const now = new Date()
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-
   for (const dateStr of windowDates) {
     const ds = String(dateStr)
-    
-    // Future date (not today) — all windows on that day are valid
-    if (ds > todayStr) return true
 
     // Past date — skip
     if (ds < todayStr) continue
 
+    // Get windows for this specific date and mode
+    let dateWindows: TimeWindow[]
+    if (mode === 'delivery') {
+      dateWindows = getWindowsForDate(deliveryWindows, ds)
+    } else if (mode === 'pickup') {
+      dateWindows = getWindowsForDate(pickupWindows, ds)
+    } else {
+      dateWindows = [
+        ...getWindowsForDate(deliveryWindows, ds),
+        ...getWindowsForDate(pickupWindows, ds),
+      ]
+    }
+
+    if (dateWindows.length === 0) continue
+
+    // Future date (not today) — any windows on that day are valid
+    if (ds > todayStr) return true
+
     // Today — check if any window's end time is still in the future
-    for (const w of allWindows) {
+    for (const w of dateWindows) {
       const endTime = parseTime(w.end || '')
       if (!endTime) {
         // No end time specified = open-ended, still valid
