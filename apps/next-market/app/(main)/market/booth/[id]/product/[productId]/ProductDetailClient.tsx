@@ -325,11 +325,54 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
       <div className={styles.layout}>
         {/* Gallery */}
         <div className={styles.gallery}>
-          <div className={styles.mainImage}>
+          <div className={styles.mainImage} style={{ position: 'relative' }}>
             {photos.length > 0 ? (
               <img src={photos[photoIndex]} alt={product.name} />
             ) : (
               <div style={{ width: '100%', height: '100%', background: 'var(--gray-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 64, borderRadius: 'var(--radius-lg)' }}>🥬</div>
+            )}
+            {/* Carousel arrows */}
+            {photos.length > 1 && (
+              <>
+                <button
+                  onClick={() => setPhotoIndex((photoIndex - 1 + photos.length) % photos.length)}
+                  style={{
+                    position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)',
+                    width: 36, height: 36, borderRadius: '50%', border: 'none',
+                    background: 'rgba(0,0,0,0.4)', color: '#fff', fontSize: 18,
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}
+                  aria-label="Previous photo"
+                >‹</button>
+                <button
+                  onClick={() => setPhotoIndex((photoIndex + 1) % photos.length)}
+                  style={{
+                    position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                    width: 36, height: 36, borderRadius: '50%', border: 'none',
+                    background: 'rgba(0,0,0,0.4)', color: '#fff', fontSize: 18,
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}
+                  aria-label="Next photo"
+                >›</button>
+                {/* Dot indicators */}
+                <div style={{
+                  position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)',
+                  display: 'flex', gap: 6,
+                }}>
+                  {photos.map((_: string, i: number) => (
+                    <button
+                      key={i}
+                      onClick={() => setPhotoIndex(i)}
+                      style={{
+                        width: i === photoIndex ? 18 : 8, height: 8, borderRadius: 4, border: 'none',
+                        background: i === photoIndex ? '#fff' : 'rgba(255,255,255,0.5)',
+                        cursor: 'pointer', transition: 'all 0.2s', padding: 0,
+                      }}
+                      aria-label={`Photo ${i + 1}`}
+                    />
+                  ))}
+                </div>
+              </>
             )}
           </div>
           {photos.length > 1 && (
