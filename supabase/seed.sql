@@ -437,22 +437,80 @@ INSERT INTO market_booths (owner_id, name, description, decorative_theme,
   delivery_windows = EXCLUDED.delivery_windows, pickup_windows = EXCLUDED.pickup_windows,
   pickup_location = EXCLUDED.pickup_location;
 
--- Alex's products (5 items)
-INSERT INTO market_products (seller_id, market_date, name, description, category, price_usd, unit, inventory, photos, harvested_at, moderation_status) VALUES
-  ('d4444444-4444-4444-4444-444444444444', CURRENT_DATE, 'Beefsteak Tomatoes', 'Huge vine-ripened beefsteak tomatoes, 1 lb each', 'produce', 4.00, 'each', 15, '{}', now(), 'approved'),
-  ('d4444444-4444-4444-4444-444444444444', CURRENT_DATE, 'Sugar Snap Peas', 'Crisp sweet sugar snap peas, perfect for snacking', 'produce', 5.00, 'bag', 12, '{}', now(), 'approved'),
-  ('d4444444-4444-4444-4444-444444444444', CURRENT_DATE, 'Garden Salad Mix', 'Mixed greens with arugula, spinach, and butter lettuce', 'produce', 6.00, 'bag', 10, '{}', now(), 'approved'),
-  ('d4444444-4444-4444-4444-444444444444', CURRENT_DATE, 'Fresh Cilantro', 'Aromatic cilantro bunches, great for salsa', 'produce', 2.00, 'bunch', 25, '{}', now(), 'approved'),
-  ('d4444444-4444-4444-4444-444444444444', CURRENT_DATE, 'Backyard Peaches', 'Sweet O''Henry peaches from my backyard tree', 'produce', 5.50, 'bag', 8, '{}', now(), 'approved')
+-- Alex's products (5 items) — with fulfillment windows (today + tomorrow)
+INSERT INTO market_products (
+  seller_id, market_date, name, description, category, price_usd, unit, inventory,
+  photos, harvested_at, moderation_status,
+  window_dates, product_delivery_windows, product_pickup_windows
+) VALUES
+  ('d4444444-4444-4444-4444-444444444444', CURRENT_DATE, 'Beefsteak Tomatoes',
+   'Huge vine-ripened beefsteak tomatoes, 1 lb each', 'produce', 4.00, 'each', 15,
+   '{}', now(), 'approved',
+   jsonb_build_array(to_char(CURRENT_DATE,'YYYY-MM-DD'), to_char(CURRENT_DATE+1,'YYYY-MM-DD')),
+   jsonb_build_object(to_char(CURRENT_DATE,'YYYY-MM-DD'), '[{"id":"8-10","start":"08:00","end":"10:00"},{"id":"10-12","start":"10:00","end":"12:00"}]'::jsonb, to_char(CURRENT_DATE+1,'YYYY-MM-DD'), '[{"id":"8-10","start":"08:00","end":"10:00"}]'::jsonb),
+   jsonb_build_object(to_char(CURRENT_DATE,'YYYY-MM-DD'), '[{"id":"9-11","start":"09:00","end":"11:00"}]'::jsonb, to_char(CURRENT_DATE+1,'YYYY-MM-DD'), '[{"id":"9-11","start":"09:00","end":"11:00"}]'::jsonb)),
+  ('d4444444-4444-4444-4444-444444444444', CURRENT_DATE, 'Sugar Snap Peas',
+   'Crisp sweet sugar snap peas, perfect for snacking', 'produce', 5.00, 'bag', 12,
+   '{}', now(), 'approved',
+   jsonb_build_array(to_char(CURRENT_DATE,'YYYY-MM-DD'), to_char(CURRENT_DATE+1,'YYYY-MM-DD')),
+   jsonb_build_object(to_char(CURRENT_DATE,'YYYY-MM-DD'), '[{"id":"8-10","start":"08:00","end":"10:00"},{"id":"10-12","start":"10:00","end":"12:00"}]'::jsonb, to_char(CURRENT_DATE+1,'YYYY-MM-DD'), '[{"id":"8-10","start":"08:00","end":"10:00"}]'::jsonb),
+   jsonb_build_object(to_char(CURRENT_DATE,'YYYY-MM-DD'), '[{"id":"9-11","start":"09:00","end":"11:00"}]'::jsonb, to_char(CURRENT_DATE+1,'YYYY-MM-DD'), '[{"id":"9-11","start":"09:00","end":"11:00"}]'::jsonb)),
+  ('d4444444-4444-4444-4444-444444444444', CURRENT_DATE, 'Garden Salad Mix',
+   'Mixed greens with arugula, spinach, and butter lettuce', 'produce', 6.00, 'bag', 10,
+   '{}', now(), 'approved',
+   jsonb_build_array(to_char(CURRENT_DATE,'YYYY-MM-DD'), to_char(CURRENT_DATE+1,'YYYY-MM-DD')),
+   jsonb_build_object(to_char(CURRENT_DATE,'YYYY-MM-DD'), '[{"id":"8-10","start":"08:00","end":"10:00"},{"id":"10-12","start":"10:00","end":"12:00"}]'::jsonb, to_char(CURRENT_DATE+1,'YYYY-MM-DD'), '[{"id":"8-10","start":"08:00","end":"10:00"}]'::jsonb),
+   jsonb_build_object(to_char(CURRENT_DATE,'YYYY-MM-DD'), '[{"id":"9-11","start":"09:00","end":"11:00"}]'::jsonb, to_char(CURRENT_DATE+1,'YYYY-MM-DD'), '[{"id":"9-11","start":"09:00","end":"11:00"}]'::jsonb)),
+  ('d4444444-4444-4444-4444-444444444444', CURRENT_DATE, 'Fresh Cilantro',
+   'Aromatic cilantro bunches, great for salsa', 'produce', 2.00, 'bunch', 25,
+   '{}', now(), 'approved',
+   jsonb_build_array(to_char(CURRENT_DATE,'YYYY-MM-DD'), to_char(CURRENT_DATE+1,'YYYY-MM-DD')),
+   jsonb_build_object(to_char(CURRENT_DATE,'YYYY-MM-DD'), '[{"id":"8-10","start":"08:00","end":"10:00"},{"id":"10-12","start":"10:00","end":"12:00"}]'::jsonb, to_char(CURRENT_DATE+1,'YYYY-MM-DD'), '[{"id":"8-10","start":"08:00","end":"10:00"}]'::jsonb),
+   jsonb_build_object(to_char(CURRENT_DATE,'YYYY-MM-DD'), '[{"id":"9-11","start":"09:00","end":"11:00"}]'::jsonb, to_char(CURRENT_DATE+1,'YYYY-MM-DD'), '[{"id":"9-11","start":"09:00","end":"11:00"}]'::jsonb)),
+  ('d4444444-4444-4444-4444-444444444444', CURRENT_DATE, 'Backyard Peaches',
+   'Sweet O''Henry peaches from my backyard tree', 'produce', 5.50, 'bag', 8,
+   '{}', now(), 'approved',
+   jsonb_build_array(to_char(CURRENT_DATE,'YYYY-MM-DD'), to_char(CURRENT_DATE+1,'YYYY-MM-DD')),
+   jsonb_build_object(to_char(CURRENT_DATE,'YYYY-MM-DD'), '[{"id":"8-10","start":"08:00","end":"10:00"},{"id":"10-12","start":"10:00","end":"12:00"}]'::jsonb, to_char(CURRENT_DATE+1,'YYYY-MM-DD'), '[{"id":"8-10","start":"08:00","end":"10:00"}]'::jsonb),
+   jsonb_build_object(to_char(CURRENT_DATE,'YYYY-MM-DD'), '[{"id":"9-11","start":"09:00","end":"11:00"}]'::jsonb, to_char(CURRENT_DATE+1,'YYYY-MM-DD'), '[{"id":"9-11","start":"09:00","end":"11:00"}]'::jsonb))
 ON CONFLICT DO NOTHING;
 
--- Taylor's products (5 items)
-INSERT INTO market_products (seller_id, market_date, name, description, category, price_usd, unit, inventory, photos, harvested_at, moderation_status) VALUES
-  ('e5555555-5555-5555-5555-555555555555', CURRENT_DATE, 'Italian Basil', 'Large-leaf Genovese basil, just harvested', 'produce', 3.00, 'bunch', 20, '{}', now(), 'approved'),
-  ('e5555555-5555-5555-5555-555555555555', CURRENT_DATE, 'Cherry Peppers', 'Sweet cherry peppers, red and yellow mix', 'produce', 4.50, 'bag', 14, '{}', now(), 'approved'),
-  ('e5555555-5555-5555-5555-555555555555', CURRENT_DATE, 'Heirloom Carrots', 'Rainbow heirloom carrots — purple, orange, yellow', 'produce', 4.00, 'bunch', 16, '{}', now(), 'approved'),
-  ('e5555555-5555-5555-5555-555555555555', CURRENT_DATE, 'Fresh Rosemary', 'Woody rosemary sprigs from my herb garden', 'produce', 2.50, 'bunch', 18, '{}', now(), 'approved'),
-  ('e5555555-5555-5555-5555-555555555555', CURRENT_DATE, 'Backyard Figs', 'Sweet Black Mission figs, tree-ripened', 'produce', 7.00, 'pint', 6, '{}', now(), 'approved')
+-- Taylor's products (5 items) — with fulfillment windows (today + tomorrow)
+INSERT INTO market_products (
+  seller_id, market_date, name, description, category, price_usd, unit, inventory,
+  photos, harvested_at, moderation_status,
+  window_dates, product_delivery_windows, product_pickup_windows
+) VALUES
+  ('e5555555-5555-5555-5555-555555555555', CURRENT_DATE, 'Italian Basil',
+   'Large-leaf Genovese basil, just harvested', 'produce', 3.00, 'bunch', 20,
+   '{}', now(), 'approved',
+   jsonb_build_array(to_char(CURRENT_DATE,'YYYY-MM-DD'), to_char(CURRENT_DATE+1,'YYYY-MM-DD')),
+   jsonb_build_object(to_char(CURRENT_DATE,'YYYY-MM-DD'), '[{"id":"8-10","start":"08:00","end":"10:00"},{"id":"14-16","start":"14:00","end":"16:00"}]'::jsonb, to_char(CURRENT_DATE+1,'YYYY-MM-DD'), '[{"id":"8-10","start":"08:00","end":"10:00"}]'::jsonb),
+   jsonb_build_object(to_char(CURRENT_DATE,'YYYY-MM-DD'), '[{"id":"10-12","start":"10:00","end":"12:00"}]'::jsonb, to_char(CURRENT_DATE+1,'YYYY-MM-DD'), '[{"id":"10-12","start":"10:00","end":"12:00"}]'::jsonb)),
+  ('e5555555-5555-5555-5555-555555555555', CURRENT_DATE, 'Cherry Peppers',
+   'Sweet cherry peppers, red and yellow mix', 'produce', 4.50, 'bag', 14,
+   '{}', now(), 'approved',
+   jsonb_build_array(to_char(CURRENT_DATE,'YYYY-MM-DD'), to_char(CURRENT_DATE+1,'YYYY-MM-DD')),
+   jsonb_build_object(to_char(CURRENT_DATE,'YYYY-MM-DD'), '[{"id":"8-10","start":"08:00","end":"10:00"},{"id":"14-16","start":"14:00","end":"16:00"}]'::jsonb, to_char(CURRENT_DATE+1,'YYYY-MM-DD'), '[{"id":"8-10","start":"08:00","end":"10:00"}]'::jsonb),
+   jsonb_build_object(to_char(CURRENT_DATE,'YYYY-MM-DD'), '[{"id":"10-12","start":"10:00","end":"12:00"}]'::jsonb, to_char(CURRENT_DATE+1,'YYYY-MM-DD'), '[{"id":"10-12","start":"10:00","end":"12:00"}]'::jsonb)),
+  ('e5555555-5555-5555-5555-555555555555', CURRENT_DATE, 'Heirloom Carrots',
+   'Rainbow heirloom carrots — purple, orange, yellow', 'produce', 4.00, 'bunch', 16,
+   '{}', now(), 'approved',
+   jsonb_build_array(to_char(CURRENT_DATE,'YYYY-MM-DD'), to_char(CURRENT_DATE+1,'YYYY-MM-DD')),
+   jsonb_build_object(to_char(CURRENT_DATE,'YYYY-MM-DD'), '[{"id":"8-10","start":"08:00","end":"10:00"},{"id":"14-16","start":"14:00","end":"16:00"}]'::jsonb, to_char(CURRENT_DATE+1,'YYYY-MM-DD'), '[{"id":"8-10","start":"08:00","end":"10:00"}]'::jsonb),
+   jsonb_build_object(to_char(CURRENT_DATE,'YYYY-MM-DD'), '[{"id":"10-12","start":"10:00","end":"12:00"}]'::jsonb, to_char(CURRENT_DATE+1,'YYYY-MM-DD'), '[{"id":"10-12","start":"10:00","end":"12:00"}]'::jsonb)),
+  ('e5555555-5555-5555-5555-555555555555', CURRENT_DATE, 'Fresh Rosemary',
+   'Woody rosemary sprigs from my herb garden', 'produce', 2.50, 'bunch', 18,
+   '{}', now(), 'approved',
+   jsonb_build_array(to_char(CURRENT_DATE,'YYYY-MM-DD'), to_char(CURRENT_DATE+1,'YYYY-MM-DD')),
+   jsonb_build_object(to_char(CURRENT_DATE,'YYYY-MM-DD'), '[{"id":"8-10","start":"08:00","end":"10:00"},{"id":"14-16","start":"14:00","end":"16:00"}]'::jsonb, to_char(CURRENT_DATE+1,'YYYY-MM-DD'), '[{"id":"8-10","start":"08:00","end":"10:00"}]'::jsonb),
+   jsonb_build_object(to_char(CURRENT_DATE,'YYYY-MM-DD'), '[{"id":"10-12","start":"10:00","end":"12:00"}]'::jsonb, to_char(CURRENT_DATE+1,'YYYY-MM-DD'), '[{"id":"10-12","start":"10:00","end":"12:00"}]'::jsonb)),
+  ('e5555555-5555-5555-5555-555555555555', CURRENT_DATE, 'Backyard Figs',
+   'Sweet Black Mission figs, tree-ripened', 'produce', 7.00, 'pint', 6,
+   '{}', now(), 'approved',
+   jsonb_build_array(to_char(CURRENT_DATE,'YYYY-MM-DD'), to_char(CURRENT_DATE+1,'YYYY-MM-DD')),
+   jsonb_build_object(to_char(CURRENT_DATE,'YYYY-MM-DD'), '[{"id":"8-10","start":"08:00","end":"10:00"},{"id":"14-16","start":"14:00","end":"16:00"}]'::jsonb, to_char(CURRENT_DATE+1,'YYYY-MM-DD'), '[{"id":"8-10","start":"08:00","end":"10:00"}]'::jsonb),
+   jsonb_build_object(to_char(CURRENT_DATE,'YYYY-MM-DD'), '[{"id":"10-12","start":"10:00","end":"12:00"}]'::jsonb, to_char(CURRENT_DATE+1,'YYYY-MM-DD'), '[{"id":"10-12","start":"10:00","end":"12:00"}]'::jsonb))
 ON CONFLICT DO NOTHING;
 
 -- =============================================================================
