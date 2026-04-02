@@ -108,6 +108,8 @@ export async function orderFromReloadly(
     brandName: string,
     faceValueCents: number,
     isSandbox: boolean,
+    redemptionId?: string,
+    recipientEmail?: string,
 ): Promise<ProviderOrderResult> {
     const audience = isSandbox
         ? "https://giftcards-sandbox.reloadly.com"
@@ -156,8 +158,10 @@ export async function orderFromReloadly(
             productId: Number(resolvedProductId),
             unitPrice: faceValueCents / 100,
             quantity: 1,
-            recipientEmail: "customer@casagrown.com",
-            senderName: "CasaGrown",
+            recipientEmail: recipientEmail || "customer@casagrown.com",
+            senderName: "CasaGrown Market",
+            recipientMessage: "You redeemed this gift card from your CasaGrown Market earnings. Enjoy!",
+            ...(redemptionId ? { customIdentifier: redemptionId } : {}),
         }),
     });
 

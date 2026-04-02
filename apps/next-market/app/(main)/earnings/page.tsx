@@ -414,7 +414,7 @@ export default function EarningsPage() {
             <span className={styles.summaryHint}>{summary?.purchase_count || 0} orders bought</span>
           </div>
           <div className={styles.summaryCard}>
-            <span className={styles.summaryLabel}>Cash Spent (CC)</span>
+            <span className={styles.summaryLabel}>Card Payments</span>
             <span className={styles.summaryValue}>{formatUsd(summary?.total_cc_charged || 0)}</span>
             <span className={styles.summaryHint}>Net card charges after netting</span>
           </div>
@@ -525,21 +525,65 @@ export default function EarningsPage() {
                         <div className={styles.txMeta}>
                           {tx.tx_type === 'cc_charge' && (
                             <>
-                              {tx.metadata.stripe_pi && <div className={styles.metaItem}><span className={styles.metaLabel}>Stripe PI:</span> {tx.metadata.stripe_pi.substring(0, 20)}...</div>}
+                              {tx.metadata.card_last4 && <div className={styles.metaItem}><span className={styles.metaLabel}>Card:</span> {tx.metadata.card_brand || 'Card'} •••• {tx.metadata.card_last4}</div>}
                               {tx.metadata.captured && <div className={styles.metaItem}><span className={styles.metaLabel}>Captured:</span> {formatUsd(tx.metadata.captured)}</div>}
-                              {tx.metadata.released && <div className={styles.metaItem}><span className={styles.metaLabel}>Released:</span> {formatUsd(tx.metadata.released)}</div>}
+                              {tx.metadata.released && parseFloat(tx.metadata.released) > 0 && <div className={styles.metaItem}><span className={styles.metaLabel}>Released:</span> {formatUsd(tx.metadata.released)}</div>}
                             </>
                           )}
                           {tx.tx_type === 'gift_card' && (
                             <>
                               {tx.metadata.item_name && <div className={styles.metaItem}><span className={styles.metaLabel}>Card:</span> {tx.metadata.item_name}</div>}
-                              {tx.metadata.gift_card_url && <div className={styles.metaItem}><a href={tx.metadata.gift_card_url} target="_blank" rel="noopener" className={styles.metaLink}>🎁 Use Gift Card</a></div>}
+                              {tx.metadata.gift_card_url && (
+                                <div className={styles.metaActions}>
+                                  <a href={tx.metadata.gift_card_url} target="_blank" rel="noopener" className={styles.metaLink}>🎁 Use Gift Card</a>
+                                  <button
+                                    className={styles.shareBtn}
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      const shareData = {
+                                        title: `${tx.metadata.item_name || 'Gift Card'} from CasaGrown`,
+                                        text: `Here's your ${tx.metadata.item_name || 'gift card'} worth ${formatUsd(Math.abs(tx.amount))}!`,
+                                        url: tx.metadata.gift_card_url,
+                                      };
+                                      if (navigator.share) {
+                                        try { await navigator.share(shareData); } catch { /* user cancelled */ }
+                                      } else {
+                                        await navigator.clipboard.writeText(tx.metadata.gift_card_url);
+                                        alert('Gift card link copied!');
+                                      }
+                                    }}
+                                  >
+                                    📤 Share
+                                  </button>
+                                </div>
+                              )}
+                              {tx.metadata.gift_card_code && (
+                                <div className={styles.metaItem}>
+                                  <span className={styles.metaLabel}>Code:</span>
+                                  <code style={{ background: 'var(--gray-100)', padding: '2px 6px', borderRadius: 4, fontSize: 12, fontFamily: 'monospace' }}>{tx.metadata.gift_card_code}</code>
+                                  <button
+                                    className={styles.shareBtnSmall}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigator.clipboard.writeText(tx.metadata.gift_card_code);
+                                      const btn = e.currentTarget;
+                                      btn.textContent = '✓';
+                                      setTimeout(() => btn.textContent = '📋', 1500);
+                                    }}
+                                  >📋</button>
+                                </div>
+                              )}
                             </>
                           )}
                           {tx.tx_type === 'charity' && (
                             <>
                               {tx.metadata.item_name && <div className={styles.metaItem}><span className={styles.metaLabel}>Organization:</span> {tx.metadata.item_name}</div>}
-                              {tx.metadata.charity_receipt_url && <div className={styles.metaItem}><a href={tx.metadata.charity_receipt_url} target="_blank" rel="noopener" className={styles.metaLink}>📄 View Receipt</a></div>}
+                              {tx.metadata.gg_receipt_number && <div className={styles.metaItem}><span className={styles.metaLabel}>Receipt #:</span> {tx.metadata.gg_receipt_number}</div>}
+                              {tx.metadata.tax_deductible_amount && <div className={styles.metaItem}><span className={styles.metaLabel}>Tax Deductible:</span> {formatUsd(tx.metadata.tax_deductible_amount)}</div>}
+                              {tx.metadata.charity_receipt_url
+                                ? <div className={styles.metaItem}><a href={tx.metadata.charity_receipt_url} target="_blank" rel="noopener" className={styles.metaLink}>📄 View Receipt</a></div>
+                                : tx.metadata.gg_receipt_number && <div className={styles.metaItem} style={{ color: 'var(--gray-400)', fontStyle: 'italic' }}>📧 Tax receipt emailed by GlobalGiving</div>
+                              }
                             </>
                           )}
                           {tx.tx_type === 'cashout' && (

@@ -54,13 +54,37 @@ describe('MarketReceiptSheet', () => {
     expect(container.textContent).toContain("Maria's Garden Fresh")
   })
 
-  it('renders seller receipt with fee breakdown', () => {
+  it('renders seller receipt with "You Received" when settlementId present', () => {
     const { container } = render(
       React.createElement(MarketReceiptSheet, { visible: true, data: sellerData, onClose: vi.fn() })
     )
     expect(container.textContent).toContain('Sale Receipt')
     expect(container.textContent).toContain('Platform Fee')
+    expect(container.textContent).toContain('You Received')
+  })
+
+  it('renders seller receipt with "You Will Receive" when no settlementId', () => {
+    const unsettledSeller = { ...sellerData, settlementId: undefined }
+    const { container } = render(
+      React.createElement(MarketReceiptSheet, { visible: true, data: unsettledSeller, onClose: vi.fn() })
+    )
     expect(container.textContent).toContain('You Will Receive')
+    expect(container.textContent).not.toContain('You Received')
+  })
+
+  it('shows settlement disclaimer when unsettled', () => {
+    const unsettledSeller = { ...sellerData, settlementId: undefined }
+    const { container } = render(
+      React.createElement(MarketReceiptSheet, { visible: true, data: unsettledSeller, onClose: vi.fn() })
+    )
+    expect(container.textContent).toContain('pending settlement')
+  })
+
+  it('hides settlement disclaimer when settled', () => {
+    const { container } = render(
+      React.createElement(MarketReceiptSheet, { visible: true, data: sellerData, onClose: vi.fn() })
+    )
+    expect(container.textContent).not.toContain('pending settlement')
   })
 
   it('shows truncated order ID', () => {

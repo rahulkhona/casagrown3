@@ -231,9 +231,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
       const payoutPayload = {
         sender_batch_header: {
-          sender_batch_id: `casagrown_payout_${Date.now()}_${
-            userId.substring(0, 8)
-          }`,
+          sender_batch_id: `cg_${redemption.id}`,
           email_subject: "Here is your CasaGrown payout!",
           email_message:
             `You earned $${usdAmount.toFixed(2)} on CasaGrown Market! Here's your payout.`,
@@ -243,7 +241,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             recipient_type: receiverType,
             amount: { value: usdAmount.toFixed(2), currency: "USD" },
             note: "CasaGrown Market Payout",
-            sender_item_id: `item_${Date.now()}`,
+            sender_item_id: redemption.id,
             receiver: finalPayoutId,
           },
         ],
@@ -266,6 +264,18 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
       txId = payoutData.batch_header?.payout_batch_id ||
         `paypal_fallback_id_${Date.now()}`;
+
+      // CRASH-SAFE: immediately save batch_id to redemption
+      await supabase.from("redemptions").update({
+        provider: "paypal",
+        provider_order_id: txId,
+        metadata: {
+          ...redemption.metadata,
+          batch_id: txId,
+          payout_status: payoutData.batch_header?.batch_status,
+        },
+      }).eq("id", redemption.id);
+      console.log(`[CASHOUT] Crash-safe: saved batch_id=${txId}`);
     } catch (err) {
       externalErrorMsg = err instanceof Error
         ? err.message

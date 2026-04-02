@@ -646,18 +646,25 @@ export default function PayoutPage() {
                 <div className={styles.emptyState}><span className={styles.emptyIcon}>❤️</span><p>No charities found</p></div>
               ) : (
                 <div className={styles.charityList} style={{ maxHeight: 300, overflowY: 'auto' }}>
-                  {filteredCharities.map(charity => (
-                    <button key={charity.id} className={styles.charityCard}
-                      onClick={() => setAutoConfig(prev => ({ ...prev, charity_project_name: charity.title }))}
-                      style={autoConfig.charity_project_name === charity.title ? { border: '2px solid var(--green-500)', background: 'var(--green-50)' } : undefined}
-                    >
-                      <img src={charity.imageUrl} alt={charity.title} className={styles.charityImg} />
-                      <div className={styles.charityInfo}>
-                        <span className={styles.charityTitle}>{charity.title}</span>
-                        <span className={styles.charityOrg}>{charity.organization}</span>
-                      </div>
-                    </button>
-                  ))}
+                  {filteredCharities.map(charity => {
+                    const progress = Math.min(charity.raised / charity.goal, 1)
+                    return (
+                      <button key={charity.id} className={styles.charityCard}
+                        onClick={() => setAutoConfig(prev => ({ ...prev, charity_project_id: String(charity.id), charity_project_name: charity.title }))}
+                        style={autoConfig.charity_project_name === charity.title ? { border: '2px solid var(--green-500)', background: 'var(--green-50)' } : undefined}
+                      >
+                        <img src={charity.imageUrl} alt={charity.title} className={styles.charityImg} />
+                        <div className={styles.charityInfo}>
+                          <span className={styles.charityTitle}>{charity.title}</span>
+                          <span className={styles.charityOrg}>{charity.organization}</span>
+                          <div className={styles.charityProgress}>
+                            <div className={styles.charityProgressFill} style={{ width: `${progress * 100}%` }} />
+                          </div>
+                          <span className={styles.charityStats}>${charity.raised.toLocaleString()} / ${charity.goal.toLocaleString()}</span>
+                        </div>
+                      </button>
+                    )
+                  })}
                 </div>
               )}
             </div>

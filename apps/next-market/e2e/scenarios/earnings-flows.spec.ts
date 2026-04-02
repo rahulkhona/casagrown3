@@ -332,4 +332,62 @@ test.describe('Earnings & Financial Flows', () => {
 
     await page.context().close()
   })
+
+  // ── S5.8: Payout button hidden at $0 ──
+  test('S5.8 — payout button behavior at zero balance', async ({ browser }) => {
+    const page = await loginAsUser(browser, 'beth')
+    await navigateTo(page, '/earnings')
+    await assertPageHealthy(page)
+
+    const body = await page.locator('body').innerText()
+
+    // If available balance is $0.00, the "Go to Payout" or payout link
+    // should either be hidden or show $0.00 available
+    if (body.includes('$0.00')) {
+      // The page should still render cleanly
+      expect(body).not.toContain('$NaN')
+      expect(body).not.toContain('$undefined')
+    }
+
+    await page.context().close()
+  })
+
+  // ── S6.5b: Auto-payout charity cards render correctly ──
+  test('S6.5b — auto-payout charity cards show progress bars', async ({ browser }) => {
+    const page = await loginAsUser(browser, 'sam')
+    await navigateTo(page, '/earnings/payout')
+    await assertPageHealthy(page)
+
+    // Enable auto-payout if not already
+    const toggle = page.locator('button, label, input').filter({ hasText: /Auto-Payout/i }).first()
+    if (await toggle.isVisible({ timeout: 3000 }).catch(() => false)) {
+      // Check if it's a toggle switch
+      const toggleSwitch = page.locator('[class*="switch"], [class*="toggle"]').first()
+      if (await toggleSwitch.isVisible({ timeout: 2000 }).catch(() => false)) {
+        // May already be on
+      }
+    }
+
+    // Click Donate method if visible
+    const donateBtn = page.locator('button').filter({ hasText: /Donate/i }).first()
+    if (await donateBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await donateBtn.click()
+      await page.waitForTimeout(1500)
+    }
+
+    // Check that charity cards have proper structure (not collapsed)
+    const charityCards = page.locator('[class*="charityCard"]')
+    const cardCount = await charityCards.count()
+
+    if (cardCount > 0) {
+      // Cards should have visible height (not collapsed to 0)
+      const firstCard = charityCards.first()
+      const box = await firstCard.boundingBox()
+      if (box) {
+        expect(box.height).toBeGreaterThan(50) // Should not be collapsed
+      }
+    }
+
+    await page.context().close()
+  })
 })

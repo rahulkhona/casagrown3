@@ -287,7 +287,7 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
             </p>
           </div>
           <div className={styles.statusPill} data-status={order.status}>
-            {order.status.replace(/_/g, ' ')}
+            {order.status.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
           </div>
         </div>
 
@@ -374,8 +374,8 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
         {/* Auto-complete countdown */}
         {order.status === 'delivered' && isBuyer && countdown && (
           <div className={styles.countdownBar}>
-            <span>⏰ Auto-completes in <strong>{countdown}</strong></span>
-            <span className={styles.countdownSub}>Confirm receipt or dispute within this time</span>
+            <span>⏰ Auto-confirms in <strong>{countdown}</strong></span>
+            <span className={styles.countdownSub}>Your order will be automatically marked as received. Confirm or dispute before then.</span>
           </div>
         )}
 
@@ -1082,7 +1082,7 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
           onClose={() => setShowDisputeCamera(false)}
         />
       )}
-      <NotificationPromptModal {...modalProps} />
+
     </div>
   )
 }

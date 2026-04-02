@@ -87,9 +87,23 @@
   animation: fadeIn 0.15s;
 }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-.metaItem { display: flex; gap: 4px; }
+.metaItem { display: flex; gap: 4px; align-items: center; }
 .metaLabel { font-weight: 600; color: var(--gray-500); }
 .metaLink { color: var(--green-600); text-decoration: underline; cursor: pointer; }
+.metaActions { display: flex; align-items: center; gap: 10px; width: 100%; }
+.shareBtn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;
+  border: 1px solid var(--green-200); background: var(--green-50); color: var(--green-700);
+  cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.shareBtn:hover { background: var(--green-100); border-color: var(--green-400); }
+.shareBtnSmall {
+  padding: 2px 6px; border-radius: 6px; font-size: 12px;
+  border: 1px solid var(--gray-200); background: var(--gray-50);
+  cursor: pointer; transition: all 0.15s; line-height: 1;
+}
+.shareBtnSmall:hover { background: var(--gray-100); border-color: var(--gray-400); }
 
 /* ── Empty state ── */
 .emptyState {

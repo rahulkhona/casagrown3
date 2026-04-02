@@ -3,7 +3,7 @@
 -- Tests both INSERT trigger (order placed) and UPDATE trigger (status changes)
 -- ===========================================================================
 BEGIN;
-SELECT plan(16);
+SELECT plan(21);
 
 -- ── Setup ──────────────────────────────────────────────────────────────
 INSERT INTO auth.users (id, email, instance_id, aud, role, created_at, updated_at)
@@ -148,6 +148,51 @@ SELECT ok(
     WHERE user_id = 'ff000000-0000-0000-0000-000000000a02'
       AND content LIKE '%Notif Buyer%'),
   'Order-placed notification includes buyer display name'
+);
+
+-- ── (17) Delivery notification includes "4 hours" ─────────────────────
+SELECT ok(
+  EXISTS(SELECT 1 FROM market_notifications
+    WHERE user_id = 'ff000000-0000-0000-0000-000000000a01'
+      AND content LIKE '%4 hours%'),
+  'Delivery notification includes 4-hour confirmation window'
+);
+
+-- ── (18-20) Decline flow ──────────────────────────────────────────────
+-- Reset pickup order to pending for decline test
+UPDATE market_orders SET status = 'pending'
+WHERE id = 'ff000000-0000-0000-0000-000000000d02';
+
+DELETE FROM market_notifications WHERE user_id = 'ff000000-0000-0000-0000-000000000a01'
+  AND content LIKE '%cancelled%';
+
+-- Decline as seller
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims = '{"sub":"ff000000-0000-0000-0000-000000000a02","role":"authenticated"}';
+
+SELECT ok(
+  (seller_decline_order('ff000000-0000-0000-0000-000000000d02')->>'success')::boolean,
+  '(18) seller_decline_order succeeds'
+);
+
+SELECT ok(
+  (SELECT status FROM market_orders WHERE id = 'ff000000-0000-0000-0000-000000000d02') = 'cancelled',
+  '(19) Declined order status is cancelled (not declined)'
+);
+
+SELECT ok(
+  EXISTS(SELECT 1 FROM market_notifications
+    WHERE user_id = 'ff000000-0000-0000-0000-000000000a01'
+      AND content LIKE '%cancelled%'),
+  '(20) Buyer gets cancellation notification in market_notifications'
+);
+
+-- (21) No stale rows in legacy notifications table for these users
+SELECT ok(
+  NOT EXISTS(SELECT 1 FROM notifications
+    WHERE user_id IN ('ff000000-0000-0000-0000-000000000a01', 'ff000000-0000-0000-0000-000000000a02')
+      AND created_at >= now() - INTERVAL '1 minute'),
+  '(21) No stale notifications in legacy table'
 );
 
 SELECT * FROM finish();

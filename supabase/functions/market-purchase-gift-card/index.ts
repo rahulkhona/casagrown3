@@ -276,6 +276,9 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   let providerResult: ProviderOrderResult | null = null;
   let externalErrorMsg: string | null = null;
 
+  // Fetch user email so providers also deliver the card directly to the user
+  const recipientEmail = await getUserEmail(supabase, userId);
+
   if (!isQueuing) {
     try {
       if (selectedProvider.provider === "tremendous") {
@@ -284,6 +287,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           selectedProvider.productId,
           brandName,
           faceValueCents,
+          redemption.id,
+          recipientEmail || undefined,
         );
       } else {
         providerResult = await orderFromReloadly(
@@ -293,7 +298,26 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           brandName,
           faceValueCents,
           env("RELOADLY_SANDBOX") !== "false",
+          redemption.id,
+          recipientEmail || undefined,
         );
+      }
+
+      // ── 6b. CRASH-SAFE: immediately persist provider result ──
+      // Save the provider order ID and card URL to the redemption row
+      // BEFORE finalize_redemption, so we can reconcile if finalize crashes.
+      if (providerResult) {
+        await supabase.from("redemptions").update({
+          provider: providerResult.provider,
+          provider_order_id: providerResult.externalOrderId,
+          metadata: {
+            ...redemption.metadata,
+            provider_order_id: providerResult.externalOrderId,
+            card_code: providerResult.cardCode || "",
+            card_url: providerResult.cardUrl || "",
+          },
+        }).eq("id", redemption.id);
+        console.log(`[REDEEM] Step 6b: saved provider_order_id=${providerResult.externalOrderId} (crash-safe)`);
       }
     } catch (err) {
       externalErrorMsg = err instanceof Error ? err.message : "Provider error";

@@ -82,6 +82,8 @@ export async function orderFromTremendous(
     productId: string,
     brandName: string,
     faceValueCents: number,
+    redemptionId?: string,
+    recipientEmail?: string,
 ): Promise<ProviderOrderResult> {
     let catalogId = productId;
 
@@ -134,13 +136,25 @@ export async function orderFromTremendous(
             },
             body: JSON.stringify({
                 payment: { funding_source_id: "balance" },
+                ...(redemptionId ? { external_id: redemptionId } : {}),
                 rewards: [{
                     value: {
                         denomination: faceValueCents / 100,
                         currency_code: "USD",
                     },
-                    delivery: { method: "LINK" },
-                    recipient: { name: "CasaGrown User" },
+                    delivery: {
+                        method: "LINK",
+                        ...(recipientEmail ? {
+                            meta: {
+                                subject: "Your CasaGrown Gift Card is Ready! 🎁",
+                                message: "You redeemed this gift card from your CasaGrown Market earnings. Enjoy!",
+                            },
+                        } : {}),
+                    },
+                    recipient: {
+                        name: "CasaGrown User",
+                        ...(recipientEmail ? { email: recipientEmail } : {}),
+                    },
                     products: [catalogId],
                 }],
             }),

@@ -242,6 +242,127 @@ test.describe('Deep Interactions', () => {
       await bethPage.context().close()
     })
 
+    test('D4b — full refund flow (seller offers full, buyer accepts)', async () => {
+      const bethToken = tokens['beth']
+      const samToken = tokens['sam']
+
+      // Find or create a delivered order for this test
+      let orders = await queryTable(
+        bethToken,
+        'market_orders',
+        `buyer_id=eq.b2222222-2222-2222-2222-222222222222&status=eq.delivered&limit=1`,
+      )
+
+      if (!orders.length) {
+        await execSql(
+          `UPDATE market_orders SET status = 'delivered', delivered_at = now()
+           WHERE id = (SELECT id FROM market_orders
+                       WHERE buyer_id = 'b2222222-2222-2222-2222-222222222222'
+                         AND status NOT IN ('delivered', 'completed', 'disputed', 'cancelled', 'resolved')
+                       LIMIT 1)`
+        )
+        orders = await queryTable(
+          bethToken,
+          'market_orders',
+          `buyer_id=eq.b2222222-2222-2222-2222-222222222222&status=eq.delivered&limit=1`,
+        )
+      }
+
+      if (!orders.length) { test.skip(); return }
+
+      // File dispute
+      await callRpc(bethToken, 'buyer_dispute_order', {
+        p_order_id: orders[0].id,
+        p_reason: 'Product was damaged',
+        p_photos: [],
+        p_dispute_type: 'wrong_item',
+      })
+
+      const disputes = await queryTable(bethToken, 'order_disputes', `order_id=eq.${orders[0].id}&limit=1`)
+      expect(disputes.length).toBeGreaterThan(0)
+
+      // Seller offers FULL refund (total_usd)
+      const fullRefundResult = await callRpc(samToken, 'seller_respond_dispute', {
+        p_dispute_id: disputes[0].id,
+        p_refund_type: 'full',
+        p_refund_amount: orders[0].total_usd,
+        p_pickup_offered: false,
+      })
+      console.log('[DISPUTE] Full refund result:', JSON.stringify(fullRefundResult).substring(0, 200))
+
+      // Verify refund type is full
+      const updatedDispute = await queryTable(bethToken, 'order_disputes', `id=eq.${disputes[0].id}`)
+      expect(updatedDispute[0].refund_type).toBe('full')
+      expect(Number(updatedDispute[0].refund_amount_usd)).toBe(Number(orders[0].total_usd))
+
+      // Buyer accepts
+      await callRpc(bethToken, 'buyer_accept_refund', { p_dispute_id: disputes[0].id })
+
+      const finalDispute = await queryTable(bethToken, 'order_disputes', `id=eq.${disputes[0].id}`)
+      expect(['buyer_accepted', 'resolved']).toContain(finalDispute[0].status)
+      console.log(`[DISPUTE] Full refund accepted, status: ${finalDispute[0].status}`)
+    })
+
+    test('D4c — buyer rejects refund (resolve without accepting)', async () => {
+      const bethToken = tokens['beth']
+      const samToken = tokens['sam']
+
+      // Find or create a delivered order
+      let orders = await queryTable(
+        bethToken,
+        'market_orders',
+        `buyer_id=eq.b2222222-2222-2222-2222-222222222222&status=eq.delivered&limit=1`,
+      )
+
+      if (!orders.length) {
+        await execSql(
+          `UPDATE market_orders SET status = 'delivered', delivered_at = now()
+           WHERE id = (SELECT id FROM market_orders
+                       WHERE buyer_id = 'b2222222-2222-2222-2222-222222222222'
+                         AND status NOT IN ('delivered', 'completed', 'disputed', 'cancelled', 'resolved')
+                       LIMIT 1)`
+        )
+        orders = await queryTable(
+          bethToken,
+          'market_orders',
+          `buyer_id=eq.b2222222-2222-2222-2222-222222222222&status=eq.delivered&limit=1`,
+        )
+      }
+
+      if (!orders.length) { test.skip(); return }
+
+      // File dispute
+      await callRpc(bethToken, 'buyer_dispute_order', {
+        p_order_id: orders[0].id,
+        p_reason: 'Minor quality issue',
+        p_photos: [],
+        p_dispute_type: 'quality',
+      })
+
+      const disputes = await queryTable(bethToken, 'order_disputes', `order_id=eq.${orders[0].id}&limit=1`)
+      expect(disputes.length).toBeGreaterThan(0)
+
+      // Seller offers partial refund
+      await callRpc(samToken, 'seller_respond_dispute', {
+        p_dispute_id: disputes[0].id,
+        p_refund_type: 'partial',
+        p_refund_amount: 2.00,
+        p_pickup_offered: false,
+      })
+
+      // Buyer REJECTS — resolves without accepting refund
+      const rejectResult = await callRpc(bethToken, 'buyer_resolve_dispute', {
+        p_dispute_id: disputes[0].id,
+      })
+      console.log('[DISPUTE] Reject/resolve result:', JSON.stringify(rejectResult).substring(0, 200))
+
+      // Verify dispute is resolved
+      const finalDispute = await queryTable(bethToken, 'order_disputes', `id=eq.${disputes[0].id}`)
+      expect(finalDispute.length).toBeGreaterThan(0)
+      expect(['resolved', 'buyer_resolved']).toContain(finalDispute[0].status)
+      console.log(`[DISPUTE] Buyer rejected refund, resolved: ${finalDispute[0].status}`)
+    })
+
     test('D5 — escalation flow (file new dispute and escalate)', async () => {
       const bethToken = tokens['beth']
 
@@ -358,23 +479,22 @@ test.describe('Deep Interactions', () => {
     test('P3 — buyer notification created on hand-off', async () => {
       expect(pendingPickupOrderId).toBeTruthy()
 
-      // Check notifications for buyer about this order
+      // Check market_notifications (NOT legacy notifications table)
       const bethToken = tokens['beth']
       const notifs = await queryTable(
         bethToken,
-        'notifications',
-        `user_id=eq.b2222222-2222-2222-2222-222222222222&order=created_at.desc&limit=5`,
+        'market_notifications',
+        `user_id=eq.b2222222-2222-2222-2222-222222222222&order=created_at.desc&limit=10`,
       )
 
-      // Should have a notification about pickup hand-off
+      // Should have a notification about pickup hand-off from the trigger
       const hasPickupNotif = notifs.some((n: any) =>
-        (n.content || '').toLowerCase().includes('handed off') ||
         (n.content || '').toLowerCase().includes('pickup') ||
+        (n.content || '').toLowerCase().includes('ready') ||
         (n.content || '').toLowerCase().includes('confirm')
       )
-      console.log(`[PICKUP] Buyer notification found: ${hasPickupNotif}`)
-      // Soft check — notification system might use market_notifications table
-      expect(notifs.length >= 0).toBeTruthy()
+      console.log(`[PICKUP] Buyer notifications:`, notifs.map((n: any) => n.content).slice(0, 3))
+      expect(hasPickupNotif).toBeTruthy()
     })
 
     test('P4 — pickup order visible on order detail page', async ({ browser }) => {

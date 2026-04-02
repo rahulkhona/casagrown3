@@ -109,9 +109,27 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   }
 
   let externalOrderId = "";
+  let receiptUrl = "";
+  let ggReceipt: any = {};
   let finalStatus = "pending";
 
   // 4. Try Live Fulfillment
+  // Fetch user info for GlobalGiving donor receipt (501c3 tax receipt sent to donor email)
+  const { data: donorProfile } = await supabase
+    .from("profiles")
+    .select("full_name, email")
+    .eq("id", userId)
+    .single();
+
+  let donorEmail = donorProfile?.email || "";
+  if (!donorEmail) {
+    const { data: authUser } = await supabase.auth.admin.getUserById(userId);
+    donorEmail = authUser?.user?.email || "";
+  }
+  const donorName = donorProfile?.full_name || "CasaGrown User";
+  const [firstName, ...lastParts] = donorName.split(" ");
+  const lastName = lastParts.join(" ") || firstName;
+
   if (!isQueuing && !isSandbox && env("GLOBALGIVING_API_KEY") && itemId) {
     try {
       const response = await fetch(
@@ -126,6 +144,13 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           body: JSON.stringify({
             amount: dollarAmount,
             currency: "USD",
+            refcode: `cg_${userId.substring(0, 8)}_${Date.now()}`,
+            // Donor info — GlobalGiving sends 501(c)(3) tax receipt to this email
+            ...(donorEmail ? {
+              email: donorEmail,
+              firstname: firstName,
+              lastname: lastName,
+            } : {}),
           }),
         },
       );
@@ -139,6 +164,10 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
       const data = await response.json();
       externalOrderId = data.donationId || data.id || "";
       finalStatus = "completed";
+      // GlobalGiving API response includes: receipt.receiptNumber, receipt.taxDeductibleContributionAmount
+      ggReceipt = data.receipt || {};
+      receiptUrl = data.receiptUrl || data.receipt_url || "";
+      console.log(`[DONATE] GlobalGiving API succeeded: donationId=${externalOrderId}, receiptNumber=${ggReceipt.receiptNumber || 'N/A'}`);
     } catch (err) {
       console.error("[DONATE] GlobalGiving API failed. Tripping Breaker.", err);
       finalStatus = "pending";
@@ -169,6 +198,13 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         project_title: projectTitle,
         theme,
         source: "market",
+        ...(externalOrderId ? { donation_id: externalOrderId } : {}),
+        ...(receiptUrl ? { charity_receipt_url: receiptUrl } : {}),
+        // GlobalGiving receipt data (for tax purposes)
+        ...(typeof ggReceipt !== 'undefined' && ggReceipt?.receiptNumber ? {
+          gg_receipt_number: ggReceipt.receiptNumber,
+          tax_deductible_amount: ggReceipt.taxDeductibleContributionAmount,
+        } : {}),
       },
     })
     .select()
@@ -197,7 +233,17 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
   if (debitError || !debitResult?.success) {
     console.error("Failed to debit market balance:", debitError || debitResult?.error);
-    await supabase.from("redemptions").delete().eq("id", redemption.id);
+    // Don't delete a donation that already went through at GlobalGiving!
+    if (finalStatus === "completed" && externalOrderId) {
+      // Mark as needing manual reconciliation
+      await supabase.from("redemptions").update({
+        status: "completed",
+        failed_reason: `Balance debit failed: ${debitResult?.error || 'unknown'}. Donation was sent to GlobalGiving (${externalOrderId}) but balance was not debited.`,
+      }).eq("id", redemption.id);
+      console.error(`[DONATE] CRITICAL: Donation ${externalOrderId} went through but balance debit failed!`);
+    } else {
+      await supabase.from("redemptions").delete().eq("id", redemption.id);
+    }
     return jsonError(debitResult?.error || "Failed to debit balance.", corsHeaders);
   }
 

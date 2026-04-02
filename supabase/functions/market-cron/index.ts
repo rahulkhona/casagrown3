@@ -23,6 +23,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     return await handleSellerLifecycle(supabase, env, corsHeaders, siteUrl, body)
   } else if (action === 'grower_digest') {
     return await handleGrowerDigest(supabase, env, corsHeaders, siteUrl)
+  } else if (action === 'reconcile_redemptions') {
+    return await handleReconcileRedemptions(supabase, env, corsHeaders)
   } else {
     return jsonOk({ error: 'Unknown action: ' + action }, corsHeaders)
   }
@@ -857,4 +859,174 @@ async function handleGrowerDigest(
     sellers: Object.keys(sellerByUser).length,
     buyers: Object.keys(buyerByUser).length,
   }, corsHeaders)
+}
+
+// ═══════════════════════════════════════════════
+// Reconcile Stale Redemptions (safety net for missed webhooks)
+// Runs every 5 minutes, picks up pending redemptions > 10 min old
+// Queries provider API by external_id to check real status
+// ═══════════════════════════════════════════════
+async function handleReconcileRedemptions(
+  supabase: any,
+  env: (k: string) => string | undefined,
+  corsHeaders: Record<string, string>,
+) {
+  const TEN_MIN_AGO = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+
+  // Find stale pending redemptions
+  const { data: stale, error } = await supabase
+    .from('redemptions')
+    .select('id, user_id, status, point_cost, provider, provider_order_id, metadata')
+    .eq('status', 'pending')
+    .lt('created_at', TEN_MIN_AGO)
+    .limit(20)
+
+  if (error || !stale || stale.length === 0) {
+    return jsonOk({ reconciled: 0, message: 'No stale redemptions' }, corsHeaders)
+  }
+
+  console.log(`[RECONCILE] Found ${stale.length} stale pending redemptions`)
+
+  let completed = 0
+  let refunded = 0
+
+  for (const r of stale) {
+    const provider = r.provider || r.metadata?.provider_name || r.metadata?.type
+    const orderId = r.provider_order_id || r.metadata?.provider_order_id
+
+    try {
+      if (provider === 'tremendous' || r.metadata?.source === 'market') {
+        // Query Tremendous by external_id (our redemption.id)
+        const apiKey = env('TREMENDOUS_API_KEY')
+        if (!apiKey) { await refundStale(supabase, r, 'No API key'); refunded++; continue }
+
+        const res = await fetch(
+          `https://testflight.tremendous.com/api/v2/orders?external_id=${r.id}`,
+          { headers: { Authorization: `Bearer ${apiKey}` } }
+        )
+
+        if (res.ok) {
+          const data = await res.json() as any
+          const order = data.orders?.[0]
+          if (order && order.status === 'EXECUTED') {
+            const reward = order.rewards?.[0]
+            await supabase.from('redemptions').update({
+              status: 'completed',
+              completed_at: new Date().toISOString(),
+              provider: 'tremendous',
+              provider_order_id: order.id,
+              metadata: {
+                ...r.metadata,
+                card_code: reward?.credential?.code || '',
+                card_url: reward?.credential?.link || '',
+                provider_order_id: order.id,
+                completed_via: 'reconciliation',
+              },
+            }).eq('id', r.id)
+            completed++
+            console.log(`[RECONCILE] ✅ Completed ${r.id} (Tremendous order ${order.id})`)
+          } else {
+            await refundStale(supabase, r, `Tremendous order status: ${order?.status || 'not found'}`)
+            refunded++
+          }
+        } else {
+          await refundStale(supabase, r, `Tremendous API error: ${res.status}`)
+          refunded++
+        }
+      } else if (provider === 'paypal' || r.metadata?.type === 'paypal_cashout') {
+        // Query PayPal by batch_id
+        const batchId = orderId || r.metadata?.batch_id
+        if (!batchId) {
+          // No batch_id means API call never went through
+          await refundStale(supabase, r, 'No PayPal batch_id — API call likely never completed')
+          refunded++
+          continue
+        }
+
+        const clientId = env('PAYPAL_CLIENT_ID')
+        const secret = env('PAYPAL_SECRET')
+        if (!clientId || !secret) { await refundStale(supabase, r, 'No PayPal API keys'); refunded++; continue }
+
+        const IS_PROD = env('SUPABASE_URL')?.includes('casagrown') && !env('SUPABASE_URL')?.includes('localhost')
+        const BASE = IS_PROD ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com'
+
+        // Get token
+        const authRes = await fetch(`${BASE}/v1/oauth2/token`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Basic ${btoa(`${clientId}:${secret}`)}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: 'grant_type=client_credentials',
+        })
+        if (!authRes.ok) { await refundStale(supabase, r, 'PayPal auth failed'); refunded++; continue }
+        const { access_token } = await authRes.json()
+
+        const batchRes = await fetch(`${BASE}/v1/payments/payouts/${batchId}`, {
+          headers: { Authorization: `Bearer ${access_token}` },
+        })
+
+        if (batchRes.ok) {
+          const batch = await batchRes.json() as any
+          const item = batch.items?.[0]
+          const status = item?.transaction_status
+
+          if (status === 'SUCCESS') {
+            await supabase.from('redemptions').update({
+              status: 'completed',
+              completed_at: new Date().toISOString(),
+              provider: 'paypal',
+              provider_order_id: item.payout_item_id || batchId,
+              metadata: { ...r.metadata, completed_via: 'reconciliation', transaction_status: status },
+            }).eq('id', r.id)
+            completed++
+            console.log(`[RECONCILE] ✅ Completed ${r.id} (PayPal batch ${batchId})`)
+          } else if (['FAILED', 'BLOCKED', 'RETURNED'].includes(status)) {
+            await refundStale(supabase, r, `PayPal status: ${status}`)
+            refunded++
+          }
+          // else PENDING/UNCLAIMED — leave it, check next cycle
+        } else {
+          console.warn(`[RECONCILE] PayPal batch lookup failed: ${batchRes.status}`)
+        }
+      } else {
+        // Unknown provider or no provider info — refund if old enough
+        await refundStale(supabase, r, 'Unknown provider, no provider_order_id')
+        refunded++
+      }
+    } catch (err) {
+      console.error(`[RECONCILE] Error processing ${r.id}:`, err)
+    }
+  }
+
+  return jsonOk({ reconciled: completed + refunded, completed, refunded, total_stale: stale.length }, corsHeaders)
+}
+
+async function refundStale(supabase: any, redemption: any, reason: string) {
+  const refundUsd = redemption.point_cost / 100
+  const brandName = redemption.metadata?.brand_name || 'Payout'
+
+  await supabase.from('redemptions').update({
+    status: 'failed',
+    failed_reason: `Reconciliation: ${reason}`,
+    metadata: { ...redemption.metadata, failed_via: 'reconciliation', failure_reason: reason },
+  }).eq('id', redemption.id)
+
+  await supabase.rpc('credit_market_balance', {
+    p_user_id: redemption.user_id,
+    p_amount_usd: refundUsd,
+    p_event_type: 'refund_issued',
+    p_metadata: {
+      description: `Auto-refund: ${brandName} (${reason})`,
+      redemption_id: redemption.id,
+    },
+  })
+
+  await supabase.from('market_notifications').insert({
+    user_id: redemption.user_id,
+    content: `❌ Your ${brandName} withdrawal of $${refundUsd.toFixed(2)} could not be completed. Funds have been refunded.`,
+    link_url: '/earnings',
+  })
+
+  console.log(`[RECONCILE] ❌ Refunded ${redemption.id}: $${refundUsd} — ${reason}`)
 }
