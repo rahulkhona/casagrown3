@@ -100,7 +100,7 @@ Deno.test("Profiles have zip_code, street_address, state_code populated", async 
     assertEquals(sellers.length, 1);
     const seller = sellers[0]!;
     assertEquals(seller.zip_code, "95125");
-    assertEquals(seller.street_address, "973 Wallace Dr");
+    assertEquals(seller.street_address, "1168 Lincoln Ave");
     assertEquals(seller.state_code, "CA");
     assertEquals(seller.city, "San Jose");
     assertExists(seller.phone_number);
@@ -113,8 +113,8 @@ Deno.test("Profiles have zip_code, street_address, state_code populated", async 
     );
     assertEquals(buyers.length, 1);
     const buyer = buyers[0]!;
-    assertEquals(buyer.zip_code, "95120");
-    assertEquals(buyer.street_address, "123 Main St");
+    assertEquals(buyer.zip_code, "95125");
+    assertEquals(buyer.street_address, "1247 Minnesota Ave");
     assertEquals(buyer.state_code, "CA");
     assertExists(buyer.phone_number);
 });

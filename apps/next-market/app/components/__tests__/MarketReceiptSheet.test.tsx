@@ -77,14 +77,14 @@ describe('MarketReceiptSheet', () => {
     const { container } = render(
       React.createElement(MarketReceiptSheet, { visible: true, data: unsettledSeller, onClose: vi.fn() })
     )
-    expect(container.textContent).toContain('pending settlement')
+    expect(container.textContent).toContain('after market settlement')
   })
 
   it('hides settlement disclaimer when settled', () => {
     const { container } = render(
       React.createElement(MarketReceiptSheet, { visible: true, data: sellerData, onClose: vi.fn() })
     )
-    expect(container.textContent).not.toContain('pending settlement')
+    expect(container.textContent).not.toContain('after market settlement')
   })
 
   it('shows truncated order ID', () => {

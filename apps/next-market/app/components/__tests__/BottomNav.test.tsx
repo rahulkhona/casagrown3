@@ -40,6 +40,7 @@ vi.mock('../../../lib/supabase', () => ({
     from: vi.fn().mockReturnValue({
       select: vi.fn().mockReturnThis(),
       or: vi.fn().mockReturnThis(),
+      in: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       then: (resolve: any) => Promise.resolve({ data: [], error: null }).then(resolve),
     }),
