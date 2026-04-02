@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '../../../../lib/supabase'
 import { geocodeAddress } from '../../../../lib/geocode'
-import { formatWindowSummary, anonymizeAddress } from '../../../../lib/windowDisplay'
+import { getWindowDays, anonymizeAddress } from '../../../../lib/windowDisplay'
 import styles from '../page.module.css'
 
 // Haversine distance in meters
@@ -281,11 +281,22 @@ export default function ProductListingCard({ productId, currentUserId }: Product
                   ) : (
                     <span className={styles.plcFulfillmentHint}>Within {booth.delivery_radius_miles} mi</span>
                   )}
-                  {product.window_dates && (
-                    <span className={styles.plcFulfillmentHint} style={{ display: 'block', marginTop: 2 }}>
-                      {formatWindowSummary(product.window_dates, product.product_delivery_windows) || ''}
-                    </span>
-                  )}
+                  {(() => {
+                    const days = getWindowDays(product.window_dates, product.product_delivery_windows)
+                    return days.length > 0 ? (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 3 }}>
+                        {days.slice(0, 2).flatMap(day =>
+                          day.pills.slice(0, 2).map((p, i) => (
+                            <span key={`${day.date}-${i}`} style={{
+                              display: 'inline-block', padding: '1px 6px', borderRadius: 10,
+                              background: 'var(--green-50, #f0fdf4)', border: '1px solid var(--green-200, #bbf7d0)',
+                              fontSize: 10, fontWeight: 600, color: 'var(--green-700, #15803d)',
+                            }}>{day.label.split(' ')[0]} {p}</span>
+                          ))
+                        )}
+                      </div>
+                    ) : null
+                  })()}
                 </div>
               </div>
             )}
@@ -304,11 +315,22 @@ export default function ProductListingCard({ productId, currentUserId }: Product
                   {distanceMiles != null && (
                     <span className={styles.plcFulfillmentHint}>{distanceMiles} mi from you</span>
                   )}
-                  {product.window_dates && (
-                    <span className={styles.plcFulfillmentHint} style={{ display: 'block', marginTop: 2 }}>
-                      {formatWindowSummary(product.window_dates, product.product_pickup_windows) || ''}
-                    </span>
-                  )}
+                  {(() => {
+                    const days = getWindowDays(product.window_dates, product.product_pickup_windows)
+                    return days.length > 0 ? (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 3 }}>
+                        {days.slice(0, 2).flatMap(day =>
+                          day.pills.slice(0, 2).map((p, i) => (
+                            <span key={`${day.date}-${i}`} style={{
+                              display: 'inline-block', padding: '1px 6px', borderRadius: 10,
+                              background: 'var(--blue-50, #eff6ff)', border: '1px solid var(--blue-200, #bfdbfe)',
+                              fontSize: 10, fontWeight: 600, color: 'var(--blue-700, #1d4ed8)',
+                            }}>{day.label.split(' ')[0]} {p}</span>
+                          ))
+                        )}
+                      </div>
+                    ) : null
+                  })()}
                 </div>
               </div>
             )}

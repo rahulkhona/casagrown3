@@ -9,7 +9,7 @@ import { useAuth } from '../../../../../../../lib/useAuth'
 import { useMarketStatus } from '../../../../../../../lib/useMarketStatus'
 import { hasValidWindows } from '../../../../../../../lib/windowUtils'
 import { geocodeAddress } from '../../../../../../../lib/geocode'
-import { formatWindowSchedule, anonymizeAddress } from '../../../../../../../lib/windowDisplay'
+import { getWindowDays, anonymizeAddress } from '../../../../../../../lib/windowDisplay'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import BuyModal from '../../../../../../components/BuyModal'
 import { FlagModal } from '../../../../../../components/FlagModal'
@@ -221,7 +221,8 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
     product.product_delivery_windows,
     product.product_pickup_windows,
   ) : false
-  const isClosed = windowsExpired  // used by existing UI logic
+  const isExpired = product?.expires_at ? new Date(product.expires_at) < new Date() : false
+  const isClosed = windowsExpired || isExpired  // used by existing UI logic
 
   // Toggle product reminder
   const toggleReminder = async () => {
@@ -365,7 +366,9 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
 
           {/* Stock */}
           <div className={styles.stockInfo}>
-            {product.inventory > 0 ? (
+            {isExpired ? (
+              <span className="badge badge-red">⏰ Listing Expired</span>
+            ) : product.inventory > 0 ? (
               <span className="badge badge-green">✓ In Stock ({product.inventory} available)</span>
             ) : (
               <span className="badge badge-red">Sold Out</span>
@@ -636,13 +639,21 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                     )}
                     {/* Delivery time windows */}
                     {(() => {
-                      const schedule = formatWindowSchedule(product.window_dates, product.product_delivery_windows)
-                      return schedule.length > 0 ? (
-                        <div style={{ marginTop: 4 }}>
-                          {schedule.map(s => (
-                            <div key={s.date} style={{ fontSize: 12, color: 'var(--gray-600)' }}>
-                              <strong style={{ color: 'var(--green-700, #15803d)' }}>{s.label}:</strong>{' '}
-                              {s.windows.join(', ')}
+                      const days = getWindowDays(product.window_dates, product.product_delivery_windows)
+                      return days.length > 0 ? (
+                        <div style={{ marginTop: 6 }}>
+                          {days.map(day => (
+                            <div key={day.date} style={{ marginBottom: 4 }}>
+                              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)' }}>{day.label}</span>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 2 }}>
+                                {day.pills.map((p, i) => (
+                                  <span key={i} style={{
+                                    display: 'inline-block', padding: '2px 8px', borderRadius: 12,
+                                    background: 'var(--green-50, #f0fdf4)', border: '1px solid var(--green-200, #bbf7d0)',
+                                    fontSize: 11, fontWeight: 600, color: 'var(--green-700, #15803d)',
+                                  }}>{p}</span>
+                                ))}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -668,13 +679,21 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                     )}
                     {/* Pickup time windows */}
                     {(() => {
-                      const schedule = formatWindowSchedule(product.window_dates, product.product_pickup_windows)
-                      return schedule.length > 0 ? (
-                        <div style={{ marginTop: 4 }}>
-                          {schedule.map(s => (
-                            <div key={s.date} style={{ fontSize: 12, color: 'var(--gray-600)' }}>
-                              <strong style={{ color: 'var(--green-700, #15803d)' }}>{s.label}:</strong>{' '}
-                              {s.windows.join(', ')}
+                      const days = getWindowDays(product.window_dates, product.product_pickup_windows)
+                      return days.length > 0 ? (
+                        <div style={{ marginTop: 6 }}>
+                          {days.map(day => (
+                            <div key={day.date} style={{ marginBottom: 4 }}>
+                              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)' }}>{day.label}</span>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 2 }}>
+                                {day.pills.map((p, i) => (
+                                  <span key={i} style={{
+                                    display: 'inline-block', padding: '2px 8px', borderRadius: 12,
+                                    background: 'var(--blue-50, #eff6ff)', border: '1px solid var(--blue-200, #bfdbfe)',
+                                    fontSize: 11, fontWeight: 600, color: 'var(--blue-700, #1d4ed8)',
+                                  }}>{p}</span>
+                                ))}
+                              </div>
                             </div>
                           ))}
                         </div>

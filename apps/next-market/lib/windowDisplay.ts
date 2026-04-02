@@ -1,44 +1,54 @@
 /**
- * formatWindowSchedule — Renders product fulfillment windows as a human-readable
- * compact summary, e.g.: "Today 4:00 PM – 6:00 PM · Tomorrow 4:00 PM – 6:00 PM"
+ * Window display utilities for showing fulfillment windows as compact pills,
+ * matching the creation-form style (e.g. "4–6p", "6–8p").
  *
  * Product windows are stored as per-date objects:
- * { "2026-04-01": [{ start: "16:00", end: "18:00" }], "2026-04-02": [...] }
+ * { "2026-04-01": [{ id: "16-18", start: "16:00", end: "18:00" }] }
  */
+
+/** Map from slot ID to the compact label used in the creation form */
+const SLOT_LABELS: Record<string, string> = {
+  '8-10':  '8–10a',
+  '10-12': '10–12p',
+  '12-14': '12–2p',
+  '14-16': '2–4p',
+  '16-18': '4–6p',
+  '18-20': '6–8p',
+}
 
 interface TimeWindow {
   id?: string
-  start?: string   // "16:00" (24h) or "4:00 PM" (12h)
-  end?: string     // "18:00" (24h) or "6:00 PM" (12h)
+  start?: string   // "16:00" (24h)
+  end?: string     // "18:00" (24h)
   label?: string
 }
 
-/**
- * Convert 24h time "16:00" to "4:00 PM"
- */
-function to12h(time: string): string {
+/** Convert 24h "16:00" to compact "4p" or "4:30p" */
+function toCompact12h(time: string): string {
   if (!time) return ''
-  // Already in 12h format?
-  if (/AM|PM/i.test(time)) return time
   const [hStr, mStr] = time.split(':')
   let h = parseInt(hStr, 10)
-  const m = mStr || '00'
-  const period = h >= 12 ? 'PM' : 'AM'
+  const m = parseInt(mStr || '0', 10)
+  const period = h >= 12 ? 'p' : 'a'
   if (h === 0) h = 12
   else if (h > 12) h -= 12
-  return `${h}:${m} ${period}`
+  return m > 0 ? `${h}:${String(m).padStart(2, '0')}${period}` : `${h}${period}`
+}
+
+export interface WindowDay {
+  date: string        // "2026-04-01"
+  label: string       // "Today (Apr 1)" or "Tomorrow (Apr 2)" or "Wed, Apr 3"
+  pills: string[]     // ["4–6p", "6–8p"]
 }
 
 /**
- * Format window dates + time windows into a compact schedule.
- * Handles two data shapes:
- * 1. Per-date object: { "2026-04-01": [{ start, end }], "2026-04-02": [...] }
- * 2. Flat array: [{ start, end }] (legacy, used with window_dates array)
+ * Parse per-date windows into an array of days with compact pill labels.
+ * Only includes current and future dates.
  */
-export function formatWindowSchedule(
+export function getWindowDays(
   windowDates: string[] | null | undefined,
   windows: Record<string, TimeWindow[]> | TimeWindow[] | null | undefined,
-): { date: string; label: string; windows: string[] }[] {
+): WindowDay[] {
   if (!windowDates || !Array.isArray(windowDates) || windowDates.length === 0) return []
 
   const now = new Date()
@@ -47,59 +57,44 @@ export function formatWindowSchedule(
   const isPerDate = windows && !Array.isArray(windows) && typeof windows === 'object'
   const flatWindows = Array.isArray(windows) ? windows : []
 
-  const results: { date: string; label: string; windows: string[] }[] = []
+  const results: WindowDay[] = []
 
   for (const dateStr of windowDates) {
     const ds = String(dateStr)
-    if (ds < todayStr) continue // skip past dates
+    if (ds < todayStr) continue
 
-    // Friendly label
+    // Build label: "Today (Apr 1)" or "Tomorrow (Apr 2)" or "Wed, Apr 3"
     const [y, m, d] = ds.split('-').map(Number)
     const dateObj = new Date(y, m - 1, d)
-    let label: string
-
+    const shortDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     const diffDays = Math.round((dateObj.getTime() - new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) / 86400000)
-    if (diffDays === 0) label = 'Today'
-    else if (diffDays === 1) label = 'Tomorrow'
+
+    let label: string
+    if (diffDays === 0) label = `Today (${shortDate})`
+    else if (diffDays === 1) label = `Tomorrow (${shortDate})`
     else label = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 
-    // Get windows for this specific date
+    // Get windows for this date
     const dateWindows: TimeWindow[] = isPerDate
       ? ((windows as Record<string, TimeWindow[]>)[ds] || [])
       : flatWindows
 
-    // Format time windows
-    const windowStrs = dateWindows.map(w => {
+    // Convert to pill labels
+    const pills = dateWindows.map(w => {
+      // Use known slot label if ID matches
+      if (w.id && SLOT_LABELS[w.id]) return SLOT_LABELS[w.id]
+      // Custom slot — build compact label
+      if (w.start && w.end) return `${toCompact12h(w.start)}–${toCompact12h(w.end)}`
       if (w.label) return w.label
-      if (w.start && w.end) return `${to12h(w.start)} – ${to12h(w.end)}`
-      if (w.start) return `from ${to12h(w.start)}`
-      if (w.end) return `until ${to12h(w.end)}`
       return 'Any time'
     })
 
-    if (windowStrs.length > 0) {
-      results.push({ date: ds, label, windows: windowStrs })
+    if (pills.length > 0) {
+      results.push({ date: ds, label, pills })
     }
   }
 
   return results
-}
-
-/**
- * Compact single-line summary for cards.
- * e.g. "Today 4 PM – 6 PM · Tomorrow 4 PM – 6 PM"
- */
-export function formatWindowSummary(
-  windowDates: string[] | null | undefined,
-  windows: Record<string, TimeWindow[]> | TimeWindow[] | null | undefined,
-): string {
-  const schedule = formatWindowSchedule(windowDates, windows)
-  if (schedule.length === 0) return ''
-
-  return schedule
-    .slice(0, 2) // show at most 2 days
-    .map(s => `${s.label} ${s.windows[0] || ''}`.trim())
-    .join(' · ')
 }
 
 /**
@@ -108,7 +103,6 @@ export function formatWindowSummary(
  */
 export function anonymizeAddress(address: string | null | undefined): string | null {
   if (!address) return null
-  // Remove leading digits and any dash/space (e.g. "1234 Oak Ave" → "Oak Ave")
   const stripped = address.replace(/^\d+[-\s]*/, '').trim()
   if (!stripped || stripped === address) return null
   return `Near ${stripped}`
