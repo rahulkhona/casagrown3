@@ -359,7 +359,7 @@ export default function MyBoothPage() {
           pickupWindows: [],
           isActive: p.is_active,
           isDraft: p.is_draft,
-          status: (p.is_draft ? 'draft' : (!p.is_active ? 'inactive' : (p.market_date && p.market_date < new Date().toISOString().split('T')[0]) ? 'expired' : 'active')) as any,
+          status: (p.is_draft ? 'draft' : (!p.is_active ? 'inactive' : (p.expires_at && new Date(p.expires_at) < new Date()) ? 'expired' : 'active')) as any,
           marketDate: p.market_date,
           harvestedAt: p.harvested_at,
         })))
