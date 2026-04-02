@@ -490,59 +490,63 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                 </div>
               </div>
             ) : (
-              /* Real product: normal Buy/Cart */
+              /* Real product: Qty above, Buy Now + Add to Cart side by side */
               <>
-                <button
-                  className="btn btn-primary btn-lg"
-                  style={{ width: '100%', fontSize: 16 }}
-                  onClick={() => {
-                    if (!isAuthenticated) {
-                      router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
-                      return
-                    }
-                    if (profileComplete !== true) {
-                      router.push('/profile-setup')
-                      return
-                    }
-                    setShowBuy(true)
-                  }}
-                  disabled={product.inventory === 0 || windowsExpired}
-                >
-                  {windowsExpired
-                    ? '⏰ No Windows Available'
-                    : product.inventory === 0
-                      ? 'Sold Out'
-                      : `⚡ ${product.price_usd === 0 ? 'Buy Now — Free' : `Buy Now — ${formatUsd(product.price_usd)} / ${product.unit}`}`}
-                </button>
-
+                {/* Qty selector — always visible when available */}
                 {!windowsExpired && product.inventory > 0 && (
-                  <div style={{ marginTop: 12 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                      <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--gray-600)' }}>Qty:</span>
-                      <button
-                        className="btn"
-                        style={{ width: 36, height: 36, padding: 0, fontSize: 18, borderRadius: '50%' }}
-                        onClick={() => setCartQty(Math.max(1, cartQty - 1))}
-                        disabled={cartQty <= 1}
-                      >−</button>
-                      <span style={{ fontSize: 18, fontWeight: 600, minWidth: 32, textAlign: 'center' }}>{cartQty}</span>
-                      <button
-                        className="btn"
-                        style={{ width: 36, height: 36, padding: 0, fontSize: 18, borderRadius: '50%' }}
-                        onClick={() => setCartQty(Math.min(product.inventory, cartQty + 1))}
-                        disabled={cartQty >= product.inventory}
-                      >+</button>
-                      <span style={{ fontSize: 13, color: 'var(--gray-500)', marginLeft: 4 }}>
-                        {product.inventory} available
-                      </span>
-                    </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--gray-600)' }}>Qty:</span>
+                    <button
+                      className="btn"
+                      style={{ width: 34, height: 34, padding: 0, fontSize: 18, borderRadius: '50%' }}
+                      onClick={() => setCartQty(Math.max(1, cartQty - 1))}
+                      disabled={cartQty <= 1}
+                    >−</button>
+                    <span style={{ fontSize: 18, fontWeight: 600, minWidth: 28, textAlign: 'center' }}>{cartQty}</span>
+                    <button
+                      className="btn"
+                      style={{ width: 34, height: 34, padding: 0, fontSize: 18, borderRadius: '50%' }}
+                      onClick={() => setCartQty(Math.min(product.inventory, cartQty + 1))}
+                      disabled={cartQty >= product.inventory}
+                    >+</button>
+                    <span style={{ fontSize: 13, color: 'var(--gray-500)', marginLeft: 4 }}>
+                      {product.inventory} available
+                    </span>
+                  </div>
+                )}
 
+                {/* Buy Now + Add to Cart — side by side */}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    className="btn btn-primary btn-lg"
+                    style={{ flex: 1, fontSize: 14, padding: '12px 8px' }}
+                    onClick={() => {
+                      if (!isAuthenticated) {
+                        router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
+                        return
+                      }
+                      if (profileComplete !== true) {
+                        router.push('/profile-setup')
+                        return
+                      }
+                      setShowBuy(true)
+                    }}
+                    disabled={product.inventory === 0 || windowsExpired || isExpired}
+                  >
+                    {windowsExpired || isExpired
+                      ? '⏰ Unavailable'
+                      : product.inventory === 0
+                        ? 'Sold Out'
+                        : `⚡ ${product.price_usd === 0 ? 'Buy Now — Free' : `Buy Now`}`}
+                  </button>
+
+                  {!windowsExpired && !isExpired && product.inventory > 0 && (
                     <button
                       style={{
-                        width: '100%', padding: '12px 20px',
+                        flex: 1, padding: '12px 8px',
                         border: '2px solid var(--green-600, #16a34a)', borderRadius: 'var(--radius-md, 12px)',
                         background: 'var(--green-50, #f0fdf4)', color: 'var(--green-700, #15803d)',
-                        fontSize: 16, fontWeight: 600, cursor: 'pointer',
+                        fontSize: 14, fontWeight: 600, cursor: 'pointer',
                         transition: 'all 0.2s',
                       }}
                       onClick={() => {
@@ -579,39 +583,23 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                       }}
                     >
                       {existingCartQty > 0
-                        ? `In Cart (${existingCartQty}) — Update to ${cartQty}`
-                        : `🛒 Add to Cart — ${product.price_usd === 0 ? 'Free' : formatUsd(product.price_usd * cartQty)}`}
+                        ? `🛒 In Cart (${existingCartQty})`
+                        : `🛒 Add to Cart`}
                     </button>
+                  )}
+                </div>
 
-                    {existingCartQty > 0 && (
-                      <button
-                        style={{
-                          width: '100%', marginTop: 8, padding: '10px', border: '1px solid var(--gray-300)',
-                          borderRadius: 'var(--radius-md, 12px)', background: 'none', cursor: 'pointer',
-                          fontSize: 14, color: 'var(--green-700, #15803d)', fontWeight: 500,
-                        }}
-                        onClick={() => router.push('/cart')}
-                      >
-                        View Cart →
-                      </button>
-                    )}
-                  </div>
-                )}
-                
-                {/* Message Seller Button — always available for buyers */}
-                {!isDemo && isAuthenticated && user?.id !== product.seller_id && (
-                  <Link
-                    href={`/messages/new?userId=${product.seller_id}&productId=${product.id}&name=${encodeURIComponent(booth.name || 'Seller')}`}
+                {existingCartQty > 0 && (
+                  <button
                     style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                      width: '100%', marginTop: 12, padding: '12px 20px',
-                      border: '2px solid var(--green-200, #bbf7d0)', borderRadius: 'var(--radius-md, 12px)',
-                      background: 'var(--green-50, #f0fdf4)', color: 'var(--green-700, #15803d)', textAlign: 'center',
-                      fontSize: 16, fontWeight: 600, textDecoration: 'none', cursor: 'pointer',
+                      width: '100%', marginTop: 8, padding: '10px', border: '1px solid var(--gray-300)',
+                      borderRadius: 'var(--radius-md, 12px)', background: 'none', cursor: 'pointer',
+                      fontSize: 14, color: 'var(--green-700, #15803d)', fontWeight: 500,
                     }}
+                    onClick={() => router.push('/cart')}
                   >
-                    💬 Message Seller
-                  </Link>
+                    View Cart →
+                  </button>
                 )}
               </>
             )}
@@ -763,6 +751,24 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
 
       {/* Q&A Section */}
       <ProductQA productId={productId} sellerId={product.seller_id} isDemo={isDemo} productName={product.name} productDescription={product.description} />
+
+      {/* Message Seller — below Q&A so users can check answers first */}
+      {!isDemo && isAuthenticated && user?.id !== product.seller_id && (
+        <div style={{ padding: '0 0 16px' }}>
+          <Link
+            href={`/messages/new?userId=${product.seller_id}&productId=${product.id}&name=${encodeURIComponent(booth.name || 'Seller')}`}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              width: '100%', padding: '12px 20px',
+              border: '2px solid var(--green-200, #bbf7d0)', borderRadius: 'var(--radius-md, 12px)',
+              background: 'var(--green-50, #f0fdf4)', color: 'var(--green-700, #15803d)', textAlign: 'center',
+              fontSize: 16, fontWeight: 600, textDecoration: 'none', cursor: 'pointer',
+            }}
+          >
+            💬 Message Seller
+          </Link>
+        </div>
+      )}
 
       {/* Buy Modal — never shown for demo */}
       {showBuy && !isDemo && (
