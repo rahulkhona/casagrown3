@@ -56,6 +56,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
   const [reminderLoading, setReminderLoading] = useState(false)
   const { showSuccess, showInfo, showError } = useErrorToast()
   const [sellerRating, setSellerRating] = useState<{ avg: number; count: number } | null>(null)
+  const [sellerFirstName, setSellerFirstName] = useState<string | null>(null)
 
 
   const cart = useCart()
@@ -107,9 +108,12 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
         // Fetch seller profile for rating + pickup address fallback
         const { data: profileData } = await supabase
           .from('profiles')
-          .select('seller_avg_rating, seller_rating_count, street_address, city, state_code, zip_plus4')
+          .select('seller_avg_rating, seller_rating_count, full_name, street_address, city, state_code, zip_plus4')
           .eq('id', boothData.owner_id)
           .single()
+        if (profileData?.full_name) {
+          setSellerFirstName(profileData.full_name.split(' ')[0])
+        }
         if (profileData && profileData.seller_rating_count >= 5) {
           setSellerRating({ avg: profileData.seller_avg_rating, count: profileData.seller_rating_count })
         }
@@ -775,7 +779,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
               fontSize: 16, fontWeight: 600, textDecoration: 'none', cursor: 'pointer',
             }}
           >
-            💬 DM {booth.name || 'Seller'}
+            💬 DM {sellerFirstName || 'Seller'}
           </Link>
         </div>
       )}
