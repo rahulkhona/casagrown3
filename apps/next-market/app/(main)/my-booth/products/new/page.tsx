@@ -1190,22 +1190,50 @@ function NewProductPageInner() {
                 style={{
                   width: '100%', padding: '12px 20px',
                   borderRadius: 'var(--radius-md, 12px)',
-                  border: '2px solid var(--green-300, #86efac)',
-                  background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)',
-                  color: 'var(--green-800, #166534)',
+                  border: aiAnalyzing ? '2px solid #a78bfa' : '2px solid var(--green-300, #86efac)',
+                  background: aiAnalyzing
+                    ? 'linear-gradient(135deg, #ede9fe, #ddd6fe)'
+                    : 'linear-gradient(135deg, #f0fdf4, #dcfce7)',
+                  color: aiAnalyzing ? '#5b21b6' : 'var(--green-800, #166534)',
                   fontSize: 15, fontWeight: 600,
-                  cursor: aiAnalyzing ? 'wait' : 'pointer',
+                  cursor: aiAnalyzing ? 'not-allowed' : 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  transition: 'all 0.2s',
-                  opacity: aiAnalyzing ? 0.7 : 1,
+                  transition: 'all 0.3s',
+                  opacity: aiAnalyzing ? 1 : 1,
+                  position: 'relative',
+                  overflow: 'hidden',
                 }}
               >
                 {aiAnalyzing ? (
-                  <><span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>🤖</span> Analyzing photo...</>
+                  <>
+                    <span style={{ fontSize: 20 }}>🤖</span>
+                    <span>Analyzing your photo</span>
+                    <span className="ai-dots" style={{ letterSpacing: 2 }}>
+                      <style>{`@keyframes aiDots { 0%,20% { content: '.'; } 40% { content: '..'; } 60%,100% { content: '...'; } }
+                        .ai-dots::after { content: '...'; animation: aiDots 1.5s infinite steps(1); }
+                        @keyframes aiPulse { 0%,100% { opacity: 0.15; } 50% { opacity: 0.3; } }
+                      `}</style>
+                    </span>
+                    {/* Animated shimmer bar */}
+                    <span style={{
+                      position: 'absolute', bottom: 0, left: 0, right: 0, height: 3,
+                      background: 'linear-gradient(90deg, transparent, #8b5cf6, transparent)',
+                      animation: 'aiShimmer 1.5s ease-in-out infinite',
+                    }} />
+                    <style>{`@keyframes aiShimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }`}</style>
+                  </>
                 ) : (
                   <>✨ Auto-fill from Photo</>
                 )}
               </button>
+              {aiAnalyzing && (
+                <p style={{
+                  margin: '10px 0 0', fontSize: 13, textAlign: 'center',
+                  color: '#6d28d9', fontWeight: 500, fontStyle: 'italic',
+                }}>
+                  ⏳ This may take a few seconds — hang tight!
+                </p>
+              )}
               {aiToast && (
                 <p style={{
                   margin: '8px 0 0', fontSize: 13, textAlign: 'center',
