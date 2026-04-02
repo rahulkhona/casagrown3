@@ -55,6 +55,45 @@ function useUnreadMessageCount(userId?: string) {
   return count
 }
 
+function useActionableOrderCount(userId?: string) {
+  const [count, setCount] = useState(0)
+
+  useEffect(() => {
+    if (!userId) { setCount(0); return }
+
+    const supabase = createClient()
+    const fetchCount = async () => {
+      // Count orders where user needs to take action:
+      // - As seller: pending orders need fulfillment
+      // - As buyer: delivered orders need confirmation
+      // - Either role: disputed/escalated
+      const { data } = await supabase
+        .from('market_orders')
+        .select('id, buyer_id, seller_id, status')
+        .or(`buyer_id.eq.${userId},seller_id.eq.${userId}`)
+        .in('status', ['pending', 'delivered', 'disputed', 'escalated'])
+
+      if (!data) return
+      let total = 0
+      for (const o of data) {
+        // Seller: pending orders need their action
+        if (o.seller_id === userId && o.status === 'pending') total++
+        // Buyer: delivered orders need confirmation
+        if (o.buyer_id === userId && o.status === 'delivered') total++
+        // Either: disputes
+        if (['disputed', 'escalated'].includes(o.status)) total++
+      }
+      setCount(total)
+    }
+
+    fetchCount()
+    const interval = setInterval(fetchCount, 15000)
+    return () => clearInterval(interval)
+  }, [userId])
+
+  return count
+}
+
 /** Detect mobile keyboard via visualViewport shrinkage */
 function useKeyboardVisible() {
   const [visible, setVisible] = useState(false)
@@ -94,6 +133,7 @@ export function BottomNav() {
   const { user, profileComplete, isAuthenticated } = useAuth()
   const keyboardOpen = useKeyboardVisible()
   const unreadCount = useUnreadMessageCount(user?.id)
+  const actionableOrders = useActionableOrderCount(user?.id)
 
   const isActive = (href: string) => pathname.startsWith(href)
   const isProfileLocked = profileComplete !== true
@@ -134,6 +174,17 @@ export function BottomNav() {
                   border: '1px solid white'
                 }}>
                   {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+              {tab.href === '/orders' && actionableOrders > 0 && (
+                <span style={{
+                  position: 'absolute', top: -4, right: -4,
+                  background: '#ef4444', color: 'white', fontSize: '0.65rem',
+                  fontWeight: 'bold', width: 16, height: 16, display: 'flex',
+                  alignItems: 'center', justifyContent: 'center', borderRadius: '50%',
+                  border: '1px solid white'
+                }}>
+                  {actionableOrders > 9 ? '9+' : actionableOrders}
                 </span>
               )}
             </span>

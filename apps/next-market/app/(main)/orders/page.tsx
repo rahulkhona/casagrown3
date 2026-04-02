@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
 import { useAuth } from '../../../lib/useAuth'
+import { getWindowDays, anonymizeAddress } from '../../../lib/windowDisplay'
 import styles from './page.module.css'
 
 interface MarketOrder {
@@ -36,6 +37,10 @@ interface MarketOrder {
   buyer_address?: string | null
   seller_address?: string | null
   delivery_address?: string | null
+  // Product window data (joined)
+  window_dates?: any
+  product_delivery_windows?: any
+  product_pickup_windows?: any
 }
 
 interface HelperOrder {
@@ -105,7 +110,8 @@ function OrdersContent() {
         *,
         buyer:buyer_id(full_name, avatar_url, street_address),
         seller:seller_id(full_name, avatar_url, street_address),
-        booth:booth_id(name, pickup_address)
+        booth:booth_id(name, pickup_address),
+        product:product_id(window_dates, product_delivery_windows, product_pickup_windows)
       `)
       .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
       .order('created_at', { ascending: false })
@@ -120,6 +126,9 @@ function OrdersContent() {
         booth_name: o.booth?.name || 'Unknown Booth',
         buyer_address: o.delivery_address || o.buyer?.street_address || null,
         seller_address: o.booth?.pickup_address || o.seller?.street_address || null,
+        window_dates: o.product?.window_dates || null,
+        product_delivery_windows: o.product?.product_delivery_windows || null,
+        product_pickup_windows: o.product?.product_pickup_windows || null,
       })))
     }
     setLoading(false)
@@ -324,8 +333,13 @@ function OrdersContent() {
           const roleDataAttr = isSeller ? 'selling' : 'buying'
           const hint = getHint(order, user!.id)
           const location = order.fulfillment_type === 'pickup'
-            ? order.seller_address
+            ? (anonymizeAddress(order.seller_address || '') || order.seller_address)
             : order.buyer_address
+
+          // Get fulfillment window pills for the order's mode
+          const windowData = order.fulfillment_type === 'delivery'
+            ? getWindowDays(order.window_dates, order.product_delivery_windows)
+            : getWindowDays(order.window_dates, order.product_pickup_windows)
 
           return (
             <Link key={order.id} href={`/orders/${order.id}`} className={`${styles.orderCard} ${roleCls}`}>
@@ -341,6 +355,24 @@ function OrdersContent() {
                   </div>
                   {location && (
                     <div className={styles.locationLine}>📍 {location}</div>
+                  )}
+                  {/* Fulfillment windows for the order's selected mode */}
+                  {windowData.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                      {windowData.slice(0, 2).map((day, di) => (
+                        <div key={di} style={{ display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'center' }}>
+                          <span style={{ fontSize: 11, color: 'var(--gray-500)', fontWeight: 500 }}>{day.label}:</span>
+                          {day.pills.slice(0, 3).map((slot: string, si: number) => (
+                            <span key={si} style={{
+                              fontSize: 10, padding: '1px 6px', borderRadius: 8,
+                              background: order.fulfillment_type === 'delivery' ? '#dcfce7' : '#dbeafe',
+                              color: order.fulfillment_type === 'delivery' ? '#166534' : '#1e40af',
+                              fontWeight: 500,
+                            }}>{slot}</span>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>

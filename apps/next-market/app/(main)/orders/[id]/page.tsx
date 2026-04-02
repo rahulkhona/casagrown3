@@ -413,7 +413,7 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
             style={{ width: '100%', fontSize: 14, position: 'relative' }}
             onClick={() => setShowChat(prev => !prev)}
           >
-            💬 {showChat ? 'Hide Chat' : 'Chat with ' + (isSellerOrHelper ? order.buyer_name : order.seller_name)}
+            📋 {showChat ? 'Hide Order Notes' : 'Order Notes with ' + (isSellerOrHelper ? order.buyer_name : order.seller_name)}
             {!showChat && chatMessageCount > 0 && (
               <span style={{
                 marginLeft: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
