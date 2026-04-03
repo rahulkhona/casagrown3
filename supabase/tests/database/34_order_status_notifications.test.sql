@@ -18,10 +18,16 @@ VALUES
   ('ff000000-0000-0000-0000-000000000a02', 'notifseller@test.local', 'Notif Seller')
 ON CONFLICT (id) DO NOTHING;
 
--- Product (no booth_id on market_products)
-INSERT INTO market_products (id, seller_id, name, description, price_usd, unit, category, inventory, market_date)
+-- Product with proper fulfillment windows
+INSERT INTO market_products (id, seller_id, name, description, price_usd, unit, category, inventory, market_date,
+  product_delivery_windows, product_pickup_windows, window_dates)
 VALUES ('ff000000-0000-0000-0000-0000000000c1', 'ff000000-0000-0000-0000-000000000a02',
-       'Test Tomatoes', 'Ripe', 5.00, 'basket', 'produce', 10, CURRENT_DATE)
+       'Test Tomatoes', 'Ripe', 5.00, 'basket', 'produce', 10, CURRENT_DATE,
+       jsonb_build_object(to_char(CURRENT_DATE, 'YYYY-MM-DD'),
+         '[{"id":"8-10","start":"08:00","end":"10:00"},{"id":"10-12","start":"10:00","end":"12:00"}]'::jsonb),
+       jsonb_build_object(to_char(CURRENT_DATE, 'YYYY-MM-DD'),
+         '[{"id":"9-11","start":"09:00","end":"11:00"}]'::jsonb),
+       jsonb_build_array(to_char(CURRENT_DATE, 'YYYY-MM-DD')))
 ON CONFLICT (id) DO NOTHING;
 
 -- Ensure seller has a booth
