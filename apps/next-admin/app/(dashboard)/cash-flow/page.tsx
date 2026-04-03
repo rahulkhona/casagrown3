@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useState, useCallback } from 'react'
-import { YStack, XStack, Text, Button, Spinner, ScrollView } from 'tamagui'
+import { YStack, XStack, Text, Button, Spinner } from 'tamagui'
 import { RefreshCw, DollarSign, TrendingUp, TrendingDown, AlertTriangle, CheckCircle } from '@tamagui/lucide-icons'
 import { adminApi } from '../../../lib/adminApi'
 import { colors } from '@casagrown/app/design-tokens'
@@ -118,7 +118,6 @@ export default function CashFlowPage() {
   }
 
   return (
-    <ScrollView>
       <YStack flex={1} padding="$6" gap="$5" maxWidth={1200}>
         {/* Header */}
         <XStack justifyContent="space-between" alignItems="center">
@@ -286,6 +285,5 @@ export default function CashFlowPage() {
           )}
         </YStack>
       </YStack>
-    </ScrollView>
   )
 }

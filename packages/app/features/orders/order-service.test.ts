@@ -413,7 +413,7 @@ describe("modifyOrder", () => {
 });
 
 describe("markDelivered", () => {
-    it("calls mark_order_delivered RPC", async () => {
+    it("calls mark_order_delivered RPC with proof media ID", async () => {
         mockRpc.mockResolvedValue({ data: { success: true }, error: null });
         const result = await markDelivered("order-1", "seller-1", "media-1");
         expect(mockRpc).toHaveBeenCalledWith("mark_order_delivered", {
@@ -423,6 +423,36 @@ describe("markDelivered", () => {
             p_harvest_date: null,
         });
         expect(result).toEqual({ success: true });
+    });
+
+    it("requires proof_media_id — photo proof is mandatory for all fulfillment types", async () => {
+        // markDelivered signature requires proofMediaId as a required parameter.
+        // Both pickup and delivery go through the same DeliveryProofSheet which
+        // requires a photo before enabling submit. There is no "mark without photo" path.
+        mockRpc.mockResolvedValue({ data: { success: true }, error: null });
+        await markDelivered("order-1", "seller-1", "media-pickup-proof");
+        expect(mockRpc).toHaveBeenCalledWith("mark_order_delivered", expect.objectContaining({
+            p_proof_media_id: "media-pickup-proof",
+        }));
+    });
+
+    it("forwards harvest date for produce items", async () => {
+        mockRpc.mockResolvedValue({ data: { success: true }, error: null });
+        const result = await markDelivered("order-1", "seller-1", "media-1", "2026-03-15");
+        expect(mockRpc).toHaveBeenCalledWith("mark_order_delivered", {
+            p_order_id: "order-1",
+            p_seller_id: "seller-1",
+            p_proof_media_id: "media-1",
+            p_harvest_date: "2026-03-15",
+        });
+        expect(result).toEqual({ success: true });
+    });
+
+    it("throws when RPC fails", async () => {
+        mockRpc.mockResolvedValue({ data: null, error: { message: "fail" } });
+        await expect(markDelivered("order-1", "seller-1", "media-1")).rejects.toThrow(
+            "Failed to mark delivered",
+        );
     });
 });
 
