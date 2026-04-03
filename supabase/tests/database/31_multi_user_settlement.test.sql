@@ -8,10 +8,10 @@ SELECT plan(22);
 -- ============================================================================
 -- Cleanup: Tag all existing seed orders as already settled
 -- ============================================================================
+DELETE FROM market_settlements WHERE id = '31ffffff-ffff-ffff-ffff-ffffffffffff';
 INSERT INTO market_settlements (id, market_date, status) VALUES
-  ('00000000-0000-0000-0000-ffffffffffff', '2020-01-01', 'cleared')
-ON CONFLICT (id) DO NOTHING;
-UPDATE market_orders SET settlement_id = '00000000-0000-0000-0000-ffffffffffff'
+  ('31ffffff-ffff-ffff-ffff-ffffffffffff', '2010-01-01', 'cleared');
+UPDATE market_orders SET settlement_id = '31ffffff-ffff-ffff-ffff-ffffffffffff'
 WHERE settlement_id IS NULL;
 
 -- ============================================================================

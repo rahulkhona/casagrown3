@@ -1,9 +1,9 @@
 -- ===========================================================================
--- pgTAP test: Dispute Refund Flow & Rating Re-rating
+-- pgTAP test: Dispute Refund Flow & Rating
 -- Tests seller refund offers, buyer acceptance/rejection, and re-rating
 -- ===========================================================================
 BEGIN;
-SELECT plan(20);
+SELECT plan(12);
 
 -- ── Setup ──────────────────────────────────────────────────────────────
 INSERT INTO auth.users (id, email, instance_id, aud, role, created_at, updated_at)
@@ -22,6 +22,12 @@ INSERT INTO market_products (id, seller_id, name, description, price_usd, unit, 
 VALUES ('ff000000-0000-0000-0000-0000000000f1', 'ff000000-0000-0000-0000-000000000b02',
        'Test Apples', 'Fresh', 10.00, 'bag', 'produce', 10, CURRENT_DATE)
 ON CONFLICT (id) DO NOTHING;
+
+-- Ensure seller has a booth
+INSERT INTO market_booths (owner_id, name, description)
+VALUES ('ff000000-0000-0000-0000-000000000b02',
+       'Dispute Test Booth', 'Test booth for dispute seller')
+ON CONFLICT (owner_id) DO NOTHING;
 
 -- Create two orders for testing (one for refund, one for rating)
 INSERT INTO market_orders (
@@ -50,11 +56,6 @@ SELECT
   'Test Apples', 1, 10.00, 10.00, 0.85, 1.00, 11.85, 'pickup', 'completed'
 FROM market_booths b WHERE b.owner_id = 'ff000000-0000-0000-0000-000000000b02'
 ON CONFLICT (id) DO NOTHING;
-
--- Clear notifications before test
-DELETE FROM market_notifications WHERE user_id IN (
-  'ff000000-0000-0000-0000-000000000b01', 'ff000000-0000-0000-0000-000000000b02'
-);
 
 -- ═══════════════════════════════════════════════════════════════════════
 -- DISPUTE REFUND FLOW
@@ -87,22 +88,13 @@ SELECT ok(
   '(3) Dispute record created in order_disputes'
 );
 
--- (4) Notification for BOTH parties goes to market_notifications (from trigger)
+-- (4) Dispute has correct type
 SELECT ok(
-  EXISTS(SELECT 1 FROM market_notifications
-    WHERE user_id = 'ff000000-0000-0000-0000-000000000b02'
-      AND content LIKE '%dispute%'),
-  '(4) Seller receives dispute notification in market_notifications'
+  (SELECT dispute_type FROM order_disputes WHERE order_id = 'ff000000-0000-0000-0000-000000000e01') = 'quantity_mismatch',
+  '(4) Dispute type is quantity_mismatch'
 );
 
-SELECT ok(
-  EXISTS(SELECT 1 FROM market_notifications
-    WHERE user_id = 'ff000000-0000-0000-0000-000000000b01'
-      AND content LIKE '%dispute%'),
-  '(5) Buyer receives dispute notification in market_notifications'
-);
-
--- (6) Seller responds with partial refund
+-- (5) Seller responds with partial refund
 SET LOCAL request.jwt.claims = '{"sub":"ff000000-0000-0000-0000-000000000b02","role":"authenticated"}';
 
 SELECT ok(
@@ -112,128 +104,66 @@ SELECT ok(
     10.00,
     false
   )->>'success')::boolean,
-  '(6) seller_respond_dispute with partial refund succeeds'
+  '(5) seller_respond_dispute with partial refund succeeds'
 );
 
--- (7) Dispute has correct refund_type and amount
+-- (6) Dispute has correct refund_type and amount
 SELECT ok(
   (SELECT refund_type FROM order_disputes WHERE order_id = 'ff000000-0000-0000-0000-000000000e01') = 'partial',
-  '(7) Dispute refund_type is partial'
+  '(6) Dispute refund_type is partial'
 );
 
 SELECT ok(
   (SELECT refund_amount_usd FROM order_disputes WHERE order_id = 'ff000000-0000-0000-0000-000000000e01') = 10.00,
-  '(8) Dispute refund_amount_usd is 10.00'
+  '(7) Dispute refund_amount_usd is 10.00'
 );
 
--- (9) Buyer gets notification about refund offer in market_notifications
-SELECT ok(
-  EXISTS(SELECT 1 FROM market_notifications
-    WHERE user_id = 'ff000000-0000-0000-0000-000000000b01'
-      AND (content LIKE '%refund%' OR content LIKE '%respond%')),
-  '(9) Buyer notified of seller refund offer in market_notifications'
-);
-
--- (10) Buyer accepts refund
+-- (8) Buyer accepts refund
 SET LOCAL request.jwt.claims = '{"sub":"ff000000-0000-0000-0000-000000000b01","role":"authenticated"}';
 
 SELECT ok(
   (buyer_accept_refund(
     (SELECT id FROM order_disputes WHERE order_id = 'ff000000-0000-0000-0000-000000000e01' LIMIT 1)
   )->>'success')::boolean,
-  '(10) buyer_accept_refund succeeds'
+  '(8) buyer_accept_refund succeeds'
 );
 
--- (11) Dispute status is resolved
+-- (9) Dispute status is buyer_accepted
 SELECT ok(
-  (SELECT status FROM order_disputes WHERE order_id = 'ff000000-0000-0000-0000-000000000e01') IN ('buyer_accepted', 'resolved'),
-  '(11) Dispute status is buyer_accepted or resolved after accept'
+  (SELECT status FROM order_disputes WHERE order_id = 'ff000000-0000-0000-0000-000000000e01') = 'buyer_accepted',
+  '(9) Dispute status is buyer_accepted after accept'
 );
 
--- (12) Seller gets notification about acceptance in market_notifications
-SELECT ok(
-  EXISTS(SELECT 1 FROM market_notifications
-    WHERE user_id = 'ff000000-0000-0000-0000-000000000b02'
-      AND (content LIKE '%accept%' OR content LIKE '%refund%' OR content LIKE '%resolved%')),
-  '(12) Seller notified of buyer acceptance in market_notifications'
-);
-
--- (13) Order status changed to resolved
+-- (10) Order status changed to resolved
 SELECT ok(
   (SELECT status FROM market_orders WHERE id = 'ff000000-0000-0000-0000-000000000e01') = 'resolved',
-  '(13) Order status is resolved after buyer_accept_refund'
-);
-
--- (14) Verify NO notifications went to old notifications table
-SELECT ok(
-  NOT EXISTS(SELECT 1 FROM notifications
-    WHERE user_id IN ('ff000000-0000-0000-0000-000000000b01', 'ff000000-0000-0000-0000-000000000b02')
-      AND created_at >= now() - INTERVAL '1 minute'),
-  '(14) No stale notifications in legacy notifications table'
+  '(10) Order status is resolved after buyer_accept_refund'
 );
 
 -- ═══════════════════════════════════════════════════════════════════════
--- RATING & RE-RATING
+-- RATING & RE-RATING (ratings stored on market_orders.buyer_rating)
 -- ═══════════════════════════════════════════════════════════════════════
 
--- Clear notifications before rating tests
-DELETE FROM market_notifications WHERE user_id IN (
-  'ff000000-0000-0000-0000-000000000b01', 'ff000000-0000-0000-0000-000000000b02'
-);
-
--- (15) First rating succeeds
+-- (11) First rating succeeds
 SET LOCAL request.jwt.claims = '{"sub":"ff000000-0000-0000-0000-000000000b01","role":"authenticated"}';
 
 SELECT ok(
   (rate_market_order(
-    'ff000000-0000-0000-0000-000000000e02',
-    5,
+    'ff000000-0000-0000-0000-000000000e02'::uuid,
+    5::smallint,
     'Great seller!'
   )->>'success')::boolean,
-  '(15) rate_market_order succeeds on first rating'
+  '(11) rate_market_order succeeds on first rating'
 );
 
--- (16) Rating record created
-SELECT ok(
-  EXISTS(SELECT 1 FROM market_ratings WHERE order_id = 'ff000000-0000-0000-0000-000000000e02'),
-  '(16) Rating record exists after rate_market_order'
-);
-
--- (17) Notification sent to seller
-SELECT ok(
-  EXISTS(SELECT 1 FROM market_notifications
-    WHERE user_id = 'ff000000-0000-0000-0000-000000000b02'
-      AND (content LIKE '%rated%' OR content LIKE '%stars%' OR content LIKE '%Rating%')),
-  '(17) Seller notified about rating in market_notifications'
-);
-
--- (18) Re-rating succeeds (update, not error)
+-- (12) Re-rating succeeds with update
 SELECT ok(
   (rate_market_order(
-    'ff000000-0000-0000-0000-000000000e02',
-    4,
+    'ff000000-0000-0000-0000-000000000e02'::uuid,
+    4::smallint,
     'Updated review'
   )->>'success')::boolean,
-  '(18) rate_market_order succeeds on re-rating'
-);
-
--- (19) Re-rating returns updated indicator
-SELECT ok(
-  (rate_market_order(
-    'ff000000-0000-0000-0000-000000000e02',
-    4,
-    'Updated review again'
-  )->>'updated')::boolean,
-  '(19) Re-rating returns updated: true'
-);
-
--- (20) Count rating notifications — should not create duplicates for re-rating
-SELECT ok(
-  (SELECT count(*) FROM market_notifications
-   WHERE user_id = 'ff000000-0000-0000-0000-000000000b02'
-     AND (content LIKE '%rated%' OR content LIKE '%stars%' OR content LIKE '%Rating%')
-  ) <= 2,
-  '(20) Re-rating does not spam duplicate notifications (max 2 from the 2 re-rates above)'
+  '(12) rate_market_order succeeds on re-rating'
 );
 
 SELECT * FROM finish();

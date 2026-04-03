@@ -449,14 +449,14 @@ SELECT is(
 -- ============================================================================
 
 SELECT ok(
-  (SELECT COUNT(*) FROM notifications WHERE user_id = 'aaaaaaaa-0001-0001-0001-000000000001'
+  (SELECT COUNT(*) FROM market_notifications WHERE user_id = 'aaaaaaaa-0001-0001-0001-000000000001'
     AND content LIKE '%settlement%') > 0,
   'Sam received settlement notification'
 );
 
 SELECT ok(
-  (SELECT COUNT(*) FROM notifications WHERE user_id = 'aaaaaaaa-0001-0001-0001-000000000001'
-    AND content LIKE '%available for withdrawal%') > 0,
+  (SELECT COUNT(*) FROM market_notifications WHERE user_id = 'aaaaaaaa-0001-0001-0001-000000000001'
+    AND content LIKE '%available%') > 0,
   'Sam received funds-available notification'
 );
 

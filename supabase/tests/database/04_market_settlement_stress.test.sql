@@ -504,7 +504,7 @@ SELECT is(
 
 -- All 8 users should have notifications
 SELECT is(
-  (SELECT COUNT(DISTINCT n.user_id) FROM notifications n
+  (SELECT COUNT(DISTINCT n.user_id) FROM market_notifications n
    JOIN user_settlements us ON us.user_id = n.user_id
    JOIN market_settlements ms ON ms.id = us.settlement_id
    WHERE ms.market_date = '2026-03-14' AND n.content LIKE '%settlement%'),

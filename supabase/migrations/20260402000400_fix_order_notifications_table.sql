@@ -224,6 +224,7 @@ $$;
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'auto_cancel_stale_orders') THEN
+    EXECUTE 'DROP FUNCTION auto_cancel_stale_orders()';
     EXECUTE $func$
     CREATE OR REPLACE FUNCTION auto_cancel_stale_orders()
     RETURNS INTEGER LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $inner$

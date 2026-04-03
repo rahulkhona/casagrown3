@@ -43,7 +43,7 @@ ON CONFLICT (user_id) DO UPDATE SET
 INSERT INTO user_auto_redemption_config (user_id, enabled, method, threshold_usd, gift_card_brand)
 VALUES
   ('ff000000-0000-0000-0000-000000000c01', true, 'giftcards', 50.00, 'Amazon'),
-  ('ff000000-0000-0000-0000-000000000c05', true, 'donate', 50.00, NULL)
+  ('ff000000-0000-0000-0000-000000000c05', true, 'charity', 50.00, NULL)
 ON CONFLICT (user_id) DO UPDATE SET
   enabled = EXCLUDED.enabled,
   method = EXCLUDED.method,
@@ -135,11 +135,11 @@ SELECT ok(
   '(9) Charity auto-payout includes charity_project_id'
 );
 
--- (10) Charity auto-payout uses donate method
+-- (10) Charity auto-payout uses charity method
 SELECT ok(
   (SELECT payout_method FROM get_auto_payout_eligible_users()
-   WHERE user_id = 'ff000000-0000-0000-0000-000000000c05') = 'donate',
-  '(10) Charity auto-payout uses donate method'
+   WHERE user_id = 'ff000000-0000-0000-0000-000000000c05') = 'charity',
+  '(10) Charity auto-payout uses charity method'
 );
 
 SELECT * FROM finish();

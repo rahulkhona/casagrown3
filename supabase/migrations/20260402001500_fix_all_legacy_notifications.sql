@@ -53,8 +53,8 @@ BEGIN
     END LOOP;
   END IF;
 
-  INSERT INTO order_chat_messages (order_id, sender_id, body, is_system)
-  VALUES (p_order_id, auth.uid(), v_chat_body, true);
+  INSERT INTO order_chat_messages (order_id, sender_id, content)
+  VALUES (p_order_id, auth.uid(), v_chat_body);
 
   RETURN jsonb_build_object('success', true, 'dispute_id', v_dispute_id);
 END;
@@ -260,11 +260,15 @@ BEGIN
       END
       || CASE WHEN v_hold_released > 0 THEN ' Your hold of $' || ROUND(v_hold_released, 2) || ' has been released.' ELSE '' END;
 
-      PERFORM notify_market_event(
-        v_user.user_id,
-        v_notif_content,
-        '/earnings'
-      );
+      BEGIN
+        PERFORM notify_market_event(
+          v_user.user_id,
+          v_notif_content,
+          '/earnings'
+        );
+      EXCEPTION WHEN OTHERS THEN
+        RAISE WARNING 'notify_market_event failed in settlement for user %: %', v_user.user_id, SQLERRM;
+      END;
 
       v_total_captured := v_total_captured + v_hold_captured;
       v_total_payouts := v_total_payouts + GREATEST(v_net, 0);
@@ -363,18 +367,22 @@ DECLARE
 BEGIN
   -- Only fire when booth transitions from not open to open
   IF NEW.is_open = true AND (OLD.is_open IS NULL OR OLD.is_open = false) THEN
-    SELECT COALESCE(NEW.booth_name, p.full_name || '''s Booth')
+    SELECT COALESCE(NEW.name, p.full_name || '''s Booth')
     INTO v_booth_name
     FROM profiles p WHERE p.id = NEW.owner_id;
 
     FOR v_follower IN
-      SELECT follower_id FROM booth_followers WHERE booth_id = NEW.id
+      SELECT follower_id FROM market_followers WHERE booth_id = NEW.id
     LOOP
-      PERFORM notify_market_event(
-        v_follower.follower_id,
-        '🏪 ' || v_booth_name || ' is now open! Check out their fresh products.',
-        '/market/booth/' || NEW.id
-      );
+      BEGIN
+        PERFORM notify_market_event(
+          v_follower.follower_id,
+          '🏪 ' || v_booth_name || ' is now open! Check out their fresh products.',
+          '/market/booth/' || NEW.id
+        );
+      EXCEPTION WHEN OTHERS THEN
+        RAISE WARNING 'notify_market_event failed for booth open: %', SQLERRM;
+      END;
     END LOOP;
   END IF;
   RETURN NEW;
@@ -393,7 +401,7 @@ DECLARE
   v_booth_name TEXT;
 BEGIN
   -- Find the seller's booth
-  SELECT b.id, COALESCE(b.booth_name, p.full_name || '''s Booth')
+  SELECT b.id, COALESCE(b.name, p.full_name || '''s Booth')
   INTO v_booth_id, v_booth_name
   FROM market_booths b
   JOIN profiles p ON p.id = b.owner_id
@@ -403,13 +411,17 @@ BEGIN
   IF v_booth_id IS NULL THEN RETURN NEW; END IF;
 
   FOR v_follower IN
-    SELECT follower_id FROM booth_followers WHERE booth_id = v_booth_id
+    SELECT follower_id FROM market_followers WHERE booth_id = v_booth_id
   LOOP
-    PERFORM notify_market_event(
-      v_follower.follower_id,
-      '🌱 ' || v_booth_name || ' added "' || NEW.name || '" — check it out!',
-      '/market/booth/' || v_booth_id || '/product/' || NEW.id
-    );
+    BEGIN
+      PERFORM notify_market_event(
+        v_follower.follower_id,
+        '🌱 ' || v_booth_name || ' added "' || NEW.name || '" — check it out!',
+        '/market/booth/' || v_booth_id || '/product/' || NEW.id
+      );
+    EXCEPTION WHEN OTHERS THEN
+      RAISE WARNING 'notify_market_event failed for product add: %', SQLERRM;
+    END;
   END LOOP;
 
   RETURN NEW;
