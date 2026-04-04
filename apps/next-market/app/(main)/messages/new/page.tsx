@@ -1,11 +1,25 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase'
 import { useAuth } from '../../../../lib/useAuth'
 
 export default function NewMessageTrafficCop() {
+  return (
+    <Suspense fallback={
+      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
+        <div className="spinner" style={{ width: 32, height: 32, border: '3px solid #f3f4f6', borderTopColor: '#22c55e', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        <p style={{ marginTop: 16, color: '#6b7280' }}>Loading...</p>
+      </div>
+    }>
+      <NewMessageTrafficCopInner />
+    </Suspense>
+  )
+}
+
+function NewMessageTrafficCopInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user, loading: authLoading } = useAuth()
