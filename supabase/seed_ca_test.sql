@@ -1,7 +1,7 @@
 -- Mock the State Threshold for CA to $15.00
-INSERT INTO small_balance_refund_thresholds (country_iso_3, state_code, threshold_cents)
-VALUES ('USA', 'CA', 1500)
-ON CONFLICT (country_iso_3, state_code) 
+INSERT INTO small_balance_refund_thresholds (country_iso_3, state_id, threshold_cents)
+VALUES ('USA', '00000000-0000-0000-0000-000000000001', 1500)
+ON CONFLICT (COALESCE(country_iso_3, ''), COALESCE(state_id, '00000000-0000-0000-0000-000000000000'::uuid), COALESCE(county_id, '00000000-0000-0000-0000-000000000000'::uuid), COALESCE(city_id, '00000000-0000-0000-0000-000000000000'::uuid))
 DO UPDATE SET threshold_cents = EXCLUDED.threshold_cents;
 
 -- Mock an old points bucket by backdating a single bucket

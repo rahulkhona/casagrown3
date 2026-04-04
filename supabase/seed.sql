@@ -395,6 +395,17 @@ WHERE id IN (
   'e5555555-5555-5555-5555-555555555555'
 );
 
+-- Re-set phone_verified AFTER profile inserts (the trg_clear_phone_verification
+-- trigger resets it to false whenever phone_number changes, which includes the
+-- initial NULL→value set during the profile upsert above).
+UPDATE public.profiles SET phone_verified = true
+WHERE id IN (
+  'a1111111-1111-1111-1111-111111111111',   -- Sam Seller
+  'c3333333-3333-3333-3333-333333333333',   -- Maria Martinez
+  'd4444444-4444-4444-4444-444444444444',   -- Alex Adams
+  'e5555555-5555-5555-5555-555555555555'    -- Taylor Torres
+);
+
 -- Alex & Taylor — points
 INSERT INTO public.point_ledger (user_id, type, amount, balance_after, created_at, metadata)
 VALUES
@@ -1129,12 +1140,22 @@ BEGIN
     (s5,'james@test.local',crypt('test1234',gen_salt('bf')),now(),'authenticated','authenticated','00000000-0000-0000-0000-000000000000','{"provider":"email","providers":["email"]}'::jsonb,'{}'::jsonb,now(),now())
   ON CONFLICT (id) DO NOTHING;
 
+  -- Auth identities (required for Supabase Auth login)
+  INSERT INTO auth.identities (id, user_id, provider_id, provider, identity_data, last_sign_in_at, created_at, updated_at)
+  VALUES
+    (s1, s1, 'maria@test.local', 'email', jsonb_build_object('sub', s1::text, 'email', 'maria@test.local'), now(), now(), now()),
+    (s2, s2, 'raj@test.local', 'email', jsonb_build_object('sub', s2::text, 'email', 'raj@test.local'), now(), now(), now()),
+    (s3, s3, 'chen@test.local', 'email', jsonb_build_object('sub', s3::text, 'email', 'chen@test.local'), now(), now(), now()),
+    (s4, s4, 'sofia@test.local', 'email', jsonb_build_object('sub', s4::text, 'email', 'sofia@test.local'), now(), now(), now()),
+    (s5, s5, 'james@test.local', 'email', jsonb_build_object('sub', s5::text, 'email', 'james@test.local'), now(), now(), now())
+  ON CONFLICT (provider_id, provider) DO NOTHING;
+
   -- Update profiles (auth trigger already created them)
-  UPDATE profiles SET full_name='Maria Garcia', email='maria@test.local', street_address='6449 Meridian Ave', city='San Jose', state_code='CA', zip_plus4='95120', home_location=ST_SetSRID(ST_MakePoint(-121.8825,37.2296),4326), profile_completed_at=now() WHERE id=s1;
-  UPDATE profiles SET full_name='Raj Patel', email='raj@test.local', street_address='1086 Foxchase Dr', city='San Jose', state_code='CA', zip_plus4='95120', home_location=ST_SetSRID(ST_MakePoint(-121.8607,37.2250),4326), profile_completed_at=now() WHERE id=s2;
-  UPDATE profiles SET full_name='Wei Chen', email='chen@test.local', street_address='1234 Hillsdale Ave', city='San Jose', state_code='CA', zip_plus4='95118', home_location=ST_SetSRID(ST_MakePoint(-121.8756,37.2523),4326), profile_completed_at=now() WHERE id=s3;
-  UPDATE profiles SET full_name='Sofia Rossi', email='sofia@test.local', street_address='5920 Cahalan Ave', city='San Jose', state_code='CA', zip_plus4='95123', home_location=ST_SetSRID(ST_MakePoint(-121.8430,37.2390),4326), profile_completed_at=now() WHERE id=s4;
-  UPDATE profiles SET full_name='James Nguyen', email='james@test.local', street_address='2100 Camden Ave', city='San Jose', state_code='CA', zip_plus4='95124', home_location=ST_SetSRID(ST_MakePoint(-121.9150,37.2530),4326), profile_completed_at=now() WHERE id=s5;
+  UPDATE profiles SET full_name='Maria Garcia', email='maria@test.local', street_address='6449 Meridian Ave', city='San Jose', state_code='CA', zip_code='95120', zip_plus4='95120', home_community_h3_index='89283470c2fffff', nearby_community_h3_indices=ARRAY['89283470c6fffff','89283470cafffff'], home_location=ST_SetSRID(ST_MakePoint(-121.8825,37.2296),4326), phone_verified=true, tos_accepted_at=now(), profile_completed_at=now(), referral_code='SEEDMARIA1', buzz_welcomed_at=now() WHERE id=s1;
+  UPDATE profiles SET full_name='Raj Patel', email='raj@test.local', street_address='1086 Foxchase Dr', city='San Jose', state_code='CA', zip_code='95120', zip_plus4='95120', home_community_h3_index='89283470c2fffff', nearby_community_h3_indices=ARRAY['89283470c6fffff','89283470cafffff'], home_location=ST_SetSRID(ST_MakePoint(-121.8607,37.2250),4326), phone_verified=true, tos_accepted_at=now(), profile_completed_at=now(), referral_code='SEEDRAJ1', buzz_welcomed_at=now() WHERE id=s2;
+  UPDATE profiles SET full_name='Wei Chen', email='chen@test.local', street_address='1234 Hillsdale Ave', city='San Jose', state_code='CA', zip_code='95118', zip_plus4='95118', home_community_h3_index='89283470c2fffff', nearby_community_h3_indices=ARRAY['89283470c6fffff','89283470cafffff'], home_location=ST_SetSRID(ST_MakePoint(-121.8756,37.2523),4326), phone_verified=true, tos_accepted_at=now(), profile_completed_at=now(), referral_code='SEEDCHEN1', buzz_welcomed_at=now() WHERE id=s3;
+  UPDATE profiles SET full_name='Sofia Rossi', email='sofia@test.local', street_address='5920 Cahalan Ave', city='San Jose', state_code='CA', zip_code='95123', zip_plus4='95123', home_community_h3_index='89283470c2fffff', nearby_community_h3_indices=ARRAY['89283470c6fffff','89283470cafffff'], home_location=ST_SetSRID(ST_MakePoint(-121.8430,37.2390),4326), phone_verified=true, tos_accepted_at=now(), profile_completed_at=now(), referral_code='SEEDSOFIA1', buzz_welcomed_at=now() WHERE id=s4;
+  UPDATE profiles SET full_name='James Nguyen', email='james@test.local', street_address='2100 Camden Ave', city='San Jose', state_code='CA', zip_code='95124', zip_plus4='95124', home_community_h3_index='89283470c2fffff', nearby_community_h3_indices=ARRAY['89283470c6fffff','89283470cafffff'], home_location=ST_SetSRID(ST_MakePoint(-121.9150,37.2530),4326), phone_verified=true, tos_accepted_at=now(), profile_completed_at=now(), referral_code='SEEDJAMES1', buzz_welcomed_at=now() WHERE id=s5;
 
   -- Booths
   INSERT INTO market_booths (owner_id,name,description,decorative_theme,offers_delivery,offers_pickup,delivery_radius_miles,pickup_address,delivery_windows,pickup_windows,payment_method,pickup_location) VALUES
