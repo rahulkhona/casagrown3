@@ -1,16 +1,19 @@
 # CasaGrown Market — Full Test Inventory
 
-> **Total: 2,106 tests across 174 files (4 suites)**
+> **Total: 2,189 tests across 179 files (5 suites)**
 
 | Suite | Files | Tests | Status |
-|-------|-------|-------|--------|
+|-------|-------|-------|---------|
 | Vitest (Market) | 49 | 672 | ✅ 672/672 PASS |
-| Vitest (Admin) | 4 | 29 | ✅ 28/29 (1 build timeout) |
+| Vitest (Admin) | 5 | 73 | ✅ 72/73 (1 build timeout) |
+| Vitest (Metrics) | 1 | 29 | ✅ 29/29 PASS |
+| Vitest (Voice) | 1 | 36 | ✅ 36/36 PASS |
 | Playwright (Market) | 45 | 562 | — |
-| Playwright (Admin) | 9 | 64 | — |
-| pgTAP (Database) | 39 | 530 | ✅ PASS |
-| Deno (Edge Functions) | 28 | 249 | — |
-| **TOTAL** | **174** | **2,106** | |
+| Playwright (Admin) | 10 | 79 | — |
+| pgTAP (Database) | 40 | 555 | ✅ 555/555 PASS |
+| Deno (Edge Functions) | 29 | 265 | ✅ 265/265 PASS |
+| Shell (Integration) | 1 | 11 | ✅ 11/11 PASS |
+| **TOTAL** | **179** | **2,189** | |
 
 ---
 
@@ -54,9 +57,10 @@
 | 34 | 20 | `34_order_status_notifications.test.sql` | Order status change notifications |
 | 35 | 12 | `35_dispute_refund_rating.test.sql` | Dispute → refund → rating flow |
 | 36 | 10 | `36_auto_payout_eligible.test.sql` | Auto-payout eligibility |
-| 37 | — | `37_payout_events.test.sql` | Payout event webhook handling |
+| 37 | 18 | `37_payout_events.test.sql` | Payout event webhook handling |
 | 38 | 35 | `38_disputes_and_order_log.test.sql` | Disputes table, order_status_log triggers, RPC evidence assembly |
 | 39 | 20 | `39_24hr_grace_period.test.sql` | **NEW** 24hr grace period: window helper, mark-ready/delivered timing, all 4 auto-action cron paths |
+| 40 | 25 | `40_escalation_resolution_credits.test.sql` | **NEW** Escalation resolution: full/partial refund, credit buyer/seller/both, combo resolutions, FIFO credit, admin list/stats RPCs |
 
 ---
 
@@ -81,7 +85,7 @@
 | 2 | `stripe-return-url.test.ts` | Stripe return URL handling |
 | 13 | `disputes.test.ts` | **NEW** Admin dispute RPCs, stripe_disputes CRUD, order_status_log triggers |
 
-### Admin App (4 files, 29 tests)
+### Admin App (5 files, 73 tests)
 
 | Tests | File | Domain |
 |-------|------|--------|
@@ -89,6 +93,7 @@
 | 1 | `dev.test.ts` | Dev server check |
 | 14 | `settlements-payouts.test.ts` | Settlements & payouts RPCs |
 | 13 | `disputes.test.ts` | **NEW** Dispute admin RPCs, CRUD, audit triggers |
+| 22 | `escalations.test.ts` | **NEW** Escalation resolution RPCs: claim/relinquish, full/partial refund, credit buyer/seller/both combo, stats, list, FIFO credit, non-staff blocked |
 
 ---
 
@@ -121,12 +126,13 @@
 | 44 | `user-interactions.spec.ts` | User interactions |
 | 1 | `screenshot.spec.ts` | Visual regression |
 
-### Admin Portal E2E (2 files, 20+ tests)
+### Admin Portal E2E (3 files, 35+ tests)
 
 | Tests | File | Domain |
 |-------|------|--------|
 | 13 | `settlements-payouts.spec.ts` | **Admin** Settlements & payouts overview |
 | 7 | `disputes.spec.ts` | **NEW** Admin disputes page, webhook-seeded data, stats cards, filter tabs |
+| 15 | `escalations.spec.ts` | **NEW** Admin escalation pages: list page, detail page, stats cards, filter tabs, resolution types, claim workflow, sidebar nav |
 
 ### Scenario E2E (24 files, 186 tests)
 
@@ -192,6 +198,14 @@
 | 8 | `refund-purchased-points.test.ts` | Refund purchased points |
 | 10 | `sandbox-api.test.ts` | Sandbox API |
 | 6 | `settlement-captures.test.ts` | Settlement captures |
-| 6 | `stripe-webhook.test.ts` | Stripe webhook (incl. 4 dispute lifecycle tests) |
+| 12 | `stripe-webhook.test.ts` | Stripe webhook (incl. dispute lifecycle tests) |
 | 5 | `submit-dispute-evidence.test.ts` | **NEW** Evidence submission: draft save, validation, API key check |
-| 10 | `dispute-lifecycle.test.ts` (in stripe-webhook) | **NEW** Dispute created/updated/funds_withdrawn/funds_reinstated/closed events |
+| 8 | `escalation-resolution.test.ts` | **NEW** Escalation resolution flow: full refund, credit buyer, credit both combo, claim/relinquish, admin comments, list/stats RPCs, non-staff access |
+
+---
+
+## 5. Shell — Integration Tests (11 tests, 1 file)
+
+| Tests | File | Domain |
+|-------|------|--------|
+| 11 | `test-escalation-interactions.sh` | **NEW** Full escalation workflow: claim, comment, relinquish, non-staff block, full refund, combo credit_both, stats, list |

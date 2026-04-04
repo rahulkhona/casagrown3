@@ -25,11 +25,11 @@ BEGIN
     v_seller_id, 'Today Tomatoes', 'produce', 5.00, 100, true, CURRENT_DATE,
     jsonb_build_object(
       to_char(CURRENT_DATE, 'YYYY-MM-DD'),
-      '[{"id":"8-10","start":"08:00","end":"10:00"},{"id":"10-12","start":"10:00","end":"12:00"}]'::jsonb
+      '[{"id":"8-12","start":"08:00","end":"12:00"},{"id":"22-24","start":"22:00","end":"23:59"}]'::jsonb
     ),
     jsonb_build_object(
       to_char(CURRENT_DATE, 'YYYY-MM-DD'),
-      '[{"id":"9-11","start":"09:00","end":"11:00"}]'::jsonb
+      '[{"id":"9-23","start":"09:00","end":"23:00"}]'::jsonb
     ),
     jsonb_build_array(to_char(CURRENT_DATE, 'YYYY-MM-DD'))
   );
@@ -43,11 +43,11 @@ BEGIN
     v_seller_id, 'Yesterday Tomatoes', 'produce', 5.00, 100, true, CURRENT_DATE - 1,
     jsonb_build_object(
       to_char(CURRENT_DATE - 1, 'YYYY-MM-DD'),
-      '[{"id":"8-10","start":"08:00","end":"10:00"}]'::jsonb
+      '[{"id":"14-23","start":"14:00","end":"23:00"}]'::jsonb
     ),
     jsonb_build_object(
       to_char(CURRENT_DATE - 1, 'YYYY-MM-DD'),
-      '[{"id":"9-11","start":"09:00","end":"11:00"}]'::jsonb
+      '[{"id":"14-22","start":"14:00","end":"22:00"}]'::jsonb
     ),
     jsonb_build_array(to_char(CURRENT_DATE - 1, 'YYYY-MM-DD'))
   );
@@ -80,24 +80,24 @@ SELECT has_function(
   '_get_latest_window_end function exists'
 );
 
--- T2: Delivery window end = today 12:00
+-- T2: Delivery window end = today 23:59
 SELECT ok(
   _get_latest_window_end('dd390001-0000-0000-0000-000000000001', 'delivery')
-    = (CURRENT_DATE || ' 12:00:00')::TIMESTAMPTZ,
-  'Delivery window end is today 12:00'
+    = (CURRENT_DATE || ' 23:59:00')::TIMESTAMPTZ,
+  'Delivery window end is today 23:59'
 );
 
--- T3: Pickup window end = today 11:00
+-- T3: Pickup window end = today 23:00
 SELECT ok(
   _get_latest_window_end('dd390001-0000-0000-0000-000000000001', 'pickup')
-    = (CURRENT_DATE || ' 11:00:00')::TIMESTAMPTZ,
-  'Pickup window end is today 11:00'
+    = (CURRENT_DATE || ' 23:00:00')::TIMESTAMPTZ,
+  'Pickup window end is today 23:00'
 );
 
--- T4: Yesterday product returns yesterday 10:00
+-- T4: Yesterday product returns yesterday 23:00
 SELECT ok(
   _get_latest_window_end('dd390001-0000-0000-0000-000000000002', 'delivery')
-    = ((CURRENT_DATE - 1) || ' 10:00:00')::TIMESTAMPTZ,
+    = ((CURRENT_DATE - 1) || ' 23:00:00')::TIMESTAMPTZ,
   'Yesterday product has yesterday window end'
 );
 
@@ -118,7 +118,7 @@ BEGIN
 END $$;
 
 SET LOCAL role TO authenticated;
-SET LOCAL request.jwt.claims TO '{"sub":"a1111111-1111-1111-1111-111111111111"}';
+SET LOCAL request.jwt.claim.sub = 'a1111111-1111-1111-1111-111111111111';
 
 SELECT ok(
   (seller_mark_ready_pickup('ee390001-0000-0000-0000-000000000001') ->> 'error')
@@ -127,7 +127,7 @@ SELECT ok(
 );
 
 RESET role;
-RESET request.jwt.claims;
+RESET request.jwt.claim.sub;
 
 
 -- ──────────────────────────────────────
@@ -146,7 +146,7 @@ BEGIN
 END $$;
 
 SET LOCAL role TO authenticated;
-SET LOCAL request.jwt.claims TO '{"sub":"a1111111-1111-1111-1111-111111111111"}';
+SET LOCAL request.jwt.claim.sub = 'a1111111-1111-1111-1111-111111111111';
 
 SELECT ok(
   (seller_mark_ready_pickup('ee390001-0000-0000-0000-000000000002') ->> 'success') = 'true',
@@ -154,11 +154,11 @@ SELECT ok(
 );
 
 RESET role;
-RESET request.jwt.claims;
+RESET request.jwt.claim.sub;
 
 -- T7: auto_complete_at = pickup_window_end + 24hr
 SELECT ok(
-  (SELECT auto_complete_at = (CURRENT_DATE || ' 11:00:00')::TIMESTAMPTZ + interval '24 hours'
+  (SELECT auto_complete_at = (CURRENT_DATE || ' 23:00:00')::TIMESTAMPTZ + interval '24 hours'
    FROM market_orders WHERE id = 'ee390001-0000-0000-0000-000000000002'),
   'Pickup auto_complete_at = window_end + 24hr'
 );
@@ -186,7 +186,7 @@ BEGIN
 END $$;
 
 SET LOCAL role TO authenticated;
-SET LOCAL request.jwt.claims TO '{"sub":"a1111111-1111-1111-1111-111111111111"}';
+SET LOCAL request.jwt.claim.sub = 'a1111111-1111-1111-1111-111111111111';
 
 SELECT ok(
   (seller_mark_delivered('ee390001-0000-0000-0000-000000000003') ->> 'is_late') = 'false',
@@ -194,7 +194,7 @@ SELECT ok(
 );
 
 RESET role;
-RESET request.jwt.claims;
+RESET request.jwt.claim.sub;
 
 -- T10: Has 4hr auto_complete_at
 SELECT ok(
@@ -221,7 +221,7 @@ BEGIN
 END $$;
 
 SET LOCAL role TO authenticated;
-SET LOCAL request.jwt.claims TO '{"sub":"a1111111-1111-1111-1111-111111111111"}';
+SET LOCAL request.jwt.claim.sub = 'a1111111-1111-1111-1111-111111111111';
 
 SELECT ok(
   (seller_mark_delivered('ee390001-0000-0000-0000-000000000004') ->> 'is_late') = 'true',
@@ -229,7 +229,7 @@ SELECT ok(
 );
 
 RESET role;
-RESET request.jwt.claims;
+RESET request.jwt.claim.sub;
 
 -- T12: NULL auto_complete_at
 SELECT ok(
@@ -254,7 +254,7 @@ BEGIN
 END $$;
 
 SET LOCAL role TO authenticated;
-SET LOCAL request.jwt.claims TO '{"sub":"a1111111-1111-1111-1111-111111111111"}';
+SET LOCAL request.jwt.claim.sub = 'a1111111-1111-1111-1111-111111111111';
 
 SELECT ok(
   (seller_mark_delivered('ee390001-0000-0000-0000-000000000005') ->> 'error')
@@ -263,7 +263,7 @@ SELECT ok(
 );
 
 RESET role;
-RESET request.jwt.claims;
+RESET request.jwt.claim.sub;
 
 
 -- ──────────────────────────────────────

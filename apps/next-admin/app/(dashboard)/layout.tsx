@@ -63,7 +63,8 @@ const MENU_GROUPS: MenuGroup[] = [
     items: [
       { label: 'Cash Flow', path: '/cash-flow' },
       { label: 'Settlements & Stripe', path: '/settlements' },
-      { label: 'Disputes', path: '/disputes' },
+      { label: 'Chargebacks', path: '/disputes' },
+      { label: 'Escalations', path: '/escalations' },
       { label: 'Redemption Methods', path: '/methods' },
     ]
   },

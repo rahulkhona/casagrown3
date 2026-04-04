@@ -111,10 +111,10 @@ export default function DisputesPage() {
         <XStack justifyContent="space-between" alignItems="center">
           <YStack>
             <Text fontSize={28} fontWeight="800" color={colors.green[800]}>
-              Chargeback Disputes
+              Chargebacks
             </Text>
             <Text fontSize={14} color="#6B7280">
-              Manage Stripe disputes, review evidence, and submit responses
+              Manage Stripe chargebacks, review evidence, and submit responses
             </Text>
           </YStack>
           <Button

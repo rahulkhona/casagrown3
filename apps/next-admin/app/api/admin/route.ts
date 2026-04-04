@@ -175,12 +175,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Handle RPC calls separately — no table needed
+    // Use the caller's access token so auth.uid() resolves inside SECURITY DEFINER functions.
+    // Admin role was already validated above, so this is safe.
     if (action === 'rpc') {
       const { functionName, params } = body as any
       if (!functionName) {
         return NextResponse.json({ error: 'functionName is required for rpc' }, { status: 400 })
       }
-      const { data: rpcResult, error: rpcError } = await serviceClient.rpc(functionName, params || {})
+      // Create a user-scoped client using their JWT so auth.uid() works in RPCs
+      const anonKeyForRpc = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+        || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
+      const userScopedClient = createClient(supabaseUrl, anonKeyForRpc, {
+        auth: { persistSession: false, autoRefreshToken: false },
+        global: { headers: { Authorization: `Bearer ${accessToken}` } },
+      })
+      const { data: rpcResult, error: rpcError } = await userScopedClient.rpc(functionName, params || {})
       if (rpcError) {
         return NextResponse.json({ error: rpcError.message }, { status: 400 })
       }
