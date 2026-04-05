@@ -90,14 +90,35 @@ function formatFulfillmentLogs(evidence: any): string {
         lines.push('');
     }
 
-    // Fulfillment photos
+    // Fulfillment photos and pickup readiness proof
     const photos = evidence.fulfillment_photos || [];
     if (photos.length > 0) {
         lines.push('FULFILLMENT PROOF PHOTOS:');
         for (const photo of photos) {
             const order = allOrders.find((o: any) => o.order_id === photo.order_id);
+            const readyAt = photo.ready_for_pickup_at
+                ? `Seller marked ready for pickup: ${new Date(photo.ready_for_pickup_at).toLocaleString()}`
+                : '';
+            const deliveredAt = photo.delivered_at
+                ? `Buyer picked up: ${new Date(photo.delivered_at).toLocaleString()}`
+                : '';
             lines.push(
                 `  Order #${order?.order_number || photo.order_id?.slice(0, 8)}: ${photo.fulfillment_method === 'delivery' ? 'Delivery' : 'Pickup'} proof captured at ${photo.proof_timestamp ? new Date(photo.proof_timestamp).toLocaleString() : 'N/A'}${photo.proof_location ? ` GPS: ${photo.proof_location.latitude?.toFixed(4)}, ${photo.proof_location.longitude?.toFixed(4)}` : ''}`,
+            );
+            if (readyAt) lines.push(`    ${readyAt}`);
+            if (deliveredAt) lines.push(`    ${deliveredAt}`);
+        }
+    }
+
+    // Include pickup readiness proof from purchases/sales
+    const pickupOrders = [...(evidence.purchases || []), ...(evidence.sales || [])]
+        .filter((o: any) => o.ready_for_pickup_at);
+    if (pickupOrders.length > 0) {
+        lines.push('');
+        lines.push('PICKUP READINESS PROOF:');
+        for (const order of pickupOrders) {
+            lines.push(
+                `  Order #${order.order_number || order.order_id?.slice(0, 8)}: Seller marked ready at ${new Date(order.ready_for_pickup_at).toLocaleString()}${order.delivered_at ? `, Buyer picked up at ${new Date(order.delivered_at).toLocaleString()}` : ' — Buyer did not pick up'}`,
             );
         }
     }

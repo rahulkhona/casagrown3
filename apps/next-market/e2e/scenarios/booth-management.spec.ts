@@ -192,7 +192,8 @@ test.describe('Booth Management', () => {
     if (boothCount > 0) {
       // Click first booth
       await boothLinks.first().click()
-      await bethPage.waitForLoadState('networkidle')
+      await bethPage.waitForLoadState('domcontentloaded')
+      await bethPage.waitForTimeout(2000)
       await assertPageHealthy(bethPage)
 
       const boothBody = await bethPage.locator('body').innerText()
@@ -204,19 +205,22 @@ test.describe('Booth Management', () => {
       const aboutLink = bethPage.locator('a[href*="/about"]')
       if (await aboutLink.first().isVisible({ timeout: 2000 }).catch(() => false)) {
         await aboutLink.first().click()
-        await bethPage.waitForLoadState('networkidle')
+        await bethPage.waitForLoadState('domcontentloaded')
+        await bethPage.waitForTimeout(2000)
         await assertPageHealthy(bethPage)
       }
 
       // Go back and check products
       await bethPage.goBack()
-      await bethPage.waitForLoadState('networkidle')
+      await bethPage.waitForLoadState('domcontentloaded')
+      await bethPage.waitForTimeout(1500)
 
       const productLinks = bethPage.locator('a[href*="/product/"]')
       const productCount = await productLinks.count()
       if (productCount > 0) {
         await productLinks.first().click()
-        await bethPage.waitForLoadState('networkidle')
+        await bethPage.waitForLoadState('domcontentloaded')
+        await bethPage.waitForTimeout(2000)
         await assertPageHealthy(bethPage)
 
         const productBody = await bethPage.locator('body').innerText()
@@ -229,7 +233,8 @@ test.describe('Booth Management', () => {
   })
 
   // ── All 5 seller booths ──
-  test('all 5 seller booths accessible', async ({ browser }) => {
+  test('all 5 seller booths accessible', async ({ browser }, testInfo) => {
+    testInfo.setTimeout(180_000) // 5 sequential logins + page loads
     const sellers = ['maria', 'raj', 'chen', 'sofia', 'james'] as const
 
     for (const seller of sellers) {

@@ -1034,10 +1034,9 @@ BEGIN
   v_user2 := COALESCE(v_user2, v_user1);
   v_user3 := COALESCE(v_user3, v_user1);
 
-  -- Make user1 a staff admin (look up their email)
+  -- Make seller@test.local a staff admin (deterministic, not ORDER BY dependent)
   INSERT INTO staff_members (email, user_id, roles, granted_at)
-  SELECT au.email, v_user1, '{admin,support}', now()
-  FROM auth.users au WHERE au.id = v_user1
+  VALUES ('seller@test.local', 'a1111111-1111-1111-1111-111111111111', '{admin,support}', now())
   ON CONFLICT (email) DO NOTHING;
 
   -- Bootstrap admin (always present for development)

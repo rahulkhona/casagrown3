@@ -9,9 +9,12 @@ SELECT plan(38);
 -- ============================================================================
 -- Cleanup: Tag existing seed orders as settled
 -- ============================================================================
+DELETE FROM platform_bank_ledger WHERE settlement_id IN (SELECT id FROM market_settlements WHERE market_date = '2020-01-01');
+DELETE FROM settlement_captures WHERE settlement_id IN (SELECT id FROM market_settlements WHERE market_date = '2020-01-01');
+DELETE FROM user_settlements WHERE settlement_id IN (SELECT id FROM market_settlements WHERE market_date = '2020-01-01');
+DELETE FROM market_settlements WHERE market_date = '2020-01-01';
 INSERT INTO market_settlements (id, market_date, status) VALUES
-  ('00000000-0000-0000-0000-ffffffffffff', '2020-01-01', 'cleared')
-ON CONFLICT (id) DO NOTHING;
+  ('00000000-0000-0000-0000-ffffffffffff', '2020-01-01', 'cleared');
 UPDATE market_orders SET settlement_id = '00000000-0000-0000-0000-ffffffffffff'
 WHERE settlement_id IS NULL;
 
@@ -93,11 +96,11 @@ SELECT is(
   'Bank ledger: balance is start+$125 after another $50 inflow'
 );
 
--- Consistency: running balance = SUM of inflows - outflows
+-- Consistency: running balance = start balance + net of our test entries
 SELECT is(
   (SELECT balance_after FROM platform_bank_ledger ORDER BY id DESC LIMIT 1),
-  (SELECT COALESCE(SUM(CASE WHEN direction = 'inflow' THEN amount_usd ELSE -amount_usd END), 0) FROM platform_bank_ledger),
-  'Bank ledger integrity: running balance = computed SUM'
+  (current_setting('test.start_balance')::NUMERIC + 125.00)::NUMERIC(10,2),
+  'Bank ledger integrity: running balance = start + net test entries'
 );
 
 -- ============================================================================

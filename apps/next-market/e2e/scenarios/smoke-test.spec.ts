@@ -164,7 +164,8 @@ test.describe('Smoke Test — Every Page Loads Without Errors', () => {
   })
 
   // ── All 5 Market Sellers Can Login ──
-  test('all market sellers can login and access their booths', async ({ browser }) => {
+  test('all market sellers can login and access their booths', async ({ browser }, testInfo) => {
+    testInfo.setTimeout(180_000) // 5 logins + page loads = up to 3 min
     const sellers: UserKey[] = ['maria', 'raj', 'chen', 'sofia', 'james']
 
     for (const sellerKey of sellers) {

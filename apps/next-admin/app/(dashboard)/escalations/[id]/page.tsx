@@ -89,6 +89,8 @@ interface EscalationRpcResponse {
     delivery_address: any
     delivery_windows: any
     ready_for_pickup_at: string | null
+    seller_marked_ready: boolean | null
+    seller_marked_ready_within_window: boolean | null
     pickup_windows: any
     pickup_address: string | null
     booth_location: { latitude: number; longitude: number } | null
@@ -513,12 +515,38 @@ export default function EscalationDetailPage() {
                 </YStack>
               ) : (
                 <YStack gap="$3">
-                  {/* Ready for Pickup */}
+                  {/* Ready for Pickup Signal */}
                   <XStack gap="$2" alignItems="center">
-                    <Clock size={16} color="#4F46E5" />
+                    <Clock size={16} color={fv.seller_marked_ready ? '#4F46E5' : '#9CA3AF'} />
+                    <YStack>
+                      <Text fontSize={13} fontWeight="600" color="#374151">
+                        Seller Marked Ready: {fv.seller_marked_ready ? '✅ Yes' : '❌ No'}
+                      </Text>
+                      {fv.ready_for_pickup_at && (
+                        <Text fontSize={13} color="#374151">
+                          Ready at: {formatDate(fv.ready_for_pickup_at)}
+                        </Text>
+                      )}
+                      {fv.seller_marked_ready_within_window != null && (
+                        <Text
+                          fontSize={12}
+                          fontWeight="700"
+                          color={fv.seller_marked_ready_within_window ? '#059669' : '#DC2626'}
+                        >
+                          {fv.seller_marked_ready_within_window
+                            ? '✅ Marked ready within pickup window'
+                            : '❌ Marked ready outside pickup window'}
+                        </Text>
+                      )}
+                    </YStack>
+                  </XStack>
+
+                  {/* Actual Handoff / Delivery */}
+                  <XStack gap="$2" alignItems="center">
+                    <Clock size={16} color={fv.delivered_at ? '#059669' : '#9CA3AF'} />
                     <YStack>
                       <Text fontSize={13} color="#374151">
-                        Ready for Pickup: {formatDate(fv.ready_for_pickup_at)}
+                        Buyer Picked Up: {fv.delivered_at ? formatDate(fv.delivered_at) : '— Not yet'}
                       </Text>
                       <Text fontSize={13} color="#374151">
                         Pickup window end: {formatDate(fv.window_end)}

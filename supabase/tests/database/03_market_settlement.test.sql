@@ -14,10 +14,13 @@ SELECT plan(58);
 -- ============================================================================
 -- Cleanup: Mark all existing seed orders as already settled
 -- so the tag-based settlement only picks up our test orders
--- ============================================================================
+-- Clean up any E2E data contaminating the sentinel market_date
+DELETE FROM platform_bank_ledger WHERE settlement_id IN (SELECT id FROM market_settlements WHERE market_date = '2020-01-01');
+DELETE FROM settlement_captures WHERE settlement_id IN (SELECT id FROM market_settlements WHERE market_date = '2020-01-01');
+DELETE FROM user_settlements WHERE settlement_id IN (SELECT id FROM market_settlements WHERE market_date = '2020-01-01');
+DELETE FROM market_settlements WHERE market_date = '2020-01-01';
 INSERT INTO market_settlements (id, market_date, status) VALUES
-  ('00000000-0000-0000-0000-ffffffffffff', '2020-01-01', 'cleared')
-ON CONFLICT (id) DO NOTHING;
+  ('00000000-0000-0000-0000-ffffffffffff', '2020-01-01', 'cleared');
 UPDATE market_orders SET settlement_id = '00000000-0000-0000-0000-ffffffffffff'
 WHERE settlement_id IS NULL;
 

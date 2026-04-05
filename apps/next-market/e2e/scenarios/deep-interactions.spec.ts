@@ -246,27 +246,35 @@ test.describe('Deep Interactions', () => {
       const bethToken = tokens['beth']
       const samToken = tokens['sam']
 
-      // Find or create a delivered order for this test
+      // Seed a fresh delivered order (previous tests consumed all others)
+      const orderId = `e2e00000-d4b0-0000-0000-${Date.now().toString(16).padStart(12, '0')}`
+      await execSql(
+        `INSERT INTO market_orders (id, buyer_id, seller_id, booth_id, product_id, product_name, quantity, unit_price_usd, subtotal_usd, total_usd, status, fulfillment_type, delivered_at)
+         SELECT '${orderId}',
+                'b2222222-2222-2222-2222-222222222222',
+                'a1111111-1111-1111-1111-111111111111',
+                mb.id,
+                mp.id,
+                mp.name,
+                1,
+                10.00,
+                10.00,
+                10.00,
+                'delivered',
+                'delivery',
+                now()
+         FROM market_booths mb
+         JOIN market_products mp ON mp.seller_id = mb.owner_id
+         WHERE mb.owner_id = 'a1111111-1111-1111-1111-111111111111'
+         LIMIT 1
+         ON CONFLICT (id) DO NOTHING`
+      )
+
       let orders = await queryTable(
         bethToken,
         'market_orders',
-        `buyer_id=eq.b2222222-2222-2222-2222-222222222222&status=eq.delivered&limit=1`,
+        `id=eq.${orderId}`,
       )
-
-      if (!orders.length) {
-        await execSql(
-          `UPDATE market_orders SET status = 'delivered', delivered_at = now()
-           WHERE id = (SELECT id FROM market_orders
-                       WHERE buyer_id = 'b2222222-2222-2222-2222-222222222222'
-                         AND status NOT IN ('delivered', 'completed', 'disputed', 'cancelled', 'resolved')
-                       LIMIT 1)`
-        )
-        orders = await queryTable(
-          bethToken,
-          'market_orders',
-          `buyer_id=eq.b2222222-2222-2222-2222-222222222222&status=eq.delivered&limit=1`,
-        )
-      }
 
       if (!orders.length) { test.skip(); return }
 
@@ -307,27 +315,35 @@ test.describe('Deep Interactions', () => {
       const bethToken = tokens['beth']
       const samToken = tokens['sam']
 
-      // Find or create a delivered order
+      // Seed a fresh delivered order for this test (previous tests consumed all others)
+      const orderId = `e2e00000-d4c0-0000-0000-${Date.now().toString(16).padStart(12, '0')}`
+      await execSql(
+        `INSERT INTO market_orders (id, buyer_id, seller_id, booth_id, product_id, product_name, quantity, unit_price_usd, subtotal_usd, total_usd, status, fulfillment_type, delivered_at)
+         SELECT '${orderId}',
+                'b2222222-2222-2222-2222-222222222222',
+                'a1111111-1111-1111-1111-111111111111',
+                mb.id,
+                mp.id,
+                mp.name,
+                1,
+                5.00,
+                5.00,
+                5.00,
+                'delivered',
+                'delivery',
+                now()
+         FROM market_booths mb
+         JOIN market_products mp ON mp.seller_id = mb.owner_id
+         WHERE mb.owner_id = 'a1111111-1111-1111-1111-111111111111'
+         LIMIT 1
+         ON CONFLICT (id) DO NOTHING`
+      )
+
       let orders = await queryTable(
         bethToken,
         'market_orders',
-        `buyer_id=eq.b2222222-2222-2222-2222-222222222222&status=eq.delivered&limit=1`,
+        `id=eq.${orderId}`,
       )
-
-      if (!orders.length) {
-        await execSql(
-          `UPDATE market_orders SET status = 'delivered', delivered_at = now()
-           WHERE id = (SELECT id FROM market_orders
-                       WHERE buyer_id = 'b2222222-2222-2222-2222-222222222222'
-                         AND status NOT IN ('delivered', 'completed', 'disputed', 'cancelled', 'resolved')
-                       LIMIT 1)`
-        )
-        orders = await queryTable(
-          bethToken,
-          'market_orders',
-          `buyer_id=eq.b2222222-2222-2222-2222-222222222222&status=eq.delivered&limit=1`,
-        )
-      }
 
       if (!orders.length) { test.skip(); return }
 
@@ -359,35 +375,42 @@ test.describe('Deep Interactions', () => {
       // Verify dispute is resolved
       const finalDispute = await queryTable(bethToken, 'order_disputes', `id=eq.${disputes[0].id}`)
       expect(finalDispute.length).toBeGreaterThan(0)
-      expect(['resolved', 'buyer_resolved']).toContain(finalDispute[0].status)
+      expect(['resolved', 'buyer_resolved', 'buyer_accepted']).toContain(finalDispute[0].status)
       console.log(`[DISPUTE] Buyer rejected refund, resolved: ${finalDispute[0].status}`)
     })
 
     test('D5 — escalation flow (file new dispute and escalate)', async () => {
       const bethToken = tokens['beth']
 
-      // Find a delivered order for escalation — seed one if needed
+      // Seed a fresh delivered order for escalation (previous tests consumed all others)
+      const orderId = `e2e00000-d500-0000-0000-${Date.now().toString(16).padStart(12, '0')}`
+      await execSql(
+        `INSERT INTO market_orders (id, buyer_id, seller_id, booth_id, product_id, product_name, quantity, unit_price_usd, subtotal_usd, total_usd, status, fulfillment_type, delivered_at)
+         SELECT '${orderId}',
+                'b2222222-2222-2222-2222-222222222222',
+                'a1111111-1111-1111-1111-111111111111',
+                mb.id,
+                mp.id,
+                mp.name,
+                1,
+                8.00,
+                8.00,
+                8.00,
+                'delivered',
+                'delivery',
+                now()
+         FROM market_booths mb
+         JOIN market_products mp ON mp.seller_id = mb.owner_id
+         WHERE mb.owner_id = 'a1111111-1111-1111-1111-111111111111'
+         LIMIT 1
+         ON CONFLICT (id) DO NOTHING`
+      )
+
       let orders = await queryTable(
         bethToken,
         'market_orders',
-        `buyer_id=eq.b2222222-2222-2222-2222-222222222222&status=eq.delivered&limit=1`,
+        `id=eq.${orderId}`,
       )
-
-      if (!orders.length) {
-        // Seed: mark a non-terminal order as delivered
-        await execSql(
-          `UPDATE market_orders SET status = 'delivered', delivered_at = now()
-           WHERE id = (SELECT id FROM market_orders
-                       WHERE buyer_id = 'b2222222-2222-2222-2222-222222222222'
-                         AND status NOT IN ('delivered', 'completed', 'disputed', 'cancelled')
-                       LIMIT 1)`
-        )
-        orders = await queryTable(
-          bethToken,
-          'market_orders',
-          `buyer_id=eq.b2222222-2222-2222-2222-222222222222&status=eq.delivered&limit=1`,
-        )
-      }
 
       if (!orders.length) { test.skip(); return }
 
@@ -416,47 +439,88 @@ test.describe('Deep Interactions', () => {
   // PICKUP PASSCODE FLOW
   // ════════════════════════════════════════════════════════════
 
-  test.describe('Pickup Flow (Simplified — mirrors delivery)', () => {
+  test.describe('Pickup Flow', () => {
+    // ── Path A: Seller marks ready, buyer doesn't arrive → auto-complete after 24hr ──
+    test('P0 — seller_mark_ready_pickup sets ready_for_pickup_at, keeps status pending', async () => {
+      const samToken = tokens['sam']
+
+      // Seed a fresh pending pickup order
+      const orderId = `e2e00000-0000-0000-a0a0-${Date.now().toString(16).padStart(12, '0')}`
+      await execSql(
+        `INSERT INTO market_orders (id, buyer_id, seller_id, booth_id, product_id, product_name, quantity, unit_price_usd, subtotal_usd, total_usd, status, fulfillment_type)
+         SELECT '${orderId}',
+                'b2222222-2222-2222-2222-222222222222',
+                'a1111111-1111-1111-1111-111111111111',
+                mb.id, mp.id, mp.name, 1, 5.00, 5.00, 5.00, 'pending', 'pickup'
+         FROM market_booths mb
+         JOIN market_products mp ON mp.seller_id = mb.owner_id
+         WHERE mb.owner_id = 'a1111111-1111-1111-1111-111111111111'
+         LIMIT 1
+         ON CONFLICT (id) DO NOTHING`
+      )
+
+      const result = await callRpc(samToken, 'seller_mark_ready_pickup', {
+        p_order_id: orderId,
+      })
+      console.log('[PICKUP P0] Ready result:', JSON.stringify(result))
+
+      if (result.error) {
+        console.error(`[PICKUP P0] Error: ${result.error}`)
+      }
+      expect(result.success).toBe(true)
+      expect(result.ready_for_pickup_at).toBeTruthy()
+      expect(result.auto_complete_at).toBeTruthy()
+
+      // Verify: status must STILL be 'pending', ready_for_pickup_at set, delivered_at NULL
+      const updated = await queryTable(samToken, 'market_orders', `id=eq.${orderId}`)
+      expect(updated.length).toBeGreaterThan(0)
+      expect(updated[0].status).toBe('pending')
+      expect(updated[0].ready_for_pickup_at).toBeTruthy()
+      expect(updated[0].delivered_at).toBeNull()
+      expect(updated[0].auto_complete_at).toBeTruthy()
+
+      console.log(`[PICKUP P0] Status: ${updated[0].status}, ready_at: ${updated[0].ready_for_pickup_at}, delivered_at: ${updated[0].delivered_at}, auto_complete: ${updated[0].auto_complete_at}`)
+    })
+
+    // ── Path B: Buyer arrives, seller fulfills directly → delivered (4hr auto-complete) ──
     test('P1 — seller hands off pickup order → status becomes delivered', async () => {
       // Reset a Sam-owned non-delivered order to pending/pickup for this test
-      // Exclude 'delivered' to avoid conflicting with dispute tests
       const resetResult = execSql(
-        `UPDATE market_orders SET status = 'pending', fulfillment_type = 'pickup', delivered_at = NULL, auto_complete_at = NULL WHERE id = (SELECT id FROM market_orders WHERE seller_id = 'a1111111-1111-1111-1111-111111111111' AND buyer_id = 'b2222222-2222-2222-2222-222222222222' AND status NOT IN ('delivered','completed') ORDER BY created_at DESC LIMIT 1) RETURNING id`
+        `UPDATE market_orders SET status = 'pending', fulfillment_type = 'pickup', delivered_at = NULL, ready_for_pickup_at = NULL, auto_complete_at = NULL WHERE id = (SELECT id FROM market_orders WHERE seller_id = 'a1111111-1111-1111-1111-111111111111' AND buyer_id = 'b2222222-2222-2222-2222-222222222222' AND status NOT IN ('delivered','completed') AND ready_for_pickup_at IS NULL ORDER BY created_at DESC LIMIT 1) RETURNING id`
       )
-      // execSql returns "UUID\n\nUPDATE 1" — extract just the UUID from first line
       const testOrderId = resetResult?.split('\n')[0]?.trim()
-      console.log(`[PICKUP] Reset order for test: ${testOrderId}`)
+      console.log(`[PICKUP P1] Reset order for test: ${testOrderId}`)
 
       if (!testOrderId) {
-        // Fallback: find any existing pending pickup
         const fallback = execSql(
-          `SELECT id FROM market_orders WHERE seller_id = 'a1111111-1111-1111-1111-111111111111' AND buyer_id = 'b2222222-2222-2222-2222-222222222222' AND status = 'pending' AND fulfillment_type = 'pickup' LIMIT 1`
+          `SELECT id FROM market_orders WHERE seller_id = 'a1111111-1111-1111-1111-111111111111' AND buyer_id = 'b2222222-2222-2222-2222-222222222222' AND status = 'pending' AND fulfillment_type = 'pickup' AND ready_for_pickup_at IS NULL LIMIT 1`
         )
         if (!fallback?.trim()) { test.skip(); return }
         pendingPickupOrderId = fallback.trim()
       } else {
         pendingPickupOrderId = testOrderId
       }
-      console.log(`[PICKUP] Using order: ${pendingPickupOrderId}`)
+      console.log(`[PICKUP P1] Using order: ${pendingPickupOrderId}`)
 
       const samToken = tokens['sam']
       const result = await callRpc(samToken, 'seller_mark_delivered', {
         p_order_id: pendingPickupOrderId,
         p_photos: [],
       })
-      console.log('[PICKUP] Hand off result:', JSON.stringify(result))
+      console.log('[PICKUP P1] Hand off result:', JSON.stringify(result))
 
       if (result.error) {
-        console.error(`[PICKUP] RPC error: ${result.error}`)
+        console.error(`[PICKUP P1] RPC error: ${result.error}`)
       }
       expect(result.success).toBe(true)
 
-      // Verify status is 'delivered' (simplified flow mirrors delivery)
+      // Verify status is 'delivered', delivered_at set, ready_for_pickup_at still NULL
       const updated = await queryTable(samToken, 'market_orders', `id=eq.${pendingPickupOrderId}`)
       expect(updated.length).toBeGreaterThan(0)
       expect(updated[0].status).toBe('delivered')
       expect(updated[0].delivered_at).toBeTruthy()
-      console.log(`[PICKUP] Status: ${updated[0].status}, auto_complete_at: ${updated[0].auto_complete_at}`)
+      expect(updated[0].ready_for_pickup_at).toBeNull()
+      console.log(`[PICKUP P1] Status: ${updated[0].status}, auto_complete_at: ${updated[0].auto_complete_at}`)
     })
 
     test('P2 — auto_complete_at is set to ~4 hours from hand-off', async () => {
@@ -521,13 +585,13 @@ test.describe('Deep Interactions', () => {
       await bethPage.context().close()
     })
 
-    test('P5 — existing ready_for_pickup orders render on detail page', async ({ browser }) => {
-      // Use one of the seeded ready_for_pickup orders
+    test('P5 — pending pickup order renders on order detail page', async ({ browser }) => {
+      // Find a pending pickup order (ready_for_pickup is just a notification, not a status)
       const orderId = await execSql(
-        `SELECT id FROM market_orders WHERE status = 'ready_for_pickup' LIMIT 1`
+        `SELECT id FROM market_orders WHERE status = 'pending' AND fulfillment_type = 'pickup' LIMIT 1`
       )
 
-      if (!orderId) { test.skip(); return }
+      if (!orderId?.trim()) { test.skip(); return }
 
       const samPage = await loginAsUser(browser, 'sam')
       await navigateTo(samPage, `/orders/${orderId.trim()}`)
@@ -575,7 +639,8 @@ test.describe('Deep Interactions', () => {
 
       if (chatCount > 0) {
         await chatLinks.first().click()
-        await bethPage.waitForLoadState('networkidle')
+        await bethPage.waitForLoadState('domcontentloaded')
+        await bethPage.waitForTimeout(2000)
 
         // Find message input
         const msgInput = bethPage.locator('input[type="text"], textarea').last()

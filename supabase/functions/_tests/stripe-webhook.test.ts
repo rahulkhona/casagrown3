@@ -124,14 +124,17 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
   async fn() {
-    // Create a funds_pending settlement
+    // Create a funds_pending settlement with unique date (far future to avoid collisions)
+    const day = Math.floor(Math.random() * 28) + 1
+    const month = Math.floor(Math.random() * 12) + 1
+    const uniqueDate = `2099-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
     const settlement = await restPost('market_settlements', {
-      market_date: `2020-01-${Math.floor(Math.random() * 28) + 1}`,
+      market_date: uniqueDate,
       status: 'funds_pending',
       total_captured_usd: 50.00,
       stripe_payout_id: null,
     })
-    assertExists(settlement.id)
+    assertExists(settlement.id, `Settlement insert failed — possible date collision on ${uniqueDate}`)
 
     const payoutId = `po_test_paid_${Date.now()}`
     const result = await callWebhook({

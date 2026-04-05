@@ -163,10 +163,10 @@ SELECT ok(
   'Pickup auto_complete_at = window_end + 24hr'
 );
 
--- T8: status is delivered
+-- T8: status stays pending (ready_for_pickup_at is set but status != delivered)
 SELECT ok(
-  (SELECT status = 'delivered' FROM market_orders WHERE id = 'ee390001-0000-0000-0000-000000000002'),
-  'Pickup order status is delivered after mark ready'
+  (SELECT status = 'pending' AND ready_for_pickup_at IS NOT NULL FROM market_orders WHERE id = 'ee390001-0000-0000-0000-000000000002'),
+  'Pickup order status stays pending with ready_for_pickup_at set after mark ready'
 );
 
 

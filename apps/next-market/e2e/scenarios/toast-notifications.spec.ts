@@ -71,7 +71,7 @@ test.describe('Toast Notifications for Success and Error Handling', () => {
     
     const dismissBtn = page.locator('button:has-text("✕")').first()
     if (await dismissBtn.isVisible()) {
-      await dismissBtn.click()
+      await dismissBtn.click({ force: true })
       await expect(toastIcon).not.toBeVisible()
     }
   })

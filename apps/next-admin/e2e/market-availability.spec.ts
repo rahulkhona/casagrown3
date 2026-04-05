@@ -2,8 +2,8 @@ import { test, expect } from '@playwright/test'
 
 test.describe('Market Availability Page', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/market-availability')
-    await page.waitForLoadState('networkidle')
+    await page.goto('/market-availability', { waitUntil: 'domcontentloaded' })
+    await page.waitForTimeout(2000)
   })
 
   test('should load market availability page with Block State button', async ({ page }) => {
@@ -43,8 +43,8 @@ test.describe('Market Availability Page', () => {
 
 test.describe('Market Availability Sidebar Navigation', () => {
   test('should navigate to Market Availability from sidebar', async ({ page }) => {
-    await page.goto('/')
-    await page.waitForLoadState('networkidle')
+    await page.goto('/', { waitUntil: 'domcontentloaded' })
+    await page.waitForTimeout(2000)
     await page.getByRole('button', { name: /Market Availability/i }).first().click()
     await page.waitForURL('/market-availability')
     await expect(page.getByRole('button', { name: /Block State/i })).toBeVisible({ timeout: 15000 })

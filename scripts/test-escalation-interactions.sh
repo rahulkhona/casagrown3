@@ -134,7 +134,9 @@ run_test "Relinquish RPC succeeded" \
 # ──── TEST 4: Non-staff blocked ────
 echo ""
 echo "▶ Test 4: Non-staff Access Blocked"
-BUYER_ID=$($DB_CMD -c "SELECT buyer_id FROM market_orders WHERE id = '$ORDER_ID';")
+# Use a user that is NOT in staff_members (maria@test.local is a browse-market seller, not staff)
+BUYER_ID=$($DB_CMD -c "SELECT id FROM auth.users WHERE email = 'maria@test.local';" | tr -d '[:space:]')
+if [ -z "$BUYER_ID" ]; then BUYER_ID=$($DB_CMD -c "SELECT buyer_id FROM market_orders WHERE id = '$ORDER_ID';"); fi
 BLOCKED=$($DB_CMD -c "
   BEGIN;
   SET LOCAL role='authenticated';

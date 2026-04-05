@@ -247,9 +247,8 @@ export default function OrderChat({ orderId, otherUserName, otherUserId, myAvata
           {isSeller && fulfillmentType === 'pickup' && orderStatus === 'pending' && (
             <button onClick={async () => {
               await sendQuickReply('Your order is ready for pickup!', true)
-              // Also transition order status to 'delivered' so buyer gets notifications
-              const { data } = await supabase.rpc('seller_mark_delivered', { p_order_id: orderId, p_photos: [] })
-              if (data?.success) onStatusChange?.()
+              // Signal readiness — status stays 'pending', ready_for_pickup_at is set
+              await supabase.rpc('seller_mark_ready_pickup', { p_order_id: orderId })
             }} className={styles.quickReplyChip}>✅ Ready for Pickup</button>
           )}
           {isSeller && fulfillmentType === 'delivery' && orderStatus === 'pending' && (
