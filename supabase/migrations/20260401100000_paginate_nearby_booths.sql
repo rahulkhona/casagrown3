@@ -6,6 +6,8 @@
 -- are only appended when p_offset = 0 (first page).
 -- ============================================================================
 
+CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public CASCADE;
+
 SET search_path TO public, extensions;
 
 CREATE OR REPLACE FUNCTION nearby_booths(
