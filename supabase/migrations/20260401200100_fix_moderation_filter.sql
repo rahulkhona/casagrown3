@@ -7,6 +7,8 @@
 -- was added (20260325085329) but were never approved. This fixes both issues.
 -- ============================================================================
 
+SET search_path TO public, extensions;
+
 -- 1. Auto-approve all existing products (market is always-on, no moderation workflow yet)
 UPDATE public.market_products
 SET moderation_status = 'approved'
