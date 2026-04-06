@@ -1,0 +1,28 @@
+{
+  "name": "quarantine-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Scans government sources for active agricultural quarantines and outputs a CSV matching the quarantine_zones schema.",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "start:verbose": "DEBUG=1 tsx src/index.ts",
+    "lint": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@google/genai": "^1.48.0",
+    "@supabase/supabase-js": "^2.101.1",
+    "cheerio": "^1.0.0",
+    "csv-writer": "^1.6.0",
+    "date-fns": "^3.6.0",
+    "dotenv": "^17.4.0",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "@types/cheerio": "^0.22.35",
+    "@types/node": "^25.5.2",
+    "tsx": "^4.15.0",
+    "typescript": "~5.8.3",
+    "vitest": "^4.1.2"
+  }
+}

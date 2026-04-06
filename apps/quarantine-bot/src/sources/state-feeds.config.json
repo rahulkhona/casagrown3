@@ -1,0 +1,41 @@
+[
+  {
+    "state_code": "FL",
+    "state_name": "Florida",
+    "endpoint_url": "https://services1.arcgis.com/O1JpcwDW8sjYuddV/arcgis/rest/services/Florida_Quarantine_Zones/FeatureServer/0",
+    "field_map": {
+      "notes_field": "ORGANISM",
+      "status": "STATUS",
+      "active_date": "ACTIVE_DATE",
+      "completed_date": "END_DATE",
+      "project_name": "PROJECT_NAME"
+    },
+    "active_status_value": "Active"
+  },
+  {
+    "state_code": "TX",
+    "state_name": "Texas",
+    "endpoint_url": "https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/Texas_Quarantine_Areas/FeatureServer/0",
+    "field_map": {
+      "notes_field": "PEST_NAME",
+      "status": "QUARANTINE_STATUS",
+      "active_date": "START_DATE",
+      "completed_date": "END_DATE",
+      "project_name": "DESCRIPTION"
+    },
+    "active_status_value": "Active"
+  },
+  {
+    "state_code": "PA",
+    "state_name": "Pennsylvania",
+    "endpoint_url": "https://services.arcgis.com/xOi1kZaI0eWDREZv/arcgis/rest/services/Pennsylvania_Quarantine_Zones/FeatureServer/0",
+    "field_map": {
+      "notes_field": "PEST",
+      "status": "STATUS",
+      "active_date": "EFFECTIVE_DATE",
+      "completed_date": "END_DATE",
+      "project_name": "DESCRIPTION"
+    },
+    "active_status_value": "Active"
+  }
+]

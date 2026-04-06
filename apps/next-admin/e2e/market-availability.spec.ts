@@ -35,9 +35,7 @@ test.describe('Market Availability Page', () => {
   test('should display empty state or data', async ({ page }) => {
     const emptyMessage = page.getByText(/No states are restricted/)
     const stateCell = page.getByText(/NY|CT|HI/, { exact: true }).first()
-    const isEmpty = await emptyMessage.isVisible().catch(() => false)
-    const hasData = await stateCell.isVisible().catch(() => false)
-    expect(isEmpty || hasData).toBe(true)
+    await expect(emptyMessage.or(stateCell)).toBeVisible({ timeout: 15000 })
   })
 })
 

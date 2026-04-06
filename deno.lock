@@ -440,6 +440,24 @@
           ]
         }
       },
+      "apps/quarantine-bot": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@google/genai@^1.48.0",
+            "npm:@supabase/supabase-js@^2.101.1",
+            "npm:@types/cheerio@~0.22.35",
+            "npm:@types/node@^25.5.2",
+            "npm:cheerio@1",
+            "npm:csv-writer@^1.6.0",
+            "npm:date-fns@^3.6.0",
+            "npm:dotenv@^17.4.0",
+            "npm:node-fetch@^3.3.2",
+            "npm:tsx@^4.15.0",
+            "npm:typescript@~5.8.3",
+            "npm:vitest@^4.1.2"
+          ]
+        }
+      },
       "packages/app": {
         "packageJson": {
           "dependencies": [

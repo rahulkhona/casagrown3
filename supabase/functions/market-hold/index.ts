@@ -27,6 +27,11 @@ import {
 } from "../_shared/serve-with-cors.ts";
 
 serveWithCors(async (req, { supabase, env, corsHeaders }) => {
+    // Authenticate first — reject anon before revealing config state
+    const auth = await requireAuth(req, supabase, corsHeaders);
+    if (auth instanceof Response) return auth;
+    const buyerId = auth;
+
     const STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY");
     if (!STRIPE_SECRET_KEY) {
         return jsonError("STRIPE_SECRET_KEY not configured", corsHeaders);
@@ -37,11 +42,6 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     if (!order_id || !amount_cents) {
         return jsonError("order_id and amount_cents are required", corsHeaders);
     }
-
-    // Authenticate
-    const auth = await requireAuth(req, supabase, corsHeaders);
-    if (auth instanceof Response) return auth;
-    const buyerId = auth;
 
     // ══════════════════════════════════════════════════════════
     // Check if buyer has outstanding debts (blocked from purchases)

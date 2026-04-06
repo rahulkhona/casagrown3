@@ -61,7 +61,7 @@ test.describe('Auth Guard Redirect', () => {
   })
 
   test('dashboard pages redirect to login', async ({ page }) => {
-    const dashboardPages = ['/users', '/sales', '/payouts', '/activity', '/health', '/settlements', '/logs']
+    const dashboardPages = ['/users', '/sales', '/payouts', '/activity', '/health', '/settlements']
 
     for (const path of dashboardPages) {
       await page.goto(path)

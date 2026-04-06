@@ -291,6 +291,7 @@ export function Navbar() {
     { href: '/earnings', label: 'Transactions', icon: '💰', section: 'main' },
     { href: '/earnings/payout', label: 'Payout', icon: '💸', section: 'main' },
     { href: '/following', label: 'Following', icon: '❤️', section: 'main' },
+    { href: '/quarantines', label: 'Quarantine Info', icon: '⚠️', section: 'main' },
     { href: '/profile', label: 'Profile', icon: '👤', section: 'account' },
   ]
 

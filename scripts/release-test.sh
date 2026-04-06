@@ -51,6 +51,14 @@ SUITE_RESULTS=()
 FAILED_SUITES=()
 START_TIME=$(date +%s)
 
+# ── Pre-flight Checks ──────────────────────────────────────────────────────
+if ! grep -q "NEXT_PUBLIC_SUPABASE_URL" "apps/next-market/.env" 2>/dev/null; then
+  echo -e "${RED}${BOLD}ERROR: Workspace environment is not bootstrapped.${NC}"
+  echo -e "Missing local .env configuration. Run the setup script first:"
+  echo -e "  ${YELLOW}./scripts/setup-workspace.sh${NC}\n"
+  exit 1
+fi
+
 log_suite() {
   local name="$1" passed="$2" failed="${3:-0}" skipped="${4:-0}"
   TOTAL_PASSED=$((TOTAL_PASSED + passed))
@@ -133,7 +141,11 @@ pkill -f "supabase functions serve" 2>/dev/null || true
 sleep 1
 
 echo "  Starting edge functions server..."
-supabase functions serve --env-file supabase/.env.local &>/dev/null &
+if [ -f supabase/.env.local ]; then
+  supabase functions serve --env-file supabase/.env.local &>/dev/null &
+else
+  supabase functions serve &>/dev/null &
+fi
 EDGE_PID=$!
 sleep 5
 
@@ -195,6 +207,7 @@ run_vitest "Market" "apps/next-market"
 run_vitest "Admin" "apps/next-admin"
 run_vitest "Voice" "apps/next-community-voice"
 run_vitest "Metrics" "apps/next-metrics"
+run_vitest "Quarantine Bot" "apps/quarantine-bot"
 
 # ─────────────────────────────────────────────────────────────────────────
 # PHASE 5: Deno Integration Tests
@@ -352,11 +365,14 @@ else
   run_playwright() {
     local app_name="$1"
     local app_dir="$2"
+    local logfile="scripts/output/playwright_$(echo "$app_name" | tr '[:upper:]' '[:lower:]').log"
 
     echo "  Running $app_name Playwright E2E..."
+    mkdir -p scripts/output
+    (cd "$app_dir" && npx playwright test --reporter=line 2>&1) | tee "$logfile"
+    local exit_code=${PIPESTATUS[0]}
     local output
-    output=$(cd "$app_dir" && npx playwright test --reporter=line 2>&1)
-    local exit_code=$?
+    output=$(cat "$logfile")
 
     local passed=$(echo "$output" | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
     local failed=$(echo "$output" | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")

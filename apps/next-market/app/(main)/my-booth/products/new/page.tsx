@@ -466,6 +466,9 @@ function NewProductPageInner() {
     
     // Strict checks only enforced if trying to publish fully
     if (!needsDraft) {
+      if (quarantineWarning) {
+        newErrors.submit = `Cannot list this item. Quarantine Alert: ${quarantineWarning.pest_name} in ${quarantineWarning.county_name}.`
+      }
       if (!name.trim()) newErrors.name = 'Name is required'
       if (!isValidPrice) {
         if (effectivePrice === '' || effectivePrice === null) newErrors.price = 'Set a price (or 0 for free)'

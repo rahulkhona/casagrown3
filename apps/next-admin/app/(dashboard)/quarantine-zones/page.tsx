@@ -24,9 +24,17 @@ export default function QuarantineZonesPage() {
 
   const { data: categories } = useAdminQuery({ table: 'sales_categories' })
 
+  const [botHealth, setBotHealth] = useState<any>(null)
+  useEffect(() => {
+    adminApi.select('quarantine_bot_health', '*', undefined, { order: { column: 'run_started_at', ascending: false }, limit: 1 }).then(({ data }) => {
+      if (data && data.length > 0) setBotHealth(data[0])
+    })
+  }, [])
+
   const [isAdding, setIsAdding] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const [showAdminOnly, setShowAdminOnly] = useState(false)
 
   // Form State
   const [category, setCategory] = useState('')
@@ -181,10 +189,19 @@ export default function QuarantineZonesPage() {
             <a href={item.source_url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
               <XStack alignItems="center" gap="$1" marginTop="$1">
                 <ExternalLink size={12} color={'#3b82f6'} />
-                <Text fontSize="$1" color={'#3b82f6'}>CDFA Notice</Text>
+                <Text fontSize="$1" color={'#3b82f6'}>Review Official Circular</Text>
               </XStack>
             </a>
           ) : null}
+          {item.created_by_admin ? (
+            <XStack backgroundColor="#ffedd5" paddingHorizontal="$2" paddingVertical="$1" borderRadius="$2" marginTop="$1" alignSelf="flex-start">
+              <Text fontSize="$1" color="#c2410c" fontWeight="700">🟠 Manual Admin Entry</Text>
+            </XStack>
+          ) : (
+            <XStack backgroundColor={colors.gray[200]} paddingHorizontal="$2" paddingVertical="$1" borderRadius="$2" marginTop="$1" alignSelf="flex-start">
+              <Text fontSize="$1" color={colors.gray[700]} fontWeight="700">🤖 Bot Fetched</Text>
+            </XStack>
+          )}
         </YStack>
       )
     },
@@ -225,27 +242,20 @@ export default function QuarantineZonesPage() {
       header: 'Actions',
       accessorKey: 'id',
       width: 100,
-      cell: (item) => (
-        <XStack gap="$2">
-          <Button size="$2" chromeless
-            onPress={async () => {
-              await adminApi.update('quarantine_zones', { is_active: !item.is_active }, { eq: { id: item.id } })
-              refresh()
-            }}
-          >
-            <Text fontSize="$1" color={item.is_active ? colors.gray[500] : colors.green[600]}>
-              {item.is_active ? 'Disable' : 'Enable'}
-            </Text>
-          </Button>
-          <Button size="$2" chromeless icon={<Trash2 size={14} color={colors.red[500]} />}
-            onPress={async () => {
-              const { error } = await adminApi.delete('quarantine_zones', { eq: { id: item.id } })
-              if (error) setErrorMessage(`Failed to delete: ${error}`)
-              else refresh()
-            }} 
-          />
-        </XStack>
-      )
+      cell: (item) => {
+        if (!item.created_by_admin) return null // Bot records are 100% Read Only
+        return (
+          <XStack gap="$2">
+            <Button size="$2" chromeless icon={<Trash2 size={14} color={colors.red[500]} />}
+              onPress={async () => {
+                const { error } = await adminApi.delete('quarantine_zones', { eq: { id: item.id } })
+                if (error) setErrorMessage(`Failed to delete: ${error}`)
+                else refresh()
+              }} 
+            />
+          </XStack>
+        )
+      }
     }
   ]
 
@@ -279,6 +289,7 @@ export default function QuarantineZonesPage() {
         source_url: sourceUrl || null,
         reason: reason || null,
         is_active: true,
+        created_by_admin: true,
         country_iso_3: null,
         state_id: null,
         county_id: null,
@@ -361,6 +372,27 @@ export default function QuarantineZonesPage() {
         <YStack backgroundColor={colors.red[50]} padding="$3" borderRadius="$2" 
                 borderWidth={1} borderColor={colors.red[200]}>
           <Text color={colors.red[800]} fontWeight="600">{errorMessage}</Text>
+        </YStack>
+      ) : null}
+
+      {/* Bot Health Dynamic Alert Banner */}
+      {botHealth && botHealth.status !== 'OK' ? (
+        <YStack backgroundColor={botHealth.status === 'FAILED' ? "#fef2f2" : "#fff7ed"} padding="$4" borderRadius="$3" 
+                borderWidth={1} borderColor={botHealth.status === 'FAILED' ? "#ef4444" : "#f97316"}
+                elevation={"$1"} shadowColor={botHealth.status === 'FAILED' ? "#ef4444" : "#f97316"} shadowOpacity={0.2} shadowRadius={8}>
+          <XStack alignItems="center" gap="$2">
+            <AlertTriangle size={24} color={botHealth.status === 'FAILED' ? "#dc2626" : "#d97706"} />
+            <Text color={botHealth.status === 'FAILED' ? "#dc2626" : "#ea580c"} fontWeight="800" fontSize="$5" letterSpacing={0.5}>
+              {botHealth.status === 'FAILED' 
+                ? "🚨 CRITICAL: Quarantine Bot Sync Failed" 
+                : "⚠️ WARNING: Quarantine Bot Schema Drift Detected"}
+            </Text>
+          </XStack>
+          <Text color={botHealth.status === 'FAILED' ? "#991b1b" : "#9a3412"} marginTop="$2" fontSize="$3">
+            {botHealth.status === 'FAILED'
+              ? "The automated APHIS/CDFA sync process failed entirely."
+              : "The automated sync detected new unmapped fields in the API. Syncs are continuing but you should verify accuracy."}
+          </Text>
         </YStack>
       ) : null}
 
@@ -492,8 +524,16 @@ export default function QuarantineZonesPage() {
       ) : null}
 
       <YStack flex={1} paddingBottom="$8">
+        <XStack justifyContent="flex-end" marginBottom="$3">
+           <XStack alignItems="center" gap="$2">
+             <Switch checked={showAdminOnly} onCheckedChange={setShowAdminOnly} size="$2">
+               <Switch.Thumb />
+             </Switch>
+             <Text fontSize="$2" fontWeight="600" color={colors.gray[600]}>Show Human-Added Only</Text>
+           </XStack>
+        </XStack>
         <AdminDataGrid 
-          data={enrichedData.length > 0 ? enrichedData : data} 
+          data={(enrichedData.length > 0 ? enrichedData : data).filter((r: any) => showAdminOnly ? r.created_by_admin : true)} 
           columns={columns} 
           isLoading={loading}
           page={page}

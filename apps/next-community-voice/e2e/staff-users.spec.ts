@@ -62,7 +62,7 @@ test.describe("Staff Reports Page", () => {
 
 test.describe("Staff Dashboard", () => {
     test("should render staff dashboard without 404", async ({ page }) => {
-        const response = await page.goto("/staff");
+        const response = await page.goto("/staff/dashboard");
         expect(response?.status()).not.toBe(404);
     });
 

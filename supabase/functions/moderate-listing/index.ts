@@ -120,6 +120,20 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // ── 2c. Quarantine check ──────────────────────────────────────────────────
+    let quarantineInjection = "";
+    try {
+      const { data: qStatus } = await supabase.rpc('check_quarantine_for_seller', {
+        p_seller_id: seller_id,
+        p_category: category,
+      });
+      if (qStatus && qStatus.length > 0) {
+        quarantineInjection = `\n\nCRITICAL SYSTEM WARNING: The seller is in an active Agricultural Quarantine Zone for ${category} due to ${qStatus[0].pest_name}. Shipping/distributing this is legally prohibited. You MUST FLAG IT with approved: false, include "quarantine_violation" in the issues array, and set a specific clear issue message.`;
+      }
+    } catch (e) {
+      console.warn("Quarantine check failed in moderation:", e);
+    }
+
     // ── 3. Gemini 2.0 Flash moderation ───────────────────────────────────────
     const parts: any[] = [
       {
@@ -140,14 +154,14 @@ Example: { "drugs_banned_substances": "Your listing appears to contain cannabis 
 Valid issues (use exact strings):
 "drugs_banned_substances" | "alcohol" | "tobacco_cigarettes_vaping" | "weapons_dangerous_items" |
 "sexually_explicit" | "hate_speech_abusive" | "threats_violence" | "spam_scam" |
-"profanity_offensive_language" | "category_mismatch" | "not_homegrown_produce" | "photo_mismatch" | "price_unrealistic" | "misleading"
+"profanity_offensive_language" | "category_mismatch" | "not_homegrown_produce" | "photo_mismatch" | "price_unrealistic" | "misleading" | "quarantine_violation"
 
 Listing:
 Name: ${name}
 Category: ${category}
 Description: ${description || "(none)"}
 Price: $${price_usd ?? "not set"} per unit${price_usd === 0 ? " (FREE giveaway — this is allowed and encouraged)" : ""}
-Price sanity: ${priceOk ? "OK" : "SUSPICIOUS — outside normal range for " + category}
+Price sanity: ${priceOk ? "OK" : "SUSPICIOUS — outside normal range for " + category}${quarantineInjection}
 
 APPROVE if the listing is:
 - Fresh fruits, vegetables, herbs, citrus, edible plants, or other homegrown food products (produce, eggs, honey, preserves)

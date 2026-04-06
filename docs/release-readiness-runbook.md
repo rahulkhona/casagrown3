@@ -4,6 +4,29 @@
 > **Usage:** Run per-app sections independently, or all together for a full release.  
 > **Prerequisites:** `supabase start` must be running, `node_modules` installed.
 
+## Workspace Environment Setup
+
+New clones or workspaces **must** have their `.env` files initialized correctly to point to the local Supabase instance instead of production.
+
+Run the bootstrap script to automatically generate the required configuration:
+```bash
+./scripts/setup-workspace.sh
+```
+
+**What it configures:**
+- `apps/next-market/.env` 
+- `apps/next-admin/.env`
+- `apps/next-community-voice/.env`
+- `apps/next-metrics/.env`
+
+*Required variables for frontend apps (auto-populated by script):*
+- `NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1...` (Standard Supabase demo key)
+- `SUPABASE_SERVICE_ROLE_KEY=eyJhbGci...` (Standard Supabase demo key)
+
+**Edge Functions Secrets:**
+The script will prompt you for Stripe keys to populate `supabase/.env.local`. E2E tests for the transaction lifecycle require valid Stripe Sandbox keys.
+
 ---
 
 ## Quick Reference — Full Release (All Apps)
@@ -29,6 +52,9 @@ cd apps/next-community-voice && npx vitest run && npx playwright test
 
 # 7. Metrics Unit + E2E — 2 files
 cd apps/next-metrics && npx vitest run && npx playwright test
+
+# 8. Quarantine Bot — Unit Tests
+cd apps/quarantine-bot && npx vitest run
 ```
 
 ---
@@ -209,6 +235,20 @@ cd apps/next-metrics && npx next dev -p 3004 &
 
 ---
 
+## APP 5: Quarantine Bot (`quarantine-bot`)
+
+### 5A. Unit Tests 
+
+```bash
+cd apps/quarantine-bot && npx vitest run
+```
+
+| File | What |
+|------|------|
+| `__tests__/health-logger.test.ts` | Schema drift detection & alerting logic |
+
+---
+
 ## Backend-Only (No App UI)
 
 ### Provider Tests (5 files)
@@ -264,8 +304,9 @@ supabase test db --filter 23_100k_stress_test
 | **Admin** | 2 | 7 | 1* | shared | 10 |
 | **Voice** | 1 | 5 | — | — | 6 |
 | **Metrics** | 1 | 1 | — | — | 2 |
+| **Quarantine Bot**| 1 (4) | — | — | — | 1 |
 | **Backend** | — | — | 10 | — | 10 |
-| **TOTAL** | **48** | **59** | **48** | **33** | **188** |
+| **TOTAL** | **49** | **59** | **48** | **33** | **189** |
 
 *Admin shares Deno's `process-redemptions` tests.
 
