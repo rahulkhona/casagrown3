@@ -2,8 +2,6 @@
 // Health Logger — tracks source health, schema drift, and API reliability
 // ============================================================================
 
-import { writeFileSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
 import type { SourceHealth, SchemaIssue } from '../types.js';
 
 /** Accumulates health data across all sources for a single run */
@@ -230,111 +228,6 @@ export class HealthLogger {
     }
   }
 
-  // ─── Report Generation ─────────────────────────────────────────────
-
-  /** Generate and write the health report */
-  writeReport(outputDir: string): string {
-    mkdirSync(outputDir, { recursive: true });
-    const now = new Date();
-    const ts = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    const reportPath = join(outputDir, `health_${ts}.log`);
-
-    const lines: string[] = [
-      '═══════════════════════════════════════════════════════════════════',
-      '  QUARANTINE BOT — HEALTH REPORT',
-      `  Run: ${this.runStartedAt.toISOString()} → ${now.toISOString()}`,
-      `  Duration: ${now.getTime() - this.runStartedAt.getTime()}ms`,
-      '═══════════════════════════════════════════════════════════════════',
-      '',
-    ];
-
-    // Overall status
-    const allSources = Array.from(this.sources.values());
-    const failed = allSources.filter((s) => s.status === 'FAILED');
-    const degraded = allSources.filter((s) => s.status === 'DEGRADED');
-    const ok = allSources.filter((s) => s.status === 'OK');
-
-    lines.push(`OVERALL: ${ok.length} OK, ${degraded.length} DEGRADED, ${failed.length} FAILED`);
-    lines.push(`TOTAL RECORDS: ${allSources.reduce((sum, s) => sum + s.records_fetched, 0)}`);
-    lines.push('');
-
-    // Per-source detail
-    for (const source of allSources) {
-      const icon =
-        source.status === 'OK' ? '✅' : source.status === 'DEGRADED' ? '⚠️ ' : '❌';
-      lines.push(`── ${icon} ${source.source_name} ──`);
-      lines.push(`   Status: ${source.status}`);
-      lines.push(`   Records: ${source.records_fetched}`);
-      lines.push(`   Duration: ${source.duration_ms}ms`);
-
-      if (source.errors.length > 0) {
-        lines.push('   Errors:');
-        for (const e of source.errors) lines.push(`     ❌ ${e}`);
-      }
-
-      if (source.warnings.length > 0) {
-        lines.push('   Warnings:');
-        for (const w of source.warnings) lines.push(`     ⚠️  ${w}`);
-      }
-
-      if (source.schema_issues.length > 0) {
-        lines.push('   Schema Issues:');
-        for (const si of source.schema_issues) {
-          const icon2 =
-            si.severity === 'ERROR' ? '🔴' : si.severity === 'WARNING' ? '🟡' : '🔵';
-          let line = `     ${icon2} [${si.severity}] ${si.field}: ${si.message}`;
-          if (si.expected)
-            line += ` (expected: ${si.expected}, got: ${si.actual ?? 'n/a'})`;
-          lines.push(line);
-        }
-      }
-
-      lines.push('');
-    }
-
-    // Action items
-    const actionItems: string[] = [];
-    for (const source of allSources) {
-      if (source.status === 'FAILED') {
-        actionItems.push(
-          `🔴 ${source.source_name}: Source completely failed. Check if the API endpoint has changed or is down.`,
-        );
-      }
-      for (const si of source.schema_issues) {
-        if (si.severity === 'ERROR') {
-          actionItems.push(
-            `🔴 ${source.source_name}: Schema error on field "${si.field}" — code update may be required.`,
-          );
-        }
-      }
-      if (source.status === 'DEGRADED' && source.schema_issues.some((s) => s.severity === 'WARNING')) {
-        actionItems.push(
-          `🟡 ${source.source_name}: Schema warnings detected. Review and update expected schema if API has legitimately changed.`,
-        );
-      }
-    }
-
-    if (actionItems.length > 0) {
-      lines.push('═══════════════════════════════════════════════════════════════════');
-      lines.push('  ACTION ITEMS — Review these before trusting the CSV output');
-      lines.push('═══════════════════════════════════════════════════════════════════');
-      for (const item of actionItems) lines.push(`  ${item}`);
-      lines.push('');
-    }
-
-    const report = lines.join('\n');
-    writeFileSync(reportPath, report, 'utf-8');
-
-    // Also print summary to console
-    console.log('\n' + lines.slice(0, 8).join('\n'));
-    if (actionItems.length > 0) {
-      console.log('\n⚠️  ACTION ITEMS:');
-      for (const item of actionItems) console.log(`  ${item}`);
-    }
-
-    return reportPath;
-  }
-
   /** Get the overall status */
   getOverallStatus(): 'OK' | 'DEGRADED' | 'FAILED' {
     const allSources = Array.from(this.sources.values());
@@ -355,10 +248,5 @@ export class HealthLogger {
   hasSchemaDrift(): boolean {
     const allSources = Array.from(this.sources.values());
     return allSources.some(s => s.schema_issues.some(issue => issue.severity === 'ERROR' || issue.severity === 'WARNING'));
-  }
-
-  /** Return the raw log data array for DB persistence */
-  getRawLog(): any[] {
-    return Array.from(this.sources.values());
   }
 }

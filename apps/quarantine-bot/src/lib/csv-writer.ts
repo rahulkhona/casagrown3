@@ -12,8 +12,9 @@ const CSV_HEADERS: (keyof QuarantineZoneRow)[] = [
   'state_name',
   'county_name',
   'city_name',
-  'category',
-  'produce_category',
+  'sales_categories',
+  'produce_categories',
+  'keywords',
   'pest_name',
   'notes',
   'starts_at',
@@ -26,12 +27,13 @@ const CSV_HEADERS: (keyof QuarantineZoneRow)[] = [
 ];
 
 /** Escape a CSV field: quote if it contains commas, quotes, or newlines */
-function escapeField(value: string): string {
+function escapeField(value: any): string {
   if (!value) return '';
-  if (value.includes(',') || value.includes('"') || value.includes('\n') || value.includes('\r')) {
-    return `"${value.replace(/"/g, '""')}"`;
+  const strValue = Array.isArray(value) ? value.join(';') : String(value);
+  if (strValue.includes(',') || strValue.includes('"') || strValue.includes('\n') || strValue.includes('\r')) {
+    return `"${strValue.replace(/"/g, '""')}"`;
   }
-  return value;
+  return strValue;
 }
 
 /**

@@ -43,6 +43,8 @@ export default function QuarantineZonesPage() {
   const [endsAt, setEndsAt] = useState('')
   const [sourceUrl, setSourceUrl] = useState('')
   const [reason, setReason] = useState('')
+  const [produceCategories, setProduceCategories] = useState('')
+  const [keywords, setKeywords] = useState('')
   
   // Jurisdiction cascading state
   const [scope, setScope] = useState<'global' | 'country' | 'state' | 'county' | 'city'>('county')
@@ -208,15 +210,23 @@ export default function QuarantineZonesPage() {
     {
       header: 'Category',
       accessorKey: 'category',
-      width: 100,
+      flex: 1.5,
       cell: (item) => (
-        <XStack backgroundColor={item.category === 'ALL' ? colors.red[100] : "#ffedd5"} 
-               paddingHorizontal="$2" paddingVertical="$1" borderRadius="$2" alignSelf="flex-start">
-          <Text fontSize="$2" fontWeight="600" 
-                color={item.category === 'ALL' ? colors.red[700] : "#c2410c"}>
-            {item.category === 'ALL' ? '⛔ ALL' : item.category}
-          </Text>
-        </XStack>
+        <YStack gap="$1">
+          <XStack backgroundColor={item.category === 'ALL' ? colors.red[100] : "#ffedd5"} 
+                 paddingHorizontal="$2" paddingVertical="$1" borderRadius="$2" alignSelf="flex-start">
+            <Text fontSize="$2" fontWeight="600" 
+                  color={item.category === 'ALL' ? colors.red[700] : "#c2410c"}>
+              {item.category === 'ALL' ? '⛔ ALL' : item.category}
+            </Text>
+          </XStack>
+          {item.produce_categories && item.produce_categories.length > 0 ? (
+            <Text fontSize="$1" color={colors.gray[600]}>Hosts: {item.produce_categories.join(', ')}</Text>
+          ) : null}
+          {item.keywords && item.keywords.length > 0 ? (
+            <Text fontSize="$1" color={colors.gray[500]} numberOfLines={1}>Keywords: {item.keywords.join(', ')}</Text>
+          ) : null}
+        </YStack>
       )
     },
     {
@@ -266,6 +276,8 @@ export default function QuarantineZonesPage() {
     setEndsAt('')
     setSourceUrl('')
     setReason('')
+    setProduceCategories('')
+    setKeywords('')
     setScope('county')
     setSelectedCountry('USA')
     setSelectedState('')
@@ -288,6 +300,8 @@ export default function QuarantineZonesPage() {
         ends_at: endsAt || null,
         source_url: sourceUrl || null,
         reason: reason || null,
+        produce_categories: produceCategories ? produceCategories.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : [],
+        keywords: keywords ? keywords.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : [],
         is_active: true,
         created_by_admin: true,
         country_iso_3: null,
@@ -434,6 +448,20 @@ export default function QuarantineZonesPage() {
                   ))}
                 </XStack>
               </YStack>
+
+              {/* Granular Properties */}
+              <XStack gap="$3">
+                <YStack gap="$1" flex={1}>
+                  <Label>Produce Categories / Biological Families</Label>
+                  <Input value={produceCategories} onChangeText={setProduceCategories}
+                         placeholder="e.g. citrus, grapes (comma separated)" />
+                </YStack>
+                <YStack gap="$1" flex={1}>
+                  <Label>Blocked Keywords</Label>
+                  <Input value={keywords} onChangeText={setKeywords}
+                         placeholder="e.g. oranges, lemons (comma separated)" />
+                </YStack>
+              </XStack>
 
               {/* Dates */}
               <XStack gap="$3">

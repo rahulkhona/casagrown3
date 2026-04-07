@@ -22,7 +22,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // The OpenAI-compatible endpoint means the rest of the code stays the same.
 const AI_KEY = Deno.env.get("GEMINI_API_KEY") ?? Deno.env.get("OPENROUTER_API_KEY") ?? "";
 const AI_URL = Deno.env.get("AI_URL") ?? "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-const AI_MODEL = Deno.env.get("AI_MODEL") ?? "gemini-3-flash-preview";
+const AI_MODEL = Deno.env.get("AI_MODEL") ?? "gemma-4-31b-it";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -128,7 +128,8 @@ Deno.serve(async (req: Request) => {
         p_category: category,
       });
       if (qStatus && qStatus.length > 0) {
-        quarantineInjection = `\n\nCRITICAL SYSTEM WARNING: The seller is in an active Agricultural Quarantine Zone for ${category} due to ${qStatus[0].pest_name}. Shipping/distributing this is legally prohibited. You MUST FLAG IT with approved: false, include "quarantine_violation" in the issues array, and set a specific clear issue message.`;
+        const pests = qStatus.map((q: any) => q.pest_name).join(', ');
+        quarantineInjection = `\n\nCRITICAL SYSTEM WARNING: The seller operates inside active Agricultural Quarantine Zones for the following pests: ${pests}. Use your vast botanical knowledge to determine if the listed product (or its soil/leaves/seeds) is a known host or vector for any of these specific pests. If it is a biological host, shipping it is legally prohibited — you MUST FLAG IT with approved: false and issue 'quarantine_violation'. If the product is biologically completely unrelated to the pests (e.g., selling carrots during a citrus fly quarantine), you may APPROVE it.`;
       }
     } catch (e) {
       console.warn("Quarantine check failed in moderation:", e);

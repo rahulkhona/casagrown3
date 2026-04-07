@@ -38,24 +38,26 @@ function extractProduceCategory(notes: string): string {
 /**
  * Converts a raw record from any source into a normalized CSV row.
  */
-export async function normalize(raw: RawQuarantineRecord): Promise<QuarantineZoneRow> {
-  let category = 'produce';
-  let produce_category = extractProduceCategory(raw.notes);
+export async function normalize(raw: RawQuarantineRecord, validSalesCategories: string[]): Promise<QuarantineZoneRow> {
+  let sales_categories = ['produce'];
+  let produce_categories = extractProduceCategory(raw.notes).split(', ').filter(Boolean);
+  let keywords: string[] = [];
 
   const cached = getCachedCategory(raw.pest_name);
   if (cached) {
-    category = cached.category;
-    produce_category = cached.produce_category;
+    sales_categories = cached.sales_categories;
+    produce_categories = cached.produce_categories;
+    keywords = cached.keywords;
   } else {
-    // 1. Try LLM
-    const llmRes = await askGeminiCategory(raw.pest_name, raw.notes);
+    const llmRes = await askGeminiCategory(raw.pest_name, raw.notes, validSalesCategories);
     if (llmRes) {
-      category = llmRes.category;
-      produce_category = llmRes.produce_category;
-      setCachedCategory(raw.pest_name, llmRes);
+      sales_categories = llmRes.sales_categories.length ? llmRes.sales_categories : [extractSalesCategory(raw.notes)];
+      produce_categories = llmRes.produce_categories;
+      keywords = llmRes.keywords;
+      await setCachedCategory(raw.pest_name, { sales_categories, produce_categories, keywords });
     } else {
       // 2. Fallback to manual heuristics
-      category = extractSalesCategory(raw.notes);
+      sales_categories = [extractSalesCategory(raw.notes)];
     }
   }
 
@@ -65,8 +67,9 @@ export async function normalize(raw: RawQuarantineRecord): Promise<QuarantineZon
     state_name: raw.state_name,
     county_name: raw.county_name || '',
     city_name: raw.city_name || '',
-    category,
-    produce_category,
+    sales_categories,
+    produce_categories,
+    keywords,
     pest_name: raw.pest_name,
     notes: raw.notes,
     starts_at: raw.starts_at ? format(raw.starts_at, 'yyyy-MM-dd') : '',

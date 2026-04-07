@@ -1,35 +1,53 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const CACHE_PATH = path.join(__dirname, '..', '..', 'pest-cache.json');
+import { SupabaseClient } from '@supabase/supabase-js';
 
 export interface ParsedCategory {
-  category: string;
-  produce_category: string;
+  sales_categories: string[];
+  produce_categories: string[];
+  keywords: string[];
 }
 
-export function getCachedCategory(pestName: string): ParsedCategory | null {
-  try {
-    if (!fs.existsSync(CACHE_PATH)) return null;
-    const data = JSON.parse(fs.readFileSync(CACHE_PATH, 'utf-8'));
-    return data[pestName.toLowerCase()] || null;
-  } catch (e) {
-    return null;
+// In-memory cache loaded from Supabase at boot
+const memoryCache: Record<string, ParsedCategory> = {};
+let supabaseClient: SupabaseClient | null = null;
+
+export async function initPestCache(supabase: SupabaseClient) {
+  supabaseClient = supabase;
+  
+  // Load entire cache synchronously to memory for fast lookups
+  const { data, error } = await supabase.from('quarantine_pest_categories').select('*');
+  if (!error && data) {
+    for (const row of data) {
+      memoryCache[row.pest_name] = {
+        sales_categories: row.sales_categories || [],
+        produce_categories: row.produce_categories || [],
+        keywords: row.keywords || []
+      };
+    }
+  } else {
+    console.warn('⚠️ Failed to load pest cache from Supabase:', error);
   }
 }
 
-export function setCachedCategory(pestName: string, parsed: ParsedCategory) {
-  try {
-    let data: Record<string, ParsedCategory> = {};
-    if (fs.existsSync(CACHE_PATH)) {
-      data = JSON.parse(fs.readFileSync(CACHE_PATH, 'utf-8'));
-    }
-    data[pestName.toLowerCase()] = parsed;
-    fs.writeFileSync(CACHE_PATH, JSON.stringify(data, null, 2));
-  } catch (e) {
-    console.error('Failed to write pest cache', e);
+export function getCachedCategory(pestName: string): ParsedCategory | null {
+  return memoryCache[pestName.toLowerCase()] || null;
+}
+
+export async function setCachedCategory(pestName: string, parsed: ParsedCategory) {
+  const normalized = pestName.toLowerCase();
+  
+  // Update local memory immediately
+  memoryCache[normalized] = parsed;
+
+  if (supabaseClient) {
+    // Fire and forget to Supabase
+    supabaseClient.from('quarantine_pest_categories').upsert({
+      pest_name: normalized,
+      sales_categories: parsed.sales_categories,
+      produce_categories: parsed.produce_categories,
+      keywords: parsed.keywords,
+      updated_at: new Date().toISOString()
+    }).then(({ error }) => {
+      if (error) console.error('Failed to write pest cache to DB', error);
+    });
   }
 }

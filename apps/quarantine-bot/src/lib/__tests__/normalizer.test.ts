@@ -16,16 +16,16 @@ describe('normalizer', () => {
       confidence: 'HIGH'
     };
     
-    const row = await normalize(raw);
+    const row = await normalize(raw, ['produce']);
     
     expect(row.state_code).toBe('CA');
     expect(row.county_name).toBe('Los Angeles');
     expect(row.notes).toBe(raw.notes);
     expect(row.is_active).toBe('true');
-    expect(row.category).toBe('produce');
+    expect(row.sales_categories).toContain('produce');
     // 'hlb' -> citrus, 'spotted lanternfly' -> grapes
-    expect(row.produce_category.includes('citrus')).toBeTruthy();
-    expect(row.produce_category.includes('grapes')).toBeTruthy();
+    expect(row.produce_categories).toContain('citrus');
+    expect(row.produce_categories).toContain('grapes');
   });
 
   it('deduplicates properly keeping the newest', async () => {
@@ -40,7 +40,7 @@ describe('normalizer', () => {
       data_source: 'T1',
       confidence: 'LOW',
       starts_at: new Date('2023-01-01')
-    });
+    }, ['produce']);
 
     const row2 = await normalize({
       notes: 'apple moth',
@@ -53,7 +53,7 @@ describe('normalizer', () => {
       data_source: 'T2',
       confidence: 'HIGH',
       starts_at: new Date('2023-01-02')
-    });
+    }, ['produce']);
 
     const deduped = deduplicate([row1, row2]);
     expect(deduped.length).toBe(1);

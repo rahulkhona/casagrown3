@@ -24,6 +24,7 @@ import { fetchAPHIS } from './sources/aphis.js';
 import { fetchStateFeeds } from './sources/state-feeds.js';
 import { HealthLogger } from './lib/health-logger.js';
 import { normalize, deduplicate } from './lib/normalizer.js';
+import { initPestCache } from './lib/pest-cache.js';
 import type { RawQuarantineRecord } from './types.js';
 
 // Load monorepo root .env file containing Supabase credentials
@@ -54,6 +55,16 @@ async function main(): Promise<void> {
   const health = new HealthLogger();
   const allRawRecords: RawQuarantineRecord[] = [];
 
+  // Initialize caching from Supabase
+  await initPestCache(supabase);
+
+  // Fetch valid sales categories from DB to pass to LLM
+  let validSalesCategories: string[] = ['produce', 'soil', 'flowers', 'seeds']; // fallback
+  const { data: salesCats } = await supabase.from('sales_categories').select('name');
+  if (salesCats && salesCats.length > 0) {
+    validSalesCategories = salesCats.map(c => c.name);
+  }
+
   // ── 1. Fetch from all sources (independent, fault-tolerant) ──────
 
   console.log('── Source 1/3: CDFA ArcGIS (California) ──');
@@ -76,7 +87,7 @@ async function main(): Promise<void> {
   console.log('── Normalizing records ──');
   const normalizedRows = [];
   for (const raw of allRawRecords) {
-    normalizedRows.push(await normalize(raw));
+    normalizedRows.push(await normalize(raw, validSalesCategories));
   }
 
   // ── 3. Deduplicate ──────────────────────────────────────────────
@@ -144,8 +155,7 @@ async function main(): Promise<void> {
     run_ended_at: runEnd.toISOString(),
     status: status,
     schema_drift_detected: health.hasSchemaDrift(),
-    total_records: health.getTotalRecords(),
-    log_summary: health.getRawLog(),
+    total_records: health.getTotalRecords()
   });
 
   // ── 7. Automatic Administrative Alerts ────────────────────────

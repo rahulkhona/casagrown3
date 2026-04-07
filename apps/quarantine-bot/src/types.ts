@@ -9,8 +9,9 @@ export interface QuarantineZoneRow {
   state_name: string;
   county_name: string;
   city_name: string;
-  category: string;
-  produce_category: string;
+  sales_categories: string[];
+  produce_categories: string[];
+  keywords: string[];
   pest_name: string;
   notes: string;
   starts_at: string; // YYYY-MM-DD

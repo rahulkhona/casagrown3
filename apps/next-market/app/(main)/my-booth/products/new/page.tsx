@@ -133,7 +133,7 @@ function NewProductPageInner() {
 
   // Quarantine check
   const [quarantineWarning, setQuarantineWarning] = useState<{
-    pest_name: string; county_name: string; source_url?: string; reason?: string
+    pest_name: string; county_name: string; source_url?: string; reason?: string; keywords: string[];
   } | null>(null)
   const [quarantineChecking, setQuarantineChecking] = useState(false)
 
@@ -406,6 +406,7 @@ function NewProductPageInner() {
             county_name: q.county_name || q.state_name || 'your area',
             source_url: q.source_url,
             reason: q.reason,
+            keywords: q.keywords || [],
           })
         } else {
           setQuarantineWarning(null)
@@ -467,7 +468,18 @@ function NewProductPageInner() {
     // Strict checks only enforced if trying to publish fully
     if (!needsDraft) {
       if (quarantineWarning) {
-        newErrors.submit = `Cannot list this item. Quarantine Alert: ${quarantineWarning.pest_name} in ${quarantineWarning.county_name}.`
+        if (!quarantineWarning.keywords || quarantineWarning.keywords.length === 0 || quarantineWarning.keywords.includes('all')) {
+          newErrors.submit = `Cannot list this item. Quarantine Alert: ${quarantineWarning.pest_name} in ${quarantineWarning.county_name}.`
+        } else {
+          const productWords = name.trim().toLowerCase();
+          const matchedKeyword = quarantineWarning.keywords.find(kw => {
+            const regex = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}\\b`, 'i');
+            return regex.test(productWords);
+          });
+          if (matchedKeyword) {
+            newErrors.submit = `Cannot list "${matchedKeyword}" products. Quarantine Alert: ${quarantineWarning.pest_name} in ${quarantineWarning.county_name}.`
+          }
+        }
       }
       if (!name.trim()) newErrors.name = 'Name is required'
       if (!isValidPrice) {
