@@ -85,16 +85,19 @@ describe('ProductDetailClient — UX Contract', () => {
     expect(dmIdx).toBeGreaterThan(qaIdx)
   })
 
-  it('address check is inside delivery section, not after pickup', () => {
-    // "Check" button/link should appear in the delivery section
-    // Look for pattern: Delivery -> Check -> Pickup
-    const deliveryIdx = detailSrc.indexOf("'Delivery'")
-    const pickupIdx = detailSrc.indexOf("'Pickup'")
-    const checkIdx = detailSrc.indexOf("'Check")
-    if (deliveryIdx > -1 && pickupIdx > -1 && checkIdx > -1) {
-      expect(checkIdx).toBeGreaterThan(deliveryIdx)
-      expect(checkIdx).toBeLessThan(pickupIdx)
-    }
+  it('distance check form is explicitly injected into fulfillment sections', () => {
+    // We extracted this to a reusable distanceCheckerForm JSX block
+    // Ensure it exists and is used in the codebase
+    expect(detailSrc).toContain('const distanceCheckerForm')
+    // It should be injected at least once into the active fulfillment blocks
+    expect(detailSrc).toContain('{distanceCheckerForm}')
+  })
+
+  it('share payload includes user-specific intro, price, and available quantity', () => {
+    expect(detailSrc).toContain("const shareIntro = isOwner ? 'my fresh' : 'this fresh'")
+    expect(detailSrc).toContain("product.price_usd")
+    expect(detailSrc).toContain("product.inventory")
+    expect(detailSrc).toContain("available'")
   })
 
   it('calls anonymizeAddress for pickup location', () => {

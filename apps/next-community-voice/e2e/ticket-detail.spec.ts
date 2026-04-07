@@ -10,14 +10,12 @@ import { expect, test } from "@playwright/test";
 
 async function navigateToFirstTicket(page: any) {
     await page.goto("/board");
-    // Wait for board data — be resilient to slow SSR hydration
-    try {
-        await page.locator("text=/results/i").first().waitFor({
-            timeout: 20_000,
-        });
-    } catch {
-        await page.waitForTimeout(5000);
-    }
+    
+    // Auto-poll safely to let NextJS Dev Server hydrate on first test
+    await expect(page.locator("body")).toHaveText(
+        /results|Allow uploading videos|Dark mode|Map not loading/i,
+        { timeout: 25_000 }
+    );
 
     // Try clicking a ticket via testID first, then fallback to text
     const ticketCard = page.getByTestId("ticket-card-title").first();

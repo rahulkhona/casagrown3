@@ -299,6 +299,54 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
       ' at ' + nextOpenDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
     : null
 
+  const distanceCheckerForm = (!isDemo && product.seller_id !== user?.id) ? (
+    <div style={{ marginTop: 6 }}>
+      {distanceMiles != null && (
+        <p style={{ fontSize: 11, color: 'var(--gray-400)', margin: '0 0 2px' }}>
+          📍 {addrLabel.length > 40 ? addrLabel.slice(0, 40) + '…' : addrLabel}
+        </p>
+      )}
+      {!showAltAddrInput ? (
+        <button
+          onClick={() => setShowAltAddrInput(true)}
+          style={{
+            background: 'none', border: 'none', color: 'var(--green-600)',
+            fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0,
+          }}
+        >
+          {distanceMiles != null ? '🔄 Check another address' : '📍 Check your distance'}
+        </button>
+      ) : (
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginTop: 4 }}>
+          <input
+            style={{
+              flex: 1, padding: '4px 8px', border: '1px solid var(--gray-200)',
+              borderRadius: 6, fontSize: 12, fontFamily: 'inherit', outline: 'none',
+            }}
+            placeholder="Enter address..."
+            value={altAddress}
+            onChange={e => setAltAddress(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleCheckAltAddress()}
+            autoFocus
+          />
+          <button
+            onClick={handleCheckAltAddress}
+            disabled={checkingAltAddr || !altAddress.trim()}
+            style={{
+              width: 24, height: 24, borderRadius: '50%', background: 'var(--green-600)',
+              color: '#fff', border: 'none', fontWeight: 700, fontSize: 12, cursor: 'pointer',
+              opacity: checkingAltAddr || !altAddress.trim() ? 0.4 : 1,
+            }}
+          >{checkingAltAddr ? '…' : '→'}</button>
+          <button
+            onClick={() => { setShowAltAddrInput(false); setAltAddress('') }}
+            style={{ background: 'none', border: 'none', color: 'var(--gray-400)', cursor: 'pointer', fontSize: 12 }}
+          >✕</button>
+        </div>
+      )}
+    </div>
+  ) : null;
+
   return (
     <div className="container">
       {/* Demo Banner */}
@@ -433,15 +481,19 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
             )}
           </div>
 
-          {/* Owner Share Button */}
-          {isAuthenticated && user?.id === product.seller_id && !isDemo && (
+          {/* Share Button (Owner & Visitor) */}
+          {!isDemo && (
             <div style={{ marginTop: 16 }}>
               <button
                 className="btn btn-secondary"
                 style={{ width: '100%', padding: '10px 20px', fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
                 onClick={async () => {
                   const url = typeof window !== 'undefined' ? window.location.href : ''
-                  const text = `Hey! Check out my fresh ${product.name} on CasaGrown Market 🌱\n\n${product.price_usd === 0 ? 'Free' : formatUsd(product.price_usd) + ' / ' + product.unit}\n\n🛒 ${url}`
+                  const isOwner = isAuthenticated && user?.id === product.seller_id
+                  const shareIntro = isOwner ? 'my fresh' : 'this fresh'
+                  const priceStr = product.price_usd === 0 ? 'Free' : `${formatUsd(product.price_usd)} / ${product.unit}`
+                  const availStr = product.inventory > 0 ? ` (${product.inventory} available)` : ' (Sold Out)'
+                  const text = `Hey! Check out ${shareIntro} ${product.name} on CasaGrown Market 🌱\n\n${priceStr}${availStr}\n\n🛒 ${url}`
                   if (navigator.share) {
                     try { await navigator.share({ title: `${product.name} on CasaGrown`, text, url }) } catch {}
                   } else {
@@ -638,7 +690,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                             🚗 Delivery
                           </div>
                           <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 2 }}>
-                            Within {booth.delivery_radius_miles || 10} miles
+                            Within {booth.delivery_radius_miles || 10} miles of {booth.pickup_display_address || 'Seller location'}
                           </div>
                         </div>
                       </button>
@@ -764,7 +816,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                         <small style={{ color: '#dc2626', fontWeight: 600 }}>❌ Outside range ({distanceMiles} mi — max {booth.delivery_radius_miles} mi)</small>
                       )
                     ) : (
-                      <small>Within {booth.delivery_radius_miles} miles</small>
+                      <small>Within {booth.delivery_radius_miles} miles of {booth.pickup_display_address || 'Seller location'}</small>
                     )}
                     {/* Delivery time windows */}
                     {(() => {
@@ -788,54 +840,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                         </div>
                       ) : null
                     })()}
-                    {/* Delivery address check — inline under delivery */}
-                    {!isDemo && product.seller_id !== user?.id && (
-                      <div style={{ marginTop: 6 }}>
-                        {distanceMiles != null && (
-                          <p style={{ fontSize: 11, color: 'var(--gray-400)', margin: '0 0 2px' }}>
-                            📍 {addrLabel.length > 40 ? addrLabel.slice(0, 40) + '…' : addrLabel}
-                          </p>
-                        )}
-                        {!showAltAddrInput ? (
-                          <button
-                            onClick={() => setShowAltAddrInput(true)}
-                            style={{
-                              background: 'none', border: 'none', color: 'var(--green-600)',
-                              fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0,
-                            }}
-                          >
-                            {distanceMiles != null ? '🔄 Check another address' : '📍 Check your distance'}
-                          </button>
-                        ) : (
-                          <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginTop: 4 }}>
-                            <input
-                              style={{
-                                flex: 1, padding: '4px 8px', border: '1px solid var(--gray-200)',
-                                borderRadius: 6, fontSize: 12, fontFamily: 'inherit', outline: 'none',
-                              }}
-                              placeholder="Enter address..."
-                              value={altAddress}
-                              onChange={e => setAltAddress(e.target.value)}
-                              onKeyDown={e => e.key === 'Enter' && handleCheckAltAddress()}
-                              autoFocus
-                            />
-                            <button
-                              onClick={handleCheckAltAddress}
-                              disabled={checkingAltAddr || !altAddress.trim()}
-                              style={{
-                                width: 24, height: 24, borderRadius: '50%', background: 'var(--green-600)',
-                                color: '#fff', border: 'none', fontWeight: 700, fontSize: 12, cursor: 'pointer',
-                                opacity: checkingAltAddr || !altAddress.trim() ? 0.4 : 1,
-                              }}
-                            >{checkingAltAddr ? '…' : '→'}</button>
-                            <button
-                              onClick={() => { setShowAltAddrInput(false); setAltAddress('') }}
-                              style={{ background: 'none', border: 'none', color: 'var(--gray-400)', cursor: 'pointer', fontSize: 12 }}
-                            >✕</button>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                    {distanceCheckerForm}
                   </div>
                 </div>
               )}
@@ -848,7 +853,14 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                     {(() => {
                       const displayAddr = booth.pickup_display_address || anonymizeAddress(booth.pickup_address)
                       return displayAddr ? (
-                        <small style={{ display: 'block' }}>{displayAddr}</small>
+                        <>
+                          <small style={{ display: 'block' }}>{displayAddr}</small>
+                          {distanceMiles != null && (
+                            <small style={{ display: 'block', color: 'var(--gray-500)', fontWeight: 600, marginTop: 4 }}>
+                              📍 {distanceMiles} miles away
+                            </small>
+                          )}
+                        </>
                       ) : null
                     })()}
                     {/* Pickup time windows */}
@@ -873,11 +885,12 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                         </div>
                       ) : null
                     })()}
+                    {distanceCheckerForm}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
         </div>
       </div>
 

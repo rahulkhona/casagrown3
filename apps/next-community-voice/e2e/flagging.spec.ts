@@ -11,16 +11,13 @@ import { expect, test } from "@playwright/test";
 test.describe("Content Flagging", () => {
     test("flag button is visible on board ticket cards", async ({ page }) => {
         await page.goto("/board");
-        // Wait for tickets to load
-        try {
-            await page.locator("text=/results/").first().waitFor({
-                timeout: 30_000,
-            });
-        } catch {
-            await page.waitForTimeout(5000);
-        }
+        // Wait for tickets to load (auto-polling safe)
+        await expect(page.locator("body")).toHaveText(
+            /Allow uploading videos in chat|Dark mode support|Map not loading/,
+            { timeout: 15_000 }
+        );
 
-        // Ticket cards should render — check for any seeded ticket
+        // Verify the board card is present containing the expected text
         const body = await page.locator("body").innerText();
         const hasTicketContent =
             body.includes("Allow uploading videos in chat") ||
@@ -31,12 +28,11 @@ test.describe("Content Flagging", () => {
 
     test("flag button is visible on ticket detail page", async ({ page }) => {
         await page.goto("/board");
+        // Safe wait
         try {
-            await page.locator("text=/results/").first().waitFor({
-                timeout: 30_000,
-            });
+            await page.locator("text=/results/").first().waitFor({ timeout: 10_000 });
         } catch {
-            await page.waitForTimeout(5000);
+            await page.waitForTimeout(2000);
         }
 
         // Navigate to a ticket detail — click on a ticket title
