@@ -30,7 +30,7 @@ test.describe('CasaBot & Community E2E', () => {
     }
     
     // Tap the bubble to reveal the reply input (if not already revealed)
-    const bubble = casabotMessage.locator('div[class*="messageBubble"], div[class*="bubble"]').first()
+    const bubble = casabotMessage.locator('div[data-testid="message-bubble"], div[class*="bubble"]').first()
     const bubbleVisible = await bubble.isVisible({ timeout: 3000 }).catch(() => false)
     if (bubbleVisible) {
       await bubble.click({ force: true })

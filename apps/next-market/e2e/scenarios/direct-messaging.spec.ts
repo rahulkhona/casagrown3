@@ -185,7 +185,7 @@ test.describe('Direct Messaging & Block Flows', () => {
       await page.waitForLoadState('networkidle')
 
       // Click a message to trigger action bar
-      const msgBubble = page.locator('[class*="messageBubble"]').last()
+      const msgBubble = page.locator('[data-testid="message-bubble"]').last()
       if (await msgBubble.isVisible({ timeout: 3000 }).catch(() => false)) {
         await msgBubble.click()
 

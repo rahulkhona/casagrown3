@@ -276,11 +276,11 @@ test.describe('Chat & Social Flows', () => {
     await assertPageHealthy(page)
 
     // Wait for the feed to load
-    await expect(page.locator('[class*="messageBubble"]').first()).toBeVisible({ timeout: 15000 })
+    await expect(page.locator('[data-testid="message-bubble"]').first()).toBeVisible({ timeout: 15000 })
 
     // Set up clean database state just in case 
     // Click a message to trigger action bar
-    const msgBubble = page.locator('[class*="messageBubble"]').first()
+    const msgBubble = page.locator('[data-testid="message-bubble"]').first()
     await msgBubble.click()
 
     // Assert action bar is visible

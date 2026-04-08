@@ -157,7 +157,7 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
         
         {/* Product listing card OR regular text bubble */}
         {message.product_listing_id ? (
-          <div onClick={handleBubbleTap}>
+          <div onClick={handleBubbleTap} data-testid="message-bubble">
             <ProductListingCard
               productId={message.product_listing_id}
               messageContent={message.content}
@@ -168,6 +168,7 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
           <div 
             className={`${styles.messageBubble} ${isBot ? styles.botBubble : ''}`}
             onClick={handleBubbleTap}
+            data-testid="message-bubble"
           >
             <p className={styles.messageText}>{message.content}</p>
             

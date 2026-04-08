@@ -88,7 +88,6 @@ test.describe('Community Chat Moderation & UX', () => {
 
     // Ensure we load the freshest state
     await page.reload()
-    await page.waitForLoadState('networkidle')
 
     // Wait for feed to load messages (increase timeout for slow query)
     await expect(page.locator(`text="${newContent}"`)).toBeVisible({ timeout: 15000 })

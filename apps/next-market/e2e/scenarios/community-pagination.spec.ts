@@ -13,7 +13,7 @@ test.describe('Community Pagination E2E', () => {
     await page.waitForTimeout(3000)
     
     // Get the initial number of messages
-    const messageLocator = page.locator('div[class*="messageBubble"], div[class*="bubble"]')
+    const messageLocator = page.locator('div[data-testid="message-bubble"], div[class*="bubble"]')
     const initialMessageCount = await messageLocator.count()
     
     console.log(`[Pagination Test] Initial messages loaded: ${initialMessageCount}`)
