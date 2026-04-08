@@ -61,14 +61,24 @@ const TERMS_SECTIONS = [
     ],
   },
   {
-    title: '6. Dispute Resolution',
+    title: '6. Dispute Resolution and Cancellations',
     paragraphs: [
       'Review Period: Buyers have four (4) hours post-delivery to report issues.',
-      'Final Authority: CasaGrown Staff holds final authority on whether to release funds or return them to the Buyer.',
+      'Pickup No-Shows: If a transaction is designated for local pickup and the Buyer fails to arrive within the agreed upon timeframe ("No-Show"), the transaction will automatically be marked as Completed, and funds will be released to the Seller.',
+      'Delivery No-Shows: If a transaction is designated for delivery and the Seller fails to deliver the produce within the agreed upon timeframe ("Delivery No-Show"), the transaction will be automatically canceled, and a full refund will be issued to the Buyer.',
+      'Final Authority: In the event of an escalation, CasaGrown Administrators hold the absolute final authority in resolving disputes. Administrators will determine, at their sole discretion, whether to release funds to the Seller or return funds to the Buyer. By using the Platform, you agree to abide by CasaGrown\'s final decision.',
     ],
   },
   {
-    title: '7. Prohibited Listings and Items',
+    title: '7. Agricultural Compliance & Quarantine Liability',
+    paragraphs: [
+      'Venue Status: CasaGrown is a technology venue and is not the shipper, retailer, or distributor of any produce.',
+      'Seller Liability: The Seller assumes 100% of the legal burden and liability for complying with all federal, state, and local agricultural laws, including but not limited to observing quarantine boundaries and securing necessary permits.',
+      'Platform Warnings: Any automated quarantine warnings or checkout blocks provided by the Platform are offered strictly as a convenience and do not constitute a guarantee of compliance. CasaGrown assumes no liability for a Seller\'s failure to adhere to agricultural regulations.',
+    ],
+  },
+  {
+    title: '8. Prohibited Listings and Items',
     paragraphs: [
       'CasaGrown is a marketplace exclusively for fresh produce and related neighborhood goods. To ensure user safety and regulatory compliance, the following items are strictly prohibited:',
       'Regulated Substances: Cigarettes, e-cigarettes, vapes, tobacco, alcohol, and any illegal drugs or drug paraphernalia.',
@@ -80,7 +90,7 @@ const TERMS_SECTIONS = [
     ],
   },
   {
-    title: '8. Community Standards and Conduct',
+    title: '9. Community Standards and Conduct',
     paragraphs: [
       'We have a zero-tolerance policy for behavior that makes our neighborhood unsafe or unwelcome:',
       'Zero Harassment: You may not threaten, stalk, bully, or harass any user.',
@@ -90,7 +100,7 @@ const TERMS_SECTIONS = [
     ],
   },
   {
-    title: '9. Minor and Teen Safety',
+    title: '10. Minor and Teen Safety',
     paragraphs: [
       'CasaGrown allows teenagers to participate in the neighborhood economy, but safety is our priority:',
       'Age Requirement: Users must be at least 13 years old to create an account.',

@@ -56,11 +56,23 @@ Sales Tax: We calculate and remit sales tax on behalf of Sellers where required.
 
 IRS Reporting: If your Gross Sales (before netting) exceed $600 (or applicable thresholds), you must provide a valid W-9 to receive further payouts.
 
-## 6. Dispute Resolution
+## 6. Dispute Resolution and Cancellations
 
 Review Period: Buyers have four (4) hours post-delivery to report issues.
 
-Final Authority: CasaGrown Staff holds final authority on whether to release funds or return them to the Buyer.
+Pickup No-Shows: If a transaction is designated for local pickup and the Buyer fails to arrive within the agreed upon timeframe ("No-Show"), the transaction will automatically be marked as Completed, and funds will be released to the Seller.
+
+Delivery No-Shows: If a transaction is designated for delivery and the Seller fails to deliver the produce within the agreed upon timeframe ("Delivery No-Show"), the transaction will be automatically canceled, and a full refund will be issued to the Buyer.
+
+Final Authority: In the event of an escalation, CasaGrown Administrators hold the absolute final authority in resolving disputes. Administrators will determine, at their sole discretion, whether to release funds to the Seller or return funds to the Buyer. By using the Platform, you agree to abide by CasaGrown's final decision.
+
+## 7. Agricultural Compliance & Quarantine Liability
+
+Venue Status: CasaGrown is a technology venue and is not the shipper, retailer, or distributor of any produce.
+
+Seller Liability: The Seller assumes 100% of the legal burden and liability for complying with all federal, state, and local agricultural laws, including but not limited to observing quarantine boundaries and securing necessary permits.
+
+Platform Warnings: Any automated quarantine warnings or checkout blocks provided by the Platform are offered strictly as a convenience and do not constitute a guarantee of compliance. CasaGrown assumes no liability for a Seller's failure to adhere to agricultural regulations.
 
 © 2026 CasaGrown. All rights reserved.
 
