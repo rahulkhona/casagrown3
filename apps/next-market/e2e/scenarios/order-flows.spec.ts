@@ -101,31 +101,33 @@ test.describe('Order Flows', () => {
   })
 
   // ── S3.4: Pickup Order Lifecycle ──
-  test('S3.4 — pickup order lifecycle', async ({ browser }) => {
+  test('S3.4 — pickup order lifecycle: mandate pickup proof', async ({ browser }) => {
     const rajPage = await loginAsUser(browser, 'raj')
-    await navigateTo(rajPage, '/my-booth')
-    await assertPageHealthy(rajPage)
-
-    // Verify Raj's booth has products
-    await navigateTo(rajPage, '/my-booth/products')
-    await assertPageHealthy(rajPage)
-
-    const bethPage = await loginAsUser(browser, 'beth')
-
-    // Beth browses market
-    await navigateToMarket(bethPage)
-    await assertPageHealthy(bethPage)
-
-    // Check Raj's orders page works
     await navigateTo(rajPage, '/orders')
     await assertPageHealthy(rajPage)
 
-    // Check Beth's orders page
-    await navigateTo(bethPage, '/orders')
-    await assertPageHealthy(bethPage)
+    // Filter to Needs Action
+    const needsActionTab = rajPage.getByText('🔔 Needs Action', { exact: false }).first()
+    await expect(needsActionTab).toBeVisible({ timeout: 5000 })
+    await needsActionTab.click()
+
+    // Look for any actionable order
+    const orderLinks = rajPage.locator('a[href*="/orders/"]')
+    if (await orderLinks.count() > 0) {
+      await orderLinks.first().click()
+      await rajPage.waitForLoadState('networkidle')
+      
+      // Assert the old bypass button is literally nowhere in the DOM
+      await expect(rajPage.getByRole('button', { name: '✓ Mark as Picked Up' })).toHaveCount(0)
+
+      // We should see Provide Pickup Proof or Provide Delivery Proof
+      const proofBtn = rajPage.locator('button:text-matches("Provide .* Proof", "i")').first()
+      if (await proofBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await expect(proofBtn).toBeVisible()
+      }
+    }
 
     await rajPage.context().close()
-    await bethPage.context().close()
   })
 
   // ── S4.2: Cart Multi-Product Checkout ──

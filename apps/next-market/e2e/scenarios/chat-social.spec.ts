@@ -266,9 +266,64 @@ test.describe('Chat & Social Flows', () => {
 
   // ── S11.2: Email Branding ──
   test('S11.2 — all emails have CasaGrown branding', async ({ browser }) => {
-    // Trigger a login to generate an OTP email (if the system sends one)
-    // Then check all emails in Mailpit for correct branding
     await assertEmailBranding()
+  })
+
+  // ── S9.5: Community Reaction Collapsing & Click-Away ──
+  test('S9.5 — Invoke Community reaction popover, assert share icon, and dismiss via click-away', async ({ browser }) => {
+    const page = await loginAsUser(browser, 'beth')
+    await navigateTo(page, '/community')
+    await assertPageHealthy(page)
+
+    // Wait for the feed to load
+    await expect(page.locator('.message-bubble').first()).toBeVisible({ timeout: 15000 })
+
+    // Set up clean database state just in case 
+    // Click a message to trigger action bar
+    const msgBubble = page.locator('.message-bubble').first()
+    await msgBubble.click()
+
+    // Assert action bar is visible
+    const moreShareBtn = page.getByRole('button', { name: 'More Share Options' })
+    await expect(moreShareBtn).toBeVisible({ timeout: 5000 })
+
+    // Test click-away backdrop
+    await page.locator('body').click({ position: { x: 0, y: 0 }, force: true })
+    await expect(moreShareBtn).not.toBeVisible()
+    
+    await page.context().close()
+  })
+
+  // ── S9.6: Captionless Photo Uploads in Community ──
+  test('S9.6 — Upload a photo to Community feed without text payload', async ({ browser }) => {
+    const page = await loginAsUser(browser, 'beth')
+    await navigateTo(page, '/community')
+
+    // Find the file input explicitly created for ComposeBar photo attachments
+    const fileInput = page.locator('input[type="file"][accept*="image"]')
+    
+    const buffer = Buffer.from('89504E470D0A1A0A0000000D49484452000000010000000108060000001F15C4890000000A49444154789C63000100000500010D0A2DB40000000049454E44AE426082', 'hex')
+
+    await fileInput.setInputFiles({
+      name: 'test-image.png',
+      mimeType: 'image/png',
+      buffer: buffer
+    })
+
+    // Assert thumbnail appears
+    await expect(page.locator('img[alt="Preview"]')).toBeVisible({ timeout: 5000 })
+
+    // "Send Message" should be enabled EVEN though the textarea is empty
+    const sendButton = page.locator('button[aria-label="Send Message"], button[title="Send"]')
+    await expect(sendButton.last()).toBeEnabled()
+
+    // Click to submit and verify
+    await sendButton.last().click()
+    
+    // Ensure image preview clears indicating success
+    await expect(page.locator('img[alt="Preview"]')).toHaveCount(0)
+
+    await page.context().close()
   })
 })
 

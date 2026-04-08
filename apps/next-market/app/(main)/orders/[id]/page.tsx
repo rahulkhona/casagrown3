@@ -462,17 +462,13 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
 
 
 
-      {/* SELLER/HELPER: Pending pickup → Hand Off to Buyer (optional photo) */}
+      {/* SELLER/HELPER: Pending pickup → Hand Off to Buyer (mandatory photo) */}
       {isSellerOrHelper && order.status === 'pending' && order.fulfillment_type === 'pickup' && (
         <div className={styles.actionPanel}>
           <h2 className={styles.sectionTitle}>Actions</h2>
           <div className={styles.actionButtons}>
             <button className="btn btn-primary" onClick={() => setShowDeliveryProof(true)}>
-              📸 Capture Pickup with Photo
-            </button>
-            <button className="btn btn-primary" disabled={actionLoading}
-              onClick={() => callRpc('seller_mark_delivered', { p_order_id: orderId, p_photos: [] })}>
-              ✓ Mark as Picked Up
+              📸 Provide Pickup Proof
             </button>
             <button className="btn btn-outline" onClick={() => setShowDecline(true)}>
               ✕ Decline Order
@@ -941,13 +937,20 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
           </div>
 
           <div className={styles.modalBody}>
+            {/* Proactive tip */}
+            {order.fulfillment_type === 'delivery' && (
+              <div style={{ background: 'var(--blue-50, #eff6ff)', border: '1px solid var(--blue-200, #bfdbfe)', borderRadius: 12, padding: '12px 14px', marginBottom: 16, fontSize: 13, color: 'var(--blue-800, #1e40af)' }}>
+                <strong>📸 Tip:</strong> Please take a photo showing both the <strong>delivery items AND the door, gate, or house</strong>. This context strongly protects you against disputes.
+              </div>
+            )}
+
             {/* Location mismatch warning */}
             {locationWarning && (
               <div style={{ background: '#FFF3CD', border: '1px solid #FFECB5', borderRadius: 12, padding: '12px 14px', marginBottom: 16, fontSize: 13 }}>
                 <div style={{ fontWeight: 700, marginBottom: 4, color: '#856404' }}>⚠️ Location Mismatch</div>
                 <div style={{ color: '#664D03' }}>{locationWarning}</div>
                 <div style={{ marginTop: 6, color: '#856404', fontWeight: 600 }}>
-                  📸 Please take a photo of the door, gate, or house to help identify the drop-off location in case of a dispute.
+                  Make sure you are at the correct address before confirming.
                 </div>
               </div>
             )}

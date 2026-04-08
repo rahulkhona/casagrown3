@@ -1,8 +1,9 @@
 'use client'
 
 import { LoadingSpinner } from '../../components/LoadingSpinner'
+import SocialShareModal from '../../components/SocialShareModal'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, MouseEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useMarket, formatUsd, getNextMarketDate, isMarketOpen, type Booth } from '../../../lib/store'
@@ -89,6 +90,7 @@ export default function MyBoothPage() {
   const myBooth = state.booths.find(b => b.ownerId === state.user?.id)
   const [dbProducts, setDbProducts] = useState<typeof state.products>([])
   const myProducts = dbProducts
+  const [productShareId, setProductShareId] = useState<string | null>(null)
   const myOrders = state.orders.filter(o => o.sellerId === state.user?.id)
 
   const [name, setName] = useState(myBooth?.name || '')
@@ -636,16 +638,9 @@ export default function MyBoothPage() {
         flexWrap: 'wrap',
       }}>
         <span style={{ fontSize: 18 }}>🏪</span>
-        {nextMarket ? (
-          <span style={{ flex: 1 }}>
-            <strong>Next Market: {nextMarket.date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</strong>
-            <span style={{ color: 'var(--green-700)', marginLeft: 6 }}>— your booth is always available to shoppers</span>
-          </span>
-        ) : (
           <span style={{ color: 'var(--green-700)', flex: 1 }}>
             <strong>Your booth is live</strong> — shoppers can browse anytime
           </span>
-        )}
         {/* Invite button */}
         <button
           onClick={() => { setBoothShareMsg(getBoothShareText()); setShowBoothShareModal(true) }}
@@ -1139,8 +1134,8 @@ export default function MyBoothPage() {
                   <button
                     className="btn btn-primary btn-sm"
                     style={{ margin: '8px 8px 4px', fontSize: 12 }}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={async (e) => {
+                    onMouseDown={(e: MouseEvent<HTMLButtonElement>) => e.stopPropagation()}
+                    onClick={async (e: MouseEvent<HTMLButtonElement>) => {
                       e.preventDefault(); e.stopPropagation()
                       const nextMarket = getNextMarketDate(state.marketSchedule)
                       const newDate = nextMarket?.date.toISOString().split('T')[0] || new Date().toISOString().split('T')[0]
@@ -1159,6 +1154,18 @@ export default function MyBoothPage() {
                     🔄 Re-list for Next Market
                   </button>
                 )}
+                {/* ── explicitly Share a Product directly from layout ── */}
+                <button
+                  className="btn btn-secondary btn-sm"
+                  style={{ margin: '4px 8px 8px', fontSize: 13, background: 'var(--gray-50)', color: 'var(--gray-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, border: '1px solid var(--gray-200)' }}
+                  onClick={(e: MouseEvent<HTMLButtonElement>) => {
+                    e.preventDefault(); e.stopPropagation()
+                    setProductShareId(slot.product!.id)
+                  }}
+                  onMouseDown={(e: MouseEvent<HTMLButtonElement>) => e.stopPropagation()}
+                >
+                  <ShareIcon size={14} /> Share
+                </button>
               </div>
             ) : (
               <Link
@@ -1358,65 +1365,38 @@ export default function MyBoothPage() {
         {saved ? '✓ Saved' : 'Save Booth'}
       </button>
 
-      {saved && (
-        <button
-          className={styles.saveBtn}
-          style={{ marginTop: 8, background: 'var(--white)', color: 'var(--green-700)', border: '2px solid var(--green-200)' }}
-          onClick={() => { setBoothShareMsg(getBoothShareText()); setShowBoothShareModal(true) }}
-        >
-          <ShareIcon size={14} /> Share My Booth
-        </button>
-      )}
+      <button
+        className={styles.saveBtn}
+        style={{ marginTop: 8, background: 'var(--white)', color: 'var(--green-700)', border: '2px solid var(--green-200)' }}
+        onClick={() => { setBoothShareMsg(getBoothShareText()); setShowBoothShareModal(true) }}
+      >
+        <ShareIcon size={14} /> Share My Booth
+      </button>
 
       {/* ── Share Booth Modal (after save) ── */}
       {showBoothShareModal && (
-        <>
-          <div className={styles.shareBackdrop} onClick={() => setShowBoothShareModal(false)} />
-          <div className={styles.shareModal}>
-            <div style={{ fontSize: 40, marginBottom: 8 }}>🎉</div>
-            <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>{name} Saved!</h2>
-            <p style={{ fontSize: 14, color: 'var(--gray-500)', marginBottom: 16 }}>
-              Edit the message below, then share with your neighbors.
-            </p>
-            <textarea
-              style={{ width: '100%', minHeight: 120, borderRadius: 10, padding: '12px 16px', fontSize: 13, color: 'var(--gray-700)', textAlign: 'left', lineHeight: 1.5, border: '1px solid var(--gray-300)', resize: 'vertical', fontFamily: 'inherit' }}
-              value={boothShareMsg}
-              onChange={e => setBoothShareMsg(e.target.value)}
-            />
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginTop: 16 }}>
-              <button
-                className="btn btn-primary"
-                onClick={async () => {
-                  try { await navigator.clipboard.writeText(boothShareMsg); setBoothShareCopied(true); setTimeout(() => setBoothShareCopied(false), 2000) } catch {}
-                }}
-              >
-                {boothShareCopied ? '✅ Copied!' : '📋 Copy Message'}
-              </button>
-              <button
-                className="btn btn-secondary"
-                onClick={async () => {
-                  if (navigator.share) {
-                    const nextDay = nextMarket ? nextMarket.date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) : ''
-                    const cta = nextDay
-                      ? `Be sure to visit my booth this ${nextDay}! 🌿`
-                      : 'Be sure to visit my booth on CasaGrown! 🌿'
-                    try { await navigator.share({ title: `${name} on CasaGrown`, text: cta, url: getBoothShareUrl() }) } catch {}
-                  } else {
-                    try { await navigator.clipboard.writeText(boothShareMsg); setBoothShareCopied(true); setTimeout(() => setBoothShareCopied(false), 2000) } catch {}
-                  }
-                }}
-              >
-                <ShareIcon size={14} /> Share
-              </button>
-            </div>
-            <button
-              style={{ marginTop: 12, padding: 8, fontSize: 13, color: 'var(--gray-500)', background: 'none', border: 'none', cursor: 'pointer' }}
-              onClick={() => setShowBoothShareModal(false)}
-            >
-              Skip →
-            </button>
-          </div>
-        </>
+        <SocialShareModal
+          isOpen={showBoothShareModal}
+          onClose={() => setShowBoothShareModal(false)}
+          title={`${name} Saved!`}
+          subtitle={`Invite your neighbors to check out your booth.`}
+          entityName={name}
+          shareUrl={getBoothShareUrl() || ''}
+          shareMessage={boothShareMsg}
+        />
+      )}
+
+      {/* ── Share Individual Product Modal ── */}
+      {productShareId && myProducts.find(p => p.id === productShareId) && (
+        <SocialShareModal
+          isOpen={!!productShareId}
+          onClose={() => setProductShareId(null)}
+          title={`Share ${myProducts.find(p => p.id === productShareId)!.name}`}
+          subtitle={`Spread the word to your neighbors!`}
+          entityName={myProducts.find(p => p.id === productShareId)!.name}
+          shareUrl={`${typeof window !== 'undefined' ? window.location.origin : ''}/market/booth/${savedBoothId || user?.id || 'id'}/product/${productShareId}`}
+          shareMessage={`Hey! Check out my fresh ${myProducts.find(p => p.id === productShareId)!.name} on CasaGrown 🌱\n\n${myProducts.find(p => p.id === productShareId)!.priceUsd === 0 ? 'Free' : `${formatUsd(myProducts.find(p => p.id === productShareId)!.priceUsd)} / ${myProducts.find(p => p.id === productShareId)!.unit}`}\n\n🛒 ${typeof window !== 'undefined' ? window.location.origin : ''}/market/booth/${savedBoothId || user?.id || 'id'}/product/${productShareId}`}
+        />
       )}
 
       {/* ── Camera → sends to cropper ── */}

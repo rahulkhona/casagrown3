@@ -137,4 +137,71 @@ test.describe('Direct Messaging & Block Flows', () => {
 
     await page.context().close()
   })
+
+  // ── S12.5: DM Selling Interactions ──
+  test('S12.5 — Open DM Sell sheet, add custom item, and trigger payment block', async ({ browser }) => {
+    const page = await loginAsUser(browser, 'beth')
+    await navigateTo(page, '/messages')
+    
+    const samThread = page.getByText('Sam Seller').first()
+    if (await samThread.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await samThread.click()
+      await page.waitForLoadState('networkidle')
+
+      // Click Sell Cash/Card button
+      const sellBtn = page.locator('button', { hasText: 'Sell (Cash/Card)' })
+      if (await sellBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await sellBtn.click()
+
+        // Wait for DM Seller Sheet
+        await expect(page.getByText('Sell an Item')).toBeVisible({ timeout: 5000 })
+        
+        // Pick "Quick Add Generic Item"
+        const genericOpt = page.getByText('Quick Add Generic Item')
+        await expect(genericOpt).toBeVisible()
+        await genericOpt.click()
+
+        // Fill custom product
+        await page.getByPlaceholder('e.g., Basket of Tomatoes').fill('E2E Test Custom Product')
+        await page.locator('input[type="number"]').fill('10')
+        await page.getByRole('button', { name: 'Send Offer' }).click()
+
+        // Assert payment block injected in chat
+        await expect(page.getByText('E2E Test Custom Product')).toBeVisible({ timeout: 5000 })
+        await expect(page.getByText('Buy Now')).toBeVisible()
+      }
+    }
+    await page.context().close()
+  })
+
+  // ── S12.6: DM Reaction Collapsing & Click-Away ──
+  test('S12.6 — Invoke DM reaction popover, assert single share icon, and dismiss via click-away', async ({ browser }) => {
+    const page = await loginAsUser(browser, 'beth')
+    await navigateTo(page, '/messages')
+    
+    const samThread = page.getByText('Sam Seller').first()
+    if (await samThread.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await samThread.click()
+      await page.waitForLoadState('networkidle')
+
+      // Click a message to trigger action bar
+      const msgBubble = page.locator('.message-bubble').last()
+      if (await msgBubble.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await msgBubble.click()
+
+        // Assert action bar is visible
+        const copyShareBtn = page.getByRole('button', { name: 'Copy / Share Message' })
+        await expect(copyShareBtn).toBeVisible({ timeout: 5000 })
+
+        // Assert that Facebook text button 'f' does NOT exist
+        const fbBtn = page.getByRole('button', { name: 'Share on Facebook' })
+        await expect(fbBtn).toHaveCount(0)
+
+        // Test click-away backdrop
+        await page.locator('body').click({ position: { x: 0, y: 0 } })
+        await expect(copyShareBtn).not.toBeVisible()
+      }
+    }
+    await page.context().close()
+  })
 })

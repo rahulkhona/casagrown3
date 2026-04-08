@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
 import { useMarket } from '../../../lib/store'
@@ -25,21 +25,36 @@ import { NotificationPromptModal } from '../../components/NotificationPromptModa
 import { useErrorToast } from '../../components/ErrorToast'
 import { checkTextForViolations } from '../../../lib/moderation'
 
-// How often to poll for new messages
-const POLL_INTERVAL_ACTIVE = 15000 // 15s when tab is active
-const POLL_INTERVAL_BACKGROUND = 60000 // 60s when tab is hidden
+// Realtime settings
+const BACKGROUND_POLL_INTERVAL = 60000 // 60s fallback when tab is hidden or socket drops
 
-export default function ClientPage() {
+export interface ClientPageProps {
+  initialProfileH3: string | null
+  initialMessages: CommunityChatMessage[]
+  initialProfileName: string
+  initialBuzzWelcomedAt: string | null
+}
+
+export default function ClientPage({
+  initialProfileH3,
+  initialMessages,
+  initialProfileName,
+  initialBuzzWelcomedAt
+}: ClientPageProps) {
   const router = useRouter()
   const { state } = useMarket()
   const { user, isAuthenticated, loading } = useAuth()
   
-  const [messages, setMessages] = useState<CommunityChatMessage[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [profileH3, setProfileH3] = useState<string | null>(null)
+  const [messages, setMessages] = useState<CommunityChatMessage[]>([...initialMessages].reverse())
+  const [isLoading, setIsLoading] = useState(false) // No longer loading initially!
+  const [profileH3, setProfileH3] = useState<string | null>(initialProfileH3)
   const [errorState, setErrorState] = useState<{ message: string; cta?: string; action?: () => void } | null>(null)
-  const [showWelcome, setShowWelcome] = useState(false)
-  const [profileName, setProfileName] = useState('')
+  
+  // Welcome card logic
+  const [showWelcome, setShowWelcome] = useState<boolean>(
+    initialProfileH3 !== null && !initialBuzzWelcomedAt
+  )
+  const [profileName, setProfileName] = useState(initialProfileName)
   const { showError, showInfo } = useErrorToast()
 
   
@@ -49,10 +64,16 @@ export default function ClientPage() {
   
   // Scroll and UI state
   const scrollRef = useRef<HTMLDivElement>(null)
+  const topAnchorRef = useRef<HTMLDivElement>(null)
   const composeRef = useRef<HTMLDivElement>(null)
   const [isAtBottom, setIsAtBottom] = useState(true)
   const [replyingTo, setReplyingTo] = useState<CommunityChatMessage | null>(null)
   const [composePrefill, setComposePrefill] = useState<string | undefined>(undefined)
+  
+  // Pagination State
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false)
+  const [hasMoreOlder, setHasMoreOlder] = useState(true)
+  const [pendingMessages, setPendingMessages] = useState<CommunityChatMessage[]>([])
 
   // Find panel state
   const [findActive, setFindActive] = useState(false)
@@ -61,7 +82,14 @@ export default function ClientPage() {
   // Push notification prompt
   const { showPrompt, modalProps } = useNotificationPrompt(user?.id)
   
-  // 1. Fetch user's H3 community index on load
+  // Calculate first unread message ID for rendering the red visual marker
+  const firstUnreadId = useMemo(() => {
+    if (!initialBuzzWelcomedAt || !user) return null
+    const first = messages.find(m => new Date(m.created_at) > new Date(initialBuzzWelcomedAt) && m.author_id !== user.id)
+    return first ? first.id : null
+  }, [messages, initialBuzzWelcomedAt, user])
+  
+  // 1. Fetch user's H3 community index on load (Fallback for SPA navigation)
   useEffect(() => {
     if (loading) return
     
@@ -70,49 +98,21 @@ export default function ClientPage() {
       return
     }
 
-    const fetchProfileH3 = async () => {
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('home_community_h3_index, buzz_welcomed_at, full_name')
-        .eq('id', user.id)
-        .single()
-        
-      if (error) {
-        console.error('Failed to fetch profile H3 index:', error)
-        showError('We encountered an error loading your community profile.')
-        setErrorState({ message: 'We encountered an error loading your community profile.', cta: 'Try Again', action: () => window.location.reload() })
-        return
-      }
-
-      if (data?.home_community_h3_index) {
-        setProfileH3(data.home_community_h3_index)
-        setProfileName(data.full_name || '')
-        if (!data.buzz_welcomed_at) {
-          setShowWelcome(true)
-        }
-      } else {
-        // If they don't have a community, redirect to onboarding or show error
-        console.warn('User has no home community set')
-        setErrorState({ message: 'You need to set your neighborhood location before you can join the Community!', cta: 'Update Profile', action: () => router.push('/profile-setup') })
-      }
+    if (initialProfileH3 === null) {
+      console.warn('User has no home community set')
+      setErrorState({ message: 'You need to set your neighborhood location before you can join the Community!', cta: 'Update Profile', action: () => router.push('/profile-setup') })
     }
-    
-    fetchProfileH3()
-  }, [loading, isAuthenticated, user, router])
+  }, [loading, isAuthenticated, user, router, initialProfileH3])
   
-  // 2. Initial message fetch once we have the H3 index
+  // 2. Initial scroll to bottom
   const loadMessages = useCallback(async () => {
+    // If called manually (e.g. after a send), we just hit the DB and reset
     if (!profileH3) return
-    
     try {
       const supabase = createClient()
       const msgs = await fetchCommunityMessages(supabase, profileH3)
-      setMessages(msgs.reverse()) // Reverse for chronological order (newest at bottom)
-      setLastFetchTime(new Date().toISOString())
-      setIsLoading(false)
+      setMessages([...msgs].reverse()) // Reverse for chronological order (newest at bottom)
       
-      // Auto-scroll to bottom on initial load (multiple attempts for slow phones)
       const scrollToBottom = () => {
         if (scrollRef.current) {
           scrollRef.current.scrollTop = scrollRef.current.scrollHeight
@@ -120,85 +120,214 @@ export default function ClientPage() {
       }
       requestAnimationFrame(scrollToBottom)
       setTimeout(scrollToBottom, 200)
-      setTimeout(scrollToBottom, 600)
     } catch (err) {
-      console.error('Failed to load messages', err)
-      setIsLoading(false)
+      console.error('Failed to reload messages', err)
     }
   }, [profileH3])
   
   useEffect(() => {
-    if (profileH3) loadMessages()
-  }, [profileH3, loadMessages])
+    // Component mounted with SSR data! We don't fetch, we just scroll to the bottom.
+    // Set the initial fetch time so polling knows the baseline
+    setLastFetchTime(new Date().toISOString())
+    
+    // Smart scroll: either jump to the first unread message, or fall back to bottom
+    const scrollToInitialPosition = () => {
+      if (!scrollRef.current) return
+      
+      let targetUnread: HTMLElement | null = null
+      if (initialBuzzWelcomedAt && user) {
+        const firstUnread = messages.find(m => new Date(m.created_at) > new Date(initialBuzzWelcomedAt) && m.author_id !== user.id)
+        if (firstUnread) {
+          // Look for the specific red marker line, otherwise fallback to the chat component root
+          targetUnread = document.getElementById(`unread-marker-${firstUnread.id}`) || document.getElementById(`msg-${firstUnread.id}`)
+        }
+      }
+
+      if (targetUnread) {
+        // Scroll exactly so the unread marker sits boldly at the top
+        const container = scrollRef.current
+        const targetRect = targetUnread.getBoundingClientRect()
+        const containerRect = container.getBoundingClientRect()
+        
+        container.scrollTop = container.scrollTop + (targetRect.top - containerRect.top) - 10
+      } else {
+        // Normal fallback: slap to bottom
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+      }
+    }
+    requestAnimationFrame(scrollToInitialPosition)
+    setTimeout(scrollToInitialPosition, 200)
+    setTimeout(scrollToInitialPosition, 600)
+  }, [])
   
-  // 3. Polling for new messages
+  // 3. Supabase Realtime (WebSockets) for new messages
   useEffect(() => {
     if (!profileH3 || isLoading) return
     
-    let pollTimer: NodeJS.Timeout
-    
+    let isSubscribed = true
     const checkNewMessages = async () => {
       if (!lastFetchTime || document.visibilityState === 'hidden') return
       
       try {
         const supabase = createClient()
-        // Fetch only messages newer than our last fetch time
         const newMsgs = await fetchCommunityMessages(supabase, profileH3, undefined, 50)
         
-        // Filter out messages we already have and ones older than our last fetch
         const actualNewMsgs = newMsgs.filter((m: CommunityChatMessage) => 
-          new Date(m.created_at) > new Date(lastFetchTime) && 
-          !messages.find(existing => existing.id === m.id)
+          !messages.find(existing => existing.id === m.id) &&
+          !pendingMessages.find(existing => existing.id === m.id)
         )
         
-        if (actualNewMsgs.length > 0) {
-          if (isAtBottom) {
-            // If user is at bottom, just append and scroll
-            setMessages(prev => [...prev, ...actualNewMsgs.reverse()])
-            setLastFetchTime(new Date().toISOString())
-            setTimeout(() => {
-              if (scrollRef.current) {
-                scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-              }
-            }, 50)
+        if (actualNewMsgs.length > 0 && isSubscribed) {
+          // If they are staring directly at the bottom and a couple messages pop in natively, just scroll down like normal texting
+          if (isAtBottom && pendingMessages.length === 0 && actualNewMsgs.length <= 2) {
+            setMessages(prev => {
+              const uniqueNew = actualNewMsgs.filter(newM => !prev.some(e => e.id === newM.id))
+              return [...prev, ...uniqueNew.reverse()]
+            })
+            if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
           } else {
-            // User scrolled up, show badge instead
+            // Otherwise, they tabbed out and suddenly gained 5+ messages, or they were scrolled way up evaluating history. Use the badge!
+            setPendingMessages(prev => {
+              const uniqueNew = actualNewMsgs.filter(newM => !prev.some(e => e.id === newM.id))
+              return [...prev, ...uniqueNew.reverse()]
+            })
             setNewMessagesCount(prev => prev + actualNewMsgs.length)
           }
         }
       } catch (err) {
-        console.error('Polling error', err)
+        console.error('Realtime fetch error', err)
       }
-      
-      // Schedule next poll
-      schedulePoll()
     }
     
+    // Fallback polling for when tab is hidden (Sockets intentionally drop/sleep usually)
+    let pollTimer: NodeJS.Timeout
     const schedulePoll = () => {
-      const interval = document.visibilityState === 'visible' 
-        ? POLL_INTERVAL_ACTIVE 
-        : POLL_INTERVAL_BACKGROUND
-        
-      pollTimer = setTimeout(checkNewMessages, interval) as unknown as NodeJS.Timeout
+      if (document.visibilityState === 'hidden') {
+        pollTimer = setTimeout(() => {
+          checkNewMessages()
+          schedulePoll()
+        }, BACKGROUND_POLL_INTERVAL) as unknown as NodeJS.Timeout
+      }
     }
-    
     schedulePoll()
     
-    // Also trigger immediately when tab becomes visible again
-    const handleVisChange = () => {
-      if (document.visibilityState === 'visible') {
-        clearTimeout(pollTimer)
-        checkNewMessages()
+    // ── SUPABASE WEBSOCKET CHANNEL ──
+    const supabase = createClient()
+    let channel: any = null
+
+    const connectWebSocket = () => {
+      if (channel) return
+      channel = supabase.channel(`community_chat_${profileH3}`)
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'community_chat_messages' },
+          (payload) => {
+            checkNewMessages()
+          }
+        )
+        .subscribe()
+    }
+
+    const disconnectWebSocket = () => {
+      if (channel) {
+        supabase.removeChannel(channel)
+        channel = null
       }
     }
+
+    const handleVisChange = () => {
+      clearTimeout(pollTimer)
+      if (document.visibilityState === 'visible') {
+        connectWebSocket()
+        checkNewMessages()
+      } else {
+        disconnectWebSocket()
+        schedulePoll()
+        // Stamp exit time on tab hide
+        supabase.rpc('update_profile_last_seen').then()
+      }
+    }
+    
+    // Initial mount
+    connectWebSocket()
     document.addEventListener('visibilitychange', handleVisChange)
     
     return () => {
+      isSubscribed = false
       clearTimeout(pollTimer)
       document.removeEventListener('visibilitychange', handleVisChange)
+      
+      disconnectWebSocket()
+      supabase.rpc('update_profile_last_seen').then()
     }
-  }, [profileH3, lastFetchTime, isLoading, isAtBottom, messages])
+  }, [profileH3, lastFetchTime, isLoading, isAtBottom, messages, pendingMessages])
   
+  // 4. Infinite Scroll (Older Messages)
+  const loadOlderMessages = useCallback(async () => {
+    if (isLoadingOlder || !hasMoreOlder || messages.length === 0 || !profileH3) return
+    
+    setIsLoadingOlder(true)
+    try {
+      const oldestMessage = messages[0]
+      const oldestTimestamp = oldestMessage.bumped_at || oldestMessage.created_at
+      
+      const supabase = createClient()
+      const olderMsgs = await fetchCommunityMessages(supabase, profileH3, oldestTimestamp)
+      
+      if (olderMsgs.length < 50) {
+        setHasMoreOlder(false)
+      }
+      
+      if (olderMsgs.length > 0) {
+        const scrollArea = scrollRef.current
+        if (scrollArea) {
+          const previousScrollHeight = scrollArea.scrollHeight
+          const previousScrollTop = scrollArea.scrollTop
+          
+          setMessages(prev => {
+            const uniqueOlder = olderMsgs.filter(older => !prev.some(e => e.id === older.id))
+            return [...uniqueOlder.reverse(), ...prev]
+          })
+          
+          requestAnimationFrame(() => {
+            if (scrollRef.current) {
+              // Maintain exact scroll position by offsetting the newly added height
+              scrollRef.current.scrollTop = previousScrollTop + (scrollRef.current.scrollHeight - previousScrollHeight)
+            }
+          })
+        } else {
+          setMessages(prev => {
+            const uniqueOlder = olderMsgs.filter(older => !prev.some(e => e.id === older.id))
+            return [...uniqueOlder.reverse(), ...prev]
+          })
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load older messages', err)
+    } finally {
+      setIsLoadingOlder(false)
+    }
+  }, [isLoadingOlder, hasMoreOlder, messages, profileH3])
+
+  // Intersection Observer to trigger pagination when scrolling to top
+  useEffect(() => {
+    const anchor = topAnchorRef.current
+    if (!anchor) return
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadOlderMessages()
+        }
+      },
+      // Root is the scroll area, trigger when anchor is within 100px from top
+      { root: scrollRef.current, rootMargin: '100px 0px 0px 0px' }
+    )
+    
+    observer.observe(anchor)
+    return () => observer.disconnect()
+  }, [loadOlderMessages])
+
   // Scroll handler to track if user is at bottom
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget
@@ -208,9 +337,19 @@ export default function ClientPage() {
     setIsAtBottom(isBottom)
     
     if (isBottom && newMessagesCount > 0) {
-      // User scrolled to bottom, apply the pending messages
-      loadMessages()
+      // User scrolled to bottom, drop new messages directly in 
+      setMessages(prev => {
+        // Filter out any potential duplicates between existing messages and pending
+        const uniquePending = pendingMessages.filter(pm => !prev.some(m => m.id === pm.id))
+        return [...prev, ...uniquePending]
+      })
       setNewMessagesCount(0)
+      setPendingMessages([])
+      setTimeout(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+        }
+      }, 50)
     }
   }
 
@@ -311,7 +450,6 @@ export default function ClientPage() {
     )
   }
 
-
   return (
     <div className={styles.container}>
       {/* Community Name Header */}
@@ -344,6 +482,11 @@ export default function ClientPage() {
             <div className={styles.loading}>Loading chat...</div>
           ) : (
             <div className={styles.messageList}>
+              {hasMoreOlder && messages.length > 0 && !showWelcome && (
+                <div ref={topAnchorRef} style={{ height: 20, flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
+                  {isLoadingOlder ? <span style={{ fontSize: 12, color: '#888' }}>Loading older...</span> : null}
+                </div>
+              )}
 
               {messages.length === 0 && !showWelcome && (
                 <div className={styles.emptyState}>
@@ -352,57 +495,58 @@ export default function ClientPage() {
                   <p>Start a conversation with your neighbors.</p>
                 </div>
               )}
-              {messages.map(msg => (
-                <ChatMessage 
-                  key={msg.id} 
-                  message={msg} 
-                  currentUserId={user?.id}
-                  onReply={async (parentId, content) => {
-                    const supabase = createClient()
-                    const replyId = await sendCommunityMessage(supabase, {
-                      h3Index: profileH3!,
-                      authorId: user!.id,
-                      content,
-                      parentId,
-                    })
-                    await loadMessages()
-
-                    // Auto-trigger CasaBot if replying in a CasaBot thread
-                    const CASABOT_ID = 'a0000000-0000-0000-0000-00000ca5ab07'
-                    const isCasaBotThread = 
-                      content.toLowerCase().includes('@casabot') ||
-                      msg.author_id === CASABOT_ID ||
-                      msg.content?.toLowerCase().includes('@casabot')
-
-                    if (isCasaBotThread) {
-                      console.log('[CasaBot] Auto-reply in thread for:', replyId)
-                      supabase.functions.invoke('casabot-reply', {
-                        body: {
-                          message_id: replyId,
-                          content,
-                          community_h3_index: profileH3,
-                          author_name: 'Neighbor',
-                        },
-                      }).then((res) => {
-                        console.log('[CasaBot] Thread reply response:', res)
-                        setTimeout(() => loadMessages(), 3000)
-                      }).catch((err: unknown) => console.error('[CasaBot] Thread reply error:', err))
-                    }
-                  }}
-                  onDelete={() => {
-                    const supabase = createClient()
-                    deleteCommunityMessage(supabase, msg.id).then(() => loadMessages())
-                  }}
-                  onFlag={() => {
-                    if (user) {
+              {!showWelcome && messages.map(msg => (
+                <div key={msg.id}>
+                  {firstUnreadId === msg.id && (
+                    <div id={`unread-marker-${msg.id}`} className={styles.unreadDivider}>
+                      Unread Messages
+                    </div>
+                  )}
+                  <ChatMessage 
+                    message={msg} 
+                    currentUserId={user?.id}
+                    onReply={async (parentId, content) => {
                       const supabase = createClient()
-                      flagMessage(supabase, msg.id, user.id).then(() => {
-                        showInfo('Message flagged for review.')
-                        loadMessages()
+                      const replyId = await sendCommunityMessage(supabase, {
+                        h3Index: profileH3!,
+                        authorId: user!.id,
+                        content,
+                        parentId,
                       })
-                    }
-                  }}
-                />
+                      await loadMessages()
+                      
+                      const CASABOT_ID = 'a0000000-0000-0000-0000-00000ca5ab07'
+                      const isCasaBotThread = 
+                        content.toLowerCase().includes('@casabot') ||
+                        msg.author_id === CASABOT_ID ||
+                        msg.content?.toLowerCase().includes('@casabot')
+                      
+                      if (isCasaBotThread) {
+                        supabase.functions.invoke('casabot-reply', {
+                          body: {
+                            message_id: replyId,
+                            content,
+                            community_h3_index: profileH3,
+                            author_name: 'Neighbor',
+                          },
+                        }).then(() => setTimeout(() => loadMessages(), 3000))
+                      }
+                    }}
+                    onDelete={() => {
+                      const supabase = createClient()
+                      deleteCommunityMessage(supabase, msg.id).then(() => loadMessages())
+                    }}
+                    onFlag={() => {
+                      if (user) {
+                        const supabase = createClient()
+                        flagMessage(supabase, msg.id, user.id).then(() => {
+                          showInfo('Message flagged for review.')
+                          loadMessages()
+                        })
+                      }
+                    }}
+                  />
+                </div>
               ))}
             </div>
           )}
@@ -430,7 +574,12 @@ export default function ClientPage() {
           userId={user.id}
           userName={profileName}
           profileH3={profileH3!}
-          onComplete={() => setShowWelcome(false)}
+          onComplete={() => {
+            setShowWelcome(false)
+            setTimeout(() => {
+              if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+            }, 50)
+          }}
           onSendMessage={async (msg) => { await handleSendMessage(msg) }}
           showPrompt={showPrompt}
         />

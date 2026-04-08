@@ -176,10 +176,8 @@ describe('ImageCropper', () => {
       onCancel: vi.fn(),
     }))
 
-    expect(container.textContent).toContain('Drag to position')
-    expect(container.textContent).toContain('Scroll to zoom')
     expect(container.textContent).toContain('Cancel')
-    expect(container.textContent).toContain('✂️ Crop & Use')
+    expect(container.textContent).toContain('✂️ Crop')
     expect(container.textContent).toContain('100%') // initial zoom
   })
 

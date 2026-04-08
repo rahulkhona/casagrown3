@@ -60,7 +60,16 @@ if ! grep -q "NEXT_PUBLIC_SUPABASE_URL" "apps/next-market/.env" 2>/dev/null; the
 fi
 
 log_suite() {
-  local name="$1" passed="$2" failed="${3:-0}" skipped="${4:-0}"
+  local name="$1"
+  local passed=$(echo "$2" | head -n1 | tr -cd '0-9' || echo "0")
+  local failed=$(echo "${3:-0}" | head -n1 | tr -cd '0-9' || echo "0")
+  local skipped=$(echo "${4:-0}" | head -n1 | tr -cd '0-9' || echo "0")
+  
+  # Default to 0 if empty
+  passed=${passed:-0}
+  failed=${failed:-0}
+  skipped=${skipped:-0}
+
   TOTAL_PASSED=$((TOTAL_PASSED + passed))
   TOTAL_FAILED=$((TOTAL_FAILED + failed))
   TOTAL_SKIPPED=$((TOTAL_SKIPPED + skipped))
@@ -397,9 +406,11 @@ else
   run_playwright "Metrics" "apps/next-metrics"
 
   # ── Kill dev servers we started ──
-  for pid in "${DEV_PIDS[@]}"; do
-    kill "$pid" 2>/dev/null || true
-  done
+  if [ "${#DEV_PIDS[@]}" -gt 0 ]; then
+    for pid in "${DEV_PIDS[@]}"; do
+      kill "$pid" 2>/dev/null || true
+    done
+  fi
 fi
 
 # ─────────────────────────────────────────────────────────────────────────

@@ -339,8 +339,11 @@ export async function uploadChatImage(
   file: File | Blob,
   fileName: string
 ): Promise<CommunityChatMessageMedia> {
+  // Sanitize filename to prevent Supabase "Invalid key" errors (spaces, unicode)
+  const cleanName = fileName.replace(/[^a-zA-Z0-9.\-_]/g, '_')
+  
   // Store in user-namespaced folder
-  const storagePath = `${userId}/${Date.now()}-${fileName}`
+  const storagePath = `${userId}/${Date.now()}-${cleanName}`
   
   const { data, error } = await supabase.storage
     .from('community-chat-media')

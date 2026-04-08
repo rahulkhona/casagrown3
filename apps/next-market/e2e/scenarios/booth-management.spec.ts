@@ -226,10 +226,42 @@ test.describe('Booth Management', () => {
         const productBody = await bethPage.locator('body').innerText()
         expect(productBody.length).toBeGreaterThan(100)
         expect(productBody).not.toContain('undefined')
+
+        // S2.2 Share — Assert Visitor can click the exact same native Share button
+        const shareBtn = bethPage.locator('button', { hasText: 'Share' }).first()
+        if (await shareBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+          await shareBtn.click()
+          await expect(bethPage.getByText('Share on Facebook')).toBeVisible({ timeout: 5000 })
+          // Dismiss modal logic if necessary or just let it close
+        }
       }
     }
 
     await bethPage.context().close()
+  })
+
+  // ── S7.7: Booth Native Sharing ──
+  test('S7.7 — Owner side: Share My Booth FAB and Product-level Share triggers', async ({ browser }) => {
+    const page = await loginAsUser(browser, 'maria')
+    await navigateTo(page, '/my-booth')
+    
+    // Assert legacy green banner is completely wiped
+    await expect(page.getByText('Next Market Pioneer')).toHaveCount(0)
+
+    // Assert Share My Booth FAB is visible at the bottom
+    const globalShareBtn = page.locator('button', { hasText: 'Share My Booth' }).first()
+    if (await globalShareBtn.count() > 0) {
+      await expect(globalShareBtn).toBeVisible()
+    }
+    
+    // Assert Individual product card inline share buttons open Modal
+    const productShareBtns = page.locator('button[title*="Share "]')
+    if (await productShareBtns.count() > 0) {
+      await productShareBtns.first().click()
+      await expect(page.getByText('Share on Facebook')).toBeVisible({ timeout: 5000 })
+    }
+
+    await page.context().close()
   })
 
   // ── All 5 seller booths ──

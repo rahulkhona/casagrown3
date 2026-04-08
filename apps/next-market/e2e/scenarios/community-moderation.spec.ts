@@ -65,6 +65,11 @@ test.describe('Community Chat Moderation & UX', () => {
     const oldId = '01111111-1111-1111-1111-111111111111'
     const newId = '02222222-2222-2222-2222-222222222222'
     
+    // Login and view the feed BEFORE inserting data to test WebSockets
+    const page = await loginAsUser(browser, 'beth')
+    await navigateTo(page, '/community')
+    await page.waitForTimeout(2000) // Wait for WebSockets to connect
+
     // Clean up by both content AND id (handles re-runs with same UUIDs)
     execSql(`DELETE FROM community_chat_messages WHERE id IN ('${oldId}', '${newId}')`)
     execSql(`DELETE FROM community_chat_messages WHERE content IN ('${oldContent}', '${newContent}')`)
@@ -80,11 +85,6 @@ test.describe('Community Chat Moderation & UX', () => {
       `INSERT INTO community_chat_messages (id, community_h3_index, author_id, content, created_at, bumped_at)
        VALUES ('${newId}', '89283470c2fffff', 'b2222222-2222-2222-2222-222222222222', '${newContent}', NOW(), NOW())`
     )
-
-    // Login and view the feed
-    const page = await loginAsUser(browser, 'beth')
-    // Set cookie or localstorage to bypass notifications if needed or just navigate
-    await navigateTo(page, '/community')
 
     // Wait for feed to load messages (increase timeout for slow query)
     await expect(page.locator(`text="${newContent}"`)).toBeVisible({ timeout: 15000 })

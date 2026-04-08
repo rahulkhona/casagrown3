@@ -11,9 +11,9 @@ import { useNotificationPrompt } from '../../../../../lib/useNotificationPrompt'
 import { trackFormSubmit, trackClick, trackError } from '../../../../../lib/analytics'
 import { NotificationPromptModal } from '../../../../components/NotificationPromptModal'
 import CameraCapture from '../../../../../components/CameraCapture'
-import ImageCropper from '../../../../../components/ImageCropper'
 import { checkTextForViolations } from '../../../../../lib/moderation'
 import { ShareIcon } from '../../../../components/icons'
+import SocialShareModal from '../../../../components/SocialShareModal'
 import styles from './page.module.css'
 
 // Compute the next upcoming market date from the schedule
@@ -61,6 +61,7 @@ function NewProductPageInner() {
   const editId = searchParams.get('edit')
   const prefillId = searchParams.get('prefill') // Re-list from daily digest
   const fromBuzz = searchParams.get('from') === 'buzz'
+  const returnTo = searchParams.get('returnTo')
   const isEditMode = !!editId
   const [prefilled, setPrefilled] = useState(false)
   const { state, dispatch } = useMarket()
@@ -76,7 +77,6 @@ function NewProductPageInner() {
   // Photos with cropping
   const [photos, setPhotos] = useState<string[]>([])
   const [showCamera, setShowCamera] = useState(false)
-  const [cropSrc, setCropSrc] = useState<string | null>(null)
 
   // Product details
   const [name, setName] = useState('')
@@ -444,7 +444,10 @@ function NewProductPageInner() {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = (ev) => setCropSrc(ev.target?.result as string)
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string
+      setPhotos(prev => [...prev, dataUrl])
+    }
     reader.readAsDataURL(file)
     e.target.value = ''
   }
@@ -756,7 +759,12 @@ function NewProductPageInner() {
         // Draft edits: stay on the page
         dispatch({ type: 'ADD_TOAST', payload: { message: '📝 Draft saved! Continue editing when ready.', type: 'success' } })
       } else {
-        router.push(fromBuzz ? '/community' : '/my-booth')
+        // Formally published from draft state
+        setAddedProductId(editId)
+        setAddedProductName(name.trim() || 'Untitled')
+        setBoothIdForShare(authUser.id)
+        setShowShareModal(true)
+        showPrompt()
       }
       return
     }
@@ -1445,7 +1453,6 @@ function NewProductPageInner() {
                       dispatch({ type: 'ADD_TOAST', payload: { message: 'Geolocation not supported', type: 'error' } })
                       return
                     }
-                    dispatch({ type: 'ADD_TOAST', payload: { message: '📍 Getting your location...', type: 'info' } })
                     navigator.geolocation.getCurrentPosition(
                       async (pos) => {
                         try {
@@ -1461,16 +1468,14 @@ function NewProductPageInner() {
                             const st = a.state || ''
                             const zip = a.postcode || ''
                             setInlinePickupAddress([street, city, `${st} ${zip}`.trim()].filter(Boolean).join(', '))
-                            dispatch({ type: 'ADD_TOAST', payload: { message: '✅ Address updated', type: 'success' } })
                           }
                         } catch {
-                          dispatch({ type: 'ADD_TOAST', payload: { message: 'Could not determine address', type: 'error' } })
+                          dispatch({ type: 'ADD_TOAST', payload: { message: 'Could not determine address automatically', type: 'error' } })
                         }
                       },
                       (err) => {
                         if (err.code === 1) {
                           setLocationDenied(true)
-                          dispatch({ type: 'ADD_TOAST', payload: { message: 'Location access denied — see instructions below', type: 'error' } })
                         } else {
                           dispatch({ type: 'ADD_TOAST', payload: { message: 'Could not get location — please enter address manually', type: 'error' } })
                         }
@@ -1783,7 +1788,7 @@ function NewProductPageInner() {
           )}
         </form>
 
-        {/* Camera → sends to cropper */}
+        {/* Camera */}
         {showCamera && (
           <CameraCapture
             facingMode="environment"
@@ -1794,21 +1799,6 @@ function NewProductPageInner() {
             onCapture={({ file }) => {
               setShowCamera(false)
               const reader = new FileReader()
-              reader.onload = (ev) => setCropSrc(ev.target?.result as string)
-              reader.readAsDataURL(file)
-            }}
-          />
-        )}
-
-        {/* Image Cropper for product photos — square aspect ratio */}
-        {cropSrc && (
-          <ImageCropper
-            src={cropSrc}
-            aspectRatio={1}
-            onCancel={() => setCropSrc(null)}
-            onCrop={(file) => {
-              setCropSrc(null)
-              const reader = new FileReader()
               reader.onload = (ev) => {
                 const dataUrl = ev.target?.result as string
                 setPhotos(prev => [...prev, dataUrl])
@@ -1818,56 +1808,41 @@ function NewProductPageInner() {
           />
         )}
 
-        {showShareModal && (
+        {showShareModal && publishMissing.length > 0 && (
           <>
             <div className={styles.modalBackdrop} onClick={() => { setShowShareModal(false); router.back() }} />
             <div className={styles.modal}>
               <div className={styles.modalEmoji}>✅</div>
-              <h2 className={styles.modalTitle}>{addedProductName} added!</h2>
+              <h2 className={styles.modalTitle}>{addedProductName} saved!</h2>
               <p className={styles.modalSubtitle}>
                 Listed for {nextMarket?.label || 'this weekend'}.
               </p>
 
-              {publishMissing.length > 0 ? (
-                <div className={styles.draftHint}>
-                  <strong>⚠️ Your booth is saved as a draft.</strong><br />
-                  To publish and start accepting orders, go to My Booth and set up:
-                  <ul style={{ margin: '8px 0 0 16px', padding: 0 }}>
-                    {publishMissing.map(m => <li key={m}>{m}</li>)}
-                  </ul>
-                </div>
-              ) : (
-                <>
-                  <p className={styles.modalSubtitle} style={{ marginTop: 0 }}>
-                    🎉 Your booth is live! Invite your neighbors to check it out.
-                  </p>
-                  <div className={styles.modalActions}>
-                    <button
-                      className={styles.shareActionBtn}
-                      style={{ background: '#1877f2' }}
-                      onClick={handleShareFacebook}
-                    >
-                      📘 Share on Facebook
-                    </button>
-                    <button
-                      className={styles.shareActionBtn}
-                      style={{ background: '#8ed500' }}
-                      onClick={handleShareNextdoor}
-                    >
-                      {shareCopied ? '✅ Copied! Paste on Nextdoor' : '🏡 Share on Nextdoor'}
-                    </button>
-                    <button className={styles.shareActionBtn} onClick={handleShareNative}>
-                      <ShareIcon size={14} /> Share Link
-                    </button>
-                  </div>
-                </>
-              )}
+              <div className={styles.draftHint}>
+                <strong>⚠️ Your booth is saved as a draft.</strong><br />
+                To publish and start accepting orders, go to My Booth and set up:
+                <ul style={{ margin: '8px 0 0 16px', padding: 0 }}>
+                  {publishMissing.map(m => <li key={m}>{m}</li>)}
+                </ul>
+              </div>
 
               <button className={styles.modalSkip} onClick={() => { setShowShareModal(false); router.back() }}>
-                Skip
+                Go to My Booth
               </button>
             </div>
           </>
+        )}
+
+        {showShareModal && publishMissing.length === 0 && (
+          <SocialShareModal
+            isOpen={showShareModal}
+            onClose={() => { setShowShareModal(false); router.back() }}
+            title={`${addedProductName} added!`}
+            subtitle={`🎉 Your listing is live! Invite your neighbors to check it out.`}
+            entityName={addedProductName || 'Product'}
+            shareUrl={getProductUrl() || ''}
+            shareMessage={getShareMessage()}
+          />
         )}
       </div>
 

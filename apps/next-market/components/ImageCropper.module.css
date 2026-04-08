@@ -13,6 +13,7 @@
   background: #1a1a1a; box-shadow: 0 20px 60px rgba(0,0,0,0.6);
 }
 .header {
+  position: relative; z-index: 10;
   padding: 12px 16px; background: #222;
   text-align: center;
   flex-shrink: 0;
@@ -22,12 +23,20 @@
 }
 
 /* Crop area — the visible crop window */
+.cropWrapper {
+  flex: 1; /* Fix: Take up remaining space robustly */
+  display: flex; align-items: center; justify-content: center;
+  background: #000;
+  overflow: hidden;
+  padding: 10px;
+}
+
 .cropArea {
   position: relative;
   width: 100%;
-  flex: 1; /* Fix: Take up remaining space robustly */
-  overflow: hidden;
-  background: #000;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: visible; /* Fix: Allow image to bleed outside crop bounds so user can see what's excluded */
   touch-action: none;
   user-select: none;
 }
@@ -44,6 +53,8 @@
   position: absolute; inset: 0;
   border: 2px solid rgba(255,255,255,0.5);
   pointer-events: none; z-index: 2;
+  /* Darken the rejected portions of the image that bleed outside bounds */
+  box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.7);
   /* Rule of thirds grid lines */
   background:
     linear-gradient(to right, transparent 33.3%, rgba(255,255,255,0.15) 33.3%, rgba(255,255,255,0.15) 33.4%, transparent 33.4%,
@@ -67,6 +78,7 @@
 }
 
 .controls {
+  position: relative; z-index: 10;
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 16px; background: #222; gap: 12px;
   flex-shrink: 0;

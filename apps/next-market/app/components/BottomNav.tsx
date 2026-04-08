@@ -94,6 +94,37 @@ function useActionableOrderCount(userId?: string) {
   return count
 }
 
+function useCommunityUnreadCount(userId?: string, pathname?: string) {
+  const [count, setCount] = useState(0)
+
+  useEffect(() => {
+    if (!userId) { setCount(0); return }
+    
+    // Opt-out OVERRIDE: 
+    // If the user is physically staring at the UI via WebSockets, instantly hide the badge
+    // and don't bother wasting the poll bandwidth!
+    if (pathname === '/community') {
+      setCount(0)
+      return
+    }
+
+    const supabase = createClient()
+    const fetchCount = async () => {
+      const { data, error } = await supabase.rpc('get_my_community_unread_count')
+      if (!error && data !== null) {
+        setCount(Number(data))
+      }
+    }
+
+    fetchCount()
+    // Poll every 30 seconds globally in the background
+    const interval = setInterval(fetchCount, 30000)
+    return () => clearInterval(interval)
+  }, [userId, pathname])
+
+  return count
+}
+
 /** Detect mobile keyboard via visualViewport shrinkage */
 function useKeyboardVisible() {
   const [visible, setVisible] = useState(false)
@@ -134,6 +165,7 @@ export function BottomNav() {
   const keyboardOpen = useKeyboardVisible()
   const unreadCount = useUnreadMessageCount(user?.id)
   const actionableOrders = useActionableOrderCount(user?.id)
+  const communityUnreadCount = useCommunityUnreadCount(user?.id, pathname)
 
   const isActive = (href: string) => pathname.startsWith(href)
   const isProfileLocked = profileComplete !== true
@@ -165,6 +197,17 @@ export function BottomNav() {
           >
             <span className={styles.icon}>
               {tab.icon}
+              {tab.href === '/community' && communityUnreadCount > 0 && (
+                <span style={{
+                  position: 'absolute', top: -4, right: -4,
+                  background: '#ef4444', color: 'white', fontSize: '0.65rem',
+                  fontWeight: 'bold', width: 16, height: 16, display: 'flex',
+                  alignItems: 'center', justifyContent: 'center', borderRadius: '50%',
+                  border: '1px solid white'
+                }}>
+                  {communityUnreadCount > 9 ? '9+' : communityUnreadCount}
+                </span>
+              )}
               {tab.href === '/messages' && unreadCount > 0 && (
                 <span style={{
                   position: 'absolute', top: -4, right: -4,

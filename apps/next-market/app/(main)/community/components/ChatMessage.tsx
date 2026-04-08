@@ -6,6 +6,7 @@ import { useErrorToast } from '../../../components/ErrorToast'
 import { checkTextForViolations } from '../../../../lib/moderation'
 import ProductListingCard from './ProductListingCard'
 import { ShareIcon } from '../../../components/icons'
+import SocialShareModal from '../../../components/SocialShareModal'
 import styles from '../page.module.css'
 
 interface ChatMessageProps {
@@ -33,6 +34,7 @@ function formatTime(dateStr?: string) {
 
 export default function ChatMessage({ message, currentUserId, onDelete, onFlag, onReply, isThreadReply }: ChatMessageProps) {
   const [showActions, setShowActions] = useState(false)
+  const [showShareModal, setShowShareModal] = useState(false)
   
   const [reactions, setReactions] = useState(message.reaction_counts)
   const [userReactions, setUserReactions] = useState<string[]>(message.user_reactions)
@@ -100,21 +102,7 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
 
   const handleShare = async () => {
     setShowActions(false)
-    const truncated = message.content.length > 200 ? message.content.slice(0, 200) + '…' : message.content
-    const shareText = `💬 From CasaGrown Community:\n\n"${truncated}"\n\nJoin the neighborhood chat 👇`
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: 'CasaGrown Community — Neighborhood Chat',
-          text: shareText,
-          url: `${window.location.origin}/community`,
-        })
-        return
-      } catch (err) {
-        if ((err as Error).name === 'AbortError') return
-      }
-    }
-    try { await navigator.clipboard.writeText(`${shareText}\n${window.location.origin}/community`) } catch {}
+    setShowShareModal(true)
   }
 
 
@@ -195,7 +183,12 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
 
         {/* Tap-revealed action bar: emojis + share + delete/flag */}
         {showActions && (
-          <div className={styles.tapActionBar}>
+          <>
+            <div 
+              style={{ position: 'fixed', inset: 0, zIndex: 40 }} 
+              onClick={(e) => { e.stopPropagation(); setShowActions(false) }} 
+            />
+            <div className={styles.tapActionBar} style={{ zIndex: 50, position: 'relative' }}>
             {EMOJIS.map(emoji => (
               <button 
                 key={emoji} 
@@ -227,6 +220,7 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
               </button>
             )}
           </div>
+          </>
         )}
 
         {/* Active reactions */}
@@ -358,6 +352,16 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
           </form>
         )}
       </div>
+
+      <SocialShareModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        title="Share Message"
+        subtitle="Invite your neighbors to the conversation."
+        entityName="CasaGrown Message"
+        shareUrl={`${typeof window !== 'undefined' ? window.location.origin : ''}/community`}
+        shareMessage={`💬 From CasaGrown Community:\n\n"${message.content.length > 200 ? message.content.slice(0, 200) + '…' : message.content}"\n\nJoin the neighborhood chat 👇\n${typeof window !== 'undefined' ? window.location.origin : ''}/community`}
+      />
     </div>
   )
 }

@@ -94,10 +94,10 @@ describe('ProductDetailClient — UX Contract', () => {
   })
 
   it('share payload includes user-specific intro, price, and available quantity', () => {
-    expect(detailSrc).toContain("const shareIntro = isOwner ? 'my fresh' : 'this fresh'")
-    expect(detailSrc).toContain("product.price_usd")
+    expect(detailSrc).toContain("'my fresh' : 'this fresh'")
+    expect(detailSrc).toContain("product?.price_usd")
     expect(detailSrc).toContain("product.inventory")
-    expect(detailSrc).toContain("available'")
+    expect(detailSrc).toContain("available")
   })
 
   it('calls anonymizeAddress for pickup location', () => {

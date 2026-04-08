@@ -14,6 +14,7 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import BuyModal from '../../../../../../components/BuyModal'
 import { FlagModal } from '../../../../../../components/FlagModal'
 import { ShareIcon } from '../../../../../../components/icons'
+import SocialShareModal from '../../../../../../components/SocialShareModal'
 import { ProductQA } from '../../../../../../components/ProductQA'
 import { NotificationPromptModal } from '../../../../../../components/NotificationPromptModal'
 import { useErrorToast } from '../../../../../../components/ErrorToast'
@@ -79,6 +80,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
   const [checkingAltAddr, setCheckingAltAddr] = useState(false)
   const [showAltAddrInput, setShowAltAddrInput] = useState(false)
   const [addrLabel, setAddrLabel] = useState('Your address')
+  const [showShareModal, setShowShareModal] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -102,8 +104,8 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
       }
 
       const [{ data: prod }, { data: boothData }] = await Promise.all([
-        supabase.from('market_products').select('*').eq('id', productId).eq('is_active', true).eq('is_draft', false).eq('moderation_status', 'approved').single(),
-        supabase.from('market_booths').select('*').eq('id', boothId).single(),
+        supabase.from('market_products').select('*').eq('id', productId).single(),
+        supabase.from('market_booths').select('*').or(`id.eq.${boothId},owner_id.eq.${boothId}`).single(),
       ])
       if (prod) setProduct(prod)
       if (boothData) {
@@ -487,22 +489,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
               <button
                 className="btn btn-secondary"
                 style={{ width: '100%', padding: '10px 20px', fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-                onClick={async () => {
-                  const url = typeof window !== 'undefined' ? window.location.href : ''
-                  const isOwner = isAuthenticated && user?.id === product.seller_id
-                  const shareIntro = isOwner ? 'my fresh' : 'this fresh'
-                  const priceStr = product.price_usd === 0 ? 'Free' : `${formatUsd(product.price_usd)} / ${product.unit}`
-                  const availStr = product.inventory > 0 ? ` (${product.inventory} available)` : ' (Sold Out)'
-                  const text = `Hey! Check out ${shareIntro} ${product.name} on CasaGrown Market 🌱\n\n${priceStr}${availStr}\n\n🛒 ${url}`
-                  if (navigator.share) {
-                    try { await navigator.share({ title: `${product.name} on CasaGrown`, text, url }) } catch {}
-                  } else {
-                    try { 
-                      await navigator.clipboard.writeText(text)
-                      showSuccess('Product link copied to clipboard! 📋')
-                    } catch {}
-                  }
-                }}
+                onClick={() => setShowShareModal(true)}
               >
                 <ShareIcon size={16} /> Share Product
               </button>
@@ -956,6 +943,16 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
           {cartToast}
         </div>
       )}
+
+      <SocialShareModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        title={product ? `Share ${product.name}` : 'Share Product'}
+        subtitle={`Invite your neighbors to check out this fresh produce!`}
+        entityName={product ? product.name : 'Product'}
+        shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
+        shareMessage={`Hey! Check out ${isAuthenticated && user?.id === product?.seller_id ? 'my fresh' : 'this fresh'} ${product?.name} on CasaGrown Market 🌱\n\n${product?.price_usd === 0 ? 'Free' : `${formatUsd(product?.price_usd || 0)} / ${product?.unit}`}${product && product.inventory > 0 ? ` (${product.inventory} available)` : ' (Sold Out)'}\n\n🛒 ${typeof window !== 'undefined' ? window.location.href : ''}`}
+      />
     </div>
   )
 }

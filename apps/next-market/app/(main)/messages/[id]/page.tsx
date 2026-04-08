@@ -9,6 +9,8 @@ import { checkTextForViolations } from '../../../../lib/moderation'
 import CameraCapture from '../../../../components/CameraCapture'
 import ImageCropper from '../../../../components/ImageCropper'
 import { BlockModal } from '../../../components/BlockModal'
+import SocialShareModal from '../../../components/SocialShareModal'
+import { ShareIcon } from '../../../components/icons'
 
 function formatTime(dateStr: string) {
   const d = new Date(dateStr)
@@ -24,6 +26,40 @@ function formatDateLabel(dateStr: string) {
   if (d.toDateString() === today.toDateString()) return 'Today'
   if (d.toDateString() === yesterday.toDateString()) return 'Yesterday'
   return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: d.getFullYear() !== today.getFullYear() ? 'numeric' : undefined })
+}
+
+const URL_REGEX = /(https?:\/\/[^\s]+)/g;
+function parseTextWithLinks(text: string) {
+  if (!text) return null;
+  const parts = text.split(URL_REGEX);
+  return parts.map((part, i) => {
+    if (part.match(URL_REGEX)) {
+      let isInternal = false;
+      let relativePath = part;
+      try {
+        const url = new URL(part);
+        if (typeof window !== 'undefined' && url.origin === window.location.origin) {
+          isInternal = true;
+          relativePath = url.pathname + url.search + url.hash;
+        }
+      } catch (e) {}
+
+      if (isInternal) {
+        return (
+          <Link key={i} href={relativePath} style={{ textDecoration: 'underline', fontWeight: 600, color: 'inherit' }} onClick={(e) => e.stopPropagation()}>
+            {part}
+          </Link>
+        )
+      }
+
+      return (
+        <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline', fontWeight: 600, color: 'inherit' }} onClick={(e) => e.stopPropagation()}>
+          {part}
+        </a>
+      )
+    }
+    return part;
+  });
 }
 
 export default function MessageThreadPage() {
@@ -46,6 +82,8 @@ export default function MessageThreadPage() {
   const [blockMenuOpen, setBlockMenuOpen] = useState(false)
   const [activeReactionMessageId, setActiveReactionMessageId] = useState<string | null>(null)
   const [replyingToMessage, setReplyingToMessage] = useState<any>(null)
+  const [showShareModal, setShowShareModal] = useState(false)
+  const [shareMsgContent, setShareMsgContent] = useState<any>(null)
   const EMOJIS = ['👍', '❤️', '🎉', '😂', '😮', '🌱']
   
   // Media & Offer & Emoji State
@@ -56,12 +94,19 @@ export default function MessageThreadPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [showAttachMenu, setShowAttachMenu] = useState(false)
   const [showCamera, setShowCamera] = useState(false)
-  const [cropSrc, setCropSrc] = useState<string | null>(null)
   const [mediaFiles, setMediaFiles] = useState<File[]>([])
   const [mediaPreviews, setMediaPreviews] = useState<string[]>([])
   const [showOfferModal, setShowOfferModal] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [myProducts, setMyProducts] = useState<any[]>([])
+
+  // --- Real-time WebSocket State ---
+  const [isOtherOnline, setIsOtherOnline] = useState(false)
+  const [isOtherTyping, setIsOtherTyping] = useState(false)
+  const channelRef = useRef<any>(null)
+  const isActiveTabRef = useRef<boolean>(true)
+  const typingTimeoutRef = useRef<any>(null)
+  const typeDebounceRef = useRef<any>(null)
 
   const EMOJI_LIST = ['👍', '❤️', '🎉', '😂', '😮', '🌱', '🤝', '💯']
 
@@ -167,16 +212,139 @@ export default function MessageThreadPage() {
 
     fetchThread()
 
-    // Smart Polling (3s pulse)
-    const interval = setInterval(() => {
-        fetchThread()
-    }, 3000)
+  }, [user, authLoading, id, router])
+
+  // --- 📡 WebSockets: Postgres Sync, Presence & Typing Broadcast ---
+  useEffect(() => {
+    if (!user || !otherUser || authLoading) return
+
+    const supabase = createClient()
+
+    const connectWebSocket = async () => {
+      if (channelRef.current) return
+      
+      const newChannel = supabase.channel(`dm_${id}`, {
+        config: { presence: { key: user.id } }
+      })
+
+      // 1. Instant Message Delivery (Postgres Sync)
+      newChannel.on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'market_chat_messages', filter: `conversation_id=eq.${id}` },
+        () => { 
+           if (isActiveTabRef.current) {
+              // Optimistically hit the DB to reload history so we get hydrated relational avatars
+              supabase.from('market_chat_messages')
+                .select(`*, offer_product:market_products(id, name, price_usd, photos, unit, seller_id), market_chat_reactions(user_id, emoji)`)
+                .eq('conversation_id', id)
+                .order('created_at', { ascending: true })
+                .then(({ data }) => {
+                   if (data && isActiveTabRef.current) {
+                      setMessages(prev => {
+                         if (prev.length < data.length) setTimeout(scrollToBottom, 50)
+                         return data
+                      })
+                      clearUnreadCount(supabase, myRole || '')
+                   }
+                })
+           }
+        }
+      )
+      
+      // 2. Online Header Status (Presence)
+      newChannel.on('presence', { event: 'sync' }, () => {
+        const state = newChannel.presenceState()
+        setIsOtherOnline(Object.keys(state).includes(otherUser.id))
+      })
+      
+      // 3. Typing Bubble (Broadcast)
+      newChannel.on('broadcast', { event: 'typing' }, ({ payload }) => {
+        if (payload?.user_id !== user.id) {
+           setIsOtherTyping(payload.isTyping)
+           if (payload.isTyping) {
+              if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
+              // Auto-clear typing indicator if they close app abruptly
+              typingTimeoutRef.current = setTimeout(() => setIsOtherTyping(false), 4000)
+              setTimeout(scrollToBottom, 50)
+           }
+        }
+      })
+
+      channelRef.current = newChannel
+
+      // Lock in Presence
+      newChannel.subscribe(async (status) => {
+        if (status === 'SUBSCRIBED' && isActiveTabRef.current) {
+           await newChannel.track({ online_at: new Date().toISOString() })
+        }
+      })
+    }
+
+    const teardownWebSocket = () => {
+      setIsOtherOnline(false)
+      setIsOtherTyping(false)
+      if (channelRef.current) {
+         supabase.removeChannel(channelRef.current)
+         channelRef.current = null
+      }
+    }
+
+    // Protect 500-User Scale limits seamlessly
+    const handleVisChange = () => {
+      isActiveTabRef.current = document.visibilityState === 'visible'
+      if (document.visibilityState === 'hidden') {
+        teardownWebSocket()
+      } else {
+        connectWebSocket()
+        // Reload history manually exactly once whenever unlocking Phone to sync lost DB items!
+        supabase.from('market_chat_messages')
+           .select(`*, offer_product:market_products(id, name, price_usd, photos, unit, seller_id), market_chat_reactions(user_id, emoji)`)
+           .eq('conversation_id', id)
+           .order('created_at', { ascending: true })
+           .then(({ data }) => {
+              if (data && isActiveTabRef.current) {
+                 setMessages(data)
+                 setTimeout(scrollToBottom, 150)
+              }
+           })
+      }
+    }
+
+    // Initial Mount
+    connectWebSocket()
+    document.addEventListener('visibilitychange', handleVisChange)
 
     return () => {
-        isMounted = false
-        clearInterval(interval)
+        document.removeEventListener('visibilitychange', handleVisChange)
+        teardownWebSocket()
     }
-  }, [user, authLoading, id, router])
+  }, [user, otherUser, authLoading, id, myRole])
+
+  const handleTypingEmitter = (val: string) => {
+     setInputText(val)
+     if (!channelRef.current || !user) return
+
+     // Debounce so we aren't flooding WebSockets literally every keystroke
+     if (typeDebounceRef.current) return
+     
+     channelRef.current.send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: { user_id: user.id, isTyping: val.length > 0 }
+     })
+
+     typeDebounceRef.current = setTimeout(() => {
+        // Evaluate at the end of the throttle if they wiped their string completely
+        typeDebounceRef.current = null
+        if (inputRef.current?.value.length === 0) {
+           channelRef.current?.send({
+              type: 'broadcast',
+              event: 'typing',
+              payload: { user_id: user.id, isTyping: false }
+           })
+        }
+     }, 1000)
+  }
 
   const handleSend = async (e?: React.FormEvent) => {
     e?.preventDefault()
@@ -216,7 +384,7 @@ export default function MessageThreadPage() {
       conversation_id: id,
       sender_id: user.id,
       parent_id: replyingToMessage ? replyingToMessage.id : null,
-      content: inputText.trim() || null,
+      content: inputText.trim() || '\u200B',
       media: uploadedUrls.length > 0 ? uploadedUrls : null
     })
 
@@ -233,6 +401,10 @@ export default function MessageThreadPage() {
     }
 
     setInputText('')
+    if (channelRef.current && user) {
+       channelRef.current.send({ type: 'broadcast', event: 'typing', payload: { user_id: user.id, isTyping: false } })
+    }
+    
     setMediaFiles([])
     setMediaPreviews([])
     setReplyingToMessage(null)
@@ -289,36 +461,15 @@ export default function MessageThreadPage() {
 
   const handleMessageShare = async (msg: any) => {
     setActiveReactionMessageId(null)
-    const textToShare = msg.content || '📷 Shared a photo'
-    const urlToShare = msg.media && msg.media.length > 0 ? msg.media[0] : undefined
-    
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          text: textToShare,
-          url: urlToShare
-        })
-        return
-      } catch (err) {
-        if ((err as Error).name === 'AbortError') return
-      }
-    }
-    
-    // Fallback to clipboard
-    try {
-      await navigator.clipboard.writeText(urlToShare ? `${textToShare}\n${urlToShare}` : textToShare)
-      setErrorToast('Copied to clipboard!')
-      setTimeout(() => setErrorToast(null), 2000)
-    } catch {}
+    setShareMsgContent(msg)
+    setShowShareModal(true)
   }
 
   // 📸 Handle Photo Upload
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      const reader = new FileReader()
-      reader.onload = (ev) => setCropSrc(ev.target?.result as string)
-      reader.readAsDataURL(file)
+      addFile(file)
     }
   }
 
@@ -384,7 +535,20 @@ export default function MessageThreadPage() {
           userName={otherUser.full_name || 'Neighbor'}
           currentUserId={user.id}
           onClose={() => setShowBlockModal(false)}
-          onBlocked={() => { setIsBlocked(true); setShowBlockModal(false) }}
+          onBlocked={() => { setIsBlocked(true); setShowBlockModal(false); router.push('/messages'); }}
+        />
+      )}
+
+      {/* Share Message Modal */}
+      {showShareModal && shareMsgContent && (
+        <SocialShareModal
+          isOpen={showShareModal}
+          onClose={() => { setShowShareModal(false); setShareMsgContent(null) }}
+          title="Share Message"
+          subtitle="Share this message from your conversation."
+          entityName="CasaGrown Direct Message"
+          shareUrl={`${typeof window !== 'undefined' ? window.location.origin : ''}/messages/${id}`}
+          shareMessage={`💬 From CasaGrown:\n\n"${shareMsgContent.content.length > 200 ? shareMsgContent.content.slice(0, 200) + '…' : shareMsgContent.content}"\n\n${shareMsgContent.media && shareMsgContent.media.length > 0 ? shareMsgContent.media[0] : ''}`}
         />
       )}
 
@@ -401,7 +565,14 @@ export default function MessageThreadPage() {
           )}
         </div>
         <div style={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h2 style={{ fontSize: '1.1rem', margin: 0, color: '#111827' }}>{otherUser?.full_name || 'Neighbor'}</h2>
+          <div>
+            <h2 style={{ fontSize: '1.1rem', margin: 0, color: '#111827', display: 'flex', alignItems: 'center', gap: 6 }}>
+              {otherUser?.full_name || 'Neighbor'}
+              {isOtherOnline && (
+                 <span title="Online" style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', display: 'inline-block', boxShadow: '0 0 0 2px rgba(34, 197, 94, 0.2)' }} />
+              )}
+            </h2>
+          </div>
           
           {/* Explicit Block/Unblock Button Logic */}
           {isBlocked ? (
@@ -462,7 +633,12 @@ export default function MessageThreadPage() {
                 
                 {/* Reaction Popover Array (Escaped from hidden overflow) */}
                 {activeReactionMessageId === msg.id && (
-                  <div style={{ position: 'absolute', top: -38, [isMe ? 'right' : 'left']: 0, background: 'white', borderRadius: 24, padding: '4px 8px', display: 'flex', gap: 6, boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)', zIndex: 50, border: '1px solid #e5e7eb', alignItems: 'center' }}>
+                  <>
+                    <div 
+                      style={{ position: 'fixed', inset: 0, zIndex: 40 }} 
+                      onClick={(e) => { e.stopPropagation(); setActiveReactionMessageId(null) }} 
+                    />
+                    <div style={{ position: 'absolute', top: -38, [isMe ? 'right' : 'left']: 0, background: 'white', borderRadius: 24, padding: '4px 8px', display: 'flex', gap: 6, boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)', zIndex: 50, border: '1px solid #e5e7eb', alignItems: 'center' }}>
                     
                     {/* Emojis */}
                     {EMOJIS.map(emoji => {
@@ -491,21 +667,22 @@ export default function MessageThreadPage() {
                       <button 
                         title="Copy / Share Message"
                         onClick={(e) => { e.stopPropagation(); handleMessageShare(msg) }}
-                        style={{ border: 'none', background: 'transparent', width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: 22, color: '#6b7280', fontWeight: 'bold' }}
+                        style={{ border: 'none', background: 'transparent', width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', color: '#6b7280' }}
                       >
-                        ↗
+                        <ShareIcon size={16} />
                       </button>
                     </div>
 
                   </div>
+                  </>
                 )}
 
                 {/* Bubble Container */}
                 <div 
                   onClick={() => setActiveReactionMessageId(activeReactionMessageId === msg.id ? null : msg.id)}
                   style={{ 
-                    background: isMe ? '#22c55e' : 'white', 
-                    color: isMe ? 'white' : '#1f2937',
+                    background: isMe ? '#dcfce7' : 'white', 
+                    color: isMe ? '#166534' : '#1f2937',
                     border: isMe ? 'none' : '1px solid #e5e7eb',
                     borderRadius: '18px',
                     borderBottomRightRadius: isMe ? 4 : 18,
@@ -529,13 +706,15 @@ export default function MessageThreadPage() {
 
                   {/* 1. Media Preview */}
                 {msg.media && msg.media.length > 0 && (
-                  <img src={msg.media[0]} alt="Attached" onLoad={scrollToBottom} style={{ width: '100%', maxHeight: 250, objectFit: 'cover', display: 'block', background: '#f3f4f6' }} />
+                  <img src={msg.media[0]} alt="Attached" onLoad={scrollToBottom} style={{ maxWidth: '100%', height: 'auto', display: 'block', borderRadius: 12 }} />
                 )}
                 
                 {/* 2. Text Content */}
-                <div style={{ padding: '10px 14px', wordBreak: 'break-word' }}>
-                  {msg.content}
-                </div>
+                {msg.content && msg.content !== '\u200B' && (
+                  <div style={{ padding: '10px 14px', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+                    {parseTextWithLinks(msg.content)}
+                  </div>
+                )}
                 
                 {/* 3. Offer Product Card */}
                 {msg.offer_product && (
@@ -554,7 +733,7 @@ export default function MessageThreadPage() {
                 )}
                 
                 {/* 4. Timestamp */}
-                <div style={{ fontSize: 10, color: isMe ? 'rgba(255,255,255,0.8)' : '#9ca3af', textAlign: 'right', padding: '0 12px 6px' }}>
+                <div style={{ fontSize: 10, color: isMe ? 'rgba(22, 101, 52, 0.7)' : '#9ca3af', textAlign: 'right', padding: '0 12px 6px' }}>
                   {formatTime(msg.created_at)}
                 </div>
               </div>
@@ -581,6 +760,22 @@ export default function MessageThreadPage() {
           )
         })}
         {/* Typing indicator fallback area */}
+        {isOtherTyping && (
+          <div style={{ padding: '0 10px 16px', display: 'flex', alignItems: 'center', gap: 8, alignSelf: 'flex-start', marginLeft: 36 }}>
+             <div style={{ background: '#e5e7eb', borderRadius: 16, padding: '10px 14px', display: 'flex', gap: 4, alignItems: 'center' }}>
+                <span className="typing-dot" style={{ width: 6, height: 6, background: '#6b7280', borderRadius: '50%' }} />
+                <span className="typing-dot" style={{ width: 6, height: 6, background: '#6b7280', borderRadius: '50%', animationDelay: '0.2s' }} />
+                <span className="typing-dot" style={{ width: 6, height: 6, background: '#6b7280', borderRadius: '50%', animationDelay: '0.4s' }} />
+             </div>
+             <style dangerouslySetInnerHTML={{__html: `
+               @keyframes typeBounce {
+                 0%, 100% { transform: translateY(0); opacity: 0.5; }
+                 50% { transform: translateY(-4px); opacity: 1; }
+               }
+               .typing-dot { animation: typeBounce 1s infinite ease-in-out; }
+             `}} />
+          </div>
+        )}
         <div ref={messagesEndRef} style={{ height: 1, paddingBottom: 24 }} />
       </main>
 
@@ -730,7 +925,7 @@ export default function MessageThreadPage() {
               ref={inputRef}
               type="text"
               value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
+              onChange={(e) => handleTypingEmitter(e.target.value)}
               placeholder="Message..."
               disabled={isBlocked || uploadingMedia || sending}
               style={{
@@ -766,20 +961,6 @@ export default function MessageThreadPage() {
           onClose={() => setShowCamera(false)}
           onCapture={({ file }) => {
             setShowCamera(false)
-            const reader = new FileReader()
-            reader.onload = (ev) => setCropSrc(ev.target?.result as string)
-            reader.readAsDataURL(file)
-          }}
-        />
-      )}
-
-      {cropSrc && (
-        <ImageCropper
-          src={cropSrc}
-          aspectRatio={1}
-          onCancel={() => setCropSrc(null)}
-          onCrop={(file) => {
-            setCropSrc(null)
             addFile(file)
           }}
         />
@@ -797,7 +978,9 @@ export default function MessageThreadPage() {
               <div style={{ textAlign: 'center', padding: '32px 16px', color: '#6b7280' }}>
                 <span style={{ fontSize: 40 }}>🏪</span>
                 <p>You don't have any active products to offer.</p>
-                <Link href="/market" style={{ color: '#16a34a', fontWeight: 'bold' }}>Open a Booth to start selling</Link>
+                <Link href={`/my-booth/products/new?returnTo=/messages/${id}`} style={{ display: 'inline-block', background: '#16a34a', color: 'white', padding: '10px 20px', borderRadius: 24, fontWeight: 'bold', textDecoration: 'none', marginTop: 12 }}>
+                  + Create New Listing
+                </Link>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -811,6 +994,12 @@ export default function MessageThreadPage() {
                     <div style={{ color: '#16a34a', fontWeight: 'bold' }}>Send →</div>
                   </button>
                 ))}
+                
+                <div style={{ textAlign: 'center', marginTop: 8 }}>
+                  <Link href={`/my-booth/products/new?returnTo=/messages/${id}`} style={{ display: 'inline-block', color: '#16a34a', fontWeight: 'bold', textDecoration: 'none', padding: '8px' }}>
+                    + Create New Listing
+                  </Link>
+                </div>
               </div>
             )}
           </div>

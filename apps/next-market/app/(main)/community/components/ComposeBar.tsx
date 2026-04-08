@@ -4,7 +4,6 @@ import { uploadChatImage } from '../../../../../../packages/app/features/communi
 import { createClient } from '../../../../lib/supabase'
 import { trackClick } from '../../../../lib/analytics'
 import CameraCapture from '../../../../components/CameraCapture'
-import ImageCropper from '../../../../components/ImageCropper'
 import styles from '../page.module.css'
 
 interface ComposeBarProps {
@@ -33,7 +32,6 @@ export default function ComposeBar({ onSend, userId, h3Index, prefillText, onPre
   const [mediaPreviews, setMediaPreviews] = useState<string[]>([])
   const [attachMenu, setAttachMenu] = useState(false)
   const [showCamera, setShowCamera] = useState(false)
-  const [cropSrc, setCropSrc] = useState<string | null>(null)
 
   // Handle prefill from parent
   useEffect(() => {
@@ -68,7 +66,7 @@ export default function ComposeBar({ onSend, userId, h3Index, prefillText, onPre
         }
       }
 
-      await onSend(content.trim() || '📷', uploadedMedia, mentions)
+      await onSend(content.trim() || '\u200B', uploadedMedia, mentions)
       setContent('')
       setMentions([])
       setMentionQuery('')
@@ -149,12 +147,13 @@ export default function ComposeBar({ onSend, userId, h3Index, prefillText, onPre
   }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      if (mediaFiles.length >= 4) return
-      const reader = new FileReader()
-      reader.onload = (ev) => setCropSrc(ev.target?.result as string)
-      reader.readAsDataURL(file)
+    const files = Array.from(e.target.files || [])
+    if (files.length > 0) {
+      const allowed = files.slice(0, 4 - mediaFiles.length)
+      setMediaFiles(prev => [...prev, ...allowed])
+      
+      const previews = allowed.map(f => URL.createObjectURL(f))
+      setMediaPreviews(prev => [...prev, ...previews])
     }
 
     // Reset file input
@@ -195,24 +194,8 @@ export default function ComposeBar({ onSend, userId, h3Index, prefillText, onPre
           onCapture={({ file }) => {
             setShowCamera(false)
             if (mediaFiles.length >= 4) return
-            const reader = new FileReader()
-            reader.onload = (ev) => setCropSrc(ev.target?.result as string)
-            reader.readAsDataURL(file)
-          }}
-        />
-      )}
-
-      {cropSrc && (
-        <ImageCropper
-          src={cropSrc}
-          aspectRatio={1}
-          onCancel={() => setCropSrc(null)}
-          onCrop={(file) => {
-            setCropSrc(null)
-            const newFiles = [...mediaFiles, file].slice(0, 4)
-            setMediaFiles(newFiles)
-            const previews = newFiles.map(f => URL.createObjectURL(f))
-            setMediaPreviews(previews)
+            setMediaFiles(prev => [...prev, file])
+            setMediaPreviews(prev => [...prev, URL.createObjectURL(file)])
           }}
         />
       )}
