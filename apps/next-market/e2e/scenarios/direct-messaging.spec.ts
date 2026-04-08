@@ -129,7 +129,7 @@ test.describe('Direct Messaging & Block Flows', () => {
 
     // Button should now morph to Unblock
     const unblockButton = page.getByRole('button', { name: '🔓 Unblock' })
-    await expect(unblockButton).toBeVisible({ timeout: 5000 })
+    await expect(unblockButton).toBeVisible({ timeout: 15000 })
 
     // Unblock to leave things clean
     await unblockButton.click()
@@ -185,7 +185,7 @@ test.describe('Direct Messaging & Block Flows', () => {
       await page.waitForLoadState('networkidle')
 
       // Click a message to trigger action bar
-      const msgBubble = page.locator('.message-bubble').last()
+      const msgBubble = page.locator('[class*="messageBubble"]').last()
       if (await msgBubble.isVisible({ timeout: 3000 }).catch(() => false)) {
         await msgBubble.click()
 

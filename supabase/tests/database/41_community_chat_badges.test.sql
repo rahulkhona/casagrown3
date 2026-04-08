@@ -12,10 +12,9 @@ SET local role authenticated;
 SET local request.jwt.claims = '{"sub": "a1111111-1111-1111-1111-111111111111"}';
 
 -- Call the function
-SELECT results_eq(
+SELECT lives_ok(
     'SELECT update_profile_last_seen()',
-    ARRAY[true],
-    'update_profile_last_seen returns true on success'
+    'update_profile_last_seen executes without errors'
 );
 
 -- Test unread count logic

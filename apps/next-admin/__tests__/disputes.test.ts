@@ -227,6 +227,7 @@ describe('Dispute Admin RPCs', () => {
     const disputeDbId = insert.data.id
 
     const result = await rpcCallAuth('get_dispute_evidence', { p_dispute_id: disputeDbId })
+    console.log('EVIDENCE ERROR:', result)
     expect(result.status).toBe(200)
     expect(result.data.dispute).toBeDefined()
     expect(result.data.purchases).toBeDefined()

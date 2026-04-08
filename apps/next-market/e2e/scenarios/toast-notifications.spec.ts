@@ -21,14 +21,24 @@ test.describe('Toast Notifications for Success and Error Handling', () => {
     // navigateToMarket handles alpha banner and location prompt logic reliably
     await navigateToMarket(page)
     
-    // Intercept profile fetch for community to force a failure
-    await page.route('**/rest/v1/profiles*select=home_community_h3_index*', async route => {
-      await route.fulfill({ status: 500, contentType: 'application/json', body: '{"message":"Intercepted profile error"}' })
+    // Intercept community message sends to force an error
+    await page.route('**/rest/v1/community_chat_messages*', async route => {
+      if (route.request().method() === 'POST') {
+        await route.fulfill({ status: 500, contentType: 'application/json', body: '{"message":"Intercepted send error"}' })
+      } else {
+        await route.fallback()
+      }
     })
 
-    // Navigate to community where it will fetch the profile on mount
+    // Navigate to community and try sending a message
     await page.goto(`${BASE}/community`)
-    await page.waitForTimeout(3000) // Wait for React mount + profile fetch + error
+    
+    // Make sure we have a community loaded
+    await expect(page.getByPlaceholder('What\'s on your mind?')).toBeVisible({ timeout: 15000 })
+    
+    // Send a message
+    await page.getByPlaceholder('What\'s on your mind?').fill('Testing error toast')
+    await page.getByRole('button', { name: 'Send' }).click()
     
     // Look for the ErrorToast container which has the ❌ icon
     const errorIcon = page.locator('text=❌').first()

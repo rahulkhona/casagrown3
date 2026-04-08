@@ -86,6 +86,10 @@ test.describe('Community Chat Moderation & UX', () => {
        VALUES ('${newId}', '89283470c2fffff', 'b2222222-2222-2222-2222-222222222222', '${newContent}', NOW(), NOW())`
     )
 
+    // Ensure we load the freshest state
+    await page.reload()
+    await page.waitForLoadState('networkidle')
+
     // Wait for feed to load messages (increase timeout for slow query)
     await expect(page.locator(`text="${newContent}"`)).toBeVisible({ timeout: 15000 })
     const oldVisible = await page.locator(`text="${oldContent}"`).isVisible({ timeout: 5000 }).catch(() => false)
