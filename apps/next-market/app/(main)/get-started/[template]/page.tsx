@@ -139,7 +139,7 @@ export default function BoothSetupPage() {
   }, [showHelpers])
 
   const copyInviteInfo = async () => {
-    const text = `Join my booth on CasaGrown!\n\nLink: ${inviteLink}\nPasscode: ${passcode}\n\nThis passcode expires ${inviteExpiresAt}.`
+    const text = `Join my booth as a helper on CasaGrown Market!\n\n👇 Click the link below to securely join my booth:\n${inviteLink}\n\nPasscode: ${passcode}\nExpires: ${inviteExpiresAt}`
     try {
       await navigator.clipboard.writeText(text)
       setInviteCopied(true)
@@ -150,7 +150,7 @@ export default function BoothSetupPage() {
   const shareInvite = async () => {
     if (navigator.share) {
       try {
-        await navigator.share({ title: `Join my booth on CasaGrown`, text: `Join my booth as a helper!\n\nPasscode: ${passcode}\nExpires: ${inviteExpiresAt}`, url: inviteLink })
+        await navigator.share({ title: `Join my booth on CasaGrown`, text: `Join my booth as a helper on CasaGrown Market!\n\nPasscode: ${passcode}\nExpires: ${inviteExpiresAt}\n\n👇 Click the link below to securely join my booth:\n`, url: inviteLink })
       } catch { /* cancelled */ }
     } else {
       copyInviteInfo()

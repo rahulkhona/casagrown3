@@ -21,6 +21,7 @@ interface ProductListingCardProps {
   productId: string
   messageContent: string
   currentUserId?: string
+  onShareDataLoaded?: (info: string) => void
 }
 
 interface ProductData {
@@ -51,7 +52,7 @@ interface BoothData {
   owner_id: string
 }
 
-export default function ProductListingCard({ productId, currentUserId }: ProductListingCardProps) {
+export default function ProductListingCard({ productId, messageContent, currentUserId, onShareDataLoaded }: ProductListingCardProps) {
   const [product, setProduct] = useState<ProductData | null>(null)
   const [booth, setBooth] = useState<BoothData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -111,10 +112,22 @@ export default function ProductListingCard({ productId, currentUserId }: Product
         setBooth(b)
       }
       setLoading(false)
+
+      if (prod && b && onShareDataLoaded) {
+        const fulfillmentText = b.offers_delivery && b.offers_pickup 
+          ? `🚗 Delivery or 📍 Pickup near ${b.pickup_display_address || anonymizeAddress(b.pickup_address) || 'you'}`
+          : b.offers_delivery 
+            ? `🚗 Delivery near ${b.pickup_display_address || anonymizeAddress(b.pickup_address) || 'you'}`
+            : b.offers_pickup 
+              ? `📍 Pickup near ${b.pickup_display_address || anonymizeAddress(b.pickup_address) || 'you'}`
+              : '📍 Available nearby'
+        
+        onShareDataLoaded(`🛒 **${prod.name}** — ${prod.price_usd === 0 ? 'Free' : `$${prod.price_usd.toFixed(2)}/${prod.unit}`}${prod.inventory > 0 ? ` (${prod.inventory} available)` : ' (Sold Out)'}\n${fulfillmentText}`)
+      }
     }
     load()
     return () => { cancelled = true }
-  }, [productId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [productId, onShareDataLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Resolve buyer's location from profile
   useEffect(() => {

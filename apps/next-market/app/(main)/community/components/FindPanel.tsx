@@ -215,8 +215,15 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
 
   // ── Post "Looking for" message & save watch ──
   const handlePostLookingFor = async () => {
+    let addrLabel = address ? address.replace(/^[\d-]+\s*/, '') : 'my area'
+    if (userId) {
+       const { data: prof } = await supabase.from('profiles').select('street_address, city, state_code').eq('id', userId).single()
+       if (prof?.street_address) {
+          const street = prof.street_address.replace(/^[\d-]+\s*/, '')
+          addrLabel = [street, prof.city, prof.state_code].filter(Boolean).join(', ')
+       }
+    }
     const fulfillmentLabel = fulfillment === 'delivery' ? '🚗 Delivery' : fulfillment === 'pickup' ? `📍 Pickup within ${radius} mi` : '🚗 Delivery or 📍 Pickup'
-    const addrLabel = address ? address.split(',').slice(1).join(',').trim() || address : 'my area'
 
     const message = `🔍 Looking for: **${keywords}**\n${fulfillmentLabel} near ${addrLabel}\nIf you have some, let me know! 🌱`
     

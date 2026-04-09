@@ -15,6 +15,7 @@ interface ChatMessageProps {
   onDelete: () => void
   onFlag: () => void
   onReply?: (parentId: string, content: string) => Promise<void>
+  onEdit?: (messageId: string, newContent: string) => Promise<void>
   /** If true, this message is inside a thread view — hide reply/thread actions */
   isThreadReply?: boolean
 }
@@ -32,9 +33,10 @@ function formatTime(dateStr?: string) {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ', ' + timeStr
 }
 
-export default function ChatMessage({ message, currentUserId, onDelete, onFlag, onReply, isThreadReply }: ChatMessageProps) {
+export default function ChatMessage({ message, currentUserId, onDelete, onFlag, onReply, onEdit, isThreadReply }: ChatMessageProps) {
   const [showActions, setShowActions] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
+  const [richShareInfo, setRichShareInfo] = useState<string | null>(null)
   
   const [reactions, setReactions] = useState(message.reaction_counts)
   const [userReactions, setUserReactions] = useState<string[]>(message.user_reactions)
@@ -47,6 +49,11 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
   const [showReplyInput, setShowReplyInput] = useState(false)
   const [replyText, setReplyText] = useState('')
   const [isSendingReply, setIsSendingReply] = useState(false)
+
+  // Edit state
+  const [isEditing, setIsEditing] = useState(false)
+  const [editText, setEditText] = useState(message.content)
+  const [isSavingEdit, setIsSavingEdit] = useState(false)
 
   // Thread expansion state
   const [threadReplies, setThreadReplies] = useState<CommunityChatMessage[]>([])
@@ -108,11 +115,32 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
 
 
   const handleBubbleTap = () => {
-    if (isThreadReply) return
+    if (isThreadReply || isEditing) return
     // Toggle: show actions + reply input
     const next = !showActions
     setShowActions(next)
     if (next) setShowReplyInput(true)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!onEdit || !editText.trim() || isSavingEdit) return
+    const violationCheck = checkTextForViolations(editText)
+    if (!violationCheck.isClean) {
+      showError(violationCheck.error!)
+      return
+    }
+    
+    setIsSavingEdit(true)
+    try {
+      await onEdit(message.id, editText.trim())
+      message.content = editText.trim() // Optimistic UI
+      setIsEditing(false)
+    } catch (err) {
+      console.error('Failed to edit', err)
+      showError('Failed to save edit.')
+    } finally {
+      setIsSavingEdit(false)
+    }
   }
 
   const activeReactions = Object.entries(reactions)
@@ -123,7 +151,7 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
     })
 
   return (
-    <div className={`${styles.messageWrapper} ${isOwnMessage ? styles.isOwnMessage : ''} ${isBot ? styles.isBotMessage : ''}`}>
+    <div id={`msg-${message.id}`} className={`${styles.messageWrapper} ${isOwnMessage ? styles.isOwnMessage : ''} ${isBot ? styles.isBotMessage : ''}`}>
       <div className={`${styles.avatar} ${isBot ? styles.botAvatar : ''}`}>
         {isBot ? (
           <span>🐝</span>
@@ -152,6 +180,23 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
             </a>
           )}
 
+          {isOwnMessage && !isBot && (
+            <div style={{ display: 'flex', gap: 6, marginLeft: 8 }}>
+              <button 
+                onClick={(e) => { e.stopPropagation(); setIsEditing(true) }} 
+                style={{ fontSize: '0.65rem', color: '#6b7280', background: '#f3f4f6', border: 'none', borderRadius: 4, cursor: 'pointer', padding: '2px 6px', fontWeight: 500 }}
+              >
+                Edit
+              </button>
+              <button 
+                onClick={(e) => { e.stopPropagation(); onDelete() }} 
+                style={{ fontSize: '0.65rem', color: '#ef4444', background: '#fef2f2', border: 'none', borderRadius: 4, cursor: 'pointer', padding: '2px 6px', fontWeight: 500 }}
+              >
+                Delete
+              </button>
+            </div>
+          )}
+
           <span className={styles.time}>{formatTime(message.created_at)}</span>
         </div>
         
@@ -162,7 +207,39 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
               productId={message.product_listing_id}
               messageContent={message.content}
               currentUserId={currentUserId}
+              onShareDataLoaded={(info) => setRichShareInfo(info)}
             />
+          </div>
+        ) : isEditing ? (
+          <div className={`${styles.messageBubble} ${styles.isOwnMessage}`} style={{ width: '100%' }}>
+            <textarea
+              className={styles.inlineReplyInput}
+              value={editText}
+              onChange={e => {
+                setEditText(e.target.value)
+                e.target.style.height = 'auto'
+                e.target.style.height = (e.target.scrollHeight) + 'px'
+              }}
+              style={{ resize: 'none', overflowY: 'hidden', minHeight: 38, width: '100%', padding: '8px 12px', marginBottom: 8 }}
+              disabled={isSavingEdit}
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button 
+                onClick={() => { setIsEditing(false); setEditText(message.content) }} 
+                style={{ background: 'none', border: 'none', color: '#6b7280', fontSize: 13, cursor: 'pointer', padding: '4px 8px' }}
+                disabled={isSavingEdit}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSaveEdit} 
+                style={{ background: '#16a34a', color: '#fff', border: 'none', borderRadius: 12, fontSize: 13, cursor: 'pointer', padding: '4px 12px', fontWeight: 600 }}
+                disabled={!editText.trim() || isSavingEdit}
+              >
+                {isSavingEdit ? 'Saving...' : 'Save'}
+              </button>
+            </div>
           </div>
         ) : (
           <div 
@@ -170,7 +247,10 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
             onClick={handleBubbleTap}
             data-testid="message-bubble"
           >
-            <p className={styles.messageText}>{message.content}</p>
+            <p className={styles.messageText}>
+              {message.content}
+              {message.edited_at && <span style={{ fontSize: '0.65rem', color: 'rgba(0,0,0,0.4)', marginLeft: 6 }}>(edited)</span>}
+            </p>
             
             {message.media && message.media.length > 0 && (
               <div className={styles.mediaGrid}>
@@ -360,8 +440,11 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
         title="Share Message"
         subtitle="Invite your neighbors to the conversation."
         entityName="CasaGrown Message"
-        shareUrl={`${typeof window !== 'undefined' ? window.location.origin : ''}/community`}
-        shareMessage={`💬 From CasaGrown Community:\n\n"${message.content.length > 200 ? message.content.slice(0, 200) + '…' : message.content}"\n\nJoin the neighborhood chat 👇\n${typeof window !== 'undefined' ? window.location.origin : ''}/community`}
+        shareUrl={`${typeof window !== 'undefined' ? window.location.origin : ''}/community?message_id=${message.id}`}
+        shareMessage={richShareInfo
+          ? `Hey neighborhood! I found this on CasaGrown Market:\n\n${richShareInfo}\n\n👇 Click here to view and purchase:\n${typeof window !== 'undefined' ? window.location.origin : ''}/community?message_id=${message.id}`
+          : `💬 From CasaGrown Community:\n\n"${(message.content.length > 200 ? message.content.slice(0, 200) + '…' : message.content).replace(/\n\nTap to view and purchase →/g, '')}"\n\n👇 Click here to view or join the conversation:\n${typeof window !== 'undefined' ? window.location.origin : ''}/community?message_id=${message.id}`
+        }
       />
     </div>
   )

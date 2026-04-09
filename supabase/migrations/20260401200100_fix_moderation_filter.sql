@@ -141,7 +141,7 @@ BEGIN
           AND (product_search IS NULL OR NOT EXISTS (
             SELECT 1 FROM unnest(string_to_array(lower(product_search), ' ')) AS word
             WHERE length(word) >= 2
-            AND NOT (lower(mp.name || ' ' || COALESCE(mp.description, '') || ' ' || mp.category) LIKE '%' || word || '%')
+            AND NOT (lower(concat_ws(' ', mp.name, mp.description, mp.category)) LIKE '%' || word || '%')
           ))
           AND (min_price IS NULL OR mp.price_usd >= min_price)
           AND (max_price IS NULL OR mp.price_usd <= max_price)
@@ -218,7 +218,7 @@ BEGIN
           AND (product_search IS NULL OR NOT EXISTS (
             SELECT 1 FROM unnest(string_to_array(lower(product_search), ' ')) AS word
             WHERE length(word) >= 2
-            AND NOT (lower(dpc.name || ' ' || COALESCE(dpc.description, '') || ' ' || dpc.category) LIKE '%' || word || '%')
+            AND NOT (lower(concat_ws(' ', dpc.name, dpc.description, dpc.category)) LIKE '%' || word || '%')
           ))
           AND (min_price IS NULL OR (CASE WHEN v_is_blocked_state THEN 0 ELSE dpc.price_usd END) >= min_price)
           AND (max_price IS NULL OR (CASE WHEN v_is_blocked_state THEN 0 ELSE dpc.price_usd END) <= max_price)

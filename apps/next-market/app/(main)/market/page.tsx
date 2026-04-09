@@ -15,6 +15,7 @@ import PioneerBanner from '../../components/PioneerBanner'
 import { resetTour } from '../../components/GuidedTour'
 import { LoadingSpinner } from '../../components/LoadingSpinner'
 import { useErrorToast } from '../../components/ErrorToast'
+import SocialShareModal from '../../components/SocialShareModal'
 import styles from './page.module.css'
 
 // ── Compact countdown timer for closed market ──
@@ -96,6 +97,38 @@ const categoryIcons: Record<string, string> = {
   pots: '🪴', soil: '🌱', seeds: '🌰', eggs: '🥚', honey: '🍯',
 }
 
+const getSearchEmoji = (query: string) => {
+  const q = query.toLowerCase()
+  if (q.includes('tomato')) return '🍅'
+  if (q.includes('apple')) return '🍎'
+  if (q.includes('honey')) return '🍯'
+  if (q.includes('egg')) return '🥚'
+  if (q.includes('milk') || q.includes('dairy')) return '🥛'
+  if (q.includes('orange') || q.includes('citrus')) return '🍊'
+  if (q.includes('lemon')) return '🍋'
+  if (q.includes('strawber')) return '🍓'
+  if (q.includes('grape')) return '🍇'
+  if (q.includes('melon') || q.includes('watermelon')) return '🍉'
+  if (q.includes('carrot')) return '🥕'
+  if (q.includes('corn')) return '🌽'
+  if (q.includes('pepper') || q.includes('chili')) return '🌶️'
+  if (q.includes('potato')) return '🥔'
+  if (q.includes('onion')) return '🧅'
+  if (q.includes('garlic')) return '🧄'
+  if (q.includes('broccoli')) return '🥦'
+  if (q.includes('mushroom')) return '🍄'
+  if (q.includes('bread') || q.includes('sourdough')) return '🍞'
+  if (q.includes('cheese')) return '🧀'
+  if (q.includes('jam')) return '🫙'
+  if (q.includes('flower') || q.includes('rose') || q.includes('tulip')) return '💐'
+  if (q.includes('plant') || q.includes('seedling')) return '🪴'
+  if (q.includes('sugar') || q.includes('cane') || q.includes('bamboo')) return '🎋'
+  if (q.includes('herb') || q.includes('basil') || q.includes('mint') || q.includes('parsley')) return '🌿'
+  if (q.includes('meat') || q.includes('beef') || q.includes('pork')) return '🥩'
+  if (q.includes('chicken') || q.includes('poultry')) return '🍗'
+  return '🌱'
+}
+
 function BrowseMarketPageInner() {
   const supabase = createClient()
   const { user } = useAuth()
@@ -138,6 +171,7 @@ function BrowseMarketPageInner() {
   // Product reminders (when market is closed)
   const [savedProductIds, setSavedProductIds] = useState<Set<string>>(new Set())
   const [showDemoModal, setShowDemoModal] = useState(false)
+  const [showGlobalShareModal, setShowGlobalShareModal] = useState(false)
   const { showSuccess, showInfo } = useErrorToast()
 
   // Pioneer banner state
@@ -277,7 +311,20 @@ function BrowseMarketPageInner() {
           next.push(...existingDemos)
         } else if (cachedDemos) {
           // Active page load: Inject the 2-hour valid Local Storage cache
-          next.push(...cachedDemos)
+          let validDemos = cachedDemos
+          if (search.trim()) {
+            const queryWords = search.toLowerCase().trim().split(/\s+/).filter(w => w.length >= 2)
+            if (queryWords.length > 0) {
+              validDemos = cachedDemos.map((db: BoothResult) => {
+                const matchedProducts = (db.matched_products || []).filter((p: any) => {
+                  const text = (p.name + ' ' + (p.description || '') + ' ' + (p.category || '')).toLowerCase()
+                  return queryWords.every(w => text.includes(w))
+                })
+                return { ...db, matched_products: matchedProducts, product_count: matchedProducts.length }
+              }).filter((db: BoothResult) => db.product_count > 0)
+            }
+          }
+          next.push(...validDemos)
         } else {
           // Active page load (Cache Miss): We fetched fresh demos! Save them to the 2-hour cache.
           const freshDemos = next.filter(b => b.is_demo)
@@ -557,9 +604,6 @@ function BrowseMarketPageInner() {
     )
   }
 
-  // ── STATE 1.5: Market is closed — show closed box + demo booths below ──
-  // (no longer an early return — demo booths render below)
-
   // ── STATE 2: Need address (only when market is open) ──
   if (!addressResolved && marketIsOpen) {
     return (
@@ -646,16 +690,7 @@ function BrowseMarketPageInner() {
             display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap',
             marginBottom: 16,
           }}>
-            <button onClick={async () => {
-              const url = `${window.location.origin}/`
-              const text = 'Check out CasaGrown — a marketplace for homegrown produce from your neighbors! 🌱'
-              if (navigator.share) {
-                try { await navigator.share({ title: 'Join CasaGrown', text, url }) } catch {}
-              } else {
-                navigator.clipboard?.writeText(`${text}\n${url}`)
-                showSuccess('Invite link copied!')
-              }
-            }} style={{
+            <button onClick={() => setShowGlobalShareModal(true)} style={{
               display: 'inline-flex', alignItems: 'center', gap: 5,
               padding: '8px 14px', borderRadius: 999,
               background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff',
@@ -769,13 +804,56 @@ function BrowseMarketPageInner() {
         const realCount = booths.filter(b => !b.is_demo).length
         const demoCount = booths.filter(b => b.is_demo).length
         return (
-          <p className={styles.statusText}>
-            {isSearching
-              ? `${totalProducts} result${totalProducts !== 1 ? 's' : ''} for "${search}" across ${booths.length} booth${booths.length !== 1 ? 's' : ''}`
-              : demoCount > 0
-                ? `${realCount} booth${realCount !== 1 ? 's' : ''} near you + ${demoCount} demo`
-                : `${booths.length} booth${booths.length !== 1 ? 's' : ''} near you`}
-          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 12 }}>
+            <p className={styles.statusText} style={{ marginBottom: 0 }}>
+              {isSearching
+                ? `${totalProducts} result${totalProducts !== 1 ? 's' : ''} for "${search}" across ${booths.length} booth${booths.length !== 1 ? 's' : ''}`
+                : demoCount > 0
+                  ? `${realCount} booth${realCount !== 1 ? 's' : ''} near you + ${demoCount} demo`
+                  : `${booths.length} booth${booths.length !== 1 ? 's' : ''} near you`}
+            </p>
+            {realCount < 2 && (
+              <div style={{
+                position: 'relative', overflow: 'hidden', padding: 20, borderRadius: 20,
+                background: 'linear-gradient(145deg, #ffffff, #f0fdf4)',
+                border: '1px solid rgba(34, 197, 94, 0.2)',
+                boxShadow: '0 8px 30px rgba(0,0,0,0.04)',
+                textAlign: 'left', display: 'flex', alignItems: 'center', gap: 16,
+                marginTop: 20, marginBottom: 8, width: '100%', maxWidth: 500,
+              }}>
+                <div style={{
+                  position: 'absolute', top: -30, right: -20, opacity: 0.08,
+                  fontSize: 120, transform: 'rotate(15deg)', pointerEvents: 'none'
+                }}>
+                  {isSearching ? getSearchEmoji(search) : '🌱'}
+                </div>
+                <div style={{ flex: 1, position: 'relative', zIndex: 1 }}>
+                  <h3 style={{ margin: '0 0 6px', fontSize: 17, color: '#1f2937', fontWeight: 800, letterSpacing: '-0.3px' }}>
+                    {isSearching ? `Looking for ${search}?` : 'Everything is better with friends'}
+                  </h3>
+                  <p style={{ margin: '0 0 16px', fontSize: 14, color: '#4b5563', lineHeight: 1.5 }}>
+                    {isSearching 
+                      ? `Know a neighbor who might have ${search}? Invite them to list on CasaGrown!` 
+                      : 'More neighbors mean more fresh food. Invite your neighbors to start building your local community!'}
+                  </p>
+                  <button 
+                    onClick={() => setShowGlobalShareModal(true)}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 8,
+                      padding: '10px 20px', borderRadius: 999,
+                      background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff',
+                      fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer',
+                      boxShadow: '0 4px 14px rgba(22,163,74,0.3)', transition: 'transform 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.02)' }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}
+                  >
+                    🚀 Invite Neighbors
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         )
       })()}
 
@@ -785,10 +863,58 @@ function BrowseMarketPageInner() {
           <LoadingSpinner />
         </div>
       ) : booths.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-state-icon">🌱</div>
-          <div className="empty-state-title">{isSearching ? `No results for "${search}"` : 'No booths found'}</div>
-          <div className="empty-state-text">{isSearching ? 'Try a different product name' : 'Try increasing distance or changing your address'}</div>
+        <div style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          padding: '24px 20px', textAlign: 'center'
+        }}>
+          <div style={{
+            position: 'relative', overflow: 'hidden', padding: '32px 24px', borderRadius: 24,
+            background: 'linear-gradient(145deg, #ffffff, #f0fdf4)',
+            border: '1px solid rgba(34, 197, 94, 0.2)',
+            boxShadow: '0 8px 30px rgba(0,0,0,0.06)',
+            width: '100%', maxWidth: 500,
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
+          }}>
+            <div style={{
+              position: 'absolute', top: -40, right: -30, opacity: 0.05,
+              fontSize: 160, transform: 'rotate(15deg)', pointerEvents: 'none'
+            }}>{isSearching ? getSearchEmoji(search) : '🌱'}</div>
+            
+            <div style={{ 
+              width: 64, height: 64, borderRadius: '50%', 
+              background: '#dcfce7', color: '#16a34a',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 28, marginBottom: 16, boxShadow: '0 4px 12px rgba(22,163,74,0.15)'
+            }}>
+              {isSearching ? getSearchEmoji(search) : '🌱'}
+            </div>
+
+            <h3 style={{ margin: '0 0 8px', fontSize: 19, color: '#1f2937', fontWeight: 800, letterSpacing: '-0.4px', position: 'relative', zIndex: 1 }}>
+              {isSearching ? `Looking for ${search}?` : 'Everything is better with friends'}
+            </h3>
+            
+            <p style={{ margin: '0 0 24px', fontSize: 15, color: '#4b5563', lineHeight: 1.5, position: 'relative', zIndex: 1, maxWidth: 360 }}>
+              {isSearching 
+                ? `Know a neighbor who might have ${search}? Invite them to list on CasaGrown!` 
+                : 'More neighbors mean more fresh food. Invite your neighbors to start building your local community!'}
+            </p>
+            
+            <button 
+              onClick={() => setShowGlobalShareModal(true)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                padding: '12px 28px', borderRadius: 999,
+                background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff',
+                fontSize: 15, fontWeight: 700, border: 'none', cursor: 'pointer',
+                boxShadow: '0 6px 20px rgba(22,163,74,0.3)', transition: 'transform 0.2s ease',
+                position: 'relative', zIndex: 1
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.03)' }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}
+            >
+              🚀 Invite Neighbors
+            </button>
+          </div>
         </div>
       ) : (
         <div className={styles.boothGrid}>
@@ -914,6 +1040,29 @@ function BrowseMarketPageInner() {
               )}
             </div>
           )}
+
+          {/* End of results CTA */}
+          {!hasMoreBooths && !loading && booths.length > 0 && (() => {
+            const realCount = booths.filter(b => !b.is_demo).length
+            return (
+            <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--gray-500)' }}>
+              <p style={{ marginBottom: 12, fontSize: 14 }}>
+                {realCount === 0 ? "You've reached the end of the demo booths." : "You've reached the end of the market."} Don't see what you're looking for?
+              </p>
+              <button 
+                onClick={() => setShowGlobalShareModal(true)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '10px 20px', borderRadius: 999,
+                  background: '#fff', border: '1px solid var(--gray-300)', color: 'var(--gray-700)',
+                  fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                }}
+              >
+                📣 Invite Neighbors
+              </button>
+            </div>
+          )})()}
         </div>
       )}
 
@@ -981,6 +1130,19 @@ function BrowseMarketPageInner() {
         >
           {marketIsOpen ? '📸 Sell Excess Produce' : '📸 List for Next Market'}
         </Link>
+        
+        {/* Global Share Modal */}
+        {showGlobalShareModal && (
+          <SocialShareModal
+            isOpen={showGlobalShareModal}
+            onClose={() => setShowGlobalShareModal(false)}
+            title="Invite Neighbors"
+            subtitle="Share CasaGrown with your neighborhood."
+            shareUrl={typeof window !== 'undefined' ? `${window.location.origin}/` : ''}
+            shareMessage="Check out CasaGrown — a marketplace for homegrown produce from your neighbors! 🌱\n\n👇 Click the link below to explore the market:\n"
+            entityName="Market Invite"
+          />
+        )}
     </div>
   )
 }

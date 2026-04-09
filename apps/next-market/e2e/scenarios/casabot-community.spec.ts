@@ -59,3 +59,18 @@ test.describe('CasaBot & Community E2E', () => {
     await page.context().close()
   })
 })
+
+  test('casabot-starter-post edge function creates global conversation starter', async ({ request }) => {
+    // We trigger the edge function natively via standard HTTP to test if it posts successfully
+    const response = await request.post('http://127.0.0.1:54321/functions/v1/casabot-starter-post', {
+      headers: {
+        // Use a generic placeholder or the test service key (the function skips execution if it's localhost anyway, but returns success)
+        'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU`
+      }
+    })
+    
+    // In local dev, the function detects localhost and returns skipped_local: true, but processed 1 mock post
+    const data = await response.json()
+    expect(response.status()).toBe(200)
+    expect(data.processed).toBe(1)
+  })

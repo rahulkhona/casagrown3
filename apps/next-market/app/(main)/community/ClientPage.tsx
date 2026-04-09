@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
 import { useMarket } from '../../../lib/store'
 import { useAuth } from '../../../lib/useAuth'
@@ -9,6 +9,7 @@ import {
   fetchCommunityMessages,
   sendCommunityMessage,
   deleteCommunityMessage,
+  editCommunityMessage,
   flagMessage,
   CommunityChatMessage,
 } from '../../../../../packages/app/features/community-chat/community-chat-service'
@@ -18,6 +19,7 @@ import ComposeBar from './components/ComposeBar'
 import SuggestionChips from './components/SuggestionChips'
 import FindPanel from './components/FindPanel'
 import NotifyPanel from './components/NotifyPanel'
+import InviteBanner from './components/InviteBanner'
 import WelcomeCard from './components/WelcomeCard'
 import NewMessagesBadge from './components/NewMessagesBadge'
 import { useNotificationPrompt } from '../../../lib/useNotificationPrompt'
@@ -42,6 +44,8 @@ export default function ClientPage({
   initialBuzzWelcomedAt
 }: ClientPageProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const targetMessageId = searchParams?.get('message_id')
   const { state } = useMarket()
   const { user, isAuthenticated, loading } = useAuth()
   
@@ -64,6 +68,13 @@ export default function ClientPage({
   
   // Scroll and UI state
   const scrollRef = useRef<HTMLDivElement>(null)
+  const isAtBottomRef = useRef(true)
+  const typeDebounceRef = useRef<NodeJS.Timeout | null>(null)
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const initialScrollDoneRef = useRef(false)
+  
+  // Track total expected messages to prevent feed truncation on optimistic saves
+  const messageCountRef = useRef(50)
   const topAnchorRef = useRef<HTMLDivElement>(null)
   const composeRef = useRef<HTMLDivElement>(null)
   const [isAtBottom, setIsAtBottom] = useState(true)
@@ -83,11 +94,11 @@ export default function ClientPage({
   const { showPrompt, modalProps } = useNotificationPrompt(user?.id)
   
   // Calculate first unread message ID for rendering the red visual marker
-  const firstUnreadId = useMemo(() => {
+  const [firstUnreadId, setFirstUnreadId] = useState<string | null>(() => {
     if (!initialBuzzWelcomedAt || !user) return null
-    const first = messages.find(m => new Date(m.created_at) > new Date(initialBuzzWelcomedAt) && m.author_id !== user.id)
+    const first = initialMessages.find(m => new Date(m.created_at) > new Date(initialBuzzWelcomedAt) && m.author_id !== user.id)
     return first ? first.id : null
-  }, [messages, initialBuzzWelcomedAt, user])
+  })
   
   // 1. Fetch user's H3 community index on load (Fallback for SPA navigation)
   useEffect(() => {
@@ -110,8 +121,21 @@ export default function ClientPage({
     if (!profileH3) return
     try {
       const supabase = createClient()
-      const msgs = await fetchCommunityMessages(supabase, profileH3)
-      setMessages([...msgs].reverse()) // Reverse for chronological order (newest at bottom)
+      const limitToFetch = Math.max(50, messageCountRef.current)
+      const msgs = await fetchCommunityMessages(supabase, profileH3, null, limitToFetch)
+      
+      const uniqueKeys = new Set(msgs.map(m => m.id))
+      const combined = [...msgs]
+      // Preserve optimistic pending messages
+      pendingMessages.forEach(pm => {
+        if (!uniqueKeys.has(pm.id)) {
+          combined.push(pm)
+          uniqueKeys.add(pm.id)
+        }
+      })
+      
+      messageCountRef.current = combined.length
+      setMessages(combined.reverse()) // Reverse for chronological order (newest at bottom)
       
       const scrollToBottom = () => {
         if (scrollRef.current) {
@@ -123,7 +147,7 @@ export default function ClientPage({
     } catch (err) {
       console.error('Failed to reload messages', err)
     }
-  }, [profileH3])
+  }, [profileH3, pendingMessages])
   
   useEffect(() => {
     // Component mounted with SSR data! We don't fetch, we just scroll to the bottom.
@@ -135,7 +159,10 @@ export default function ClientPage({
       if (!scrollRef.current) return
       
       let targetUnread: HTMLElement | null = null
-      if (initialBuzzWelcomedAt && user) {
+      if (targetMessageId) {
+        // If a user clicked a shared link pointing to a specific message ID
+        targetUnread = document.getElementById(`msg-${targetMessageId}`) || document.getElementById(`unread-marker-${targetMessageId}`)
+      } else if (initialBuzzWelcomedAt && user) {
         const firstUnread = messages.find(m => new Date(m.created_at) > new Date(initialBuzzWelcomedAt) && m.author_id !== user.id)
         if (firstUnread) {
           // Look for the specific red marker line, otherwise fallback to the chat component root
@@ -172,10 +199,22 @@ export default function ClientPage({
         const supabase = createClient()
         const newMsgs = await fetchCommunityMessages(supabase, profileH3, undefined, 50)
         
-        const actualNewMsgs = newMsgs.filter((m: CommunityChatMessage) => 
-          !messages.find(existing => existing.id === m.id) &&
-          !pendingMessages.find(existing => existing.id === m.id)
-        )
+        const tempLocalMsgs = messages.filter(m => m.id.startsWith('temp-'))
+        const actualNewMsgs = newMsgs.filter((m: CommunityChatMessage) => {
+          if (messages.find(existing => existing.id === m.id)) return false
+          if (pendingMessages.find(existing => existing.id === m.id)) return false
+          
+          // Realtime race condition filter: Prevent socket payload from triggering UI duplication 
+          // if it belongs to a local optimistic message currently awaiting HTTP return.
+          if (tempLocalMsgs.some(t => 
+            t.author_id === m.author_id && 
+            t.content === m.content && 
+            Math.abs(new Date(t.created_at).getTime() - new Date(m.created_at).getTime()) < 15000
+          )) {
+            return false
+          }
+          return true
+        })
         
         if (actualNewMsgs.length > 0 && isSubscribed) {
           // If they are staring directly at the bottom and a couple messages pop in natively, just scroll down like normal texting
@@ -272,21 +311,28 @@ export default function ClientPage({
       const oldestTimestamp = oldestMessage.bumped_at || oldestMessage.created_at
       
       const supabase = createClient()
-      const olderMsgs = await fetchCommunityMessages(supabase, profileH3, oldestTimestamp)
+      // Standard limit matches initial slice amount
+      const newMsgs = await fetchCommunityMessages(supabase, profileH3, oldestTimestamp, 50)
       
-      if (olderMsgs.length < 50) {
+      if (newMsgs.length < 50) {
         setHasMoreOlder(false)
       }
       
-      if (olderMsgs.length > 0) {
+      if (newMsgs && newMsgs.length > 0) {
         const scrollArea = scrollRef.current
         if (scrollArea) {
           const previousScrollHeight = scrollArea.scrollHeight
           const previousScrollTop = scrollArea.scrollTop
           
+          // 🛑 STOP the marker from reappearing if scrolling high 🛑
+          setFirstUnreadId(null)
+
           setMessages(prev => {
-            const uniqueOlder = olderMsgs.filter(older => !prev.some(e => e.id === older.id))
-            return [...uniqueOlder.reverse(), ...prev]
+            const prevMap = new Map(prev.map(m => [m.id, m]))
+            newMsgs.forEach(m => prevMap.set(m.id, m))
+            const merged = Array.from(prevMap.values()).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+            messageCountRef.current = merged.length
+            return merged
           })
           
           requestAnimationFrame(() => {
@@ -365,6 +411,28 @@ export default function ClientPage({
     }
     
     try {
+      // Optimistic rendering so we don't need to re-fetch and resize the whole feed
+      const tempId = `temp-${Date.now()}`
+      const optimisticMsg: CommunityChatMessage = {
+        id: tempId,
+        content,
+        created_at: new Date().toISOString(),
+        author_id: user.id,
+        author_name: profileName || 'Neighbor',
+        author_avatar_url: typeof user?.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url : null,
+        community_h3_index: profileH3,
+        reaction_counts: {},
+        reply_count: 0,
+        user_reactions: [],
+        flag_count: 0,
+      }
+      setMessages(prev => [...prev, optimisticMsg])
+      
+      // Ensure we're scrolled to the bottom so user immediately sees their own message
+      setTimeout(() => {
+        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+      }, 50)
+
       const supabase = createClient()
       const msgId = await sendCommunityMessage(supabase, {
         h3Index: profileH3,
@@ -373,8 +441,8 @@ export default function ClientPage({
         media
       })
       
-      // Optimistically trigger a reload to show the new message
-      loadMessages()
+      // Swap out temp ID (will naturally happen anyway via Supabase Realtime catching it, but this keeps our state perfectly clean)
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, id: msgId } : m))
       
       // Prompt for push notification permission (first time / re-prompt after 7 days)
       showPrompt()
@@ -403,6 +471,8 @@ export default function ClientPage({
         }
       }, 100)
     } catch (err) {
+      // Remove optimistic message if failed
+      setMessages(prev => prev.filter(m => !m.id.startsWith('temp-')))
       console.error('Failed to send message', err)
       showError('Failed to send message. Please try again.')
     }
@@ -457,6 +527,9 @@ export default function ClientPage({
         <span className={styles.communityHeaderIcon}>🌿</span>
         <span className={styles.communityHeaderName}>CasaGrown Community</span>
       </div>
+      
+      {!findActive && !notifyActive && <InviteBanner h3Index={profileH3} />}
+
 
       {/* Message List Area — or Find/Notify Panel overlay */}
       {findActive ? (
@@ -531,6 +604,11 @@ export default function ClientPage({
                           },
                         }).then(() => setTimeout(() => loadMessages(), 3000))
                       }
+                    }}
+                    onEdit={async (messageId, content) => {
+                      const supabase = createClient()
+                      await editCommunityMessage(supabase, messageId, content)
+                      await loadMessages()
                     }}
                     onDelete={() => {
                       const supabase = createClient()

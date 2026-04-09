@@ -96,6 +96,7 @@ function OrdersContent() {
   const [isHelper, setIsHelper] = useState(false)
   const [tab, setTab] = useState('needs_action')
   const [roleFilter, setRoleFilter] = useState<'all' | 'buying' | 'selling' | 'helping'>('all')
+  const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [scrolledEnd, setScrolledEnd] = useState(false)
@@ -185,12 +186,21 @@ function OrdersContent() {
     completed: o => ['completed', 'cancelled', 'resolved'].includes(o.status),
   }
 
-  // Apply role filter + tab filter
-  const roleFiltered = roleFilter === 'all'
+  // Apply role filter + search query + tab filter
+  let roleFiltered = roleFilter === 'all'
     ? orders
     : roleFilter === 'buying'
       ? orders.filter(o => o.buyer_id === user!.id)
       : orders.filter(o => o.seller_id === user!.id)
+
+  if (searchQuery.trim()) {
+    const q = searchQuery.toLowerCase()
+    roleFiltered = roleFiltered.filter(o =>
+      (o.product_name && o.product_name.toLowerCase().includes(q)) ||
+      (o.buyer_name && o.buyer_name.toLowerCase().includes(q)) ||
+      (o.seller_name && o.seller_name.toLowerCase().includes(q))
+    )
+  }
 
   const filtered = roleFiltered
     .filter(o => tabMatchers[tab]?.(o) ?? false)
@@ -255,8 +265,18 @@ function OrdersContent() {
         ))}
       </div>
 
+      <div className={styles.searchWrap}>
+        <input 
+          type="text" 
+          placeholder="Search by buyer, seller, or product..." 
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className={styles.searchInput}
+        />
+      </div>
+
       {/* ── Helper View ── */}
-      {roleFilter === 'helping' ? (
+      {isHelper && roleFilter === 'helping' ? (
         helperOrders.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon">🤝</div>

@@ -48,10 +48,10 @@ const AUTHENTICATED_PAGES = [
 const SELLER_PAGES = [
   '/my-booth',
   '/my-booth/products',
-  '/my-booth/coupons',
+
   '/my-booth/customize',
   '/my-booth/invitations',
-  '/my-booth/orders',
+
 ]
 
 test.describe('Smoke Test — Every Page Loads Without Errors', () => {

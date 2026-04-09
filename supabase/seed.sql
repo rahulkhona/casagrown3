@@ -1229,7 +1229,9 @@ BEGIN
     ('b2222222-2222-2222-2222-222222222222',CURRENT_DATE,'Fresh Mint','Spearmint from raised beds, pesticide free','produce',2.50,'bunch',20,'{}',now(),'approved'),
     ('b2222222-2222-2222-2222-222222222222',CURRENT_DATE,'Strawberries','Sweet Seascape variety, just picked today','produce',5.00,'pint',10,'{}',now(),'approved'),
     ('b2222222-2222-2222-2222-222222222222',CURRENT_DATE,'Lavender Bundle','Dried French lavender from my garden','flowers',4.00,'bunch',8,'{}',NULL,'approved'),
-    ('b2222222-2222-2222-2222-222222222222',CURRENT_DATE,'Lemon Cucumbers','Round, sweet lemon cucumbers','produce',3.00,'bag',14,'{}',now(),'approved')
+    ('b2222222-2222-2222-2222-222222222222',CURRENT_DATE,'Lemon Cucumbers','Round, sweet lemon cucumbers','produce',3.00,'bag',14,'{}',now(),'approved'),
+    ('b2222222-2222-2222-2222-222222222222',CURRENT_DATE,'Tomato Seedling','Ready-to-plant cherry tomato seedling in a 4-inch pot','seedlings',6.00,'each',10,'{}',NULL,'approved'),
+    ('b2222222-2222-2222-2222-222222222222',CURRENT_DATE,'Aloe Vera Plant','Small established aloe vera plant, great for kitchens','plants',12.00,'each',5,'{}',NULL,'approved')
   ON CONFLICT DO NOTHING;
 
   -- ── SELLER@TEST AS SELLER (login as seller@test to manage) ──

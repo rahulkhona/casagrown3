@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   },
 }
 
-export default async function CommunityChatPage() {
+export default async function CommunityChatPage({ searchParams }: { searchParams?: Promise<{ message_id?: string }> }) {
   const supabase = await createServerSupabase()
   
   const { data: { user } } = await supabase.auth.getUser()
@@ -38,7 +38,38 @@ export default async function CommunityChatPage() {
       buzzWelcomedAt = profile.buzz_welcomed_at
       
       try {
-        initialMessages = await fetchCommunityMessages(supabase, initialProfileH3)
+        let fetchLimit = 50
+        if (buzzWelcomedAt) {
+          try {
+            const { getCommunityUnreadCount } = await import('../../../../../packages/app/features/community-chat/community-chat-service')
+            const unread = await getCommunityUnreadCount(supabase, initialProfileH3, buzzWelcomedAt)
+            // Dynamically expand the payload window if they missed many messages.
+            // This ensures the frontend "scroll to last read" anchor isn't paginated out of existence.
+            if (unread > 0) {
+              fetchLimit = Math.min(Math.max(unread + 20, 50), 150)
+            }
+          } catch (err) {
+             console.error('Failed unread count fetch', err)
+          }
+        }
+        const resolvedParams = searchParams ? await searchParams : undefined
+        const targetMessageId = resolvedParams?.message_id
+        if (targetMessageId) {
+          try {
+            const { data: targetMsg } = await supabase.from('community_chat_messages').select('created_at').eq('id', targetMessageId).single()
+            if (targetMsg?.created_at) {
+              const { count, error } = await supabase.from('community_chat_messages')
+                .select('*', { count: 'exact', head: true })
+                .eq('community_h3_index', initialProfileH3)
+                .gte('created_at', targetMsg.created_at)
+              if (!error && count) {
+                fetchLimit = Math.max(fetchLimit, Math.min(count + 20, 500))
+              }
+            }
+          } catch (e) { console.error('Failed deep link count', e) }
+        }
+        
+        initialMessages = await fetchCommunityMessages(supabase, initialProfileH3, null, fetchLimit)
       } catch (e) {
         console.error('Failed to fetch initial messages server-side', e)
       }

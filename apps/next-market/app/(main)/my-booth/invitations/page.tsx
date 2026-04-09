@@ -22,11 +22,11 @@ export default function InvitationsPage() {
 
   const shareMessage = `Hey! 🌱 Check out my booth "${myBooth.name}" on CasaGrown Market!
 
-Fresh produce straight from my backyard. ${couponText ? couponText + ' ' : ''}
+Fresh produce straight from my backyard. ${couponText ? couponText + '\n\n' : ''}📅 Market open Saturdays & Sundays, 8–11 AM
 
-🛒 Browse my booth: ${inviteUrl}
+👇 Click the link below to browse my booth and shop:
+${inviteUrl}
 
-📅 Market open Saturdays & Sundays, 8–11 AM
 Fresh. Local. Trusted.`
 
   const copyLink = () => {

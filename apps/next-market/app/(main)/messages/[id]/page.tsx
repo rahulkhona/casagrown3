@@ -9,9 +9,7 @@ import { checkTextForViolations } from '../../../../lib/moderation'
 import CameraCapture from '../../../../components/CameraCapture'
 import ImageCropper from '../../../../components/ImageCropper'
 import { BlockModal } from '../../../components/BlockModal'
-import SocialShareModal from '../../../components/SocialShareModal'
 import { ShareIcon } from '../../../components/icons'
-
 function formatTime(dateStr: string) {
   const d = new Date(dateStr)
   return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
@@ -82,8 +80,6 @@ export default function MessageThreadPage() {
   const [blockMenuOpen, setBlockMenuOpen] = useState(false)
   const [activeReactionMessageId, setActiveReactionMessageId] = useState<string | null>(null)
   const [replyingToMessage, setReplyingToMessage] = useState<any>(null)
-  const [showShareModal, setShowShareModal] = useState(false)
-  const [shareMsgContent, setShareMsgContent] = useState<any>(null)
   const EMOJIS = ['👍', '❤️', '🎉', '😂', '😮', '🌱']
   
   // Media & Offer & Emoji State
@@ -458,13 +454,6 @@ export default function MessageThreadPage() {
       return { ...m, market_chat_reactions: nextReactions }
     }))
   }
-
-  const handleMessageShare = async (msg: any) => {
-    setActiveReactionMessageId(null)
-    setShareMsgContent(msg)
-    setShowShareModal(true)
-  }
-
   // 📸 Handle Photo Upload
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -539,18 +528,6 @@ export default function MessageThreadPage() {
         />
       )}
 
-      {/* Share Message Modal */}
-      {showShareModal && shareMsgContent && (
-        <SocialShareModal
-          isOpen={showShareModal}
-          onClose={() => { setShowShareModal(false); setShareMsgContent(null) }}
-          title="Share Message"
-          subtitle="Share this message from your conversation."
-          entityName="CasaGrown Direct Message"
-          shareUrl={`${typeof window !== 'undefined' ? window.location.origin : ''}/messages/${id}`}
-          shareMessage={`💬 From CasaGrown:\n\n"${shareMsgContent.content.length > 200 ? shareMsgContent.content.slice(0, 200) + '…' : shareMsgContent.content}"\n\n${shareMsgContent.media && shareMsgContent.media.length > 0 ? shareMsgContent.media[0] : ''}`}
-        />
-      )}
 
       {/* Sticky Header */}
       <header style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', background: 'white', borderBottom: '1px solid #e5e7eb', flexShrink: 0, position: 'relative' }}>
@@ -654,7 +631,7 @@ export default function MessageThreadPage() {
                       )
                     })}
 
-                    {/* Actions: Reply and Share */}
+                    {/* Actions: Reply */}
                     <div style={{ display: 'flex', gap: 6, paddingLeft: 8, marginLeft: 2, borderLeft: '1px solid #e5e7eb' }}>
                       <button 
                         title="Reply"
@@ -662,14 +639,6 @@ export default function MessageThreadPage() {
                         style={{ border: 'none', background: 'transparent', width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}
                       >
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
-                      </button>
-                      
-                      <button 
-                        title="Copy / Share Message"
-                        onClick={(e) => { e.stopPropagation(); handleMessageShare(msg) }}
-                        style={{ border: 'none', background: 'transparent', width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', color: '#6b7280' }}
-                      >
-                        <ShareIcon size={16} />
                       </button>
                     </div>
 

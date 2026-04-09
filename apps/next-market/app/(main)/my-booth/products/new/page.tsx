@@ -968,7 +968,7 @@ function NewProductPageInner() {
   }
 
   const getShareMessage = () => {
-    return `🌿 Fresh ${addedProductName} available this ${nextMarket?.label || 'Saturday'}!\n\nBrowse and order: ${getProductUrl()}`
+    return `Hey neighborhood! 🌿 I just added fresh ${addedProductName} to my booth!\n\n👇 Click the link below to view and purchase for this ${nextMarket?.label || 'weekend'}:\n${getProductUrl()}`
   }
 
   const handleShareCopy = async () => {
@@ -997,8 +997,15 @@ function NewProductPageInner() {
   const handleShareFacebook = () => {
     trackClick('share_product_facebook', { productName: addedProductName })
     const url = encodeURIComponent(getProductUrl())
-    const quote = encodeURIComponent(`🌿 Fresh ${addedProductName} available on CasaGrown Market!`)
-    window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}&quote=${quote}`, '_blank', 'width=600,height=400')
+    const msg = `🌿 Fresh ${addedProductName} available on CasaGrown Market!\n\nBrowse & order: ${getProductUrl()}`
+    
+    // Do not await to avoid popup blocker
+    navigator.clipboard.writeText(msg).catch(() => {})
+    
+    // Use dispatch toast native to this panel instead of an alert
+    dispatch({ type: 'ADD_TOAST', payload: { message: "✅ Copied! Click 'Paste' in the Facebook text box.", type: 'success' } })
+    
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank')
   }
 
   const handleShareNextdoor = async () => {

@@ -91,7 +91,6 @@ export default function MyBoothPage() {
   const [dbProducts, setDbProducts] = useState<typeof state.products>([])
   const myProducts = dbProducts
   const [productShareId, setProductShareId] = useState<string | null>(null)
-  const myOrders = state.orders.filter(o => o.sellerId === state.user?.id)
 
   const [name, setName] = useState(myBooth?.name || '')
   const [theme, setTheme] = useState<Booth['decorativeTheme']>(myBooth?.decorativeTheme || 'floral')
@@ -608,7 +607,7 @@ export default function MyBoothPage() {
     const sellerName = profileName?.split(' ')[0] || 'your neighbor'
     const productNames = myProducts.slice(0, 3).map(p => p.name).join(', ')
     const nextDay = nextMarket ? nextMarket.date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) : ''
-    return `Hey! 🌱 I'm ${sellerName} and I just set up my booth "${name}" on CasaGrown Market!\n\n${productNames ? `I'm growing ${productNames} and more — ` : ''}come check out what's fresh from my backyard.${nextDay ? `\n\n📅 Next market day: ${nextDay}` : ''}\n\n🛒 ${getBoothShareUrl(boothId)}\n\nFresh produce, straight from your neighbor! 🏡`
+    return `Hey! 🌱 I'm ${sellerName} and I just set up my booth "${name}" on CasaGrown Market!\n\n${productNames ? `I'm growing ${productNames} and more — ` : ''}come check out what's fresh from my backyard.${nextDay ? `\n\n📅 Next market day: ${nextDay}` : ''}\n\n👇 Click the link below to view my booth and shop:\n${getBoothShareUrl(boothId)}\n\nFresh produce, straight from your neighbor! 🏡`
   }
 
   // Build product slot data
@@ -621,7 +620,6 @@ export default function MyBoothPage() {
     }
   }
   const allFilled = myProducts.length >= slotCount
-  const pendingOrders = myOrders.filter(o => o.status === 'pending').length
 
   return (
     <div className={styles.boothPreviewPage}>
@@ -1231,7 +1229,7 @@ export default function MyBoothPage() {
                 '',
                 `It's pretty straightforward — just keep an eye on orders, hand things off to buyers when they come by, and maybe reply to a message or two.`,
                 '',
-                `If you can, here's the link to get access to ${boothLabel}:`,
+                `👇 If you can, click the link below to securely join ${boothLabel}:`,
                 joinUrl,
                 '',
                 `Passcode: ${helperPasscode}`,
@@ -1258,7 +1256,7 @@ export default function MyBoothPage() {
                 '',
                 `It's pretty straightforward — just keep an eye on orders, hand things off to buyers when they come by, and maybe reply to a message or two.`,
                 '',
-                `If you can, here's the link to get access to ${boothLabel}:`,
+                `👇 If you can, click the link below to securely join ${boothLabel}:`,
                 joinUrl,
                 '',
                 `Passcode: ${helperPasscode}`,
@@ -1337,13 +1335,6 @@ export default function MyBoothPage() {
         <div className={styles.boothSection}>
           <h2 className={styles.sectionTitle}>⚡ Quick Actions</h2>
           <div className={styles.actions}>
-            <Link href="/my-booth/orders" className={styles.actionCard}>
-              <span>📋</span><strong>View Orders</strong>
-              {pendingOrders > 0 && <span className="badge badge-red">{pendingOrders}</span>}
-            </Link>
-            <Link href="/my-booth/coupons" className={styles.actionCard}>
-              <span>🏷️</span><strong>Coupons</strong>
-            </Link>
             <Link href="/my-booth/invitations" className={styles.actionCard}>
               <span>✉️</span><strong>Invite Neighbors</strong>
             </Link>
@@ -1395,7 +1386,7 @@ export default function MyBoothPage() {
           subtitle={`Spread the word to your neighbors!`}
           entityName={myProducts.find(p => p.id === productShareId)!.name}
           shareUrl={`${typeof window !== 'undefined' ? window.location.origin : ''}/market/booth/${savedBoothId || user?.id || 'id'}/product/${productShareId}`}
-          shareMessage={`Hey! Check out my fresh ${myProducts.find(p => p.id === productShareId)!.name} on CasaGrown 🌱\n\n${myProducts.find(p => p.id === productShareId)!.priceUsd === 0 ? 'Free' : `${formatUsd(myProducts.find(p => p.id === productShareId)!.priceUsd)} / ${myProducts.find(p => p.id === productShareId)!.unit}`}\n\n🛒 ${typeof window !== 'undefined' ? window.location.origin : ''}/market/booth/${savedBoothId || user?.id || 'id'}/product/${productShareId}`}
+          shareMessage={`Hey neighborhood! Check out my fresh ${myProducts.find(p => p.id === productShareId)!.name} on CasaGrown 🌱\n\n${myProducts.find(p => p.id === productShareId)!.priceUsd === 0 ? 'Free' : `${formatUsd(myProducts.find(p => p.id === productShareId)!.priceUsd)} / ${myProducts.find(p => p.id === productShareId)!.unit}`}\n\n👇 Click the link below to view and purchase:\n${typeof window !== 'undefined' ? window.location.origin : ''}/market/booth/${savedBoothId || user?.id || 'id'}/product/${productShareId}`}
         />
       )}
 

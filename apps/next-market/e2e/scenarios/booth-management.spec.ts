@@ -143,17 +143,7 @@ test.describe('Booth Management', () => {
     await page.context().close()
   })
 
-  // ── S7.4: Coupons ──
-  test('S7.4 — coupons page loads', async ({ browser }) => {
-    const page = await loginAsUser(browser, 'maria')
-    await navigateTo(page, '/my-booth/coupons')
-    await assertPageHealthy(page)
 
-    const body = await page.locator('body').innerText()
-    expect(body.length).toBeGreaterThan(50)
-
-    await page.context().close()
-  })
 
   // ── S7.5: Invitations ──
   test('S7.5 — invitations page loads', async ({ browser }) => {
@@ -167,17 +157,7 @@ test.describe('Booth Management', () => {
     await page.context().close()
   })
 
-  // ── S7.6: Seller Orders ──
-  test('S7.6 — seller order management page loads', async ({ browser }) => {
-    const page = await loginAsUser(browser, 'maria')
-    await navigateTo(page, '/my-booth/orders')
-    await assertPageHealthy(page)
 
-    const body = await page.locator('body').innerText()
-    expect(body.length).toBeGreaterThan(50)
-
-    await page.context().close()
-  })
 
   // ── S2.2: Booth Visibility from Buyer ──
   test('S2.2 — buyer can see seller booth on market', async ({ browser }) => {

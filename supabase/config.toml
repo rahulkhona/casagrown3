@@ -623,3 +623,14 @@ entrypoint = "./functions/notify-dm-message/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/notify-dm-message/*.html" ]
+
+[functions.casabot-starter-post]
+enabled = true
+verify_jwt = true
+import_map = "./functions/casabot-starter-post/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/casabot-starter-post/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/casabot-starter-post/*.html" ]

@@ -300,4 +300,36 @@ test.describe('Order Flows', () => {
 
     await samPage.context().close()
   })
+
+  // ── S3.1 cont: Verify Global Order Page Search ──
+  test('global order search filter by buyer/seller/product resolves correctly', async ({ browser }) => {
+    const samPage = await loginAsUser(browser, 'sam')
+    await navigateTo(samPage, '/orders')
+    await assertPageHealthy(samPage)
+
+    // Wait for the search input to be visible
+    const searchInput = samPage.locator('input[placeholder*="Search by buyer, seller, or product"]')
+    await expect(searchInput).toBeVisible()
+
+    // 1. Assert negative search filtering hides all cards
+    await searchInput.fill('ZZZ_NonExistent_Search')
+    await expect(samPage.locator('body')).toContainText('No orders here', { timeout: 10000 })
+    
+    // 2. Assert positive search filtering isolates specific cards
+    await searchInput.fill('') // clear it
+    await samPage.waitForTimeout(500)
+    
+    const orderLinks = samPage.locator('a[href*="/orders/"]')
+    if (await orderLinks.count() > 0) {
+      // Safely extract the raw string value from the UI
+      const rawText = await orderLinks.first().innerText()
+      // The second text line is inherently the Product Name label block on a flat mode card 
+      const keyword = rawText.split('\\n')[1]?.trim() || 'Seller'
+      
+      await searchInput.fill(keyword)
+      await expect(samPage.getByText(keyword).first()).toBeVisible({ timeout: 5000 })
+    }
+    
+    await samPage.context().close()
+  })
 })

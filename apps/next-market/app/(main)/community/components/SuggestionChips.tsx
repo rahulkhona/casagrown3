@@ -195,7 +195,7 @@ export default function SuggestionChips({ onSelect, onPrefill, userMessageCount,
             onClick={onFindClick}
             title="Find produce near you"
           >
-            🔍 Find
+            🔍 Want
           </button>
         )}
 

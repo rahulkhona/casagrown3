@@ -951,7 +951,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
         subtitle={`Invite your neighbors to check out this fresh produce!`}
         entityName={product ? product.name : 'Product'}
         shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
-        shareMessage={`Hey! Check out ${isAuthenticated && user?.id === product?.seller_id ? 'my fresh' : 'this fresh'} ${product?.name} on CasaGrown Market 🌱\n\n${product?.price_usd === 0 ? 'Free' : `${formatUsd(product?.price_usd || 0)} / ${product?.unit}`}${product && product.inventory > 0 ? ` (${product.inventory} available)` : ' (Sold Out)'}\n\n🛒 ${typeof window !== 'undefined' ? window.location.href : ''}`}
+        shareMessage={`Hey! Check out ${isAuthenticated && user?.id === product?.seller_id ? 'my fresh' : 'this fresh'} ${product?.name} on CasaGrown Market 🌱\n\n${product?.price_usd === 0 ? 'Free' : `${formatUsd(product?.price_usd || 0)} / ${product?.unit}`}${product && product.inventory > 0 ? ` (${product.inventory} available)` : ' (Sold Out)'}\n\n${booth && (booth.offers_delivery || booth.offers_pickup) ? `${booth.offers_delivery && booth.offers_pickup ? '🚗 Delivery or 📍 Pickup' : booth.offers_delivery ? '🚗 Delivery' : '📍 Pickup'} near ${booth.pickup_display_address || anonymizeAddress(booth.pickup_address) || 'you'}` : '📍 Available nearby'}\n\n👇 Click the link below to view and purchase:\n${typeof window !== 'undefined' ? window.location.href : ''}`}
       />
     </div>
   )
