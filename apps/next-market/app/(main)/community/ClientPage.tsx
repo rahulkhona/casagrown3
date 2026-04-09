@@ -343,7 +343,7 @@ export default function ClientPage({
           })
         } else {
           setMessages(prev => {
-            const uniqueOlder = olderMsgs.filter(older => !prev.some(e => e.id === older.id))
+            const uniqueOlder = newMsgs.filter(older => !prev.some(e => e.id === older.id))
             return [...uniqueOlder.reverse(), ...prev]
           })
         }
