@@ -1,9 +1,7 @@
 -- =============================================================================
--- Restored Buzz Scope Community Chat Architecture with Performance Fixes
--- Reverts the dynamic 3-tier Quota Fill algorithm back to the original strict 
--- community.buzz_scope evaluations for superior native speed and proper 
--- integration of global / bot starter messages organically mixed chronologically.
--- Includes B-Tree Indexable LIKE fix for zip code lookups to prevent table scans.
+-- Global Flat Feed Community Chat Architecture
+-- Drops all community.buzz_scope evaluations (zip/h3/global) to ensure
+-- ALL messages are natively returned chronologically in a massive global feed.
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION public.get_community_chat_messages(
@@ -35,22 +33,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 STABLE
 AS $$
-DECLARE
-    v_scope text;
-    v_zip5 text;
 BEGIN
-    SELECT c.buzz_scope INTO v_scope
-    FROM public.communities c
-    WHERE c.h3_index = p_h3_index;
-
-    v_scope := COALESCE(v_scope, 'global');
-
-    IF v_scope = 'zip' THEN
-        SELECT LEFT(pr.zip_code, 5) INTO v_zip5
-        FROM public.profiles pr
-        WHERE pr.id = auth.uid();
-    END IF;
-
     RETURN QUERY
     SELECT
         m.id,
@@ -82,26 +65,14 @@ BEGIN
     JOIN public.profiles p ON p.id = m.author_id
     WHERE m.parent_id IS NULL
       AND (p_cursor IS NULL OR COALESCE(m.bumped_at, m.created_at) < p_cursor)
-      AND (
-          v_scope = 'global'
-          OR (v_scope = 'h3' AND m.community_h3_index = p_h3_index)
-          OR (v_scope = 'zip' AND m.author_id IN (
-              SELECT pr2.id FROM public.profiles pr2
-              -- PERFORMANCE FIX: Replaced `LEFT(pr2.zip_code, 5) = v_zip5` 
-              -- to allow index scanning over the 1M+ profiles table.
-              WHERE pr2.zip_code LIKE v_zip5 || '%'
-          ))
-      )
     ORDER BY COALESCE(m.bumped_at, m.created_at) DESC
     LIMIT p_limit;
 END;
 $$;
 
 -- =============================================================================
--- Unread Count Scope Sync
--- Restoring unread count to respect the active buzz_scope so that the UI can 
--- properly evaluate how many new messages there are (global or local) to ensure
--- the chat scrolls to the correct last-read marker without skipping.
+-- Global Flat Feed Unread Count Sync
+-- Drops scope checks to evaluate unread messages globally across the entire app.
 -- =============================================================================
 CREATE OR REPLACE FUNCTION public.get_community_chat_unread_count(
     p_h3_index text,
@@ -113,33 +84,13 @@ SECURITY DEFINER
 STABLE
 AS $$
 DECLARE
-    v_scope text;
-    v_zip5 text;
     v_count bigint;
 BEGIN
-    SELECT c.buzz_scope INTO v_scope
-    FROM public.communities c WHERE c.h3_index = p_h3_index;
-    
-    v_scope := COALESCE(v_scope, 'global');
-
-    IF v_scope = 'zip' THEN
-        SELECT LEFT(pr.zip_code, 5) INTO v_zip5
-        FROM public.profiles pr WHERE pr.id = auth.uid();
-    END IF;
-
     SELECT COUNT(*) INTO v_count
     FROM public.community_chat_messages m
     WHERE m.parent_id IS NULL
       AND m.created_at > p_last_seen_at
-      AND m.author_id != auth.uid()
-      AND (
-          v_scope = 'global'
-          OR (v_scope = 'h3' AND m.community_h3_index = p_h3_index)
-          OR (v_scope = 'zip' AND m.author_id IN (
-              SELECT pr2.id FROM public.profiles pr2
-              WHERE pr2.zip_code LIKE v_zip5 || '%'
-          ))
-      );
+      AND m.author_id != auth.uid();
 
     RETURN v_count;
 END;
