@@ -108,6 +108,18 @@ test.describe('Direct Messaging & Block Flows', () => {
 
   // ── S12.4: Blocking Lifecycle ──
   test('S12.4 — Block a user via Header and verify Unblock toggle', async ({ browser }) => {
+    // Force a conversation seed between Beth (buyer) and Sam (seller)
+    await execSql(`
+      WITH conv AS (
+        INSERT INTO market_conversations (id, type) VALUES (gen_random_uuid(), 'direct')
+        RETURNING id
+      ),
+      p1 AS (INSERT INTO market_conversation_participants (conversation_id, user_id) SELECT id, (SELECT id FROM auth.users WHERE email='buyer@test.local') FROM conv),
+      p2 AS (INSERT INTO market_conversation_participants (conversation_id, user_id) SELECT id, (SELECT id FROM auth.users WHERE email='seller@test.local') FROM conv)
+      INSERT INTO market_messages (conversation_id, sender_id, content) 
+      SELECT id, (SELECT id FROM auth.users WHERE email='seller@test.local'), 'Hello from Sam' FROM conv;
+    `)
+
     const page = await loginAsUser(browser, 'beth')
     await navigateTo(page, '/messages')
     

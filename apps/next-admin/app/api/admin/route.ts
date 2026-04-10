@@ -191,7 +191,8 @@ export async function POST(request: NextRequest) {
       })
       const { data: rpcResult, error: rpcError } = await userScopedClient.rpc(functionName, params || {})
       if (rpcError) {
-        return NextResponse.json({ error: rpcError.message }, { status: 400 })
+        console.error('RPC Error details:', rpcError)
+        return NextResponse.json({ error: rpcError.message || rpcError }, { status: 400 })
       }
       return NextResponse.json({ data: rpcResult })
     }

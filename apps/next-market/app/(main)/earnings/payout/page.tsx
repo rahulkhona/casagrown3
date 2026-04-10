@@ -705,7 +705,7 @@ export default function PayoutPage() {
               <p className={styles.resultBrand}>{redemptionResult.brandName} — {formatUsd(redemptionResult.amount)}</p>
               {redemptionResult.status === 'queued' && (
                 <p style={{ fontSize: 13, color: 'var(--amber-700)', marginTop: 8, lineHeight: 1.5 }}>
-                  Your gift card has been queued due to provider delays. You'll receive a notification when it's ready. No action needed.
+                  Your payout request will be processed at noon of the next business day.
                 </p>
               )}
               {redemptionResult.url && (
@@ -817,7 +817,7 @@ export default function PayoutPage() {
               <p>{formatUsd(completedDonation.amount / 100)} donated to {completedDonation.organizationName}</p>
               {completedDonation.status === 'queued' && (
                 <p style={{ fontSize: 13, color: 'var(--amber-700)', marginTop: 8, lineHeight: 1.5 }}>
-                  Your donation has been queued and will be processed shortly. You'll receive a notification when complete.
+                  Your payout request will be processed at noon of the next business day.
                 </p>
               )}
               {completedDonation.receiptUrl && (
@@ -899,7 +899,7 @@ export default function PayoutPage() {
               <p>{formatUsd(parseFloat(cashoutAmount))} {cashoutResult.status === 'queued' ? 'queued for' : 'is on its way to'} {payoutStatus?.handle}</p>
               {cashoutResult.status === 'queued' ? (
                 <p style={{ fontSize: 13, color: 'var(--amber-700)', marginTop: 8, lineHeight: 1.5 }}>
-                  Your payout has been queued due to provider delays. You’ll receive a notification when it’s processed. No action needed.
+                  Your payout request will be processed at noon of the next business day.
                 </p>
               ) : (
                 <p style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 4 }}>Standard transfer: 1-2 business days, no fee</p>

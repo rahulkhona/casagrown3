@@ -27,10 +27,10 @@ test.describe('Receipt Footers Page', () => {
   })
 
   test('should open and close create form', async ({ page }) => {
-    await page.getByRole('button', { name: /Add Footer/i }).click({ timeout: 15000 })
-    await expect(page.getByText('Add Receipt Footer')).toBeVisible()
-    await page.getByRole('button', { name: /Cancel/i }).click()
-    await expect(page.getByText('Add Receipt Footer')).not.toBeVisible()
+    await page.getByText(/Add Footer/i).first().click({ timeout: 15000 })
+    await expect(page.getByText(/Add Receipt Footer/i).first()).toBeVisible()
+    await page.getByText(/Cancel/i).first().click()
+    await expect(page.getByText(/Add Receipt Footer/i).first()).not.toBeVisible()
   })
 
   test('should show info box', async ({ page }) => {
@@ -50,7 +50,7 @@ test.describe('Tax Reporting Thresholds Page', () => {
 
   test('should open and close create form', async ({ page }) => {
     await page.getByRole('button', { name: /New Threshold/i }).click({ timeout: 15000 })
-    await expect(page.getByText('Create Threshold', { exact: true }).first()).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText(/Create Threshold/i).first()).toBeVisible({ timeout: 10000 })
     await page.getByRole('button', { name: /Cancel/i }).click()
   })
 

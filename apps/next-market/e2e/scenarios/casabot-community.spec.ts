@@ -58,8 +58,6 @@ test.describe('CasaBot & Community E2E', () => {
     
     await page.context().close()
   })
-})
-
   test('casabot-starter-post edge function creates global conversation starter', async ({ request }) => {
     // We trigger the edge function natively via standard HTTP to test if it posts successfully
     const response = await request.post('http://127.0.0.1:54321/functions/v1/casabot-starter-post', {
@@ -74,3 +72,4 @@ test.describe('CasaBot & Community E2E', () => {
     expect(response.status()).toBe(200)
     expect(data.processed).toBe(1)
   })
+})

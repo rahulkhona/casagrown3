@@ -62,18 +62,29 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         const redeemUrl = event.redemptionPin?.url || event.data?.redemptionPin?.url || "";
 
         await supabase.from("redemptions").update({
-            status: "completed",
-            completed_at: new Date().toISOString(),
-            provider: "reloadly",
-            provider_order_id: transactionId,
             metadata: {
                 ...redemption.metadata,
                 card_code: redeemCode,
-                card_url: redeemUrl,
                 provider_order_id: transactionId,
                 completed_via: "webhook",
             },
         }).eq("id", redemption.id);
+
+        const { error: finalizeError } = await supabase.rpc("finalize_redemption", {
+            p_payload: {
+                redemption_id: redemption.id,
+                redemption_type: "gift_card",
+                provider_name: "reloadly",
+                external_order_id: transactionId,
+                card_code: redeemCode,
+                card_url: redeemUrl,
+                actual_cost_cents: redemption.point_cost,
+            },
+        });
+
+        if (finalizeError) {
+            console.error(`[WEBHOOK-RELOADLY] Finalize error for ${redemption.id}:`, finalizeError);
+        }
 
         console.log(`✅ [WEBHOOK-RELOADLY] Redemption ${redemption.id} completed: ${brandName}`);
 

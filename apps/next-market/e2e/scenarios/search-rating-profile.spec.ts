@@ -109,7 +109,8 @@ test.describe('Search, Rating & Profile', () => {
         lower.includes('no results') ||
         lower.includes('no booths') ||
         lower.includes('try') ||
-        lower.includes('closed') // market closed is valid
+        lower.includes('closed') || // market closed is valid
+        lower.includes('know a neighbor') // new growth funnel empty state
       expect(hasEmptyState).toBeTruthy()
       console.log('[SEARCH] ✅ Empty search shows appropriate message')
 

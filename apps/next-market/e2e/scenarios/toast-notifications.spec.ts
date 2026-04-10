@@ -34,10 +34,11 @@ test.describe('Toast Notifications for Success and Error Handling', () => {
     await page.goto(`${BASE}/community`)
     
     // Make sure we have a community loaded
-    await expect(page.getByRole('textbox')).toBeVisible({ timeout: 15000 })
+    const messageInput = page.getByPlaceholder(/Message your neighbors/i)
+    await expect(messageInput).toBeVisible({ timeout: 15000 })
     
     // Send a message
-    await page.getByRole('textbox').fill('Testing error toast')
+    await messageInput.fill('Testing error toast')
     await page.getByRole('button', { name: 'Send' }).click()
     
     // Look for the ErrorToast container which has the ❌ icon

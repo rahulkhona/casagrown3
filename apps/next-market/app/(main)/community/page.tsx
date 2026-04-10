@@ -11,6 +11,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'CasaGrown Community — Neighborhood Community Chat',
     description: 'Connect with neighbors, share gardening tips, and trade homegrown produce.',
+    type: 'website',
     images: [{ url: '/og-share.jpg', width: 1200, height: 630, alt: 'CasaGrown Community — Neighborhood Chat' }],
   },
 }

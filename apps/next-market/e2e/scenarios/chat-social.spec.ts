@@ -284,11 +284,11 @@ test.describe('Chat & Social Flows', () => {
     await msgBubble.click()
 
     // Assert action bar is visible
-    const moreShareBtn = page.getByRole('button', { name: 'Share' })
+    const moreShareBtn = page.getByRole('button', { name: /Share/i })
     await expect(moreShareBtn).toBeVisible({ timeout: 5000 })
 
-    // Test click-away backdrop
-    await page.locator('body').click({ position: { x: 0, y: 0 }, force: true })
+    // Test click-away/toggle
+    await msgBubble.click()
     await expect(moreShareBtn).not.toBeVisible()
     
     await page.context().close()

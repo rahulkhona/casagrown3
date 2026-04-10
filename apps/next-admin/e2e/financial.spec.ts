@@ -25,15 +25,12 @@ test.describe('Financial Pages', () => {
       }
     })
 
-    test('should navigate to Settlements page', async ({ page }) => {
+    test('should navigate to Settlements page from sidebar', async ({ page }) => {
       await page.goto('/', { waitUntil: 'domcontentloaded' })
       await page.waitForTimeout(2000)
-      const settlementsLink = page.getByRole('button', { name: /Settlements/i }).first()
-      if ((await settlementsLink.count()) > 0) {
-        await settlementsLink.click()
-        await page.waitForURL(/\/settlements/)
-        await expect(page).toHaveURL(/\/settlements/)
-      }
+      await page.getByRole('button', { name: /Settlements & Stripe/i }).first().click()
+      await page.waitForURL('/settlements')
+      await expect(page.getByText(/Settlements & Stripe/i).first()).toBeVisible({ timeout: 15000 })
     })
   })
 

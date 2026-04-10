@@ -375,6 +375,14 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
       await sendTransactionEmail({ to: userEmail, subject, htmlBody });
     }
 
+    // Option to trip the breaker immediately if API failed
+    if (externalErrorMsg) {
+      await supabase
+        .from("instrument_queuing_status")
+        .update({ is_queuing: true })
+        .eq("instrument", selectedProvider.provider);
+    }
+
     return jsonOk(
       {
         success: true,
@@ -388,9 +396,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   }
 
   // ── 7. Unified ACID Transaction for 4 tables ──
-  const { error: finalizeError } = await supabase.rpc(
-    "finalize_redemption",
-    {
+  if (providerResult!.cardUrl) {
+    const { error: finalizeError } = await supabase.rpc("finalize_redemption", {
       p_payload: {
         redemption_id: redemption.id,
         redemption_type: "gift_card",
@@ -400,19 +407,22 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         card_url: providerResult!.cardUrl || "",
         actual_cost_cents: providerResult!.actualCostCents || faceValueCents,
       },
-    },
-  );
+    });
 
-  if (finalizeError) {
-    console.error(
-      "[REDEEM] Critical Error finalizing Gift Card to Database:",
-      finalizeError,
-    );
-    return jsonError(
-      "Gift Card procured but failed to save receipt safely.",
-      corsHeaders,
-      500,
-    );
+    if (finalizeError) {
+      console.error("[REDEEM] Critical Error finalizing Gift Card to Database:", finalizeError);
+      return jsonError("Gift Card procured but failed to save receipt safely.", corsHeaders, 500);
+    }
+  } else {
+    // Asynchronous fulfillment fallback for direct auto-purchases
+    await supabase.from("redemptions").update({
+      status: "pending",
+      metadata: {
+        ...redemption.metadata,
+        pending_async_webhook: true,
+      }
+    }).eq("id", redemption.id);
+    console.log(`[REDEEM] Gift Card triggered asynchronously. Awaiting webhook for ${redemption.id}.`);
   }
 
   console.log(

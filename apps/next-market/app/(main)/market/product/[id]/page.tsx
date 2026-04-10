@@ -47,6 +47,7 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
       description,
       siteName: 'CasaGrown Market',
       type: 'website',
+      url: `/market/product/${product.id}`,
       images: [{ url: photoUrl, alt: product.name }],
     },
     twitter: {

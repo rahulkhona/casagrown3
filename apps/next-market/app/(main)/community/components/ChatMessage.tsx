@@ -43,8 +43,10 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
   const { showError } = useErrorToast()
 
   const isOwnMessage = currentUserId === message.author_id
-  const isBot = message.is_system
-
+  const isBot = message.is_system || 
+                message.author_name === 'CasaBot' || 
+                message.author_id === '00000000-0000-0000-0000-000000000000' || 
+                message.author_id === 'a0000000-0000-0000-0000-00000ca5ab07'
   // Inline reply state
   const [showReplyInput, setShowReplyInput] = useState(false)
   const [replyText, setReplyText] = useState('')

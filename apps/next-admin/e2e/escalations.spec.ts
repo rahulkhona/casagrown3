@@ -14,53 +14,53 @@ const SERVICE_ROLE_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
 
 // Seed an escalation directly via DB for E2E testing
-async function seedEscalation() {
-  const { execSync } = require('child_process')
+async function seedEscalation(fulfillmentType: 'delivery' | 'pickup' = 'delivery') {
   const ts = Date.now()
-  const orderId = `e2e00000-e5c0-0000-0000-${ts.toString(16).padStart(12, '0')}`
-  const disputeId = `e2e00000-d5b0-0000-0000-${ts.toString(16).padStart(12, '0')}`
+  const suffix = fulfillmentType === 'delivery' ? '0' : '1'
+  const orderId = `e2e00000-e5c${suffix}-0000-0000-${ts.toString(16).padStart(12, '0')}`
+  const disputeId = `e2e00000-d5b${suffix}-0000-0000-${ts.toString(16).padStart(12, '0')}`
 
   try {
-    const buyerId = execSync(
-      `docker exec supabase_db_casagrown3 psql -U postgres -t -A -c "SELECT id FROM auth.users LIMIT 1 OFFSET 1;"`,
-      { timeout: 5000, encoding: 'utf-8' }
-    ).trim()
+    const headers = { 
+      apikey: SERVICE_ROLE_KEY, 
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`, 
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal'
+    }
 
-    const sellerId = execSync(
-      `docker exec supabase_db_casagrown3 psql -U postgres -t -A -c "SELECT id FROM auth.users WHERE email = 'seller@test.local';"`,
-      { timeout: 5000, encoding: 'utf-8' }
-    ).trim()
+    const boothRes = await fetch(`${SUPABASE_URL}/rest/v1/market_booths?select=id,owner_id&limit=1`, { headers })
+    const booth = (await boothRes.json())[0]
 
-    const boothId = execSync(
-      `docker exec supabase_db_casagrown3 psql -U postgres -t -A -c "SELECT id FROM market_booths LIMIT 1;"`,
-      { timeout: 5000, encoding: 'utf-8' }
-    ).trim()
+    const buyerRes = await fetch(`${SUPABASE_URL}/rest/v1/profiles?select=id&id=neq.${booth.owner_id}&limit=1`, { headers })
+    const buyerId = (await buyerRes.json())[0].id
 
-    const productId = execSync(
-      `docker exec supabase_db_casagrown3 psql -U postgres -t -A -c "SELECT id FROM market_products LIMIT 1;"`,
-      { timeout: 5000, encoding: 'utf-8' }
-    ).trim()
+    const prodRes = await fetch(`${SUPABASE_URL}/rest/v1/market_products?select=id&limit=1`, { headers })
+    const productId = (await prodRes.json())[0].id
 
-    execSync(`docker exec -i supabase_db_casagrown3 psql -U postgres -c "
-      INSERT INTO market_orders (id, buyer_id, seller_id, booth_id, product_id,
-        product_name, quantity, unit_price_usd, subtotal_usd, total_usd,
-        fulfillment_type, status, platform_fee_pct, platform_fee_usd,
-        tax_rate_pct, tax_amount_usd)
-      VALUES ('${orderId}'::uuid, '${buyerId}'::uuid, '${sellerId}'::uuid,
-        '${boothId}'::uuid, '${productId}'::uuid,
-        'E2E Escalation Tomatoes', 2, 12.50, 25.00, 25.00,
-        'delivery', 'escalated', 10, 2.50, 0, 0)
-      ON CONFLICT (id) DO NOTHING;
+    const orderData: any = {
+      id: orderId, buyer_id: buyerId, seller_id: booth.owner_id, booth_id: booth.id, product_id: productId,
+      product_name: fulfillmentType === 'delivery' ? 'E2E Escalation Tomatoes' : 'E2E Pickup Tomatoes',
+      quantity: 2, unit_price_usd: 12.50, subtotal_usd: 25.00, total_usd: 25.00,
+      fulfillment_type: fulfillmentType, status: 'escalated', platform_fee_pct: 10, platform_fee_usd: 2.50,
+      tax_rate_pct: 0, tax_amount_usd: 0
+    }
 
-      INSERT INTO order_disputes (id, order_id, initiated_by, reason, status)
-      VALUES ('${disputeId}'::uuid, '${orderId}'::uuid,
-        '${buyerId}'::uuid, 'Product arrived damaged - E2E test', 'open')
-      ON CONFLICT (id) DO NOTHING;
-    "`, { timeout: 5000, stdio: 'pipe' })
+    if (fulfillmentType === 'pickup') {
+      orderData.ready_for_pickup_at = new Date(Date.now() - 2 * 3600000).toISOString()
+      orderData.delivered_at = new Date(Date.now() - 3600000).toISOString()
+    }
+
+    const orderReq = await fetch(`${SUPABASE_URL}/rest/v1/market_orders`, { method: 'POST', headers, body: JSON.stringify(orderData) })
+    if (!orderReq.ok) throw new Error(await orderReq.text())
+
+    const disputeReq = await fetch(`${SUPABASE_URL}/rest/v1/order_disputes`, { method: 'POST', headers, body: JSON.stringify({
+      id: disputeId, order_id: orderId, initiated_by: buyerId, reason: 'E2E Test Issue', status: 'open'
+    }) })
+    if (!disputeReq.ok) throw new Error(await disputeReq.text())
 
     return { orderId, disputeId }
   } catch (e) {
-    console.warn('Seed escalation failed:', e)
+    console.warn(`Seed ${fulfillmentType} escalation failed:`, e)
     return null
   }
 }
@@ -264,55 +264,7 @@ test.describe('Pickup Escalation - Ready for Pickup Verification', () => {
   let pickupData: { orderId: string; disputeId: string } | null = null
 
   test.beforeAll(async () => {
-    const { execSync } = require('child_process')
-    const ts = Date.now()
-    const orderId = `e2e00000-e5c1-0000-0000-${ts.toString(16).padStart(12, '0')}`
-    const disputeId = `e2e00000-d5b1-0000-0000-${ts.toString(16).padStart(12, '0')}`
-
-    try {
-      const buyerId = execSync(
-        `docker exec supabase_db_casagrown3 psql -U postgres -t -A -c "SELECT id FROM auth.users LIMIT 1 OFFSET 1;"`,
-        { timeout: 5000, encoding: 'utf-8' }
-      ).trim()
-
-      const sellerId = execSync(
-        `docker exec supabase_db_casagrown3 psql -U postgres -t -A -c "SELECT id FROM auth.users WHERE email = 'seller@test.local';"`,
-        { timeout: 5000, encoding: 'utf-8' }
-      ).trim()
-
-      const boothId = execSync(
-        `docker exec supabase_db_casagrown3 psql -U postgres -t -A -c "SELECT id FROM market_booths LIMIT 1;"`,
-        { timeout: 5000, encoding: 'utf-8' }
-      ).trim()
-
-      const productId = execSync(
-        `docker exec supabase_db_casagrown3 psql -U postgres -t -A -c "SELECT id FROM market_products LIMIT 1;"`,
-        { timeout: 5000, encoding: 'utf-8' }
-      ).trim()
-
-      // Create a pickup order WITH ready_for_pickup_at set (simulates seller clicked Ready)
-      execSync(`docker exec -i supabase_db_casagrown3 psql -U postgres -c "
-        INSERT INTO market_orders (id, buyer_id, seller_id, booth_id, product_id,
-          product_name, quantity, unit_price_usd, subtotal_usd, total_usd,
-          fulfillment_type, status, platform_fee_pct, platform_fee_usd,
-          tax_rate_pct, tax_amount_usd, ready_for_pickup_at, delivered_at)
-        VALUES ('${orderId}'::uuid, '${buyerId}'::uuid, '${sellerId}'::uuid,
-          '${boothId}'::uuid, '${productId}'::uuid,
-          'E2E Pickup Tomatoes', 3, 8.00, 24.00, 24.00,
-          'pickup', 'escalated', 10, 2.40, 0, 0, now() - interval '2 hours', now() - interval '1 hour')
-        ON CONFLICT (id) DO NOTHING;
-
-        INSERT INTO order_disputes (id, order_id, initiated_by, reason, status)
-        VALUES ('${disputeId}'::uuid, '${orderId}'::uuid,
-          '${buyerId}'::uuid, 'Item missing from pickup - E2E test', 'open')
-        ON CONFLICT (id) DO NOTHING;
-      "`, { timeout: 5000, stdio: 'pipe' })
-
-      pickupData = { orderId, disputeId }
-    } catch (e) {
-      console.warn('Seed pickup escalation failed:', e)
-      pickupData = null
-    }
+    pickupData = await seedEscalation('pickup')
   })
 
   test('should display Pickup Verification section', async ({ page }) => {

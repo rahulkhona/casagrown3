@@ -46,6 +46,7 @@ export async function generateMetadata(
           description,
           siteName: 'CasaGrown Market',
           type: 'website',
+          url: `/market/booth/${params.id}/product/${product.id}`,
           ...(ogImage ? { images: [{ url: ogImage, width: 1200, height: 630, alt: product.name }] } : {}),
         },
         twitter: {

@@ -113,15 +113,15 @@ echo "  ✅ node_modules present"
 section "Phase 1: Database Setup"
 
 # Check if Supabase is running
-if ! supabase status &>/dev/null 2>&1; then
+if ! npx supabase status &>/dev/null 2>&1; then
   echo "  Starting Supabase..."
-  supabase start
+  npx supabase start
 else
   echo "  ✅ Supabase already running"
 fi
 
 echo "  Resetting database & applying migrations + seed..."
-if supabase db reset 2>&1 | tail -3; then
+if npx supabase db reset 2>&1 | tail -3; then
   echo -e "  ${GREEN}✅ Database reset complete${NC}"
 else
   echo -e "  ${RED}❌ Database reset failed${NC}"
@@ -129,7 +129,7 @@ else
 fi
 
 # ── Get service role key ──
-SERVICE_ROLE_KEY=$(supabase status -o env 2>/dev/null | grep SERVICE_ROLE_KEY | cut -d'"' -f2)
+SERVICE_ROLE_KEY=$(npx supabase status -o env 2>/dev/null | grep SERVICE_ROLE_KEY | cut -d'"' -f2)
 if [ -z "$SERVICE_ROLE_KEY" ]; then
   echo -e "  ${RED}❌ Could not get SERVICE_ROLE_KEY${NC}"
   exit 1
@@ -146,14 +146,14 @@ echo -e "  ${GREEN}✅ Storage buckets initialized${NC}"
 section "Phase 2: Edge Functions"
 
 # Kill any existing edge functions server
-pkill -f "supabase functions serve" 2>/dev/null || true
+pkill -f "npx supabase functions serve" 2>/dev/null || true
 sleep 1
 
 echo "  Starting edge functions server..."
 if [ -f supabase/.env.local ]; then
-  supabase functions serve --env-file supabase/.env.local &>/dev/null &
+  npx supabase functions serve --env-file supabase/.env.local &>/dev/null &
 else
-  supabase functions serve &>/dev/null &
+  npx supabase functions serve &>/dev/null &
 fi
 EDGE_PID=$!
 sleep 5
@@ -169,7 +169,7 @@ fi
 # ─────────────────────────────────────────────────────────────────────────
 section "Phase 3: pgTAP Database Tests"
 
-PGTAP_OUTPUT=$(supabase test db 2>&1)
+PGTAP_OUTPUT=$(npx supabase test db 2>&1)
 PGTAP_EXIT=$?
 
 if echo "$PGTAP_OUTPUT" | grep -q "All tests successful"; then

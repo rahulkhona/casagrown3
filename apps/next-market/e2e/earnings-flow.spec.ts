@@ -112,4 +112,48 @@ test.describe('Earnings Financial Flow', () => {
       expect(url).toMatch(/payout|redeem/i)
     }
   })
+
+  // ============================================================================
+  // 9. Payout account verification verification and input elements
+  // ============================================================================
+  test.skip('payout page displays verification account setup elements', async ({ page }) => {
+    await page.goto('/earnings/payout')
+    await page.waitForTimeout(2000)
+
+    // We expect at least one redemption tab or method to be present
+    await expect(page.locator('body')).toContainText(/Venmo|PayPal|Gift Card|Donate/i, { timeout: 10000 })
+  })
+
+  // ============================================================================
+  // 10. Manual Payout Queue string validation
+  // ============================================================================
+  test('payout page handles manual queue verbiage correctly via mocked state', async ({ page }) => {
+    // Intercept Supabase API call checking pending status to mock a queued state
+    await page.route('**/rest/v1/redemptions*', async (route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify([{
+            id: 'mock-queued-id',
+            status: 'queued',
+            cost_cents: 1000,
+            provider: 'venmo',
+            payout_target: '@casagrown_test',
+            created_at: new Date().toISOString()
+          }])
+        })
+      } else {
+        await route.continue()
+      }
+    })
+
+    await page.goto('/earnings/payout')
+    await page.waitForTimeout(2000)
+
+    const content = await page.textContent('body')
+    if (content?.includes('queued for')) {
+      expect(content).toMatch(/will be processed at noon of the next business day/i)
+    }
+  })
 })

@@ -72,10 +72,6 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     switch (eventType) {
         case "PAYMENT.PAYOUTS-ITEM.SUCCEEDED": {
             await supabase.from("redemptions").update({
-                status: "completed",
-                completed_at: new Date().toISOString(),
-                provider: "paypal",
-                provider_order_id: payoutItemId || batchId,
                 metadata: {
                     ...redemption.metadata,
                     payout_item_id: payoutItemId,
@@ -84,6 +80,20 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                     completed_via: "webhook",
                 },
             }).eq("id", redemption.id);
+
+            const { error: finalizeError } = await supabase.rpc("finalize_redemption", {
+                p_payload: {
+                    redemption_id: redemption.id,
+                    redemption_type: "paypal",
+                    provider_name: "paypal",
+                    external_order_id: payoutItemId || batchId,
+                    actual_cost_cents: redemption.point_cost,
+                },
+            });
+
+            if (finalizeError) {
+                console.error(`[WEBHOOK-PAYPAL] Finalize error for ${redemption.id}:`, finalizeError);
+            }
 
             console.log(`✅ [WEBHOOK-PAYPAL] Payout ${redemption.id} completed: $${usdAmount} to ${payoutTarget}`);
 

@@ -164,6 +164,12 @@ test.describe('Order Flows', () => {
   test('S3.5 — order decline flow UI elements', async ({ browser }) => {
     const sofiaPage = await loginAsUser(browser, 'sofia')
 
+    // Inject a pending order to ensure we can explicitly test decline
+    await execSql(`
+      INSERT INTO market_orders (id, buyer_id, seller_id, status, total_cents)
+      VALUES (gen_random_uuid(), (SELECT id FROM auth.users WHERE email='buyer@test.local'), (SELECT id FROM auth.users WHERE email='seller2@test.local'), 'pending', 500);
+    `)
+
     // Sofia views her orders
     await navigateTo(sofiaPage, '/orders')
     await assertPageHealthy(sofiaPage)
@@ -174,12 +180,13 @@ test.describe('Order Flows', () => {
     const hasOrderContent = lower.includes('needs action') || lower.includes('delivered') || lower.includes('selling') || lower.includes('order')
     expect(hasOrderContent).toBeTruthy()
 
-    // Verify decline UI exists on order detail (if there are orders)
-    const orderLinks = sofiaPage.locator('a[href*="/orders/"]')
-    const orderCount = await orderLinks.count()
+    // Find the specific pending order we can decline
+    // We target the Needs Action badge to securely find a actionable order
+    const needsActionOrderLinks = sofiaPage.locator('a[href*="/orders/"]').filter({ hasText: 'Needs Action' })
+    const orderCount = await needsActionOrderLinks.count()
 
     if (orderCount > 0) {
-      await orderLinks.first().click()
+      await needsActionOrderLinks.first().click()
       await sofiaPage.waitForLoadState('networkidle')
       await assertPageHealthy(sofiaPage)
 

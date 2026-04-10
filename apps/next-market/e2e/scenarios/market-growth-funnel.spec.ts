@@ -52,14 +52,14 @@ test.describe('Market Growth Funnel Interactions', () => {
     await inviteBtn.click()
 
     // 3. Verify Share Modal successfully opens
-    await expect(page.getByText('Share on Facebook')).toBeVisible({ timeout: 5000 })
+    const fbBtn = page.getByRole('button', { name: /Share on Facebook/i })
+    await expect(fbBtn).toBeVisible({ timeout: 5000 })
     
     // 4. Verify explicit instructional tip is visible to users regarding Paste UI
     await expect(page.getByText(/block auto-filled text.*click Paste/i)).toBeVisible()
 
     // 5. Trigger the social click and assert the dynamic Toast UI flips state, replacing native alerts.
     // We use Promise.all to catch the popup if one opens, though our primary assert is the toast.
-    const fbBtn = page.getByText('Share on Facebook')
     
     // Click button 
     await fbBtn.click()

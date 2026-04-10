@@ -180,6 +180,27 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     );
   }
 
+  // 4b. Atomically debit market balance before any API/Queuing logic
+  const { data: debitResult, error: debitError } = await supabase.rpc("debit_market_balance", {
+    p_user_id: userId,
+    p_amount_usd: usdAmount,
+    p_redemption_id: redemption.id,
+    p_metadata: {
+      description: `Cashout $${usdAmount.toFixed(2)} to PayPal/Venmo (${finalPayoutId})`,
+      payout_target: finalPayoutId,
+      provider: "paypal",
+    },
+  });
+
+  if (debitError || !debitResult?.success) {
+    console.error("Failed to debit market balance:", debitError || debitResult?.error);
+    await supabase.from("redemptions").delete().eq("id", redemption.id);
+    return jsonOk({
+      success: false,
+      error: debitResult?.error || "Failed to debit balance.",
+    }, corsHeaders);
+  }
+
   // 5. Fallible external step: PayPal API
   let payoutData: any = null;
   let txId: string = "";
@@ -359,27 +380,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     );
   }
 
-  // 6. Atomically debit market balance (user_balances.available_usd + market_ledger)
-  const { data: debitResult, error: debitError } = await supabase.rpc("debit_market_balance", {
-    p_user_id: userId,
-    p_amount_usd: usdAmount,
-    p_redemption_id: redemption.id,
-    p_metadata: {
-      description: `Cashout $${usdAmount.toFixed(2)} to PayPal/Venmo (${finalPayoutId})`,
-      payout_target: finalPayoutId,
-      provider: "paypal",
-      batch_id: txId,
-    },
-  });
 
-  if (debitError || !debitResult?.success) {
-    console.error("Failed to debit market balance:", debitError || debitResult?.error);
-    await supabase.from("redemptions").delete().eq("id", redemption.id);
-    return jsonOk({
-      success: false,
-      error: debitResult?.error || "Failed to debit balance.",
-    }, corsHeaders);
-  }
+
 
   // 7. Finalize redemption (provider_transactions, receipt logging)
   const { error: finalizeError } = await supabase.rpc("finalize_redemption", {

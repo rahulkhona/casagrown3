@@ -108,12 +108,49 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     );
   }
 
-  let externalOrderId = "";
-  let receiptUrl = "";
-  let ggReceipt: any = {};
-  let finalStatus = "pending";
+  // 4. Create pending redemption for audit trail
+  const receiptNumberFallback = `DON-Q-${Date.now().toString(36).toUpperCase()}`;
+  const { data: redemption, error: redemptionError } = await supabase
+    .from("redemptions")
+    .insert({
+      user_id: userId,
+      item_id: itemId || null,
+      point_cost: amountCents,
+      status: "pending",
+      provider: "globalgiving",
+      metadata: {
+        organization: organizationName,
+        project_title: projectTitle,
+        theme,
+        source: "market",
+      },
+    })
+    .select()
+    .single();
 
-  // 4. Try Live Fulfillment
+  if (redemptionError || !redemption) {
+    return jsonError("Failed to create redemption", corsHeaders);
+  }
+
+  // 5. Atomically debit market balance before any API attempt
+  const { data: debitResult, error: debitError } = await supabase.rpc("debit_market_balance", {
+    p_user_id: userId,
+    p_amount_usd: dollarAmount,
+    p_redemption_id: redemption.id,
+    p_metadata: {
+      description: `Donation $${dollarAmount.toFixed(2)} to ${organizationName}`,
+      organization: organizationName,
+      project_title: projectTitle,
+    },
+  });
+
+  if (debitError || !debitResult?.success) {
+    console.error("Failed to debit market balance:", debitError || debitResult?.error);
+    await supabase.from("redemptions").delete().eq("id", redemption.id);
+    return jsonError(debitResult?.error || "Failed to debit balance.", corsHeaders);
+  }
+
+  // 6. Try Live Fulfillment
   // Fetch user info for GlobalGiving donor receipt (501c3 tax receipt sent to donor email)
   const { data: donorProfile } = await supabase
     .from("profiles")
@@ -130,13 +167,17 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   const [firstName, ...lastParts] = donorName.split(" ");
   const lastName = lastParts.join(" ") || firstName;
 
+  let externalOrderId = "";
+  let receiptUrl = "";
+  let ggReceipt: any = {};
+  let finalStatus = "pending";
+  let externalErrorMsg: string | null = null;
+
   if (!isQueuing && !isSandbox && env("GLOBALGIVING_API_KEY") && itemId) {
     try {
       const response = await fetch(
         `https://api.globalgiving.org/api/public/projects/${itemId}/donate?api_key=${
-          env(
-            "GLOBALGIVING_API_KEY",
-          )
+          env("GLOBALGIVING_API_KEY")
         }`,
         {
           method: "POST",
@@ -145,7 +186,6 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             amount: dollarAmount,
             currency: "USD",
             refcode: `cg_${userId.substring(0, 8)}_${Date.now()}`,
-            // Donor info — GlobalGiving sends 501(c)(3) tax receipt to this email
             ...(donorEmail ? {
               email: donorEmail,
               firstname: firstName,
@@ -156,7 +196,6 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
       );
 
       if (!response.ok) {
-        // e.g. Braintree failure or Insufficient Funds
         const errText = await response.text();
         throw new Error(errText);
       }
@@ -164,87 +203,80 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
       const data = await response.json();
       externalOrderId = data.donationId || data.id || "";
       finalStatus = "completed";
-      // GlobalGiving API response includes: receipt.receiptNumber, receipt.taxDeductibleContributionAmount
       ggReceipt = data.receipt || {};
       receiptUrl = data.receiptUrl || data.receipt_url || "";
-      console.log(`[DONATE] GlobalGiving API succeeded: donationId=${externalOrderId}, receiptNumber=${ggReceipt.receiptNumber || 'N/A'}`);
+      
+      // CRASH-SAFE: immediately persist provider result
+      await supabase.from("redemptions").update({
+        provider_order_id: externalOrderId || null,
+        metadata: {
+          ...redemption.metadata,
+          ...(externalOrderId ? { donation_id: externalOrderId } : {}),
+          ...(receiptUrl ? { charity_receipt_url: receiptUrl } : {}),
+          ...(ggReceipt?.receiptNumber ? {
+            gg_receipt_number: ggReceipt.receiptNumber,
+            tax_deductible_amount: ggReceipt.taxDeductibleContributionAmount,
+          } : {}),
+        },
+      }).eq("id", redemption.id);
+      
+      console.log(`[DONATE] GlobalGiving API succeeded: donationId=${externalOrderId}`);
     } catch (err) {
+      externalErrorMsg = err instanceof Error ? err.message : "Donation API failed";
       console.error("[DONATE] GlobalGiving API failed. Tripping Breaker.", err);
       finalStatus = "pending";
 
-      // Trip the breaker
       await supabase
         .from("instrument_queuing_status")
         .update({ is_queuing: true })
         .eq("instrument", "globalgiving");
     }
+  } else {
+     console.log(`[DONATE] Queuing enabled explicitly for globalgiving`);
   }
 
-  // 5. Create redemption for audit trail
-  const { data: redemption, error: redemptionError } = await supabase
-    .from("redemptions")
-    .insert({
+  if (isQueuing || externalErrorMsg) {
+    const finalReason = externalErrorMsg || "Queue is currently enabled for globalgiving";
+    await supabase
+      .from("redemptions")
+      .update({ status: "failed", failed_reason: finalReason })
+      .eq("id", redemption.id);
+
+    const queuedMessage = `Your donation of $${dollarAmount.toFixed(2)} to ${organizationName} will be processed at noon of the next business day.`;
+    
+    await supabase.from("market_notifications").insert({
       user_id: userId,
-      item_id: itemId || null,
-      point_cost: amountCents, // cents for backward compat
-      status: finalStatus,
-      provider_order_id: externalOrderId || null,
-      provider: "globalgiving",
-      completed_at: finalStatus === "completed"
-        ? new Date().toISOString()
-        : null,
-      metadata: {
-        organization: organizationName,
-        project_title: projectTitle,
-        theme,
-        source: "market",
-        ...(externalOrderId ? { donation_id: externalOrderId } : {}),
-        ...(receiptUrl ? { charity_receipt_url: receiptUrl } : {}),
-        // GlobalGiving receipt data (for tax purposes)
-        ...(typeof ggReceipt !== 'undefined' && ggReceipt?.receiptNumber ? {
-          gg_receipt_number: ggReceipt.receiptNumber,
-          tax_deductible_amount: ggReceipt.taxDeductibleContributionAmount,
-        } : {}),
-      },
-    })
-    .select()
-    .single();
+      content: queuedMessage,
+      link_url: "/transaction-history",
+    });
 
-  if (redemptionError || !redemption) {
-    return jsonError("Failed to create redemption", corsHeaders);
-  }
+    await sendPushNotification(supabase, {
+      userIds: [userId],
+      title: "Donation Queued ⏳",
+      body: queuedMessage,
+      url: "/transaction-history",
+    });
 
-  // 6. Atomically debit market balance
-  const receiptNumber = finalStatus === "completed"
-    ? `DON-${Date.now().toString(36).toUpperCase()}`
-    : `DON-Q-${Date.now().toString(36).toUpperCase()}`;
-
-  const { data: debitResult, error: debitError } = await supabase.rpc("debit_market_balance", {
-    p_user_id: userId,
-    p_amount_usd: dollarAmount,
-    p_redemption_id: redemption.id,
-    p_metadata: {
-      description: `Donation $${dollarAmount.toFixed(2)} to ${organizationName}`,
-      organization: organizationName,
-      project_title: projectTitle,
-      receipt_number: receiptNumber,
-    },
-  });
-
-  if (debitError || !debitResult?.success) {
-    console.error("Failed to debit market balance:", debitError || debitResult?.error);
-    // Don't delete a donation that already went through at GlobalGiving!
-    if (finalStatus === "completed" && externalOrderId) {
-      // Mark as needing manual reconciliation
-      await supabase.from("redemptions").update({
-        status: "completed",
-        failed_reason: `Balance debit failed: ${debitResult?.error || 'unknown'}. Donation was sent to GlobalGiving (${externalOrderId}) but balance was not debited.`,
-      }).eq("id", redemption.id);
-      console.error(`[DONATE] CRITICAL: Donation ${externalOrderId} went through but balance debit failed!`);
-    } else {
-      await supabase.from("redemptions").delete().eq("id", redemption.id);
+    const userEmailForNotify = await getUserEmail(supabase, userId);
+    if (userEmailForNotify) {
+      const { subject, htmlBody } = buildPayoutEmail({
+        type: "donation",
+        status: "queued",
+        userName: firstName || "there",
+        organizationName,
+        amount: dollarAmount,
+        redemptionId: redemption.id,
+      });
+      await sendTransactionEmail({ to: userEmailForNotify, subject, htmlBody });
     }
-    return jsonError(debitResult?.error || "Failed to debit balance.", corsHeaders);
+
+    return jsonOk({
+      success: true,
+      donationId: null,
+      usd_amount: dollarAmount,
+      status: "queued",
+      redemptionId: redemption.id,
+    }, corsHeaders);
   }
 
   if (finalStatus === "completed") {

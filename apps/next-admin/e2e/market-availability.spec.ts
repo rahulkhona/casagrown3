@@ -29,7 +29,7 @@ test.describe('Market Availability Page', () => {
     await page.getByRole('button', { name: /Block State/i }).click({ timeout: 15000 })
     await expect(page.getByText('Add State Restriction')).toBeVisible()
     await page.getByRole('button', { name: /Add Restriction/i }).click()
-    await expect(page.getByText('Please select a state')).toBeVisible()
+    await expect(page.getByText(/Please select a state/)).toBeVisible()
   })
 
   test('should display empty state or data', async ({ page }) => {
