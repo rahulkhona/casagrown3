@@ -942,7 +942,7 @@ export default function PayoutPage() {
                 <p style={{ fontSize: 13, color: 'var(--gray-500)' }}>Available: {formatUsd(availableUsd)} • Standard transfer (free, 1-2 days)</p>
               </div>
 
-              {/* Verification status */}
+              {/* Payout destination status */}
               {payoutStatus?.verified && (
                 <div style={{
                   padding: '14px 16px', borderRadius: 10, marginBottom: 16,
@@ -953,9 +953,9 @@ export default function PayoutPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 20 }}>✅</span>
                       <div style={{ flex: 1 }}>
-                        <strong style={{ fontSize: 14 }}>Verified: {payoutStatus.handle}</strong>
+                        <strong style={{ fontSize: 14 }}>Saved: {payoutStatus.handle}</strong>
                         <p style={{ fontSize: 12, color: 'var(--gray-500)', margin: '2px 0 0' }}>
-                          {payoutStatus.handle_type === 'venmo' ? 'Venmo' : 'PayPal'} • Destination saved
+                          {payoutStatus.handle_type === 'venmo' ? 'Venmo' : 'PayPal'} • Ready for payouts
                         </p>
                       </div>
                       <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: 12 }} onClick={() => setIsChangingHandle(true)}>Change</button>
