@@ -2,6 +2,7 @@
 
 import { LoadingSpinner } from '../../components/LoadingSpinner'
 import SocialShareModal from '../../components/SocialShareModal'
+import { getProductShareMessage, getRandomGreeting } from '../../../lib/shareMessages'
 
 import { useState, useRef, useEffect, MouseEvent } from 'react'
 import Link from 'next/link'
@@ -607,7 +608,7 @@ export default function MyBoothPage() {
     const sellerName = profileName?.split(' ')[0] || 'your neighbor'
     const productNames = myProducts.slice(0, 3).map(p => p.name).join(', ')
     const nextDay = nextMarket ? nextMarket.date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) : ''
-    return `Hey! 🌱 I'm ${sellerName} and I just set up my booth "${name}" on CasaGrown Market!\n\n${productNames ? `I'm growing ${productNames} and more — ` : ''}come check out what's fresh from my backyard.${nextDay ? `\n\n📅 Next market day: ${nextDay}` : ''}\n\n👇 Click the link below to view my booth and shop:\n${getBoothShareUrl(boothId)}\n\nFresh produce, straight from your neighbor! 🏡`
+    return `${getRandomGreeting()} 🌱 I'm ${sellerName} and I just set up my booth "${name}" on CasaGrown Market!\n\n${productNames ? `I'm growing ${productNames} and more — ` : ''}come check out what's fresh from my backyard.${nextDay ? `\n\n📅 Next market day: ${nextDay}` : ''}\n\n👇 Click the link below to view my booth and shop:\n${getBoothShareUrl(boothId)}\n\nFresh produce, straight from your neighbor! 🏡`
   }
 
   // Build product slot data
@@ -1386,7 +1387,14 @@ export default function MyBoothPage() {
           subtitle={`Spread the word to your neighbors!`}
           entityName={myProducts.find(p => p.id === productShareId)!.name}
           shareUrl={`${typeof window !== 'undefined' ? window.location.origin : ''}/market/booth/${savedBoothId || user?.id || 'id'}/product/${productShareId}`}
-          shareMessage={`Hey neighborhood! Check out my fresh ${myProducts.find(p => p.id === productShareId)!.name} on CasaGrown 🌱\n\n${myProducts.find(p => p.id === productShareId)!.priceUsd === 0 ? 'Free' : `${formatUsd(myProducts.find(p => p.id === productShareId)!.priceUsd)} / ${myProducts.find(p => p.id === productShareId)!.unit}`}\n\n👇 Click the link below to view and purchase:\n${typeof window !== 'undefined' ? window.location.origin : ''}/market/booth/${savedBoothId || user?.id || 'id'}/product/${productShareId}`}
+          shareMessage={(() => {
+            const prod = myProducts.find(p => p.id === productShareId)!
+            return getProductShareMessage(
+              prod.name,
+              prod.priceUsd === 0 ? 'Free' : `${formatUsd(prod.priceUsd)} / ${prod.unit}`,
+              (offersDelivery || offersPickup) ? `${offersDelivery && offersPickup ? '🚗 Delivery or 📍 Pickup' : offersDelivery ? '🚗 Delivery' : '📍 Pickup'} near ${pickupAddress ? pickupAddress.split(',').slice(-2).join(',').trim() : 'you'}` : '📍 Available nearby'
+            ) + `${typeof window !== 'undefined' ? window.location.origin : ''}/market/booth/${savedBoothId || user?.id || 'id'}/product/${productShareId}`
+          })()}
         />
       )}
 

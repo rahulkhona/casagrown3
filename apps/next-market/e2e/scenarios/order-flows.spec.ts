@@ -17,6 +17,7 @@ import {
   clearMailpit,
   assertEmailSent,
   waitForText,
+  execSql,
   type UserKey,
 } from './scenario-helpers'
 
@@ -166,8 +167,16 @@ test.describe('Order Flows', () => {
 
     // Inject a pending order to ensure we can explicitly test decline
     await execSql(`
-      INSERT INTO market_orders (id, buyer_id, seller_id, status, total_cents)
-      VALUES (gen_random_uuid(), (SELECT id FROM auth.users WHERE email='buyer@test.local'), (SELECT id FROM auth.users WHERE email='seller2@test.local'), 'pending', 500);
+      INSERT INTO market_orders (id, buyer_id, seller_id, booth_id, product_id, product_name, quantity, unit_price_usd, subtotal_usd, total_usd, fulfillment_type, status)
+      VALUES (
+        gen_random_uuid(),
+        (SELECT id FROM auth.users WHERE email='buyer@test.local'),
+        (SELECT id FROM auth.users WHERE email='seller2@test.local'),
+        (SELECT id FROM market_booths WHERE owner_id = (SELECT id FROM auth.users WHERE email='seller2@test.local') LIMIT 1),
+        (SELECT id FROM market_products WHERE seller_id = (SELECT id FROM auth.users WHERE email='seller2@test.local') LIMIT 1),
+        'E2E Decline Test Product',
+        1, 5.00, 5.00, 5.00, 'delivery', 'pending'
+      );
     `)
 
     // Sofia views her orders

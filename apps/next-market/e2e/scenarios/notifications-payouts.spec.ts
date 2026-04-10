@@ -459,14 +459,17 @@ test.describe('Notifications & Payouts', () => {
       await samPage.context().close()
     })
 
-    test('MP2 — initiate payout verification RPC', async () => {
+    test('MP2 — confirm payout setup RPC', async () => {
       const samToken = tokens['sam']
 
-      const result = await callRpc(samToken, 'initiate_payout_verification', {})
+      const result = await callRpc(samToken, 'confirm_manual_payout_verification', {
+        p_handle: '15555551234',
+        p_handle_type: 'venmo'
+      })
 
-      // Should return a result (may succeed or return "not enough balance")
+      // Should return a result (may succeed or fail based on auth, but should execute)
       if (result && typeof result === 'object') {
-        console.log('[PAYOUT] Verification result:', JSON.stringify(result).substring(0, 200))
+        console.log('[PAYOUT] Setup result:', JSON.stringify(result).substring(0, 200))
       }
       // The RPC exists and responds — that's what we're verifying
       expect(result).toBeDefined()

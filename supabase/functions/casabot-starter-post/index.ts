@@ -27,8 +27,11 @@ serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    const isLocal = (Deno.env.get('SUPABASE_URL') ?? '').includes('localhost') ||
-      (Deno.env.get('SUPABASE_URL') ?? '').includes('127.0.0.1')
+    const supaUrl = Deno.env.get('SUPABASE_URL') ?? ''
+    const isLocal = supaUrl.includes('localhost') ||
+      supaUrl.includes('127.0.0.1') ||
+      supaUrl.includes('kong:') ||
+      supaUrl.includes('host.docker.internal')
 
     if (isLocal) {
       console.log(`[LOCAL] Skipping CasaBot Gemini Starter — local environment detected.`)

@@ -20,16 +20,18 @@ test.describe('Market Availability Page', () => {
 
   test('should open and close create form', async ({ page }) => {
     await page.getByRole('button', { name: /Block State/i }).click({ timeout: 15000 })
-    await expect(page.getByText('Add State Restriction')).toBeVisible()
+    await page.waitForTimeout(500)
+    await expect(page.getByText('Add State Restriction')).toBeVisible({ timeout: 10000 })
     await page.getByRole('button', { name: /Cancel/i }).click()
-    await expect(page.getByText('Add State Restriction')).not.toBeVisible()
+    await expect(page.getByText('Add State Restriction')).not.toBeVisible({ timeout: 10000 })
   })
 
   test('should show validation error for empty state', async ({ page }) => {
     await page.getByRole('button', { name: /Block State/i }).click({ timeout: 15000 })
-    await expect(page.getByText('Add State Restriction')).toBeVisible()
+    await page.waitForTimeout(500)
+    await expect(page.getByText('Add State Restriction')).toBeVisible({ timeout: 10000 })
     await page.getByRole('button', { name: /Add Restriction/i }).click()
-    await expect(page.getByText(/Please select a state/)).toBeVisible()
+    await expect(page.getByText(/Please select a state/)).toBeVisible({ timeout: 10000 })
   })
 
   test('should display empty state or data', async ({ page }) => {

@@ -11,7 +11,7 @@ import ProductDetailClient from './ProductDetailClient'
 export async function generateMetadata(
   { params }: { params: Promise<{ id: string; productId: string }> }
 ): Promise<Metadata> {
-  const { productId } = await params
+  const { id, productId } = await params
   const headersList = await headers()
   const host = headersList.get('host') || 'localhost:3002'
   const protocol = host.includes('localhost') ? 'http' : 'https'
@@ -46,7 +46,7 @@ export async function generateMetadata(
           description,
           siteName: 'CasaGrown Market',
           type: 'website',
-          url: `/market/booth/${params.id}/product/${product.id}`,
+          url: `/market/booth/${id}/product/${productId}`,
           ...(ogImage ? { images: [{ url: ogImage, width: 1200, height: 630, alt: product.name }] } : {}),
         },
         twitter: {

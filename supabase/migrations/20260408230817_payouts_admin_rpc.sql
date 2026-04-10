@@ -50,4 +50,5 @@ END;
 $$;
 
 -- Grant execution to authenticated roles
+REVOKE EXECUTE ON FUNCTION get_pending_payouts_admin FROM public;
 GRANT EXECUTE ON FUNCTION get_pending_payouts_admin TO authenticated;

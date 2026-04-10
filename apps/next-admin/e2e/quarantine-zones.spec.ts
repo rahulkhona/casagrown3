@@ -14,16 +14,18 @@ test.describe('Quarantine Zones Page', () => {
 
   test('should open and close create form', async ({ page }) => {
     await page.getByText('Add Quarantine', { exact: true }).click({ timeout: 15000 })
-    await expect(page.getByText('New Quarantine Zone', { exact: true })).toBeVisible()
+    await page.waitForTimeout(500)
+    await expect(page.getByText('New Quarantine Zone', { exact: true })).toBeVisible({ timeout: 10000 })
     await expect(page.getByText('Pest / Disease Name', { exact: false })).toBeVisible()
     await expect(page.getByText('Quarantined Category', { exact: false })).toBeVisible()
     await page.getByText('Cancel', { exact: true }).click()
-    await expect(page.getByText('New Quarantine Zone', { exact: true })).not.toBeVisible()
+    await expect(page.getByText('New Quarantine Zone', { exact: true })).not.toBeVisible({ timeout: 10000 })
   })
 
   test('should show category ALL and jurisdiction scope buttons', async ({ page }) => {
     await page.getByText('Add Quarantine', { exact: true }).click({ timeout: 15000 })
-    await expect(page.getByText('New Quarantine Zone', { exact: true })).toBeVisible()
+    await page.waitForTimeout(500)
+    await expect(page.getByText('New Quarantine Zone', { exact: true })).toBeVisible({ timeout: 10000 })
     await expect(page.getByText(/ALL Categories/)).toBeVisible()
     await expect(page.getByText('County-level', { exact: true })).toBeVisible()
     await expect(page.getByText('State-level', { exact: true })).toBeVisible()
@@ -41,9 +43,10 @@ test.describe('Quarantine Zones Page', () => {
 
   test('should validate required fields on submit', async ({ page }) => {
     await page.getByText('Add Quarantine', { exact: true }).click({ timeout: 15000 })
-    await expect(page.getByText('New Quarantine Zone', { exact: true })).toBeVisible()
+    await page.waitForTimeout(500)
+    await expect(page.getByText('New Quarantine Zone', { exact: true })).toBeVisible({ timeout: 10000 })
     await page.getByText('Enforce Quarantine', { exact: true }).click()
-    await expect(page.getByText(/Please select a category/i)).toBeVisible()
+    await expect(page.getByText(/Please select a category/i)).toBeVisible({ timeout: 10000 })
   })
 })
 

@@ -16,6 +16,7 @@ import { resetTour } from '../../components/GuidedTour'
 import { LoadingSpinner } from '../../components/LoadingSpinner'
 import { useErrorToast } from '../../components/ErrorToast'
 import SocialShareModal from '../../components/SocialShareModal'
+import { getGlobalMarketShareMessage } from '../../../lib/shareMessages'
 import styles from './page.module.css'
 
 // ── Compact countdown timer for closed market ──
@@ -1139,8 +1140,9 @@ function BrowseMarketPageInner() {
             title="Invite Neighbors"
             subtitle="Share CasaGrown with your neighborhood."
             shareUrl={typeof window !== 'undefined' ? `${window.location.origin}/` : ''}
-            shareMessage="Check out CasaGrown — a marketplace for homegrown produce from your neighbors! 🌱\n\n👇 Click the link below to explore the market:\n"
+            shareMessage={getGlobalMarketShareMessage()}
             entityName="Market Invite"
+
           />
         )}
     </div>

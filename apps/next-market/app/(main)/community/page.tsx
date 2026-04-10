@@ -5,16 +5,48 @@ import { fetchCommunityMessages } from '../../../../../packages/app/features/com
 
 export const dynamic = 'force-dynamic'
 
-export const metadata: Metadata = {
-  title: 'Community | CasaGrown',
-  description: 'Connect with your neighbors, trade produce, and grow your local community.',
-  openGraph: {
-    title: 'CasaGrown Community — Neighborhood Community Chat',
-    description: 'Connect with neighbors, share gardening tips, and trade homegrown produce.',
-    type: 'website',
-    images: [{ url: '/og-share.jpg', width: 1200, height: 630, alt: 'CasaGrown Community — Neighborhood Chat' }],
-  },
+export async function generateMetadata({ searchParams }: { searchParams?: Promise<{ message_id?: string }> }): Promise<Metadata> {
+  const resolvedParams = searchParams ? await searchParams : undefined;
+  
+  if (resolvedParams?.message_id) {
+    try {
+      const supabase = await createServerSupabase();
+      const { data: msg } = await supabase
+        .from('community_chat_messages')
+        .select('content, sender_name')
+        .eq('id', resolvedParams.message_id)
+        .single();
+        
+      if (msg) {
+        const title = msg.sender_name 
+          ? `CasaGrown Community: Message from ${msg.sender_name}`
+          : 'CasaGrown Community Message';
+        const description = msg.content.length > 150 ? msg.content.slice(0, 147) + '...' : msg.content;
+        return {
+          title,
+          description,
+          openGraph: {
+            title,
+            description,
+            type: 'website',
+          }
+        }
+      }
+    } catch(e) {}
+  }
+
+  return {
+    title: 'Community | CasaGrown',
+    description: 'Connect with your neighbors, trade produce, and grow your local community.',
+    openGraph: {
+      title: 'CasaGrown Community — Neighborhood Community Chat',
+      description: 'Connect with neighbors, share gardening tips, and trade homegrown produce.',
+      type: 'website',
+      images: [{ url: '/og-share.jpg', width: 1200, height: 630, alt: 'CasaGrown Community — Neighborhood Chat' }],
+    },
+  }
 }
+
 
 export default async function CommunityChatPage({ searchParams }: { searchParams?: Promise<{ message_id?: string }> }) {
   const supabase = await createServerSupabase()

@@ -169,19 +169,22 @@ BEGIN
       PERFORM notify_market_event(
         NEW.buyer_id,
         '🚚 Your ' || NEW.product_name || ' has been delivered! Please confirm receipt.',
-        '/orders'
+        '/orders',
+        false
       );
 
     WHEN 'completed' THEN
       PERFORM notify_market_event(
         NEW.buyer_id,
         '✅ Order completed: ' || NEW.product_name || '. Rate your experience!',
-        '/orders/' || NEW.id
+        '/orders/' || NEW.id,
+        false
       );
       PERFORM notify_market_event(
         NEW.seller_id,
         '💰 Sale completed: ' || NEW.product_name || ' — $' || NEW.subtotal_usd || ' earned. Rate the buyer!',
-        '/orders/' || NEW.id
+        '/orders/' || NEW.id,
+        false
       );
 
     WHEN 'disputed' THEN
@@ -203,12 +206,14 @@ BEGIN
         PERFORM notify_market_event(
           NEW.buyer_id,
           '⚠️ ' || v_dispute_label || ' for your ' || NEW.product_name || ' order.',
-          '/orders'
+          '/orders',
+          false
         );
         PERFORM notify_market_event(
           NEW.seller_id,
           '⚠️ ' || v_dispute_label || ' for your ' || NEW.product_name || ' sale.',
-          '/orders'
+          '/orders',
+          false
         );
       END;
 
@@ -228,12 +233,14 @@ BEGIN
       PERFORM notify_market_event(
         NEW.buyer_id,
         '✅ Your dispute for ' || NEW.product_name || ' has been resolved.',
-        '/orders'
+        '/orders',
+        false
       );
       PERFORM notify_market_event(
         NEW.seller_id,
         '✅ The dispute for ' || NEW.product_name || ' has been resolved.',
-        '/orders'
+        '/orders',
+        false
       );
 
     WHEN 'cancelled' THEN

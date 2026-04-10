@@ -434,17 +434,6 @@ describe('my-booth/products/new (authed)', () => {
   })
 })
 
-// ===========================================================================
-// MY-BOOTH/COUPONS — Coupon management
-// ===========================================================================
-describe('my-booth/coupons (authed)', () => {
-  it('renders coupon management', async () => {
-    const mod = await import('../(main)/my-booth/coupons/page')
-    const c = renderPage(mod)
-    await act(async () => { await new Promise(r => setTimeout(r, 100)) })
-    expect(c).toBeTruthy()
-  })
-})
 
 // ===========================================================================
 // MY-BOOTH/CUSTOMIZE — Theme picker
@@ -469,17 +458,6 @@ describe('my-booth/invitations (authed)', () => {
   })
 })
 
-// ===========================================================================
-// MY-BOOTH/ORDERS — Seller order management
-// ===========================================================================
-describe('my-booth/orders (authed)', () => {
-  it('renders seller orders', async () => {
-    const mod = await import('../(main)/my-booth/orders/page')
-    const c = renderPage(mod)
-    await act(async () => { await new Promise(r => setTimeout(r, 100)) })
-    expect(c).toBeTruthy()
-  })
-})
 
 // ===========================================================================
 // CHAT PAGE — Conversation list

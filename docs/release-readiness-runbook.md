@@ -13,6 +13,11 @@ Run the bootstrap script to automatically generate the required configuration:
 ./scripts/setup-workspace.sh
 ```
 
+**Seeding the Database & Troubleshooting:**
+- There is no `npm run db:seed` command in this monorepo. Test data is fully seeded autonomously by running `npx supabase db reset` (which inherently applies `supabase/seed.sql`).
+- If executing via background subshells/agents, you must explicitly run `source ~/.zshrc` to inject `npx` into the pipeline.
+- If `docker info` fails unexpectedly (e.g. Orbstack users), you may bypass Docker checks in `./scripts/release-test.sh`.
+
 **What it configures:**
 - `apps/next-market/.env` 
 - `apps/next-admin/.env`

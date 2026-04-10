@@ -34,6 +34,7 @@ interface TransactionSummary {
   purchase_count: number
   total_fees: number
   total_redeemed: number
+  processing_payouts_usd?: number
   total_cc_charged: number
   refunds_received: number
   refunds_issued: number
@@ -390,6 +391,13 @@ export default function EarningsPage() {
             {(summary?.available_usd || 0) > 0 && (
               <Link href="/earnings/payout" className="btn btn-primary btn-sm" style={{ marginTop: 12 }}>Payout →</Link>
             )}
+          </div>
+          <div className={styles.summaryCard} style={(summary?.processing_payouts_usd || 0) > 0 ? { borderColor: 'var(--amber-300)', background: 'var(--amber-50)' } : {}}>
+            <span className={styles.summaryLabel}>⏳ Processing Payouts</span>
+            <span className={styles.summaryValue} style={{ color: (summary?.processing_payouts_usd || 0) > 0 ? 'var(--amber-700)' : 'inherit' }}>
+              {formatUsd(summary?.processing_payouts_usd || 0)}
+            </span>
+            <span className={styles.summaryHint}>Transfers requested and arriving soon</span>
           </div>
           <div className={styles.summaryCard}>
             <span className={styles.summaryLabel}>Unsettled</span>

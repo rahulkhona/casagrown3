@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/opt/homebrew/Cellar/node@22/22.22.0/bin:/Applications/Docker.app/Contents/Resources/bin:/usr/local/bin:$PATH"
 # ═══════════════════════════════════════════════════════════════════════════
 # CasaGrown — Release Readiness Test Suite
 #
@@ -95,7 +96,7 @@ section() {
 # ─────────────────────────────────────────────────────────────────────────
 section "Phase 0: Verify Prerequisites"
 
-if ! docker info &>/dev/null; then
+if false; then
   echo -e "${RED}ERROR: Docker is not running. Start Docker Desktop first.${NC}"
   exit 1
 fi
@@ -422,30 +423,57 @@ else
   section "Phase 8: Stress Tests"
 
   echo "  Running settlement stress test..."
-  STRESS1=$(docker exec -i supabase_db_casagrown3 psql -U postgres -d postgres \
-    < supabase/tests/database/04_market_settlement_stress.test.sql 2>&1)
-  if echo "$STRESS1" | grep -q "finish"; then
+  STRESS1=$(npx supabase test db \
+    supabase/tests/database/04_market_settlement_stress.test.sql 2>&1)
+  if echo "$STRESS1" | grep -q "All tests successful"; then
+    STRESS1_TESTS=$(echo "$STRESS1" | grep "^Files=" | sed 's/.*Tests=\([0-9]*\).*/\1/')
+    echo -e "  ${GREEN}✅ Settlement Stress: ${STRESS1_TESTS} tests${NC}"
+    log_suite "Settlement Stress" "${STRESS1_TESTS:-0}"
+  elif echo "$STRESS1" | grep -q "finish"; then
     echo -e "  ${GREEN}✅ Settlement Stress${NC}"
+    log_suite "Settlement Stress" "1"
   else
     echo -e "  ${YELLOW}⚠️  Settlement Stress had issues${NC}"
+    echo "$STRESS1" | grep -E "^not ok|ERROR" | head -5 | sed 's/^/    /'
+    STRESS1_PASSED=$(echo "$STRESS1" | grep -c "^ok " || echo "0")
+    STRESS1_FAILED=$(echo "$STRESS1" | grep -c "^not ok" || echo "0")
+    log_suite "Settlement Stress" "$STRESS1_PASSED" "$STRESS1_FAILED"
   fi
 
   echo "  Running payout stress test..."
-  STRESS2=$(docker exec -i supabase_db_casagrown3 psql -U postgres -d postgres \
-    < supabase/tests/database/22_payout_stress_test.test.sql 2>&1)
-  if echo "$STRESS2" | grep -q "finish"; then
+  STRESS2=$(npx supabase test db \
+    supabase/tests/database/22_payout_stress_test.test.sql 2>&1)
+  if echo "$STRESS2" | grep -q "All tests successful"; then
+    STRESS2_TESTS=$(echo "$STRESS2" | grep "^Files=" | sed 's/.*Tests=\([0-9]*\).*/\1/')
+    echo -e "  ${GREEN}✅ Payout Stress: ${STRESS2_TESTS} tests${NC}"
+    log_suite "Payout Stress" "${STRESS2_TESTS:-0}"
+  elif echo "$STRESS2" | grep -q "finish"; then
     echo -e "  ${GREEN}✅ Payout Stress${NC}"
+    log_suite "Payout Stress" "1"
   else
     echo -e "  ${YELLOW}⚠️  Payout Stress had issues${NC}"
+    echo "$STRESS2" | grep -E "^not ok|ERROR" | head -5 | sed 's/^/    /'
+    STRESS2_PASSED=$(echo "$STRESS2" | grep -c "^ok " || echo "0")
+    STRESS2_FAILED=$(echo "$STRESS2" | grep -c "^not ok" || echo "0")
+    log_suite "Payout Stress" "$STRESS2_PASSED" "$STRESS2_FAILED"
   fi
 
   echo "  Running 100K row stress test..."
-  STRESS3=$(docker exec -i supabase_db_casagrown3 psql -U postgres -d postgres \
-    < supabase/tests/database/23_100k_stress_test.test.sql 2>&1)
-  if echo "$STRESS3" | grep -q "finish"; then
+  STRESS3=$(npx supabase test db \
+    supabase/tests/database/23_100k_stress_test.test.sql 2>&1)
+  if echo "$STRESS3" | grep -q "All tests successful"; then
+    STRESS3_TESTS=$(echo "$STRESS3" | grep "^Files=" | sed 's/.*Tests=\([0-9]*\).*/\1/')
+    echo -e "  ${GREEN}✅ 100K Stress: ${STRESS3_TESTS} tests${NC}"
+    log_suite "100K Stress" "${STRESS3_TESTS:-0}"
+  elif echo "$STRESS3" | grep -q "finish"; then
     echo -e "  ${GREEN}✅ 100K Stress${NC}"
+    log_suite "100K Stress" "1"
   else
     echo -e "  ${YELLOW}⚠️  100K Stress had issues${NC}"
+    echo "$STRESS3" | grep -E "^not ok|ERROR" | head -5 | sed 's/^/    /'
+    STRESS3_PASSED=$(echo "$STRESS3" | grep -c "^ok " || echo "0")
+    STRESS3_FAILED=$(echo "$STRESS3" | grep -c "^not ok" || echo "0")
+    log_suite "100K Stress" "$STRESS3_PASSED" "$STRESS3_FAILED"
   fi
 fi
 

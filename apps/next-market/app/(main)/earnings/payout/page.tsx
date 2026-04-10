@@ -90,11 +90,18 @@ export default function PayoutPage() {
   // ── Payout verification ──
   const [payoutStatus, setPayoutStatus] = useState<PayoutStatus | null>(null)
   const [verifyHandle, setVerifyHandle] = useState('')
+  const [confirmVerifyHandle, setConfirmVerifyHandle] = useState('')
   const [verifyHandleType, setVerifyHandleType] = useState<'venmo' | 'paypal'>('venmo')
   const [verifyingHandle, setVerifyingHandle] = useState(false)
   const [verifyAmount, setVerifyAmount] = useState('')
   const [verifyError, setVerifyError] = useState<string | null>(null)
   const [verifySuccess, setVerifySuccess] = useState(false)
+  const [isChangingHandle, setIsChangingHandle] = useState(false)
+  
+  // ── Manual Cashout Double-Entry ──
+  const [customHandleType, setCustomHandleType] = useState<'venmo'|'paypal'>('venmo')
+  const [customHandle, setCustomHandle] = useState('')
+  const [confirmCustomHandle, setConfirmCustomHandle] = useState('')
 
   // ── Gift Card state ──
   const [gcSearch, setGcSearch] = useState('')
@@ -127,12 +134,10 @@ export default function PayoutPage() {
   const [cashingOut, setCashingOut] = useState(false)
   const [cashoutResult, setCashoutResult] = useState<{ success: boolean; txnId?: string; status?: string } | null>(null)
 
-
-
   // ── Auto-payout state ──
   const [showAutoPay, setShowAutoPay] = useState(false)
   const [autoConfig, setAutoConfig] = useState<AutoPayConfig>({
-    enabled: false, method: 'cashout', threshold_usd: 50,
+    enabled: true, method: 'cashout', threshold_usd: 50,
     cashout_payout_id: null, gift_card_brand: null, gift_card_amount_usd: null,
     charity_project_id: null, charity_project_name: null,
   })
@@ -255,60 +260,35 @@ export default function PayoutPage() {
   const maxUsd = availableUsd
 
   // ──────────────────────────────────────────────────────────
-  // Verification handlers
+  // Payout Destination Setup Handlers
   // ──────────────────────────────────────────────────────────
-  const handleInitiateVerification = useCallback(async () => {
-    if (!verifyHandle.trim()) return
+  const handleSaveVerifiedDestination = useCallback(async () => {
+    if (!verifyHandle.trim() || verifyHandle !== confirmVerifyHandle) {
+      setVerifyError('Handles must match exactly.')
+      return
+    }
     setVerifyError(null)
     setVerifyingHandle(true)
     try {
-      const { data, error } = await supabase.rpc('initiate_payout_verification', {
+      // 1. Immediately verify the user using the double-entered handle
+      const { data, error } = await supabase.rpc('confirm_manual_payout_verification', {
         p_handle: verifyHandle.trim(),
         p_handle_type: verifyHandleType,
       })
       if (error) throw error
-      if (!data?.success) throw new Error(data?.error || 'Failed to initiate')
-
-      // Call edge function to actually send the micro-transaction
-      await supabase.functions.invoke('market-cashout-paypal', {
-        body: { pointsToRedeem: 0, payoutId: verifyHandle.trim(), verificationAmount: data.amount },
-      })
-
-      setPayoutStatus(prev => prev ? ({
-        ...prev, handle: verifyHandle.trim(), handle_type: verifyHandleType,
-        verified: false, verification_pending: true,
-        verification_sent_at: new Date().toISOString(), attempts: 0,
-      }) : null)
-      const sandboxHint = (typeof window !== 'undefined' && window.location.hostname === 'localhost')
-        ? ` (Sandbox mode — enter $${data.amount.toFixed(2)} to verify)`
-        : ''
-      setSuccessMsg(`We sent a small amount to your ${verifyHandleType === 'venmo' ? 'Venmo' : 'PayPal'}. It may take 1-2 business days to arrive.${sandboxHint}`)
-      setTimeout(() => setSuccessMsg(null), 15000)
-    } catch (err: any) {
-      setVerifyError(err.message || 'Verification failed')
-    } finally { setVerifyingHandle(false) }
-  }, [verifyHandle, verifyHandleType, supabase])
-
-  const handleConfirmVerification = useCallback(async () => {
-    if (!verifyAmount) return
-    setVerifyError(null)
-    try {
-      const { data, error } = await supabase.rpc('confirm_payout_verification', {
-        p_received_amount: parseFloat(verifyAmount),
-      })
-      if (error) throw error
       if (data?.success && data?.verified) {
         setVerifySuccess(true)
-        setPayoutStatus(prev => prev ? ({ ...prev, verified: true, verification_pending: false }) : null)
-        setSuccessMsg('✅ Account verified! You can now receive payouts.')
+        setPayoutStatus(prev => prev ? ({ ...prev, verified: true, verification_pending: false, handle: verifyHandle.trim(), handle_type: verifyHandleType }) : null)
+        setIsChangingHandle(false)
+        setSuccessMsg('✅ Account connected! You can now use auto-withdrawals.')
         setTimeout(() => { setSuccessMsg(null); setVerifySuccess(false) }, 5000)
       } else {
         setVerifyError(data?.error || 'Verification failed')
       }
     } catch (err: any) {
-      setVerifyError(err.message || 'Verification failed')
-    }
-  }, [verifyAmount, supabase])
+      setVerifyError(err.message || 'Setup failed')
+    } finally { setVerifyingHandle(false) }
+  }, [verifyHandle, confirmVerifyHandle, verifyHandleType, supabase])
 
   // ──────────────────────────────────────────────────────────
   // Payout handlers
@@ -382,28 +362,42 @@ export default function PayoutPage() {
   }, [selectedCharity, donateAmount, supabase])
 
   const handleCashout = useCallback(async () => {
-    if (!payoutStatus?.verified || !payoutStatus.handle) {
-      setError('Please verify your payout account first')
-      return
-    }
     if (!cashoutAmount) return
-    trackClick('cashout', { amount: parseFloat(cashoutAmount) })
+    const usdAmt = parseFloat(cashoutAmount) || 0
+    
+    let targetHandle = payoutStatus?.handle
+    let needsGlobalVerification = false
+    if (!payoutStatus?.verified) {
+       if (!customHandle.trim() || customHandle !== confirmCustomHandle) {
+         setError('Handles must match exactly before manual cashout.')
+         return
+       }
+       targetHandle = customHandle.trim()
+       needsGlobalVerification = true
+    }
+    if (!targetHandle) return
+
+    trackClick('cashout', { amount: usdAmt })
     setError(null)
     setCashingOut(true)
-    const usdAmt = parseFloat(cashoutAmount) || 0
     try {
+      if (needsGlobalVerification) {
+        await supabase.rpc('confirm_manual_payout_verification', { p_handle: targetHandle, p_handle_type: customHandleType || 'venmo' })
+        setPayoutStatus(prev => prev ? ({ ...prev, verified: true, handle: targetHandle, handle_type: customHandleType || 'venmo' }) : null)
+      }
+
       const { data, error } = await supabase.functions.invoke('market-cashout-paypal', {
-        body: { pointsToRedeem: Math.round(usdAmt * 100), payoutId: payoutStatus.handle },
+        body: { pointsToRedeem: Math.round(usdAmt * 100), payoutId: targetHandle },
       })
       if (error) throw error
-      if (!data?.success) throw new Error(data?.error || 'Payout failed')
+      if (!data?.success && data?.error) throw new Error(data.error)
       setAvailableUsd(prev => Math.max(0, prev - usdAmt))
       setCashoutResult({ success: true, txnId: data.batch_id || data.transactionId, status: data.status || 'completed' })
     } catch (err: any) {
       trackError('cashout_failed', { error: err.message })
       setError(err.message || 'Cashout failed')
     } finally { setCashingOut(false) }
-  }, [payoutStatus, cashoutAmount, supabase])
+  }, [payoutStatus, cashoutAmount, customHandle, confirmCustomHandle, supabase])
 
 
 
@@ -526,7 +520,7 @@ export default function PayoutPage() {
             <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 6 }}>Payout Method</label>
             <div style={{ display: 'flex', gap: 8 }}>
               {[
-                { key: 'cashout', icon: '💸', label: 'Venmo', disabled: !payoutStatus?.verified },
+                { key: 'cashout', icon: '💸', label: 'Venmo', disabled: false },
                 { key: 'giftcards', icon: '🎁', label: 'Gift Card', disabled: false },
                 { key: 'charity', icon: '❤️', label: 'Donate', disabled: false },
               ].map(m => (
@@ -546,9 +540,42 @@ export default function PayoutPage() {
                 </button>
               ))}
             </div>
-            {!payoutStatus?.verified && (
-              <div style={{ fontSize: 12, color: 'var(--amber-700)', background: 'var(--amber-50)', padding: '10px 14px', borderRadius: 8, marginTop: 8, lineHeight: 1.5 }}>
-                💡 To use Venmo for auto-payout, turn off auto-payout, then use the <strong>Venmo</strong> tab in manual mode to verify your account. Once verified, come back and enable auto-payout with Venmo.
+            {autoConfig.method === 'cashout' && (payoutStatus?.verified && !isChangingHandle) && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--green-50)', border: '1px solid var(--green-200)', borderRadius: 8, marginTop: 12 }}>
+                <span style={{ fontSize: 14 }}>✅ <strong>{payoutStatus.handle}</strong> ({payoutStatus.handle_type === 'venmo' ? 'Venmo' : 'PayPal'})</span>
+                <button onClick={() => setIsChangingHandle(true)}
+                  style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--gray-500)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Change</button>
+              </div>
+            )}
+            {autoConfig.method === 'cashout' && (!payoutStatus?.verified || isChangingHandle) && (
+              <div style={{ marginTop: 12, padding: 16, background: 'var(--gray-50)', borderRadius: 10, border: '1px solid var(--gray-200)' }}>
+                 <p style={{ fontSize: 13, fontWeight: 600, margin: '0 0 10px' }}>Setup Auto-Payout Destination</p>
+                 <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                    {(['venmo', 'paypal'] as const).map(t => (
+                      <button key={t} onClick={() => setVerifyHandleType(t)}
+                        style={{
+                          flex: 1, padding: '8px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                          border: `2px solid ${verifyHandleType === t ? 'var(--green-500)' : 'var(--gray-200)'}`,
+                          background: verifyHandleType === t ? 'var(--green-50)' : 'var(--white)',
+                        }}
+                      >{t === 'venmo' ? '📱 Venmo' : '💳 PayPal'}</button>
+                    ))}
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 10 }}>
+                    <input className="input" value={verifyHandle}
+                      onChange={e => setVerifyHandle(e.target.value)}
+                      placeholder={verifyHandleType === 'venmo' ? 'Venmo phone (+15555551234)' : 'PayPal email'} />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 10 }}>
+                    <input className="input" value={confirmVerifyHandle}
+                      onChange={e => setConfirmVerifyHandle(e.target.value)}
+                      placeholder={`Confirm ${verifyHandleType === 'venmo' ? 'Venmo phone' : 'PayPal email'}`} />
+                  </div>
+                  <button className="btn btn-primary" style={{ width: '100%' }}
+                    onClick={handleSaveVerifiedDestination}
+                    disabled={!verifyHandle.trim() || verifyHandle !== confirmVerifyHandle || verifyingHandle}
+                  >{verifyingHandle ? 'Saving...' : 'Save Auto-Payout Destination'}</button>
+                  {verifyError && <p style={{ fontSize: 12, color: 'var(--red-500)', marginTop: 6 }}>❌ {verifyError}</p>}
               </div>
             )}
           </div>
@@ -671,7 +698,7 @@ export default function PayoutPage() {
           )}
 
           <button className="btn btn-primary" style={{ width: '100%' }}
-            onClick={handleAutoSave} disabled={autoSaving}
+            onClick={handleAutoSave} disabled={autoSaving || (autoConfig.method === 'charity' && !autoConfig.charity_project_id) || (autoConfig.method === 'giftcards' && !autoConfig.gift_card_brand) || (autoConfig.method === 'cashout' && (!payoutStatus?.verified || isChangingHandle))}
           >{autoSaving ? 'Saving...' : autoSaved ? '✅ Saved!' : 'Save Auto-Payout Settings'}</button>
         </div>
       ) : (
@@ -916,111 +943,112 @@ export default function PayoutPage() {
               </div>
 
               {/* Verification status */}
-              <div style={{
-                padding: '14px 16px', borderRadius: 10, marginBottom: 16,
-                background: payoutStatus?.verified ? 'var(--green-50)' : payoutStatus?.verification_pending ? 'var(--amber-50)' : 'var(--gray-50)',
-                border: `1px solid ${payoutStatus?.verified ? 'var(--green-200)' : payoutStatus?.verification_pending ? 'var(--amber-200)' : 'var(--gray-200)'}`,
-              }}>
-                {payoutStatus?.verified ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 20 }}>✅</span>
-                    <div>
-                      <strong style={{ fontSize: 14 }}>Verified: {payoutStatus.handle}</strong>
-                      <p style={{ fontSize: 12, color: 'var(--gray-500)', margin: '2px 0 0' }}>
-                        {payoutStatus.handle_type === 'venmo' ? 'Venmo' : 'PayPal'} • Ready for payouts
-                      </p>
-                    </div>
-                    <button onClick={() => {
-                      setPayoutStatus(prev => prev ? ({ ...prev, verified: false, verification_pending: false, handle: null }) : null)
-                      setVerifyHandle('')
-                    }} style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--gray-400)', background: 'none', border: 'none', cursor: 'pointer' }}>Change</button>
-                  </div>
-                ) : payoutStatus?.verification_pending ? (
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                      <span style={{ fontSize: 20 }}>⏳</span>
-                      <div>
-                        <strong style={{ fontSize: 14 }}>Verification Pending</strong>
+              {payoutStatus?.verified && (
+                <div style={{
+                  padding: '14px 16px', borderRadius: 10, marginBottom: 16,
+                  background: !isChangingHandle ? 'var(--green-50)' : 'var(--gray-50)',
+                  border: `1px solid ${!isChangingHandle ? 'var(--green-200)' : 'var(--gray-200)'}`,
+                }}>
+                  {!isChangingHandle ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 20 }}>✅</span>
+                      <div style={{ flex: 1 }}>
+                        <strong style={{ fontSize: 14 }}>Verified: {payoutStatus.handle}</strong>
                         <p style={{ fontSize: 12, color: 'var(--gray-500)', margin: '2px 0 0' }}>
-                          We sent a small amount to {payoutStatus.handle}. Enter the exact amount to verify.
+                          {payoutStatus.handle_type === 'venmo' ? 'Venmo' : 'PayPal'} • Destination saved
                         </p>
                       </div>
+                      <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: 12 }} onClick={() => setIsChangingHandle(true)}>Change</button>
                     </div>
-                    {typeof window !== 'undefined' && window.location.hostname === 'localhost' && payoutStatus.verification_amount && (
-                      <div style={{
-                        padding: '8px 12px', borderRadius: 8, marginBottom: 10,
-                        background: 'var(--blue-50, #eff6ff)', border: '1px solid var(--blue-200, #bfdbfe)',
-                      }}>
-                        <p style={{ margin: 0, fontSize: 12, color: 'var(--blue-700, #1d4ed8)' }}>
-                          🧪 <strong>Sandbox mode:</strong> Enter <strong>${payoutStatus.verification_amount.toFixed(2)}</strong> to verify
-                        </p>
+                  ) : (
+                    <div>
+                      <strong style={{ fontSize: 14, display: 'block', marginBottom: 8 }}>Update Destination</strong>
+                      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                        {(['venmo', 'paypal'] as const).map(t => (
+                          <button key={t} onClick={() => setVerifyHandleType(t)}
+                            style={{
+                              flex: 1, padding: '8px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                              border: `2px solid ${verifyHandleType === t ? 'var(--green-500)' : 'var(--gray-200)'}`,
+                              background: verifyHandleType === t ? 'var(--green-50)' : 'var(--white)',
+                            }}
+                          >{t === 'venmo' ? '📱 Venmo' : '💳 PayPal'}</button>
+                        ))}
                       </div>
-                    )}
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <input className="input" type="number" step="0.01" min="0.01" max="0.99" placeholder="$0.??"
-                        value={verifyAmount} onChange={e => setVerifyAmount(e.target.value)}
-                        style={{ flex: 1 }} />
-                      <button className="btn btn-primary" onClick={handleConfirmVerification}
-                        disabled={!verifyAmount}>Verify</button>
+                      <div className="form-group" style={{ marginBottom: 10 }}>
+                        <input className="input" value={verifyHandle}
+                          onChange={e => setVerifyHandle(e.target.value)}
+                          placeholder={verifyHandleType === 'venmo' ? 'Venmo phone (+15555551234)' : 'PayPal email'} />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 10 }}>
+                        <input className="input" value={confirmVerifyHandle}
+                          onChange={e => setConfirmVerifyHandle(e.target.value)}
+                          placeholder={`Confirm ${verifyHandleType === 'venmo' ? 'Venmo phone' : 'PayPal email'}`} />
+                      </div>
+                      <button className="btn btn-primary" style={{ width: '100%' }}
+                        onClick={handleSaveVerifiedDestination}
+                        disabled={!verifyHandle.trim() || verifyHandle !== confirmVerifyHandle || verifyingHandle}
+                      >{verifyingHandle ? 'Saving...' : 'Update Destination'}</button>
+                      <button className="btn btn-secondary" style={{ width: '100%', marginTop: 8 }}
+                        onClick={() => setIsChangingHandle(false)}
+                      >Cancel</button>
+                      <p style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 8, lineHeight: 1.5 }}>
+                        Double check for typos! The handle entered above will update your saved destination. 
+                      </p>
+                      {verifyError && <p style={{ fontSize: 12, color: 'var(--red-500)', marginTop: 6 }}>❌ {verifyError}</p>}
                     </div>
-                    {verifyError && <p style={{ fontSize: 12, color: 'var(--red-500)', marginTop: 6 }}>❌ {verifyError}</p>}
-                    {verifySuccess && <p style={{ fontSize: 12, color: 'var(--green-600)', marginTop: 6 }}>✅ Verified!</p>}
-                  </div>
-                ) : (
-                  <div>
-                    <strong style={{ fontSize: 14, display: 'block', marginBottom: 8 }}>Set up payout account</strong>
-                    <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                  )}
+                </div>
+              )}
+
+              {/* Cashout form */}
+              <div className="form-group">
+                <label className="label">Manual Payout Amount (USD)</label>
+                <input className="input" type="number" min="0.01" max={maxUsd} step="0.01"
+                  value={cashoutAmount} onChange={e => setCashoutAmount(e.target.value)}
+                  placeholder={`Up to ${formatUsd(availableUsd)}`} />
+                <p style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 4 }}>
+                  Standard transfer • Free • 1-3 business days
+                </p>
+              </div>
+
+              {!payoutStatus?.verified && parseFloat(cashoutAmount) > 0 && (
+                <div style={{ marginTop: 16, padding: 16, background: 'var(--gray-50)', borderRadius: 10, border: '1px solid var(--gray-200)' }}>
+                   <p style={{ fontSize: 13, fontWeight: 600, margin: '0 0 10px' }}>Where should we send this cashout?</p>
+                   <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
                       {(['venmo', 'paypal'] as const).map(t => (
-                        <button key={t} onClick={() => setVerifyHandleType(t)}
+                        <button key={t} onClick={() => setCustomHandleType(t)}
                           style={{
                             flex: 1, padding: '8px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                            border: `2px solid ${verifyHandleType === t ? 'var(--green-500)' : 'var(--gray-200)'}`,
-                            background: verifyHandleType === t ? 'var(--green-50)' : 'var(--white)',
+                            border: `2px solid ${customHandleType === t ? 'var(--blue-500)' : 'var(--gray-200)'}`,
+                            background: customHandleType === t ? 'var(--blue-50)' : 'var(--white)',
                           }}
                         >{t === 'venmo' ? '📱 Venmo' : '💳 PayPal'}</button>
                       ))}
                     </div>
                     <div className="form-group" style={{ marginBottom: 10 }}>
-                      <input className="input" value={verifyHandle}
-                        onChange={e => setVerifyHandle(e.target.value)}
-                        placeholder={verifyHandleType === 'venmo' ? 'Venmo phone (+15555551234)' : 'PayPal email'} />
+                      <input className="input" value={customHandle}
+                        onChange={e => setCustomHandle(e.target.value)}
+                        placeholder={customHandleType === 'venmo' ? 'Venmo phone (+15555551234)' : 'PayPal email'} />
                     </div>
-                    <button className="btn btn-primary" style={{ width: '100%' }}
-                      onClick={handleInitiateVerification}
-                      disabled={!verifyHandle.trim() || verifyingHandle}
-                    >{verifyingHandle ? 'Sending...' : 'Send Verification Amount'}</button>
-                    <p style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 6, lineHeight: 1.5 }}>
-                      We&apos;ll send a random small amount ($0.01–$0.99) via standard transfer (1-2 business days). Enter the exact amount you receive to verify ownership.
-                    </p>
-                    {verifyError && <p style={{ fontSize: 12, color: 'var(--red-500)', marginTop: 6 }}>❌ {verifyError}</p>}
-                  </div>
-                )}
-              </div>
-
-              {/* Cashout form — only if verified */}
-              {payoutStatus?.verified && (
-                <>
-                  <div className="form-group">
-                    <label className="label">Payout Amount (USD)</label>
-                    <input className="input" type="number" min="0.01" max={maxUsd} step="0.01"
-                      value={cashoutAmount} onChange={e => setCashoutAmount(e.target.value)}
-                      placeholder={`Up to ${formatUsd(availableUsd)}`} />
-                    <p style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 4 }}>
-                      Standard transfer • Free • 1-2 business days
-                    </p>
-                  </div>
-                  <button className="btn btn-primary btn-lg" style={{ width: '100%', marginTop: 16 }}
-                    onClick={handleCashout}
-                    disabled={!cashoutAmount || parseFloat(cashoutAmount) > maxUsd || parseFloat(cashoutAmount) < 0.01 || cashingOut}
-                  >{cashingOut ? 'Processing...' : cashoutAmount ? `Send ${formatUsd(parseFloat(cashoutAmount))}` : 'Enter Amount'}</button>
-                </>
+                    <div className="form-group" style={{ marginBottom: 10 }}>
+                      <input className="input" value={confirmCustomHandle}
+                        onChange={e => setConfirmCustomHandle(e.target.value)}
+                        placeholder={`Confirm ${customHandleType === 'venmo' ? 'Venmo phone' : 'PayPal email'}`} />
+                    </div>
+                </div>
               )}
+
+              <button className="btn btn-primary btn-lg" style={{ width: '100%', marginTop: 16 }}
+                onClick={handleCashout}
+                disabled={!cashoutAmount || parseFloat(cashoutAmount) > maxUsd || parseFloat(cashoutAmount) < 0.01 || cashingOut || (!payoutStatus?.verified && (!customHandle || customHandle !== confirmCustomHandle))}
+              >{cashingOut ? 'Processing...' : cashoutAmount ? `Send ${formatUsd(parseFloat(cashoutAmount))} to ${payoutStatus?.verified ? payoutStatus.handle : customHandle || '...'}` : 'Enter Amount'}</button>
             </div>
           )}
         </div>
       )}
       </>
       )}
+
 
       {/* ── Loading overlay ── */}
       {(redeeming || donating || cashingOut) && (

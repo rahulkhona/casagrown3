@@ -172,7 +172,7 @@ async function ensureUserIdentity(email: string, password: string): Promise<{ ac
   try {
     // Fix 1: Insert missing auth.identities
     // Fix 2: Set NULL string columns to empty strings
-    execSync(`docker exec -i supabase_db_casagrown3 psql -U postgres -c "
+    execSync(`PATH="/Applications/Docker.app/Contents/Resources/bin:/opt/homebrew/bin:$PATH" docker exec -i supabase_db_casagrown3 psql -U postgres -c "
       INSERT INTO auth.identities (id, user_id, provider_id, provider, identity_data, last_sign_in_at, created_at, updated_at)
       SELECT id, id, email, 'email', jsonb_build_object('sub', id::text, 'email', email), now(), now(), now()
       FROM auth.users WHERE email = '${email}'
@@ -599,7 +599,7 @@ export function execSql(sql: string): string {
   const { execSync } = require('child_process')
   try {
     return execSync(
-      `docker exec -i supabase_db_casagrown3 psql -U postgres -t -c "${sql.replace(/"/g, '\\"')}"`,
+      `PATH="/Applications/Docker.app/Contents/Resources/bin:/opt/homebrew/bin:$PATH" docker exec -i supabase_db_casagrown3 psql -U postgres -t -c "${sql.replace(/"/g, '\\"')}"`,
       { encoding: 'utf-8' },
     ).trim()
   } catch (e: any) {

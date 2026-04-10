@@ -84,3 +84,10 @@ playwright-report/
 apps/next-admin/.env.vercel
 .vercel
 supabase/snippets/
+
+# Scratch / debug artifacts
+vitest_output.txt
+**/vitest_output.txt
+schema.sql
+clear_verification.sql
+*.sh.bak

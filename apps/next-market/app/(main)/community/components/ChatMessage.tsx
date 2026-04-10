@@ -5,8 +5,9 @@ import { createClient } from '../../../../lib/supabase'
 import { useErrorToast } from '../../../components/ErrorToast'
 import { checkTextForViolations } from '../../../../lib/moderation'
 import ProductListingCard from './ProductListingCard'
-import { ShareIcon } from '../../../components/icons'
 import SocialShareModal from '../../../components/SocialShareModal'
+import { getCommunityMessageForwardMessage, getRandomGreeting } from '../../../../lib/shareMessages'
+import { Share as ShareIcon } from 'lucide-react'
 import styles from '../page.module.css'
 
 interface ChatMessageProps {
@@ -444,8 +445,8 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
         entityName="CasaGrown Message"
         shareUrl={`${typeof window !== 'undefined' ? window.location.origin : ''}/community?message_id=${message.id}`}
         shareMessage={richShareInfo
-          ? `Hey neighborhood! I found this on CasaGrown Market:\n\n${richShareInfo}\n\n👇 Click here to view and purchase:\n${typeof window !== 'undefined' ? window.location.origin : ''}/community?message_id=${message.id}`
-          : `💬 From CasaGrown Community:\n\n"${(message.content.length > 200 ? message.content.slice(0, 200) + '…' : message.content).replace(/\n\nTap to view and purchase →/g, '')}"\n\n👇 Click here to view or join the conversation:\n${typeof window !== 'undefined' ? window.location.origin : ''}/community?message_id=${message.id}`
+          ? `${getRandomGreeting()} Check out what I found on CasaGrown Market:\n\n${richShareInfo}\n\n👇 Click here to view and purchase:\n${typeof window !== 'undefined' ? window.location.origin : ''}/community?message_id=${message.id}`
+          : getCommunityMessageForwardMessage(message.content.length > 200 ? message.content.slice(0, 200) + '…' : message.content) + `${typeof window !== 'undefined' ? window.location.origin : ''}/community?message_id=${message.id}`
         }
       />
     </div>

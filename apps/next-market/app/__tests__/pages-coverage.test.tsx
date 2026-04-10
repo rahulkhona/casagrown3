@@ -402,17 +402,7 @@ describe('market/booth/[id]/about/page.tsx', () => {
   })
 })
 
-// ============================================================================
-// MY BOOTH ORDERS — 158 lines, 40% coverage
-// ============================================================================
-describe('my-booth/orders/page.tsx', () => {
-  it('renders seller order view', async () => {
-    const mod = await import('../(main)/my-booth/orders/page')
-    const c = renderPage(mod)
-    await act(async () => { await new Promise(r => setTimeout(r, 100)) })
-    expect(c).toBeTruthy()
-  })
-})
+
 
 // ============================================================================
 // FOLLOWING — 120 lines, 58% coverage
@@ -474,14 +464,7 @@ describe('earnings/page.tsx — deep auth', () => {
   })
 })
 
-describe('my-booth/coupons/page.tsx — deep', () => {
-  it('renders coupons page', async () => {
-    const mod = await import('../(main)/my-booth/coupons/page')
-    const c = renderPage(mod)
-    await act(async () => { await new Promise(r => setTimeout(r, 100)) })
-    expect(c).toBeTruthy()
-  })
-})
+
 
 describe('my-booth/customize/page.tsx — deep', () => {
   it('renders customize page', async () => {

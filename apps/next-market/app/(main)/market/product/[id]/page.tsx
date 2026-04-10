@@ -3,7 +3,7 @@ import { createServerSupabase } from '../../../../../lib/supabase-server'
 import { redirect } from 'next/navigation'
 
 interface ProductPageProps {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }
 
 /**
@@ -12,12 +12,13 @@ interface ProductPageProps {
  * Users landing here are redirected to the main market page.
  */
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
+  const { id } = await params
   const supabase = await createServerSupabase()
 
   const { data: product } = await supabase
     .from('market_products')
     .select('name, description, price_usd, unit, photos, seller_id, category')
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (!product) {
@@ -47,7 +48,7 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
       description,
       siteName: 'CasaGrown Market',
       type: 'website',
-      url: `/market/product/${product.id}`,
+      url: `/market/product/${id}`,
       images: [{ url: photoUrl, alt: product.name }],
     },
     twitter: {
@@ -59,7 +60,8 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
   }
 }
 
-export default function ProductPage({ params }: ProductPageProps) {
+export default async function ProductPage({ params }: ProductPageProps) {
+  const { id } = await params
   // Redirect to market with product highlighted
-  redirect(`/market?product=${params.id}`)
+  redirect(`/market?product=${id}`)
 }

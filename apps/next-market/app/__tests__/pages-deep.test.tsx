@@ -133,14 +133,7 @@ describe('Page imports — my-booth', () => {
     const { default: P } = await import('../(main)/my-booth/products/page')
     expect(P).toBeDefined()
   })
-  it('my-booth/coupons/page.tsx', async () => {
-    const { default: P } = await import('../(main)/my-booth/coupons/page')
-    expect(P).toBeDefined()
-  })
-  it('my-booth/orders/page.tsx', async () => {
-    const { default: P } = await import('../(main)/my-booth/orders/page')
-    expect(P).toBeDefined()
-  })
+
   it('my-booth/customize/page.tsx', async () => {
     const { default: P } = await import('../(main)/my-booth/customize/page')
     expect(P).toBeDefined()

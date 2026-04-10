@@ -109,16 +109,31 @@ test.describe('Direct Messaging & Block Flows', () => {
   // ── S12.4: Blocking Lifecycle ──
   test('S12.4 — Block a user via Header and verify Unblock toggle', async ({ browser }) => {
     // Force a conversation seed between Beth (buyer) and Sam (seller)
-    await execSql(`
-      WITH conv AS (
-        INSERT INTO market_conversations (id, type) VALUES (gen_random_uuid(), 'direct')
-        RETURNING id
-      ),
-      p1 AS (INSERT INTO market_conversation_participants (conversation_id, user_id) SELECT id, (SELECT id FROM auth.users WHERE email='buyer@test.local') FROM conv),
-      p2 AS (INSERT INTO market_conversation_participants (conversation_id, user_id) SELECT id, (SELECT id FROM auth.users WHERE email='seller@test.local') FROM conv)
-      INSERT INTO market_messages (conversation_id, sender_id, content) 
-      SELECT id, (SELECT id FROM auth.users WHERE email='seller@test.local'), 'Hello from Sam' FROM conv;
-    `)
+    // market_conversations uses participant_a / participant_b
+    // market_chat_messages is the actual messages table
+    // NOTE: execSql uses shell double-quotes, so avoid $$ plpgsql blocks
+
+    // Step 1: Ensure conversation exists between buyer and seller
+    const existingConv = execSql(
+      `SELECT id FROM market_conversations WHERE (participant_a = (SELECT id FROM auth.users WHERE email='buyer@test.local') AND participant_b = (SELECT id FROM auth.users WHERE email='seller@test.local')) OR (participant_a = (SELECT id FROM auth.users WHERE email='seller@test.local') AND participant_b = (SELECT id FROM auth.users WHERE email='buyer@test.local')) LIMIT 1`
+    )
+
+    // Extract UUID from raw psql output (may contain blank lines or INSERT status)
+    const uuidRe = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+    let convId = existingConv?.match(uuidRe)?.[0]
+    if (!convId) {
+      const insertResult = execSql(
+        `INSERT INTO market_conversations (participant_a, participant_b) VALUES ((SELECT id FROM auth.users WHERE email='buyer@test.local'), (SELECT id FROM auth.users WHERE email='seller@test.local')) RETURNING id`
+      )
+      convId = insertResult?.match(uuidRe)?.[0]
+    }
+
+    if (convId) {
+      // Step 2: Insert a message into that conversation
+      execSql(
+        `INSERT INTO market_chat_messages (conversation_id, sender_id, content) VALUES ('${convId}', (SELECT id FROM auth.users WHERE email='seller@test.local'), 'Hello from Sam')`
+      )
+    }
 
     const page = await loginAsUser(browser, 'beth')
     await navigateTo(page, '/messages')
@@ -139,7 +154,16 @@ test.describe('Direct Messaging & Block Flows', () => {
     await expect(confirmBlock).toBeVisible()
     await confirmBlock.click()
 
-    // Button should now morph to Unblock
+    // After blocking, the app redirects to /messages. Wait for that redirect.
+    await page.waitForURL('**/messages', { timeout: 10000 })
+
+    // Navigate back into Sam's conversation — it should now show Unblock
+    const samThreadAgain = page.getByText('Sam Seller').first()
+    await expect(samThreadAgain).toBeVisible({ timeout: 10000 })
+    await samThreadAgain.click()
+    await page.waitForLoadState('networkidle')
+
+    // Button should now show Unblock since the user is blocked
     const unblockButton = page.getByRole('button', { name: '🔓 Unblock' })
     await expect(unblockButton).toBeVisible({ timeout: 15000 })
 

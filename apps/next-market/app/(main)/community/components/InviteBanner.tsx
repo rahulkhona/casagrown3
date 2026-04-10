@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useErrorToast } from '../../../components/ErrorToast'
 import styles from '../page.module.css'
 import SocialShareModal from '../../../components/SocialShareModal'
+import { getCommunityInviteMessage } from '../../../../lib/shareMessages'
 
 interface InviteBannerProps {
   h3Index: string
@@ -36,7 +37,7 @@ export default function InviteBanner({ h3Index }: InviteBannerProps) {
           title="Invite Neighbors"
           subtitle="Share the community with your neighborhood."
           shareUrl={inviteUrl}
-          shareMessage="Come hang out with us on CasaGrown Community to discuss gardening related topics! 🐝\n\n👇 Click the link below to join the neighborhood chat:\n"
+          shareMessage={getCommunityInviteMessage()}
           entityName="Community Invite"
         />
       )}

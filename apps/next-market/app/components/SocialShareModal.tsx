@@ -11,9 +11,6 @@ interface SocialShareModalProps {
   entityName: string
   shareUrl: string
   shareMessage: string
-  showBuzz?: boolean
-  onShareBuzz?: () => void
-  isBuzzShared?: boolean
 }
 
 export default function SocialShareModal({
@@ -23,51 +20,41 @@ export default function SocialShareModal({
   subtitle,
   entityName,
   shareUrl,
-  shareMessage,
-  showBuzz,
-  onShareBuzz,
-  isBuzzShared
+  shareMessage
 }: SocialShareModalProps) {
   const [toastMessage, setToastMessage] = useState<string | null>(null)
 
   if (!isOpen) return null
 
-  const handleShareFacebook = async () => {
-    const url = encodeURIComponent(shareUrl)
-    
-    // NOTE: Write to clipboard asynchronously without awaiting it. If we await, Safari/Chrome
-    // will block the window.open as an illegitimate popup since it breaks the synchronous click loop.
-    const payload = shareMessage.includes(shareUrl) ? shareMessage : `${shareMessage}\n\n${shareUrl}`
-    navigator.clipboard.writeText(payload).catch(()=>{})
-    
-    setToastMessage("✅ Copied! Click 'Paste' in the Facebook box.")
-    setTimeout(() => setToastMessage(null), 3500)
-    
-    window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank')
+  const getPayload = () => {
+    return shareMessage.includes(shareUrl) ? shareMessage : `${shareMessage}\n\n${shareUrl}`
   }
 
-  const handleShareNextdoor = () => {
-    const payload = shareMessage.includes(shareUrl) ? shareMessage : `${shareMessage}\n\n${shareUrl}`
-    navigator.clipboard.writeText(payload).catch(()=>{})
-    
-    setToastMessage("✅ Copied! Click 'Paste' in the Nextdoor box.")
-    setTimeout(() => setToastMessage(null), 3500)
-    
-    window.open('https://nextdoor.com/news_feed/', '_blank')
+  const handleShareSMS = () => {
+    const text = encodeURIComponent(getPayload())
+    // On iOS specifically, ?&body= is sometimes needed, but ?body= is standard.
+    // We'll use ?body= as it works reliably on modern iOS and Android.
+    window.location.href = `sms:?body=${text}`
   }
 
   const handleShareWhatsApp = () => {
-    const payload = shareMessage.includes(shareUrl) ? shareMessage : `${shareMessage}\n\n${shareUrl}`
-    const text = encodeURIComponent(payload)
+    const text = encodeURIComponent(getPayload())
     window.open(`https://wa.me/?text=${text}`, '_blank')
   }
 
-  const handleShareNative = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: entityName, text: shareMessage, url: shareUrl })
-      } catch {}
-    }
+  const handleShareNextdoor = () => {
+    navigator.clipboard.writeText(getPayload()).catch(()=>{})
+    setToastMessage("✅ Copied! Click 'Paste' in the Nextdoor box.")
+    setTimeout(() => setToastMessage(null), 3500)
+    window.open('https://nextdoor.com/news_feed/', '_blank')
+  }
+
+  const handleShareFacebook = async () => {
+    const url = encodeURIComponent(shareUrl)
+    navigator.clipboard.writeText(getPayload()).catch(()=>{})
+    setToastMessage("✅ Copied! Click 'Paste' in the Facebook box.")
+    setTimeout(() => setToastMessage(null), 3500)
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank')
   }
 
   const handleCopyLink = async () => {
@@ -76,6 +63,14 @@ export default function SocialShareModal({
       setToastMessage("📋 Link Copied!")
       setTimeout(() => setToastMessage(null), 2000)
     } catch {}
+  }
+
+  const handleShareNative = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: entityName, text: shareMessage, url: shareUrl })
+      } catch {}
+    }
   }
 
   return (
@@ -111,37 +106,24 @@ export default function SocialShareModal({
           padding: '10px 14px', borderRadius: 8, fontSize: 12, marginBottom: 20,
           textAlign: 'left', lineHeight: 1.4, width: '100%'
         }}>
-          💡 <strong>Tip:</strong> Facebook and Nextdoor block auto-filled text. We've copied your message—just click <strong>Paste</strong> when the app opens!
+          💡 <strong>Tip:</strong> Nextdoor (and Facebook) block auto-filled text. We've copied your message—just click <strong>Paste</strong> when the app opens!
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
-          {showBuzz && onShareBuzz && (
-            <button
-              onClick={onShareBuzz}
-              disabled={isBuzzShared}
-              style={{
-                width: '100%', padding: '12px', border: 'none', borderRadius: 999,
-                background: isBuzzShared ? '#f3f4f6' : 'linear-gradient(135deg, #fef3c7, #fde68a)',
-                color: isBuzzShared ? '#9ca3af' : '#92400e', fontSize: 15, fontWeight: 600,
-                cursor: isBuzzShared ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
-              }}
-            >
-              {isBuzzShared ? '✅ Shared to Community' : '📍 Share to Community Buzz'}
-            </button>
-          )}
-
+          
+          {/* 1. SMS / iMessage */}
           <button
-            onClick={handleShareFacebook}
+            onClick={handleShareSMS}
             style={{
               width: '100%', padding: '12px', border: 'none', borderRadius: 999,
-              background: '#1877f2', color: '#fff', fontSize: 15, fontWeight: 600,
+              background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff', fontSize: 15, fontWeight: 600,
               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
             }}
           >
-            {toastMessage && toastMessage.includes('Facebook') ? '✅ Copied! Paste on Facebook' : <><span style={{ fontWeight: 'bold' }}>f</span> Share on Facebook</>}
+            <span style={{ fontSize: 18 }}>💬</span> Text a Neighbor
           </button>
 
+          {/* 2. WhatsApp */}
           <button
             onClick={handleShareWhatsApp}
             style={{
@@ -150,9 +132,10 @@ export default function SocialShareModal({
               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
             }}
           >
-            <span style={{ fontSize: 18 }}>💬</span> Share on WhatsApp
+            <span style={{ fontSize: 18 }}>📞</span> Share on WhatsApp
           </button>
 
+          {/* 3. Nextdoor */}
           <button
             onClick={handleShareNextdoor}
             style={{
@@ -164,6 +147,19 @@ export default function SocialShareModal({
             {toastMessage && toastMessage.includes('Nextdoor') ? '✅ Copied! Paste on Nextdoor' : '🏡 Share on Nextdoor'}
           </button>
 
+          {/* 4. Facebook */}
+          <button
+            onClick={handleShareFacebook}
+            style={{
+              width: '100%', padding: '12px', border: 'none', borderRadius: 999,
+              background: '#1877f2', color: '#fff', fontSize: 15, fontWeight: 600,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+            }}
+          >
+            {toastMessage && toastMessage.includes('Facebook') ? '✅ Copied! Paste on Facebook' : <><span style={{ fontWeight: 'bold' }}>f</span> Share on Facebook</>}
+          </button>
+
+          {/* 5. Copy Link */}
           <button 
             onClick={handleCopyLink}
             style={{
@@ -175,6 +171,7 @@ export default function SocialShareModal({
             📋 {toastMessage && toastMessage.includes('Link') ? 'Link Copied!' : 'Copy Link'}
           </button>
 
+          {/* 6. Native Share */}
           {typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
             <button 
               onClick={handleShareNative}

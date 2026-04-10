@@ -282,17 +282,7 @@ describe('my-booth/products/new/page.tsx', () => {
   })
 })
 
-// ============================================================================
-// MY-BOOTH COUPONS (173 lines) — Coupon management
-// ============================================================================
-describe('my-booth/coupons/page.tsx', () => {
-  it('renders coupons or auth prompt', async () => {
-    const mod = await import('../(main)/my-booth/coupons/page')
-    const c = renderPage(mod)
-    expect(c).toBeTruthy()
-    expect(c.textContent).toMatch(/Loading|Coupon|Sign/)
-  })
-})
+
 
 // ============================================================================
 // MY-BOOTH CUSTOMIZE (144 lines) — Booth appearance
@@ -318,17 +308,7 @@ describe('my-booth/invitations/page.tsx', () => {
   })
 })
 
-// ============================================================================
-// MY-BOOTH ORDERS — Seller order view
-// ============================================================================
-describe('my-booth/orders/page.tsx', () => {
-  it('renders orders or auth prompt', async () => {
-    const mod = await import('../(main)/my-booth/orders/page')
-    const c = renderPage(mod)
-    expect(c).toBeTruthy()
-    expect(c.textContent).toMatch(/Loading|Order|Sign/)
-  })
-})
+
 
 // ============================================================================
 // CHAT PAGE (81 lines) — Conversation list

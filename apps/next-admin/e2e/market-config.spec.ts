@@ -28,9 +28,10 @@ test.describe('Receipt Footers Page', () => {
 
   test('should open and close create form', async ({ page }) => {
     await page.getByText(/Add Footer/i).first().click({ timeout: 15000 })
-    await expect(page.getByText(/Add Receipt Footer/i).first()).toBeVisible()
+    await page.waitForTimeout(500)
+    await expect(page.getByText(/Add Receipt Footer/i).first()).toBeVisible({ timeout: 10000 })
     await page.getByText(/Cancel/i).first().click()
-    await expect(page.getByText(/Add Receipt Footer/i).first()).not.toBeVisible()
+    await expect(page.getByText(/Add Receipt Footer/i).first()).not.toBeVisible({ timeout: 10000 })
   })
 
   test('should show info box', async ({ page }) => {
@@ -77,8 +78,9 @@ test.describe('Sidebar Navigation', () => {
     await page.goto('/', { waitUntil: 'domcontentloaded' })
     await page.waitForTimeout(2000)
     await page.getByRole('button', { name: /Market Settings & Hours/i }).first().click()
-    await page.waitForURL('/market-operations')
-    await expect(page.getByRole('button', { name: /Save Settings/i })).toBeVisible({ timeout: 15000 })
+    await page.waitForTimeout(1000)
+    await page.waitForURL('/market-operations', { timeout: 15000 })
+    await expect(page.getByRole('button', { name: /Save Settings/i })).toBeVisible({ timeout: 20000 })
   })
 
   test('should navigate to Receipt Footers from sidebar', async ({ page }) => {

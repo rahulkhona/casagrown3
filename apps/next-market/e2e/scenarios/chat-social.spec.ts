@@ -278,18 +278,28 @@ test.describe('Chat & Social Flows', () => {
     // Wait for the feed to load
     await expect(page.locator('[data-testid="message-bubble"]').first()).toBeVisible({ timeout: 15000 })
 
-    // Set up clean database state just in case 
-    // Click a message to trigger action bar
+    // Click a message to trigger the tap-revealed action bar
     const msgBubble = page.locator('[data-testid="message-bubble"]').first()
     await msgBubble.click()
 
-    // Assert action bar is visible
-    const moreShareBtn = page.getByRole('button', { name: /Share/i })
-    await expect(moreShareBtn).toBeVisible({ timeout: 5000 })
+    // Assert the tap action bar container is visible (contains emoji + share + flag)
+    const actionBar = page.locator('.tapActionBar, [class*="tapActionBar"]').first()
+    await expect(actionBar).toBeVisible({ timeout: 5000 })
 
-    // Test click-away/toggle
-    await msgBubble.click()
-    await expect(moreShareBtn).not.toBeVisible()
+    // Also verify the Share icon button inside the action bar specifically
+    const shareInBar = actionBar.locator('button[title="Share"]')
+    await expect(shareInBar).toBeVisible({ timeout: 3000 })
+
+    // Test click-away — the ChatMessage component places a fixed overlay backdrop
+    // that calls setShowActions(false) on click. Click it via the overlay.
+    const backdrop = page.locator('div[style*="position: fixed"][style*="inset: 0"]').first()
+    if (await backdrop.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await backdrop.click()
+    } else {
+      // Fallback: click the message bubble again to toggle off
+      await msgBubble.click()
+    }
+    await expect(actionBar).not.toBeVisible({ timeout: 5000 })
     
     await page.context().close()
   })
@@ -300,7 +310,8 @@ test.describe('Chat & Social Flows', () => {
     await navigateTo(page, '/community')
 
     // Find the file input explicitly created for ComposeBar photo attachments
-    const fileInput = page.locator('input[type="file"][accept*="image"]')
+    // There are 2 file inputs (camera + gallery) — use the gallery one (multiple attribute)
+    const fileInput = page.locator('input[type="file"][accept*="image"][multiple]').first()
     
     const buffer = Buffer.from('89504E470D0A1A0A0000000D49484452000000010000000108060000001F15C4890000000A49444154789C63000100000500010D0A2DB40000000049454E44AE426082', 'hex')
 
@@ -310,8 +321,8 @@ test.describe('Chat & Social Flows', () => {
       buffer: buffer
     })
 
-    // Assert thumbnail appears
-    await expect(page.locator('img[alt="Preview"]')).toBeVisible({ timeout: 5000 })
+    // Assert thumbnail appears — ComposeBar renders alt="Attachment 1"
+    await expect(page.locator('img[alt="Attachment 1"]')).toBeVisible({ timeout: 5000 })
 
     // "Send Message" should be enabled EVEN though the textarea is empty
     const sendButton = page.locator('button[aria-label="Send Message"], button[title="Send"]')
@@ -321,7 +332,7 @@ test.describe('Chat & Social Flows', () => {
     await sendButton.last().click()
     
     // Ensure image preview clears indicating success
-    await expect(page.locator('img[alt="Preview"]')).toHaveCount(0)
+    await expect(page.locator('img[alt="Attachment 1"]')).toHaveCount(0, { timeout: 10000 })
 
     await page.context().close()
   })

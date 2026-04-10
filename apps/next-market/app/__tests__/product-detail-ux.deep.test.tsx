@@ -73,7 +73,7 @@ describe('ProductDetailClient — UX Contract', () => {
   it('DM button shows seller first name, not "Message Seller"', () => {
     // Should reference sellerFirstName in the DM button text
     expect(detailSrc).toContain('sellerFirstName')
-    expect(detailSrc).toMatch(/DM\s+\{?.*sellerFirstName/s)
+    expect(detailSrc).toMatch(/DM\s+\{?[\s\S]*sellerFirstName/)
     // Should NOT have hardcoded "Message Seller"
     expect(detailSrc).not.toContain('>Message Seller<')
   })

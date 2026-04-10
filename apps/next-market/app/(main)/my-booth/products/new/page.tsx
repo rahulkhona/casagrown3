@@ -14,6 +14,7 @@ import CameraCapture from '../../../../../components/CameraCapture'
 import { checkTextForViolations } from '../../../../../lib/moderation'
 import { ShareIcon } from '../../../../components/icons'
 import SocialShareModal from '../../../../components/SocialShareModal'
+import { getBoothProductShareMessage } from '../../../../../lib/shareMessages'
 import styles from './page.module.css'
 
 // Compute the next upcoming market date from the schedule
@@ -968,7 +969,7 @@ function NewProductPageInner() {
   }
 
   const getShareMessage = () => {
-    return `Hey neighborhood! 🌿 I just added fresh ${addedProductName} to my booth!\n\n👇 Click the link below to view and purchase for this ${nextMarket?.label || 'weekend'}:\n${getProductUrl()}`
+    return getBoothProductShareMessage(addedProductName, nextMarket?.label) + getProductUrl()
   }
 
   const handleShareCopy = async () => {
