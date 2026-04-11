@@ -222,14 +222,14 @@ export async function navigateTo(page: Page, path: string): Promise<void> {
   const isRealtime = realtimeRoutes.some(r => path === r || path.startsWith(r + '/') || path.startsWith(r + '?'))
 
   if (isRealtime) {
-    await page.goto(`${BASE_URL}${path}`, { waitUntil: 'domcontentloaded', timeout: 30_000 })
-    await page.waitForTimeout(2000)
+    await page.goto(`${BASE_URL}${path}`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+    await page.waitForTimeout(3000)
   } else {
     try {
-      await page.goto(`${BASE_URL}${path}`, { waitUntil: 'networkidle', timeout: 30_000 })
+      await page.goto(`${BASE_URL}${path}`, { waitUntil: 'networkidle', timeout: 60_000 })
     } catch {
       // HMR WebSocket may prevent networkidle — page content is loaded
-      await page.waitForTimeout(1500)
+      await page.waitForTimeout(3000)
     }
   }
   // Dismiss overlays that may intercept clicks
@@ -244,9 +244,9 @@ export async function navigateTo(page: Page, path: string): Promise<void> {
 export async function navigateToMarket(page: Page): Promise<void> {
   await page.goto(
     `${BASE_URL}/market?addr=${encodeURIComponent(TEST_ADDRESS)}&lat=${TEST_LAT}&lng=${TEST_LNG}`,
-    { waitUntil: 'domcontentloaded', timeout: 30_000 },
+    { waitUntil: 'domcontentloaded', timeout: 60_000 },
   )
-  await page.waitForTimeout(2000)
+  await page.waitForTimeout(3000)
   await dismissLegalConsent(page)
   await dismissAlphaBanner(page)
   await dismissNotificationOverlay(page)

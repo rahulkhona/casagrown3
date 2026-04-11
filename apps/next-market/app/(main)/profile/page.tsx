@@ -31,6 +31,18 @@ export default function ProfilePage() {
   const [cachedLng, setCachedLng] = useState<number | null>(null)
   const [locationDenied, setLocationDenied] = useState(false)
 
+  // Phone & SMS
+  const [phone, setPhone] = useState('')
+  const [initialPhone, setInitialPhone] = useState('')
+  const [phoneVerified, setPhoneVerified] = useState(false)
+  const [smsEnabled, setSmsEnabled] = useState(true)
+  const [showVerify, setShowVerify] = useState(false)
+  const [verifyCode, setVerifyCode] = useState('')
+  const [isSendingOtp, setIsSendingOtp] = useState(false)
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false)
+  const [phoneError, setPhoneError] = useState('')
+  const [twilioBlocked, setTwilioBlocked] = useState(false)
+
   // Camera & Cropper
   const [showCamera, setShowCamera] = useState(false)
   const [cropSrc, setCropSrc] = useState<string | null>(null)
@@ -40,7 +52,7 @@ export default function ProfilePage() {
     if (!user) return
     supabase
       .from('profiles')
-      .select('full_name, street_address, city, state_code, zip_plus4, avatar_url')
+      .select('full_name, street_address, city, state_code, zip_plus4, avatar_url, phone_number, phone_verified, sms_enabled, twilio_blocked')
       .eq('id', user.id)
       .single()
       .then(({ data, error: fetchErr }) => {
@@ -56,6 +68,13 @@ export default function ProfilePage() {
         if (data?.avatar_url) {
           setAvatarUrl(data.avatar_url)
           setAvatarPreview(data.avatar_url)
+        }
+        if (data?.phone_number) {
+          setPhone(data.phone_number)
+          setInitialPhone(data.phone_number)
+          setPhoneVerified(!!data.phone_verified)
+          setSmsEnabled(!!data.sms_enabled)
+          setTwilioBlocked(!!data.twilio_blocked)
         }
         setLoading(false)
       })
@@ -108,6 +127,7 @@ export default function ProfilePage() {
         state_code: form.state,
         zip_plus4: form.zip,
         avatar_url: avatarUrl || null,
+        sms_enabled: smsEnabled
       }
       if (h3Index) {
         profileUpdate.home_community_h3_index = h3Index
@@ -166,6 +186,53 @@ export default function ProfilePage() {
       () => { setError('Location access denied'); setGeolocating(false); setLocationDenied(true) },
       { enableHighAccuracy: true, timeout: 10000 }
     )
+  }
+
+  // ── Phone Verification ──
+  const handleSendOtp = async () => {
+    setPhoneError('')
+    if (!phone) return
+    setIsSendingOtp(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('send-phone-otp', {
+        body: { phoneNumber: phone.startsWith('+') ? phone : `+1${phone.replace(/\D/g, '')}` }
+      })
+      if (error || !data?.success) {
+        setPhoneError(error?.message || data?.error || 'Failed to send code')
+      } else {
+        setShowVerify(true)
+      }
+    } catch (e: any) {
+      setPhoneError(e.message)
+    } finally {
+      setIsSendingOtp(false)
+    }
+  }
+
+  const handleVerifyPhone = async () => {
+    setPhoneError('')
+    if (verifyCode.length < 4) return
+    setIsVerifyingOtp(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-phone-otp', {
+        body: { 
+          phoneNumber: phone.startsWith('+') ? phone : `+1${phone.replace(/\D/g, '')}`,
+          code: verifyCode 
+        }
+      })
+      if (error || !data?.success) {
+        setPhoneError(error?.message || data?.error || 'Invalid code')
+      } else {
+        setPhoneVerified(true)
+        setInitialPhone(phone)
+        setShowVerify(false)
+        setPhoneError('')
+      }
+    } catch (e: any) {
+      setPhoneError(e.message)
+    } finally {
+      setIsVerifyingOtp(false)
+    }
   }
 
   if (authLoading || loading) return <div className="container-sm" style={{ padding: '80px 20px', textAlign: 'center' }}><p>Loading...</p></div>
@@ -268,6 +335,71 @@ export default function ProfilePage() {
           <input id="email" className="input" value={form.email} disabled style={{ background: 'var(--gray-50)' }} />
           <p className="form-helper">Email cannot be changed</p>
         </div>
+
+        {/* Phone feature flag check */}
+        {process.env.NEXT_PUBLIC_ENABLE_PHONE_VERIFICATION === 'true' && (
+          <>
+            <div className="divider" />
+            <h3 className={styles.sectionTitle}>Phone & Notifications</h3>
+
+            <div className="form-group">
+              <label className="label" htmlFor="phone">Phone Number <span style={{fontSize: 12, color: 'var(--gray-500)', fontWeight: 'normal'}}>(for order/payout SMS if push is unavailable)</span></label>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input 
+                  id="phone" 
+                  className="input" 
+                  value={phone} 
+                  onChange={e => { 
+                    setPhone(e.target.value)
+                    if (e.target.value !== initialPhone) {
+                      setPhoneVerified(false)
+                      setShowVerify(false)
+                    } else if (e.target.value && e.target.value === initialPhone) {
+                      setPhoneVerified(true)
+                    }
+                  }} 
+                  placeholder="(555) 000-0000" 
+                  disabled={isSendingOtp}
+                />
+                {phone && !phoneVerified && !showVerify && (
+                  <button type="button" className="btn btn-outline" onClick={handleSendOtp} disabled={isSendingOtp}>
+                    {isSendingOtp ? 'Sending...' : 'Verify'}
+                  </button>
+                )}
+                {phoneVerified && <span style={{ color: 'var(--green-600)', fontWeight: 600, fontSize: 13, flexShrink: 0 }}>✓ Verified</span>}
+              </div>
+              {phoneError && <p className="form-helper" style={{ color: 'var(--red-600)' }}>{phoneError}</p>}
+            </div>
+
+            {showVerify && !phoneVerified && (
+              <div style={{ background: 'var(--gray-50)', padding: 16, borderRadius: 12, marginBottom: 16, border: '1px solid var(--gray-200)' }}>
+                <label className="label" style={{ fontSize: 13, marginBottom: 8 }}>Enter the code sent to {phone}</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input className="input" value={verifyCode} onChange={e => setVerifyCode(e.target.value.replace(/\D/g, '').slice(0, 8))} placeholder="123456" maxLength={8} disabled={isVerifyingOtp} />
+                  <button type="button" className="btn btn-primary" onClick={handleVerifyPhone} disabled={isVerifyingOtp || verifyCode.length < 4}>
+                    {isVerifyingOtp ? 'Checking...' : 'Confirm'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+              <input type="checkbox" id="smsEnabled" checked={smsEnabled} onChange={e => setSmsEnabled(e.target.checked)} />
+              <label htmlFor="smsEnabled" style={{ fontSize: 13, color: 'var(--gray-700)', cursor: 'pointer' }}>
+                Receive SMS notification for critical order and transactional information
+              </label>
+            </div>
+
+            {smsEnabled && twilioBlocked && (
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', padding: 12, borderRadius: 8, marginTop: 12 }}>
+                <p style={{ margin: 0, fontWeight: 600, color: '#991b1b', fontSize: 13 }}>⚠️ Carrier Block Detected</p>
+                <p style={{ margin: '4px 0 0', color: '#b91c1c', fontSize: 13 }}>
+                  You previously replied STOP to our notifications. To resume critical alerts, you must text <b>START</b> to <b>+1 (555) 000-0000</b>.
+                </p>
+              </div>
+            )}
+          </>
+        )}
 
         <div className="divider" />
         <h3 className={styles.sectionTitle}>Address</h3>

@@ -101,17 +101,10 @@ test.describe('Search, Rating & Profile', () => {
       await navigateTo(bethPage, `/market?q=xyznonexistent99999&lat=${TEST_LAT}&lng=${TEST_LNG}&addr=${encodeURIComponent(TEST_ADDRESS)}`)
       await bethPage.waitForTimeout(3000)
 
-      const body = await bethPage.locator('body').innerText()
-      const lower = body.toLowerCase()
-
       // Should show empty state or "no results" — not crash
-      const hasEmptyState =
-        lower.includes('no results') ||
-        lower.includes('no booths') ||
-        lower.includes('try') ||
-        lower.includes('closed') || // market closed is valid
-        lower.includes('know a neighbor') // new growth funnel empty state
-      expect(hasEmptyState).toBeTruthy()
+      await expect(
+        bethPage.locator('text=/no results|no booths|try|closed|know a neighbor/i').first()
+      ).toBeVisible({ timeout: 15000 })
       console.log('[SEARCH] ✅ Empty search shows appropriate message')
 
       await bethPage.context().close()

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useMarket, type Booth } from '../../../../lib/store'
+import { createClient } from '../../../../lib/supabase'
 import { PersonPlusIcon } from '../../../components/icons'
 import styles from './page.module.css'
 
@@ -67,6 +68,7 @@ export default function BoothSetupPage() {
   const params = useParams()
   const router = useRouter()
   const { state, dispatch } = useMarket()
+  const supabase = createClient()
   const themeId = params.template as string
   const initialTheme = THEMES_MAP[themeId] ? themeId as Booth['decorativeTheme'] : 'rustic'
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -96,6 +98,10 @@ export default function BoothSetupPage() {
   const [phoneVerified, setPhoneVerified] = useState(false)
   const [showVerify, setShowVerify] = useState(false)
   const [verifyCode, setVerifyCode] = useState('')
+  const [smsEnabled, setSmsEnabled] = useState(true)
+  const [isSendingOtp, setIsSendingOtp] = useState(false)
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false)
+  const [phoneError, setPhoneError] = useState('')
 
   // Payment
   const [paymentMode, setPaymentMode] = useState<'automatic' | 'manual'>('automatic')
@@ -187,8 +193,50 @@ export default function BoothSetupPage() {
     if (file) setHeaderImage(URL.createObjectURL(file))
   }
 
-  const handleVerifyPhone = () => {
-    if (verifyCode.length >= 4) { setPhoneVerified(true); setShowVerify(false) }
+  const handleSendOtp = async () => {
+    setPhoneError('')
+    if (!phone) return
+    setIsSendingOtp(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('send-phone-otp', {
+        body: { phoneNumber: phone.startsWith('+') ? phone : `+1${phone.replace(/\D/g, '')}` }
+      })
+      if (error || !data?.success) {
+        setPhoneError(error?.message || data?.error || 'Failed to send code')
+      } else {
+        setShowVerify(true)
+      }
+    } catch (e: any) {
+      setPhoneError(e.message)
+    } finally {
+      setIsSendingOtp(false)
+    }
+  }
+
+  const handleVerifyPhone = async () => {
+    setPhoneError('')
+    if (verifyCode.length < 4) return
+    setIsVerifyingOtp(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-phone-otp', {
+        body: { 
+          phoneNumber: phone.startsWith('+') ? phone : `+1${phone.replace(/\D/g, '')}`,
+          code: verifyCode 
+        }
+      })
+      if (error || !data?.success) {
+        setPhoneError(error?.message || data?.error || 'Invalid code')
+      } else {
+        setPhoneVerified(true)
+        setShowVerify(false)
+        setPhoneError('')
+        // Immediately update profile globally if needed, done on create
+      }
+    } catch (e: any) {
+      setPhoneError(e.message)
+    } finally {
+      setIsVerifyingOtp(false)
+    }
   }
 
   // Filtered charities
@@ -219,8 +267,16 @@ export default function BoothSetupPage() {
 
     dispatch({
       type: 'UPDATE_PROFILE',
-      payload: { name: fullName, phone: phone || undefined, address: { street, city, state: stateAddr, zip } },
+      payload: { 
+        name: fullName, 
+        phone: phoneVerified ? phone : undefined, 
+        address: { street, city, state: stateAddr, zip } 
+      },
     })
+
+    if (phoneVerified && state.user?.id) {
+       supabase.from('profiles').update({ sms_enabled: smsEnabled }).eq('id', state.user.id).then()
+    }
 
     dispatch({
       type: 'CREATE_BOOTH',
@@ -366,20 +422,34 @@ export default function BoothSetupPage() {
               <button className={styles.collapseBtn} onClick={() => setShowPhone(false)}>✕</button>
             </div>
             <div className={styles.phoneRow}>
-              <input className={styles.input} value={phone} onChange={e => setPhone(e.target.value)} placeholder="(555) 000-0000" />
-              {phone && !phoneVerified && (
-                <button className={styles.verifyBtn} onClick={() => setShowVerify(true)}>Verify</button>
+              <input className={styles.input} value={phone} onChange={e => { setPhone(e.target.value); setPhoneVerified(false); setShowVerify(false) }} placeholder="(555) 000-0000" disabled={isSendingOtp} />
+              {phone && !phoneVerified && !showVerify && (
+                <button className={styles.verifyBtn} onClick={handleSendOtp} disabled={isSendingOtp}>
+                  {isSendingOtp ? 'Sending...' : 'Send Code'}
+                </button>
               )}
               {phoneVerified && <span className={styles.verified}>✓ Verified</span>}
             </div>
-            {showVerify && (
+            {phoneError && <p className={styles.errorMsg} style={{ marginTop: 4 }}>{phoneError}</p>}
+            
+            {showVerify && !phoneVerified && (
               <div className={styles.verifyBox}>
                 <p className={styles.verifyText}>Enter the code sent to {phone}</p>
                 <div className={styles.phoneRow}>
-                  <input className={styles.input} value={verifyCode} onChange={e => setVerifyCode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456" maxLength={6} />
-                  <button className={styles.verifyBtn} onClick={handleVerifyPhone}>Confirm</button>
+                  <input className={styles.input} value={verifyCode} onChange={e => setVerifyCode(e.target.value.replace(/\D/g, '').slice(0, 8))} placeholder="123456" maxLength={8} disabled={isVerifyingOtp} />
+                  <button className={styles.verifyBtn} onClick={handleVerifyPhone} disabled={isVerifyingOtp || verifyCode.length < 4}>
+                    {isVerifyingOtp ? 'Checking...' : 'Confirm'}
+                  </button>
                 </div>
-                <p className={styles.verifyHint}>Enter any code for this prototype</p>
+              </div>
+            )}
+
+            {phoneVerified && (
+              <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input type="checkbox" id="smsEnabled" checked={smsEnabled} onChange={e => setSmsEnabled(e.target.checked)} />
+                <label htmlFor="smsEnabled" style={{ fontSize: 13, color: 'var(--gray-700)' }}>
+                  Receive SMS notifications for order/financial updates (sent only if push is unavailable)
+                </label>
               </div>
             )}
           </section>

@@ -35,6 +35,19 @@ function ProfileSetupPageInner() {
   const [cachedLng, setCachedLng] = useState<number | null>(null)
   const [locationDenied, setLocationDenied] = useState(false)
 
+  // Phone state
+  const [phone, setPhone] = useState('')
+  const [initialPhone, setInitialPhone] = useState('')
+  const [phoneVerified, setPhoneVerified] = useState(false)
+  const [showVerify, setShowVerify] = useState(false)
+  const [verifyCode, setVerifyCode] = useState('')
+  const [smsEnabled, setSmsEnabled] = useState(true)
+  const [phoneError, setPhoneError] = useState('')
+  const [isSendingOtp, setIsSendingOtp] = useState(false)
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false)
+  const [twilioBlocked, setTwilioBlocked] = useState(false)
+  const [showPhoneOptIn, setShowPhoneOptIn] = useState(false)
+
   // Pre-fill from existing profile
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -44,10 +57,10 @@ function ProfileSetupPageInner() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('full_name, street_address, city, state_code, zip_plus4, avatar_url')
+        .select('full_name, street_address, city, state_code, zip_plus4, avatar_url, phone_number, phone_verified, sms_enabled, twilio_blocked')
         .eq('id', user.id)
         .single()
-
+        
       if (profile) {
         setFullName(profile.full_name || '')
         setStreetAddress(profile.street_address || '')
@@ -57,6 +70,14 @@ function ProfileSetupPageInner() {
         if (profile.avatar_url) {
           setAvatarUrl(profile.avatar_url)
           setAvatarPreview(profile.avatar_url)
+        }
+        if (profile.phone_number) {
+          setPhone(profile.phone_number)
+          setPhoneVerified(!!profile.phone_verified)
+          setSmsEnabled(!!profile.sms_enabled)
+          setTwilioBlocked(!!profile.twilio_blocked)
+          // If they already opted in, keep the accordion open
+          if (profile.phone_verified) setShowPhoneOptIn(true)
         }
       }
       setLoading(false)
@@ -69,6 +90,53 @@ function ProfileSetupPageInner() {
     const reader = new FileReader()
     reader.onload = (ev) => setCropSrc(ev.target?.result as string)
     reader.readAsDataURL(file)
+  }
+
+  // ── Phone Verification Handlers ──
+  const handleSendOtp = async () => {
+    setPhoneError('')
+    if (!phone) return
+    setIsSendingOtp(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('send-phone-otp', {
+        body: { phoneNumber: phone.startsWith('+') ? phone : `+1${phone.replace(/\D/g, '')}` }
+      })
+      if (error || !data?.success) {
+        setPhoneError(error?.message || data?.error || 'Failed to send code')
+      } else {
+        setShowVerify(true)
+      }
+    } catch (e: any) {
+      setPhoneError(e.message)
+    } finally {
+      setIsSendingOtp(false)
+    }
+  }
+
+  const handleVerifyPhone = async () => {
+    setPhoneError('')
+    if (verifyCode.length < 4) return
+    setIsVerifyingOtp(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-phone-otp', {
+        body: { 
+          phoneNumber: phone.startsWith('+') ? phone : `+1${phone.replace(/\D/g, '')}`,
+          code: verifyCode 
+        }
+      })
+      if (error || !data?.success) {
+        setPhoneError(error?.message || data?.error || 'Invalid code')
+      } else {
+        setPhoneVerified(true)
+        setInitialPhone(phone)
+        setShowVerify(false)
+        setPhoneError('')
+      }
+    } catch (e: any) {
+      setPhoneError(e.message)
+    } finally {
+      setIsVerifyingOtp(false)
+    }
   }
 
 
@@ -205,6 +273,12 @@ function ProfileSetupPageInner() {
 
         // ── Note: Community Auto-Creation & Enrichment is handled by the backend Trigger ──
         // (20260331002000_auto_create_community.sql auto-creates the community if missing)
+      }
+
+      if (phoneVerified) {
+        profileUpdate.phone_number = phone.startsWith('+') ? phone : `+1${phone.replace(/\D/g, '')}`
+        profileUpdate.sms_enabled = smsEnabled
+        profileUpdate.phone_verified = true
       }
 
       const { error: updateErr } = await supabase
@@ -354,6 +428,68 @@ function ProfileSetupPageInner() {
                 value={zip} onChange={e => setZip(e.target.value)} required />
             </div>
           </div>
+
+          {/* Mobile phone optional flow */}
+          {!showPhoneOptIn ? (
+            <button type="button" className={styles.optionalToggle} onClick={() => setShowPhoneOptIn(true)} style={{ background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 8, padding: 12, width: '100%', textAlign: 'left', marginTop: 12, color: '#374151', cursor: 'pointer' }}>
+              📱 Add phone number for order SMS alerts
+            </button>
+          ) : (
+            <div style={{ background: '#f9fafb', padding: 16, borderRadius: 8, marginTop: 16, border: '1px solid #e5e7eb' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>📱 Phone Number</h3>
+                <button type="button" onClick={() => setShowPhoneOptIn(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 16 }}>✕</button>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input 
+                  className="input" 
+                  value={phone} 
+                  onChange={e => { 
+                    setPhone(e.target.value)
+                    setPhoneVerified(false)
+                    setShowVerify(false)
+                  }} 
+                  placeholder="(555) 000-0000" 
+                  disabled={isSendingOtp}
+                />
+                {phone && !phoneVerified && !showVerify && (
+                  <button type="button" className="btn btn-outline" onClick={handleSendOtp} disabled={isSendingOtp}>
+                    {isSendingOtp ? 'Sending...' : 'Send Code'}
+                  </button>
+                )}
+                {phoneVerified && <span style={{ color: 'var(--green-600)', fontWeight: 600, fontSize: 13, flexShrink: 0 }}>✓ Verified</span>}
+              </div>
+              {phoneError && <p style={{ color: 'var(--red-600)', fontSize: 12, marginTop: 4 }}>{phoneError}</p>}
+              
+              {showVerify && !phoneVerified && (
+                <div style={{ background: '#fff', padding: 12, borderRadius: 8, marginTop: 12, border: '1px solid #e5e7eb' }}>
+                  <p style={{ margin: '0 0 8px', fontSize: 13 }}>Enter the code sent to {phone}</p>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input className="input" value={verifyCode} onChange={e => setVerifyCode(e.target.value.replace(/\D/g, '').slice(0, 8))} placeholder="123456" maxLength={8} disabled={isVerifyingOtp} />
+                    <button type="button" className="btn btn-primary" onClick={handleVerifyPhone} disabled={isVerifyingOtp || verifyCode.length < 4}>
+                      {isVerifyingOtp ? 'Checking...' : 'Confirm'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input type="checkbox" id="smsEnabled" checked={smsEnabled} onChange={e => setSmsEnabled(e.target.checked)} />
+                <label htmlFor="smsEnabled" style={{ fontSize: 13, color: 'var(--gray-700)' }}>
+                  Receive SMS notification for critical order and transactional information
+                </label>
+              </div>
+
+              {smsEnabled && twilioBlocked && (
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', padding: 12, borderRadius: 8, marginTop: 12 }}>
+                  <p style={{ margin: 0, fontWeight: 600, color: '#991b1b', fontSize: 13 }}>⚠️ Carrier Block Detected</p>
+                  <p style={{ margin: '4px 0 0', color: '#b91c1c', fontSize: 13 }}>
+                    You previously replied STOP to our notifications. To resume critical alerts, you must text <b>START</b> to <b>+1 (555) 000-0000</b>.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           <p className={styles.privacyNote}>
             🔒 Your address is used to connect you with nearby neighbors. It&apos;s never shared publicly.

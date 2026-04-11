@@ -102,10 +102,11 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     }
 
     // ── Rate limiting ──────────────────────────────────────────────────
-    const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]
-        ?.trim() ||
-        req.headers.get("cf-connecting-ip") ||
-        "unknown";
+    if (Deno.env.get("TWILIO_ACCOUNT_SID")) {
+        const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]
+            ?.trim() ||
+            req.headers.get("cf-connecting-ip") ||
+            "unknown";
 
     // 1. Per-IP rate limit
     const ipCutoff = new Date(
@@ -179,6 +180,8 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
         );
     }
 
+    }
+
     // ── Update phone number on profile (before sending) ────────────────
     await supabase
         .from("profiles")
@@ -202,11 +205,14 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     }
 
     // ── Log rate limit entry ───────────────────────────────────────────
-    await supabase.from("sms_rate_limits").insert({
-        phone_number: phoneNumber,
-        user_id: userId,
-        ip_address: clientIp,
-    });
+    if (Deno.env.get("TWILIO_ACCOUNT_SID")) {
+        const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+        await supabase.from("sms_rate_limits").insert({
+            phone_number: phoneNumber,
+            user_id: userId,
+            ip_address: clientIp,
+        });
+    }
 
     return jsonOk(
         {

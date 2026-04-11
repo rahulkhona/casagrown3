@@ -216,6 +216,24 @@ export function Navbar() {
     }
   }, [userId, showInfo, pathname, fetchNotifications])
 
+  // PWA Badging & Title Fallback Hook
+  useEffect(() => {
+    // 1. Fallback: Update document title so users without App Badging still get visual cues
+    const baseTitle = 'CasaGrown'
+    document.title = unreadCount > 0 ? `(${unreadCount}) ${baseTitle}` : baseTitle
+
+    // 2. Primary: Set actual OS App Badge if supported by browser/OS
+    if ('setAppBadge' in navigator && 'clearAppBadge' in navigator) {
+      if (unreadCount > 0) {
+        // @ts-ignore - TS might not know about badging API natively yet
+        navigator.setAppBadge(unreadCount).catch(() => {})
+      } else {
+        // @ts-ignore
+        navigator.clearAppBadge().catch(() => {})
+      }
+    }
+  }, [unreadCount])
+
   useEffect(() => {
     if (notifOpen) fetchNotifications()
   }, [notifOpen, fetchNotifications])

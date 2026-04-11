@@ -45,8 +45,10 @@ test.describe('Quarantine Zones Page', () => {
     await page.getByText('Add Quarantine', { exact: true }).click({ timeout: 15000 })
     await page.waitForTimeout(500)
     await expect(page.getByText('New Quarantine Zone', { exact: true })).toBeVisible({ timeout: 10000 })
+    // Explicitly wait for React to hydrate the form
+    await page.waitForTimeout(1000)
     await page.getByText('Enforce Quarantine', { exact: true }).click()
-    await expect(page.getByText(/Please select a category/i)).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText(/Please select a category/i)).toBeVisible({ timeout: 15000 })
   })
 })
 

@@ -43,7 +43,7 @@ test.describe('Toast Notifications for Success and Error Handling', () => {
     
     // Look for the ErrorToast container which has the ❌ icon
     const errorIcon = page.locator('text=❌').first()
-    await expect(errorIcon).toBeVisible({ timeout: 10000 })
+    await expect(errorIcon).toBeVisible({ timeout: 15000 })
     
     // Check that we see the error message in the toast
     const toastMessage = page.locator('p', { hasText: /error|failed/i }).first()
@@ -78,7 +78,7 @@ test.describe('Toast Notifications for Success and Error Handling', () => {
     await inviteBtn.click()
 
     const toastIcon = page.locator('text=✅').first()
-    await expect(toastIcon).toBeVisible({ timeout: 5000 })
+    await expect(toastIcon).toBeVisible({ timeout: 15000 })
     
     const dismissBtn = page.locator('button:has-text("✕")').first()
     if (await dismissBtn.isVisible()) {

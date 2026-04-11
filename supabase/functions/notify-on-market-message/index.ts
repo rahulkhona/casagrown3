@@ -77,6 +77,20 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
         tag: `market-chat-${orderId}`,
     });
 
+    // 6. Invoke SMS Fallback
+    try {
+        const smsMessage = `💬 ${senderName}: ${body}`;
+        await supabase.functions.invoke("send-sms-notification", {
+            body: {
+                userId: recipientId,
+                message: smsMessage,
+                linkUrl: `/orders/${orderId}`,
+            },
+        });
+    } catch (err) {
+        console.warn(`⚠️ notify-on-market-message: Failed to trigger SMS fallback: ${err}`);
+    }
+
     console.log(
         `📬 Market chat notification: ${senderName} → ${recipientId} (order ${orderId})`,
     );

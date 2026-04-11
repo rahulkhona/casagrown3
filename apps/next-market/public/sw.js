@@ -12,6 +12,12 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'CasaGrown Market'
   const tag = data.tag || 'casagrown-market-notification'
 
+  // Headlessly synchronize the App Badge! 
+  // Calling setAppBadge with no parameters natively instructs the OS to draw a generic 'Dot' indicator.
+  if ('setAppBadge' in navigator) {
+    navigator.setAppBadge().catch(() => {})
+  }
+
   const options = {
     body: data.body || 'You have a new update',
     icon: '/logo.png',
