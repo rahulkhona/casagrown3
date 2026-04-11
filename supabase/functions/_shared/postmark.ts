@@ -145,8 +145,8 @@ export async function sendBroadcastEmail(
     payload: EmailPayload,
 ): Promise<{ success: boolean; error?: string }> {
     const token = Deno.env.get("POSTMARK_BROADCAST_TOKEN");
-    const fromEmail = Deno.env.get("POSTMARK_FROM_EMAIL") ??
-        "no-reply@casagrown.com";
+    const fromEmail = Deno.env.get("POSTMARK_BROADCAST_FROM_EMAIL") ??
+        Deno.env.get("POSTMARK_FROM_EMAIL") ?? "no-reply@news.casagrown.com";
     const messageStream = Deno.env.get("POSTMARK_BROADCAST_STREAM") ??
         "broadcast";
 
@@ -223,7 +223,8 @@ export async function sendBroadcastEmailBatch(
     }
 
     const token = Deno.env.get("POSTMARK_BROADCAST_TOKEN");
-    const fromEmail = Deno.env.get("POSTMARK_FROM_EMAIL") ?? "no-reply@casagrown.com";
+    const fromEmail = Deno.env.get("POSTMARK_BROADCAST_FROM_EMAIL") ??
+        Deno.env.get("POSTMARK_FROM_EMAIL") ?? "no-reply@news.casagrown.com";
     const messageStream = Deno.env.get("POSTMARK_BROADCAST_STREAM") ?? "broadcast";
 
     if (!token) {
