@@ -82,7 +82,7 @@ test.describe.skip('Phone & SMS Notifications UI (Feature Flagged)', () => {
     params.set("From", `+1${uniquePhoneNumber}`)
     params.set("Body", "STOP")
 
-    const res = await request.post('http://127.0.0.1:54321/functions/v1/twilio-inbound?secret=dev-secret-xyz', {
+    const res = await request.post('http://127.0.0.1:54321/functions/v1/webhook-twilio?secret=dev-secret-xyz', {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       data: params.toString()
     })
@@ -110,7 +110,7 @@ test.describe.skip('Phone & SMS Notifications UI (Feature Flagged)', () => {
     const startParams = new URLSearchParams()
     startParams.set("From", `+1${uniquePhoneNumber}`)
     startParams.set("Body", "START")
-    await request.post('http://127.0.0.1:54321/functions/v1/twilio-inbound?secret=dev-secret-xyz', {
+    await request.post('http://127.0.0.1:54321/functions/v1/webhook-twilio?secret=dev-secret-xyz', {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       data: startParams.toString()
     })

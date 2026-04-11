@@ -208,3 +208,65 @@ export async function sendBroadcastEmail(
         };
     }
 }
+
+/**
+ * Send an array of emails via Postmark's /email/batch API.
+ * Max 500 emails per batch based on Postmark limits.
+ * Falls back to sequential local SMTP processing via Mailpit if no token exists.
+ */
+export async function sendBroadcastEmailBatch(
+    payloads: EmailPayload[],
+): Promise<{ success: boolean; error?: string }> {
+    if (payloads.length === 0) return { success: true };
+    if (payloads.length > 500) {
+        return { success: false, error: "Postmark max batch size is 500" };
+    }
+
+    const token = Deno.env.get("POSTMARK_BROADCAST_TOKEN");
+    const fromEmail = Deno.env.get("POSTMARK_FROM_EMAIL") ?? "no-reply@casagrown.com";
+    const messageStream = Deno.env.get("POSTMARK_BROADCAST_STREAM") ?? "broadcast";
+
+    if (!token) {
+        // Local Dev Fallback: Send sequentially via Mailpit SMTP
+        console.log(`📡 Local dev: Batching ${payloads.length} emails to Mailpit...`);
+        for (const p of payloads) {
+            await sendBroadcastEmail(p);
+        }
+        return { success: true };
+    }
+
+    // Production: Postmark Batch API format
+    const messages = payloads.map(p => ({
+        From: fromEmail,
+        To: p.to,
+        Subject: p.subject,
+        HtmlBody: p.htmlBody,
+        MessageStream: messageStream
+    }));
+
+    try {
+        const res = await fetch("https://api.postmarkapp.com/email/batch", {
+            method: "POST",
+            headers: {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "X-Postmark-Server-Token": token,
+            },
+            body: JSON.stringify(messages)
+        });
+
+        if (!res.ok) {
+            const errStr = await res.text();
+            throw new Error(`Postmark batch API error: ${res.status} ${errStr}`);
+        }
+
+        console.log(`📡 Batch sent via Postmark API: ${payloads.length} emails`);
+        return { success: true };
+    } catch (err) {
+        console.error(`❌ Batch broadcast send failed:`, err);
+        return {
+            success: false,
+            error: err instanceof Error ? err.message : String(err),
+        };
+    }
+}

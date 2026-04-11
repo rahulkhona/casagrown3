@@ -635,7 +635,7 @@ entrypoint = "./functions/casabot-starter-post/index.ts"
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/casabot-starter-post/*.html" ]
 
-[functions.twilio-inbound]
+[functions.webhook-twilio]
 enabled = true
 verify_jwt = false
-entrypoint = "./functions/twilio-inbound/index.ts"
+entrypoint = "./functions/webhook-twilio/index.ts"

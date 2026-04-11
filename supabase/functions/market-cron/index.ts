@@ -460,7 +460,7 @@ async function handleSellerLifecycle(
 //   (B) Buyer side: products matching your interests/searches now available
 // One email per user with both sections (if applicable)
 // ═══════════════════════════════════════════════
-async function handleGrowerDigest(
+export async function handleGrowerDigest(
   supabase: any,
   env: (k: string) => string | undefined,
   corsHeaders: Record<string, string>,
@@ -470,395 +470,123 @@ async function handleGrowerDigest(
   const baseUrl = env('SUPABASE_URL') || 'http://host.docker.internal:54321'
   const pushUrl = baseUrl + '/functions/v1/send-push-notification'
   const emailUrl = baseUrl + '/functions/v1/send-market-email'
-
-  // ═══════════════════════════════════════════
-  // (A) Seller side — pending grower search matches
-  // ═══════════════════════════════════════════
-  const { data: sellerPending } = await supabase
-    .from('grower_search_notifications')
-    .select('id, grower_id, keyword, match_source, past_product_id')
-    .is('notified_at', null)
-    .order('created_at')
-    .limit(500)
-
-  interface SellerEntry {
-    ids: string[]
-    keywords: Set<string>
-    pastProducts: Map<string, string> // keyword → past_product_id
-  }
-  const sellerByUser: Record<string, SellerEntry> = {}
-  for (const p of (sellerPending || [])) {
-    if (!sellerByUser[p.grower_id]) {
-      sellerByUser[p.grower_id] = { ids: [], keywords: new Set(), pastProducts: new Map() }
-    }
-    const entry = sellerByUser[p.grower_id]!
-    entry.ids.push(p.id)
-    entry.keywords.add(p.keyword)
-    if (p.match_source === 'past_listing' && p.past_product_id) {
-      entry.pastProducts.set(p.keyword, p.past_product_id)
-    }
+  
+  // 1. Atomically Claim 500 users
+  const { data: batch, error } = await supabase.rpc('claim_daily_digest_batch', { batch_size: 500 })
+  if (error) {
+    console.error('Failed to claim digest batch:', error)
+    return jsonOk({ sent: 0, emails: 0, message: 'DB Error' }, corsHeaders)
   }
 
-  // ═══════════════════════════════════════════
-  // (B) Buyer side — pending product match notifications
-  // ═══════════════════════════════════════════
-  const { data: buyerPending } = await supabase
-    .from('buyer_product_notifications')
-    .select('id, buyer_id, product_id, match_source, keyword')
-    .is('notified_at', null)
-    .order('created_at')
-    .limit(500)
-
-  interface BuyerItem {
-    id: string
-    productId: string
-    matchSource: string
-    keyword: string
-  }
-  interface BuyerEntry {
-    ids: string[]
-    items: BuyerItem[]
-  }
-  const buyerByUser: Record<string, BuyerEntry> = {}
-  for (const b of (buyerPending || [])) {
-    if (!buyerByUser[b.buyer_id]) {
-      buyerByUser[b.buyer_id] = { ids: [], items: [] }
-    }
-    const entry = buyerByUser[b.buyer_id]!
-    entry.ids.push(b.id)
-    entry.items.push({
-      id: b.id,
-      productId: b.product_id,
-      matchSource: b.match_source,
-      keyword: b.keyword,
-    })
+  if (!batch || batch.length === 0) {
+    return jsonOk({ sent: 0, emails: 0, message: 'Queue completely empty / finished' }, corsHeaders)
   }
 
-  // Combine all user IDs
-  const allUserIds = new Set([
-    ...Object.keys(sellerByUser),
-    ...Object.keys(buyerByUser),
-  ])
+  const postmarkToken = env('POSTMARK_BROADCAST_TOKEN');
+  const fromEmail = env('POSTMARK_FROM_EMAIL') || 'no-reply@casagrown.com'
+  const messageStream = env('POSTMARK_BROADCAST_STREAM') || 'broadcast'
 
-  if (allUserIds.size === 0) {
-    return jsonOk({ sent: 0, emails: 0, message: 'No pending digest items' }, corsHeaders)
-  }
+  const emailBatchPayloads = [];
+  let pushCount = 0;
 
-  let pushCount = 0
-  let emailCount = 0
+  for (const user of batch) {
+    const { user_id, seller_claims, buyer_claims } = user;
+    if (!seller_claims.length && !buyer_claims.length) continue;
 
-  for (const userId of allUserIds) {
-    const sellerData = sellerByUser[userId]
-    const buyerData = buyerByUser[userId]
+    // Get Auth Email + Profile
+    const { data: authUser } = await supabase.auth.admin.getUserById(user_id)
+    const email = authUser?.user?.email
+    const { data: profile } = await supabase.from('profiles').select('email, full_name').eq('id', user_id).single()
 
-    // ── Push + In-App: Seller side ──
-    if (sellerData) {
-      const keywords = Array.from(sellerData.keywords)
-      const keywordList = keywords.slice(0, 3).join(', ')
-      const extra = keywords.length > 3 ? ` and ${keywords.length - 3} more` : ''
-
-      await fetch(pushUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceKey}` },
-        body: JSON.stringify({
-          userIds: [userId],
-          title: '🔍 Neighbors are looking for your produce!',
-          body: `People are searching for ${keywordList}${extra}. List yours on the market!`,
-          url: '/my-booth/products/new',
-          tag: 'grower-search-match',
-        }),
-      }).catch(e => console.warn('Seller push failed:', e))
-
-      await supabase.from('market_notifications').insert({
-        user_id: userId,
-        content: `🔍 People are searching for ${keywordList}${extra}. List yours on the market!`,
-        link_url: '/my-booth/products/new',
-      }).then(() => {}).catch(() => {})
+    // Build Push for Sellers
+    if (seller_claims.length > 0) {
+       const kws = seller_claims.map((c:any) => c.keyword).slice(0,3).join(', ');
+       const extra = seller_claims.length > 3 ? ' and more' : '';
+       await fetch(pushUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceKey}` },
+          body: JSON.stringify({ userIds: [user_id], title: '🔍 Neighbors are looking for your produce!', body: `People are searching for ${kws}${extra}. List yours on the market!`, url: '/my-booth/products/new', tag: 'grower-search-match' })
+        }).catch(e => console.warn('Seller push failed:', e))
+        pushCount++;
     }
 
-    // ── Push + In-App: Buyer side ──
-    if (buyerData && buyerData.items.length > 0) {
-      const first = buyerData.items[0]!
-      const moreCount = buyerData.items.length > 1 ? ` and ${buyerData.items.length - 1} more` : ''
-
-      await fetch(pushUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceKey}` },
-        body: JSON.stringify({
-          userIds: [userId],
-          title: '🎉 Products you want are now available!',
-          body: `"${first.keyword}" is now listed${moreCount}. Check it out!`,
-          url: '/market',
-          tag: 'buyer-product-match',
-        }),
-      }).catch(e => console.warn('Buyer push failed:', e))
-
-      await supabase.from('market_notifications').insert({
-        user_id: userId,
-        content: `🎉 "${first.keyword}" is now listed${moreCount}. Check it out on the market!`,
-        link_url: '/market',
-      }).then(() => {}).catch(() => {})
+    // Build Push for Buyers
+    if (buyer_claims.length > 0) {
+       const first = buyer_claims[0];
+       await fetch(pushUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceKey}` },
+          body: JSON.stringify({ userIds: [user_id], title: '🎉 Products you want are now available!', body: `"${first.keyword}" is now listed. Check it out!`, url: '/market', tag: 'buyer-product-match' })
+        }).catch(e => console.warn('Buyer push failed:', e))
+        pushCount++;
     }
 
-    pushCount++
+    if (!email && !profile?.email) continue;
+    const targetEmail = email || profile?.email;
+    const firstName = profile?.full_name?.split(' ')[0] || 'Neighbor'
 
-    // ── Unified Email Digest ──
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('email, full_name')
-      .eq('id', userId)
-      .single()
+    let sellSection = '';
+    let buySection = '';
 
-    if (!profile?.email) {
-      // Mark as notified even without email
-      if (sellerData) {
-        await supabase.from('grower_search_notifications')
-          .update({ notified_at: new Date().toISOString() })
-          .in('id', sellerData.ids)
-      }
-      if (buyerData) {
-        await supabase.from('buyer_product_notifications')
-          .update({ notified_at: new Date().toISOString() })
-          .in('id', buyerData.ids)
-      }
-      continue
-    }
-
-    const firstName = profile.full_name?.split(' ')[0] || 'Neighbor'
-    let sellSection = ''
-    let buySection = ''
-
-    // ── Build Sell Section ──
-    if (sellerData) {
-      const keywords = Array.from(sellerData.keywords)
-      const pastProductIds = Array.from(sellerData.pastProducts.values())
-      let pastProductDetails: Record<string, { name: string; price_usd: number }> = {}
-      if (pastProductIds.length > 0) {
-        const { data: products } = await supabase
-          .from('market_products')
-          .select('id, name, price_usd')
-          .in('id', pastProductIds)
-        if (products) {
-          for (const p of products) pastProductDetails[p.id] = { name: p.name, price_usd: p.price_usd }
-        }
-      }
-
-      const sellCards = keywords.map(kw => {
-        const pastProductId = sellerData.pastProducts.get(kw)
-        const pastProduct = pastProductId ? pastProductDetails[pastProductId] : null
-
-        if (pastProduct) {
-          const listUrl = `${siteUrl}/my-booth/products/new?prefill=${pastProductId}`
-          return `
-          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px;margin:12px 0">
-            <div style="font-size:14px;color:#166534;font-weight:600;margin-bottom:4px">🔍 Someone is searching for "<strong>${kw}</strong>"</div>
-            <div style="font-size:13px;color:#4b5563;margin-bottom:8px">
-              📦 <strong>Based on your previous listing:</strong> ${pastProduct.name} ($${Number(pastProduct.price_usd).toFixed(2)})
-            </div>
-            <a href="${listUrl}" style="display:inline-block;background:#16a34a;color:#fff;padding:8px 20px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">
-              Re-list "${pastProduct.name}" →
-            </a>
-          </div>`
-        } else {
-          return `
+    if (seller_claims.length > 0) {
+      const sellCards = seller_claims.map((c: any) => `
           <div style="background:#fefce8;border:1px solid #fde68a;border-radius:12px;padding:16px;margin:12px 0">
-            <div style="font-size:14px;color:#854d0e;font-weight:600;margin-bottom:4px">🌱 Someone is searching for "<strong>${kw}</strong>"</div>
-            <div style="font-size:13px;color:#4b5563;margin-bottom:8px">
-              We know you grow this! Create a listing and start earning from your garden.
-            </div>
-            <a href="${siteUrl}/my-booth/products/new" style="display:inline-block;background:#ca8a04;color:#fff;padding:8px 20px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">
-              List on Market →
-            </a>
-          </div>`
-        }
-      })
-
-      sellSection = `
-        <div style="margin-top:20px">
-          <div style="background:#166534;color:#fff;padding:10px 16px;border-radius:8px 8px 0 0;font-size:15px;font-weight:600">
-            🏪 Selling Opportunities
-          </div>
-          <div style="border:1px solid #d1d5db;border-top:none;border-radius:0 0 8px 8px;padding:4px 12px 12px">
-            ${sellCards.join('')}
-          </div>
-        </div>`
+            <div style="font-size:14px;color:#854d0e;font-weight:600;margin-bottom:4px">🌱 Someone is searching for "<strong>${c.keyword}</strong>"</div>
+            <a href="${siteUrl}/my-booth/products/new" style="display:inline-block;background:#ca8a04;color:#fff;padding:8px 20px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">List on Market →</a>
+          </div>`);
+      sellSection = `<div style="margin-top:20px"><div style="background:#166534;color:#fff;padding:10px 16px;border-radius:8px 8px 0 0;font-size:15px;font-weight:600">🏪 Selling Opportunities</div><div style="border:1px solid #d1d5db;border-top:none;border-radius:0 0 8px 8px;padding:4px 12px 12px">${sellCards.join('')}</div></div>`;
     }
 
-    // ── Build Buy Section ──
-    if (buyerData && buyerData.items.length > 0) {
-      // Fetch product details for buyer items
-      const productIds = buyerData.items.map(i => i.productId)
-      const { data: products } = await supabase
-        .from('market_products')
-        .select('id, name, price_usd, unit, seller_id')
-        .in('id', productIds)
-
-      const productMap: Record<string, any> = {}
-      if (products) {
-        for (const p of products) productMap[p.id] = p
-      }
-
-      // Fetch seller names
-      const sellerIds = products?.map((p: any) => p.seller_id).filter(Boolean) || []
-      const sellerMap: Record<string, string> = {}
-      if (sellerIds.length > 0) {
-        const { data: sellers } = await supabase
-          .from('profiles')
-          .select('id, full_name')
-          .in('id', sellerIds)
-        if (sellers) {
-          for (const s of sellers) sellerMap[s.id] = s.full_name || 'A neighbor'
-        }
-      }
-
-      // Fetch seller booth IDs + names
-      const boothMap: Record<string, { id: string; name: string }> = {}
-      if (sellerIds.length > 0) {
-        const { data: booths } = await supabase
-          .from('market_booths')
-          .select('id, owner_id, name')
-          .in('owner_id', sellerIds)
-        if (booths) {
-          for (const b of booths) boothMap[b.owner_id] = { id: b.id, name: b.name }
-        }
-      }
-
-      const buyCards = buyerData.items.slice(0, 5).map(item => {
-        const product = productMap[item.productId]
-        if (!product) return ''
-        const booth = boothMap[product.seller_id]
-        const boothName = booth?.name || sellerMap[product.seller_id] || 'A neighbor'
-        // Link directly to product detail page (which has "Message Seller" button built in)
-        const productUrl = booth
-          ? `${siteUrl}/market/booth/${booth.id}/product/${product.id}`
-          : `${siteUrl}/market`
-
-        const matchReason = item.matchSource === 'interest'
-          ? `You told us you're interested in <strong>${item.keyword}</strong> during your first visit`
-          : `You searched for "<strong>${item.keyword}</strong>" in Buzz`
-
-        return `
+    if (buyer_claims.length > 0) {
+      const buyCards = buyer_claims.map((c: any) => `
         <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:16px;margin:12px 0">
-          <div style="font-size:14px;color:#1e40af;font-weight:600;margin-bottom:4px">🎉 "${product.name}" is now available!</div>
-          <div style="font-size:13px;color:#4b5563;margin-bottom:4px">
-            Listed by <strong>${boothName}</strong> — $${Number(product.price_usd).toFixed(2)}/${product.unit}
-          </div>
-          <div style="font-size:12px;color:#6b7280;font-style:italic;margin-bottom:8px">
-            ${matchReason}
-          </div>
-          <a href="${productUrl}" style="display:inline-block;background:#2563eb;color:#fff;padding:8px 20px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">
-            View Product →
-          </a>
-        </div>`
-      })
-
-      const moreCount = buyerData.items.length > 5 ? `<p style="color:#6b7280;font-size:13px;text-align:center">...and ${buyerData.items.length - 5} more products</p>` : ''
-
-      buySection = `
-        <div style="margin-top:20px">
-          <div style="background:#1e40af;color:#fff;padding:10px 16px;border-radius:8px 8px 0 0;font-size:15px;font-weight:600">
-            🛒 Products You're Looking For
-          </div>
-          <div style="border:1px solid #d1d5db;border-top:none;border-radius:0 0 8px 8px;padding:4px 12px 12px">
-            ${buyCards.join('')}
-            ${moreCount}
-          </div>
-        </div>`
+          <div style="font-size:14px;color:#1e40af;font-weight:600;margin-bottom:4px">🎉 "${c.keyword}" is now available!</div>
+          <a href="${siteUrl}/market" style="display:inline-block;background:#2563eb;color:#fff;padding:8px 20px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">View Product →</a>
+        </div>`);
+      buySection = `<div style="margin-top:20px"><div style="background:#1e40af;color:#fff;padding:10px 16px;border-radius:8px 8px 0 0;font-size:15px;font-weight:600">🛒 Products You're Looking For</div><div style="border:1px solid #d1d5db;border-top:none;border-radius:0 0 8px 8px;padding:4px 12px 12px">${buyCards.join('')}</div></div>`;
     }
 
-    // ── Compose & Send Unified Email ──
-    if (sellSection || buySection) {
-      const subjectParts: string[] = []
-      if (sellerData) {
-        const kws = Array.from(sellerData.keywords).slice(0, 2).join(', ')
-        subjectParts.push(`neighbors want ${kws}`)
-      }
-      if (buyerData && buyerData.items.length > 0) {
-        subjectParts.push(`${buyerData.items.length} product${buyerData.items.length > 1 ? 's' : ''} you wanted`)
-      }
+    const emailHtml = `<div style="max-width:560px;margin:0 auto;font-family:system-ui, -apple-system, sans-serif"><div style="padding:24px 16px"><h2 style="color:#166534;font-size:20px;margin:0 0 8px">Hi ${firstName}! 🌿</h2><p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 16px">We found new opportunities for you based on your activity on CasaGrown.</p>${sellSection}${buySection}</div></div>`;
 
-      // Build a clear "why you're getting this" explanation
-      const whyReasons: string[] = []
-      if (sellerData) {
-        const hasPastListing = sellerData.pastProducts.size > 0
-        const hasGarden = sellerData.keywords.size > sellerData.pastProducts.size
-        if (hasPastListing && hasGarden) {
-          whyReasons.push('you previously listed products on CasaGrown and told us what you grow')
-        } else if (hasPastListing) {
-          whyReasons.push('you previously listed products on CasaGrown')
-        } else {
-          whyReasons.push('you told us what you grow in your garden')
-        }
-      }
-      if (buyerData && buyerData.items.length > 0) {
-        const hasInterest = buyerData.items.some(i => i.matchSource === 'interest')
-        const hasSearch = buyerData.items.some(i => i.matchSource === 'search')
-        if (hasInterest && hasSearch) {
-          whyReasons.push('you told us what produce you\'re interested in and searched for items in Buzz')
-        } else if (hasInterest) {
-          whyReasons.push('you told us what produce you\'re interested in')
-        } else {
-          whyReasons.push('you searched for items in Buzz')
-        }
-      }
-      const whyText = whyReasons.join(', and ')
-
-      const emailHtml = `
-      <div style="max-width:560px;margin:0 auto;font-family:${FONT}">
-        ${getEmailHeader(siteUrl)}
-        <div style="padding:24px 16px">
-          <h2 style="color:#166534;font-size:20px;margin:0 0 8px">Hi ${firstName}! 🌿</h2>
-          <p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 16px">
-            We found new opportunities for you based on your activity on CasaGrown. 
-            Each item below is something you can act on right now.
-          </p>
-          ${sellSection}
-          ${buySection}
-          <div style="background:#f9fafb;border-radius:8px;padding:14px 16px;margin-top:24px">
-            <p style="color:#6b7280;font-size:12px;line-height:1.5;margin:0">
-              <strong style="color:#4b5563">Why am I getting this?</strong> You're receiving this because ${whyText}. 
-              We matched your activity with what's happening in your neighborhood market today.
-              <br><br>
-              <a href="${siteUrl}/settings" style="color:#2563eb;text-decoration:underline">Manage notification preferences</a>
-            </p>
-          </div>
-        </div>
-        ${EMAIL_FOOTER}
-      </div>`
-
+    // Local Mailpit Fallback OR Postmark Batch payload
+    if (!postmarkToken) {
       await fetch(emailUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceKey}` },
-        body: JSON.stringify({
-          to: profile.email,
-          subject: `🌿 ${firstName}, ${subjectParts.join(' + ')}!`,
-          html: emailHtml,
-        }),
-      }).catch(e => console.warn('Digest email failed:', e))
-
-      emailCount++
-    }
-
-    // ── Mark all as notified ──
-    if (sellerData) {
-      await supabase.from('grower_search_notifications')
-        .update({ notified_at: new Date().toISOString() })
-        .in('id', sellerData.ids)
-    }
-    if (buyerData) {
-      await supabase.from('buyer_product_notifications')
-        .update({ notified_at: new Date().toISOString() })
-        .in('id', buyerData.ids)
+        body: JSON.stringify({ to: targetEmail, subject: `🌿 ${firstName}, your local daily digest is here!`, html: emailHtml }),
+      }).catch(e => console.warn('Digest fallback email failed:', e))
+    } else {
+      emailBatchPayloads.push({
+        From: fromEmail,
+        To: targetEmail,
+        Subject: `🌿 ${firstName}, your local daily digest is here!`,
+        HtmlBody: emailHtml,
+        MessageStream: messageStream
+      });
     }
   }
 
-  return jsonOk({
-    sent: pushCount,
-    emails: emailCount,
-    users: allUserIds.size,
-    sellers: Object.keys(sellerByUser).length,
-    buyers: Object.keys(buyerByUser).length,
-  }, corsHeaders)
+  // Send batch to Postmark if we have a token
+  if (postmarkToken && emailBatchPayloads.length > 0) {
+    await fetch("https://api.postmarkapp.com/email/batch", {
+        method: "POST",
+        headers: { "Accept": "application/json", "Content-Type": "application/json", "X-Postmark-Server-Token": postmarkToken },
+        body: JSON.stringify(emailBatchPayloads)
+    }).catch(e => console.error('Postmark Batch Failed:', e));
+  }
+
+  // INFINITE SCALE: Self-recursion trigger
+  if (batch.length === 500) {
+    // We maxed out the database pull. There are likely more users pending.
+    // Trigger the exact same function immediately in the background (fire and forget)
+    fetch(baseUrl + '/functions/v1/market-cron', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceKey}` },
+      body: JSON.stringify({ action: 'grower_digest' })
+    }).catch(e => console.error('Recursion trigger failed:', e));
+  }
+
+  return jsonOk({ sent: pushCount, emails: emailBatchPayloads.length, users: batch.length, batchSize: batch.length, forkedNext: batch.length === 500 }, corsHeaders)
 }
 
 // ═══════════════════════════════════════════════
