@@ -8,7 +8,7 @@ import {
 
 test.describe.configure({ mode: 'serial' })
 
-test.describe.serial.skip('Phone & SMS Notifications UI (Feature Flagged)', () => {
+test.describe.skip('Phone & SMS Notifications UI (Feature Flagged)', () => {
   let tokens: Record<string, string> = {}
   const uniquePhoneNumber = '555100' + Math.floor(1000 + Math.random() * 9000).toString()
   

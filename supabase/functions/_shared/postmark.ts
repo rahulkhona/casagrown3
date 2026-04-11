@@ -135,3 +135,76 @@ export async function getUserEmail(
         return null;
     }
 }
+
+/**
+ * Send an email via Postmark's dedicated Broadcast SMTP cluster.
+ * Uses smtp-broadcasts.postmarkapp.com to ensure bulk sends are 
+ * routed correctly and don't risk your transactional IP reputation.
+ */
+export async function sendBroadcastEmail(
+    payload: EmailPayload,
+): Promise<{ success: boolean; error?: string }> {
+    const token = Deno.env.get("POSTMARK_BROADCAST_TOKEN");
+    const fromEmail = Deno.env.get("POSTMARK_FROM_EMAIL") ??
+        "no-reply@casagrown.com";
+    const messageStream = Deno.env.get("POSTMARK_BROADCAST_STREAM") ??
+        "broadcast";
+
+    const isProduction = !!token;
+
+    const smtpConfig = isProduction
+        ? {
+            // Production: Dedicated Broadcast Cluster
+            hostname: "smtp-broadcasts.postmarkapp.com",
+            port: 587,
+            tls: true,
+            auth: {
+                username: token!,
+                password: token!,
+            },
+        }
+        : {
+            // Local dev fallback
+            hostname: "host.docker.internal",
+            port: 54325,
+            tls: false,
+        };
+
+    try {
+        const client = new SMTPClient({
+            connection: smtpConfig,
+            ...(!isProduction && { debug: { allowUnsecure: true } }),
+        });
+
+        // deno-lint-ignore no-explicit-any
+        const sendOpts: any = {
+            from: fromEmail,
+            to: payload.to,
+            subject: payload.subject,
+            content: "auto",
+            html: payload.htmlBody,
+        };
+
+        if (isProduction) {
+            sendOpts.headers = {
+                "X-PM-Message-Stream": messageStream,
+            };
+        }
+
+        await client.send(sendOpts);
+        await client.close();
+
+        if (isProduction) {
+            console.log(`📡 Broadcast sent via Postmark to ${payload.to}: ${payload.subject}`);
+        } else {
+            console.log(`📡 Broadcast sent to Mailpit for ${payload.to}: ${payload.subject}`);
+        }
+        return { success: true };
+    } catch (err) {
+        console.error(`❌ Broadcast send failed for ${payload.to}:`, err);
+        return {
+            success: false,
+            error: err instanceof Error ? err.message : String(err),
+        };
+    }
+}
