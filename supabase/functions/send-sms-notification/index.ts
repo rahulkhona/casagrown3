@@ -67,7 +67,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     // ── Prepare SMS body ──
     let smsBody = `CasaGrown: ${message}`;
     if (linkUrl) {
-       smsBody += `\nView: https://market.casagrown.com${linkUrl}`;
+       smsBody += `\nView: https://casagrown.com${linkUrl}`;
     }
     
     smsBody += `\nReply STOP to cancel`;

@@ -385,9 +385,14 @@ export default function ProfilePage() {
 
             <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
               <input type="checkbox" id="smsEnabled" checked={smsEnabled} onChange={e => setSmsEnabled(e.target.checked)} />
-              <label htmlFor="smsEnabled" style={{ fontSize: 13, color: 'var(--gray-700)', cursor: 'pointer' }}>
-                Receive SMS notification for critical order and transactional information
-              </label>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label htmlFor="smsEnabled" style={{ fontSize: 13, color: 'var(--gray-700)', cursor: 'pointer', fontWeight: 600 }}>
+                  Enable Order SMS Notifications
+                </label>
+                <span style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 4 }}>
+                  By providing your phone number and checking this box, you consent to receive critical transactional SMS notifications (like order updates) from CasaGrown. Reply STOP to cancel. Msg & data rates may apply.
+                </span>
+              </div>
             </div>
 
             {smsEnabled && twilioBlocked && (
