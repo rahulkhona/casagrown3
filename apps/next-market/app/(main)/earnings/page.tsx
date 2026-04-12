@@ -102,6 +102,7 @@ export default function EarningsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [receiptData, setReceiptData] = useState<MarketReceiptData | null>(null)
   const [ratingHover, setRatingHover] = useState<{ txId: string; star: number } | null>(null)
+  const [ratingDrafts, setRatingDrafts] = useState<Record<string, { star: number, review: string }>>({})
   const [ratedOrders, setRatedOrders] = useState<Record<string, number>>({})
   const { showError, showSuccess } = useErrorToast()
 
@@ -259,12 +260,14 @@ export default function EarningsPage() {
   }, [supabase])
 
   // ── Rate order handler ──
-  const handleRate = useCallback(async (orderId: string, rating: number) => {
+  const handleRate = useCallback(async (orderId: string, rating: number, review?: string) => {
     setRatedOrders(prev => ({ ...prev, [orderId]: rating }))
+    setRatingDrafts(prev => { const next = { ...prev }; delete next[orderId]; return next })
     try {
       const { data, error } = await supabase.rpc('rate_market_order', {
         p_order_id: orderId,
         p_rating: rating,
+        p_review: review?.trim() || null
       })
       if (error || data?.error) {
         showError('Rating error: ' + (error?.message || data?.error))
@@ -496,7 +499,7 @@ export default function EarningsPage() {
                       {/* Star rating prompt for completed sale/purchase */}
                       {tx.status === 'completed' && (tx.tx_type === 'purchase' || tx.tx_type === 'sale') && tx.metadata?.order_id && (
                         <div style={{
-                          padding: '6px 16px 10px 52px', display: 'flex', alignItems: 'center', gap: 8,
+                          padding: '6px 16px 10px 52px', display: 'flex', flexDirection: 'column', gap: 8,
                           borderBottom: '1px solid var(--border)', background: 'var(--green-50)',
                         }}>
                           {ratedOrders[tx.metadata.order_id] ? (
@@ -505,24 +508,84 @@ export default function EarningsPage() {
                             </span>
                           ) : (
                             <>
-                              <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>Rate:</span>
-                              {[1, 2, 3, 4, 5].map(star => (
-                                <button
-                                  key={star}
-                                  onClick={(e) => { e.stopPropagation(); handleRate(tx.metadata.order_id, star) }}
-                                  onMouseEnter={() => setRatingHover({ txId: tx.tx_id, star })}
-                                  onMouseLeave={() => setRatingHover(null)}
-                                  style={{
-                                    background: 'none', border: 'none', cursor: 'pointer', padding: '2px 1px', fontSize: 18,
-                                    opacity: ratingHover?.txId === tx.tx_id && star <= ratingHover.star ? 1 : 0.3,
-                                    transform: ratingHover?.txId === tx.tx_id && star <= ratingHover.star ? 'scale(1.2)' : 'scale(1)',
-                                    transition: 'all 0.15s',
-                                  }}
-                                  title={`Rate ${star} star${star > 1 ? 's' : ''}`}
-                                >
-                                  ⭐
-                                </button>
-                              ))}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>Rate:</span>
+                                {[1, 2, 3, 4, 5].map(star => {
+                                  const draft = ratingDrafts[tx.metadata.order_id]
+                                  const isActive = ratingHover?.txId === tx.tx_id && star <= ratingHover.star || (draft && star <= draft.star)
+                                  return (
+                                    <button
+                                      key={star}
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setRatingDrafts(prev => ({ ...prev, [tx.metadata.order_id]: { star, review: prev[tx.metadata.order_id]?.review || '' } }))
+                                      }}
+                                      onMouseEnter={() => setRatingHover({ txId: tx.tx_id, star })}
+                                      onMouseLeave={() => setRatingHover(null)}
+                                      style={{
+                                        background: 'none', border: 'none', cursor: 'pointer', padding: '2px 1px', fontSize: 18,
+                                        opacity: isActive ? 1 : 0.3,
+                                        transform: isActive ? 'scale(1.2)' : 'scale(1)',
+                                        transition: 'all 0.15s',
+                                        filter: isActive ? 'none' : 'grayscale(0.5)',
+                                      }}
+                                      title={`Rate ${star} star${star > 1 ? 's' : ''}`}
+                                    >
+                                      ⭐
+                                    </button>
+                                  )
+                                })}
+                              </div>
+
+                              {ratingDrafts[tx.metadata.order_id]?.star > 0 && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 360, marginTop: 4 }}>
+                                  <textarea
+                                    placeholder={ratingDrafts[tx.metadata.order_id].star <= 2 ? "Please tell us what went wrong... (Required)" : "Add a note (optional)"}
+                                    value={ratingDrafts[tx.metadata.order_id].review}
+                                    onClick={e => e.stopPropagation()}
+                                    onChange={(e) => {
+                                      e.stopPropagation()
+                                      const val = e.target.value
+                                      setRatingDrafts(prev => ({ ...prev, [tx.metadata.order_id]: { ...prev[tx.metadata.order_id], review: val } }))
+                                    }}
+                                    style={{
+                                      width: '100%', padding: '8px 10px', border: '1px solid #e5e7eb',
+                                      borderRadius: 6, fontSize: 12, minHeight: 40, resize: 'vertical',
+                                      fontFamily: 'inherit', boxSizing: 'border-box'
+                                    }}
+                                  />
+                                  <div style={{ display: 'flex', gap: 8 }}>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        const draft = ratingDrafts[tx.metadata.order_id]
+                                        handleRate(tx.metadata.order_id, draft.star, draft.review)
+                                      }}
+                                      disabled={ratingDrafts[tx.metadata.order_id].star <= 2 && !ratingDrafts[tx.metadata.order_id].review.trim()}
+                                      style={{
+                                        padding: '6px 12px', 
+                                        background: (ratingDrafts[tx.metadata.order_id].star <= 2 && !ratingDrafts[tx.metadata.order_id].review.trim()) ? '#9ca3af' : 'var(--green-600, #16a34a)',
+                                        color: 'white', border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 12,
+                                        cursor: (ratingDrafts[tx.metadata.order_id].star <= 2 && !ratingDrafts[tx.metadata.order_id].review.trim()) ? 'not-allowed' : 'pointer'
+                                      }}
+                                    >
+                                      Submit Rating
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setRatingDrafts(prev => { const next = { ...prev }; delete next[tx.metadata.order_id]; return next })
+                                      }}
+                                      style={{
+                                        padding: '6px 12px', background: 'none', color: 'var(--gray-500)',
+                                        border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600
+                                      }}
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
                             </>
                           )}
                         </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useMarket, isMarketOpen } from '../../lib/store'
@@ -83,6 +84,8 @@ export function Navbar() {
   // Inline rating modal state
   const [ratingNotif, setRatingNotif] = useState<Notification | null>(null)
   const [ratingHover, setRatingHover] = useState(0)
+  const [ratingValue, setRatingValue] = useState(0)
+  const [ratingReview, setRatingReview] = useState('')
   const [ratingSubmitted, setRatingSubmitted] = useState(false)
 
   // Bug report state
@@ -244,6 +247,8 @@ export function Navbar() {
     if (notif.content.toLowerCase().includes('rate')) {
       setRatingNotif(notif)
       setRatingHover(0)
+      setRatingValue(0)
+      setRatingReview('')
       setRatingSubmitted(false)
       return
     }
@@ -256,14 +261,18 @@ export function Navbar() {
   }, [router])
 
   // Submit inline rating
-  const submitRating = useCallback(async (stars: number) => {
+  const submitRating = useCallback(async (stars: number, reviewText?: string) => {
     if (!ratingNotif) return
     setRatingSubmitted(true)
     const supabase = createClient()
     // Extract order ID from link_url (e.g. /orders/uuid or /earnings)
     const orderMatch = ratingNotif.link_url?.match(/\/orders\/([a-f0-9-]+)/)
     if (orderMatch) {
-      await supabase.rpc('rate_market_order', { p_order_id: orderMatch[1], p_rating: stars })
+      await supabase.rpc('rate_market_order', { 
+        p_order_id: orderMatch[1], 
+        p_rating: stars, 
+        p_review: reviewText?.trim() || null 
+      })
     }
     // Remove the notification
     await supabase.from('market_notifications').delete().eq('id', ratingNotif.id)
@@ -468,7 +477,7 @@ export function Navbar() {
             )}
 
             {/* Inline Rating Modal */}
-            {ratingNotif && (
+            {ratingNotif && typeof document !== 'undefined' && createPortal(
               <div style={{
                 position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
                 background: 'rgba(0,0,0,0.4)', zIndex: 10001,
@@ -494,39 +503,73 @@ export function Navbar() {
                         {ratingNotif.content.replace(/^[^a-zA-Z]*/, '').replace(/\. Rate.*$/i, '')}
                       </p>
                       <div style={{ display: 'flex', justifyContent: 'center', gap: 8, padding: '8px 0' }}>
-                        {[1, 2, 3, 4, 5].map(star => (
-                          <button
-                            key={star}
-                            onClick={() => submitRating(star)}
-                            onMouseEnter={() => setRatingHover(star)}
-                            onMouseLeave={() => setRatingHover(0)}
+                        {[1, 2, 3, 4, 5].map(star => {
+                          const isActive = ratingHover >= star || (!ratingHover && ratingValue >= star)
+                          return (
+                            <button
+                              key={star}
+                              onClick={() => setRatingValue(star)}
+                              onMouseEnter={() => setRatingHover(star)}
+                              onMouseLeave={() => setRatingHover(0)}
+                              style={{
+                                background: 'none', border: 'none', cursor: 'pointer',
+                                fontSize: 36, padding: '4px 2px',
+                                transform: isActive ? 'scale(1.15)' : 'scale(1)',
+                                opacity: isActive ? 1 : 0.3,
+                                transition: 'all 0.15s ease',
+                                filter: isActive ? 'none' : 'grayscale(0.5)',
+                              }}
+                            >
+                              ⭐
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      {ratingValue > 0 && (
+                        <div style={{ marginTop: 12, animation: 'slideUp 0.2s ease-out' }}>
+                          <textarea
+                            placeholder={ratingValue <= 2 ? "Please tell us what went wrong... (Required)" : "Add a note (optional)"}
+                            value={ratingReview}
+                            onChange={(e) => setRatingReview(e.target.value)}
                             style={{
-                              background: 'none', border: 'none', cursor: 'pointer',
-                              fontSize: 36, padding: '4px 2px',
-                              transform: ratingHover >= star ? 'scale(1.2)' : 'scale(1)',
-                              opacity: ratingHover >= star ? 1 : 0.3,
-                              transition: 'all 0.15s ease',
-                              filter: ratingHover >= star ? 'none' : 'grayscale(0.5)',
+                              width: '100%', padding: '10px 12px', border: '1px solid #e5e7eb',
+                              borderRadius: 8, fontSize: 13, minHeight: 60, resize: 'vertical',
+                              fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 12
+                            }}
+                          />
+                          <button
+                            onClick={() => submitRating(ratingValue, ratingReview)}
+                            disabled={ratingValue <= 2 && !ratingReview.trim()}
+                            style={{
+                              width: '100%', padding: '10px', 
+                              background: (ratingValue <= 2 && !ratingReview.trim()) ? '#9ca3af' : 'var(--green-600, #16a34a)',
+                              color: 'white', border: 'none', borderRadius: 8, fontWeight: 600,
+                              cursor: (ratingValue <= 2 && !ratingReview.trim()) ? 'not-allowed' : 'pointer'
                             }}
                           >
-                            ⭐
+                            Submit Rating
                           </button>
-                        ))}
-                      </div>
-                      <button
-                        onClick={() => setRatingNotif(null)}
-                        style={{
-                          display: 'block', width: '100%', background: 'none', border: 'none',
-                          color: '#9ca3af', fontSize: 13, padding: '8px 0 0', cursor: 'pointer',
-                          textAlign: 'center',
-                        }}
-                      >
-                        Skip for now
-                      </button>
+                        </div>
+                      )}
+
+                      {!ratingValue && (
+                        <button
+                          onClick={() => setRatingNotif(null)}
+                          style={{
+                            display: 'block', width: '100%', background: 'none', border: 'none',
+                            color: '#9ca3af', fontSize: 13, padding: '8px 0 0', cursor: 'pointer',
+                            textAlign: 'center',
+                          }}
+                        >
+                          Skip for now
+                        </button>
+                      )}
                     </>
                   )}
                 </div>
-              </div>
+              </div>,
+              document.body
             )}
           </div>
 

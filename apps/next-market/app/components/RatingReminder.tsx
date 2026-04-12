@@ -19,6 +19,8 @@ export function RatingReminder() {
     role: 'buyer' | 'seller'
   } | null>(null)
   const [hoverStar, setHoverStar] = useState(0)
+  const [ratingValue, setRatingValue] = useState(0)
+  const [ratingReview, setRatingReview] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [dismissed, setDismissed] = useState(false)
   const { showError } = useErrorToast()
@@ -88,6 +90,11 @@ export function RatingReminder() {
       }
     }
 
+    // Check immediately if already loaded
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) check(session.user.id)
+    })
+
     // Listen for auth state — fires when session is restored from storage
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) check(session.user.id)
@@ -96,7 +103,7 @@ export function RatingReminder() {
     return () => subscription.unsubscribe()
   }, [])
 
-  const handleRate = useCallback(async (stars: number) => {
+  const handleRate = useCallback(async (stars: number, reviewText?: string) => {
     if (!order) return
     setSubmitted(true)
     const supabase = createClient()
@@ -104,6 +111,7 @@ export function RatingReminder() {
       await supabase.rpc('rate_market_order', {
         p_order_id: order.id,
         p_rating: stars,
+        p_review: reviewText?.trim() || null
       })
     } catch (e) {
       console.error('Rating failed:', e)
@@ -181,36 +189,70 @@ export function RatingReminder() {
             <div style={{
               display: 'flex', justifyContent: 'center', gap: 8, padding: '8px 0',
             }}>
-              {[1, 2, 3, 4, 5].map(star => (
-                <button
-                  key={star}
-                  onClick={() => handleRate(star)}
-                  onMouseEnter={() => setHoverStar(star)}
-                  onMouseLeave={() => setHoverStar(0)}
-                  style={{
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    fontSize: 32, padding: '4px 2px',
-                    transform: (hoverStar >= star) ? 'scale(1.2)' : 'scale(1)',
-                    opacity: (hoverStar >= star) ? 1 : 0.35,
-                    transition: 'all 0.15s ease',
-                    filter: (hoverStar >= star) ? 'none' : 'grayscale(0.5)',
-                  }}
-                  title={`${star} star${star > 1 ? 's' : ''}`}
-                >
-                  ⭐
-                </button>
-              ))}
+              {[1, 2, 3, 4, 5].map(star => {
+                const isActive = hoverStar >= star || (!hoverStar && ratingValue >= star)
+                return (
+                  <button
+                    key={star}
+                    onClick={() => setRatingValue(star)}
+                    onMouseEnter={() => setHoverStar(star)}
+                    onMouseLeave={() => setHoverStar(0)}
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      fontSize: 32, padding: '4px 2px',
+                      transform: isActive ? 'scale(1.15)' : 'scale(1)',
+                      opacity: isActive ? 1 : 0.35,
+                      transition: 'all 0.15s ease',
+                      filter: isActive ? 'none' : 'grayscale(0.5)',
+                    }}
+                    title={`${star} star${star > 1 ? 's' : ''}`}
+                  >
+                    ⭐
+                  </button>
+                )
+              })}
             </div>
-            <button
-              onClick={handleSkip}
-              style={{
-                display: 'block', width: '100%', background: 'none', border: 'none',
-                color: '#9ca3af', fontSize: 13, padding: '8px 0 0', cursor: 'pointer',
-                textAlign: 'center',
-              }}
-            >
-              Skip for now
-            </button>
+
+            {ratingValue > 0 && (
+              <div style={{ marginTop: 12, animation: 'slideUp 0.2s ease-out' }}>
+                <textarea
+                  placeholder={ratingValue <= 2 ? "Please tell us what went wrong... (Required)" : "Add a note (optional)"}
+                  value={ratingReview}
+                  onChange={(e) => setRatingReview(e.target.value)}
+                  style={{
+                    width: '100%', padding: '10px 12px', border: '1px solid #e5e7eb',
+                    borderRadius: 8, fontSize: 13, minHeight: 60, resize: 'vertical',
+                    fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 12
+                  }}
+                />
+                <button
+                  onClick={() => handleRate(ratingValue, ratingReview)}
+                  disabled={ratingValue <= 2 && !ratingReview.trim()}
+                  style={{
+                    display: 'block', width: '100%', padding: '10px', 
+                    background: (ratingValue <= 2 && !ratingReview.trim()) ? '#9ca3af' : 'var(--green-600, #16a34a)',
+                    color: 'white', border: 'none', borderRadius: 8, fontWeight: 600,
+                    cursor: (ratingValue <= 2 && !ratingReview.trim()) ? 'not-allowed' : 'pointer',
+                    marginBottom: 8
+                  }}
+                >
+                  Submit Rating
+                </button>
+              </div>
+            )}
+
+            {!ratingValue && (
+              <button
+                onClick={handleSkip}
+                style={{
+                  display: 'block', width: '100%', background: 'none', border: 'none',
+                  color: '#9ca3af', fontSize: 13, padding: '8px 0 0', cursor: 'pointer',
+                  textAlign: 'center',
+                }}
+              >
+                Skip for now
+              </button>
+            )}
           </>
         )}
       </div>
