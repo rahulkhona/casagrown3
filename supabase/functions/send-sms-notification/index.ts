@@ -31,9 +31,13 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
 
     // Must be superadmin or service role
     if (!isServiceRole && adminId) {
-       // Ideally we check if `adminId` is a superadmin, but this function is internal-only.
-       // Let's just strictly enforce service-role for internal dispatch.
        return jsonError("Only service_role can dispatch SMS", corsHeaders, 403);
+    }
+
+    // ── Global Feature Flag Check ──
+    const enableSms = Deno.env.get("ENABLE_PHONE_VERIFICATION") === "true" || Deno.env.get("NEXT_PUBLIC_ENABLE_PHONE_VERIFICATION") === "true";
+    if (!enableSms) {
+        return jsonOk({ success: true, message: "Skipped: SMS feature flag is disabled" }, corsHeaders);
     }
 
     // ── Check if user has push subscriptions ──
