@@ -65,6 +65,7 @@ function NewProductPageInner() {
   const returnTo = searchParams.get('returnTo')
   const isRelist = searchParams.get('relist') === 'true'
   const isEditMode = !!editId
+  const [editingInactive, setEditingInactive] = useState(false)
   const [prefilled, setPrefilled] = useState(false)
   const { state, dispatch } = useMarket()
   const { isAuthenticated, loading: authLoading, user: authUser } = useAuth()
@@ -415,6 +416,15 @@ function NewProductPageInner() {
       // Load per-product fulfillment overrides
       if (data.delivery_radius_miles != null) setInlineDeliveryRadius(data.delivery_radius_miles)
       if (data.pickup_address) setInlinePickupAddress(data.pickup_address)
+      // Detect if product is inactive — trigger relist mode automatically
+      if (!data.is_active && !data.is_draft) {
+        setEditingInactive(true)
+        setRelistBannerVisible(true)
+        // Reset fulfillment windows to today/tomorrow
+        setSelectedDates([todayStr, tomorrowStr])
+        setProductDeliveryWindows({ [todayStr]: [], [tomorrowStr]: [] })
+        setProductPickupWindows({ [todayStr]: [], [tomorrowStr]: [] })
+      }
     }
     loadProduct()
   }, [editId]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -1227,7 +1237,7 @@ function NewProductPageInner() {
   return (
     <div className={styles.page}>
       <div className={styles.container}>
-        <h1 className={styles.title}>{isRelist ? 'Re-list Product' : isEditMode ? 'Edit Product' : 'Add Product'}</h1>
+        <h1 className={styles.title}>{(isRelist || editingInactive) ? 'Re-list Product' : isEditMode ? 'Edit Product' : 'Add Product'}</h1>
 
         {prefilled && (
           <div style={{
@@ -1906,6 +1916,7 @@ function NewProductPageInner() {
               ? '🚫 Quarantined — Cannot List'
               : (photos.length === 0 || !priceUsd || !quantity) 
                 ? 'Save Draft' 
+                : (isRelist || editingInactive) ? '🌱 Re-list & Publish'
                 : (isEditMode ? 'Save Changes' : '🌱 Publish Product')
             }
           </button>
