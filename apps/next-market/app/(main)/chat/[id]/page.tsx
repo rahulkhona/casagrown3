@@ -14,6 +14,9 @@ export default function ChatConversationPage({ params }: { params: Promise<{ id:
   const order = conv ? state.orders.find(o => o.id === conv.orderId) : null
   const [text, setText] = useState('')
   const [passcodeInput, setPasscodeInput] = useState('')
+  const [showRejectForm, setShowRejectForm] = useState(false)
+  const [rejectReason, setRejectReason] = useState('Out of stock')
+  const [customRejectReason, setCustomRejectReason] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const isSeller = conv?.sellerId === state.user?.id
   const isBuyer = conv?.buyerId === state.user?.id
@@ -37,10 +40,11 @@ export default function ChatConversationPage({ params }: { params: Promise<{ id:
     sendSystemMessage(`${state.user!.name} accepted the order.`)
     dispatch({ type: 'ADD_TOAST', payload: { message: 'Order accepted ✓', type: 'success' } })
   }
-  const handleReject = () => {
+  const handleReject = (reason: string) => {
     dispatch({ type: 'UPDATE_ORDER_STATUS', payload: { orderId: order!.id, status: 'rejected' } })
-    sendSystemMessage(`${state.user!.name} rejected the order. Payment hold released.`)
+    sendSystemMessage(`${state.user!.name} rejected the order. Reason: ${reason}. Payment hold released.`)
     dispatch({ type: 'ADD_TOAST', payload: { message: 'Order rejected. Payment reversed.', type: 'info' } })
+    setShowRejectForm(false)
   }
   const handleMarkDelivered = () => {
     dispatch({ type: 'UPDATE_ORDER_STATUS', payload: { orderId: order!.id, status: 'delivered', proofPhotos: ['proof.jpg'] } })
@@ -123,8 +127,41 @@ export default function ChatConversationPage({ params }: { params: Promise<{ id:
           {/* Seller actions */}
           {isSeller && order.status === 'pending' && (
             <div className={styles.actionGroup}>
-              <button className="btn btn-primary btn-sm" onClick={handleAccept}>✓ Accept Order</button>
-              <button className="btn btn-danger btn-sm" onClick={handleReject}>✕ Reject</button>
+              {!showRejectForm ? (
+                <>
+                  <button className="btn btn-primary btn-sm" onClick={handleAccept}>✓ Accept Order</button>
+                  <button className="btn btn-danger btn-sm" onClick={() => setShowRejectForm(true)}>✕ Reject</button>
+                </>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', maxWidth: 400 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--gray-700)' }}>Reason for rejection:</span>
+                  <select className="input" value={rejectReason} onChange={e => setRejectReason(e.target.value)} style={{ padding: '8px 12px' }}>
+                    <option value="Out of stock">Out of stock</option>
+                    <option value="Cannot fulfill at requested time">Cannot fulfill at requested time</option>
+                    <option value="Item no longer available">Item no longer available</option>
+                    <option value="Other">Other (please specify)</option>
+                  </select>
+                  {rejectReason === 'Other' && (
+                    <input 
+                      className="input" 
+                      placeholder="Type reason here..." 
+                      value={customRejectReason} 
+                      onChange={e => setCustomRejectReason(e.target.value)} 
+                    />
+                  )}
+                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                    <button className="btn btn-danger btn-sm" onClick={() => {
+                        const finalReason = rejectReason === 'Other' ? customRejectReason : rejectReason;
+                        if (rejectReason === 'Other' && !finalReason.trim()) {
+                           dispatch({ type: 'ADD_TOAST', payload: { message: 'Please provide a reason', type: 'error' } })
+                           return;
+                        }
+                        handleReject(finalReason);
+                    }}>Confirm Rejection</button>
+                    <button className="btn btn-secondary btn-sm" onClick={() => setShowRejectForm(false)}>Cancel</button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           {isSeller && order.status === 'accepted' && (
