@@ -132,6 +132,11 @@ function NewProductPageInner() {
   const [aiAnalyzing, setAiAnalyzing] = useState(false)
   const [aiToast, setAiToast] = useState<string | null>(null)
 
+  // Price suggestion
+  const [suggestedPrice, setSuggestedPrice] = useState<{ price_usd: number; unit: string; source: string } | null>(null)
+  const [suggestingPrice, setSuggestingPrice] = useState(false)
+  const lastPriceCheck = useRef('')
+
   // Quarantine check
   const [quarantineWarning, setQuarantineWarning] = useState<{
     pest_name: string; county_name: string; source_url?: string; reason?: string; keywords: string[];
@@ -219,12 +224,8 @@ function NewProductPageInner() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const { showPrompt, modalProps } = useNotificationPrompt(authUser?.id)
 
-  // Auto-open camera when ?camera=true is present (photo-first flow from market FAB)
+  // Request location permission early — needed for quarantine zone checks
   useEffect(() => {
-    if (searchParams.get('camera') === 'true' && !isEditMode && photos.length === 0) {
-      setShowCamera(true)
-    }
-    // Request location permission early — needed for quarantine zone checks
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         () => { /* permission granted */ },
@@ -235,6 +236,85 @@ function NewProductPageInner() {
       )
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Price suggestion: two-tier (local average → AI fallback)
+  useEffect(() => {
+    if (!name || name.trim().length < 3) {
+      setSuggestedPrice(null)
+      return
+    }
+    const timer = setTimeout(async () => {
+      const trimmed = name.trim()
+      // Extract last word as the base noun ("Heirloom Tomatoes" → "Tomatoes")
+      const words = trimmed.split(/\s+/)
+      const baseNoun = words[words.length - 1]
+      if (baseNoun === lastPriceCheck.current) return
+      lastPriceCheck.current = baseNoun
+
+      if (!authUser) return
+      setSuggestingPrice(true)
+
+      try {
+        // Tier 1: query local products in the same neighborhood
+        const { data: profile } = await supabase
+          .from('profiles').select('home_community_h3_index, city, state_code')
+          .eq('id', authUser.id).single()
+        const h3 = profile?.home_community_h3_index
+
+        if (h3) {
+          // Find active products from sellers in same neighborhood matching the base noun
+          const { data: localProducts } = await supabase
+            .from('market_products')
+            .select('price_usd, unit, seller_id, name')
+            .ilike('name', `%${baseNoun}%`)
+            .eq('is_active', true)
+            .order('created_at', { ascending: false })
+            .limit(50)
+
+          // Filter to same-neighborhood sellers
+          if (localProducts && localProducts.length > 0) {
+            const sellerIds = [...new Set(localProducts.map(p => p.seller_id))]
+            const { data: neighborSellers } = await supabase
+              .from('profiles').select('id')
+              .eq('home_community_h3_index', h3)
+              .in('id', sellerIds)
+
+            if (neighborSellers && neighborSellers.length > 0) {
+              const neighborIds = new Set(neighborSellers.map(s => s.id))
+              const matches = localProducts.filter(p => neighborIds.has(p.seller_id))
+
+              if (matches.length >= 3) {
+                const avg = matches.reduce((sum, p) => sum + Number(p.price_usd), 0) / matches.length
+                // Most common unit
+                const unitCounts: Record<string, number> = {}
+                matches.forEach(p => { unitCounts[p.unit] = (unitCounts[p.unit] || 0) + 1 })
+                const topUnit = Object.entries(unitCounts).sort((a, b) => b[1] - a[1])[0][0]
+                setSuggestedPrice({ price_usd: Math.round(avg * 100) / 100, unit: topUnit, source: 'neighborhood_average' })
+                setSuggestingPrice(false)
+                return
+              }
+            }
+          }
+        }
+
+        // Tier 2: AI fallback
+        const res = await supabase.functions.invoke('suggest-product-price', {
+          body: { name: trimmed, state: profile?.state_code, city: profile?.city }
+        })
+        if (res.data && typeof res.data.price_usd === 'number' && res.data.price_usd > 0 && !res.data.error) {
+          setSuggestedPrice(res.data)
+        } else {
+          setSuggestedPrice(null)
+        }
+      } catch (err) {
+        console.warn('Price suggestion failed:', err)
+        setSuggestedPrice(null)
+      } finally {
+        setSuggestingPrice(false)
+      }
+    }, 700)
+    return () => clearTimeout(timer)
+  }, [name, authUser, supabase]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Check if user already has a booth
   useEffect(() => {
@@ -1173,7 +1253,7 @@ function NewProductPageInner() {
 
           {/* ===== Photos with cropping ===== */}
           <div className={styles.section}>
-            <label className={styles.label}>Photos <span className={styles.required}>*</span></label>
+            <label className={styles.label}>Photos {photos.length > 0 ? <span style={{ color: 'var(--green-600)' }}>✓</span> : <span className={styles.required}>*</span>}</label>
             {errors.photo && <span className={styles.error}>{errors.photo}</span>}
             {photos.length > 0 ? (
               <div className={styles.photoGallery}>
@@ -1281,8 +1361,8 @@ function NewProductPageInner() {
           <div className={styles.section}>
             <div className={styles.row2}>
               <div className={styles.field}>
-                <label className={styles.label}>Name <span className={styles.required}>*</span></label>
-                <input className={`${styles.input} ${errors.name ? styles.inputError : ''}`} value={name} onChange={e => { setName(e.target.value); setErrors(p => ({ ...p, name: '' })) }} placeholder="e.g. Heritage Tomatoes" />
+                <label className={styles.label}>Name {name.trim() ? <span style={{ color: 'var(--green-600)' }}>✓</span> : <span className={styles.required}>*</span>}</label>
+                <input className={`${styles.input} ${errors.name ? styles.inputError : name.trim() ? styles.inputFilled : styles.inputRequired}`} value={name} onChange={e => { setName(e.target.value); setErrors(p => ({ ...p, name: '' })) }} onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }} placeholder="e.g. Heritage Tomatoes" />
                 {errors.name && <span className={styles.error}>{errors.name}</span>}
               </div>
               <div className={styles.field}>
@@ -1342,7 +1422,7 @@ function NewProductPageInner() {
             <div className={styles.row2}>
               <div className={styles.field}>
                 <label className={styles.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>Price {restriction.isFreeOnly ? <span style={{ color: '#16a34a', fontWeight: 600 }}>(Free)</span> : <span className={styles.required}>*</span>}</span>
+                  <span>Price {restriction.isFreeOnly ? <span style={{ color: '#16a34a', fontWeight: 600 }}>(Free)</span> : (priceUsd || isFree) ? <span style={{ color: 'var(--green-600)' }}>✓</span> : <span className={styles.required}>*</span>}</span>
                   {!restriction.isFreeOnly && (
                     <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 'normal', cursor: 'pointer', color: '#15803d' }}>
                       <input 
@@ -1367,18 +1447,42 @@ function NewProductPageInner() {
                 <div className={styles.priceInput}>
                   <span className={styles.priceCurrency}>$</span>
                   <input
-                    className={`${styles.input} ${styles.priceField} ${errors.price ? styles.inputError : ''}`}
+                    className={`${styles.input} ${styles.priceField} ${errors.price ? styles.inputError : (priceUsd || isFree) ? styles.inputFilled : styles.inputRequired}`}
                     type="number"
                     step="0.01"
                     min="0"
                     value={restriction.isFreeOnly || isFree ? '0' : priceUsd}
                     onChange={e => { if (!restriction.isFreeOnly && !isFree) { setPriceUsd(e.target.value); setErrors(p => ({ ...p, price: '' })) } }}
+                    onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }}
                     placeholder={restriction.isFreeOnly || isFree ? '0.00' : '4.50'}
                     disabled={restriction.isFreeOnly || isFree}
                     style={(restriction.isFreeOnly || isFree) ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
                   />
                 </div>
                 {errors.price && <span className={styles.error}>{errors.price}</span>}
+                {suggestingPrice && !restriction.isFreeOnly && !isFree && (
+                  <div className={styles.fieldHint} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                    <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid var(--green-300)', borderTopColor: 'var(--green-600)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                    Looking up prices in your neighborhood…
+                  </div>
+                )}
+                {suggestedPrice && !restriction.isFreeOnly && !isFree && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPriceUsd(suggestedPrice.price_usd.toString());
+                      setUnit(suggestedPrice.unit);
+                      setErrors(p => ({ ...p, price: '' }));
+                    }}
+                    style={{
+                      marginTop: 6, padding: '6px 12px', background: 'var(--green-50)', border: '1px solid var(--green-200)', borderRadius: 'var(--radius, 6px)',
+                      fontSize: 12, color: 'var(--green-800)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
+                    }}
+                  >
+                    💡 {suggestedPrice.source === 'neighborhood_average' ? 'Avg nearby' : 'Suggested'}: ${suggestedPrice.price_usd.toFixed(2)}/{suggestedPrice.unit} — tap to use
+                  </button>
+                )}
               </div>
               <div className={styles.field}>
                 <label className={styles.label}>Per</label>
@@ -1390,8 +1494,9 @@ function NewProductPageInner() {
               </div>
             </div>
             <div className={styles.field}>
-              <label className={styles.label}>Available Quantity <span className={styles.required}>*</span></label>
-              <input className={`${styles.input} ${errors.quantity ? styles.inputError : ''}`} type="number" min="1" value={quantity} onChange={e => { setQuantity(e.target.value); setErrors(p => ({ ...p, quantity: '', minimum: '' })) }} placeholder="10" />
+              <label className={styles.label}>Available Quantity {quantity && parseInt(quantity) > 0 ? <span style={{ color: 'var(--green-600)' }}>✓</span> : <span className={styles.required}>*</span>}</label>
+              <div className={styles.fieldHint}>Enter your estimated minimum available quantity so we can prevent orders when you&apos;re sold out.</div>
+              <input className={`${styles.input} ${errors.quantity ? styles.inputError : (quantity && parseInt(quantity) > 0) ? styles.inputFilled : styles.inputRequired}`} type="number" min="1" value={quantity} onChange={e => { setQuantity(e.target.value); setErrors(p => ({ ...p, quantity: '', minimum: '' })) }} onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }} placeholder="10" />
               {errors.quantity && <span className={styles.error}>{errors.quantity}</span>}
             </div>
           </div>

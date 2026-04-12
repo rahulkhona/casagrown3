@@ -639,3 +639,8 @@ entrypoint = "./functions/casabot-starter-post/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/webhook-twilio/index.ts"
+
+[functions.suggest-product-price]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/suggest-product-price/index.ts"

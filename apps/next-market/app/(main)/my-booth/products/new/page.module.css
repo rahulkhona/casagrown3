@@ -27,6 +27,14 @@
 }
 .input:focus { outline: none; border-color: var(--green-400); }
 .inputError { border-color: var(--red-400) !important; }
+.inputRequired { border-left: 3px solid var(--red-300); }
+.inputFilled { border-left: 3px solid var(--green-400); }
+.fieldHint {
+  margin: 4px 0 8px; padding: 10px 12px;
+  background: var(--green-50); border: 1px solid var(--green-200);
+  border-radius: var(--radius-lg, 8px); font-size: 12px;
+  color: var(--green-800, #166534); line-height: 1.5;
+}
 
 /* Market Day Banner — static display */
 .marketDayBanner {

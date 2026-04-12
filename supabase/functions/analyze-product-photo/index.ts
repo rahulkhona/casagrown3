@@ -148,8 +148,11 @@ Rules:
     const aiData = await aiRes.json();
     const raw = aiData.choices?.[0]?.message?.content ?? "";
 
-    // Parse JSON from response (strip markdown fences if present)
-    const jsonStr = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    // Parse JSON from response (strip markdown fences and Gemma thought tags if present)
+    const jsonStr = raw
+      .replace(/```json\n?/g, "").replace(/```\n?/g, "")
+      .replace(/<thought>[\s\S]*?<\/thought>/g, "")
+      .trim();
     let result;
     try {
       result = JSON.parse(jsonStr);

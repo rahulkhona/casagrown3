@@ -1088,7 +1088,7 @@ function BrowseMarketPageInner() {
               Transactions are not available for demo listings.
             </p>
             <Link
-              href={user ? "/my-booth/products/new?camera=true" : "/login?redirect=%2Fmy-booth%2Fproducts%2Fnew%3Fcamera%3Dtrue"}
+              href={user ? "/my-booth/products/new" : "/login?redirect=%2Fmy-booth%2Fproducts%2Fnew"}
               style={{
                 display: 'block', padding: '14px 24px', borderRadius: 12,
                 background: 'linear-gradient(135deg, #16a34a, #15803d)',
@@ -1115,7 +1115,7 @@ function BrowseMarketPageInner() {
 
       {/* Sell Something FAB — visible when market is open and user is authenticated */}
       <Link
-          href={user ? "/my-booth/products/new?camera=true" : "/login?redirect=%2Fmy-booth%2Fproducts%2Fnew%3Fcamera%3Dtrue"}
+          href={user ? "/my-booth/products/new" : "/login?redirect=%2Fmy-booth%2Fproducts%2Fnew"}
           id="sell-fab"
           style={{
             position: 'fixed', bottom: 80, right: 24,
@@ -1129,7 +1129,7 @@ function BrowseMarketPageInner() {
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)' }}
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}
         >
-          {marketIsOpen ? '📸 Sell Excess Produce' : '📸 List for Next Market'}
+          {marketIsOpen ? '🌱 Sell Something' : '🌱 List for Next Market'}
         </Link>
         
         {/* Global Share Modal */}

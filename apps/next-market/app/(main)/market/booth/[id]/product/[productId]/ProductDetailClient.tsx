@@ -630,7 +630,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                     Want to see real listings like this? Start selling to your neighbors!
                   </p>
                   <Link
-                    href={user ? '/my-booth/products/new?camera=true' : '/login?redirect=%2Fmy-booth%2Fproducts%2Fnew%3Fcamera%3Dtrue'}
+                    href={user ? '/my-booth/products/new' : '/login?redirect=%2Fmy-booth%2Fproducts%2Fnew'}
                     style={{
                       display: 'inline-block', padding: '12px 28px', borderRadius: 12,
                       background: 'linear-gradient(135deg, #16a34a, #15803d)',

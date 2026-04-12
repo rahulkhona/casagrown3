@@ -121,13 +121,13 @@ export default function PioneerBanner({ memberCount, communityH3, onDismiss }: P
             }}>
               💬 Visit Community
             </Link>
-            <Link href={user ? "/my-booth/products/new?camera=true" : "/login?redirect=%2Fmy-booth%2Fproducts%2Fnew%3Fcamera%3Dtrue"} style={{
+            <Link href={user ? "/my-booth/products/new" : "/login?redirect=%2Fmy-booth%2Fproducts%2Fnew"} style={{
               display: 'inline-flex', alignItems: 'center', gap: 5,
               padding: '8px 16px', borderRadius: 999,
               background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0',
               fontSize: 12, fontWeight: 600, textDecoration: 'none',
             }}>
-              📸 List Produce
+              🌱 List Produce
             </Link>
           </div>
 
