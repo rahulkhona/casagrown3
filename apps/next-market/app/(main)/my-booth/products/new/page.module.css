@@ -1,6 +1,6 @@
 .page {
   min-height: calc(100vh - 64px);
-  background: linear-gradient(180deg, var(--green-50) 0%, #fff 20%);
+  background: #fff;
   padding: 0 20px 80px;
 }
 .container { max-width: 520px; margin: 0 auto; padding-top: 24px; }
