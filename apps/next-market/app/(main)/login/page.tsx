@@ -7,6 +7,7 @@ import { useMarket } from '../../../lib/store'
 import { createClient } from '../../../lib/supabase'
 import { needsTosAcceptance } from '../../../lib/legal'
 import { trackFormSubmit, trackError } from '../../../lib/analytics'
+import { getReferralData, getTouchHistory, clearReferralData } from '../../../lib/useReferralCapture'
 import styles from './page.module.css'
 
 function LoginPageInner() {
@@ -54,7 +55,10 @@ function LoginPageInner() {
     setLoading(true)
     setError('')
 
-    const { error: otpError } = await supabase.auth.signInWithOtp({ email })
+    const { error: otpError } = await supabase.auth.signInWithOtp({
+      email,
+      options: { data: getReferralData() },
+    })
 
     if (otpError) {
       trackError('login_otp_send_failed', { error: otpError.message })
@@ -89,6 +93,27 @@ function LoginPageInner() {
 
     if (data.user) {
       dispatch({ type: 'LOGIN', payload: { email } })
+
+      // Insert referral touch history into the database
+      try {
+        const touchHistory = getTouchHistory()
+        if (touchHistory.length > 0) {
+          const rows = touchHistory.map(t => ({
+            user_id: data.user!.id,
+            source: t.source,
+            referrer_id: t.referrer_id || null,
+            utm_source: t.utm_source || null,
+            utm_medium: t.utm_medium || null,
+            utm_campaign: t.utm_campaign || null,
+            landing_url: t.landing_url || null,
+            touched_at: t.landed_at,
+          }))
+          await supabase.from('referral_touches').insert(rows)
+        }
+        clearReferralData()
+      } catch (err) {
+        console.warn('Failed to save referral touches:', err)
+      }
 
       // Check ToS acceptance
       const { data: profile } = await supabase

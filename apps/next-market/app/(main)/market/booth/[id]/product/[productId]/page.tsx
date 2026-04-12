@@ -27,10 +27,10 @@ export async function generateMetadata(
 
     if (product) {
       const photo = product.photos?.[0]
-      // Use Next.js image optimization to resize for OG (WhatsApp needs < ~300KB)
+      // Use Next.js image optimization to resize for OG (WhatsApp needs < ~300KB), or fallback to default image
       const ogImage = photo
         ? `${siteUrl}/_next/image?url=${encodeURIComponent(photo)}&w=1200&q=75`
-        : undefined
+        : `${siteUrl}/og-share.jpg`
       const price = product.price_usd === 0 ? 'Free' : `$${Number(product.price_usd).toFixed(2)}/${product.unit}`
       const title = `${product.name} — ${price} on CasaGrown`
       const description = product.description

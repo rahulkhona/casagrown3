@@ -1946,3 +1946,44 @@
   font-weight: 600;
   box-shadow: 0 1px 4px rgba(22, 163, 74, 0.15);
 }
+
+/* ─── Guest Compose CTA Bar ─────────────────────────────────── */
+.guestComposeCta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, var(--green-50), var(--amber-50));
+  border-top: 1px solid var(--green-200);
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+}
+
+.guestComposeText {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--gray-700);
+  line-height: 1.4;
+}
+
+.guestComposeBtn {
+  padding: 0.5rem 1.25rem;
+  background: var(--green-600);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-full);
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+}
+
+.guestComposeBtn:hover {
+  background: var(--green-700);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}

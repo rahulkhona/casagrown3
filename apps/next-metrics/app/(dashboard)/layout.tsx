@@ -107,6 +107,7 @@ const NAV_ITEMS = [
   { href: '/health', label: 'Marketplace Health', icon: '🏪' },
   { href: '/settlements', label: 'Settlements', icon: '🏦' },
   { href: '/community', label: 'Community Chat', icon: '💬' },
+  { href: '/attribution', label: 'Attribution', icon: '🎯' },
   { href: '/logs', label: 'Log Search', icon: '🔍' },
 ]
 

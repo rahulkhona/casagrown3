@@ -19,6 +19,8 @@ interface ChatMessageProps {
   onEdit?: (messageId: string, newContent: string) => Promise<void>
   /** If true, this message is inside a thread view — hide reply/thread actions */
   isThreadReply?: boolean
+  /** If true, the viewer is not authenticated — disable all write actions */
+  isGuest?: boolean
 }
 
 const EMOJIS = ['👍', '❤️', '🎉', '😂', '😮', '🌱']
@@ -34,7 +36,7 @@ function formatTime(dateStr?: string) {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ', ' + timeStr
 }
 
-export default function ChatMessage({ message, currentUserId, onDelete, onFlag, onReply, onEdit, isThreadReply }: ChatMessageProps) {
+export default function ChatMessage({ message, currentUserId, onDelete, onFlag, onReply, onEdit, isThreadReply, isGuest }: ChatMessageProps) {
   const [showActions, setShowActions] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
   const [richShareInfo, setRichShareInfo] = useState<string | null>(null)
@@ -88,7 +90,7 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
   }, [message.reply_count, message.id, isThreadReply])
 
   const handleToggleReaction = async (emoji: string) => {
-    if (!currentUserId) return
+    if (!currentUserId || isGuest) return
     const hasReacted = userReactions.includes(emoji)
     
     if (hasReacted) {
@@ -173,7 +175,7 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
           {isBot && <span className={styles.botBadge}>BOT</span>}
           
           {/* NEW: Inline Message Action */}
-          {!isOwnMessage && !isBot && (
+          {!isOwnMessage && !isBot && !isGuest && (
             <a 
               href={`/messages/new?userId=${message.author_id}&name=${encodeURIComponent(message.author_name || 'Neighbor')}`}
               style={{ fontSize: '0.75rem', background: '#dcfce3', border: '1px solid #86efac', padding: '2px 8px', borderRadius: '12px', marginLeft: 6, color: '#166534', textDecoration: 'none', fontWeight: 500 }}
@@ -183,7 +185,7 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
             </a>
           )}
 
-          {isOwnMessage && !isBot && (
+          {isOwnMessage && !isBot && !isGuest && (
             <div style={{ display: 'flex', gap: 6, marginLeft: 8 }}>
               <button 
                 onClick={(e) => { e.stopPropagation(); setIsEditing(true) }} 
@@ -273,7 +275,7 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
               onClick={(e) => { e.stopPropagation(); setShowActions(false) }} 
             />
             <div className={styles.tapActionBar} style={{ zIndex: 50, position: 'relative' }}>
-            {EMOJIS.map(emoji => (
+            {!isGuest && EMOJIS.map(emoji => (
               <button 
                 key={emoji} 
                 onClick={() => { handleToggleReaction(emoji); setShowActions(false) }} 
@@ -282,11 +284,11 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
                 {emoji}
               </button>
             ))}
-            <span className={styles.tapActionDivider} />
+            {!isGuest && <span className={styles.tapActionDivider} />}
             <button className={styles.tapActionBtn} onClick={handleShare} title="Share">
               <ShareIcon size={14} />
             </button>
-            {isOwnMessage ? (
+            {!isGuest && (isOwnMessage ? (
               <button 
                 className={`${styles.tapActionBtn} ${styles.tapActionDanger}`} 
                 onClick={() => { setShowActions(false); onDelete() }}
@@ -302,7 +304,7 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
               >
                 ⚑
               </button>
-            )}
+            ))}
           </div>
           </>
         )}
@@ -355,15 +357,21 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
                 <div className={styles.threadReplyContent}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span className={styles.threadReplyAuthor}>{reply.author_name || 'Neighbor'}</span>
-                    {reply.author_id !== '00000000-0000-0000-0000-000000000000' && currentUserId !== reply.author_id && (
-                      <a 
-                        href={`/messages/new?userId=${reply.author_id}&name=${encodeURIComponent(reply.author_name || 'Neighbor')}`}
-                        style={{ fontSize: '0.65rem', background: '#dcfce3', border: '1px solid #86efac', padding: '1px 6px', borderRadius: '12px', color: '#166534', textDecoration: 'none', fontWeight: 500 }}
-                        title="Send a Direct Message"
-                      >
-                        💬 DM
-                      </a>
-                    )}
+                    {(() => {
+                      const isReplyBot = reply.is_system ||
+                        reply.author_name === 'CasaBot' ||
+                        reply.author_id === '00000000-0000-0000-0000-000000000000' ||
+                        reply.author_id === 'a0000000-0000-0000-0000-00000ca5ab07'
+                      return !isGuest && !isReplyBot && currentUserId !== reply.author_id ? (
+                        <a 
+                          href={`/messages/new?userId=${reply.author_id}&name=${encodeURIComponent(reply.author_name || 'Neighbor')}`}
+                          style={{ fontSize: '0.65rem', background: '#dcfce3', border: '1px solid #86efac', padding: '1px 6px', borderRadius: '12px', color: '#166534', textDecoration: 'none', fontWeight: 500 }}
+                          title="Send a Direct Message"
+                        >
+                          💬 DM
+                        </a>
+                      ) : null
+                    })()}
                   </div>
                   <span className={styles.threadReplyText}>{reply.content}</span>
                 </div>

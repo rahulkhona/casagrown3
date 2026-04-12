@@ -16,22 +16,22 @@ BEGIN
   -- Get existing booth for this seller
   SELECT id INTO v_booth_id FROM market_booths WHERE owner_id = v_seller_id LIMIT 1;
 
-  -- Product with TODAY's windows (not yet expired during test)
+  -- Product with TOMORROW's windows (always future — never expired during test)
   INSERT INTO market_products (
     id, seller_id, name, category, price_usd, inventory, is_active, market_date,
     product_delivery_windows, product_pickup_windows, window_dates
   ) VALUES (
     'dd390001-0000-0000-0000-000000000001',
-    v_seller_id, 'Today Tomatoes', 'produce', 5.00, 100, true, CURRENT_DATE,
+    v_seller_id, 'Today Tomatoes', 'produce', 5.00, 100, true, CURRENT_DATE + 1,
     jsonb_build_object(
-      to_char(CURRENT_DATE, 'YYYY-MM-DD'),
+      to_char(CURRENT_DATE + 1, 'YYYY-MM-DD'),
       '[{"id":"8-12","start":"08:00","end":"12:00"},{"id":"22-24","start":"22:00","end":"23:59"}]'::jsonb
     ),
     jsonb_build_object(
-      to_char(CURRENT_DATE, 'YYYY-MM-DD'),
+      to_char(CURRENT_DATE + 1, 'YYYY-MM-DD'),
       '[{"id":"9-23","start":"09:00","end":"23:00"}]'::jsonb
     ),
-    jsonb_build_array(to_char(CURRENT_DATE, 'YYYY-MM-DD'))
+    jsonb_build_array(to_char(CURRENT_DATE + 1, 'YYYY-MM-DD'))
   );
 
   -- Product with YESTERDAY's windows (expired, but within 24hr grace)
@@ -80,18 +80,18 @@ SELECT has_function(
   '_get_latest_window_end function exists'
 );
 
--- T2: Delivery window end = today 23:59
+-- T2: Delivery window end = tomorrow 23:59
 SELECT ok(
   _get_latest_window_end('dd390001-0000-0000-0000-000000000001', 'delivery')
-    = (CURRENT_DATE || ' 23:59:00')::TIMESTAMPTZ,
-  'Delivery window end is today 23:59'
+    = ((CURRENT_DATE + 1) || ' 23:59:00')::TIMESTAMPTZ,
+  'Delivery window end is tomorrow 23:59'
 );
 
--- T3: Pickup window end = today 23:00
+-- T3: Pickup window end = tomorrow 23:00
 SELECT ok(
   _get_latest_window_end('dd390001-0000-0000-0000-000000000001', 'pickup')
-    = (CURRENT_DATE || ' 23:00:00')::TIMESTAMPTZ,
-  'Pickup window end is today 23:00'
+    = ((CURRENT_DATE + 1) || ' 23:00:00')::TIMESTAMPTZ,
+  'Pickup window end is tomorrow 23:00'
 );
 
 -- T4: Yesterday product returns yesterday 23:00
@@ -158,7 +158,7 @@ RESET request.jwt.claim.sub;
 
 -- T7: auto_complete_at = pickup_window_end + 24hr
 SELECT ok(
-  (SELECT auto_complete_at = (CURRENT_DATE || ' 23:00:00')::TIMESTAMPTZ + interval '24 hours'
+  (SELECT auto_complete_at = ((CURRENT_DATE + 1) || ' 23:00:00')::TIMESTAMPTZ + interval '24 hours'
    FROM market_orders WHERE id = 'ee390001-0000-0000-0000-000000000002'),
   'Pickup auto_complete_at = window_end + 24hr'
 );

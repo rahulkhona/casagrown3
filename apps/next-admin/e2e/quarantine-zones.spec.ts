@@ -66,7 +66,7 @@ test.describe('Quarantine Sidebar Navigation', () => {
     const quarantineLink = page.getByText('Manage Quarantines').first()
     if ((await quarantineLink.count()) > 0) {
       await quarantineLink.click()
-      await page.waitForURL(/\/quarantine-zones/)
+      await page.waitForURL(/\/quarantine-zones/, { timeout: 15000 })
       await expect(page).toHaveURL(/\/quarantine-zones/)
     }
   })

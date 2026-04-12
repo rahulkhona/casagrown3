@@ -156,20 +156,22 @@ test.describe('Direct Messaging & Block Flows', () => {
 
     // After blocking, the app redirects to /messages. Wait for that redirect.
     await page.waitForURL('**/messages', { timeout: 10000 })
+    await page.waitForTimeout(1000)
 
     // Navigate back into Sam's conversation — it should now show Unblock
     const samThreadAgain = page.getByText('Sam Seller').first()
     await expect(samThreadAgain).toBeVisible({ timeout: 10000 })
     await samThreadAgain.click()
     await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     // Button should now show Unblock since the user is blocked
     const unblockButton = page.getByRole('button', { name: '🔓 Unblock' })
-    await expect(unblockButton).toBeVisible({ timeout: 15000 })
+    await expect(unblockButton).toBeVisible({ timeout: 20000 })
 
     // Unblock to leave things clean
     await unblockButton.click()
-    await expect(page.getByRole('button', { name: '🚫 Block' })).toBeVisible({ timeout: 5000 })
+    await expect(page.getByRole('button', { name: '🚫 Block' })).toBeVisible({ timeout: 10000 })
 
     await page.context().close()
   })

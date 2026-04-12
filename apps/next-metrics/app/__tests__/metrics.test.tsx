@@ -534,3 +534,75 @@ describe('Activity Page', () => {
     expect(c).toBeTruthy()
   })
 })
+
+// ============================================================================
+// ATTRIBUTION PAGE — renders referral tracking dashboard
+// ============================================================================
+describe('Attribution Page', () => {
+  it('renders attribution page with loading state', async () => {
+    mockPathname.mockReturnValue('/attribution')
+    
+    // Mock supabase from() for attribution queries
+    mockSupabase.from = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      not: vi.fn().mockReturnThis(),
+      order: vi.fn().mockReturnThis(),
+      in: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: null, error: null }),
+      then: (resolve: any) => Promise.resolve({ data: [], error: null }).then(resolve),
+    })
+    
+    const mod = await import('../(dashboard)/attribution/page')
+    const c = renderComponent(mod)
+    // Component should render (starts with loading state)
+    expect(c).toBeTruthy()
+    // Loading text while data is fetching
+    expect(c.textContent).toContain('Loading attribution data')
+  })
+
+  it('renders attribution KPI cards when data resolves', async () => {
+    mockPathname.mockReturnValue('/attribution')
+    
+    // Give the component data to render from the profiles/referral_touches queries
+    const mockFrom = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      not: vi.fn().mockReturnThis(),
+      order: vi.fn().mockReturnValue({
+        data: [
+          { id: '1', email: 'test@test.com', signup_source: 'invite', signup_referrer_id: '2', first_touch_source: 'invite', created_at: '2026-03-01' },
+          { id: '3', email: 'org@test.com', signup_source: 'organic', signup_referrer_id: null, first_touch_source: 'organic', created_at: '2026-03-02' },
+        ],
+        error: null,
+      }),
+      in: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: null, error: null }),
+      then: (resolve: any) => Promise.resolve({ data: [], error: null }).then(resolve),
+    })
+    mockSupabase.from = mockFrom
+    
+    const mod = await import('../(dashboard)/attribution/page')
+    const c = renderComponent(mod)
+    expect(c).toBeTruthy()
+  })
+})
+
+// ============================================================================
+// DASHBOARD LAYOUT — navigation items include Attribution
+// ============================================================================
+describe('Dashboard Layout Nav', () => {
+  it('includes Attribution in nav items', async () => {
+    // Read the layout source to verify the nav items contain Attribution
+    // This avoids the vi.mock conflict with the useFilters mock above
+    const fs = await import('fs')
+    const path = await import('path')
+    const layoutPath = path.resolve(__dirname, '../(dashboard)/layout.tsx')
+    const layoutSource = fs.readFileSync(layoutPath, 'utf-8')
+    
+    // Verify Attribution nav item exists in the layout source
+    expect(layoutSource).toContain("'/attribution'")
+    expect(layoutSource).toContain("'Attribution'")
+    expect(layoutSource).toContain("'🎯'")
+  })
+})

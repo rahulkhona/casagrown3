@@ -14,6 +14,7 @@ import { AlphaBanner } from '../components/AlphaBanner'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { GuidedTour } from '../components/GuidedTour'
+import { useReferralCapture } from '../../lib/useReferralCapture'
 
 function BannedOverlay({ reason }: { reason: string | null }) {
   return (
@@ -118,6 +119,9 @@ function OnboardingGate({ children }: { children: React.ReactNode }) {
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const { isBanned, banReason, user } = useAuth()
+
+  // Capture referral/UTM params from URL on every page load
+  useReferralCapture()
 
   // Always show nav — the Navbar/BottomNav handle their own greying
   return (

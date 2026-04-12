@@ -30,18 +30,22 @@ import { checkTextForViolations } from '../../../lib/moderation'
 // Realtime settings
 const BACKGROUND_POLL_INTERVAL = 60000 // 60s fallback when tab is hidden or socket drops
 
+const GUEST_POLL_INTERVAL = 15000 // 15s polling for guest users (no WebSockets)
+
 export interface ClientPageProps {
   initialProfileH3: string | null
   initialMessages: CommunityChatMessage[]
   initialProfileName: string
   initialBuzzWelcomedAt: string | null
+  isGuest?: boolean
 }
 
 export default function ClientPage({
   initialProfileH3,
   initialMessages,
   initialProfileName,
-  initialBuzzWelcomedAt
+  initialBuzzWelcomedAt,
+  isGuest = false,
 }: ClientPageProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -104,6 +108,9 @@ export default function ClientPage({
   useEffect(() => {
     if (loading) return
     
+    // Guest mode: no redirect, no profile check
+    if (isGuest) return
+    
     if (!isAuthenticated || !user) {
       router.push('/login?redirect=/community')
       return
@@ -113,7 +120,7 @@ export default function ClientPage({
       console.warn('User has no home community set')
       setErrorState({ message: 'You need to set your neighborhood location before you can join the Community!', cta: 'Update Profile', action: () => router.push('/profile-setup') })
     }
-  }, [loading, isAuthenticated, user, router, initialProfileH3])
+  }, [loading, isAuthenticated, user, router, initialProfileH3, isGuest])
   
   // 2. Initial scroll to bottom
   const loadMessages = useCallback(async () => {
@@ -187,9 +194,12 @@ export default function ClientPage({
     setTimeout(scrollToInitialPosition, 600)
   }, [])
   
-  // 3. Supabase Realtime (WebSockets) for new messages
+  // 3. Supabase Realtime (WebSockets for authenticated, polling for guests)
   useEffect(() => {
-    if (!profileH3 || isLoading) return
+    // For guests: use polling with a placeholder H3 (RPC ignores it)
+    // For authenticated: use WebSockets with their real H3
+    const effectiveH3 = isGuest ? 'guest' : profileH3
+    if (!effectiveH3 || isLoading) return
     
     let isSubscribed = true
     const checkNewMessages = async () => {
@@ -197,7 +207,7 @@ export default function ClientPage({
       
       try {
         const supabase = createClient()
-        const newMsgs = await fetchCommunityMessages(supabase, profileH3, undefined, 50)
+        const newMsgs = await fetchCommunityMessages(supabase, effectiveH3, undefined, 50)
         
         const tempLocalMsgs = messages.filter(m => m.id.startsWith('temp-'))
         const actualNewMsgs = newMsgs.filter((m: CommunityChatMessage) => {
@@ -250,13 +260,36 @@ export default function ClientPage({
     }
     schedulePoll()
     
-    // ── SUPABASE WEBSOCKET CHANNEL ──
+    // ── GUEST: polling only (no WebSockets) ──
+    let guestPollTimer: NodeJS.Timeout | null = null
+    if (isGuest) {
+      guestPollTimer = setInterval(checkNewMessages, GUEST_POLL_INTERVAL) as unknown as NodeJS.Timeout
+
+      const handleVisChange = () => {
+        clearTimeout(pollTimer)
+        if (document.visibilityState === 'visible') {
+          checkNewMessages()
+        } else {
+          schedulePoll()
+        }
+      }
+      document.addEventListener('visibilitychange', handleVisChange)
+
+      return () => {
+        isSubscribed = false
+        if (guestPollTimer) clearInterval(guestPollTimer)
+        clearTimeout(pollTimer)
+        document.removeEventListener('visibilitychange', handleVisChange)
+      }
+    }
+
+    // ── AUTHENTICATED: WebSocket channel ──
     const supabase = createClient()
     let channel: any = null
 
     const connectWebSocket = () => {
       if (channel) return
-      channel = supabase.channel(`community_chat_${profileH3}`)
+      channel = supabase.channel(`community_chat_${effectiveH3}`)
         .on(
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'community_chat_messages' },
@@ -299,7 +332,7 @@ export default function ClientPage({
       disconnectWebSocket()
       supabase.rpc('update_profile_last_seen').then()
     }
-  }, [profileH3, lastFetchTime, isLoading, isAtBottom, messages, pendingMessages])
+  }, [profileH3, lastFetchTime, isLoading, isAtBottom, messages, pendingMessages, isGuest])
   
   // 4. Infinite Scroll (Older Messages)
   const loadOlderMessages = useCallback(async () => {
@@ -496,7 +529,7 @@ export default function ClientPage({
     setFindActive(true)
   }
 
-  if (!isAuthenticated) return null // Handled by redirect in useEffect
+  if (!isAuthenticated && !isGuest) return null // Handled by redirect in useEffect
   
   if (errorState) {
     return (
@@ -517,7 +550,7 @@ export default function ClientPage({
     )
   }
 
-  if (!profileH3) {
+  if (!profileH3 && !isGuest) {
     return (
       <div className={styles.container}>
         <div className={styles.centerContainer}>
@@ -535,7 +568,7 @@ export default function ClientPage({
         <span className={styles.communityHeaderName}>CasaGrown Community</span>
       </div>
       
-      {!findActive && !notifyActive && <InviteBanner h3Index={profileH3} />}
+      {!findActive && !notifyActive && !isGuest && <InviteBanner h3Index={profileH3 || 'guest'} userId={user?.id} />}
 
 
       {/* Message List Area — or Find/Notify Panel overlay */}
@@ -585,7 +618,8 @@ export default function ClientPage({
                   <ChatMessage 
                     message={msg} 
                     currentUserId={user?.id}
-                    onReply={async (parentId, content) => {
+                    isGuest={isGuest}
+                    onReply={isGuest ? undefined : async (parentId, content) => {
                       const supabase = createClient()
                       const replyId = await sendCommunityMessage(supabase, {
                         h3Index: profileH3!,
@@ -670,25 +704,37 @@ export default function ClientPage({
         />
       )}
 
-      {/* Compose Input — suggestions above, compose bar below */}
-      <div className={styles.composeWrapper}>
-        <SuggestionChips 
-          onSelect={(text: string) => handleSendMessage(text)}
-          onPrefill={(text: string) => setComposePrefill(text)}
-          userMessageCount={messages.filter(m => m.author_id === user?.id && !m.is_system).length}
-          onSellClick={handleSellClick}
-          onFindClick={handleFindClick}
-          onNotifyClick={() => setNotifyActive(true)}
-        />
-        <ComposeBar
-          onSend={handleSendMessage}
-          userId={user?.id}
-          h3Index={profileH3}
-          prefillText={composePrefill}
-          onPrefillConsumed={() => setComposePrefill(undefined)}
-        />
-      </div>
-      <NotificationPromptModal {...modalProps} />
+      {/* Compose Input — suggestions above, compose bar below, OR guest CTA */}
+      {isGuest ? (
+        <div className={styles.guestComposeCta}>
+          <span className={styles.guestComposeText}>🌱 Join CasaGrown to chat with your neighbors</span>
+          <button 
+            className={styles.guestComposeBtn}
+            onClick={() => router.push('/login?redirect=/community')}
+          >
+            Sign Up
+          </button>
+        </div>
+      ) : (
+        <div className={styles.composeWrapper}>
+          <SuggestionChips 
+            onSelect={(text: string) => handleSendMessage(text)}
+            onPrefill={(text: string) => setComposePrefill(text)}
+            userMessageCount={messages.filter(m => m.author_id === user?.id && !m.is_system).length}
+            onSellClick={handleSellClick}
+            onFindClick={handleFindClick}
+            onNotifyClick={() => setNotifyActive(true)}
+          />
+          <ComposeBar
+            onSend={handleSendMessage}
+            userId={user?.id}
+            h3Index={profileH3 || undefined}
+            prefillText={composePrefill}
+            onPrefillConsumed={() => setComposePrefill(undefined)}
+          />
+        </div>
+      )}
+      {!isGuest && <NotificationPromptModal {...modalProps} />}
     </div>
   )
 }

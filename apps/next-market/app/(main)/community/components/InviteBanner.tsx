@@ -7,11 +7,13 @@ import { getCommunityInviteMessage } from '../../../../lib/shareMessages'
 
 interface InviteBannerProps {
   h3Index: string
+  userId?: string
 }
 
-export default function InviteBanner({ h3Index }: InviteBannerProps) {
+export default function InviteBanner({ h3Index, userId }: InviteBannerProps) {
   const [showShareModal, setShowShareModal] = useState(false)
-  const inviteUrl = typeof window !== 'undefined' ? `${window.location.origin}/community?join=${h3Index}` : ''
+  const refParam = userId ? `?ref=${userId}` : ''
+  const inviteUrl = typeof window !== 'undefined' ? `${window.location.origin}/community${refParam}` : ''
 
   const handleInvite = () => {
     setShowShareModal(true)
@@ -44,3 +46,4 @@ export default function InviteBanner({ h3Index }: InviteBannerProps) {
     </div>
   )
 }
+

@@ -28,10 +28,10 @@ export async function generateMetadata(
       .single()
 
     if (booth) {
-      // Use Next.js image optimization to resize for OG
+      // Use Next.js image optimization to resize for OG, or fallback to default CasaGrown share image
       const ogImage = booth.header_image_url
         ? `${siteUrl}/_next/image?url=${encodeURIComponent(booth.header_image_url)}&w=1200&q=75`
-        : undefined
+        : `${siteUrl}/og-share.jpg`
       const title = `${booth.name || 'Neighborhood Booth'} on CasaGrown`
       
       let description = booth.description || booth.description_html?.replace(/<[^>]+>/g, '') || ''

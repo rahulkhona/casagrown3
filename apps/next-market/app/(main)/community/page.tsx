@@ -57,6 +57,7 @@ export default async function CommunityChatPage({ searchParams }: { searchParams
   let initialMessages: any[] = []
   let profileName = ''
   let buzzWelcomedAt = null
+  const isGuest = !user
   
   if (user) {
     const { data: profile } = await supabase
@@ -107,6 +108,13 @@ export default async function CommunityChatPage({ searchParams }: { searchParams
         console.error('Failed to fetch initial messages server-side', e)
       }
     }
+  } else {
+    // Guest mode: fetch global feed (RPC ignores H3 filter)
+    try {
+      initialMessages = await fetchCommunityMessages(supabase, 'guest', null, 50)
+    } catch (e) {
+      console.error('Failed to fetch guest community messages', e)
+    }
   }
 
   return (
@@ -115,6 +123,7 @@ export default async function CommunityChatPage({ searchParams }: { searchParams
       initialMessages={initialMessages} 
       initialProfileName={profileName}
       initialBuzzWelcomedAt={buzzWelcomedAt}
+      isGuest={isGuest}
     />
   )
 }
