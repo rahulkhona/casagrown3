@@ -131,7 +131,9 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
           boothData.pickup_display_address = anonymizeAddress(boothData.pickup_address)
         }
         setBooth(boothData)
-        if (!selectedFulfillment) setSelectedFulfillment(boothData.offers_pickup ? 'pickup' : 'delivery')
+        
+        // Wait for product to be fully set before we evaluate productOffersPickup
+        // Fallback initialized later in a separate useEffect
       }
       setLoading(false)
     }
@@ -233,15 +235,70 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
     return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onFocus) }
   }, [product?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Window-based availability: check if product has any valid fulfillment windows
+  // Resolve fulfillment windows: product data takes priority, booth is fallback for empty arrays
+  const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
+  const _now = new Date();
+  const _todayStr = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`;
+  const _tom = new Date(_now); _tom.setDate(_tom.getDate() + 1);
+  const _tomorrowStr = `${_tom.getFullYear()}-${String(_tom.getMonth() + 1).padStart(2, '0')}-${String(_tom.getDate()).padStart(2, '0')}`;
+  const _fallbackDates = [_todayStr, _tomorrowStr];
+
+  function resolveWindows(
+    productWindows: any,
+    productDates: any,
+    boothWeekly: any,
+    boothFlat: any,
+  ): { dates: string[]; windows: Record<string, any[]> | any[] } {
+    // Product has real per-date windows → use them directly
+    if (productWindows && typeof productWindows === 'object' && !Array.isArray(productWindows) && Object.keys(productWindows).length > 0) {
+      return { dates: productDates?.length > 0 ? productDates : Object.keys(productWindows), windows: productWindows };
+    }
+    // Product has a flat array with items → use them
+    if (Array.isArray(productWindows) && productWindows.length > 0) {
+      return { dates: productDates?.length > 0 ? productDates : _fallbackDates, windows: productWindows };
+    }
+    // Empty or missing → fall back to booth
+    if (boothWeekly && typeof boothWeekly === 'object' && !Array.isArray(boothWeekly)) {
+      const perDate: Record<string, any[]> = {};
+      for (const ds of _fallbackDates) {
+        const [y, m, d] = ds.split('-').map(Number);
+        const dayName = DAY_NAMES[new Date(y, m - 1, d).getDay()];
+        const dayWindows = boothWeekly[dayName] || [];
+        if (dayWindows.length > 0) perDate[ds] = dayWindows;
+      }
+      if (Object.keys(perDate).length > 0) return { dates: _fallbackDates, windows: perDate };
+    }
+    if (Array.isArray(boothFlat) && boothFlat.length > 0) {
+      return { dates: _fallbackDates, windows: boothFlat };
+    }
+    return { dates: [], windows: [] };
+  }
+
+  const pickupResolved = resolveWindows(product?.product_pickup_windows, product?.window_dates, booth?.weekly_pickup_windows, booth?.pickup_windows);
+  const deliveryResolved = resolveWindows(product?.product_delivery_windows, product?.window_dates, booth?.weekly_delivery_windows, booth?.delivery_windows);
+
+  // Effective dates (union of pickup + delivery dates)
+  const effectiveDates = Array.from(new Set([...pickupResolved.dates, ...deliveryResolved.dates])).sort();
+
+  // Window-based availability
   const windowsExpired = product ? !hasValidWindows(
-    product.window_dates,
-    product.product_delivery_windows,
-    product.product_pickup_windows,
+    effectiveDates.length > 0 ? effectiveDates : product.window_dates,
+    deliveryResolved.windows,
+    pickupResolved.windows,
   ) : false
   const isExpired = product?.expires_at ? new Date(product.expires_at) < new Date() : false
-  const isClosed = windowsExpired || isExpired  // used by existing UI logic
+  const isClosed = windowsExpired || isExpired
 
+  // Fulfillment: null = seller didn't enable. Empty array or object = enabled (fall back to booth)
+  const productOffersPickup = product?.product_pickup_windows === null ? false : (product?.product_pickup_windows != null || !!booth?.offers_pickup)
+  const productOffersDelivery = product?.product_delivery_windows === null ? false : (product?.product_delivery_windows != null || !!booth?.offers_delivery)
+
+  // Initialize selectedFulfillment once product data is loaded
+  useEffect(() => {
+    if (product && !selectedFulfillment) {
+      setSelectedFulfillment(productOffersPickup ? 'pickup' : 'delivery')
+    }
+  }, [product, selectedFulfillment, productOffersPickup])
   // Toggle product reminder
   const toggleReminder = async () => {
     if (!user) {
@@ -471,7 +528,11 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
           <p className={styles.productPrice}>
             {product.price_usd === 0 ? <span className="price price-large" style={{ color: '#16a34a' }}>Free</span> : <><span className="price price-large">{formatUsd(product.price_usd)}</span><span className={styles.unit}>/ {product.unit}</span></>}
           </p>
-          {product.description && <p className={styles.productDesc}>{product.description}</p>}
+          {product.harvested_at && (
+            <p style={{ fontSize: 13, color: 'var(--gray-500)', margin: '4px 0 0' }}>
+              🌱 Harvested {new Date(product.harvested_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            </p>
+          )}
 
           {/* Stock */}
           <div className={styles.stockInfo}>
@@ -483,6 +544,8 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
               <span className="badge badge-red">Sold Out</span>
             )}
           </div>
+
+          {product.description && <p className={styles.productDesc}>{product.description}</p>}
 
           {/* Share Button (Owner & Visitor) */}
           {!isDemo && (
@@ -615,73 +678,154 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                   </div>
                 )}
 
-                {/* Fulfillment mode selector — shown when booth offers both */}
-                {booth.offers_pickup && booth.offers_delivery && !windowsExpired && product.inventory > 0 && (
+                {/* Unified Fulfillment Section — Pickup and/or Delivery with inline details */}
+                {(productOffersPickup || productOffersDelivery) && !windowsExpired && product.inventory > 0 && (
                   <div style={{ marginBottom: 14 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>
-                      How would you like to get it?
+                      {productOffersPickup && productOffersDelivery ? 'How would you like to get it?' : 'Fulfillment'}
                     </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      {/* Pickup card */}
-                      <button
-                        style={{
-                          flex: 1, padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
-                          transition: 'all 0.2s', border: '2px solid',
-                          borderColor: selectedFulfillment === 'pickup' ? 'var(--green-600, #16a34a)' : 'var(--gray-200)',
-                          background: selectedFulfillment === 'pickup' ? 'var(--green-50, #f0fdf4)' : 'white',
-                          textAlign: 'left', display: 'flex', alignItems: 'flex-start', gap: 8,
-                        }}
-                        onClick={() => setSelectedFulfillment('pickup')}
-                        aria-pressed={selectedFulfillment === 'pickup'}
-                      >
-                        <span style={{
-                          width: 18, height: 18, borderRadius: '50%', border: '2px solid',
-                          borderColor: selectedFulfillment === 'pickup' ? 'var(--green-600, #16a34a)' : 'var(--gray-300)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1,
-                        }}>
-                          {selectedFulfillment === 'pickup' && (
-                            <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--green-600, #16a34a)' }} />
-                          )}
-                        </span>
-                        <div>
-                          <div style={{ fontSize: 14, fontWeight: 600, color: selectedFulfillment === 'pickup' ? 'var(--green-700, #15803d)' : 'var(--gray-700)' }}>
-                            📍 Pickup
-                          </div>
-                          <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 2 }}>
-                            {booth.pickup_display_address || booth.pickup_address || 'Seller location'}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {/* ── Pickup Card ── */}
+                      {productOffersPickup && (
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          style={{
+                            width: '100%', padding: '12px 14px', borderRadius: 10, cursor: 'pointer',
+                            transition: 'all 0.2s', border: '2px solid',
+                            borderColor: selectedFulfillment === 'pickup' ? 'var(--green-600, #16a34a)' : 'var(--gray-200)',
+                            background: selectedFulfillment === 'pickup' ? 'var(--green-50, #f0fdf4)' : 'white',
+                            textAlign: 'left', display: 'block',
+                          }}
+                          onClick={() => setSelectedFulfillment('pickup')}
+                          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setSelectedFulfillment('pickup') }}
+                          aria-pressed={selectedFulfillment === 'pickup'}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                            <span style={{
+                              width: 18, height: 18, borderRadius: '50%', border: '2px solid',
+                              borderColor: selectedFulfillment === 'pickup' ? 'var(--green-600, #16a34a)' : 'var(--gray-300)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1,
+                            }}>
+                              {selectedFulfillment === 'pickup' && (
+                                <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--green-600, #16a34a)' }} />
+                              )}
+                            </span>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 14, fontWeight: 600, color: selectedFulfillment === 'pickup' ? 'var(--green-700, #15803d)' : 'var(--gray-700)' }}>
+                                📍 Pickup
+                              </div>
+                              {/* Address */}
+                              {(() => {
+                                const displayAddr = booth.pickup_display_address || anonymizeAddress(booth.pickup_address)
+                                return displayAddr ? (
+                                  <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>{displayAddr}</div>
+                                ) : null
+                              })()}
+                              {distanceMiles != null && (
+                                <div style={{ fontSize: 11, color: 'var(--gray-500)', fontWeight: 600, marginTop: 2 }}>
+                                  📍 {distanceMiles} miles away
+                                </div>
+                              )}
+                              {/* Pickup time windows */}
+                              {(() => {
+                                const days = getWindowDays(pickupResolved.dates, pickupResolved.windows)
+                                return days.length > 0 ? (
+                                  <div style={{ marginTop: 6 }}>
+                                    {days.map(day => (
+                                      <div key={day.date} style={{ marginBottom: 4 }}>
+                                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)' }}>{day.label}</span>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 2 }}>
+                                          {day.pills.map((p, i) => (
+                                            <span key={i} style={{
+                                              display: 'inline-block', padding: '2px 8px', borderRadius: 12,
+                                              background: 'var(--blue-50, #eff6ff)', border: '1px solid var(--blue-200, #bfdbfe)',
+                                              fontSize: 11, fontWeight: 600, color: 'var(--blue-700, #1d4ed8)',
+                                            }}>{p}</span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : null
+                              })()}
+                            </div>
                           </div>
                         </div>
-                      </button>
-                      {/* Delivery card */}
-                      <button
-                        style={{
-                          flex: 1, padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
-                          transition: 'all 0.2s', border: '2px solid',
-                          borderColor: selectedFulfillment === 'delivery' ? 'var(--green-600, #16a34a)' : 'var(--gray-200)',
-                          background: selectedFulfillment === 'delivery' ? 'var(--green-50, #f0fdf4)' : 'white',
-                          textAlign: 'left', display: 'flex', alignItems: 'flex-start', gap: 8,
-                        }}
-                        onClick={() => setSelectedFulfillment('delivery')}
-                        aria-pressed={selectedFulfillment === 'delivery'}
-                      >
-                        <span style={{
-                          width: 18, height: 18, borderRadius: '50%', border: '2px solid',
-                          borderColor: selectedFulfillment === 'delivery' ? 'var(--green-600, #16a34a)' : 'var(--gray-300)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1,
-                        }}>
-                          {selectedFulfillment === 'delivery' && (
-                            <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--green-600, #16a34a)' }} />
-                          )}
-                        </span>
-                        <div>
-                          <div style={{ fontSize: 14, fontWeight: 600, color: selectedFulfillment === 'delivery' ? 'var(--green-700, #15803d)' : 'var(--gray-700)' }}>
-                            🚗 Delivery
-                          </div>
-                          <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 2 }}>
-                            Within {booth.delivery_radius_miles || 10} miles of {booth.pickup_display_address || 'Seller location'}
+                      )}
+
+                      {/* ── Delivery Card ── */}
+                      {productOffersDelivery && (
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          style={{
+                            width: '100%', padding: '12px 14px', borderRadius: 10, cursor: 'pointer',
+                            transition: 'all 0.2s', border: '2px solid',
+                            borderColor: selectedFulfillment === 'delivery' ? 'var(--green-600, #16a34a)' : 'var(--gray-200)',
+                            background: selectedFulfillment === 'delivery'
+                              ? (withinDelivery === true ? '#f0fdf4' : withinDelivery === false ? '#fef2f2' : 'var(--green-50, #f0fdf4)')
+                              : 'white',
+                            textAlign: 'left', display: 'block',
+                          }}
+                          onClick={() => setSelectedFulfillment('delivery')}
+                          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setSelectedFulfillment('delivery') }}
+                          aria-pressed={selectedFulfillment === 'delivery'}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                            <span style={{
+                              width: 18, height: 18, borderRadius: '50%', border: '2px solid',
+                              borderColor: selectedFulfillment === 'delivery' ? 'var(--green-600, #16a34a)' : 'var(--gray-300)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1,
+                            }}>
+                              {selectedFulfillment === 'delivery' && (
+                                <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--green-600, #16a34a)' }} />
+                              )}
+                            </span>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 14, fontWeight: 600, color: selectedFulfillment === 'delivery' ? 'var(--green-700, #15803d)' : 'var(--gray-700)' }}>
+                                🚗 Delivery
+                              </div>
+                              {/* Distance / range info */}
+                              {distanceMiles != null ? (
+                                withinDelivery ? (
+                                  <div style={{ fontSize: 12, color: '#15803d', fontWeight: 600, marginTop: 2 }}>✅ Within range ({distanceMiles} mi)</div>
+                                ) : (
+                                  <div style={{ fontSize: 12, color: '#dc2626', fontWeight: 600, marginTop: 2 }}>❌ Outside range ({distanceMiles} mi — max {booth.delivery_radius_miles} mi)</div>
+                                )
+                              ) : (
+                                <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>
+                                  Within {booth.delivery_radius_miles || 10} miles of {booth.pickup_display_address || 'Seller location'}
+                                </div>
+                              )}
+                              {/* Delivery time windows */}
+                              {(() => {
+                                const days = getWindowDays(deliveryResolved.dates, deliveryResolved.windows)
+                                return days.length > 0 ? (
+                                  <div style={{ marginTop: 6 }}>
+                                    {days.map(day => (
+                                      <div key={day.date} style={{ marginBottom: 4 }}>
+                                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)' }}>{day.label}</span>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 2 }}>
+                                          {day.pills.map((p, i) => (
+                                            <span key={i} style={{
+                                              display: 'inline-block', padding: '2px 8px', borderRadius: 12,
+                                              background: 'var(--green-50, #f0fdf4)', border: '1px solid var(--green-200, #bbf7d0)',
+                                              fontSize: 11, fontWeight: 600, color: 'var(--green-700, #15803d)',
+                                            }}>{p}</span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : null
+                              })()}
+                              {/* Distance checker */}
+                              {distanceCheckerForm}
+                            </div>
                           </div>
                         </div>
-                      </button>
+                      )}
                     </div>
                   </div>
                 )}
@@ -742,13 +886,13 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                           {
                             id: booth.id,
                             name: booth.name,
-                            offers_delivery: booth.offers_delivery,
-                            offers_pickup: booth.offers_pickup,
+                            offers_delivery: productOffersDelivery,
+                            offers_pickup: productOffersPickup,
                             pickup_address: booth.pickup_address,
                             delivery_radius_miles: booth.delivery_radius_miles,
                           },
                           cartQty,
-                          selectedFulfillment || (booth.offers_pickup ? 'pickup' : 'delivery')
+                          selectedFulfillment || (productOffersPickup ? 'pickup' : 'delivery')
                         )
                         setCartToast(existingCartQty > 0 ? `Cart updated! (${cartQty} ${product.unit}${cartQty > 1 ? 's' : ''})` : `Added to cart! 🛒`)
                         setTimeout(() => setCartToast(null), 3000)
@@ -777,108 +921,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
             )}
           </div>
 
-          {/* Harvest info */}
-          {product.harvested_at && (
-            <p style={{ fontSize: 13, color: 'var(--gray-500)', marginTop: 8 }}>
-              🌱 Harvested {new Date(product.harvested_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-            </p>
-          )}
 
-          {/* Fulfillment */}
-          <div className={styles.deliverySection}>
-            <h3 className={styles.sectionLabel}>Fulfillment Options</h3>
-            <div className={styles.deliveryOptions}>
-              {booth.offers_delivery && (
-                <div className={styles.deliveryOption} style={{
-                  background: withinDelivery === true ? '#f0fdf4' : withinDelivery === false ? '#fef2f2' : undefined,
-                  border: withinDelivery === true ? '1px solid #86efac' : withinDelivery === false ? '1px solid #fca5a5' : undefined,
-                  borderRadius: 8, padding: withinDelivery != null ? '8px 10px' : undefined,
-                }}>
-                  <span>🚗</span>
-                  <div>
-                    <strong>Delivery</strong>
-                    {distanceMiles != null ? (
-                      withinDelivery ? (
-                        <small style={{ color: '#15803d', fontWeight: 600 }}>✅ Within range ({distanceMiles} mi)</small>
-                      ) : (
-                        <small style={{ color: '#dc2626', fontWeight: 600 }}>❌ Outside range ({distanceMiles} mi — max {booth.delivery_radius_miles} mi)</small>
-                      )
-                    ) : (
-                      <small>Within {booth.delivery_radius_miles} miles of {booth.pickup_display_address || 'Seller location'}</small>
-                    )}
-                    {/* Delivery time windows */}
-                    {(() => {
-                      const days = getWindowDays(product.window_dates, product.product_delivery_windows)
-                      return days.length > 0 ? (
-                        <div style={{ marginTop: 6 }}>
-                          {days.map(day => (
-                            <div key={day.date} style={{ marginBottom: 4 }}>
-                              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)' }}>{day.label}</span>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 2 }}>
-                                {day.pills.map((p, i) => (
-                                  <span key={i} style={{
-                                    display: 'inline-block', padding: '2px 8px', borderRadius: 12,
-                                    background: 'var(--green-50, #f0fdf4)', border: '1px solid var(--green-200, #bbf7d0)',
-                                    fontSize: 11, fontWeight: 600, color: 'var(--green-700, #15803d)',
-                                  }}>{p}</span>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null
-                    })()}
-                    {distanceCheckerForm}
-                  </div>
-                </div>
-              )}
-              {booth.offers_pickup && (
-                <div className={styles.deliveryOption}>
-                  <span>📍</span>
-                  <div>
-                    <strong>Pickup</strong>
-                    {/* Anonymized location */}
-                    {(() => {
-                      const displayAddr = booth.pickup_display_address || anonymizeAddress(booth.pickup_address)
-                      return displayAddr ? (
-                        <>
-                          <small style={{ display: 'block' }}>{displayAddr}</small>
-                          {distanceMiles != null && (
-                            <small style={{ display: 'block', color: 'var(--gray-500)', fontWeight: 600, marginTop: 4 }}>
-                              📍 {distanceMiles} miles away
-                            </small>
-                          )}
-                        </>
-                      ) : null
-                    })()}
-                    {/* Pickup time windows */}
-                    {(() => {
-                      const days = getWindowDays(product.window_dates, product.product_pickup_windows)
-                      return days.length > 0 ? (
-                        <div style={{ marginTop: 6 }}>
-                          {days.map(day => (
-                            <div key={day.date} style={{ marginBottom: 4 }}>
-                              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)' }}>{day.label}</span>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 2 }}>
-                                {day.pills.map((p, i) => (
-                                  <span key={i} style={{
-                                    display: 'inline-block', padding: '2px 8px', borderRadius: 12,
-                                    background: 'var(--blue-50, #eff6ff)', border: '1px solid var(--blue-200, #bfdbfe)',
-                                    fontSize: 11, fontWeight: 600, color: 'var(--blue-700, #1d4ed8)',
-                                  }}>{p}</span>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null
-                    })()}
-                    {distanceCheckerForm}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
         </div>
       </div>
 

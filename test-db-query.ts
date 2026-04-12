@@ -1,8 +1,9 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-const envContent = await Deno.readTextFile('.env.local');
-const envVars = Object.fromEntries(envContent.split('\n').filter(l => l && !l.startsWith('#')).map(l => l.split('=')));
-const supabaseUrl = envVars.NEXT_PUBLIC_SUPABASE_URL || envVars.SUPABASE_URL;
-const supabaseKey = envVars.SUPABASE_SERVICE_ROLE_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
-const { data, error } = await supabase.from('point_ledger').select('id, type, amount, reference_id, metadata').order('created_at', { ascending: false }).limit(6);
+import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const url = Deno.env.get("NEXT_PUBLIC_SUPABASE_URL");
+const key = Deno.env.get("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+const supabase = createClient(url, key);
+
+const { data } = await supabase.from('market_products').select('name, window_dates, product_delivery_windows, product_pickup_windows').eq('name', 'Meyer Lemons');
 console.log(JSON.stringify(data, null, 2));

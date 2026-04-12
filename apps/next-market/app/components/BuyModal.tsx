@@ -31,8 +31,13 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
   const supabase = createClient()
   const { user } = useAuth()
   const [qty, setQty] = useState(1)
+
+  // Fulfillment: null = seller didn't enable this for the product; non-null = enabled
+  const productOffersPickup = product?.product_pickup_windows != null
+  const productOffersDelivery = product?.product_delivery_windows != null
+
   const [fulfillment, setFulfillment] = useState<'pickup' | 'delivery'>(
-    booth.offers_pickup ? 'pickup' : 'delivery'
+    productOffersPickup ? 'pickup' : 'delivery'
   )
   const [available, setAvailable] = useState(product.inventory)
   const [currentPrice, setCurrentPrice] = useState(product.price_usd)
@@ -89,7 +94,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
         setCurrentPrice(Number(data.price_usd))
         setAvailable(data.inventory)
         if (qty > data.inventory) setQty(Math.max(1, data.inventory))
-        // Refresh window data
+        // Refresh window data directly from product
         if (data.window_dates) setWindowDates(data.window_dates)
         if (data.product_delivery_windows) setDeliveryWindows(data.product_delivery_windows)
         if (data.product_pickup_windows) setPickupWindows(data.product_pickup_windows)
@@ -362,11 +367,11 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
           <div className={styles.section}>
             <div className={styles.sectionLabel}>Fulfillment</div>
             <div className={styles.fulfillRow}>
-              {booth.offers_pickup && (
+              {productOffersPickup && (
                 <button className={`${styles.fulfillBtn} ${fulfillment === 'pickup' ? styles.fulfillActive : ''}`}
                   onClick={() => setFulfillment('pickup')}>📍 Pickup</button>
               )}
-              {booth.offers_delivery && (
+              {productOffersDelivery && (
                 <button className={`${styles.fulfillBtn} ${fulfillment === 'delivery' ? styles.fulfillActive : ''}`}
                   onClick={() => setFulfillment('delivery')}>🚗 Delivery</button>
               )}
