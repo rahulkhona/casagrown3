@@ -104,6 +104,7 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
 
   // Form states
   const [showDecline, setShowDecline] = useState(false)
+  const [declineReasonType, setDeclineReasonType] = useState('Out of stock')
   const [declineReason, setDeclineReason] = useState('')
   const [showDispute, setShowDispute] = useState(false)
   const [disputeType, setDisputeType] = useState<string | null>(null)
@@ -701,25 +702,38 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
         <div className={styles.modal}>
           <div className={styles.modalContent}>
             <h3>Decline Order</h3>
-            <p>This will cancel the order and restore inventory.</p>
-            <textarea
-              value={declineReason}
-              onChange={e => setDeclineReason(e.target.value)}
-              placeholder="Reason for declining..."
-              rows={3}
-            />
-            <div className={styles.modalActions}>
-              <button className="btn btn-danger" disabled={!declineReason.trim() || actionLoading}
+            <p style={{ marginBottom: 16 }}>This will cancel the order and restore inventory.</p>
+            <div className={styles.formGroup}>
+              <label style={{ fontWeight: 600, fontSize: 13, marginBottom: 4, display: 'block' }}>Reason for declining</label>
+              <select className="input" value={declineReasonType} onChange={e => setDeclineReasonType(e.target.value)} style={{ padding: '8px 12px', marginBottom: 12 }}>
+                <option value="Out of stock">Out of stock</option>
+                <option value="Cannot fulfill at requested time">Cannot fulfill at requested time</option>
+                <option value="Item no longer available">Item no longer available</option>
+                <option value="Other">Other (please specify)</option>
+              </select>
+              {declineReasonType === 'Other' && (
+                <textarea
+                  value={declineReason}
+                  onChange={e => setDeclineReason(e.target.value)}
+                  placeholder="Reason for declining..."
+                  rows={3}
+                  className="input"
+                />
+              )}
+            </div>
+            <div className={styles.modalActions} style={{ marginTop: 16 }}>
+              <button className="btn btn-danger" disabled={(declineReasonType === 'Other' && !declineReason.trim()) || actionLoading}
                 onClick={async () => {
                   setActionLoading(true)
-                  await callRpc('seller_decline_order', { p_order_id: orderId, p_reason: declineReason })
+                  const finalReason = declineReasonType === 'Other' ? declineReason.trim() : declineReasonType;
+                  await callRpc('seller_decline_order', { p_order_id: orderId, p_reason: finalReason })
                   
                   // Also post the decline reason in chat so buyer can respond
                   if (user?.id) {
                     await supabase.from('order_chat_messages').insert({
                       order_id: orderId,
                       sender_id: user.id,
-                      content: `❌ Order declined by seller.\nReason: ${declineReason}`
+                      content: `❌ Order declined by seller.\nReason: ${finalReason}`
                     })
                   }
 
