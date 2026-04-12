@@ -176,13 +176,16 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
           
           {/* NEW: Inline Message Action */}
           {!isOwnMessage && !isBot && !isGuest && (
-            <a 
-              href={`/messages/new?userId=${message.author_id}&name=${encodeURIComponent(message.author_name || 'Neighbor')}`}
-              style={{ fontSize: '0.75rem', background: '#dcfce3', border: '1px solid #86efac', padding: '2px 8px', borderRadius: '12px', marginLeft: 6, color: '#166534', textDecoration: 'none', fontWeight: 500 }}
-              title="Send a Direct Message"
-            >
-              💬 DM
-            </a>
+            <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+              <a 
+                href={`/messages/new?userId=${message.author_id}&name=${encodeURIComponent(message.author_name || 'Neighbor')}`}
+                style={{ fontSize: '0.75rem', background: '#dcfce3', border: '1px solid #86efac', padding: '2px 8px', borderRadius: '12px', marginLeft: 6, color: '#166534', textDecoration: 'none', fontWeight: 500 }}
+                title="Send a Direct Message"
+              >
+                💬 DM
+              </a>
+              <ChatFollowButton currentUserId={currentUserId} targetUserId={message.author_id} />
+            </div>
           )}
 
           {isOwnMessage && !isBot && !isGuest && (
@@ -363,13 +366,16 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
                         reply.author_id === '00000000-0000-0000-0000-000000000000' ||
                         reply.author_id === 'a0000000-0000-0000-0000-00000ca5ab07'
                       return !isGuest && !isReplyBot && currentUserId !== reply.author_id ? (
-                        <a 
-                          href={`/messages/new?userId=${reply.author_id}&name=${encodeURIComponent(reply.author_name || 'Neighbor')}`}
-                          style={{ fontSize: '0.65rem', background: '#dcfce3', border: '1px solid #86efac', padding: '1px 6px', borderRadius: '12px', color: '#166534', textDecoration: 'none', fontWeight: 500 }}
-                          title="Send a Direct Message"
-                        >
-                          💬 DM
-                        </a>
+                        <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                          <a 
+                            href={`/messages/new?userId=${reply.author_id}&name=${encodeURIComponent(reply.author_name || 'Neighbor')}`}
+                            style={{ fontSize: '0.65rem', background: '#dcfce3', border: '1px solid #86efac', padding: '1px 6px', borderRadius: '12px', color: '#166534', textDecoration: 'none', fontWeight: 500 }}
+                            title="Send a Direct Message"
+                          >
+                            💬 DM
+                          </a>
+                          <ChatFollowButton currentUserId={currentUserId} targetUserId={reply.author_id} isSmall />
+                        </div>
                       ) : null
                     })()}
                   </div>
@@ -460,3 +466,83 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
     </div>
   )
 }
+
+// ── Follow Button & Deduplicator ──
+
+const _chatFollowCache = new Map<string, Promise<{boothId: string | null, isFollowing: boolean}>>()
+
+function ChatFollowButton({ targetUserId, currentUserId, isSmall }: { targetUserId?: string, currentUserId?: string, isSmall?: boolean }) {
+  const [isFollowing, setIsFollowing] = useState<boolean | null>(null)
+  const [boothId, setBoothId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!targetUserId || !currentUserId) return
+    let mounted = true
+    
+    const key = `${currentUserId}-${targetUserId}`
+    if (!_chatFollowCache.has(key)) {
+      _chatFollowCache.set(key, (async () => {
+        const supabase = createClient()
+        const { data: booth } = await supabase.from('market_booths').select('id').eq('owner_id', targetUserId).single()
+        if (!booth) return { boothId: null, isFollowing: false }
+        
+        const { data: follow } = await supabase.from('market_followers')
+          .select('id').match({ follower_id: currentUserId, booth_id: booth.id }).maybeSingle()
+          
+        return { boothId: booth.id, isFollowing: !!follow }
+      })())
+    }
+
+    _chatFollowCache.get(key)!.then(res => {
+      if (mounted) {
+        setBoothId(res.boothId)
+        setIsFollowing(res.isFollowing)
+      }
+    })
+
+    return () => { mounted = false }
+  }, [targetUserId, currentUserId])
+
+  const toggleFollow = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!boothId || !currentUserId || isFollowing === null) return
+
+    const supabase = createClient()
+    const nextState = !isFollowing
+    setIsFollowing(nextState) // Optimistic
+
+    // Also update cache for other mounts of the same user
+    const key = `${currentUserId}-${targetUserId}`
+    _chatFollowCache.set(key, Promise.resolve({ boothId, isFollowing: nextState }))
+
+    if (nextState) {
+      await supabase.from('market_followers').insert({ follower_id: currentUserId, booth_id: boothId })
+    } else {
+      await supabase.from('market_followers').delete().match({ follower_id: currentUserId, booth_id: boothId })
+    }
+  }
+
+  if (isFollowing === null || !boothId) return null
+
+  return (
+    <button
+      onClick={toggleFollow}
+      style={{ 
+        fontSize: isSmall ? '0.65rem' : '0.75rem', 
+        background: isFollowing ? 'transparent' : '#166534', 
+        border: '1px solid #166534', 
+        padding: isSmall ? '1px 6px' : '2px 8px', 
+        borderRadius: '12px', 
+        marginLeft: 6, 
+        color: isFollowing ? '#166534' : '#fff', 
+        fontWeight: 600,
+        cursor: 'pointer' 
+      }}
+      title={isFollowing ? 'Unfollow' : 'Follow'}
+    >
+      {isFollowing ? 'Following' : 'Follow'}
+    </button>
+  )
+}
+
