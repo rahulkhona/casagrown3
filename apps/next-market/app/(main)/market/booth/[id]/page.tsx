@@ -32,15 +32,15 @@ export async function generateMetadata(
       const ogImage = booth.header_image_url
         ? `${siteUrl}/_next/image?url=${encodeURIComponent(booth.header_image_url)}&w=1200&q=75`
         : `${siteUrl}/og-share.jpg`
-      const title = `${booth.name || 'Neighborhood Booth'} on CasaGrown`
+      const title = `${booth.name || 'Neighborhood Booth'} | CasaGrown Market`
       
       let description = booth.description || booth.description_html?.replace(/<[^>]+>/g, '') || ''
       if (description.length > 150) {
         description = description.slice(0, 147) + '...'
       }
       
-      const fallbackDesc = `Check out fresh, homegrown produce available at ${booth.name || 'this booth'} on CasaGrown Market.`
-      const finalDesc = description ? `${description} — ${fallbackDesc}` : fallbackDesc
+      const fallbackDesc = `Browse fresh, homegrown produce from ${booth.name || 'your neighbor'} on CasaGrown \u2014 garden-to-table freshness.`
+      const finalDesc = description ? `${description} \u2014 Shop local on CasaGrown.` : fallbackDesc
 
       return {
         metadataBase: new URL(siteUrl),

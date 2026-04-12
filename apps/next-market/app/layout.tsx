@@ -10,12 +10,12 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     metadataBase: new URL(siteUrl),
-    title: 'CasaGrown Market — Fresh from Neighbors\' Backyard',
-    description: 'Buy and sell fresh, locally-grown produce from your neighbors. Market opens Saturdays & Sundays 8–11 AM.',
+    title: 'CasaGrown Market — Fresh from Your Neighbors\' Backyard',
+    description: 'Buy and sell fresh, locally-grown produce from your neighbors. Join a community stopping 11.5 billion lbs of garden food waste every year.',
     icons: '/favicon.ico',
     openGraph: {
       title: 'CasaGrown Market — Fresh from Your Neighbor\'s Backyard',
-      description: '11.5 billion lbs of backyard produce is wasted every year. Join me and CasaGrown in stopping this waste to help feed millions.',
+      description: '11.5 billion lbs of backyard produce is wasted every year. Join CasaGrown to buy fresh, local food from your neighbors and help stop the waste.',
       siteName: 'CasaGrown Market',
       type: 'website',
       images: [{ url: '/og-share.jpg', width: 1200, height: 630, alt: 'CasaGrown — Incredible Freshness, Stop Food Waste, Beat Inflation, Teen Opportunity' }],

@@ -37,10 +37,10 @@ export async function generateMetadata({ searchParams }: { searchParams?: Promis
 
   return {
     title: 'Community | CasaGrown',
-    description: 'Connect with your neighbors, trade produce, and grow your local community.',
+    description: 'Chat with your neighbors about gardening, share tips, and discover fresh local produce.',
     openGraph: {
-      title: 'CasaGrown Community — Neighborhood Community Chat',
-      description: 'Connect with neighbors, share gardening tips, and trade homegrown produce.',
+      title: 'CasaGrown Community — Your Neighborhood Garden Chat 🌱',
+      description: 'Join your neighbors to share gardening tips, trade homegrown produce, and build a greener community together.',
       type: 'website',
       images: [{ url: '/og-share.jpg', width: 1200, height: 630, alt: 'CasaGrown Community — Neighborhood Chat' }],
     },

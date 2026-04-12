@@ -37,8 +37,10 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
   const sellerName = seller?.full_name || 'Local Seller'
   const price = `$${parseFloat(product.price_usd).toFixed(2)}/${product.unit}`
   const photoUrl = product.photos?.[0] || '/og-share.png'
-  const title = `${product.name} — ${price}`
-  const description = `Fresh ${product.category} from ${sellerName} on CasaGrown Market. ${product.description || 'Shop local, stop food waste.'}`
+  const title = `${product.name} — ${price} | CasaGrown Market`
+  const description = product.description
+    ? `${product.description.slice(0, 120)} — Fresh from ${sellerName}'s garden on CasaGrown.`
+    : `Fresh ${product.name} (${price}) from ${sellerName} — Grown right in your neighborhood. Buy local on CasaGrown.`
 
   return {
     title: `${product.name} — CasaGrown Market`,

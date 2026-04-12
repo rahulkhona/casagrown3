@@ -32,10 +32,10 @@ export async function generateMetadata(
         ? `${siteUrl}/_next/image?url=${encodeURIComponent(photo)}&w=1200&q=75`
         : `${siteUrl}/og-share.jpg`
       const price = product.price_usd === 0 ? 'Free' : `$${Number(product.price_usd).toFixed(2)}/${product.unit}`
-      const title = `${product.name} — ${price} on CasaGrown`
+      const title = `${product.name} — ${price} | CasaGrown Market`
       const description = product.description
-        ? `${product.description} — Check it out on CasaGrown and help stop food waste!`
-        : `Fresh ${product.name} available on CasaGrown Market. Join me in stopping food waste — help feed millions!`
+        ? `${product.description.slice(0, 120)} — Fresh from a neighbor's garden on CasaGrown.`
+        : `Fresh ${product.name} (${price}) grown right in your neighborhood. Buy local, eat fresh, and help stop food waste on CasaGrown.`
 
       return {
         metadataBase: new URL(siteUrl),
