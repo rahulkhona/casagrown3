@@ -39,6 +39,12 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     if (auth instanceof Response) return auth;
     const userId = auth;
 
+    // ── Global Feature Flag Check ──
+    const enableSms = Deno.env.get("ENABLE_PHONE_VERIFICATION") === "true" || Deno.env.get("NEXT_PUBLIC_ENABLE_PHONE_VERIFICATION") === "true";
+    if (!enableSms) {
+        return jsonError("Phone verification is temporarily disabled", corsHeaders, 503);
+    }
+
     // ── Parse request ──────────────────────────────────────────────────
     const body = await req.json().catch(() => null);
     const phoneNumber = body?.phoneNumber?.trim();
