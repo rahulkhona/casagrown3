@@ -63,6 +63,7 @@ function NewProductPageInner() {
   const prefillId = searchParams.get('prefill') // Re-list from daily digest
   const fromBuzz = searchParams.get('from') === 'buzz'
   const returnTo = searchParams.get('returnTo')
+  const isRelist = searchParams.get('relist') === 'true'
   const isEditMode = !!editId
   const [prefilled, setPrefilled] = useState(false)
   const { state, dispatch } = useMarket()
@@ -417,6 +418,17 @@ function NewProductPageInner() {
     }
     loadProduct()
   }, [editId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Relist mode: auto-reset fulfillment window dates to today/tomorrow
+  const [relistBannerVisible, setRelistBannerVisible] = useState(false)
+  useEffect(() => {
+    if (!isRelist || !editId) return
+    // Reset window dates to today + tomorrow so seller can review
+    setSelectedDates([todayStr, tomorrowStr])
+    setProductDeliveryWindows({ [todayStr]: [], [tomorrowStr]: [] })
+    setProductPickupWindows({ [todayStr]: [], [tomorrowStr]: [] })
+    setRelistBannerVisible(true)
+  }, [isRelist, editId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pre-fill from a past product (daily digest "Re-list" link)
   useEffect(() => {
@@ -1215,7 +1227,7 @@ function NewProductPageInner() {
   return (
     <div className={styles.page}>
       <div className={styles.container}>
-        <h1 className={styles.title}>{isEditMode ? 'Edit Product' : 'Add Product'}</h1>
+        <h1 className={styles.title}>{isRelist ? 'Re-list Product' : isEditMode ? 'Edit Product' : 'Add Product'}</h1>
 
         {prefilled && (
           <div style={{
@@ -1504,6 +1516,16 @@ function NewProductPageInner() {
           {/* ===== Fulfillment Windows ===== */}
           <div className={styles.section}>
             <label className={styles.label}>📅 Available For</label>
+            {relistBannerVisible && (
+              <div style={{
+                background: 'var(--amber-50, #fffbeb)', border: '2px solid var(--amber-400, #fbbf24)',
+                borderRadius: 10, padding: '12px 16px', marginBottom: 12, fontSize: 13,
+                color: 'var(--amber-800, #92400e)', lineHeight: 1.6,
+              }}>
+                <strong>⚠️ Re-listing this product</strong> — Fulfillment windows have been reset to Today &amp; Tomorrow.
+                Please <strong>select your available time slots</strong> below before publishing.
+              </div>
+            )}
             <p style={{ fontSize: 12, color: 'var(--gray-500)', margin: '0 0 10px' }}>
               Booth defaults are pre-selected — override as needed.
             </p>

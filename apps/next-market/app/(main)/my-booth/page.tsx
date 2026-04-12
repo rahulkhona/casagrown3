@@ -1129,29 +1129,16 @@ export default function MyBoothPage() {
                     )}
                   </div>
                 </div>
-                {slot.product.status === 'expired' && !['produce', 'eggs', 'flowers', 'flower_arrangements'].includes(slot.product.category) && (
-                  <button
+                {(slot.product.status === 'expired' || slot.product.status === 'inactive' || !slot.product.isActive) && (
+                  <Link
+                    href={`/my-booth/products/new?edit=${slot.product.id}&relist=true`}
                     className="btn btn-primary btn-sm"
-                    style={{ margin: '8px 8px 4px', fontSize: 12 }}
-                    onMouseDown={(e: MouseEvent<HTMLButtonElement>) => e.stopPropagation()}
-                    onClick={async (e: MouseEvent<HTMLButtonElement>) => {
-                      e.preventDefault(); e.stopPropagation()
-                      const nextMarket = getNextMarketDate(state.marketSchedule)
-                      const newDate = nextMarket?.date.toISOString().split('T')[0] || new Date().toISOString().split('T')[0]
-                      const { error } = await supabase.from('market_products')
-                        .update({ market_date: newDate, is_active: true, updated_at: new Date().toISOString() })
-                        .eq('id', slot.product!.id)
-                      if (!error) {
-                        setDbProducts(prev => prev.map(p =>
-                          p.id === slot.product!.id
-                            ? { ...p, marketDate: newDate, isActive: true, status: 'active' as const }
-                            : p
-                        ))
-                      }
-                    }}
+                    style={{ margin: '8px 8px 4px', fontSize: 12, display: 'block', textAlign: 'center', textDecoration: 'none' }}
+                    onMouseDown={(e: MouseEvent<HTMLAnchorElement>) => e.stopPropagation()}
+                    onClick={(e: MouseEvent<HTMLAnchorElement>) => e.stopPropagation()}
                   >
-                    🔄 Re-list for Next Market
-                  </button>
+                    🔄 Re-list
+                  </Link>
                 )}
                 {/* ── explicitly Share a Product directly from layout ── */}
                 <button
