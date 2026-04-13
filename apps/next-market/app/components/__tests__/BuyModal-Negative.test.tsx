@@ -83,6 +83,8 @@ const defaultProps = {
     id: 'prod-1', name: 'Fresh Mint', price_usd: 2.50,
     unit: 'bunch', inventory: 5, category: 'herbs',
     photos: ['/products/mint.png'],
+    product_pickup_windows: [{ day_of_week: 1 }],
+    product_delivery_windows: [{ day_of_week: 1 }],
   },
   booth: {
     id: 'booth-1', name: "Alice's Garden",
@@ -312,6 +314,9 @@ describe('BuyModal — Negative Tests', () => {
 
     const { container } = render(React.createElement(BuyModal, deliveryProps))
     await act(async () => { await new Promise(r => setTimeout(r, 50)) })
+
+    const deliveryBtn = Array.from(container.querySelectorAll('button')).find(b => b.textContent?.includes('Delivery'))
+    if (deliveryBtn) await act(async () => { fireEvent.click(deliveryBtn) })
 
     const orderBtn = Array.from(container.querySelectorAll('button')).find(b => b.textContent?.includes('Place Order'))
 

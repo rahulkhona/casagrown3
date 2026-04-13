@@ -28,6 +28,7 @@ const mockSupabase = {
   rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
   auth: {
     getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'u1' } } }),
+    getSession: vi.fn().mockResolvedValue({ data: { session: { user: { id: 'u1' } } } }),
     onAuthStateChange: vi.fn().mockImplementation((cb: any) => {
       authChangeCallback = cb
       return { data: { subscription: { unsubscribe: vi.fn() } } }
@@ -101,7 +102,11 @@ describe('RatingReminder', () => {
 
     // Click 4th star
     await act(async () => { fireEvent.click(starBtns[3]) })
-    expect(mockSupabase.rpc).toHaveBeenCalledWith('rate_market_order', { p_order_id: 'order-2', p_rating: 4 })
+
+    // Look for submit button
+    const submitBtn = Array.from(container.querySelectorAll('button')).find(b => b.textContent?.includes('Submit Rating'))!
+    await act(async () => { fireEvent.click(submitBtn) })
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('rate_market_order', { p_order_id: 'order-2', p_rating: 4, p_review: null })
     expect(container.textContent).toContain('Thanks for rating!')
   })
 

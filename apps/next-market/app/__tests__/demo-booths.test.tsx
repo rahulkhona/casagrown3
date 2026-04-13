@@ -212,39 +212,30 @@ describe('Demo Booths on Market Page', () => {
     expect(container.textContent).toContain('🆕 New Seller')
   })
 
-  it('demo products click shows demo modal (not navigating away)', async () => {
+  it('demo products have real PDP links (navigable, no modal block)', async () => {
     const { container } = render(React.createElement(BrowseMarketPage))
     await waitFor(() => {
       expect(container.textContent).toContain('Heirloom Tomatoes')
     })
 
-    // Demo product links should have href="#" (blocked navigation, shows modal instead)
+    // Demo product links should have real href to PDP (not "#")
     const demoProductLink = Array.from(container.querySelectorAll('a'))
-      .find(a => a.getAttribute('href') === '#' && a.textContent?.includes('Heirloom Tomatoes'))
+      .find(a => a.getAttribute('href')?.includes('/product/demo-101'))
     expect(demoProductLink).toBeTruthy()
-
-    // Clicking should open the demo modal
-    fireEvent.click(demoProductLink!)
-    await waitFor(() => {
-      expect(container.textContent).toContain('This is a Demo Listing')
-    })
+    expect(demoProductLink!.getAttribute('href')).not.toBe('#')
   })
 
-  it('demo booth header click shows warning modal', async () => {
+  it('demo booth header has real booth link (navigable, no modal block)', async () => {
     const { container } = render(React.createElement(BrowseMarketPage))
     await waitFor(() => {
       expect(container.textContent).toContain('Garcia Family Garden')
     })
 
-    // Booth header link should be blocked (href="#")
+    // Booth header link should have real href to booth detail (not "#")
     const boothLink = Array.from(container.querySelectorAll('a'))
-      .find(a => a.getAttribute('href') === '#' && a.textContent?.includes('Garcia Family Garden'))
-    if (boothLink) {
-      fireEvent.click(boothLink)
-      await waitFor(() => {
-        expect(container.textContent).toContain('This is a Demo Listing')
-      })
-    }
+      .find(a => a.getAttribute('href')?.includes('/booth/demo-booth-1') && !a.getAttribute('href')?.includes('/product/'))
+    expect(boothLink).toBeTruthy()
+    expect(boothLink!.getAttribute('href')).not.toBe('#')
   })
 
   it('does NOT interfere with real product links', async () => {

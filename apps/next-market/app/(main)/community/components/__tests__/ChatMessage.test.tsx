@@ -63,10 +63,9 @@ const messageWithReplies = {
   reply_count: 3,
 }
 
-// Helper to find the message bubble (the div wrapping the <p> with message text)
+// Helper to find the message bubble
 function findBubble(container: HTMLElement): HTMLElement | null {
-  const p = container.querySelector('p')
-  return p?.closest('div[class*="messageBubble"]') ?? p?.parentElement ?? null
+  return container.querySelector('[data-testid="message-bubble"]') as HTMLElement
 }
 
 describe('ChatMessage', () => {
@@ -75,7 +74,7 @@ describe('ChatMessage', () => {
     currentUserId: 'user-2',
     onDelete: vi.fn(),
     onFlag: vi.fn(),
-    onReply: vi.fn().mockResolvedValue(undefined),
+    onReplyTo: vi.fn(),
   }
 
   beforeEach(() => {
@@ -181,14 +180,6 @@ describe('ChatMessage', () => {
     expect(emojiButtons.length).toBe(6)
   })
 
-  it('shows inline reply input after tapping', () => {
-    const { container } = render(React.createElement(ChatMessage, defaultProps))
-    const bubble = findBubble(container)
-    fireEvent.click(bubble!)
-    const input = screen.getByPlaceholderText('Reply...')
-    expect(input).toBeInTheDocument()
-  })
-
   it('hides action bar when tapped again', () => {
     const { container } = render(React.createElement(ChatMessage, defaultProps))
     const bubble = findBubble(container)
@@ -221,47 +212,6 @@ describe('ChatMessage', () => {
     const bubble = findBubble(container)
     fireEvent.click(bubble!)
     expect(container.textContent).toContain('⚑')
-  })
-
-  // ── Inline Reply Input ───────────────────────────────────────
-
-  it('calls onReply with message id and text when reply is submitted', async () => {
-    const onReply = vi.fn().mockResolvedValue(undefined)
-    const { container } = render(
-      React.createElement(ChatMessage, { ...defaultProps, onReply })
-    )
-    const bubble = findBubble(container)
-    fireEvent.click(bubble!)
-    const input = screen.getByPlaceholderText('Reply...')
-    fireEvent.change(input, { target: { value: 'This is a test reply!' } })
-    
-    const form = container.querySelector('form') as HTMLFormElement
-    await act(async () => {
-      fireEvent.submit(form)
-    })
-    
-    expect(onReply).toHaveBeenCalledWith('msg-1', 'This is a test reply!')
-  })
-
-  it('disables send button when reply text is empty', async () => {
-    await act(async () => {
-      render(React.createElement(ChatMessage, { ...defaultProps, message: messageWithReplies }))
-    })
-    const sendBtn = document.querySelector('button[type="submit"]') as HTMLButtonElement
-    expect(sendBtn).toBeTruthy()
-    expect(sendBtn.disabled).toBe(true)
-  })
-
-  // ── Thread Replies ───────────────────────────────────────────
-
-  it('auto-shows reply input for messages with reply_count > 0', async () => {
-    await act(async () => {
-      render(
-        React.createElement(ChatMessage, { ...defaultProps, message: messageWithReplies })
-      )
-    })
-    const input = screen.getByPlaceholderText('Reply...')
-    expect(input).toBeInTheDocument()
   })
 
   // ── Media ────────────────────────────────────────────────────

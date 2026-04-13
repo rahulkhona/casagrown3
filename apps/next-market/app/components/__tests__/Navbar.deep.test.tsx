@@ -153,10 +153,10 @@ describe('Navbar', () => {
     await act(async () => { fireEvent.click(menuBtn) })
     expect(menuBtn.textContent).toBe('✕')
     expect(container.textContent).toContain('Navigation')
-    expect(container.textContent).toContain('My Booth')
+    expect(container.textContent).toContain('My Produce Stand')
     expect(container.textContent).toContain('Helping')
-    expect(container.textContent).toContain('Transactions')
-    expect(container.textContent).toContain('Payout')
+    expect(container.textContent).toContain('Earnings & Activity')
+    expect(container.textContent).toContain('Wallet')
     expect(container.textContent).toContain('Following')
     expect(container.textContent).toContain('Profile')
 
@@ -297,9 +297,9 @@ describe('Navbar', () => {
     const notifBtn = Array.from(container.querySelectorAll('button')).find(b => b.textContent?.includes('Rate your purchase'))
     if (notifBtn) {
       await act(async () => { fireEvent.click(notifBtn) })
-      // Should show rating modal with stars and skip
-      expect(container.textContent).toContain('Rate your experience')
-      expect(container.textContent).toContain('Skip for now')
+      // Should show rating modal with stars and skip (portaled to document.body)
+      expect(document.body.textContent).toContain('Rate your experience')
+      expect(document.body.textContent).toContain('Skip for now')
     }
   })
 

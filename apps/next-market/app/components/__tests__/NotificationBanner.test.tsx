@@ -28,12 +28,13 @@ describe('NotificationBanner', () => {
   it('shows enable button when onEnableClick provided', async () => {
     const onEnable = vi.fn()
     const { container } = render(React.createElement(NotificationBanner, { context: 'alerts', onEnableClick: onEnable }))
-    await waitFor(() => {
-      const btn = Array.from(container.querySelectorAll('button')).find(b => b.textContent?.includes('Enable now'))
-      expect(btn).toBeTruthy()
-      fireEvent.click(btn!)
-      expect(onEnable).toHaveBeenCalled()
+    const btn = await waitFor(() => {
+      const found = Array.from(container.querySelectorAll('button')).find(b => b.textContent?.includes('Enable now'))
+      if (!found) throw new Error('Button not found. HTML: ' + container.innerHTML)
+      return found
     })
+    fireEvent.click(btn)
+    expect(onEnable).toHaveBeenCalled()
   })
 
   it('dismisses when close button clicked', async () => {

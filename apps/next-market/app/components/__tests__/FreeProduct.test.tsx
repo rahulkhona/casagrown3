@@ -70,6 +70,8 @@ const freeProductProps = {
     id: 'prod-free-1', name: 'Backyard Lemons', price_usd: 0,
     unit: 'bag', inventory: 15, category: 'produce',
     photos: ['/products/lemons.png'],
+    product_pickup_windows: [{ day_of_week: 1 }],
+    product_delivery_windows: [{ day_of_week: 1 }],
   },
   booth: {
     id: 'booth-1', name: "Maria's Garden Fresh",
