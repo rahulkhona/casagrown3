@@ -763,7 +763,7 @@ test.describe('Deep Interactions', () => {
         lower.includes('helping') ||
         lower.includes('order') ||
         lower.includes('join') ||
-        lower.includes('booth')
+        lower.includes('booth') || lower.includes('produce stand')
       expect(hasContent).toBeTruthy()
 
       await bethPage.context().close()

@@ -322,7 +322,7 @@ test.describe('Earnings Page Interactions', () => {
 // ============================================================================
 // MY BOOTH INTERACTIONS — Booth creation, product management, coupons
 // ============================================================================
-test.describe('My Booth Interactions', () => {
+test.describe('My Produce Stand Interactions', () => {
   test('my booth page shows create or manage options', async ({ page }) => {
     await page.goto(`${BASE}/my-booth`)
     await expect(page.locator('body')).toBeVisible()

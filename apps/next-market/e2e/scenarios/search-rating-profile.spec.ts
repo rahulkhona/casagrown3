@@ -59,7 +59,7 @@ test.describe('Search, Rating & Profile', () => {
       // Should show search results or "no results" — not an error
       const hasSearchUI =
         lower.includes('result') ||
-        lower.includes('booth') ||
+        lower.includes('booth') || lower.includes('produce stand') ||
         lower.includes('no results') ||
         lower.includes(searchTerm.toLowerCase()) ||
         lower.includes('closed') // market closed is valid

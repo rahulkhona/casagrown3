@@ -100,7 +100,7 @@ test.describe('Smoke Test — Every Page Loads Without Errors', () => {
         url.includes('get-started') ||
         url.includes('login') ||
         body.toLowerCase().includes('create') ||
-        body.toLowerCase().includes('booth') ||
+        body.toLowerCase().includes('booth') || body.toLowerCase().includes('produce stand') ||
         body.toLowerCase().includes('set up')
       expect(acceptable).toBeTruthy()
     })
@@ -137,7 +137,7 @@ test.describe('Smoke Test — Every Page Loads Without Errors', () => {
       body.includes('Garden') ||
       body.includes('Farm') ||
       body.includes('Booth') ||
-      body.includes('booth') ||
+      body.includes('booth') || body.includes('produce stand') ||
       body.includes('product')
     expect(hasBooth).toBeTruthy()
 

@@ -34,7 +34,7 @@ test.describe('Booth Management', () => {
       body.includes('Maria') ||
       body.includes('Garden') ||
       body.includes('Booth') ||
-      body.includes('booth') ||
+      body.includes('booth') || body.includes('produce stand') ||
       body.includes('Product') ||
       body.includes('product')
     expect(hasBoothContent).toBeTruthy()
@@ -62,7 +62,7 @@ test.describe('Booth Management', () => {
       body.includes('add') ||
       body.includes('Create') ||
       body.includes('create') ||
-      body.includes('booth')
+      body.includes('booth') || body.includes('produce stand')
     expect(hasProducts).toBeTruthy()
 
     // Check for add product link/button
@@ -221,15 +221,15 @@ test.describe('Booth Management', () => {
   })
 
   // ── S7.7: Booth Native Sharing ──
-  test('S7.7 — Owner side: Share My Booth FAB and Product-level Share triggers', async ({ browser }) => {
+  test('S7.7 — Owner side: Share My Produce Stand FAB and Product-level Share triggers', async ({ browser }) => {
     const page = await loginAsUser(browser, 'maria')
     await navigateTo(page, '/my-booth')
     
     // Assert legacy green banner is completely wiped
     await expect(page.getByText('Next Market Pioneer')).toHaveCount(0)
 
-    // Assert Share My Booth FAB is visible at the bottom
-    const globalShareBtn = page.locator('button', { hasText: 'Share My Booth' }).first()
+    // Assert Share My Produce Stand FAB is visible at the bottom
+    const globalShareBtn = page.locator('button', { hasText: 'Share My Produce Stand' }).first()
     if (await globalShareBtn.count() > 0) {
       await expect(globalShareBtn).toBeVisible()
     }

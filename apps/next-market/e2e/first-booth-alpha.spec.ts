@@ -27,7 +27,7 @@ test.describe('New User First Booth Creation', () => {
     })
 
     // Should see booth name input
-    const nameInput = page.locator('input[placeholder*="Name your booth"]')
+    const nameInput = page.locator('input[placeholder*="Name your produce stand"]')
     if (await nameInput.count() > 0) {
       await expect(nameInput).toBeVisible()
     }
@@ -38,7 +38,7 @@ test.describe('New User First Booth Creation', () => {
     await page.waitForTimeout(2000)
 
     // Fill in booth name
-    const nameInput = page.locator('input[placeholder*="Name your booth"]')
+    const nameInput = page.locator('input[placeholder*="Name your produce stand"]')
     if (await nameInput.count() > 0) {
       await nameInput.fill('Test Booth')
 
@@ -55,7 +55,7 @@ test.describe('New User First Booth Creation', () => {
       }
 
       // Try to save — should not crash
-      const saveBtn = page.locator('button:has-text("Save"), button:has-text("Create Booth"), [id*="save"]')
+      const saveBtn = page.locator('button:has-text("Save"), button:has-text("Create Produce Stand"), [id*="save"]')
       if (await saveBtn.count() > 0) {
         // Listen for JS errors
         const errors: string[] = []

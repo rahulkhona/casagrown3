@@ -388,7 +388,7 @@ test.describe('Booth Creation Wizard', () => {
 // ============================================================================
 // MY BOOTH — Edit booth, delivery, photos
 // ============================================================================
-test.describe('My Booth Management', () => {
+test.describe('My Produce Stand Management', () => {
   test('booth edit form shows all fields', async ({ page }) => {
     await page.goto(`${BASE}/my-booth`)
     await page.waitForTimeout(2000)

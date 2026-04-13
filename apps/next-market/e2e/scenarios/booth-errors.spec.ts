@@ -81,7 +81,7 @@ test.describe('Booth Management — Error Handling', () => {
       body.includes('Create') ||
       body.includes('create') ||
       body.includes('Booth') ||
-      body.includes('booth') ||
+      body.includes('booth') || body.includes('produce stand') ||
       body.includes('Start') ||
       body.includes('Set up') ||
       body.includes('sign in')

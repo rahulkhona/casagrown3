@@ -421,7 +421,7 @@ test.describe('Product Detail Page', () => {
 // ============================================================================
 // 5. My Booth — Deeper Controls (14 elements)
 // ============================================================================
-test.describe('My Booth Deep Controls', () => {
+test.describe('My Produce Stand Deep Controls', () => {
   test('header photo and theme icons', async ({ page }) => {
     await page.goto('/my-booth')
     await dismissRating(page)
@@ -857,7 +857,7 @@ test.describe('Get Started Wizard', () => {
       await page.waitForTimeout(2000)
       await dismissRating(page)
       // Booth name
-      const nameInput = page.locator('input[placeholder*="name" i], input[placeholder*="booth" i]').first()
+      const nameInput = page.locator('input[placeholder*="name" i], input[placeholder*="produce stand" i]').first()
       if (await nameInput.isVisible({ timeout: 3000 }).catch(() => false)) {
         await nameInput.fill('My Test Garden')
       }
@@ -954,7 +954,7 @@ test.describe('Get Started Wizard', () => {
         await expect(copyBtn).toBeTruthy()
       }
       // Create Booth button
-      const createBtn = page.locator('button:has-text("Create Booth"), button:has-text("Create"), button[type="submit"]').first()
+      const createBtn = page.locator('button:has-text("Create Produce Stand"), button:has-text("Create"), button[type="submit"]').first()
       if (await createBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
         await expect(createBtn).toBeTruthy()
       }
@@ -987,7 +987,7 @@ test.describe('Join Booth', () => {
       await expect(declineBtn).toBeTruthy()
     }
     // Go to My Booth link
-    const goBtn = page.locator('a:has-text("My Booth"), button:has-text("My Booth")').first()
+    const goBtn = page.locator('a:has-text("My Produce Stand"), button:has-text("My Produce Stand")').first()
     if (await goBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
       await expect(goBtn).toBeTruthy()
     }

@@ -514,11 +514,11 @@ test.describe('Redeem Page Interactions', () => {
 // ============================================================================
 // MY BOOTH — Full management page
 // ============================================================================
-test.describe('My Booth Management', () => {
+test.describe('My Produce Stand Management', () => {
   test('booth name input is editable', async ({ page }) => {
     await page.goto('/my-booth')
     await page.waitForTimeout(2000)
-    const nameInput = page.locator('input[placeholder*="booth" i], input[placeholder*="name" i], input[value]').first()
+    const nameInput = page.locator('input[placeholder*="produce stand" i], input[placeholder*="name" i], input[value]').first()
     if (await nameInput.isVisible({ timeout: 3000 }).catch(() => false)) {
       await nameInput.clear()
       await nameInput.fill('Updated Farm Stand')
