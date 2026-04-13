@@ -70,7 +70,7 @@ export default function FollowingPage() {
   }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Debounced search using native timeouts
-  const searchTimeout = useRef<NodeJS.Timeout | null>(null)
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   
   useEffect(() => {
     if (query.trim().length === 0) {

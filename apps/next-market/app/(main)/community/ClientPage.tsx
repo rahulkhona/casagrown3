@@ -463,7 +463,7 @@ export default function ClientPage({
         author_name: profileName || 'Neighbor',
         author_avatar_url: typeof (user as any)?.user_metadata?.avatar_url === 'string' ? (user as any).user_metadata.avatar_url : null,
         community_h3_index: profileH3,
-        parent_id: null,
+        parent_id: replyingTo?.id || null,
         media: [],
         product_listing_id: null,
         is_system: false,
@@ -474,6 +474,8 @@ export default function ClientPage({
         reply_count: 0,
         user_reactions: [],
         flag_count: 0,
+        quoted_author_name: replyingTo?.author_name || null,
+        quoted_content: replyingTo ? replyingTo.content.substring(0, 100) : null,
       }
       setMessages(prev => [...prev, optimisticMsg])
       
@@ -491,8 +493,12 @@ export default function ClientPage({
         h3Index: profileH3,
         authorId: user.id,
         content,
-        media
+        media,
+        parentId: replyingTo?.id,
       })
+      
+      // Clear reply-to state
+      setReplyingTo(null)
       
       // Swap out temp ID (will naturally happen anyway via Supabase Realtime catching it, but this keeps our state perfectly clean)
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, id: msgId } : m))
@@ -632,32 +638,13 @@ export default function ClientPage({
                     message={msg} 
                     currentUserId={user?.id}
                     isGuest={isGuest}
-                    onReply={isGuest ? undefined : async (parentId, content) => {
-                      const supabase = createClient()
-                      const replyId = await sendCommunityMessage(supabase, {
-                        h3Index: profileH3!,
-                        authorId: user!.id,
-                        content,
-                        parentId,
-                      })
-                      await loadMessages()
-                      
-                      const CASABOT_ID = 'a0000000-0000-0000-0000-00000ca5ab07'
-                      const isCasaBotThread = 
-                        content.toLowerCase().includes('@casabot') ||
-                        msg.author_id === CASABOT_ID ||
-                        msg.content?.toLowerCase().includes('@casabot')
-                      
-                      if (isCasaBotThread) {
-                        supabase.functions.invoke('casabot-reply', {
-                          body: {
-                            message_id: replyId,
-                            content,
-                            community_h3_index: profileH3,
-                            author_name: 'Neighbor',
-                          },
-                        }).then(() => setTimeout(() => loadMessages(), 3000))
-                      }
+                    onReplyTo={isGuest ? undefined : (targetMsg) => {
+                      setReplyingTo(targetMsg)
+                      // Focus the compose bar input
+                      setTimeout(() => {
+                        const input = composeRef.current?.querySelector('textarea')
+                        if (input) input.focus()
+                      }, 100)
                     }}
                     onEdit={async (messageId, content) => {
                       const supabase = createClient()
@@ -748,7 +735,7 @@ export default function ClientPage({
           </button>
         </div>
       ) : (
-        <div className={styles.composeWrapper}>
+        <div className={styles.composeWrapper} ref={composeRef}>
           <SuggestionChips 
             onSelect={(text: string) => handleSendMessage(text)}
             onPrefill={(text: string) => setComposePrefill(text)}
@@ -757,6 +744,16 @@ export default function ClientPage({
             onFindClick={handleFindClick}
             onNotifyClick={() => setNotifyActive(true)}
           />
+          {/* Reply-to preview bar */}
+          {replyingTo && (
+            <div className={styles.replyToPreview}>
+              <div className={styles.replyToInfo}>
+                <div className={styles.replyToAuthor}>Replying to {replyingTo.author_name || 'Neighbor'}</div>
+                <div className={styles.replyToText}>{replyingTo.content.substring(0, 80)}{replyingTo.content.length > 80 ? '…' : ''}</div>
+              </div>
+              <button className={styles.replyToClose} onClick={() => setReplyingTo(null)}>✕</button>
+            </div>
+          )}
           <ComposeBar
             onSend={handleSendMessage}
             userId={user?.id}

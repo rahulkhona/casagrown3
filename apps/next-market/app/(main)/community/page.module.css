@@ -1281,6 +1281,79 @@
   to { transform: translateY(0); opacity: 1; }
 }
 
+/* WhatsApp-style quote bar for reply messages */
+.quoteBar {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  margin-bottom: 4px;
+  background: rgba(22, 163, 74, 0.06);
+  border-left: 3px solid var(--green-500);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  max-width: 90%;
+}
+.quoteBar:hover {
+  background: rgba(22, 163, 74, 0.12);
+}
+.quoteAuthor {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--green-700);
+}
+.quoteText {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 250px;
+}
+
+/* Reply-to preview above compose bar */
+.replyToPreview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(22, 163, 74, 0.06);
+  border-left: 3px solid var(--green-500);
+  border-radius: 8px 8px 0 0;
+  margin: 0 12px;
+  animation: slideUp 0.15s ease-out;
+}
+.replyToPreview .replyToInfo {
+  flex: 1;
+  min-width: 0;
+}
+.replyToPreview .replyToAuthor {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--green-700);
+}
+.replyToPreview .replyToText {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.replyToPreview .replyToClose {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 50%;
+  line-height: 1;
+}
+.replyToPreview .replyToClose:hover {
+  background: rgba(0,0,0,0.05);
+}
+
 .btnPrimary {
   margin-top: 1rem;
   background: var(--green-600);

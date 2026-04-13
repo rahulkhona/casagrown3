@@ -279,7 +279,7 @@ function NewProductPageInner() {
 
           // Filter to same-neighborhood sellers
           if (localProducts && localProducts.length > 0) {
-            const sellerIds = [...new Set(localProducts.map(p => p.seller_id))]
+            const sellerIds = Array.from(new Set(localProducts.map(p => p.seller_id)))
             const { data: neighborSellers } = await supabase
               .from('profiles').select('id')
               .eq('home_community_h3_index', h3)

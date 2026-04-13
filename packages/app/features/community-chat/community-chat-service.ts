@@ -29,6 +29,9 @@ export interface CommunityChatMessage {
   reply_count: number
   user_reactions: string[]
   flag_count: number
+  // WhatsApp-style quote reply context
+  quoted_author_name?: string | null
+  quoted_content?: string | null
 }
 
 // =============================================================================
@@ -60,39 +63,7 @@ export async function fetchCommunityMessages(
   return hydrateMediaUrls(supabase, data || [])
 }
 
-/**
- * Fetch thread replies for a specific message
- */
-export async function fetchCommunityReplies(
-  supabase: any,
-  parentId: string,
-  limit: number = 50
-): Promise<CommunityChatMessage[]> {
-  const { data, error } = await supabase
-    .rpc('get_community_chat_replies', {
-      p_parent_id: parentId,
-      p_limit: limit,
-    })
-
-  if (error) {
-    console.error('Error fetching community replies:', error)
-    throw error
-  }
-
-  // Hydrate media URLs and add missing fields from RPC for type safety
-  const rows = (data || []).map((row: any) => ({
-    ...row,
-    parent_id: parentId,
-    community_h3_index: '', // Not returned by replies RPC since it's implied
-    product_listing_id: null,
-    is_pinned: false,
-    reply_count: 0,
-    bumped_at: null,
-    flag_count: 0
-  }))
-
-  return hydrateMediaUrls(supabase, rows)
-}
+// fetchCommunityReplies removed — replies now appear in the main feed via get_community_chat_messages
 
 /**
  * Fetch unread message count for badge

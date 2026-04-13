@@ -378,10 +378,6 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
                         currentUserId={userId}
                         onDelete={() => {}}
                         onFlag={() => {}}
-                        onReply={async (parentId, content) => {
-                          await onSendMessage(content)
-                          onReloadMessages()
-                        }}
                       />
                     </div>
                   )}

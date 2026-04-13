@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { CommunityChatMessage, toggleMessageReaction, fetchCommunityReplies } from '../../../../../../packages/app/features/community-chat/community-chat-service'
+import { CommunityChatMessage, toggleMessageReaction } from '../../../../../../packages/app/features/community-chat/community-chat-service'
 import { createClient } from '../../../../lib/supabase'
 import { useErrorToast } from '../../../components/ErrorToast'
 import { checkTextForViolations } from '../../../../lib/moderation'
@@ -15,10 +15,8 @@ interface ChatMessageProps {
   currentUserId?: string
   onDelete: () => void
   onFlag: () => void
-  onReply?: (parentId: string, content: string) => Promise<void>
+  onReplyTo?: (message: CommunityChatMessage) => void
   onEdit?: (messageId: string, newContent: string) => Promise<void>
-  /** If true, this message is inside a thread view — hide reply/thread actions */
-  isThreadReply?: boolean
   /** If true, the viewer is not authenticated — disable all write actions */
   isGuest?: boolean
 }
@@ -36,7 +34,7 @@ function formatTime(dateStr?: string) {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ', ' + timeStr
 }
 
-export default function ChatMessage({ message, currentUserId, onDelete, onFlag, onReply, onEdit, isThreadReply, isGuest }: ChatMessageProps) {
+export default function ChatMessage({ message, currentUserId, onDelete, onFlag, onReplyTo, onEdit, isGuest }: ChatMessageProps) {
   const [showActions, setShowActions] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
   const [richShareInfo, setRichShareInfo] = useState<string | null>(null)
@@ -50,44 +48,11 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
                 message.author_name === 'CasaBot' || 
                 message.author_id === '00000000-0000-0000-0000-000000000000' || 
                 message.author_id === 'a0000000-0000-0000-0000-00000ca5ab07'
-  // Inline reply state
-  const [showReplyInput, setShowReplyInput] = useState(false)
-  const [replyText, setReplyText] = useState('')
-  const [isSendingReply, setIsSendingReply] = useState(false)
 
   // Edit state
   const [isEditing, setIsEditing] = useState(false)
   const [editText, setEditText] = useState(message.content)
   const [isSavingEdit, setIsSavingEdit] = useState(false)
-
-  // Thread expansion state
-  const [threadReplies, setThreadReplies] = useState<CommunityChatMessage[]>([])
-  const [showAllReplies, setShowAllReplies] = useState(false)
-  const [loadingThread, setLoadingThread] = useState(false)
-
-  const VISIBLE_REPLY_LIMIT = 5
-
-  // Auto-fetch replies and show input for messages that have replies
-  useEffect(() => {
-    if (message.reply_count > 0 && !isThreadReply) {
-      setShowReplyInput(true)
-      // Auto-fetch thread replies
-      const fetchReplies = async () => {
-        setLoadingThread(true)
-        try {
-          const supabase = createClient()
-          const replies = await fetchCommunityReplies(supabase, message.id)
-          setThreadReplies(replies)
-        } catch (err) {
-          console.error('Failed to load replies', err)
-          showError('Failed to load replies.')
-        } finally {
-          setLoadingThread(false)
-        }
-      }
-      fetchReplies()
-    }
-  }, [message.reply_count, message.id, isThreadReply])
 
   const handleToggleReaction = async (emoji: string) => {
     if (!currentUserId || isGuest) return
@@ -120,11 +85,9 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
 
 
   const handleBubbleTap = () => {
-    if (isThreadReply || isEditing) return
-    // Toggle: show actions + reply input
+    if (isEditing) return
     const next = !showActions
     setShowActions(next)
-    if (next) setShowReplyInput(true)
   }
 
   const handleSaveEdit = async () => {
@@ -208,6 +171,25 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
           <span className={styles.time}>{formatTime(message.created_at)}</span>
         </div>
         
+        {/* Quote bar for reply messages */}
+        {message.parent_id && message.quoted_content && (
+          <div 
+            className={styles.quoteBar}
+            onClick={(e) => {
+              e.stopPropagation()
+              const parentEl = document.getElementById(`msg-${message.parent_id}`)
+              if (parentEl) {
+                parentEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                parentEl.style.background = 'rgba(22, 163, 74, 0.08)'
+                setTimeout(() => { parentEl.style.background = '' }, 2000)
+              }
+            }}
+          >
+            <span className={styles.quoteAuthor}>{message.quoted_author_name || 'Neighbor'}</span>
+            <span className={styles.quoteText}>{message.quoted_content}</span>
+          </div>
+        )}
+
         {/* Product listing card OR regular text bubble */}
         {message.product_listing_id ? (
           <div onClick={handleBubbleTap} data-testid="message-bubble">
@@ -288,6 +270,15 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
               </button>
             ))}
             {!isGuest && <span className={styles.tapActionDivider} />}
+            {!isGuest && onReplyTo && (
+              <button 
+                className={styles.tapActionBtn} 
+                onClick={() => { setShowActions(false); onReplyTo(message) }}
+                title="Reply"
+              >
+                ↩
+              </button>
+            )}
             <button className={styles.tapActionBtn} onClick={handleShare} title="Share">
               <ShareIcon size={14} />
             </button>
@@ -328,129 +319,6 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
           </div>
         )}
 
-        {/* Thread replies — auto-shown, latest 5 visible if >5 */}
-        {!isThreadReply && threadReplies.length > 0 && (
-          <div className={styles.threadRepliesList}>
-            {loadingThread && <span className={styles.threadLoading}>Loading replies...</span>}
-            {threadReplies.length > VISIBLE_REPLY_LIMIT && !showAllReplies && (
-              <button
-                className={styles.viewRepliesBtn}
-                onClick={() => setShowAllReplies(true)}
-              >
-                Show {threadReplies.length - VISIBLE_REPLY_LIMIT} earlier repl{threadReplies.length - VISIBLE_REPLY_LIMIT === 1 ? 'y' : 'ies'}
-              </button>
-            )}
-            {threadReplies.length > VISIBLE_REPLY_LIMIT && showAllReplies && (
-              <button
-                className={styles.viewRepliesBtn}
-                onClick={() => setShowAllReplies(false)}
-              >
-                ▴ Hide earlier replies
-              </button>
-            )}
-            {(showAllReplies ? threadReplies : threadReplies.slice(-VISIBLE_REPLY_LIMIT)).map(reply => (
-              <div key={reply.id} className={styles.threadReplyItem}>
-                <div className={styles.threadReplyAvatar}>
-                  {reply.author_avatar_url ? (
-                    <img src={reply.author_avatar_url} alt={reply.author_name || ''} />
-                  ) : (
-                    <span>{(reply.author_name || '?').charAt(0).toUpperCase()}</span>
-                  )}
-                </div>
-                <div className={styles.threadReplyContent}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span className={styles.threadReplyAuthor}>{reply.author_name || 'Neighbor'}</span>
-                    {(() => {
-                      const isReplyBot = reply.is_system ||
-                        reply.author_name === 'CasaBot' ||
-                        reply.author_id === '00000000-0000-0000-0000-000000000000' ||
-                        reply.author_id === 'a0000000-0000-0000-0000-00000ca5ab07'
-                      return !isGuest && !isReplyBot && currentUserId !== reply.author_id ? (
-                        <div style={{ display: 'inline-flex', alignItems: 'center' }}>
-                          <a 
-                            href={`/messages/new?userId=${reply.author_id}&name=${encodeURIComponent(reply.author_name || 'Neighbor')}`}
-                            style={{ fontSize: '0.65rem', background: '#dcfce3', border: '1px solid #86efac', padding: '1px 6px', borderRadius: '12px', color: '#166534', textDecoration: 'none', fontWeight: 500 }}
-                            title="Send a Direct Message"
-                          >
-                            💬 DM
-                          </a>
-                          <ChatFollowButton currentUserId={currentUserId} targetUserId={reply.author_id} isSmall />
-                        </div>
-                      ) : null
-                    })()}
-                  </div>
-                  <div className={styles.threadReplyText}>
-                    <SimpleMarkdown text={reply.content} />
-                  </div>
-                </div>
-                <span className={styles.threadReplyTime}>{formatTime(reply.created_at)}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Inline reply input */}
-        {!isThreadReply && showReplyInput && onReply && (
-          <form 
-            className={styles.inlineReplyForm}
-            onSubmit={async (e) => {
-              e.preventDefault()
-              if (!replyText.trim() || isSendingReply) return
-              const formTarget = e.currentTarget
-              
-              const violationCheck = checkTextForViolations(replyText)
-              if (!violationCheck.isClean) {
-                showError(violationCheck.error!)
-                return
-              }
-
-              try {
-                setIsSendingReply(true)
-                await onReply(message.id, replyText.trim())
-                setReplyText('')
-
-                // Reset the textarea physical height since we explicitly clear it
-                const ta = formTarget?.querySelector('textarea')
-                if (ta) ta.style.height = '38px'
-
-                // Always refresh thread to show new reply
-                const supabase = createClient()
-                const replies = await fetchCommunityReplies(supabase, message.id)
-                setThreadReplies(replies)
-              } finally {
-                setIsSendingReply(false)
-              }
-            }}
-          >
-            <textarea
-              className={styles.inlineReplyInput}
-              placeholder="Reply..."
-              value={replyText}
-              rows={1}
-              onChange={(e) => {
-                setReplyText(e.target.value)
-                e.target.style.height = 'auto'
-                e.target.style.height = (e.target.scrollHeight) + 'px'
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  e.currentTarget.form?.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }))
-                }
-              }}
-              style={{ resize: 'none', overflowY: 'auto', minHeight: 38, maxHeight: 150, padding: '8px 12px' }}
-              autoFocus={showActions}
-              disabled={isSendingReply}
-            />
-            <button 
-              type="submit" 
-              className={styles.inlineReplySend}
-              disabled={!replyText.trim() || isSendingReply}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-            </button>
-          </form>
-        )}
       </div>
 
       <SocialShareModal
