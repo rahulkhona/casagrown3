@@ -146,7 +146,10 @@ function BrowseMarketPageInner() {
   const [locationLoading, setLocationLoading] = useState(false)
   const [locationError, setLocationError] = useState('')
   const [locationDenied, setLocationDenied] = useState(false)
-  const [addressResolved, setAddressResolved] = useState(searchParams.has('lat') || (saved?.has('lat') ?? false))
+  const [addressResolved, setAddressResolved] = useState(
+    (searchParams.has('lat') && searchParams.has('lng')) ||
+    ((saved?.has('lat') ?? false) && (saved?.has('lng') ?? false))
+  )
   const [zipCode, setZipCode] = useState(searchParams.get('zip') || saved?.get('zip') || '')
 
   const [search, setSearch] = useState(searchParams.get('q') || saved?.get('q') || '')
@@ -204,6 +207,20 @@ function BrowseMarketPageInner() {
   }, [address, lat, lng, search, fulfillment, maxMiles, minPrice, maxPrice, category, zipCode])
 
   useEffect(() => { if (addressResolved) syncUrl() }, [syncUrl, addressResolved])
+
+  // Recovery: address is present but coordinates are missing/incomplete (e.g. corrupt localStorage).
+  // Auto-geocode the address to restore lat/lng and unblock the search.
+  useEffect(() => {
+    if (addressResolved || !address.trim() || (lat != null && lng != null)) return
+    geocodeAddress(address.trim()).then(geo => {
+      if (geo) {
+        setLat(geo.lat); setLng(geo.lng)
+        const zipMatch = geo.display?.match(/\b(\d{5})\b/)
+        if (zipMatch) setZipCode(zipMatch[1])
+        setAddressResolved(true)
+      }
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Consolidated profile fetch — address + pioneer banner h3 in a single query.
   // Guard against addressResolved prevents re-geocoding on Supabase token refresh.
@@ -999,9 +1016,8 @@ function BrowseMarketPageInner() {
             return (
               <div key={booth.booth_id} className="card">
                 {/* Header → booth page */}
-                <Link href={booth.is_demo ? '#' : `/market/booth/${booth.booth_id}`}
+                <Link href={`/market/booth/${booth.booth_id}`}
                   className={styles.cardHeaderLink}
-                  onClick={e => { if (booth.is_demo) { e.preventDefault(); setShowDemoModal(true) } }}
                 >
                   <div className={styles.cardHeader} style={{
                     background: booth.header_image_url ? `url(${booth.header_image_url}) center/cover` : theme.gradient,
@@ -1056,9 +1072,8 @@ function BrowseMarketPageInner() {
                       {products.slice(0, isSearching ? 6 : 4).map((p: any) => (
                         <div key={p.id} style={{ position: 'relative' }}>
                           <Link
-                            href={booth.is_demo ? '#' : `/market/booth/${booth.booth_id}/product/${p.id}`}
+                            href={`/market/booth/${booth.booth_id}/product/${p.id}`}
                             className={styles.productCard}
-                            onClick={e => { if (booth.is_demo) { e.preventDefault(); setShowDemoModal(true) } }}
                           >
                             <div className={styles.productThumb}>
                               {p.photo ? <img src={p.photo} alt={p.name} /> : <span>{categoryIcons[p.category] || '📦'}</span>}
@@ -1093,9 +1108,8 @@ function BrowseMarketPageInner() {
                       ))}
                       {products.length > (isSearching ? 6 : 4) && (
                         <Link
-                          href={booth.is_demo ? '#' : `/market/booth/${booth.booth_id}`}
+                          href={`/market/booth/${booth.booth_id}`}
                           className={styles.moreCard}
-                          onClick={e => { if (booth.is_demo) { e.preventDefault(); setShowDemoModal(true) } }}
                         >+{products.length - (isSearching ? 6 : 4)}</Link>
                       )}
                     </div>
