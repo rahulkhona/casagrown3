@@ -84,6 +84,9 @@ function NewProductPageInner() {
   // Product details
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [isGeneratingRecipes, setIsGeneratingRecipes] = useState(false)
+  const [generatedRecipesList, setGeneratedRecipesList] = useState<string[]>([])
+  const [recipeIntro, setRecipeIntro] = useState('')
   const [priceUsd, setPriceUsd] = useState('')
   const [isFree, setIsFree] = useState(false)
   const [unit, setUnit] = useState('each')
@@ -147,6 +150,7 @@ function NewProductPageInner() {
 
   // Inline booth setup (for users without a booth)
   const [hasBooth, setHasBooth] = useState<boolean | null>(null) // null = loading
+  const [boothId, setBoothId] = useState<string | null>(null)
   const [inlineDelivery, setInlineDelivery] = useState(true)
   const [inlinePickup, setInlinePickup] = useState(true)
   const [inlinePickupAddress, setInlinePickupAddress] = useState('')
@@ -324,6 +328,7 @@ function NewProductPageInner() {
     supabase.from('market_booths').select('id').eq('owner_id', authUser.id).single()
       .then(({ data }) => {
         setHasBooth(!!data)
+        if (data?.id) setBoothId(data.id)
         // Pre-fill pickup address from profile if no booth
         if (!data) {
           supabase.from('profiles').select('full_name, street_address, city, state_code').eq('id', authUser.id).single()
@@ -557,6 +562,35 @@ function NewProductPageInner() {
 
   const removePhoto = (index: number) => {
     setPhotos(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const handleGenerateRecipes = async () => {
+    if (!name || isGeneratingRecipes) return
+    setIsGeneratingRecipes(true)
+    setGeneratedRecipesList([])
+
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase.functions.invoke('casabot-recipe-suggestions', {
+        body: { name, description, category }
+      })
+      if (error) throw error
+      if (data?.recipes && Array.isArray(data.recipes)) {
+        setGeneratedRecipesList(data.recipes)
+        if (data.intro) setRecipeIntro(data.intro)
+      } else if (data?.recipes_markdown) {
+        // Fallback just in case edge function is caching older deployments
+        let rawMarkdown = data.recipes_markdown
+        const splitMatches = rawMarkdown.split(/(?=\\*\\*\\d+\\.)/)
+        const filtered = splitMatches.map((m: string) => m.trim()).filter((m: string) => m.length > 0)
+        setGeneratedRecipesList(filtered.length > 0 ? filtered : [rawMarkdown])
+      }
+    } catch(e) {
+      console.error('Failed to generate recipes', e)
+      alert("CasaBot is resting right now. Try again later!")
+    } finally {
+      setIsGeneratingRecipes(false)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -859,8 +893,7 @@ function NewProductPageInner() {
 
       setValidating(false)
       if (needsDraft) {
-        // Draft edits: stay on the page
-        dispatch({ type: 'ADD_TOAST', payload: { message: '📝 Draft saved! Continue editing when ready.', type: 'success' } })
+        // Draft edits: stay on the page (no toast — user can see the save button reset)
       } else {
         // Formally published from draft state
         setAddedProductId(editId)
@@ -1044,8 +1077,7 @@ function NewProductPageInner() {
     setBoothIdForShare(boothId)
 
     if (needsDraft) {
-      // Drafts: stay on the page so user can continue editing
-      dispatch({ type: 'ADD_TOAST', payload: { message: '📝 Draft saved! Continue editing when ready.', type: 'success' } })
+      // Drafts: stay on the page so user can continue editing (no toast — user can see the save button reset)
       // Update the URL to edit mode so future saves are updates, not inserts
       window.history.replaceState({}, '', `/my-booth/products/new?edit=${insertedProduct.id}`)
     } else {
@@ -1406,7 +1438,48 @@ function NewProductPageInner() {
             </div>
             <div className={styles.field}>
               <label className={styles.label}>Description <span className={styles.optional}>(optional)</span></label>
-              <textarea className={`${styles.input} ${errors.description ? styles.inputError : ''}`} value={description} onChange={e => { setDescription(e.target.value); setErrors(p => ({ ...p, description: '' })) }} placeholder="What makes these special?" rows={2} />
+              <textarea className={`${styles.input} ${errors.description ? styles.inputError : ''}`} value={description} onChange={e => { setDescription(e.target.value); setErrors(p => ({ ...p, description: '' })) }} placeholder="What makes these special?" rows={4} />
+              
+              {/* CasaBot Recipe Assistant */}
+              {name.trim().length > 2 && (
+                <div style={{ marginTop: 8 }}>
+                  <button 
+                    onClick={(e) => { e.preventDefault(); handleGenerateRecipes() }}
+                    disabled={isGeneratingRecipes}
+                    style={{ background: 'linear-gradient(135deg, #f0fdf4, #fffbeb)', border: '1px solid #86efac', borderRadius: 8, padding: '4px 12px', fontSize: 13, color: '#166534', cursor: isGeneratingRecipes ? 'wait' : 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  >
+                    🐝 {isGeneratingRecipes ? 'Thinking...' : 'Ask CasaBot for Recipes ✨'}
+                  </button>
+                  
+                  {generatedRecipesList.length > 0 && (
+                    <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {generatedRecipesList.map((recipeMarkdown, i) => (
+                        <div 
+                          key={i} 
+                          onClick={() => {
+                            const recipeText = recipeMarkdown.replace(/^[🍳🥘🍞🍯🫖🥗💐🏡📸🫙]+\s*/, '')
+                            const introLine = recipeIntro || 'Not sure what to make? Try this:'
+                            const newDesc = description.trim() + `\n\n✨ ${introLine}\n` + recipeText
+                            setDescription(newDesc)
+                            setGeneratedRecipesList([]) // close after selecting
+                          }}
+                          style={{ cursor: 'pointer', padding: 12, background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 8, transition: 'background 0.1s' }}
+                          onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
+                          onMouseLeave={e => e.currentTarget.style.background = '#f8fafc'}
+                          title="Click to insert recipe into description"
+                        >
+                          <div style={{ fontSize: 13, color: '#334155', whiteSpace: 'pre-wrap' }}>
+                             {/* Strip bold asterisks for quick preview since we don't have SimpleMarkdown here natively */}
+                             {recipeMarkdown.replace(/\\*\\*/g, '')}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#2563eb', fontWeight: 600, marginTop: 4 }}>+ Click to add recipe to description</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {errors.description && <span className={styles.error}>{errors.description}</span>}
             </div>
             {['produce', 'flowers', 'flower_arrangements', 'eggs'].includes(category) && (
@@ -1930,6 +2003,26 @@ function NewProductPageInner() {
               style={{ marginTop: 8 }}
             >
               📝 Save as Draft Instead
+            </button>
+          )}
+
+          {/* Preview link for sellers in edit mode */}
+          {isEditMode && editId && boothId && (
+            <button
+              type="button"
+              onClick={() => router.push(`/market/booth/${boothId}/product/${editId}`)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                marginTop: 12, padding: '10px 20px', borderRadius: 12, width: '100%',
+                background: 'transparent', color: 'var(--green-700, #15803d)',
+                border: '1.5px solid var(--green-200, #bbf7d0)',
+                fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#f0fdf4'; e.currentTarget.style.borderColor = '#86efac' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = '#bbf7d0' }}
+            >
+              👁️ Preview Product Page
             </button>
           )}
         </form>

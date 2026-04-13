@@ -161,6 +161,7 @@ function BrowseMarketPageInner() {
   const [loading, setLoading] = useState(false)
   const [profileLoading, setProfileLoading] = useState(true)
   const [buyerStateCode, setBuyerStateCode] = useState<string | null>(null)
+  const [searchError, setSearchError] = useState<string | null>(null)
 
   // Pagination state for infinite scroll
   const PAGE_SIZE = 20
@@ -300,32 +301,65 @@ function BrowseMarketPageInner() {
     })
     if (error) {
       console.error('Search error:', error.message)
+      // Auto-retry once after a short delay (handles transient API/network failures)
+      if (!silent) {
+        console.log('[Market] Retrying search in 2s...')
+        await new Promise(r => setTimeout(r, 2000))
+        const retry = await supabase.rpc('nearby_booths', {
+          user_lat: lat, user_lng: lng, max_miles: maxMiles,
+          fulfillment_filter: fulfillment, product_search: search.trim() || null,
+          min_price: minPrice ? parseFloat(minPrice) : null,
+          max_price: maxPrice ? parseFloat(maxPrice) : null,
+          category_filter: category || null, buyer_state_code: buyerStateCode,
+          exclude_demos: false, p_limit: PAGE_SIZE, p_offset: 0,
+        })
+        if (!retry.error && Array.isArray(retry.data)) {
+          setSearchError(null)
+          setBooths(retry.data)
+          setLoading(false)
+          return
+        }
+        // Both attempts failed — show error to user
+        setSearchError('Unable to load nearby listings. Please check your connection and try again.')
+        setLoading(false)
+        return
+      }
     } else {
+      setSearchError(null) // Clear any previous error on success
       // Only update state if results actually changed — avoids unnecessary re-renders
       // during background polling when nothing has changed on the market.
       setBooths(prev => {
         const next = Array.isArray(data) ? [...data] : []
         
+        const realCount = next.length
+        const TARGET_MIN = 12
+
         if (silent) {
           // Idle polling: Retain the demo booths we already had in React state
-          const existingDemos = prev.filter(b => b.is_demo)
-          next.push(...existingDemos)
+          // BUT only enough to pad the difference. If real booths take over, demos naturally fall away.
+          if (realCount < TARGET_MIN) {
+            const existingDemos = prev.filter(b => b.is_demo)
+            next.push(...existingDemos.slice(0, TARGET_MIN - realCount))
+          }
         } else if (cachedDemos) {
           // Active page load: Inject the 2-hour valid Local Storage cache
-          let validDemos = cachedDemos
-          if (search.trim()) {
-            const queryWords = search.toLowerCase().trim().split(/\s+/).filter(w => w.length >= 2)
-            if (queryWords.length > 0) {
-              validDemos = cachedDemos.map((db: BoothResult) => {
-                const matchedProducts = (db.matched_products || []).filter((p: any) => {
-                  const text = (p.name + ' ' + (p.description || '') + ' ' + (p.category || '')).toLowerCase()
-                  return queryWords.every(w => text.includes(w))
-                })
-                return { ...db, matched_products: matchedProducts, product_count: matchedProducts.length }
-              }).filter((db: BoothResult) => db.product_count > 0)
+          // ONLY up to the remaining capacity we need to fill the screen
+          if (realCount < TARGET_MIN) {
+            let validDemos = cachedDemos.slice(0, TARGET_MIN - realCount)
+            if (search.trim()) {
+              const queryWords = search.toLowerCase().trim().split(/\s+/).filter((w: string) => w.length >= 2)
+              if (queryWords.length > 0) {
+                validDemos = validDemos.map((db: BoothResult) => {
+                  const matchedProducts = (db.matched_products || []).filter((p: any) => {
+                    const text = (p.name + ' ' + (p.description || '') + ' ' + (p.category || '')).toLowerCase()
+                    return queryWords.every((w: string) => text.includes(w))
+                  })
+                  return { ...db, matched_products: matchedProducts, product_count: matchedProducts.length }
+                }).filter((db: BoothResult) => db.product_count > 0)
+              }
             }
+            next.push(...validDemos)
           }
-          next.push(...validDemos)
         } else {
           // Active page load (Cache Miss): We fetched fresh demos! Save them to the 2-hour cache.
           const freshDemos = next.filter(b => b.is_demo)
@@ -868,54 +902,94 @@ function BrowseMarketPageInner() {
           display: 'flex', flexDirection: 'column', alignItems: 'center',
           padding: '24px 20px', textAlign: 'center'
         }}>
-          <div style={{
-            position: 'relative', overflow: 'hidden', padding: '32px 24px', borderRadius: 24,
-            background: 'linear-gradient(145deg, #ffffff, #f0fdf4)',
-            border: '1px solid rgba(34, 197, 94, 0.2)',
-            boxShadow: '0 8px 30px rgba(0,0,0,0.06)',
-            width: '100%', maxWidth: 500,
-            display: 'flex', flexDirection: 'column', alignItems: 'center',
-          }}>
+          {searchError ? (
+            /* ── Error state: show retry button instead of misleading "Invite" CTA ── */
             <div style={{
-              position: 'absolute', top: -40, right: -30, opacity: 0.05,
-              fontSize: 160, transform: 'rotate(15deg)', pointerEvents: 'none'
-            }}>{isSearching ? getSearchEmoji(search) : '🌱'}</div>
-            
-            <div style={{ 
-              width: 64, height: 64, borderRadius: '50%', 
-              background: '#dcfce7', color: '#16a34a',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 28, marginBottom: 16, boxShadow: '0 4px 12px rgba(22,163,74,0.15)'
+              position: 'relative', overflow: 'hidden', padding: '32px 24px', borderRadius: 24,
+              background: 'linear-gradient(145deg, #ffffff, #fffbeb)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+              boxShadow: '0 8px 30px rgba(0,0,0,0.06)',
+              width: '100%', maxWidth: 500,
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
             }}>
-              {isSearching ? getSearchEmoji(search) : '🌱'}
+              <div style={{
+                width: 64, height: 64, borderRadius: '50%',
+                background: '#fef3c7', color: '#d97706',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 28, marginBottom: 16, boxShadow: '0 4px 12px rgba(217,119,6,0.15)'
+              }}>⚠️</div>
+              <h3 style={{ margin: '0 0 8px', fontSize: 19, color: '#1f2937', fontWeight: 800, letterSpacing: '-0.4px' }}>
+                Something went wrong
+              </h3>
+              <p style={{ margin: '0 0 24px', fontSize: 15, color: '#4b5563', lineHeight: 1.5, maxWidth: 360 }}>
+                {searchError}
+              </p>
+              <button
+                onClick={() => { setSearchError(null); searchBooths() }}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                  padding: '12px 28px', borderRadius: 999,
+                  background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#fff',
+                  fontSize: 15, fontWeight: 700, border: 'none', cursor: 'pointer',
+                  boxShadow: '0 6px 20px rgba(245,158,11,0.3)', transition: 'transform 0.2s ease',
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.03)' }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}
+              >
+                🔄 Try Again
+              </button>
             </div>
+          ) : (
+            /* ── Genuine empty state: no booths found, invite neighbors ── */
+            <div style={{
+              position: 'relative', overflow: 'hidden', padding: '32px 24px', borderRadius: 24,
+              background: 'linear-gradient(145deg, #ffffff, #f0fdf4)',
+              border: '1px solid rgba(34, 197, 94, 0.2)',
+              boxShadow: '0 8px 30px rgba(0,0,0,0.06)',
+              width: '100%', maxWidth: 500,
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+            }}>
+              <div style={{
+                position: 'absolute', top: -40, right: -30, opacity: 0.05,
+                fontSize: 160, transform: 'rotate(15deg)', pointerEvents: 'none'
+              }}>{isSearching ? getSearchEmoji(search) : '🌱'}</div>
 
-            <h3 style={{ margin: '0 0 8px', fontSize: 19, color: '#1f2937', fontWeight: 800, letterSpacing: '-0.4px', position: 'relative', zIndex: 1 }}>
-              {isSearching ? `Looking for ${search}?` : 'Everything is better with friends'}
-            </h3>
-            
-            <p style={{ margin: '0 0 24px', fontSize: 15, color: '#4b5563', lineHeight: 1.5, position: 'relative', zIndex: 1, maxWidth: 360 }}>
-              {isSearching 
-                ? `Know a neighbor who might have ${search}? Invite them to list on CasaGrown!` 
-                : 'More neighbors mean more fresh food. Invite your neighbors to start building your local community!'}
-            </p>
-            
-            <button 
-              onClick={() => setShowGlobalShareModal(true)}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 8,
-                padding: '12px 28px', borderRadius: 999,
-                background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff',
-                fontSize: 15, fontWeight: 700, border: 'none', cursor: 'pointer',
-                boxShadow: '0 6px 20px rgba(22,163,74,0.3)', transition: 'transform 0.2s ease',
-                position: 'relative', zIndex: 1
-              }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.03)' }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}
-            >
-              🚀 Invite Neighbors
-            </button>
-          </div>
+              <div style={{
+                width: 64, height: 64, borderRadius: '50%',
+                background: '#dcfce7', color: '#16a34a',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 28, marginBottom: 16, boxShadow: '0 4px 12px rgba(22,163,74,0.15)'
+              }}>
+                {isSearching ? getSearchEmoji(search) : '🌱'}
+              </div>
+
+              <h3 style={{ margin: '0 0 8px', fontSize: 19, color: '#1f2937', fontWeight: 800, letterSpacing: '-0.4px', position: 'relative', zIndex: 1 }}>
+                {isSearching ? `Looking for ${search}?` : 'Everything is better with friends'}
+              </h3>
+
+              <p style={{ margin: '0 0 24px', fontSize: 15, color: '#4b5563', lineHeight: 1.5, position: 'relative', zIndex: 1, maxWidth: 360 }}>
+                {isSearching
+                  ? `Know a neighbor who might have ${search}? Invite them to list on CasaGrown!`
+                  : 'More neighbors mean more fresh food. Invite your neighbors to start building your local community!'}
+              </p>
+
+              <button
+                onClick={() => setShowGlobalShareModal(true)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                  padding: '12px 28px', borderRadius: 999,
+                  background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff',
+                  fontSize: 15, fontWeight: 700, border: 'none', cursor: 'pointer',
+                  boxShadow: '0 6px 20px rgba(22,163,74,0.3)', transition: 'transform 0.2s ease',
+                  position: 'relative', zIndex: 1
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.03)' }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}
+              >
+                🚀 Invite Neighbors
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div className={styles.boothGrid}>
