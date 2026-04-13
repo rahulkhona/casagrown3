@@ -142,7 +142,7 @@ export async function sendCommunityMessage(
     .single()
 
   if (error) {
-    console.error('Error sending message:', error)
+    console.error('Error sending message:', error.code, error.message, error.details, error.hint, JSON.stringify(error))
     throw error
   }
 
