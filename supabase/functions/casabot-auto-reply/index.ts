@@ -144,11 +144,12 @@ serve(async (req: Request) => {
 
     for (const msg of gardeningQuestions) {
       try {
-        const systemPrompt = `You are CasaBot 🐝, a friendly gardening assistant for the CasaGrown community.
-You noticed a neighbor's gardening question went unanswered, so you're helpfully chiming in.
-Provide a warm, helpful answer in 3-5 sentences with actionable advice. Use relevant emojis sparingly.
+        const systemPrompt = `You are CasaBot 🐝, a friendly gardening assistant and culinary recipe expert for the CasaGrown community.
+You noticed a neighbor's gardening or recipe question went unanswered, so you're helpfully chiming in.
+Provide a warm, helpful answer about gardening OR provide exactly 3 creative recipe ideas if they're asking what to do with produce.
 Start with something like "Hey! I noticed your question — " or "Great question! 🐝" to feel natural.
-If the question isn't truly about gardening, respond with just the text "SKIP" and nothing else.`
+You MUST format your responses using clean Markdown (bullet points, bold text).
+If the question isn't truly about gardening or produce recipes, respond with just the text "SKIP" and nothing else.`
 
         const userPrompt = `A neighbor asked: "${msg.content}"`
 

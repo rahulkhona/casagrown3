@@ -255,10 +255,10 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
             onClick={handleBubbleTap}
             data-testid="message-bubble"
           >
-            <p className={styles.messageText}>
-              {message.content}
+            <div className={styles.messageText}>
+              <SimpleMarkdown text={message.content} />
               {message.edited_at && <span style={{ fontSize: '0.65rem', color: 'rgba(0,0,0,0.4)', marginLeft: 6 }}>(edited)</span>}
-            </p>
+            </div>
             
             {message.media && message.media.length > 0 && (
               <div className={styles.mediaGrid}>
@@ -379,7 +379,9 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
                       ) : null
                     })()}
                   </div>
-                  <span className={styles.threadReplyText}>{reply.content}</span>
+                  <div className={styles.threadReplyText}>
+                    <SimpleMarkdown text={reply.content} />
+                  </div>
                 </div>
                 <span className={styles.threadReplyTime}>{formatTime(reply.created_at)}</span>
               </div>
@@ -543,6 +545,48 @@ function ChatFollowButton({ targetUserId, currentUserId, isSmall }: { targetUser
     >
       {isFollowing ? 'Following' : 'Follow'}
     </button>
+  )
+}
+
+// ── Simple Markdown Parser ──
+function SimpleMarkdown({ text }: { text: string }) {
+  if (!text) return null
+  if (!text.includes('- ') && !text.includes('*') && !text.includes('#')) {
+    return <>{text}</>
+  }
+  
+  const lines = text.split('\n')
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      {lines.map((line, i) => {
+        let isBullet = false
+        let cleanLine = line
+        if (line.trim().startsWith('- ')) {
+          isBullet = true
+          cleanLine = line.trim().replace(/^- /, '')
+        } else if (line.trim().startsWith('* ')) {
+          isBullet = true
+          cleanLine = line.trim().replace(/^\* /, '')
+        }
+
+        const parts = cleanLine.split(/(\*\*.*?\*\*)/g)
+        const parsedLine = (
+          <>
+            {parts.map((p, j) => {
+              if (p.startsWith('**') && p.endsWith('**')) {
+                return <strong key={j}>{p.slice(2, -2)}</strong>
+              }
+              return p
+            })}
+          </>
+        )
+
+        if (isBullet) {
+          return <li key={i} style={{ marginLeft: 20 }}>{parsedLine}</li>
+        }
+        return <div key={i}>{parsedLine}</div>
+      })}
+    </div>
   )
 }
 
