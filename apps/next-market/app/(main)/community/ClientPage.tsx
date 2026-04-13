@@ -506,15 +506,25 @@ export default function ClientPage({
       // Prompt for push notification permission (first time / re-prompt after 7 days)
       showPrompt()
 
-      // If message mentions @CasaBot, trigger AI response in background
-      if (content.toLowerCase().includes('@casabot')) {
+      // If message mentions @CasaBot OR is a reply to a CasaBot message, trigger AI response
+      const CASABOT_ID = 'a0000000-0000-0000-0000-00000ca5ab07'
+      const isCasaBotTrigger = 
+        content.toLowerCase().includes('@casabot') ||
+        (replyingTo && (
+          replyingTo.author_id === CASABOT_ID ||
+          replyingTo.author_name === 'CasaBot' ||
+          replyingTo.is_system
+        ))
+
+      if (isCasaBotTrigger) {
         console.log('[CasaBot] Invoking casabot-reply for message:', msgId)
         supabase.functions.invoke('casabot-reply', {
           body: {
             message_id: msgId,
             content,
             community_h3_index: profileH3,
-            author_name: 'Neighbor',
+            author_name: profileName || 'Neighbor',
+            parent_id: replyingTo?.id,
           },
         }).then((res) => {
           console.log('[CasaBot] Response:', res)
