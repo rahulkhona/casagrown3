@@ -7,7 +7,7 @@ import { checkTextForViolations } from '../../../../lib/moderation'
 import ProductListingCard from './ProductListingCard'
 import SocialShareModal from '../../../components/SocialShareModal'
 import { getCommunityMessageForwardMessage, getRandomGreeting } from '../../../../lib/shareMessages'
-import { Share as ShareIcon } from 'lucide-react'
+import { Share2 as ShareIcon } from 'lucide-react'
 import styles from '../page.module.css'
 
 interface ChatMessageProps {
