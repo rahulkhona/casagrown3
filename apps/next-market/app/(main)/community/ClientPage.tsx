@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
 import { useMarket } from '../../../lib/store'
@@ -68,7 +68,7 @@ export default function ClientPage({
   
   // Polling state
   const [lastFetchTime, setLastFetchTime] = useState<string | null>(null)
-  const [newMessagesCount, setNewMessagesCount] = useState(0)
+  const newMessagesCountRef = useRef(0)
   
   // Scroll and UI state
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -76,6 +76,7 @@ export default function ClientPage({
   const typeDebounceRef = useRef<NodeJS.Timeout | null>(null)
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const initialScrollDoneRef = useRef(false)
+  const bottomRef = useRef<HTMLDivElement>(null)
   
   // Track total expected messages to prevent feed truncation on optimistic saves
   const messageCountRef = useRef(50)
@@ -89,6 +90,12 @@ export default function ClientPage({
   const [isLoadingOlder, setIsLoadingOlder] = useState(false)
   const [hasMoreOlder, setHasMoreOlder] = useState(true)
   const [pendingMessages, setPendingMessages] = useState<CommunityChatMessage[]>([])
+
+  // Refs for reading current values inside effects without re-subscribing
+  const messagesRef = useRef<CommunityChatMessage[]>(messages)
+  messagesRef.current = messages
+  const pendingMessagesRef = useRef<CommunityChatMessage[]>(pendingMessages)
+  pendingMessagesRef.current = pendingMessages
 
   // Find panel state
   const [findActive, setFindActive] = useState(false)
@@ -142,57 +149,28 @@ export default function ClientPage({
       })
       
       messageCountRef.current = combined.length
-      setMessages(combined.reverse()) // Reverse for chronological order (newest at bottom)
+      combined.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+      setMessages(combined)
       
       const scrollToBottom = () => {
         if (scrollRef.current) {
-          scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+          scrollRef.current.scrollTop = 0
         }
       }
       requestAnimationFrame(scrollToBottom)
-      setTimeout(scrollToBottom, 200)
+      setTimeout(scrollToBottom, 100)
+      setTimeout(scrollToBottom, 300)
+      setTimeout(scrollToBottom, 600)
     } catch (err) {
       console.error('Failed to reload messages', err)
     }
   }, [profileH3, pendingMessages])
   
   useEffect(() => {
-    // Component mounted with SSR data! We don't fetch, we just scroll to the bottom.
-    // Set the initial fetch time so polling knows the baseline
     setLastFetchTime(new Date().toISOString())
-    
-    // Smart scroll: either jump to the first unread message, or fall back to bottom
-    const scrollToInitialPosition = () => {
-      if (!scrollRef.current) return
-      
-      let targetUnread: HTMLElement | null = null
-      if (targetMessageId) {
-        // If a user clicked a shared link pointing to a specific message ID
-        targetUnread = document.getElementById(`msg-${targetMessageId}`) || document.getElementById(`unread-marker-${targetMessageId}`)
-      } else if (initialBuzzWelcomedAt && user) {
-        const firstUnread = messages.find(m => new Date(m.created_at) > new Date(initialBuzzWelcomedAt) && m.author_id !== user.id)
-        if (firstUnread) {
-          // Look for the specific red marker line, otherwise fallback to the chat component root
-          targetUnread = document.getElementById(`unread-marker-${firstUnread.id}`) || document.getElementById(`msg-${firstUnread.id}`)
-        }
-      }
-
-      if (targetUnread) {
-        // Scroll exactly so the unread marker sits boldly at the top
-        const container = scrollRef.current
-        const targetRect = targetUnread.getBoundingClientRect()
-        const containerRect = container.getBoundingClientRect()
-        
-        container.scrollTop = container.scrollTop + (targetRect.top - containerRect.top) - 10
-      } else {
-        // Normal fallback: slap to bottom
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-      }
-    }
-    requestAnimationFrame(scrollToInitialPosition)
-    setTimeout(scrollToInitialPosition, 200)
-    setTimeout(scrollToInitialPosition, 600)
-  }, [])
+    // flex-direction: column-reverse handles initial scroll position natively
+    initialScrollDoneRef.current = true
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   
   // 3. Supabase Realtime (WebSockets for authenticated, polling for guests)
   useEffect(() => {
@@ -209,10 +187,14 @@ export default function ClientPage({
         const supabase = createClient()
         const newMsgs = await fetchCommunityMessages(supabase, effectiveH3, undefined, 50)
         
-        const tempLocalMsgs = messages.filter(m => m.id.startsWith('temp-'))
+        // Read current values from refs (not stale closure captures)
+        const currentMessages = messagesRef.current
+        const currentPending = pendingMessagesRef.current
+        
+        const tempLocalMsgs = currentMessages.filter(m => m.id.startsWith('temp-'))
         const actualNewMsgs = newMsgs.filter((m: CommunityChatMessage) => {
-          if (messages.find(existing => existing.id === m.id)) return false
-          if (pendingMessages.find(existing => existing.id === m.id)) return false
+          if (currentMessages.find(existing => existing.id === m.id)) return false
+          if (currentPending.find(existing => existing.id === m.id)) return false
           
           // Realtime race condition filter: Prevent socket payload from triggering UI duplication 
           // if it belongs to a local optimistic message currently awaiting HTTP return.
@@ -227,20 +209,42 @@ export default function ClientPage({
         })
         
         if (actualNewMsgs.length > 0 && isSubscribed) {
-          // If they are staring directly at the bottom and a couple messages pop in natively, just scroll down like normal texting
-          if (isAtBottom && pendingMessages.length === 0 && actualNewMsgs.length <= 2) {
+          // Read scroll position from ref (not stale state)
+          const atBottom = isAtBottomRef.current
+          
+          // If user is at the bottom, merge new messages directly (like normal texting)
+          if (atBottom) {
             setMessages(prev => {
               const uniqueNew = actualNewMsgs.filter(newM => !prev.some(e => e.id === newM.id))
-              return [...prev, ...uniqueNew.reverse()]
+              // Also replace any temp-* optimistic messages that match
+              const cleaned = prev.filter(m => {
+                if (!m.id.startsWith('temp-')) return true
+                return !actualNewMsgs.some(nm => nm.author_id === m.author_id && nm.content === m.content)
+              })
+              const merged = [...cleaned, ...uniqueNew]
+              return merged.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
             })
-            if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+            // Pin to bottom after merge settles
+            const pinToBottom = () => {
+              if (scrollRef.current) scrollRef.current.scrollTop = 0
+            }
+            requestAnimationFrame(pinToBottom)
+            setTimeout(pinToBottom, 100)
+            setTimeout(pinToBottom, 300)
           } else {
-            // Otherwise, they tabbed out and suddenly gained 5+ messages, or they were scrolled way up evaluating history. Use the badge!
-            setPendingMessages(prev => {
-              const uniqueNew = actualNewMsgs.filter(newM => !prev.some(e => e.id === newM.id))
-              return [...prev, ...uniqueNew.reverse()]
-            })
-            setNewMessagesCount(prev => prev + actualNewMsgs.length)
+            // Store in ref only — NO state updates, NO re-render
+            pendingMessagesRef.current = [
+              ...pendingMessagesRef.current,
+              ...actualNewMsgs.filter(newM => !pendingMessagesRef.current.some(e => e.id === newM.id))
+            ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+            newMessagesCountRef.current = pendingMessagesRef.current.length
+            
+            // Update badge via DOM — zero React re-renders
+            const badgeEl = document.getElementById('new-messages-badge')
+            if (badgeEl) {
+              badgeEl.textContent = `${newMessagesCountRef.current} new message${newMessagesCountRef.current > 1 ? 's' : ''} ↓`
+              badgeEl.style.display = 'flex'
+            }
           }
         }
       } catch (err) {
@@ -332,7 +336,7 @@ export default function ClientPage({
       disconnectWebSocket()
       supabase.rpc('update_profile_last_seen').then()
     }
-  }, [profileH3, lastFetchTime, isLoading, isAtBottom, messages, pendingMessages, isGuest])
+  }, [profileH3, lastFetchTime, isLoading, isGuest]) // eslint-disable-line react-hooks/exhaustive-deps
   
   // 4. Infinite Scroll (Older Messages)
   const loadOlderMessages = useCallback(async () => {
@@ -395,7 +399,8 @@ export default function ClientPage({
     
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting) {
+        // Don't load older messages until initial scroll-to-bottom is done
+        if (entries[0].isIntersecting && initialScrollDoneRef.current) {
           loadOlderMessages()
         }
       },
@@ -408,27 +413,31 @@ export default function ClientPage({
   }, [loadOlderMessages])
 
   // Scroll handler to track if user is at bottom
+  // With column-reverse: scrollTop=0 is at the bottom (newest), scrollTop>0 means scrolled up
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget
-    const bottomThreshold = 100 // pixels from bottom to consider "at bottom"
-    const isBottom = target.scrollHeight - target.scrollTop - target.clientHeight < bottomThreshold
+    const bottomThreshold = 100
+    // column-reverse: scrollTop=0 is at bottom. Chrome uses negative scrollTop when scrolled up.
+    const isBottom = Math.abs(target.scrollTop) < bottomThreshold
     
-    setIsAtBottom(isBottom)
+    isAtBottomRef.current = isBottom
+    if (initialScrollDoneRef.current) {
+      setIsAtBottom(isBottom)
+    }
     
-    if (isBottom && newMessagesCount > 0) {
-      // User scrolled to bottom, drop new messages directly in 
+    if (isBottom && newMessagesCountRef.current > 0) {
+      // Merge pending messages from ref into state
+      const pending = pendingMessagesRef.current
       setMessages(prev => {
-        // Filter out any potential duplicates between existing messages and pending
-        const uniquePending = pendingMessages.filter(pm => !prev.some(m => m.id === pm.id))
-        return [...prev, ...uniquePending]
+        const uniquePending = pending.filter(pm => !prev.some(m => m.id === pm.id))
+        return [...prev, ...uniquePending].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
       })
-      setNewMessagesCount(0)
+      newMessagesCountRef.current = 0
+      pendingMessagesRef.current = []
       setPendingMessages([])
-      setTimeout(() => {
-        if (scrollRef.current) {
-          scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-        }
-      }, 50)
+      // Hide badge via DOM
+      const badgeEl = document.getElementById('new-messages-badge')
+      if (badgeEl) badgeEl.style.display = 'none'
     }
   }
 
@@ -468,10 +477,14 @@ export default function ClientPage({
       }
       setMessages(prev => [...prev, optimisticMsg])
       
-      // Ensure we're scrolled to the bottom so user immediately sees their own message
-      setTimeout(() => {
-        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-      }, 50)
+      // Sender should always see their own message — mark as at-bottom and pin
+      isAtBottomRef.current = true
+      const pinToBottom = () => {
+        if (scrollRef.current) scrollRef.current.scrollTop = 0
+      }
+      requestAnimationFrame(pinToBottom)
+      setTimeout(pinToBottom, 50)
+      setTimeout(pinToBottom, 200)
 
       const supabase = createClient()
       const msgId = await sendCommunityMessage(supabase, {
@@ -499,17 +512,17 @@ export default function ClientPage({
           },
         }).then((res) => {
           console.log('[CasaBot] Response:', res)
-          // Reload after a short delay to show the bot reply
-          setTimeout(() => loadMessages(), 3000)
+          // Don't call loadMessages() — the WebSocket/polling will pick up the bot reply
+          // and merge it in. This prevents the full re-fetch that causes flicker.
         }).catch((err: unknown) => console.error('[CasaBot] Error:', err))
       }
 
-      // Ensure we're scrolled to the bottom
-      setTimeout(() => {
-        if (scrollRef.current) {
-          scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-        }
-      }, 100)
+      // Ensure we're scrolled to the bottom after own message
+      const pin = () => { if (scrollRef.current) scrollRef.current.scrollTop = 0 }
+      requestAnimationFrame(pin)
+      setTimeout(pin, 100)
+      setTimeout(pin, 300)
+      setTimeout(pin, 600)
     } catch (err) {
       // Remove optimistic message if failed
       setMessages(prev => prev.filter(m => !m.id.startsWith('temp-')))
@@ -609,7 +622,7 @@ export default function ClientPage({
                 </div>
               )}
               {!showWelcome && messages.map(msg => (
-                <div key={msg.id}>
+                <div key={msg.id} style={{ overflowAnchor: 'auto' }}>
                   {firstUnreadId === msg.id && (
                     <div id={`unread-marker-${msg.id}`} className={styles.unreadDivider}>
                       Unread Messages
@@ -672,20 +685,39 @@ export default function ClientPage({
         </div>
       )}
 
-      {/* Floating Badge for New Messages */}
-      {newMessagesCount > 0 && !isAtBottom && (
-        <NewMessagesBadge 
-          count={newMessagesCount} 
-          onClick={() => {
-            if (scrollRef.current) {
-              scrollRef.current.scrollTo({
-                top: scrollRef.current.scrollHeight,
-                behavior: 'smooth'
-              })
-            }
-          }} 
-        />
-      )}
+      {/* Floating Badge for New Messages — updated via DOM, always present but hidden */}
+      <div 
+        id="new-messages-badge"
+        style={{ display: 'none' }}
+        onClick={() => {
+          // Hide badge immediately
+          const badgeEl = document.getElementById('new-messages-badge')
+          if (badgeEl) badgeEl.style.display = 'none'
+          
+          // Merge pending messages first
+          const pending = pendingMessagesRef.current
+          if (pending.length > 0) {
+            setMessages(prev => {
+              const uniquePending = pending.filter(pm => !prev.some(m => m.id === pm.id))
+              return [...prev, ...uniquePending].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+            })
+            newMessagesCountRef.current = 0
+            pendingMessagesRef.current = []
+            setPendingMessages([])
+          }
+          
+          // Scroll to bottom AFTER merge settles (instant, not smooth)
+          const pinToBottom = () => {
+            if (scrollRef.current) scrollRef.current.scrollTop = 0
+          }
+          requestAnimationFrame(pinToBottom)
+          setTimeout(pinToBottom, 100)
+          setTimeout(pinToBottom, 300)
+        }}
+        className={`${styles.newMessagesBadge}`}
+      >
+        0 new messages ↓
+      </div>
 
       {/* Welcome Card for new users — appears above compose bar */}
       {showWelcome && user && !findActive && (
@@ -696,7 +728,7 @@ export default function ClientPage({
           onComplete={() => {
             setShowWelcome(false)
             setTimeout(() => {
-              if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+              if (scrollRef.current) scrollRef.current.scrollTop = 0
             }, 50)
           }}
           onSendMessage={async (msg) => { await handleSendMessage(msg) }}
