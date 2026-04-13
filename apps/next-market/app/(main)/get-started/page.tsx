@@ -93,7 +93,7 @@ export default function GetStartedPage() {
       <section className={styles.header}>
         <h1 className={styles.title}>Claim Your Booth</h1>
         <p className={styles.subtitle}>
-          Choose a theme for your booth — this sets the visual look and feel.
+          Choose a theme for your produce stand — this sets the visual look and feel.
           You can sell whatever you like and change your theme anytime.
         </p>
         {open ? (

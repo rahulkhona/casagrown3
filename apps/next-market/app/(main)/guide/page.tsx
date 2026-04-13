@@ -71,12 +71,12 @@ const SECTIONS: Section[] = [
       <>
         <p>Got a garden, fruit tree, or even a few extra herbs? <strong>Turn your harvest into income</strong> instead of letting it go to waste:</p>
         <ol>
-          <li><strong>Create your booth</strong> — Give it a name and description</li>
+          <li><strong>Create your produce stand</strong> — Give it a name and description</li>
           <li><strong>Add products</strong> — Upload photos, set prices, choose units (lb, bunch, etc.)</li>
           <li><strong>Set market dates</strong> — Choose which weekends you&apos;ll be selling</li>
           <li><strong>Manage orders</strong> — Accept, prepare, and fulfill incoming orders</li>
         </ol>
-        <p>You can also <strong>invite helpers</strong> to assist with your booth — they can see orders and chat with buyers on your behalf.</p>
+        <p>You can also <strong>invite helpers</strong> to assist with your produce stand — they can see orders and chat with buyers on your behalf.</p>
       </>
     ),
   },

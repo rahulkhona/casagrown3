@@ -145,7 +145,7 @@ export default function BoothSetupPage() {
   }, [showHelpers])
 
   const copyInviteInfo = async () => {
-    const text = `Join my booth as a helper on CasaGrown Market!\n\n👇 Click the link below to securely join my booth:\n${inviteLink}\n\nPasscode: ${passcode}\nExpires: ${inviteExpiresAt}`
+    const text = `Join my produce stand as a helper on CasaGrown Market!\n\n👇 Click the link below to securely join my produce stand:\n${inviteLink}\n\nPasscode: ${passcode}\nExpires: ${inviteExpiresAt}`
     try {
       await navigator.clipboard.writeText(text)
       setInviteCopied(true)
@@ -156,7 +156,7 @@ export default function BoothSetupPage() {
   const shareInvite = async () => {
     if (navigator.share) {
       try {
-        await navigator.share({ title: `Join my booth on CasaGrown`, text: `Join my booth as a helper on CasaGrown Market!\n\nPasscode: ${passcode}\nExpires: ${inviteExpiresAt}\n\n👇 Click the link below to securely join my booth:\n`, url: inviteLink })
+        await navigator.share({ title: `Join my produce stand on CasaGrown`, text: `Join my produce stand as a helper on CasaGrown Market!\n\nPasscode: ${passcode}\nExpires: ${inviteExpiresAt}\n\n👇 Click the link below to securely join my produce stand:\n`, url: inviteLink })
       } catch { /* cancelled */ }
     } else {
       copyInviteInfo()
@@ -306,9 +306,9 @@ export default function BoothSetupPage() {
   return (
     <div className={styles.page}>
       <div className={styles.wizard}>
-        <h1 className={styles.pageTitle}>Set Up Your Booth</h1>
+        <h1 className={styles.pageTitle}>Set Up Your Produce Stand</h1>
         <p className={styles.pageSubtitle}>
-          Just a few details to get started. You can update everything later from My Booth.
+          Just a few details to get started. You can update everything later from My Produce Stand.
         </p>
 
         {/* ============ Core Form ============ */}
@@ -554,7 +554,7 @@ export default function BoothSetupPage() {
         {/* Helpers — link + passcode */}
         {!showHelpers ? (
           <button className={styles.optionalToggle} onClick={() => setShowHelpers(true)}>
-            👥 Invite helpers to your booth
+            👥 Invite helpers to your produce stand
           </button>
         ) : (
           <section className={styles.section}>
@@ -563,7 +563,7 @@ export default function BoothSetupPage() {
               <button className={styles.collapseBtn} onClick={() => setShowHelpers(false)}>✕</button>
             </div>
             <p className={styles.helperDesc}>
-              Share this link with people you&apos;d like to help manage your booth. They&apos;ll use the passcode to connect.
+              Share this link with people you&apos;d like to help manage your produce stand. They&apos;ll use the passcode to connect.
             </p>
 
             {/* Passcode display — only the short part the helper types */}
@@ -592,7 +592,7 @@ export default function BoothSetupPage() {
             </div>
 
             <p className={styles.helperHint}>
-              ⏳ Passcode expires <strong>{inviteExpiresAt || 'in 1 week'}</strong> and can only be used once. After your booth is created, manage helpers from <strong>My Booth → Helpers</strong>.
+              ⏳ Passcode expires <strong>{inviteExpiresAt || 'in 1 week'}</strong> and can only be used once. After your produce stand is created, manage helpers from <strong>My Produce Stand → Helpers</strong>.
             </p>
           </section>
         )}

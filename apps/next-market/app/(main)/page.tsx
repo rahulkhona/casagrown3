@@ -152,7 +152,7 @@ export default function HomePage() {
               <div className={styles.stepEmoji}>📸</div>
               <h4 className={styles.stepTitle}>List Your Produce</h4>
               <p className={styles.stepDesc}>
-                Snap photos of your excess fruits, veggies, or eggs anytime. Set your price and quantity. Open or close your booth before each market day.
+                Snap photos of your excess fruits, veggies, or eggs anytime. Set your price and quantity. Open or close your produce stand before each market day.
               </p>
             </div>
             <div className={styles.stepCard}>
@@ -160,7 +160,7 @@ export default function HomePage() {
               <div className={styles.stepEmoji}>📅</div>
               <h4 className={styles.stepTitle}>Browse &amp; Buy</h4>
               <p className={styles.stepDesc}>
-                Neighbors browse your booth and place orders anytime. Fresh produce is always available.
+                Neighbors browse your produce stand and place orders anytime. Fresh produce is always available.
               </p>
             </div>
             <div className={styles.stepCard}>

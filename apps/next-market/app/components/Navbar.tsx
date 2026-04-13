@@ -313,7 +313,7 @@ export function Navbar() {
 
   // Extended menu items (hamburger only — items NOT in BottomNav/header)
   const menuItems = [
-    { href: '/my-booth', label: 'My Booth', icon: '🏪', section: 'main' },
+    { href: '/my-booth', label: 'My Produce Stand', icon: '🏪', section: 'main' },
     { href: '/earnings', label: 'Earnings & Activity', icon: '💰', section: 'main' },
     { href: '/earnings/payout', label: 'Wallet', icon: '💸', section: 'main' },
     { href: '/helping', label: 'Helping', icon: '🤝', section: 'main' },

@@ -20,11 +20,11 @@ export default function InvitationsPage() {
     ? `Use code ${coupon.code} for ${coupon.discountType === 'percent' ? `${coupon.discountValue}% off` : `$${coupon.discountValue} off`}!`
     : ''
 
-  const shareMessage = `Hey! 🌱 Check out my booth "${myBooth.name}" on CasaGrown Market!
+  const shareMessage = `Hey! 🌱 Check out my produce stand "${myBooth.name}" on CasaGrown Market!
 
 Fresh produce straight from my backyard. ${couponText ? couponText + '\n\n' : ''}📅 Market open Saturdays & Sundays, 8–11 AM
 
-👇 Click the link below to browse my booth and shop:
+👇 Click the link below to browse my produce stand and shop:
 ${inviteUrl}
 
 Fresh. Local. Trusted.`
@@ -59,8 +59,8 @@ Fresh. Local. Trusted.`
   return (
     <div className="container-sm">
       <div className="page-header">
-        <h1 className="page-title">Share Your Booth</h1>
-        <p className="page-subtitle">Invite friends and family to visit your booth</p>
+        <h1 className="page-title">Share Your Produce Stand</h1>
+        <p className="page-subtitle">Invite friends and family to visit your produce stand</p>
       </div>
 
       {/* Share Preview Card */}

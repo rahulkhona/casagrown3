@@ -33,9 +33,9 @@ export function getProductShareMessage(productName: string, priceText: string, d
 
 export function getBoothProductShareMessage(productName: string, nextMarketLabel?: string): string {
   const variations = [
-    `I just added fresh ${productName} to my booth!`,
-    `Look what's fresh from my garden today! I listed ${productName} on my CasaGrown booth:`,
-    `My CasaGrown booth is officially live! See what fresh produce I have available:`,
+    `I just added fresh ${productName} to my produce stand!`,
+    `Look what's fresh from my garden today! I listed ${productName} on my CasaGrown produce stand:`,
+    `My CasaGrown produce stand is officially live! See what fresh produce I have available:`,
     `I've got excess ${productName} from the garden this week if anyone wants some! Check out my CasaGrown listing:`
   ]
   const text = variations[Math.floor(Math.random() * variations.length)]

@@ -373,7 +373,7 @@ async function handleSellerLifecycle(
     let pushBody = ''
     if (type === 'prep') {
       title = '🌱 The Market opens tomorrow!'
-      pushBody = 'Review your local harvest and restock your booth shelves now.'
+      pushBody = 'Review your local harvest and restock your produce stand now.'
     } else if (type === 'launch') {
       title = '⏰ The Market opens in 1 hour!'
       pushBody = 'Quickly review your inventory to safely unlock your storefront to the neighborhood.'
@@ -416,8 +416,8 @@ async function handleSellerLifecycle(
       if (type === 'prep') {
         subject = '🌱 The Market opens tomorrow!'
         headline = 'The Market opens tomorrow!'
-        textBody = 'Review your local harvest and restock your booth shelves now.'
-        buttonText = 'Restock Booth'
+        textBody = 'Review your local harvest and restock your produce stand now.'
+        buttonText = 'Restock Produce Stand'
       } else if (type === 'closed') {
         subject = '🔒 Market Closed'
         headline = 'Market Closed!'

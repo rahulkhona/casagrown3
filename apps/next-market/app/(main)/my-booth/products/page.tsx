@@ -22,7 +22,7 @@ export default function ProductsListPage() {
   if (!myBooth) return (
     <div className="container" style={{ padding: 80, textAlign: 'center' }}>
       <h2>Create a booth first</h2>
-      <Link href="/my-booth" className="btn btn-primary" style={{ marginTop: 16 }}>Go to My Booth</Link>
+      <Link href="/my-booth" className="btn btn-primary" style={{ marginTop: 16 }}>Go to My Produce Stand</Link>
     </div>
   )
 
@@ -59,8 +59,8 @@ export default function ProductsListPage() {
     const marketDate = inviteProduct?.marketDate || ''
     const productName = inviteProduct?.name || 'fresh produce'
     const cta = marketDate
-      ? `Fresh ${productName} will be available at my booth on ${marketDate}! 🌿`
-      : `Fresh ${productName} is available at my booth on CasaGrown! 🌿`
+      ? `Fresh ${productName} will be available at my produce stand on ${marketDate}! 🌿`
+      : `Fresh ${productName} is available at my produce stand on CasaGrown! 🌿`
     if (navigator.share) {
       navigator.share({
         title: `${inviteProduct?.name} at ${myBooth.name}`,
@@ -160,7 +160,7 @@ export default function ProductsListPage() {
         <>
           <div className={styles.modalBackdrop} onClick={() => setInviteProduct(null)} />
           <div className={styles.modal}>
-            <h2 className={styles.modalTitle}>Invite your neighbors to your booth!</h2>
+            <h2 className={styles.modalTitle}>Invite your neighbors to your produce stand!</h2>
             <p className={styles.modalProduct}>{inviteProduct.name} — {formatUsd(inviteProduct.priceUsd)} / {inviteProduct.unit}</p>
 
             {/* Coupon attachment */}

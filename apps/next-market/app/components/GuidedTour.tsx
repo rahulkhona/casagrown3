@@ -47,7 +47,7 @@ const STEPS: TourStep[] = [
   {
     target: 'nav-hamburger',
     title: '☰ Menu',
-    description: 'Access your booth, earnings, profile, settings, and the full "How It Works" guide.',
+    description: 'Access your produce stand, earnings, profile, settings, and the full "How It Works" guide.',
     position: 'bottom',
   },
   // Card-only explanation steps (no spotlight)

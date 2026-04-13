@@ -106,7 +106,7 @@ export default function HelpingPage() {
         ) : boothIds.length === 0 ? (
           <div className={styles.emptyState}>
             <span className={styles.emptyIcon}>🤝</span>
-            <p>No pending orders for your booths</p>
+            <p>No pending orders for your produce stands</p>
             <p style={{ fontSize: 13, color: 'var(--gray-400)' }}>
               Join a booth as a helper to see orders here
             </p>

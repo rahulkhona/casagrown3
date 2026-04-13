@@ -400,7 +400,7 @@ export default function MarketClosedBox({ nextOpenDate, todaySchedule }: MarketC
               desc="Snap photos of your excess fruits, veggies, or baked goods. Set your price and quantity." />
             <Arrow />
             <HowStep num={2} icon="🛒" title="Neighbors Shop"
-              desc="Neighbors browse your booth and place orders anytime the market is available." />
+              desc="Neighbors browse your produce stand and place orders anytime the market is available." />
             <Arrow />
             <HowStep num={3} icon="📦" title="Deliver or Pickup"
               desc="Drop off at their porch or they pick up from you. Snap a photo as proof of delivery." />

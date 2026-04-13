@@ -687,7 +687,7 @@ function NewProductPageInner() {
       boothId = existingBooth.id
     } else {
       // Auto-create a booth using inline form values — publish immediately
-      const boothName = inlineProfileName ? `${inlineProfileName}'s Booth` : 'My Booth'
+      const boothName = inlineProfileName ? `${inlineProfileName}'s Produce Stand` : 'My Produce Stand'
 
       // Build weekly windows from product's selected windows so the booth is fully configured
       const autoWeeklyDw: Record<string, any[]> = {}
@@ -1093,7 +1093,7 @@ function NewProductPageInner() {
     }
   }
 
-  const boothLabel = state.booths.find(b => b.ownerId === authUser?.id)?.name || 'my booth'
+  const boothLabel = state.booths.find(b => b.ownerId === authUser?.id)?.name || 'my produce stand'
 
   const getProductUrl = () => {
     const origin = typeof window !== 'undefined' ? window.location.origin : ''
@@ -1120,8 +1120,8 @@ function NewProductPageInner() {
       try {
         trackClick('share_product_native', { productName: addedProductName })
         const cta = nextMarket
-          ? `Fresh ${addedProductName} will be available at my booth this ${nextMarket.label}! 🌿`
-          : `Fresh ${addedProductName} is available at my booth on CasaGrown! 🌿`
+          ? `Fresh ${addedProductName} will be available at my produce stand this ${nextMarket.label}! 🌿`
+          : `Fresh ${addedProductName} is available at my produce stand on CasaGrown! 🌿`
         await navigator.share({ title: `Fresh ${addedProductName} at ${boothLabel}`, text: cta, url: getProductUrl() })
       } catch { /* cancelled */ }
     } else {
@@ -2059,14 +2059,14 @@ function NewProductPageInner() {
 
               <div className={styles.draftHint}>
                 <strong>⚠️ Your booth is saved as a draft.</strong><br />
-                To publish and start accepting orders, go to My Booth and set up:
+                To publish and start accepting orders, go to My Produce Stand and set up:
                 <ul style={{ margin: '8px 0 0 16px', padding: 0 }}>
                   {publishMissing.map(m => <li key={m}>{m}</li>)}
                 </ul>
               </div>
 
               <button className={styles.modalSkip} onClick={() => { setShowShareModal(false); router.back() }}>
-                Go to My Booth
+                Go to My Produce Stand
               </button>
             </div>
           </>

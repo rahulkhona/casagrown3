@@ -321,7 +321,7 @@ export default function MyBoothPage() {
             name: booth.name,
             description: booth.description || '',
             decorativeTheme: booth.decorative_theme || 'floral',
-            aboutHtml: booth.about_html || '<p>Welcome to my booth!</p>',
+            aboutHtml: booth.about_html || '<p>Welcome to my produce stand!</p>',
             inviteCode: booth.invite_code || '',
             offersDelivery: booth.offers_delivery ?? true,
             offersPickup: booth.offers_pickup ?? true,
@@ -515,7 +515,7 @@ export default function MyBoothPage() {
         if (geo) {
           dbRow.pickup_location = toPostgisPoint(geo.lat, geo.lng)
         } else {
-          setFormError('⚠️ We couldn\'t verify your booth address. Please check the pickup address and try saving again.')
+          setFormError('⚠️ We couldn\'t verify your produce stand address. Please check the pickup address and try saving again.')
           return
         }
       }
@@ -555,7 +555,7 @@ export default function MyBoothPage() {
           id: data.id,
           ownerId: user.id, ownerName: user.email?.split('@')[0] || '',
           description: '',
-          aboutHtml: '<p>Welcome to my booth!</p>',
+          aboutHtml: '<p>Welcome to my produce stand!</p>',
           inviteCode: name.replace(/\s/g, '').toUpperCase().slice(0, 8) + '2026',
           ...boothData,
         },
@@ -608,7 +608,7 @@ export default function MyBoothPage() {
     const sellerName = profileName?.split(' ')[0] || 'your neighbor'
     const productNames = myProducts.slice(0, 3).map(p => p.name).join(', ')
     const nextDay = nextMarket ? nextMarket.date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) : ''
-    return `${getRandomGreeting()} 🌱 I'm ${sellerName} and I just set up my booth "${name}" on CasaGrown Market!\n\n${productNames ? `I'm growing ${productNames} and more — ` : ''}come check out what's fresh from my backyard.${nextDay ? `\n\n📅 Next market day: ${nextDay}` : ''}\n\n👇 Click the link below to view my booth and shop:\n${getBoothShareUrl(boothId)}\n\nFresh produce, straight from your neighbor! 🏡`
+    return `${getRandomGreeting()} 🌱 I'm ${sellerName} and I just set up my produce stand "${name}" on CasaGrown Market!\n\n${productNames ? `I'm growing ${productNames} and more — ` : ''}come check out what's fresh from my backyard.${nextDay ? `\n\n📅 Next market day: ${nextDay}` : ''}\n\n👇 Click the link below to view my produce stand and shop:\n${getBoothShareUrl(boothId)}\n\nFresh produce, straight from your neighbor! 🏡`
   }
 
   // Build product slot data
@@ -734,7 +734,7 @@ export default function MyBoothPage() {
             className={styles.nameBarInput}
             value={name}
             onChange={e => { setName(e.target.value); setSaved(false) }}
-            placeholder="Name your booth..."
+            placeholder="Name your produce stand..."
             style={{ color: tc.text }}
           />
           <div className={styles.nameBarOwner}>
@@ -1177,7 +1177,7 @@ export default function MyBoothPage() {
       {<div className={styles.boothSection}>
         <h2 className={styles.sectionTitle}>🤝 Helpers</h2>
         <p style={{ fontSize: 14, color: 'var(--gray-500)', marginBottom: 8 }}>
-          Invite someone you trust to help manage your booth — they can view orders, chat with buyers, and handle handoffs.
+          Invite someone you trust to help manage your produce stand — they can view orders, chat with buyers, and handle handoffs.
         </p>
         <div style={{
           background: 'var(--amber-50, #fffbeb)', border: '1px solid var(--amber-200, #fde68a)',
@@ -1209,7 +1209,7 @@ export default function MyBoothPage() {
             className="btn btn-secondary"
             onClick={() => {
               const joinUrl = typeof window !== 'undefined' ? `${window.location.origin}/join-booth/${encodeURIComponent(helperPasscode)}` : ''
-              const boothLabel = name?.trim() ? `my booth "${name}"` : 'my CasaGrown booth'
+              const boothLabel = name?.trim() ? `my produce stand "${name}"` : 'my CasaGrown produce stand'
               const text = [
                 `Hey! 👋`,
                 '',
@@ -1236,7 +1236,7 @@ export default function MyBoothPage() {
             className="btn btn-secondary"
             onClick={async () => {
               const joinUrl = typeof window !== 'undefined' ? `${window.location.origin}/join-booth/${encodeURIComponent(helperPasscode)}` : ''
-              const boothLabel = name?.trim() ? `my booth "${name}"` : 'my CasaGrown booth'
+              const boothLabel = name?.trim() ? `my produce stand "${name}"` : 'my CasaGrown produce stand'
               const text = [
                 `Hey! 👋`,
                 '',
@@ -1341,7 +1341,7 @@ export default function MyBoothPage() {
         onClick={handleSaveBooth}
         disabled={!name.trim()}
       >
-        {saved ? '✓ Saved' : 'Save Booth'}
+        {saved ? '✓ Saved' : 'Save Produce Stand'}
       </button>
 
       <button
@@ -1349,7 +1349,7 @@ export default function MyBoothPage() {
         style={{ marginTop: 8, background: 'var(--white)', color: 'var(--green-700)', border: '2px solid var(--green-200)' }}
         onClick={() => { setBoothShareMsg(getBoothShareText()); setShowBoothShareModal(true) }}
       >
-        <ShareIcon size={14} /> Share My Booth
+        <ShareIcon size={14} /> Share My Produce Stand
       </button>
 
       {/* ── Share Booth Modal (after save) ── */}
@@ -1358,7 +1358,7 @@ export default function MyBoothPage() {
           isOpen={showBoothShareModal}
           onClose={() => setShowBoothShareModal(false)}
           title={`${name} Saved!`}
-          subtitle={`Invite your neighbors to check out your booth.`}
+          subtitle={`Invite your neighbors to check out your produce stand.`}
           entityName={name}
           shareUrl={getBoothShareUrl() || ''}
           shareMessage={boothShareMsg}
@@ -1435,7 +1435,7 @@ export default function MyBoothPage() {
             <div style={{ fontSize: 32, marginBottom: 12 }}>⚠️</div>
             <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1f2937', margin: '0 0 8px' }}>Remove Product?</h2>
             <p style={{ fontSize: 14, color: '#4b5563', margin: '0 0 24px', lineHeight: 1.5 }}>
-              Are you sure you want to remove this product from your booth? This cannot be undone.
+              Are you sure you want to remove this product from your produce stand? This cannot be undone.
             </p>
             <div style={{ display: 'flex', gap: 12 }}>
               <button 

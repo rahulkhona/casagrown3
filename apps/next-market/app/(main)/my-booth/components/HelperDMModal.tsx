@@ -65,7 +65,7 @@ export function HelperDMModal({ boothName, passcode, userId, onClose, onSent }: 
         ? `${window.location.origin}/join-booth/${encodeURIComponent(passcode)}`
         : ''
 
-      const boothLabel = boothName?.trim() ? `my booth "${boothName}"` : 'my CasaGrown booth'
+      const boothLabel = boothName?.trim() ? `my produce stand "${boothName}"` : 'my CasaGrown produce stand'
 
       const inviteMessage = [
         `Hey ${targetName}! 👋`,
@@ -169,7 +169,7 @@ export function HelperDMModal({ boothName, passcode, userId, onClose, onSent }: 
         </div>
 
         <p style={{ fontSize: 13, color: 'var(--gray-500)', margin: '0 0 12px' }}>
-          Search for someone and we&apos;ll send them a message with your booth invite link and passcode.
+          Search for someone and we&apos;ll send them a message with your produce stand invite link and passcode.
         </p>
 
         <input

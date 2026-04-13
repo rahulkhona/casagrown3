@@ -800,7 +800,7 @@ export default function MessageThreadPage() {
                 if (!user || isBlocked) return
                 const supabase = createClient()
                 const { data: booth } = await supabase.from('market_booths').select('name, helper_passcode').eq('owner_id', user.id).maybeSingle()
-                const boothLabel = booth?.name?.trim() ? `my booth "${booth.name}"` : 'my CasaGrown booth'
+                const boothLabel = booth?.name?.trim() ? `my produce stand "${booth.name}"` : 'my CasaGrown produce stand'
                 const passcode = booth?.helper_passcode || ''
                 const joinUrl = passcode ? `${window.location.origin}/join-booth/${encodeURIComponent(passcode)}` : ''
                 const helpMsg = [
