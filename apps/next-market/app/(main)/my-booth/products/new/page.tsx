@@ -1971,6 +1971,9 @@ function NewProductPageInner() {
           )}
 
           {/* ===== Submit ===== */}
+          <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 16, lineHeight: 1.4, textAlign: 'center' }}>
+            <strong>Notice:</strong> Always check your local Department of Agriculture for active plant quarantines before listing agricultural products. You are responsible for ensuring your listings comply with all local regulations.
+          </p>
           {errors.submit && (
             <div style={{ color: '#dc2626', background: '#fef2f2', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13, whiteSpace: 'pre-wrap' }}>
               {errors.submit}

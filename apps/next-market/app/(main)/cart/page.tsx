@@ -647,6 +647,8 @@ export default function CartPage() {
             </button>
             <p className={styles.checkoutNotice}>
               Your card is only charged after delivery is confirmed and the order is complete.
+              <br /><br />
+              <strong>Notice:</strong> Always check your local Department of Agriculture for active plant quarantines before purchasing agricultural products.
             </p>
           </div>
         )
