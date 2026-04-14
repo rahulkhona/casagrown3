@@ -67,6 +67,9 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
   const [cartQty, setCartQty] = useState(existingCartQty || 1)
   const [cartToast, setCartToast] = useState<string | null>(null)
 
+  // Quarantine check
+  const [quarantineInfo, setQuarantineInfo] = useState<{ pest_name: string; county_name: string; source_url?: string } | null>(null)
+
   // Detect demo product
   const isDemo = productId.startsWith('demo-')
 
@@ -212,6 +215,17 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
       setShowBuy(true)
     }
   }, [autoBuy, isAuthenticated, product, booth]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Quarantine check — county-level only
+  useEffect(() => {
+    if (!product || isDemo) return
+    supabase.rpc('check_quarantine_for_product', { p_product_id: productId })
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setQuarantineInfo({ pest_name: data[0].pest_name, county_name: data[0].county_name, source_url: data[0].source_url })
+        }
+      })
+  }, [product?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Periodic poll for fresh product data (price, inventory) — every 30s + on tab focus
   // Skip for demo products (no real data to refresh)
@@ -598,7 +612,30 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
             </div>
           )}
 
-          {/* Buy Now + Add to Cart (blocked for demo) */}
+          {/* Quarantine Banner */}
+          {quarantineInfo && (
+            <div style={{
+              marginTop: 16, padding: '14px 18px', background: '#fef2f2',
+              border: '1px solid #fca5a5', borderRadius: 12,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <span style={{ fontSize: 20 }}>⚠️</span>
+                <strong style={{ color: '#991b1b', fontSize: 14 }}>Agricultural Quarantine</strong>
+              </div>
+              <p style={{ margin: '0 0 8px', fontSize: 13, color: '#7f1d1d' }}>
+                This product cannot be sold due to an active <strong>{quarantineInfo.pest_name}</strong> quarantine in {quarantineInfo.county_name} County.
+                Homegrown produce cannot leave the property within the quarantine zone.
+              </p>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <Link href="/quarantines" style={{ fontSize: 12, color: '#2563eb', fontWeight: 600 }}>View quarantine details →</Link>
+                {quarantineInfo.source_url && (
+                  <a href={quarantineInfo.source_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#2563eb', fontWeight: 600 }}>Official circular ↗</a>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Buy Now + Add to Cart (blocked for demo or quarantine) */}
           <div style={{ marginTop: 16 }}>
             {isDemo ? (
               /* Demo: show blocked buttons + Start Selling CTA */
@@ -846,16 +883,18 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                       }
                       setShowBuy(true)
                     }}
-                    disabled={product.inventory === 0 || windowsExpired || isExpired}
+                    disabled={product.inventory === 0 || windowsExpired || isExpired || !!quarantineInfo}
                   >
-                    {windowsExpired || isExpired
-                      ? '⏰ Unavailable'
-                      : product.inventory === 0
-                        ? 'Sold Out'
-                        : `⚡ ${product.price_usd === 0 ? 'Buy Now — Free' : `Buy Now`}`}
+                    {quarantineInfo
+                      ? '🚫 Quarantined'
+                      : windowsExpired || isExpired
+                        ? '⏰ Unavailable'
+                        : product.inventory === 0
+                          ? 'Sold Out'
+                          : `⚡ ${product.price_usd === 0 ? 'Buy Now — Free' : `Buy Now`}`}
                   </button>
 
-                  {!windowsExpired && !isExpired && product.inventory > 0 && (
+                  {!windowsExpired && !isExpired && product.inventory > 0 && !quarantineInfo && (
                     <button
                       style={{
                         flex: 1, padding: '12px 8px',

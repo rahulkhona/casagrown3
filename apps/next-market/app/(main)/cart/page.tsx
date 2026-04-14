@@ -32,6 +32,9 @@ export default function CartPage() {
   const cardElementRef = useRef<any>(null)
   const cardMountedRef = useRef(false)
 
+  // Quarantine tracking: product_id -> quarantine info
+  const [quarantinedProducts, setQuarantinedProducts] = useState<Record<string, { pest_name: string; county_name: string }>>({})
+
   // Redirect if cart feature is off (wait for settings to load first)
   useEffect(() => {
   }, [marketLoading, router])
@@ -58,8 +61,22 @@ export default function CartPage() {
     setLoading(false)
   }, [items.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Check quarantine status for all cart items
+  const checkQuarantines = useCallback(async () => {
+    if (items.length === 0) return
+    const qMap: Record<string, { pest_name: string; county_name: string }> = {}
+    for (const item of items) {
+      const { data } = await supabase.rpc('check_quarantine_for_product', { p_product_id: item.product.id })
+      if (data && data.length > 0) {
+        qMap[item.product.id] = { pest_name: data[0].pest_name, county_name: data[0].county_name }
+      }
+    }
+    setQuarantinedProducts(qMap)
+  }, [items.length]) // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     refreshAll()
+    checkQuarantines()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const showToast = (msg: string) => {
@@ -452,6 +469,11 @@ export default function CartPage() {
                         ⏰ No {item.fulfillmentMode} windows available
                       </span>
                     )}
+                    {quarantinedProducts[item.product.id] && !item.unavailable && (
+                      <span className={`${styles.unavailBadge}`} style={{ background: '#fef2f2', color: '#991b1b', border: '1px solid #fca5a5' }}>
+                        🚫 Quarantined — {quarantinedProducts[item.product.id].pest_name}
+                      </span>
+                    )}
                     {item.unavailable === 'insufficient' && (
                       <>
                         <span className={`${styles.unavailBadge} ${styles.badgeInsufficient}`}>
@@ -540,6 +562,8 @@ export default function CartPage() {
       {/* Grand total and unified checkout */}
       {(() => {
         const allAvailable = boothGroups.flatMap(g => getCheckoutItems(g))
+        const hasQuarantined = allAvailable.some(i => quarantinedProducts[i.product.id])
+        const quarantinedCount = allAvailable.filter(i => quarantinedProducts[i.product.id]).length
         return allAvailable.length > 0 && (
           <div className={styles.grandTotalSection}>
             <div className={styles.grandTotalRow}>
@@ -592,6 +616,15 @@ export default function CartPage() {
               </div>
             )}
 
+            {/* Quarantine warning */}
+            {hasQuarantined && (
+              <div style={{ padding: '12px 16px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 10, margin: '12px 0' }}>
+                <p style={{ margin: 0, fontSize: 13, color: '#991b1b', fontWeight: 600 }}>
+                  🚫 {quarantinedCount} item{quarantinedCount > 1 ? 's' : ''} affected by agricultural quarantine. Remove to proceed with checkout.
+                </p>
+              </div>
+            )}
+
             {/* Error display */}
             {checkoutError && (
               <p style={{ color: '#dc2626', fontSize: 14, margin: '12px 0 0', fontWeight: 500 }}>
@@ -602,7 +635,7 @@ export default function CartPage() {
             <button
               className={styles.unifiedCheckoutBtn}
               onClick={handleUnifiedCheckout}
-              disabled={checkingOut || !balanceLoaded || (needsCard && !stripeReady)}
+              disabled={checkingOut || !balanceLoaded || (needsCard && !stripeReady) || hasQuarantined}
             >
               {checkingOut
                 ? '⏳ Processing...'

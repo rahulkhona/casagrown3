@@ -1,0 +1,180 @@
+/**
+ * Quarantine System — Buyer-Side Enforcement
+ *
+ * Tests:
+ * QB1  PDP shows quarantine banner when product is quarantined
+ * QB2  Buy Now button is disabled on quarantined PDP
+ * QB5  Non-produce product does NOT show quarantine banner
+ * QB6  Quarantines info page shows county quarantine
+ * QB7  Quarantines info page does NOT show state-level quarantines
+ *
+ * Strategy:
+ * - Looks up existing CA state, adds county + zip mapping if missing
+ * - Seeds quarantine zone for that county
+ * - Beth (buyer) visits Maria's quarantined produce PDP
+ * - After tests, clean up seeded quarantine data
+ */
+import { test, expect } from '@playwright/test'
+import {
+  loginAsUser,
+  navigateTo,
+  assertPageHealthy,
+  execSql,
+  TEST_USERS,
+} from './scenario-helpers'
+
+// Deterministic UUIDs for test-created rows (only county + quarantine zones)
+const COUNTY_UUID  = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeee01'
+const QUAR_UUID    = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeee03'
+const STATE_Q_UUID = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeee04'
+
+let stateId = ''
+let cityId = ''
+
+test.describe('Quarantine — Buyer-Side Enforcement', () => {
+  test.beforeAll(async () => {
+    // Look up existing CA state and San Jose city (created by seed.sql)
+    stateId = execSql(`SELECT id FROM states WHERE code = 'CA' LIMIT 1`).trim()
+    cityId = execSql(`SELECT id FROM cities WHERE name = 'San Jose' LIMIT 1`).trim()
+
+    if (!stateId) {
+      console.error('[SETUP] No CA state found — skipping quarantine tests')
+      return
+    }
+
+    // Create Santa Clara county (only thing not in seed)
+    execSql(`INSERT INTO counties (id, fips_code, name, state_id)
+             VALUES ('${COUNTY_UUID}', '06085', 'Santa Clara', '${stateId}')
+             ON CONFLICT (id) DO NOTHING`)
+
+    // Link Maria's zip (95120) to Santa Clara county
+    execSql(`UPDATE zip_codes SET county_id = '${COUNTY_UUID}'
+             WHERE zip_code = '95120'`)
+    execSql(`INSERT INTO zip_codes (zip_code, country_iso_3, city_id, county_id)
+             SELECT '95120', 'USA', '${cityId}', '${COUNTY_UUID}'
+             WHERE NOT EXISTS (SELECT 1 FROM zip_codes WHERE zip_code = '95120')`)
+
+    // County-level quarantine
+    execSql(`INSERT INTO quarantine_zones (id, country_iso_3, state_id, county_id, category, pest_name, starts_at, is_active, keywords)
+             VALUES ('${QUAR_UUID}', 'USA', '${stateId}', '${COUNTY_UUID}',
+                     'produce', 'E2E Test Fruit Fly', CURRENT_DATE, true,
+                     '{apples,oranges,mangoes,tomatoes,peppers,plums}')
+             ON CONFLICT (id) DO UPDATE SET is_active = true, ends_at = NULL`)
+
+    // State-level quarantine (should NOT appear — county-only enforcement)
+    execSql(`INSERT INTO quarantine_zones (id, country_iso_3, state_id, county_id, category, pest_name, starts_at, is_active)
+             VALUES ('${STATE_Q_UUID}', 'USA', '${stateId}', NULL,
+                     'produce', 'E2E State Level Pest', CURRENT_DATE, true)
+             ON CONFLICT (id) DO UPDATE SET is_active = true`)
+  })
+
+  test.afterAll(async () => {
+    execSql(`DELETE FROM quarantine_zones WHERE id IN ('${QUAR_UUID}', '${STATE_Q_UUID}')`)
+  })
+
+  test('QB1 — PDP shows quarantine banner for produce product', async ({ browser }) => {
+    const page = await loginAsUser(browser, 'beth')
+
+    const mariaId = execSql(
+      `SELECT id FROM auth.users WHERE email = '${TEST_USERS.maria.email}'`
+    ).trim()
+
+    const productRow = execSql(
+      `SELECT p.id, b.id FROM market_products p
+       JOIN market_booths b ON b.owner_id = p.seller_id
+       WHERE p.seller_id = '${mariaId}' AND p.category = 'produce' AND p.is_active = true
+       LIMIT 1`
+    ).trim()
+
+    if (!productRow) { test.skip(); await page.context().close(); return }
+
+    const [productId, boothId] = productRow.split('|').map(s => s.trim())
+    await navigateTo(page, `/market/booth/${boothId}/product/${productId}`)
+    await page.waitForTimeout(3000)
+
+    const banner = page.getByText('Agricultural Quarantine')
+    expect(await banner.isVisible({ timeout: 10000 }).catch(() => false)).toBe(true)
+
+    const pestText = page.getByText('E2E Test Fruit Fly')
+    expect(await pestText.isVisible({ timeout: 3000 }).catch(() => false)).toBe(true)
+
+    await page.context().close()
+  })
+
+  test('QB2 — Buy Now button is disabled on quarantined PDP', async ({ browser }) => {
+    const page = await loginAsUser(browser, 'beth')
+
+    const mariaId = execSql(
+      `SELECT id FROM auth.users WHERE email = '${TEST_USERS.maria.email}'`
+    ).trim()
+
+    const productRow = execSql(
+      `SELECT p.id, b.id FROM market_products p
+       JOIN market_booths b ON b.owner_id = p.seller_id
+       WHERE p.seller_id = '${mariaId}' AND p.category = 'produce' AND p.is_active = true
+       LIMIT 1`
+    ).trim()
+
+    if (!productRow) { test.skip(); await page.context().close(); return }
+
+    const [productId, boothId] = productRow.split('|').map(s => s.trim())
+    await navigateTo(page, `/market/booth/${boothId}/product/${productId}`)
+    await page.waitForTimeout(3000)
+
+    // Button should show "Quarantined" and be disabled
+    const quarantinedBtn = page.locator('button:has-text("Quarantined")')
+    if (await quarantinedBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await expect(quarantinedBtn).toBeDisabled()
+    }
+
+    // Add to Cart should NOT be visible
+    const addToCartBtn = page.locator('button:has-text("Add to Cart")')
+    expect(await addToCartBtn.isVisible({ timeout: 2000 }).catch(() => false)).toBe(false)
+
+    await page.context().close()
+  })
+
+  test('QB5 — Non-produce product does NOT show quarantine banner', async ({ browser }) => {
+    const page = await loginAsUser(browser, 'beth')
+
+    const nonProduceRow = execSql(
+      `SELECT p.id, b.id FROM market_products p
+       JOIN market_booths b ON b.owner_id = p.seller_id
+       WHERE p.category != 'produce' AND p.is_active = true
+       LIMIT 1`
+    ).trim()
+
+    if (!nonProduceRow) { test.skip(); await page.context().close(); return }
+
+    const [productId, boothId] = nonProduceRow.split('|').map(s => s.trim())
+    await navigateTo(page, `/market/booth/${boothId}/product/${productId}`)
+    await page.waitForTimeout(3000)
+
+    const banner = page.getByText('Agricultural Quarantine')
+    expect(await banner.isVisible({ timeout: 3000 }).catch(() => false)).toBe(false)
+
+    await page.context().close()
+  })
+
+  test('QB6 — Quarantines info page shows county quarantine', async ({ browser }) => {
+    const page = await loginAsUser(browser, 'maria')
+    await navigateTo(page, '/quarantines')
+    await assertPageHealthy(page)
+
+    const pestName = page.getByText('E2E Test Fruit Fly')
+    expect(await pestName.isVisible({ timeout: 10000 }).catch(() => false)).toBe(true)
+
+    await page.context().close()
+  })
+
+  test('QB7 — State-level quarantine NOT shown on quarantines page', async ({ browser }) => {
+    const page = await loginAsUser(browser, 'maria')
+    await navigateTo(page, '/quarantines')
+    await page.waitForTimeout(3000)
+
+    const statePest = page.getByText('E2E State Level Pest')
+    expect(await statePest.isVisible({ timeout: 3000 }).catch(() => false)).toBe(false)
+
+    await page.context().close()
+  })
+})

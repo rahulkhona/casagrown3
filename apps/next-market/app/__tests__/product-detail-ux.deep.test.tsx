@@ -107,6 +107,57 @@ describe('ProductDetailClient — UX Contract', () => {
   it('uses windowDisplay utility for pill rendering', () => {
     expect(detailSrc).toContain('getWindowDays')
   })
+
+  // ── Quarantine Enforcement ──
+  it('calls check_quarantine_for_product RPC', () => {
+    expect(detailSrc).toContain('check_quarantine_for_product')
+  })
+
+  it('has quarantine banner with pest name', () => {
+    expect(detailSrc).toContain('Agricultural Quarantine')
+    expect(detailSrc).toContain('quarantineInfo.pest_name')
+  })
+
+  it('disables Buy Now when quarantined', () => {
+    expect(detailSrc).toContain('!!quarantineInfo')
+    expect(detailSrc).toContain("'🚫 Quarantined'")
+  })
+
+  it('hides Add to Cart when quarantined', () => {
+    expect(detailSrc).toContain('!quarantineInfo &&')
+  })
+
+  it('links to quarantines info page from banner', () => {
+    expect(detailSrc).toContain('href="/quarantines"')
+  })
+})
+
+// ============================================================================
+// CART QUARANTINE ENFORCEMENT
+// ============================================================================
+const CART_PATH = path.resolve(__dirname, '../(main)/cart/page.tsx')
+const cartSrc = fs.readFileSync(CART_PATH, 'utf-8')
+
+describe('Cart Page — Quarantine Enforcement', () => {
+  it('calls check_quarantine_for_product for cart items', () => {
+    expect(cartSrc).toContain('check_quarantine_for_product')
+  })
+
+  it('tracks quarantined products in state', () => {
+    expect(cartSrc).toContain('quarantinedProducts')
+  })
+
+  it('shows quarantine badge on affected items', () => {
+    expect(cartSrc).toContain('Quarantined')
+  })
+
+  it('blocks checkout when quarantined items present', () => {
+    expect(cartSrc).toContain('hasQuarantined')
+  })
+
+  it('shows quarantine warning in checkout section', () => {
+    expect(cartSrc).toContain('agricultural quarantine')
+  })
 })
 
 // ============================================================================
