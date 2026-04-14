@@ -112,7 +112,7 @@ export default function QuarantineInfoPage() {
               }
             }
 
-            return [...grouped.values()].map((q, i) => {
+            return Array.from(grouped.values()).map((q, i) => {
               const location = [q.county ? q.county + ' County' : '', q.state].filter(Boolean).join(', ') || 'National'
 
               return (
