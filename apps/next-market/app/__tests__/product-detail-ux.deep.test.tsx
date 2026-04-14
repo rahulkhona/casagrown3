@@ -114,17 +114,16 @@ describe('ProductDetailClient — UX Contract', () => {
   })
 
   it('has quarantine banner with pest name', () => {
-    expect(detailSrc).toContain('Agricultural Quarantine')
+    expect(detailSrc).toContain('Potential Agricultural Quarantine')
     expect(detailSrc).toContain('quarantineInfo.pest_name')
   })
 
-  it('disables Buy Now when quarantined', () => {
-    expect(detailSrc).toContain('!!quarantineInfo')
-    expect(detailSrc).toContain("'🚫 Quarantined'")
+  it('enables Buy Now for quarantined item', () => {
+    expect(detailSrc).toContain('disabled={product.inventory === 0 || windowsExpired || isExpired}')
   })
 
-  it('hides Add to Cart when quarantined', () => {
-    expect(detailSrc).toContain('!quarantineInfo &&')
+  it('shows Add to Cart when quarantined', () => {
+    expect(detailSrc).toContain('!windowsExpired && !isExpired && product.inventory > 0 && (')
   })
 
   it('links to quarantines info page from banner', () => {

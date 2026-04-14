@@ -2,8 +2,8 @@
  * Quarantine System — Buyer-Side Enforcement
  *
  * Tests:
- * QB1  PDP shows quarantine banner when product is quarantined
- * QB2  Buy Now button is disabled on quarantined PDP
+ * QB1  PDP shows soft warning quarantine banner when product is quarantined
+ * QB2  Buy Now button is enabled on quarantined PDP (soft warning mode)
  * QB5  Non-produce product does NOT show quarantine banner
  * QB6  Quarantines info page shows county quarantine
  * QB7  Quarantines info page does NOT show state-level quarantines
@@ -92,7 +92,7 @@ test.describe('Quarantine — Buyer-Side Enforcement', () => {
     await navigateTo(page, `/market/booth/${boothId}/product/${productId}`)
     await page.waitForTimeout(3000)
 
-    const banner = page.getByText('Agricultural Quarantine')
+    const banner = page.getByText('Potential Agricultural Quarantine')
     expect(await banner.isVisible({ timeout: 10000 }).catch(() => false)).toBe(true)
 
     const pestText = page.getByText('E2E Test Fruit Fly')
@@ -101,7 +101,7 @@ test.describe('Quarantine — Buyer-Side Enforcement', () => {
     await page.context().close()
   })
 
-  test('QB2 — Buy Now button is disabled on quarantined PDP', async ({ browser }) => {
+  test('QB2 — Buy Now button is ENABLED on quarantined PDP (soft warning)', async ({ browser }) => {
     const page = await loginAsUser(browser, 'beth')
 
     const mariaId = execSql(
@@ -121,15 +121,15 @@ test.describe('Quarantine — Buyer-Side Enforcement', () => {
     await navigateTo(page, `/market/booth/${boothId}/product/${productId}`)
     await page.waitForTimeout(3000)
 
-    // Button should show "Quarantined" and be disabled
-    const quarantinedBtn = page.locator('button:has-text("Quarantined")')
-    if (await quarantinedBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await expect(quarantinedBtn).toBeDisabled()
+    // Button should say "Buy Now" and NOT be disabled (unless it's out of stock)
+    const buyNowBtn = page.locator('button:has-text("Buy Now")')
+    if (await buyNowBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await expect(buyNowBtn).toBeEnabled()
     }
 
-    // Add to Cart should NOT be visible
+    // Add to Cart SHOULD be visible despite quarantine
     const addToCartBtn = page.locator('button:has-text("Add to Cart")')
-    expect(await addToCartBtn.isVisible({ timeout: 2000 }).catch(() => false)).toBe(false)
+    expect(await addToCartBtn.isVisible({ timeout: 2000 }).catch(() => false)).toBe(true)
 
     await page.context().close()
   })
@@ -150,7 +150,7 @@ test.describe('Quarantine — Buyer-Side Enforcement', () => {
     await navigateTo(page, `/market/booth/${boothId}/product/${productId}`)
     await page.waitForTimeout(3000)
 
-    const banner = page.getByText('Agricultural Quarantine')
+    const banner = page.getByText('Potential Agricultural Quarantine')
     expect(await banner.isVisible({ timeout: 3000 }).catch(() => false)).toBe(false)
 
     await page.context().close()

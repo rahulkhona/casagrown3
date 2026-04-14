@@ -21,7 +21,7 @@ test.describe('Quarantine — Seller Listing Block', () => {
     await assertPageHealthy(page)
 
     // The quarantine banner should NOT be visible in the default test environment
-    const quarantineBanner = page.getByText('Agricultural Quarantine')
+    const quarantineBanner = page.getByText('Potential Agricultural Quarantine')
     const isBannerVisible = await quarantineBanner.isVisible({ timeout: 3000 }).catch(() => false)
     expect(isBannerVisible).toBe(false)
 

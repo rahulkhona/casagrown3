@@ -615,16 +615,16 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
           {/* Quarantine Banner */}
           {quarantineInfo && (
             <div style={{
-              marginTop: 16, padding: '14px 18px', background: '#fef2f2',
-              border: '1px solid #fca5a5', borderRadius: 12,
+              marginTop: 16, padding: '14px 18px', background: '#fffbeb',
+              border: '1px solid #fcd34d', borderRadius: 12,
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <span style={{ fontSize: 20 }}>⚠️</span>
-                <strong style={{ color: '#991b1b', fontSize: 14 }}>Agricultural Quarantine</strong>
+                <strong style={{ color: '#b45309', fontSize: 14 }}>Potential Agricultural Quarantine</strong>
               </div>
-              <p style={{ margin: '0 0 8px', fontSize: 13, color: '#7f1d1d' }}>
-                This product cannot be sold due to an active <strong>{quarantineInfo.pest_name}</strong> quarantine in {quarantineInfo.county_name} County.
-                Homegrown produce cannot leave the property within the quarantine zone.
+              <p style={{ margin: '0 0 8px', fontSize: 13, color: '#92400e' }}>
+                This product may be restricted due to an active <strong>{quarantineInfo.pest_name}</strong> quarantine in {quarantineInfo.county_name} County.
+                Please double check local regulations before purchasing.
               </p>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <Link href="/quarantines" style={{ fontSize: 12, color: '#2563eb', fontWeight: 600 }}>View quarantine details →</Link>
@@ -883,18 +883,16 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                       }
                       setShowBuy(true)
                     }}
-                    disabled={product.inventory === 0 || windowsExpired || isExpired || !!quarantineInfo}
+                    disabled={product.inventory === 0 || windowsExpired || isExpired}
                   >
-                    {quarantineInfo
-                      ? '🚫 Quarantined'
-                      : windowsExpired || isExpired
-                        ? '⏰ Unavailable'
-                        : product.inventory === 0
-                          ? 'Sold Out'
-                          : `⚡ ${product.price_usd === 0 ? 'Buy Now — Free' : `Buy Now`}`}
+                    {windowsExpired || isExpired
+                      ? '⏰ Unavailable'
+                      : product.inventory === 0
+                        ? 'Sold Out'
+                        : `⚡ ${product.price_usd === 0 ? 'Buy Now — Free' : `Buy Now`}`}
                   </button>
 
-                  {!windowsExpired && !isExpired && product.inventory > 0 && !quarantineInfo && (
+                  {!windowsExpired && !isExpired && product.inventory > 0 && (
                     <button
                       style={{
                         flex: 1, padding: '12px 8px',
