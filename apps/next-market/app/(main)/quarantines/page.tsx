@@ -88,70 +88,94 @@ export default function QuarantineInfoPage() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {quarantines.map((q) => {
-            // Handle both RPC flat fields and PostgREST nested join fields
-            const county = q.county_name || (Array.isArray(q.counties) ? q.counties[0]?.name : q.counties?.name)
-            const state = q.state_name || (Array.isArray(q.states) ? q.states[0]?.name : q.states?.name)
-            const location = [county ? county + ' County' : '', state].filter(Boolean).join(', ') || 'National'
+          {(() => {
+            // Group quarantines by pest_name + location to merge category duplicates
+            const grouped = new Map<string, any>()
+            for (const q of quarantines) {
+              const county = q.county_name || (Array.isArray(q.counties) ? q.counties[0]?.name : q.counties?.name)
+              const state = q.state_name || (Array.isArray(q.states) ? q.states[0]?.name : q.states?.name)
+              const key = `${q.pest_name}::${county || ''}::${state || ''}`
+              if (!grouped.has(key)) {
+                grouped.set(key, { ...q, categories: [q.category], county, state })
+              } else {
+                const existing = grouped.get(key)!
+                if (q.category && !existing.categories.includes(q.category)) {
+                  existing.categories.push(q.category)
+                }
+                // Merge produce_categories and keywords
+                if (q.produce_categories) {
+                  existing.produce_categories = [...new Set([...(existing.produce_categories || []), ...q.produce_categories])]
+                }
+                if (q.keywords) {
+                  existing.keywords = [...new Set([...(existing.keywords || []), ...q.keywords])]
+                }
+              }
+            }
 
-            return (
-              <div key={q.id || q.quarantine_id} style={{ 
-                background: '#fff', border: '1px solid #fee2e2', borderRadius: 16, padding: 20,
-                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-                  <div>
-                    <h3 style={{ margin: '0 0 4px', fontSize: 18, color: '#991b1b', display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {q.pest_name}
-                      {q.created_by_admin && (
-                        <span style={{ fontSize: 10, background: '#ffedd5', color: '#9a3412', padding: '2px 8px', borderRadius: 12, fontWeight: 600 }}>
-                          Emergency Block
-                        </span>
+            return [...grouped.values()].map((q, i) => {
+              const location = [q.county ? q.county + ' County' : '', q.state].filter(Boolean).join(', ') || 'National'
+
+              return (
+                <div key={q.id || q.quarantine_id || i} style={{ 
+                  background: '#fff', border: '1px solid #fee2e2', borderRadius: 16, padding: 20,
+                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+                    <div>
+                      <h3 style={{ margin: '0 0 4px', fontSize: 18, color: '#991b1b', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {q.pest_name}
+                        {q.created_by_admin && (
+                          <span style={{ fontSize: 10, background: '#ffedd5', color: '#9a3412', padding: '2px 8px', borderRadius: 12, fontWeight: 600 }}>
+                            Emergency Block
+                          </span>
+                        )}
+                      </h3>
+                      <div style={{ fontSize: 14, color: '#4b5563', marginBottom: 8, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+                        <strong>Categories:</strong>
+                        {q.categories.map((cat: string) => (
+                          <span key={cat} style={{ background: '#fef2f2', color: '#dc2626', padding: '2px 6px', borderRadius: 4, fontWeight: 500 }}>{cat}</span>
+                        ))}
+                      </div>
+                      {q.produce_categories && q.produce_categories.length > 0 && (
+                        <div style={{ fontSize: 14, color: '#4b5563', marginBottom: 8, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                          <strong>Affected Items:</strong>
+                          {q.produce_categories.map((pc: string) => (
+                            <span key={pc} style={{ background: '#fff7ed', color: '#c2410c', padding: '2px 8px', borderRadius: 4, fontWeight: 500, fontSize: 13 }}>{pc}</span>
+                          ))}
+                        </div>
                       )}
-                    </h3>
-                    <div style={{ fontSize: 14, color: '#4b5563', marginBottom: 8 }}>
-                      <strong>Category:</strong> <span style={{ background: '#fef2f2', color: '#dc2626', padding: '2px 6px', borderRadius: 4, fontWeight: 500 }}>{q.category}</span>
-                    </div>
-                    {q.produce_categories && q.produce_categories.length > 0 && (
-                      <div style={{ fontSize: 14, color: '#4b5563', marginBottom: 8, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-                        <strong>Affected Items:</strong>
-                        {q.produce_categories.map((pc: string) => (
-                          <span key={pc} style={{ background: '#fff7ed', color: '#c2410c', padding: '2px 8px', borderRadius: 4, fontWeight: 500, fontSize: 13 }}>{pc}</span>
-                        ))}
+                      {q.keywords && q.keywords.length > 0 && (
+                        <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 8, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+                          {q.keywords.map((kw: string) => (
+                            <span key={kw} style={{ background: '#f3f4f6', color: '#4b5563', padding: '1px 6px', borderRadius: 4, fontSize: 12 }}>#{kw}</span>
+                          ))}
+                        </div>
+                      )}
+                      <div style={{ fontSize: 14, color: '#6b7280' }}>
+                        📍 <strong>Affected Area:</strong> {location}
                       </div>
-                    )}
-                    {q.keywords && q.keywords.length > 0 && (
-                      <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 8, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
-                        {q.keywords.map((kw: string) => (
-                          <span key={kw} style={{ background: '#f3f4f6', color: '#4b5563', padding: '1px 6px', borderRadius: 4, fontSize: 12 }}>#{kw}</span>
-                        ))}
-                      </div>
-                    )}
-                    <div style={{ fontSize: 14, color: '#6b7280' }}>
-                      📍 <strong>Affected Area:</strong> {location}
                     </div>
+                    {q.source_url && (
+                      <a href={q.source_url} target="_blank" rel="noopener noreferrer" style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600,
+                        color: '#2563eb', background: '#eff6ff', padding: '8px 14px', borderRadius: 8, textDecoration: 'none'
+                      }}>
+                        Official Circular ↗
+                      </a>
+                    )}
                   </div>
-                  {q.source_url && (
-                    <a href={q.source_url} target="_blank" rel="noopener noreferrer" style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600,
-                      color: '#2563eb', background: '#eff6ff', padding: '8px 14px', borderRadius: 8, textDecoration: 'none'
-                    }}>
-                      Official Circular ↗
-                    </a>
+                  {q.reason && (
+                    <div style={{ marginTop: 12, padding: 12, background: '#f9fafb', borderRadius: 8, fontSize: 13, color: '#4b5563', fontStyle: 'italic' }}>
+                      {q.reason}
+                    </div>
                   )}
-                </div>
-                {q.reason && (
-                  <div style={{ marginTop: 12, padding: 12, background: '#f9fafb', borderRadius: 8, fontSize: 13, color: '#4b5563', fontStyle: 'italic' }}>
-                    {q.reason}
+                  <div style={{ marginTop: 12, fontSize: 12, color: '#9ca3af' }}>
+                    Enforced starting {new Date(q.starts_at).toLocaleDateString()}
+                    {q.ends_at && ` until ${new Date(q.ends_at).toLocaleDateString()}`}
                   </div>
-                )}
-                <div style={{ marginTop: 12, fontSize: 12, color: '#9ca3af' }}>
-                  Enforced starting {new Date(q.starts_at).toLocaleDateString()}
-                  {q.ends_at && ` until ${new Date(q.ends_at).toLocaleDateString()}`}
                 </div>
-              </div>
-            )
-          })}
+              )
+          })()}
         </div>
       )}
     </div>
