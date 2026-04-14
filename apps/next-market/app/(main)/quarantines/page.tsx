@@ -12,6 +12,7 @@ export default function QuarantineInfoPage() {
   useEffect(() => {
     async function fetchData() {
       const supabase = createClient()
+      const selectCols = 'id, category, pest_name, produce_categories, keywords, starts_at, ends_at, source_url, reason, created_by_admin, state_id, counties(name), states(name)'
 
       // 1. Try to get the user's state from their profile
       const { data: { session } } = await supabase.auth.getSession()
@@ -26,7 +27,6 @@ export default function QuarantineInfoPage() {
           .single()
 
         if (profile?.state_code) {
-          // Resolve state_code to state ID for filtering
           const { data: stateRow } = await supabase
             .from('states')
             .select('id, name')
@@ -41,20 +41,27 @@ export default function QuarantineInfoPage() {
         }
       }
 
-      // 2. Fetch quarantines — filtered by user's state if logged in
-      let query = supabase
-        .from('quarantine_zones')
-        .select('id, category, pest_name, produce_categories, keywords, starts_at, ends_at, source_url, reason, created_by_admin, state_id, counties(name), states(name)')
-        .eq('is_active', true)
-        .order('starts_at', { ascending: false })
-
+      // 2. Fetch quarantines
       if (stateId && !showAll) {
-        // Show quarantines in the user's state + national-level (no state)
-        query = query.or(`state_id.eq.${stateId},state_id.is.null`)
+        // Two queries: user's state + national (no state_id)
+        const [stateRes, nationalRes] = await Promise.all([
+          supabase.from('quarantine_zones').select(selectCols)
+            .eq('is_active', true).eq('state_id', stateId)
+            .order('starts_at', { ascending: false }),
+          supabase.from('quarantine_zones').select(selectCols)
+            .eq('is_active', true).is('state_id', null)
+            .order('starts_at', { ascending: false }),
+        ])
+        const combined = [...(stateRes.data || []), ...(nationalRes.data || [])]
+        combined.sort((a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime())
+        setQuarantines(combined)
+      } else {
+        // Guest or "show all" — fetch everything
+        const { data } = await supabase.from('quarantine_zones').select(selectCols)
+          .eq('is_active', true)
+          .order('starts_at', { ascending: false })
+        if (data) setQuarantines(data)
       }
-
-      const { data } = await query
-      if (data) setQuarantines(data)
       setLoading(false)
     }
     fetchData()
