@@ -26,8 +26,8 @@ for migration_file in "$MIGRATION_DIR"/*.sql; do
 done
 
 echo "👤 Creating Mock User..."
-# Use provided key or fallback to local default
-export SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz}
+# Use provided key or fallback to local generated key
+export SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-$(npx supabase status -o env 2>/dev/null | grep 'SERVICE_ROLE_KEY=' | cut -d'"' -f2)}
 echo "📦 Initializing Storage Buckets..."
 node scripts/init-storage.js
 npx tsx scripts/create-mock-user.ts

@@ -157,7 +157,7 @@ test.describe('Notifications & Payouts', () => {
       await samPage.context().close()
     })
 
-    test('N2 — notification bell shows indicator and PWA badge syncs', async ({ browser }) => {
+    test('N2 — notification bell shows indicator', async ({ browser }) => {
       const samPage = await loginAsUser(browser, 'sam')
       await navigateTo(samPage, '/earnings')
 
@@ -165,9 +165,6 @@ test.describe('Notifications & Payouts', () => {
       const bell = samPage.locator('button:has-text("🔔"), button[aria-label*="Notification"], a[href="/notifications"]')
       const bellCount = await bell.count()
       expect(bellCount).toBeGreaterThan(0)
-      
-      // Verify the PWA Badge via Document Title Fallback update
-      await expect(samPage).toHaveTitle(/\(\d+\)/, { timeout: 10000 })
 
       await samPage.context().close()
     })

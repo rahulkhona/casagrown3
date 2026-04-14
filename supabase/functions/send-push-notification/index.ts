@@ -81,11 +81,16 @@ serveWithCors(async (req, { supabase, corsHeaders, env }) => {
     if (!title) throw new Error("title is required");
     if (!body) throw new Error("body is required");
 
+    const cleanUserIds = userIds.filter((id: string) => id && id !== "null");
+    if (cleanUserIds.length === 0) {
+        return jsonOk({ sent: 0, failed: 0, skipped: 0, message: "No valid userIds provided" }, corsHeaders);
+    }
+
     // Fetch all push subscriptions for the target users
     const { data: subscriptions, error: fetchError } = await supabase
         .from("push_subscriptions")
         .select("*")
-        .in("user_id", userIds);
+        .in("user_id", cleanUserIds);
 
     if (fetchError) {
         throw new Error(`Failed to fetch subscriptions: ${fetchError.message}`);

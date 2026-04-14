@@ -433,7 +433,6 @@
           "dependencies": [
             "npm:@casagrown/app@*",
             "npm:@hello-pangea/dnd@^18.0.1",
-            "npm:@playwright/test@^1.57.0",
             "npm:@tamagui/config@^2.0.0-rc.0",
             "npm:@tamagui/next-plugin@^2.0.0-rc.0",
             "npm:@tamagui/next-theme@^2.0.0-rc.0",
@@ -458,7 +457,6 @@
           "dependencies": [
             "npm:@casagrown/app@*",
             "npm:@next/bundle-analyzer@^16.1.6",
-            "npm:@playwright/test@^1.57.0",
             "npm:@tailwindcss/postcss@^4.1.18",
             "npm:@tamagui/config@^2.0.0-rc.0",
             "npm:@tamagui/next-plugin@^2.0.0-rc.0",
@@ -487,7 +485,6 @@
         "packageJson": {
           "dependencies": [
             "npm:@casagrown/app@*",
-            "npm:@playwright/test@^1.57.0",
             "npm:@tailwindcss/postcss@^4.1.18",
             "npm:@tamagui/config@^2.0.0-rc.0",
             "npm:@tamagui/next-plugin@^2.0.0-rc.0",
@@ -515,7 +512,6 @@
       "apps/next-market": {
         "packageJson": {
           "dependencies": [
-            "npm:@playwright/test@^1.58.2",
             "npm:@stripe/stripe-js@^8.9.0",
             "npm:@supabase/ssr@0.9",
             "npm:@supabase/supabase-js@^2.99.1",
@@ -523,6 +519,7 @@
             "npm:@testing-library/react@^16.3.2",
             "npm:@testing-library/user-event@^14.6.1",
             "npm:@types/node@^20.14.1",
+            "npm:@types/react-dom@^19.2.3",
             "npm:@types/react@^19.2.14",
             "npm:html2canvas@^1.4.1",
             "npm:jsdom@29",
@@ -538,7 +535,6 @@
         "packageJson": {
           "dependencies": [
             "npm:@casagrown/app@*",
-            "npm:@playwright/test@^1.57.0",
             "npm:@tamagui/config@^2.0.0-rc.0",
             "npm:@tamagui/next-plugin@^2.0.0-rc.0",
             "npm:@tamagui/next-theme@^2.0.0-rc.0",

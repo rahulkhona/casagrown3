@@ -170,12 +170,13 @@ fi
 # ─────────────────────────────────────────────────────────────────────────
 section "Phase 3: pgTAP Database Tests"
 
-PGTAP_OUTPUT=$(npx supabase test db 2>&1)
+npx supabase test db > /tmp/pgtap_output.log 2>&1
 PGTAP_EXIT=$?
+PGTAP_OUTPUT=$(cat /tmp/pgtap_output.log)
 
 if echo "$PGTAP_OUTPUT" | grep -q "All tests successful"; then
-  PGTAP_TESTS=$(echo "$PGTAP_OUTPUT" | grep "^Files=" | sed 's/.*Tests=\([0-9]*\).*/\1/')
-  PGTAP_FILES=$(echo "$PGTAP_OUTPUT" | grep "^Files=" | sed 's/Files=\([0-9]*\).*/\1/')
+  PGTAP_TESTS=$(echo "$PGTAP_OUTPUT" | grep "Files=" | sed 's/.*Tests=\([0-9]*\).*/\1/')
+  PGTAP_FILES=$(echo "$PGTAP_OUTPUT" | grep "Files=" | sed 's/.*Files=\([0-9]*\).*/\1/')
   echo -e "  ${GREEN}✅ pgTAP: ${PGTAP_FILES} files, ${PGTAP_TESTS} tests — ALL PASS${NC}"
   log_suite "pgTAP Database" "${PGTAP_TESTS}"
 else
@@ -379,10 +380,10 @@ else
 
     echo "  Running $app_name Playwright E2E..."
     mkdir -p scripts/output
-    (cd "$app_dir" && npx playwright test --reporter=line 2>&1) | tee "$logfile"
+    (cd "$app_dir" && env -u FORCE_COLOR NO_COLOR=1 npx playwright test --reporter=line 2>&1) | tee "$logfile"
     local exit_code=${PIPESTATUS[0]}
     local output
-    output=$(cat "$logfile")
+    output=$(cat "$logfile" | perl -pe 's/\x1b\[[0-9;]*[mGK]//g')
 
     local passed=$(echo "$output" | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
     local failed=$(echo "$output" | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")

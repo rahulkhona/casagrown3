@@ -10,7 +10,7 @@ RETURNS TABLE (
   reason text
 ) AS $$
 DECLARE
-  v_home extensions.geometry;
+  v_home geometry;
 BEGIN
   -- We use home_location directly since we don't necessarily have zip-fallback here
   SELECT home_location INTO v_home FROM profiles WHERE id = p_user_id;

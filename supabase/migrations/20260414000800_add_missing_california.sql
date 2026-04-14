@@ -6,5 +6,5 @@
 -- ============================================================================
 
 INSERT INTO public.states (id, country_iso_3, code, name)
-VALUES (gen_random_uuid(), 'USA', 'CA', 'California')
-ON CONFLICT DO NOTHING;
+VALUES ('00000000-0000-0000-0000-000000000001', 'USA', 'CA', 'California')
+ON CONFLICT (country_iso_3, code) DO NOTHING;

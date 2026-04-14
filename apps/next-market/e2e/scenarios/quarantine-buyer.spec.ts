@@ -24,7 +24,7 @@ import {
 } from './scenario-helpers'
 
 // Deterministic UUIDs for test-created rows (only county + quarantine zones)
-const COUNTY_UUID  = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeee01'
+let countyId = ''
 const QUAR_UUID    = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeee03'
 const STATE_Q_UUID = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeee04'
 
@@ -43,20 +43,26 @@ test.describe('Quarantine — Buyer-Side Enforcement', () => {
     }
 
     // Create Santa Clara county (only thing not in seed)
-    execSql(`INSERT INTO counties (id, fips_code, name, state_id)
-             VALUES ('${COUNTY_UUID}', '06085', 'Santa Clara', '${stateId}')
-             ON CONFLICT (id) DO NOTHING`)
+    countyId = execSql(`SELECT id FROM counties WHERE name = 'Santa Clara' AND state_id = '${stateId}' LIMIT 1`).trim()
+    if (!countyId) {
+      countyId = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeee01'
+      execSql(`INSERT INTO counties (id, fips_code, name, state_id)
+               VALUES ('${countyId}', '06085', 'Santa Clara', '${stateId}')`)
+    }
 
     // Link Maria's zip (95120) to Santa Clara county
-    execSql(`UPDATE zip_codes SET county_id = '${COUNTY_UUID}'
+    execSql(`UPDATE zip_codes SET county_id = '${countyId}'
              WHERE zip_code = '95120'`)
     execSql(`INSERT INTO zip_codes (zip_code, country_iso_3, city_id, county_id)
-             SELECT '95120', 'USA', '${cityId}', '${COUNTY_UUID}'
+             SELECT '95120', 'USA', '${cityId}', '${countyId}'
              WHERE NOT EXISTS (SELECT 1 FROM zip_codes WHERE zip_code = '95120')`)
+
+    // Ensure idempotent inserts by clearing any existing zones from aborted runs
+    execSql(`DELETE FROM quarantine_zones WHERE pest_name IN ('E2E Test Fruit Fly', 'E2E State Level Pest')`)
 
     // County-level quarantine
     execSql(`INSERT INTO quarantine_zones (id, country_iso_3, state_id, county_id, category, pest_name, starts_at, is_active, keywords)
-             VALUES ('${QUAR_UUID}', 'USA', '${stateId}', '${COUNTY_UUID}',
+             VALUES ('${QUAR_UUID}', 'USA', '${stateId}', '${countyId}',
                      'produce', 'E2E Test Fruit Fly', CURRENT_DATE, true,
                      '{apples,oranges,mangoes,tomatoes,peppers,plums}')
              ON CONFLICT (id) DO UPDATE SET is_active = true, ends_at = NULL`)

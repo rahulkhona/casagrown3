@@ -28,7 +28,6 @@
     "vercel": "latest"
   },
   "devDependencies": {
-    "@playwright/test": "^1.57.0",
     "@tailwindcss/postcss": "^4.1.18",
     "@tamagui/next-plugin": "^2.0.0-rc.0",
     "@types/node": "^20.14.1",

@@ -155,6 +155,8 @@ describe('BuyModal — deep', () => {
   const product = {
     id: 'prod-1', name: 'Organic Tomatoes', price_usd: 5.99, unit: 'lb',
     inventory: 25, category: 'vegetables', photos: ['https://img.test/tomato.jpg'],
+    product_pickup_windows: [{ id: 'window-1' }],
+    product_delivery_windows: [{ id: 'del-1' }],
   }
   const booth = {
     id: 'booth-1', name: 'Farm Fresh', offers_delivery: true, offers_pickup: true,
