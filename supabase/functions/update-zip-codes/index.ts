@@ -98,7 +98,66 @@ serveWithCors(async (_req, { supabase, corsHeaders }) => {
     });
   }
 
-  // ── 3. Fetch all city IDs for zip mapping ───────────────────────────────
+  // ── 3. Upsert unique counties ────────────────────────────────────────────
+
+  console.log("Extracting unique counties...");
+  const uniqueCounties = [
+    ...new Set(
+      data
+        .filter((d: any) => d.county_name && d.county_name.trim())
+        .map((d: any) =>
+          JSON.stringify({ state: d.state_id, county: d.county_name, fips: d.county_fips })
+        ),
+    ),
+  ].map((s: string) => JSON.parse(s));
+
+  const countyRows = uniqueCounties
+    .map((c: { state: string; county: string; fips: string }) => {
+      const sId = stateMap.get(c.state);
+      if (!sId) return null;
+      return { state_id: sId, name: c.county, fips_code: c.fips || null };
+    })
+    .filter((c: unknown) => c !== null);
+
+  console.log(`Upserting ${countyRows.length} counties...`);
+  const countyChunkSize = 500;
+  for (let i = 0; i < countyRows.length; i += countyChunkSize) {
+    const chunk = countyRows.slice(i, i + countyChunkSize);
+    await supabase.from("counties").upsert(chunk, {
+      onConflict: "state_id, name",
+    });
+  }
+
+  // Fetch all county IDs
+  const allCountiesFromDB: any[] = [];
+  let countyHasMore = true;
+  let countyOffset = 0;
+  console.log("Fetching all counties from DB...");
+  while (countyHasMore) {
+    const { data: countyBatch, error: fetchError } = await supabase
+      .from("counties")
+      .select("state_id, name, id")
+      .range(countyOffset, countyOffset + 999);
+    if (fetchError) {
+      console.error("Error fetching counties batch:", fetchError.message);
+      break;
+    }
+    if (countyBatch && countyBatch.length > 0) {
+      allCountiesFromDB.push(...countyBatch);
+      countyOffset += 1000;
+      if (countyBatch.length < 1000) countyHasMore = false;
+    } else {
+      countyHasMore = false;
+    }
+  }
+  console.log(`Fetched ${allCountiesFromDB.length} counties total.`);
+
+  const countyMap = new Map<string, string>();
+  allCountiesFromDB.forEach((c: any) => {
+    countyMap.set(`${c.state_id}:${c.name}`, c.id);
+  });
+
+  // ── 4. Fetch all city IDs for zip mapping ───────────────────────────────
 
   const allCitiesFromDB: any[] = [];
   let hasMore = true;
@@ -132,7 +191,7 @@ serveWithCors(async (_req, { supabase, corsHeaders }) => {
     cityMap.set(`${c.state_id}:${c.name}`, c.id);
   });
 
-  // ── 4. Upsert zip codes (chunked) ───────────────────────────────────────
+  // ── 5. Upsert zip codes (chunked) ───────────────────────────────────────
 
   console.log(`Preparing to upsert all ${data.length} zip codes...`);
 
@@ -151,10 +210,15 @@ serveWithCors(async (_req, { supabase, corsHeaders }) => {
         return null;
       }
 
+      // Resolve county_id for this zip
+      const countyKey = row.county_name ? `${stateId}:${row.county_name}` : null;
+      const countyId = countyKey ? countyMap.get(countyKey) || null : null;
+
       return {
         zip_code: row.zip,
         country_iso_3: "USA",
         city_id: cityId,
+        county_id: countyId,
         latitude: parseFloat(row.lat) || 0,
         longitude: parseFloat(row.lng) || 0,
       };
