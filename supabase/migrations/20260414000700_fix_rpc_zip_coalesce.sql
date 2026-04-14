@@ -1,9 +1,6 @@
--- ============================================================================
--- Migration: Fix ZIP+4 handling + state-level quarantine matching
--- Profile stores ZIP+4 (e.g. 95120-1848) but zip_codes table has 5-digit.
--- Extract LEFT(5) for matching. Also handle quarantines that have county_id
--- set — include them in state-level matches for users in the same state.
--- ============================================================================
+-- Apply updated get_quarantines_for_user RPC
+-- Uses COALESCE(zip_code, LEFT(zip_plus4, 5)) for legacy profiles
+-- that only have zip_plus4 populated.
 
 DROP FUNCTION IF EXISTS get_quarantines_for_user(uuid);
 
@@ -85,8 +82,7 @@ BEGIN
     AND (
       -- County-level: user's exact county
       (qz.county_id IS NOT NULL AND v_county_id IS NOT NULL AND qz.county_id = v_county_id)
-      -- State-level: user's state, regardless of whether quarantine is statewide or county-specific
-      -- (users should see what's happening in their state even if it's in a different county)
+      -- State-level: user's state (statewide + county-specific in same state)
       OR (qz.state_id IS NOT NULL AND qz.state_id = v_state_id)
       -- Country-level
       OR (qz.country_iso_3 IS NOT NULL AND qz.state_id IS NULL AND qz.county_id IS NULL

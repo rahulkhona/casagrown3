@@ -261,6 +261,7 @@ function ProfileSetupPageInner() {
         city: validatedCity,
         state_code: validatedState,
         zip_plus4: validatedZipPlus4,
+        zip_code: validatedZipPlus4.split('-')[0],
         county,
         avatar_url: avatarUrl || null,
         profile_completed_at: new Date().toISOString(),

@@ -96,16 +96,48 @@ export default function ProfilePage() {
     setError('')
 
     try {
-      // Geocode address to compute H3 community index
+      // ── 1. Validate address via USPS (recompute ZIP+4 on any address change) ──
+      let validatedStreet = form.street.trim()
+      let validatedCity = form.city.trim()
+      let validatedState = form.state.trim().toUpperCase()
+      let validatedZipPlus4 = form.zip.trim()
+      let county: string | null = null
+
+      if (validatedStreet && validatedCity && validatedState) {
+        try {
+          const { data: uspsResult, error: uspsError } = await supabase.functions.invoke('resolve-usps-address', {
+            body: {
+              streetAddress: validatedStreet,
+              city: validatedCity,
+              state: validatedState,
+              zipCode: validatedZipPlus4.split('-')[0],
+            },
+          })
+          if (!uspsError && uspsResult?.address) {
+            validatedStreet = uspsResult.address.streetAddress || validatedStreet
+            validatedCity = uspsResult.address.city || validatedCity
+            validatedState = uspsResult.address.state || validatedState
+            validatedZipPlus4 = uspsResult.address.ZIPPlus4 || validatedZipPlus4
+            county = uspsResult.jurisdiction?.county || null
+            setForm(prev => ({ ...prev, street: validatedStreet, city: validatedCity, state: validatedState, zip: validatedZipPlus4 }))
+          } else {
+            console.warn('USPS validation failed, using user-entered address:', uspsError)
+          }
+        } catch (err) {
+          console.warn('USPS edge function unavailable, using user-entered address:', err)
+        }
+      }
+
+      // ── 2. Geocode address to compute H3 community index ──
       let h3Index: string | null = null
       let geoLat: number | null = cachedLat
       let geoLng: number | null = cachedLng
       
-      if (form.street && form.city && form.state) {
+      if (validatedStreet && validatedCity && validatedState) {
         try {
           if (!geoLat || !geoLng) {
             const { geocodeAddress } = await import('../../../lib/geocode')
-            const geo = await geocodeAddress(`${form.street}, ${form.city}, ${form.state} ${form.zip?.split('-')[0] || ''}`)
+            const geo = await geocodeAddress(`${validatedStreet}, ${validatedCity}, ${validatedState} ${validatedZipPlus4.split('-')[0]}`)
             if (geo) {
               geoLat = geo.lat
               geoLng = geo.lng
@@ -120,12 +152,15 @@ export default function ProfilePage() {
         }
       }
 
+      // ── 3. Save profile ──
       const profileUpdate: Record<string, any> = {
         full_name: form.name,
-        street_address: form.street,
-        city: form.city,
-        state_code: form.state,
-        zip_plus4: form.zip,
+        street_address: validatedStreet,
+        city: validatedCity,
+        state_code: validatedState,
+        zip_plus4: validatedZipPlus4,
+        zip_code: validatedZipPlus4.split('-')[0],
+        county,
         avatar_url: avatarUrl || null,
         sms_enabled: smsEnabled
       }
