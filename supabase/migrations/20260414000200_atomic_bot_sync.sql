@@ -1,18 +1,6 @@
 -- ============================================================================
--- Migration: Atomic Bot Sync (Eliminates Race Condition)
---
--- Previously the bot did:
---   1. DELETE all rows WHERE created_by_admin = false  (client-side)
---   2. INSERT new data via RPC
--- This created a window where the table was empty. If step 2 failed,
--- the data was permanently lost until the next run.
---
--- New approach: Everything happens inside a single transaction:
---   1. UPSERT current quarantines (insert or update)
---   2. Deactivate bot records that are no longer in the scraped data
---      (these are quarantines that were lifted)
---   3. Hard-delete stale bot records older than 90 days
--- The table is never empty mid-sync.
+-- Migration: Atomic Bot Sync v2 (Race-Condition-Free)
+-- Replaces the previous sync RPC with an atomic upsert + deactivation approach.
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION sync_bot_quarantines(p_payload jsonb)
@@ -66,7 +54,7 @@ BEGIN
         LIMIT 1;
 
       IF v_inserted_id IS NOT NULL THEN
-        -- UPDATE existing record (re-activate if it was deactivated, refresh metadata)
+        -- UPDATE existing record (re-activate if deactivated, refresh metadata)
         UPDATE quarantine_zones SET
           is_active = true,
           produce_categories = ARRAY(SELECT jsonb_array_elements_text(v_row->'produce_categories')),

@@ -97,21 +97,16 @@ async function main(): Promise<void> {
   console.log(`  ${normalizedRows.length} raw → ${deduped.length} unique records`);
   console.log('');
 
-  // ── 4. Write Database (UPSERT) ──────────────────────────────────
+  // ── 4. Write Database (Atomic Upsert) ────────────────────────────
 
   console.log('── Syncing Database ───────────────────────────');
-  // First we clear out any existing bot-generated limits
-  const { error: delErr } = await supabase
-    .from('quarantine_zones')
-    .delete()
-    .eq('created_by_admin', false);
-    
-  if (delErr) {
-     health.recordError('database', `Failed to prune old bot zones: ${delErr.message}`);
-  } else {
-     // Due to relational mapping schema requirements, calling specialized db sync RPC is best
-     const { error: pushErr } = await supabase.rpc('sync_bot_quarantines', { p_payload: deduped });
-     if (pushErr) console.error("RPC push warning:", pushErr.message);
+  // Single atomic RPC: upserts current records and deactivates any bot
+  // records that no longer appear in the scraped data (lifted quarantines).
+  // No separate DELETE — avoids race conditions where users see zero results.
+  const { error: pushErr } = await supabase.rpc('sync_bot_quarantines', { p_payload: deduped });
+  if (pushErr) {
+    health.recordError('database', `RPC sync_bot_quarantines failed: ${pushErr.message}`);
+    console.error("❌ Database sync failed:", pushErr.message);
   }
   console.log(`  📊 Sent ${deduped.length} rows to DB`);
   console.log('');
