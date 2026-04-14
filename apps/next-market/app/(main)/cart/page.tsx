@@ -470,8 +470,8 @@ export default function CartPage() {
                       </span>
                     )}
                     {quarantinedProducts[item.product.id] && !item.unavailable && (
-                      <span className={`${styles.unavailBadge}`} style={{ background: '#fef2f2', color: '#991b1b', border: '1px solid #fca5a5' }}>
-                        🚫 Quarantined — {quarantinedProducts[item.product.id].pest_name}
+                      <span className={`${styles.unavailBadge}`} style={{ background: '#fffbeb', color: '#b45309', border: '1px solid #fcd34d' }}>
+                        ⚠️ Potential Quarantine — {quarantinedProducts[item.product.id].pest_name}
                       </span>
                     )}
                     {item.unavailable === 'insufficient' && (
@@ -618,9 +618,9 @@ export default function CartPage() {
 
             {/* Quarantine warning */}
             {hasQuarantined && (
-              <div style={{ padding: '12px 16px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 10, margin: '12px 0' }}>
-                <p style={{ margin: 0, fontSize: 13, color: '#991b1b', fontWeight: 600 }}>
-                  🚫 {quarantinedCount} item{quarantinedCount > 1 ? 's' : ''} affected by agricultural quarantine. Remove to proceed with checkout.
+              <div style={{ padding: '12px 16px', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 10, margin: '12px 0' }}>
+                <p style={{ margin: 0, fontSize: 13, color: '#b45309', fontWeight: 600 }}>
+                  ⚠️ {quarantinedCount} item{quarantinedCount > 1 ? 's' : ''} may be affected by an agricultural quarantine. Please double check local regulations before proceeding.
                 </p>
               </div>
             )}
@@ -635,7 +635,7 @@ export default function CartPage() {
             <button
               className={styles.unifiedCheckoutBtn}
               onClick={handleUnifiedCheckout}
-              disabled={checkingOut || !balanceLoaded || (needsCard && !stripeReady) || hasQuarantined}
+              disabled={checkingOut || !balanceLoaded || (needsCard && !stripeReady)}
             >
               {checkingOut
                 ? '⏳ Processing...'

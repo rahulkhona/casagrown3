@@ -607,20 +607,6 @@ function NewProductPageInner() {
     
     // Strict checks only enforced if trying to publish fully
     if (!needsDraft) {
-      if (quarantineWarning) {
-        if (!quarantineWarning.keywords || quarantineWarning.keywords.length === 0 || quarantineWarning.keywords.includes('all')) {
-          newErrors.submit = `Cannot list this item. Quarantine Alert: ${quarantineWarning.pest_name} in ${quarantineWarning.county_name}.`
-        } else {
-          const productWords = name.trim().toLowerCase();
-          const matchedKeyword = quarantineWarning.keywords.find(kw => {
-            const regex = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}\\b`, 'i');
-            return regex.test(productWords);
-          });
-          if (matchedKeyword) {
-            newErrors.submit = `Cannot list "${matchedKeyword}" products. Quarantine Alert: ${quarantineWarning.pest_name} in ${quarantineWarning.county_name}.`
-          }
-        }
-      }
       if (!name.trim()) newErrors.name = 'Name is required'
       if (!isValidPrice) {
         if (effectivePrice === '' || effectivePrice === null) newErrors.price = 'Set a price (or 0 for free)'
@@ -1940,19 +1926,19 @@ function NewProductPageInner() {
           {/* ===== Quarantine Warning Banner ===== */}
           {quarantineWarning && (
             <div style={{
-              backgroundColor: '#fef2f2', border: '2px solid #ef4444', borderRadius: 12,
+              backgroundColor: '#fffbeb', border: '2px solid #f59e0b', borderRadius: 12,
               padding: '16px 20px', marginBottom: 16,
             }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                 <span style={{ fontSize: 24, lineHeight: 1 }}>⚠️</span>
                 <div>
-                  <strong style={{ color: '#991b1b', fontSize: 15, display: 'block', marginBottom: 4 }}>
-                    Agricultural Quarantine — Cannot List
+                  <strong style={{ color: '#b45309', fontSize: 15, display: 'block', marginBottom: 4 }}>
+                    Potential Agricultural Quarantine
                   </strong>
-                  <p style={{ color: '#b91c1c', fontSize: 13, margin: '0 0 8px 0', lineHeight: 1.5 }}>
-                    <strong>{category}</strong> is currently quarantined in <strong>{quarantineWarning.county_name}</strong> due
+                  <p style={{ color: '#92400e', fontSize: 13, margin: '0 0 8px 0', lineHeight: 1.5 }}>
+                    <strong>{category}</strong> may be quarantined in <strong>{quarantineWarning.county_name}</strong> due
                     to <strong>{quarantineWarning.pest_name}</strong>.
-                    You cannot list this product until the quarantine is lifted.
+                    Please double check local regulations. You may proceed if you are certain this item complies.
                   </p>
                   {quarantineWarning.reason && (
                     <p style={{ color: '#7f1d1d', fontSize: 12, margin: '0 0 4px 0', fontStyle: 'italic' }}>
@@ -1982,14 +1968,12 @@ function NewProductPageInner() {
           <button 
             type="submit" 
             className={styles.submitBtn} 
-            disabled={validating || !!quarantineWarning}
+            disabled={validating}
             style={(photos.length === 0 || !priceUsd || !quantity) ? { background: '#f59e0b' } : undefined}
             onClick={() => setForceDraft(false)}
           >
             {validating
               ? '⏳ Saving...'
-              : quarantineWarning
-              ? '🚫 Quarantined — Cannot List'
               : (photos.length === 0 || !priceUsd || !quantity) 
                 ? 'Save Draft' 
                 : (isRelist || editingInactive) ? '🌱 Re-list & Publish'
@@ -1997,7 +1981,7 @@ function NewProductPageInner() {
             }
           </button>
           {/* Secondary draft button — only when form is complete enough to publish */}
-          {!isEditMode && photos.length > 0 && priceUsd && quantity && !quarantineWarning && (
+          {!isEditMode && photos.length > 0 && priceUsd && quantity && (
             <button
               type="submit"
               className={`${styles.submitBtn} ${styles.submitBtnDraft}`}
