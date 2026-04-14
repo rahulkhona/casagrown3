@@ -44,7 +44,7 @@ export default function QuarantineInfoPage() {
       // 2. Fetch quarantines — filtered by user's state if logged in
       let query = supabase
         .from('quarantine_zones')
-        .select('id, category, pest_name, starts_at, ends_at, source_url, reason, created_by_admin, state_id, counties(name), states(name)')
+        .select('id, category, pest_name, produce_categories, keywords, starts_at, ends_at, source_url, reason, created_by_admin, state_id, counties(name), states(name)')
         .eq('is_active', true)
         .order('starts_at', { ascending: false })
 
@@ -119,8 +119,23 @@ export default function QuarantineInfoPage() {
                       )}
                     </h3>
                     <div style={{ fontSize: 14, color: '#4b5563', marginBottom: 8 }}>
-                      <strong>Banned Category:</strong> <span style={{ background: '#fef2f2', color: '#dc2626', padding: '2px 6px', borderRadius: 4, fontWeight: 500 }}>{q.category}</span>
+                      <strong>Category:</strong> <span style={{ background: '#fef2f2', color: '#dc2626', padding: '2px 6px', borderRadius: 4, fontWeight: 500 }}>{q.category}</span>
                     </div>
+                    {q.produce_categories && q.produce_categories.length > 0 && (
+                      <div style={{ fontSize: 14, color: '#4b5563', marginBottom: 8, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                        <strong>Affected Items:</strong>
+                        {q.produce_categories.map((pc: string) => (
+                          <span key={pc} style={{ background: '#fff7ed', color: '#c2410c', padding: '2px 8px', borderRadius: 4, fontWeight: 500, fontSize: 13 }}>{pc}</span>
+                        ))}
+                      </div>
+                    )}
+                    {q.keywords && q.keywords.length > 0 && (
+                      <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 8, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+                        {q.keywords.map((kw: string) => (
+                          <span key={kw} style={{ background: '#f3f4f6', color: '#4b5563', padding: '1px 6px', borderRadius: 4, fontSize: 12 }}>#{kw}</span>
+                        ))}
+                      </div>
+                    )}
                     <div style={{ fontSize: 14, color: '#6b7280' }}>
                       📍 <strong>Affected Area:</strong> {location}
                     </div>
