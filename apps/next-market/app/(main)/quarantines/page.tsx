@@ -104,10 +104,10 @@ export default function QuarantineInfoPage() {
                 }
                 // Merge produce_categories and keywords
                 if (q.produce_categories) {
-                  existing.produce_categories = [...new Set([...(existing.produce_categories || []), ...q.produce_categories])]
+                  existing.produce_categories = Array.from(new Set([...(existing.produce_categories || []), ...q.produce_categories]))
                 }
                 if (q.keywords) {
-                  existing.keywords = [...new Set([...(existing.keywords || []), ...q.keywords])]
+                  existing.keywords = Array.from(new Set([...(existing.keywords || []), ...q.keywords]))
                 }
               }
             }
