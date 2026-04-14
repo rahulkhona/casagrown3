@@ -175,6 +175,7 @@ export default function QuarantineInfoPage() {
                   </div>
                 </div>
               )
+            })
           })()}
         </div>
       )}
