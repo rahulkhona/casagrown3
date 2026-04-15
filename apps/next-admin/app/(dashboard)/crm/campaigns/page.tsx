@@ -12,6 +12,7 @@ type Campaign = {
   id: string
   name: string
   subject: string | null
+  preheader: string | null
   channel: 'email' | 'sms'
   status: 'draft' | 'scheduled' | 'sending' | 'sent' | 'paused'
   scheduled_at: string | null
@@ -50,6 +51,7 @@ export default function CrmCampaignsPage() {
     name: '',
     channel: 'email' as 'email' | 'sms',
     subject: '',
+    preheader: '',
     content_html: '',
     content_text: '',
     audience_id: '',
@@ -78,6 +80,7 @@ export default function CrmCampaignsPage() {
       name: form.name,
       channel: form.channel,
       subject: form.subject || null,
+      preheader: form.preheader || null,
       content_html: form.content_html || null,
       content_text: form.content_text || null,
       audience_id: form.audience_id || null,
@@ -88,7 +91,7 @@ export default function CrmCampaignsPage() {
     if (!error && data) {
       setCampaigns(prev => [data as Campaign, ...prev])
       setCreating(false)
-      setForm({ name: '', channel: 'email', subject: '', content_html: '', content_text: '', audience_id: '', scheduled_at: '' })
+      setForm({ name: '', channel: 'email', subject: '', preheader: '', content_html: '', content_text: '', audience_id: '', scheduled_at: '' })
       setMessage('Campaign created')
       setTimeout(() => setMessage(''), 3000)
     }
@@ -156,10 +159,25 @@ export default function CrmCampaignsPage() {
               </select>
             </div>
             {form.channel === 'email' && (
-              <div className="crm-field full-width">
-                <label>Email Subject</label>
-                <input placeholder="Subject line..." value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} />
-              </div>
+              <>
+                <div className="crm-field full-width">
+                  <label>Email Subject *</label>
+                  <input placeholder="e.g. Fresh produce just dropped in your area 🌱" value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} />
+                </div>
+                <div className="crm-field full-width">
+                  <label>
+                    Preheader
+                    <span className="crm-hint"> — 60–90 chars shown as preview text in inboxes before the email is opened</span>
+                  </label>
+                  <input
+                    placeholder="e.g. 3 new sellers just joined your zip code — avocados, citrus, and eggs..."
+                    maxLength={150}
+                    value={form.preheader}
+                    onChange={e => setForm(f => ({ ...f, preheader: e.target.value }))}
+                  />
+                  <p className="crm-char-count">{form.preheader.length}/90 chars</p>
+                </div>
+              </>
             )}
             <div className="crm-field">
               <label>Audience</label>
@@ -264,7 +282,9 @@ export default function CrmCampaignsPage() {
         .crm-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
         .crm-field { display: flex; flex-direction: column; gap: 6px; }
         .crm-field.full-width { grid-column: 1 / -1; }
-        .crm-field label { font-size: 0.85rem; font-weight: 500; color: #6b7280; }
+        .crm-field label { font-size: 0.85rem; font-weight: 600; color: #374151; }
+        .crm-hint { font-weight: 400; color: #9ca3af; font-size: 0.78rem; }
+        .crm-char-count { font-size: 0.78rem; color: #9ca3af; margin: 2px 0 0; text-align: right; }
         .crm-field input, .crm-field select, .crm-field textarea { border: 1px solid #d1d5db; border-radius: 8px; padding: 10px 12px; font-size: 0.95rem; outline: none; font-family: inherit; }
         .crm-field input:focus, .crm-field select:focus, .crm-field textarea:focus { border-color: #4ade80; }
         .crm-field textarea { resize: vertical; }

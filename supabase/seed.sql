@@ -41,6 +41,66 @@ values
   ('89283470cafffff', 'Cambrian Park', 'San Jose', 'California', 'USA', 'POINT(-121.93 37.26)')
 on conflict (h3_index) do nothing;
 
+-- ============================================================================
+-- Fresno Metro — Cities, ZIP Codes, Communities (CRM geo targeting seed)
+-- ============================================================================
+
+-- Cities in Fresno metro
+insert into public.cities (id, state_id, name)
+values
+  ('f0000001-0001-0001-0001-000000000001', '00000000-0000-0000-0000-000000000001', 'Fresno'),
+  ('f0000001-0001-0001-0001-000000000002', '00000000-0000-0000-0000-000000000001', 'Clovis'),
+  ('f0000001-0001-0001-0001-000000000003', '00000000-0000-0000-0000-000000000001', 'Madera'),
+  ('f0000001-0001-0001-0001-000000000004', '00000000-0000-0000-0000-000000000001', 'Visalia'),
+  ('f0000001-0001-0001-0001-000000000005', '00000000-0000-0000-0000-000000000001', 'Tulare'),
+  ('f0000001-0001-0001-0001-000000000006', '00000000-0000-0000-0000-000000000001', 'Hanford')
+on conflict (state_id, name) do nothing;
+
+-- Fresno ZIP codes
+insert into public.zip_codes (zip_code, country_iso_3, city_id, latitude, longitude)
+values
+  ('93701', 'USA', 'f0000001-0001-0001-0001-000000000001', 36.7378, -119.7871),
+  ('93702', 'USA', 'f0000001-0001-0001-0001-000000000001', 36.7363, -119.7650),
+  ('93703', 'USA', 'f0000001-0001-0001-0001-000000000001', 36.7503, -119.7705),
+  ('93704', 'USA', 'f0000001-0001-0001-0001-000000000001', 36.7892, -119.8174),
+  ('93705', 'USA', 'f0000001-0001-0001-0001-000000000001', 36.7728, -119.8354),
+  ('93710', 'USA', 'f0000001-0001-0001-0001-000000000001', 36.8057, -119.7707),
+  ('93711', 'USA', 'f0000001-0001-0001-0001-000000000001', 36.8300, -119.8200),
+  ('93720', 'USA', 'f0000001-0001-0001-0001-000000000002', 36.8628, -119.7432),
+  ('93721', 'USA', 'f0000001-0001-0001-0001-000000000001', 36.7268, -119.7754),
+  ('93722', 'USA', 'f0000001-0001-0001-0001-000000000001', 36.7727, -119.9005),
+  ('93726', 'USA', 'f0000001-0001-0001-0001-000000000001', 36.8005, -119.8021),
+  ('93728', 'USA', 'f0000001-0001-0001-0001-000000000001', 36.7606, -119.8302)
+on conflict (zip_code, country_iso_3) do nothing;
+
+-- Clovis ZIP
+insert into public.zip_codes (zip_code, country_iso_3, city_id, latitude, longitude)
+values
+  ('93611', 'USA', 'f0000001-0001-0001-0001-000000000002', 36.8252, -119.6847),
+  ('93612', 'USA', 'f0000001-0001-0001-0001-000000000002', 36.8077, -119.6929)
+on conflict (zip_code, country_iso_3) do nothing;
+
+-- Fresno Communities (named H3 zones used for CRM audience targeting)
+insert into public.communities (h3_index, name, city, state, country, location)
+values
+  ('8928308280fffff', 'Tower District',        'Fresno', 'California', 'USA', 'POINT(-119.8021 36.8005)'),
+  ('8928308281fffff', 'Fresno Downtown',       'Fresno', 'California', 'USA', 'POINT(-119.7871 36.7378)'),
+  ('8928308282fffff', 'Fig Garden Village',    'Fresno', 'California', 'USA', 'POINT(-119.8174 36.7892)'),
+  ('8928308283fffff', 'Sunnyside',             'Fresno', 'California', 'USA', 'POINT(-119.7650 36.7363)'),
+  ('8928308284fffff', 'Old Fig Garden',        'Fresno', 'California', 'USA', 'POINT(-119.8354 36.7728)'),
+  ('8928308285fffff', 'McLane Neighborhood',   'Fresno', 'California', 'USA', 'POINT(-119.7705 36.8057)'),
+  ('8928308286fffff', 'North Fresno',          'Fresno', 'California', 'USA', 'POINT(-119.8200 36.8300)'),
+  ('8928308287fffff', 'Bullard District',      'Fresno', 'California', 'USA', 'POINT(-119.9005 36.7727)'),
+  ('8928308288fffff', 'Woodward Park Area',    'Fresno', 'California', 'USA', 'POINT(-119.7707 36.8057)'),
+  ('8928308289fffff', 'Fresno South',          'Fresno', 'California', 'USA', 'POINT(-119.7754 36.7268)'),
+  ('892830828afffff', 'Clovis Old Town',       'Clovis',  'California', 'USA', 'POINT(-119.6929 36.8077)'),
+  ('892830828bfffff', 'Clovis North',          'Clovis',  'California', 'USA', 'POINT(-119.6847 36.8252)'),
+  ('892830828cfffff', 'Loma Vista',            'Fresno', 'California', 'USA', 'POINT(-119.8302 36.7606)'),
+  ('892830828dfffff', 'Fresno Fairgrounds',    'Fresno', 'California', 'USA', 'POINT(-119.7432 36.8628)'),
+  ('892830828efffff', 'Roosevelt High Area',   'Fresno', 'California', 'USA', 'POINT(-119.8174 36.7892)')
+on conflict (h3_index) do nothing;
+
+
 -- 6. Launch Campaign (replaces legacy incentive_rules)
 INSERT INTO public.incentive_campaigns (id, name, description, starts_at, ends_at, is_active)
 VALUES (

@@ -18,30 +18,55 @@ type Audience = {
   created_at: string
 }
 
-const AUDIENCE_RPCS = [
-  { value: 'crm_audience_all', label: 'All (leads + users)' },
-  { value: 'crm_audience_has_bought_before', label: 'Has Bought Before' },
-  { value: 'crm_audience_has_sold_before', label: 'Has Sold Before' },
-  { value: 'crm_audience_expressed_buying_interest', label: 'Expressed Buying Interest (watches)' },
-]
+type AudienceFunction = {
+  id: string
+  name: string
+  label: string
+  description: string | null
+  is_rpc: boolean
+  is_active: boolean
+}
+
+// Always-available fallback sentinel for ad-hoc functions not yet in the registry
+const CUSTOM_SENTINEL = '__custom__'
+
+const defaultForm = {
+  name:               '',
+  description:        '',
+  source:             'crm_audience_all',
+  custom_fn:          '',
+  filter_state:       '',
+  filter_city:        '',
+  filter_county:      '',
+  filter_zip:         '',
+  // date filters
+  filter_joined_after:  '',
+  filter_joined_before: '',
+  // consent filters
+  filter_accepts_email: false,
+  filter_accepts_sms:   false,
+}
 
 export default function CrmAudiencesPage() {
-  const [audiences, setAudiences] = useState<Audience[]>([])
-  const [loading, setLoading] = useState(true)
-  const [creating, setCreating] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState('')
+  const [audiences, setAudiences]       = useState<Audience[]>([])
+  const [audienceFns, setAudienceFns]   = useState<AudienceFunction[]>([])
+  const [fnsLoading, setFnsLoading]     = useState(true)
+  const [loading, setLoading]           = useState(true)
+  const [creating, setCreating]         = useState(false)
+  const [saving, setSaving]             = useState(false)
+  const [message, setMessage]           = useState('')
+  const [form, setForm]                 = useState(defaultForm)
 
-  const [form, setForm] = useState({
-    name: '',
-    description: '',
-    audience_rpc_name: 'crm_audience_all',
-    filter_state_code: '',
-    filter_accepts_email: false,
-    filter_accepts_sms: false,
-    filter_joined_after: '',
-    filter_joined_before: '',
-  })
+  // ZIP community lookup
+  type ZipResult = {
+    zip_code: string
+    city_name: string
+    state_code: string
+    communities: string[]
+  }
+  const [zipSearch, setZipSearch]       = useState('')
+  const [zipResults, setZipResults]     = useState<ZipResult[]>([])
+  const [zipLooking, setZipLooking]     = useState(false)
 
   const fetchAudiences = async () => {
     setLoading(true)
@@ -53,9 +78,76 @@ export default function CrmAudiencesPage() {
     setLoading(false)
   }
 
-  useEffect(() => { fetchAudiences() }, [])
+  const fetchAudienceFunctions = async () => {
+    setFnsLoading(true)
+    const { data } = await supabase
+      .from('crm_audience_functions')
+      .select('*')
+      .eq('is_active', true)
+      .order('label')
+    setAudienceFns((data as AudienceFunction[]) ?? [])
+    setFnsLoading(false)
+  }
 
-  const estimateSize = async (rpcName: string) => {
+  useEffect(() => {
+    fetchAudiences()
+    fetchAudienceFunctions()
+  }, [])
+
+  // ZIP → city + named communities lookup (debounced)
+  useEffect(() => {
+    if (zipSearch.length < 3) { setZipResults([]); return }
+    const timer = setTimeout(async () => {
+      setZipLooking(true)
+      // 1. Get city + state for matching ZIPs via FK joins
+      const { data: zipData } = await supabase
+        .from('zip_codes')
+        .select('zip_code, cities(name, states(code))')
+        .ilike('zip_code', `${zipSearch}%`)
+        .limit(8)
+
+      if (!zipData) { setZipResults([]); setZipLooking(false); return }
+
+      // 2. Get communities for those ZIPs
+      const zips = zipData.map((z: Record<string, unknown>) => z.zip_code as string)
+      const { data: commData } = await supabase
+        .from('communities')
+        .select('zip_code, community_name')
+        .in('zip_code', zips)
+
+      // 3. Merge into ZipResult[]  
+      const commMap: Record<string, string[]> = {}
+      commData?.forEach((c: { zip_code: string; community_name: string }) => {
+        if (!commMap[c.zip_code]) commMap[c.zip_code] = []
+        commMap[c.zip_code].push(c.community_name)
+      })
+
+      const results: ZipResult[] = zipData.map((z: Record<string, unknown>) => {
+        const city = z.cities as { name: string; states: { code: string } } | null
+        return {
+          zip_code:   z.zip_code as string,
+          city_name:  city?.name ?? '',
+          state_code: city?.states?.code ?? '',
+          communities: commMap[z.zip_code as string] ?? [],
+        }
+      })
+
+      setZipResults(results)
+      setZipLooking(false)
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [zipSearch])
+
+  const selectZip = (row: ZipResult) => {
+    setForm(f => ({ ...f, filter_zip: row.zip_code, filter_city: row.city_name, filter_state: row.state_code }))
+    setZipSearch('')
+    setZipResults([])
+  }
+
+  const toast = (msg: string, ms = 4000) => { setMessage(msg); setTimeout(() => setMessage(''), ms) }
+
+  const estimateSize = async (rpcName: string): Promise<number | null> => {
+    if (rpcName === CUSTOM_SENTINEL) return null
     const { data, error } = await supabase.rpc(rpcName)
     if (error || !data) return null
     return (data as unknown[]).length
@@ -65,28 +157,35 @@ export default function CrmAudiencesPage() {
     if (!form.name.trim()) return
     setSaving(true)
 
-    const filter_criteria: Record<string, unknown> = {}
-    if (form.filter_state_code) filter_criteria.state_code = form.filter_state_code
-    if (form.filter_accepts_email) filter_criteria.accepts_email = true
-    if (form.filter_accepts_sms) filter_criteria.accepts_sms = true
-    if (form.filter_joined_after) filter_criteria.joined_after = form.filter_joined_after
-    if (form.filter_joined_before) filter_criteria.joined_before = form.filter_joined_before
+    const rpcName = form.source === CUSTOM_SENTINEL
+      ? (form.custom_fn.trim() || 'crm_audience_all')
+      : form.source
 
-    const size = await estimateSize(form.audience_rpc_name)
+    const filter_criteria: Record<string, unknown> = {}
+    if (form.filter_state)         filter_criteria.state        = form.filter_state.toUpperCase()
+    if (form.filter_city)          filter_criteria.city         = form.filter_city
+    if (form.filter_county)        filter_criteria.county       = form.filter_county
+    if (form.filter_zip)           filter_criteria.zip          = form.filter_zip
+    if (form.filter_h3)            filter_criteria.h3_index     = form.filter_h3
+    if (form.filter_joined_after)  filter_criteria.joined_after = form.filter_joined_after
+    if (form.filter_joined_before) filter_criteria.joined_before= form.filter_joined_before
+    if (form.filter_accepts_email) filter_criteria.accepts_email= true
+    if (form.filter_accepts_sms)   filter_criteria.accepts_sms  = true
+
+    const size = await estimateSize(rpcName)
 
     const { error } = await supabase.from('crm_audiences').insert({
-      name: form.name,
-      description: form.description || null,
-      audience_rpc_name: form.audience_rpc_name,
-      filter_criteria: Object.keys(filter_criteria).length > 0 ? filter_criteria : null,
-      estimated_size: size,
+      name:              form.name,
+      description:       form.description || null,
+      audience_rpc_name: rpcName,
+      filter_criteria:   Object.keys(filter_criteria).length > 0 ? filter_criteria : null,
+      estimated_size:    size,
     })
 
     if (!error) {
       setCreating(false)
-      setForm({ name: '', description: '', audience_rpc_name: 'crm_audience_all', filter_state_code: '', filter_accepts_email: false, filter_accepts_sms: false, filter_joined_after: '', filter_joined_before: '' })
-      setMessage(`Audience created (est. ${size ?? '?'} recipients)`)
-      setTimeout(() => setMessage(''), 4000)
+      setForm(defaultForm)
+      toast(`Audience created${size != null ? ` (est. ${size.toLocaleString()} recipients)` : ''}`)
       fetchAudiences()
     }
     setSaving(false)
@@ -97,19 +196,21 @@ export default function CrmAudiencesPage() {
     setAudiences(prev => prev.filter(a => a.id !== id))
   }
 
+  const sourceLabel = (rpcName: string) =>
+    audienceFns.find(f => f.name === rpcName)?.label ?? rpcName
+
   return (
     <div className="crm-page">
       <div className="crm-header">
         <div>
           <h1 className="crm-title">Audiences</h1>
-          <p className="crm-subtitle">Define reusable recipient segments for email/SMS campaigns</p>
+          <p className="crm-subtitle">
+            Define reusable recipient segments for email/SMS campaigns.
+            Each audience runs a Supabase edge function (RPC) that returns a recipient list.
+          </p>
         </div>
         {!creating && (
-          <button
-            id="create-audience-btn"
-            className="crm-btn-primary"
-            onClick={() => setCreating(true)}
-          >
+          <button id="create-audience-btn" className="crm-btn-primary" onClick={() => setCreating(true)}>
             + New Audience
           </button>
         )}
@@ -120,25 +221,157 @@ export default function CrmAudiencesPage() {
       {creating && (
         <div className="crm-form-card">
           <h2 className="crm-form-title">Create Audience</h2>
-          <div className="crm-form-grid">
+
+          {/* Row 1 — Name + Description */}
+          <div className="crm-form-grid col2">
             <div className="crm-field">
               <label>Audience Name *</label>
-              <input placeholder="e.g. California Buyers" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+              <input
+                placeholder="e.g. California Buyers"
+                value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              />
             </div>
             <div className="crm-field">
               <label>Description</label>
-              <input placeholder="Description..." value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+              <input
+                placeholder="Internal notes…"
+                value={form.description}
+                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              />
             </div>
+          </div>
+
+          {/* Population source */}
+          <div className="crm-section-label">Population Source</div>
+          <div className="crm-form-grid col2">
             <div className="crm-field">
-              <label>Base Query</label>
-              <select value={form.audience_rpc_name} onChange={e => setForm(f => ({ ...f, audience_rpc_name: e.target.value }))}>
-                {AUDIENCE_RPCS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              <label>
+                Base Population
+                {fnsLoading && <span className="crm-hint"> — loading…</span>}
+              </label>
+              <select
+                value={form.source}
+                onChange={e => setForm(f => ({ ...f, source: e.target.value, custom_fn: '' }))}
+                disabled={fnsLoading}
+              >
+                {audienceFns.map(fn => (
+                  <option key={fn.name} value={fn.name}>
+                    {fn.label}
+                  </option>
+                ))}
+                <option value={CUSTOM_SENTINEL}>⚡ Custom edge function…</option>
               </select>
+              {form.source !== CUSTOM_SENTINEL && (
+                <p className="crm-hint" style={{ marginTop: 4 }}>
+                  {audienceFns.find(f => f.name === form.source)?.description ?? ''}
+                </p>
+              )}
+            </div>
+            {form.source === CUSTOM_SENTINEL && (
+              <div className="crm-field">
+                <label>
+                  Edge Function Name
+                  <span className="crm-hint"> — must be deployed to Supabase Functions</span>
+                </label>
+                <input
+                  placeholder="e.g. crm_audience_high_value_buyers"
+                  value={form.custom_fn}
+                  onChange={e => setForm(f => ({ ...f, custom_fn: e.target.value }))}
+                />
+              </div>
+            )}
+          </div>
+          {form.source === CUSTOM_SENTINEL && (
+            <div className="crm-info-box">
+              ⚡ Enter any deployed Supabase edge function name. It will receive the filter criteria as arguments and must return
+              an array of <code>{'{ id, email, phone }'}</code> records.<br />
+              Once deployed and tested, register it in the <strong>Audience Functions registry</strong> so it appears in this dropdown automatically.
+            </div>
+          )}
+
+          {/* Geo filters */}
+          <div className="crm-section-label">Geographic Filters <span className="crm-hint">— all optional, combined with AND</span></div>
+
+          {/* ZIP picker — primary entry point for geo targeting */}
+          <div className="crm-field zip-lookup-wrap">
+            <label>
+              Community / ZIP Code
+              <span className="crm-hint"> — type a ZIP to look up the city &amp; county, then select to apply all geo filters at once</span>
+            </label>
+            <div className="zip-search-row">
+              <input
+                placeholder="Type a ZIP code, e.g. 93710"
+                value={zipSearch}
+                onChange={e => setZipSearch(e.target.value)}
+                className="zip-search-input"
+              />
+              {zipLooking && <span className="crm-hint">Looking up…</span>}
+              {form.filter_zip && !zipSearch && (
+                <span className="zip-selected-chip">
+                  📍 {form.filter_zip} · {form.filter_city}{form.filter_state ? `, ${form.filter_state}` : ''}
+                  <button type="button" onClick={() => setForm(f => ({ ...f, filter_zip: '', filter_city: '', filter_county: '', filter_state: '' }))}>×</button>
+                </span>
+              )}
+            </div>
+            {zipResults.length > 0 && (
+              <div className="zip-results">
+                {zipResults.map(r => (
+                  <button
+                    key={r.zip_code}
+                    type="button"
+                    className="zip-result-item"
+                    onClick={() => selectZip(r)}
+                  >
+                    <div className="zip-result-main">
+                      <strong>{r.zip_code}</strong>
+                      <span>{r.city_name}{r.state_code ? `, ${r.state_code}` : ''}</span>
+                    </div>
+                    {r.communities.length > 0 && (
+                      <div className="zip-result-communities">
+                        {r.communities.map(c => (
+                          <span key={c} className="community-chip">{c}</span>
+                        ))}
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* State / City / County — auto-filled by ZIP picker, can also be typed manually */}
+          <div className="crm-form-grid col3">
+            <div className="crm-field">
+              <label>State <span className="crm-hint">(auto-filled)</span></label>
+              <input
+                placeholder="e.g. CA"
+                maxLength={2}
+                value={form.filter_state}
+                onChange={e => setForm(f => ({ ...f, filter_state: e.target.value }))}
+              />
             </div>
             <div className="crm-field">
-              <label>State Code Filter (optional)</label>
-              <input placeholder="e.g. CA" maxLength={2} value={form.filter_state_code} onChange={e => setForm(f => ({ ...f, filter_state_code: e.target.value.toUpperCase() }))} />
+              <label>City <span className="crm-hint">(auto-filled)</span></label>
+              <input
+                placeholder="e.g. Fresno"
+                value={form.filter_city}
+                onChange={e => setForm(f => ({ ...f, filter_city: e.target.value }))}
+              />
             </div>
+            <div className="crm-field">
+              <label>County <span className="crm-hint">(auto-filled)</span></label>
+              <input
+                placeholder="e.g. Fresno County"
+                value={form.filter_county}
+                onChange={e => setForm(f => ({ ...f, filter_county: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          {/* Date range */}
+          <div className="crm-section-label">Date Range</div>
+          <div className="crm-form-grid col2">
             <div className="crm-field">
               <label>Joined After</label>
               <input type="date" value={form.filter_joined_after} onChange={e => setForm(f => ({ ...f, filter_joined_after: e.target.value }))} />
@@ -148,25 +381,49 @@ export default function CrmAudiencesPage() {
               <input type="date" value={form.filter_joined_before} onChange={e => setForm(f => ({ ...f, filter_joined_before: e.target.value }))} />
             </div>
           </div>
-          <div className="crm-checkboxes">
-            <label><input type="checkbox" checked={form.filter_accepts_email} onChange={e => setForm(f => ({ ...f, filter_accepts_email: e.target.checked }))} /> Accepts Email only</label>
-            <label><input type="checkbox" checked={form.filter_accepts_sms} onChange={e => setForm(f => ({ ...f, filter_accepts_sms: e.target.checked }))} /> Accepts SMS only</label>
+
+          {/* Consent toggles */}
+          <div className="crm-section-label">Consent Requirements</div>
+          <div className="crm-toggles">
+            <button
+              type="button"
+              className={`crm-toggle ${form.filter_accepts_email ? 'active' : ''}`}
+              onClick={() => setForm(f => ({ ...f, filter_accepts_email: !f.filter_accepts_email }))}
+              aria-pressed={form.filter_accepts_email}
+            >
+              <span className="toggle-dot" />
+              <span>Accepts Email</span>
+            </button>
+            <button
+              type="button"
+              className={`crm-toggle ${form.filter_accepts_sms ? 'active' : ''}`}
+              onClick={() => setForm(f => ({ ...f, filter_accepts_sms: !f.filter_accepts_sms }))}
+              aria-pressed={form.filter_accepts_sms}
+            >
+              <span className="toggle-dot" />
+              <span>Accepts SMS</span>
+            </button>
+            <p className="crm-hint-block">
+              When enabled, only recipients who have explicitly opted in will be included.
+            </p>
           </div>
+
           <div className="crm-form-actions">
             <button className="crm-btn-primary" onClick={handleCreate} disabled={saving || !form.name}>
-              {saving ? 'Creating...' : 'Create Audience'}
+              {saving ? 'Creating…' : 'Create Audience'}
             </button>
             <button className="crm-btn-secondary" onClick={() => setCreating(false)}>Cancel</button>
           </div>
         </div>
       )}
 
+      {/* Table */}
       <div className="crm-table-wrap">
         <table className="crm-table">
           <thead>
             <tr>
               <th>Audience Name</th>
-              <th>Base Query</th>
+              <th>Source Function</th>
               <th>Filters</th>
               <th>Est. Size</th>
               <th>Created</th>
@@ -175,7 +432,7 @@ export default function CrmAudiencesPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="crm-empty">Loading...</td></tr>
+              <tr><td colSpan={6} className="crm-empty">Loading…</td></tr>
             ) : audiences.length === 0 ? (
               <tr><td colSpan={6} className="crm-empty">No audiences yet. Create one to use in campaigns.</td></tr>
             ) : audiences.map(a => (
@@ -184,13 +441,13 @@ export default function CrmAudiencesPage() {
                   <div className="crm-name">{a.name}</div>
                   {a.description && <div className="crm-muted">{a.description}</div>}
                 </td>
-                <td className="crm-muted">{AUDIENCE_RPCS.find(r => r.value === a.audience_rpc_name)?.label ?? a.audience_rpc_name}</td>
+                <td className="crm-muted">{sourceLabel(a.audience_rpc_name)}</td>
                 <td>
                   {a.filter_criteria
                     ? Object.entries(a.filter_criteria).map(([k, v]) => (
                       <span key={k} className="crm-badge filter">{k}: {String(v)}</span>
                     ))
-                    : <span className="crm-muted">No filters</span>}
+                    : <span className="crm-muted">None</span>}
                 </td>
                 <td>
                   {a.estimated_size != null
@@ -199,7 +456,11 @@ export default function CrmAudiencesPage() {
                 </td>
                 <td className="crm-muted">{new Date(a.created_at).toLocaleDateString()}</td>
                 <td>
-                  <button className="crm-btn-danger-sm" onClick={() => deleteAudience(a.id)} data-testid={`audience-delete-${a.id}`}>Delete</button>
+                  <button
+                    className="crm-btn-danger-sm"
+                    onClick={() => deleteAudience(a.id)}
+                    data-testid={`audience-delete-${a.id}`}
+                  >Delete</button>
                 </td>
               </tr>
             ))}
@@ -209,26 +470,59 @@ export default function CrmAudiencesPage() {
 
       <style jsx>{`
         .crm-page { }
-        .crm-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
+        .crm-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; gap: 16px; }
         .crm-title { font-size: 1.6rem; font-weight: 700; color: #1a2e1a; }
-        .crm-subtitle { color: #6b7280; font-size: 0.9rem; margin-top: 4px; }
+        .crm-subtitle { color: #6b7280; font-size: 0.9rem; margin-top: 4px; max-width: 520px; }
         .crm-toast { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; }
         .crm-form-card { background: white; border: 1px solid #e5e7eb; border-radius: 16px; padding: 28px; margin-bottom: 24px; }
         .crm-form-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 20px; color: #1a2e1a; }
-        .crm-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+
+        .crm-section-label { font-size: 0.75rem; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; margin: 20px 0 10px; }
+        .crm-form-grid { display: grid; gap: 16px; margin-bottom: 4px; }
+        .crm-form-grid.col2 { grid-template-columns: 1fr 1fr; }
+        .crm-form-grid.col3 { grid-template-columns: 1fr 1fr 1fr; }
+
         .crm-field { display: flex; flex-direction: column; gap: 6px; }
-        .crm-field label { font-size: 0.85rem; font-weight: 500; color: #6b7280; }
+        .crm-field label { font-size: 0.85rem; font-weight: 600; color: #374151; }
+        .crm-hint { font-weight: 400; color: #9ca3af; font-size: 0.78rem; }
         .crm-field input, .crm-field select { border: 1px solid #d1d5db; border-radius: 8px; padding: 10px 12px; font-size: 0.95rem; outline: none; }
-        .crm-field input:focus, .crm-field select:focus { border-color: #4ade80; }
-        .crm-checkboxes { display: flex; gap: 24px; margin-bottom: 20px; font-size: 0.9rem; color: #374151; }
-        .crm-checkboxes label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-        .crm-form-actions { display: flex; gap: 12px; }
+        .crm-field input:focus, .crm-field select:focus { border-color: #4ade80; box-shadow: 0 0 0 3px rgba(74,222,128,0.15); }
+
+        .crm-info-box { background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 10px; padding: 12px 16px; font-size: 0.85rem; color: #6d28d9; margin-bottom: 8px; line-height: 1.5; }
+        .crm-info-box code { background: #ede9fe; border-radius: 4px; padding: 1px 5px; font-family: monospace; }
+
+        /* Toggle buttons for consent */
+        .crm-toggles { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+        .crm-toggle { display: flex; align-items: center; gap: 10px; border: 2px solid #d1d5db; border-radius: 24px; padding: 8px 16px 8px 8px; background: #f9fafb; cursor: pointer; font-size: 0.9rem; color: #374151; font-weight: 500; transition: all 0.2s; }
+        .crm-toggle:hover { border-color: #4ade80; background: #f0fdf4; }
+        .crm-toggle.active { border-color: #22c55e; background: #dcfce7; color: #166534; }
+        .toggle-dot { width: 20px; height: 20px; border-radius: 50%; background: #d1d5db; transition: background 0.2s; flex-shrink: 0; }
+        .crm-toggle.active .toggle-dot { background: #22c55e; }
+        .crm-hint-block { font-size: 0.8rem; color: #9ca3af; margin: 0; }
+        .zip-lookup-wrap { margin-bottom: 12px; }
+        .zip-search-row { display: flex; align-items: center; gap: 10px; }
+        .zip-search-input { border: 1px solid #d1d5db; border-radius: 8px; padding: 10px 12px; font-size: 0.95rem; outline: none; width: 220px; }
+        .zip-search-input:focus { border-color: #4ade80; box-shadow: 0 0 0 3px rgba(74,222,128,0.15); }
+        .zip-selected-chip { display: inline-flex; align-items: center; gap: 8px; background: #dcfce7; border: 1px solid #bbf7d0; color: #166534; border-radius: 20px; padding: 4px 12px; font-size: 0.85rem; font-weight: 500; }
+        .zip-selected-chip button { background: none; border: none; cursor: pointer; color: #16a34a; font-size: 1rem; line-height: 1; padding: 0; }
+        .zip-results { border: 1px solid #e5e7eb; border-radius: 8px; background: white; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-top: 4px; overflow: hidden; max-width: 480px; }
+        .zip-result-item { display: flex; flex-direction: column; gap: 4px; width: 100%; padding: 10px 14px; background: none; border: none; border-bottom: 1px solid #f3f4f6; cursor: pointer; text-align: left; font-size: 0.9rem; color: #374151; transition: background 0.1s; }
+        .zip-result-item:last-child { border-bottom: none; }
+        .zip-result-item:hover { background: #f0fdf4; }
+        .zip-result-main { display: flex; align-items: center; gap: 12px; }
+        .zip-result-main strong { font-family: monospace; color: #1a2e1a; min-width: 54px; }
+        .zip-result-main span { color: #6b7280; }
+        .zip-result-communities { display: flex; flex-wrap: wrap; gap: 4px; padding-left: 66px; }
+        .community-chip { background: #e0f2fe; color: #0369a1; border-radius: 10px; padding: 1px 8px; font-size: 0.75rem; font-weight: 500; }
+
+        .crm-form-actions { display: flex; gap: 12px; margin-top: 20px; }
         .crm-btn-primary { background: #22c55e; color: white; border: none; border-radius: 10px; padding: 10px 20px; font-weight: 600; cursor: pointer; font-size: 0.95rem; }
         .crm-btn-primary:hover:not(:disabled) { background: #16a34a; }
         .crm-btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
         .crm-btn-secondary { background: white; color: #6b7280; border: 1px solid #d1d5db; border-radius: 10px; padding: 10px 20px; cursor: pointer; font-size: 0.95rem; }
         .crm-btn-danger-sm { background: white; color: #ef4444; border: 1px solid #fecaca; border-radius: 6px; padding: 4px 10px; font-size: 0.8rem; cursor: pointer; }
-        .crm-table-wrap { overflow-x: auto; border: 1px solid #e5e7eb; border-radius: 12px; }
+
+        .crm-table-wrap { overflow-x: auto; border: 1px solid #e5e7eb; border-radius: 12px; margin-top: 8px; }
         .crm-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
         .crm-table th { background: #f9fafb; padding: 10px 14px; text-align: left; font-weight: 600; color: #6b7280; font-size: 0.8rem; text-transform: uppercase; border-bottom: 1px solid #e5e7eb; }
         .crm-table td { padding: 12px 14px; border-bottom: 1px solid #f3f4f6; vertical-align: top; }

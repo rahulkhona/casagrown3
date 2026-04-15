@@ -16,9 +16,10 @@
  */
 
 import { useEffect, useRef } from 'react'
-import { createClient } from '@casagrown/app/features/auth/supabase-client'
+import { createClient } from '@supabase/supabase-js'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'http://127.0.0.1:54321'
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -57,7 +58,7 @@ export function useAdminPush(userId: string | undefined) {
         })
 
         // Register with backend
-        const supabase = createClient()
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
         const payload = subscription.toJSON()
         await supabase.functions.invoke('register-push-token', {
           body: {

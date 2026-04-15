@@ -251,4 +251,53 @@ to anon key respectively, so local tests still pass.
 
 ---
 
+## 🗺️ Geographic Data — Must Seed Before Launch
+
+The following tables must be populated with real data before going live.
+They are currently empty in both local and staging environments.
+
+### Tables requiring seed data
+
+| Table | Purpose | Blocks if empty |
+|-------|---------|----------------|
+| `countries` | ISO-3 country codes | Everything (FK root) |
+| `states` | US states + Canadian provinces | ZIP lookup, quarantine zones |
+| `cities` | City names linked to states | ZIP → city display in audience targeting |
+| `zip_codes` | ZIP → city mapping | Audience geo filter search, quarantine enforcement |
+| `communities` | Named communities per ZIP | Community picker in audience targeting |
+
+### What breaks without this data
+
+- **Audience geo targeting** — ZIP search returns no results; city/state fields stay empty
+- **Quarantine zone enforcement** — ZIP-based quarantine checks fail silently
+- **CRM community filter** — no communities appear in the audience form picker
+
+### Seeding approach
+
+Use a free public dataset. Recommended sources:
+- **US ZIP codes + cities**: [simplemaps.com/data/us-zips](https://simplemaps.com/data/us-zips) (free tier, ~33k ZIPs)
+- **Communities**: Seed manually based on your market launch areas (start with Fresno metro)
+
+```bash
+# Example seed script location (to be created):
+supabase/seed/geographic_data.sql
+
+# Run against staging:
+supabase db push --file supabase/seed/geographic_data.sql
+```
+
+> [!IMPORTANT]
+> Seed `countries` → `states` → `cities` → `zip_codes` → `communities` in that order
+> due to foreign key dependencies. Do NOT seed in parallel or out of order.
+
+### Minimum viable seed for beta launch
+
+At minimum, seed the Fresno metro area (initial launch market):
+- State: California (CA)
+- Cities: Fresno, Clovis, Madera, Visalia, Tulare, Hanford
+- ZIP codes: 93700–93799 range + surrounding communities
+- Communities: To be defined based on CasaGrown community boundaries
+
+---
+
 _Last Updated: 2026-04-15_

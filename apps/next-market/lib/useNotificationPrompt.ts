@@ -192,7 +192,9 @@ export function useNotificationPrompt(userId?: string) {
       if (!shouldShow) return
 
       promptedThisSession = true
-      setVariant(getPromptVariant())
+      const variant = getPromptVariant()
+      if (variant === 'none') return
+      setVariant(variant)
       setVisible(true)
     } finally {
       checkingRef.current = false
