@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useMarketingAnalytics, trackEvent, markConverted } from '@/lib/crm-analytics'
+import { useMarketingAnalytics, trackEvent, markConverted } from '../../../lib/crm-analytics'
 import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 
@@ -55,38 +55,32 @@ function JoinForm() {
     }
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/receive-lead`, {
+      // Primary path: direct Supabase REST insert (works in all environments)
+      const sbRes = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/crm_leads`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
+            'Prefer': 'return=minimal',  // anon can INSERT but not SELECT — use minimal
+          },
+          body: JSON.stringify(payload),
+        }
+      )
+      if (!sbRes.ok) throw new Error('Failed to save your info. Please try again.')
+      // No lead ID available with return=minimal — that's fine for anon submissions
+
+      // Enhancement: also call edge fn if available (fire-and-forget)
+      fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/receive-lead`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         },
         body: JSON.stringify(payload),
-      })
-
-      // Also insert directly via Supabase REST if edge fn fails
-      if (!res.ok) {
-        // Fallback: direct Supabase insert via API
-        const sbRes = await fetch(
-          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/crm_leads`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-              'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
-              'Prefer': 'return=representation',
-            },
-            body: JSON.stringify(payload),
-          }
-        )
-        if (!sbRes.ok) throw new Error('Failed to save your info. Please try again.')
-        const [lead] = await sbRes.json()
-        markConverted(lead.id)
-      } else {
-        const data = await res.json()
-        if (data.id) markConverted(data.id)
-      }
+      }).catch(() => { /* ignore edge fn errors */ })
 
       setStatus('success')
     } catch (err) {

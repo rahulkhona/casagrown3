@@ -11,10 +11,16 @@ import { type NextRequest, NextResponse } from 'next/server'
  *   { type: 'update', session_id, duration_secs, converted, lead_id }
  */
 export async function POST(req: NextRequest) {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  )
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  // Degrade gracefully in local dev when service role key is not configured
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.warn('[CRM-TRACK] Missing Supabase credentials — skipping tracking')
+    return NextResponse.json({ ok: true, skipped: true })
+  }
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey)
 
   let body: Record<string, unknown>
   try {

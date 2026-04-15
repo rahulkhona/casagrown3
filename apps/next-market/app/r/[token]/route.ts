@@ -15,9 +15,10 @@ export async function GET(
   const { token } = await params
 
   // Use service role key — anon can select but this needs to write
+  // Fall back to anon key in local dev (click tracking won't persist but redirect still works)
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   )
 
   // Look up the link

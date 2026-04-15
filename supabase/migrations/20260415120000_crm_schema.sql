@@ -650,3 +650,27 @@ RETURNS JSONB LANGUAGE sql SECURITY DEFINER AS $$
     ), '[]')
   );
 $$;
+
+-- ─── Table-Level Grants ───────────────────────────────────────────────────────
+-- RLS policies alone are not sufficient — table privileges must also be granted
+-- to the anon and authenticated roles for PostgREST to allow operations.
+
+-- Public (anon) write paths: lead form submissions + page visit beaconing
+GRANT INSERT ON public.crm_leads         TO anon, authenticated;
+GRANT INSERT ON public.crm_page_visits   TO anon, authenticated;
+GRANT UPDATE ON public.crm_page_visits   TO anon, authenticated;
+GRANT INSERT ON public.crm_page_events   TO anon, authenticated;
+
+-- Anon needs to read short links for redirect route + update click count
+GRANT SELECT, UPDATE ON public.crm_short_links TO anon, authenticated;
+
+-- Landing pages: anon can read (for page-slug lookup in beacon)
+GRANT SELECT ON public.crm_landing_pages TO anon, authenticated;
+
+-- Staff-only tables: authenticated only (RLS further restricts to staff)
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.crm_landing_pages  TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.crm_assets         TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.crm_audiences      TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.crm_campaigns      TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.crm_campaign_sends TO authenticated;
+GRANT INSERT ON public.crm_short_links TO authenticated;
