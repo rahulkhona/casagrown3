@@ -419,6 +419,8 @@ else
   }
 
   run_playwright "Market" "apps/next-market"
+  echo "  ⏳ Cooling down 15s after Market E2E (GC + server settle)..."
+  sleep 15
   run_playwright "Admin" "apps/next-admin"
   run_playwright "Voice" "apps/next-community-voice"
   run_playwright "Metrics" "apps/next-metrics"
