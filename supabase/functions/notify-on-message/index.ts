@@ -3,6 +3,7 @@ import {
     getUserDisplayName,
     sendPushNotification,
 } from "../_shared/push-notify.ts";
+import { sendTransactionEmail } from "../_shared/postmark.ts";
 
 /**
  * notify-on-message — Supabase Edge Function
@@ -116,20 +117,47 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
         }
     }
 
-    // 5. Send push — tag collapses per conversation
-    // Send separate push payloads so each recipient gets the correct otherUserId route
+    // 5. Send in-app, push, and email to each recipient
     for (const recipientId of recipientIds) {
         const otherUserId = conversation.buyer_id === recipientId
             ? conversation.seller_id
             : conversation.buyer_id;
 
+        const chatUrl = `/chat?postId=${conversation.post_id}&otherUserId=${otherUserId}`;
+
+        // In-app notification
+        await supabase.from("market_notifications").insert({
+            user_id: recipientId,
+            content: `${title}: ${body}`,
+            link_url: chatUrl,
+        });
+
+        // Push notification
         await sendPushNotification(supabase, {
             userIds: [recipientId],
             title,
             body,
-            url: `/chat?postId=${conversation.post_id}&otherUserId=${otherUserId}`,
+            url: chatUrl,
             tag: `chat-${conversationId}`,
         });
+
+        // Email (fire-and-forget — fetch recipient email address)
+        const { data: profile } = await supabase
+            .from("profiles")
+            .select("email")
+            .eq("id", recipientId)
+            .single();
+
+        if (profile?.email) {
+            await sendTransactionEmail({
+                to: profile.email,
+                subject: `New message from ${title}`,
+                htmlBody: `<p><strong>${title}</strong> sent you a message:</p>
+                           <blockquote>${body}</blockquote>
+                           <p><a href="${Deno.env.get('MARKET_APP_URL') ?? 'https://market.casagrown.com'}${chatUrl}">View conversation</a></p>`,
+                textBody: `${title}: ${body}\n\nReply at: ${Deno.env.get('MARKET_APP_URL') ?? 'https://market.casagrown.com'}${chatUrl}`,
+            });
+        }
     }
 
     console.log(

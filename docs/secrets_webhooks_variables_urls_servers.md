@@ -11,7 +11,7 @@ These variables must be added to your Vercel Project Settings. They expose publi
 | `NEXT_PUBLIC_SUPABASE_URL` | Connects Next.js to your Supabase instance. | `https://[PROJECT_ID].supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public key for Supabase Auth and Row Level Security. | Supabase Dashboard -> Project Settings -> API |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Enables Stripe Elements (credit card inputs/Apple Pay). | `pk_test_...` or `pk_live_...` from Stripe Dashboard |
-| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Public key for browser Push Notifications. | Generated via web-push library |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Public key for browser Push Notifications. | `BNekJ12j-POg5NswygqWO1iCZjKx8ErjnJd35smwv1ST9mKXWV3v-8AgJ96DmD9nbgPbfMHtCeKe6_tjXVtEzCs` |
 | `NEXT_PUBLIC_ENABLE_PHONE_VERIFICATION`| Feature flag for Twilio OTP flows. | `true` or `false` |
 
 ---
@@ -52,8 +52,9 @@ These secrets securely power your Edge Functions. They MUST NOT be exposed to th
 | `POSTMARK_SERVER_TOKEN` | Transactional router (Receipts, Welcome emails). | Postmark -> Primary Server -> API Tokens |
 | `POSTMARK_BROADCAST_TOKEN`| Core Broadcast routing (Daily Grower Digest). | Postmark -> Broadcast Server -> API Tokens |
 | `POSTMARK_MESSAGE_STREAM` | Outbound stream routing identifier. | Usually `outbound` |
-| `VAPID_PRIVATE_KEY` | Cryptographic signer for Mobile web Push Notifications. | Generated securely |
-| `VAPID_SUBJECT` | Admin contact for VAPID protocol. | e.g. `mailto:admin@casagrown.com` |
+| `VAPID_PUBLIC_KEY` | Supabase-side public key (matches Vercel `NEXT_PUBLIC_VAPID_PUBLIC_KEY`). | `BNekJ12j-POg5NswygqWO1iCZjKx8ErjnJd35smwv1ST9mKXWV3v-8AgJ96DmD9nbgPbfMHtCeKe6_tjXVtEzCs` |
+| `VAPID_PRIVATE_KEY` | Cryptographic signer for Web Push. **Never expose to frontend.** | `L4MTDJ2gTMbt3eKSmjF5ZEeWm_btAMfDQxG2NDNUocE` |
+| `VAPID_SUBJECT` | Admin contact for VAPID protocol. | `mailto:support@casagrown.com` |
 
 ### D. Artificial Intelligence (CasaBot & Moderation)
 | Secret | Purpose | Source |

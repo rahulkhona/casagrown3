@@ -10,11 +10,22 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    // You can use `suppressHydrationWarning` to avoid the warning about mismatched content during hydration in dev mode
     <html
       lang="en"
       suppressHydrationWarning
     >
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <script dangerouslySetInnerHTML={{ __html: `
+          if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+              navigator.serviceWorker.register('/sw.js').catch(function(err) {
+                console.warn('[Admin SW] Registration failed:', err);
+              });
+            });
+          }
+        ` }} />
+      </head>
       <body suppressHydrationWarning>
         <AuthProvider><NextTamaguiProvider>{children}</NextTamaguiProvider></AuthProvider>
       </body>

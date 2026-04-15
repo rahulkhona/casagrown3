@@ -87,13 +87,22 @@
 
 ## VAPID Keys (Web Push)
 
-VAPID keys have already been generated and stored locally:
+**Canonical key pair generated 2026-04-15** — use these everywhere. Do NOT regenerate
+unless absolutely necessary (invalidates all existing push subscriptions).
 
-- `apps/next-community/.env.local` → `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
-- `supabase/.env.local` → `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
-  `VAPID_SUBJECT`
+```
+VAPID_PUBLIC_KEY=BNekJ12j-POg5NswygqWO1iCZjKx8ErjnJd35smwv1ST9mKXWV3v-8AgJ96DmD9nbgPbfMHtCeKe6_tjXVtEzCs
+VAPID_PRIVATE_KEY=L4MTDJ2gTMbt3eKSmjF5ZEeWm_btAMfDQxG2NDNUocE
+VAPID_SUBJECT=mailto:support@casagrown.com
+```
 
----
+Set in these locations:
+
+- `apps/next-market/.env.local` → `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (public only)
+- `supabase/.env.local` → `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
+- Supabase staging secrets → `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
+- Vercel env vars → `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (public only)
+
 
 ## 🚀 Production Deployment Checklist
 
@@ -122,9 +131,9 @@ remote database.
 
 ```bash
 supabase secrets set \
-  VAPID_PUBLIC_KEY=BLRqq0KvgLwposLV83xYSlEfzySJdFfqNs1H0HwQvcVGAjCl4YB1Qc3b02YrEy9mE4tu347GlMmAq0CNC-NSAg8 \
-  VAPID_PRIVATE_KEY=MdPM8nNJYBKB6FcvQgVl4JkIRfwpYPlebv-_UcIRKrw \
-  VAPID_SUBJECT=mailto:support@casagrown.dev
+  VAPID_PUBLIC_KEY=BNekJ12j-POg5NswygqWO1iCZjKx8ErjnJd35smwv1ST9mKXWV3v-8AgJ96DmD9nbgPbfMHtCeKe6_tjXVtEzCs \
+  VAPID_PRIVATE_KEY=L4MTDJ2gTMbt3eKSmjF5ZEeWm_btAMfDQxG2NDNUocE \
+  VAPID_SUBJECT=mailto:support@casagrown.com
 ```
 
 ### 4. Deploy edge functions
@@ -139,7 +148,7 @@ supabase functions deploy send-push-notification
 Add to your hosting platform (Vercel, etc.):
 
 ```
-NEXT_PUBLIC_VAPID_PUBLIC_KEY=BLRqq0KvgLwposLV83xYSlEfzySJdFfqNs1H0HwQvcVGAjCl4YB1Qc3b02YrEy9mE4tu347GlMmAq0CNC-NSAg8
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=BNekJ12j-POg5NswygqWO1iCZjKx8ErjnJd35smwv1ST9mKXWV3v-8AgJ96DmD9nbgPbfMHtCeKe6_tjXVtEzCs
 ```
 
 ### 6. iOS/Android (when ready)

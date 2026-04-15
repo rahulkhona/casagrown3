@@ -1,0 +1,16 @@
+{
+  "name": "CasaGrown Admin",
+  "short_name": "CG Admin",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f0fdf4",
+  "theme_color": "#16a34a",
+  "description": "CasaGrown Admin Portal — Staff dashboard for settlement, dispute, and moderation management.",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

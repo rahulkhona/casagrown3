@@ -7,6 +7,8 @@ import { colors } from '@casagrown/app/design-tokens'
 import { useAuth } from '@casagrown/app/features/auth/auth-hook'
 import { ArrowUp, MessageSquare, ArrowLeft, Bug, Lightbulb, Share, MoreHorizontal, Image as ImageIcon, Video, X, Paperclip, FileText, Headphones, Lock, Flag, Trash2, ShieldCheck } from '@tamagui/lucide-icons'
 import { fetchTicketById, addComment, toggleVote, flagTicket, unflagTicket, deleteFeedback, dismissAllFlags, checkIsStaffByEmail, FeedbackDetail as FeedbackDetailType, FeedbackComment, MediaAttachment } from './feedback-service'
+import { useVoicePush } from '../../lib/useVoicePush'
+import { NotificationPromptModal } from '../../app/components/NotificationPromptModal'
 
 export function FeedbackDetail({ id }: { id: string }) {
   const router = useRouter()
@@ -22,6 +24,7 @@ export function FeedbackDetail({ id }: { id: string }) {
   const isDesktop = !media.sm
   const { user } = useAuth()
   const [isStaff, setIsStaff] = useState(false)
+  const { showPrompt, modalProps } = useVoicePush(user?.id)
 
   const imageInputRef = useRef<HTMLInputElement>(null)
   const videoInputRef = useRef<HTMLInputElement>(null)
@@ -66,7 +69,6 @@ export function FeedbackDetail({ id }: { id: string }) {
     })
     if (comment) {
       if (hadAttachments) {
-        // Reload to get fresh attachment data from DB
         const refreshed = await fetchTicketById(ticket.id)
         if (refreshed) setTicket(refreshed)
       } else {
@@ -78,6 +80,8 @@ export function FeedbackDetail({ id }: { id: string }) {
       }
       setNewComment('')
       setAttachments([])
+      // Prompt for notifications after first successful engagement
+      void showPrompt()
     }
     setSubmitting(false)
   }
@@ -442,6 +446,7 @@ export function FeedbackDetail({ id }: { id: string }) {
       </YStack>
       </ScrollView>
     </YStack>
+    <NotificationPromptModal {...modalProps} />
   )
 }
 

@@ -1,0 +1,16 @@
+{
+  "name": "CasaGrown Community Voice",
+  "short_name": "CG Voice",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f0fdf4",
+  "theme_color": "#16a34a",
+  "description": "CasaGrown Community Voice — Share feedback and connect with your neighbors.",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

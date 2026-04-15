@@ -8,6 +8,7 @@ import { useMedia } from 'tamagui'
 import { Menu, LogOut, Users, ShoppingBag, Settings, Award, CreditCard, Receipt, ChevronRight, Store, FileSpreadsheet, DollarSign, BarChart, AlertTriangle } from '@tamagui/lucide-icons'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@casagrown/app/features/auth/auth-hook'
+import { useAdminPush } from '../../lib/useAdminPush'
 import { colors } from '@casagrown/app/design-tokens'
 
 type MenuItem = {
@@ -117,7 +118,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [menuOpen, setMenuOpen] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
-  const { signOut } = useAuth()
+  const { user, signOut } = useAuth()
+
+  // Silently subscribe admin to push notifications on first load
+  useAdminPush(user?.id)
 
   const handleLogout = async () => {
     await signOut()

@@ -19,6 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <link rel="manifest" href="/manifest.json" />
         {/* Polyfill __DEV__ before ANY client JS modules evaluate. */}
         <script dangerouslySetInnerHTML={{ __html: `
           if (typeof globalThis !== 'undefined' && typeof globalThis.__DEV__ === 'undefined') {
@@ -26,6 +27,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }
           if (typeof window !== 'undefined' && typeof window.__DEV__ === 'undefined') {
             window.__DEV__ = true;
+          }
+          if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+              navigator.serviceWorker.register('/sw.js').catch(function(err) {
+                console.warn('[Voice SW] Registration failed:', err);
+              });
+            });
           }
         ` }} />
       </head>
