@@ -6,7 +6,8 @@ import { useMarketingAnalytics, trackEvent, markConverted } from '../../../lib/c
 import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 
-function JoinForm() {
+// All useSearchParams usage is inside JoinContent which is wrapped in Suspense at page level
+function JoinContent() {
   const searchParams = useSearchParams()
   const intent = searchParams.get('intent') ?? 'buyer' // 'buyer' | 'seller'
 
@@ -186,9 +187,6 @@ function JoinForm() {
 }
 
 export default function JoinPage() {
-  const searchParams = useSearchParams()
-  const intent = searchParams?.get('intent') ?? 'buyer'
-
   return (
     <div className="marketing-root">
       <nav className="marketing-nav">
@@ -199,51 +197,9 @@ export default function JoinPage() {
         </div>
       </nav>
 
-      <div className="join-container">
-        <div className="join-content">
-          <div className="join-header">
-            <div className="marketing-hero-badge">
-              {intent === 'seller' ? '💰 Start Earning This Week' : '🛒 Fresh Food Awaits'}
-            </div>
-            <h1 className="join-title">
-              {intent === 'seller'
-                ? 'Start Selling Your\nBackyard Harvest'
-                : 'Join Your Local\nFood Community'}
-            </h1>
-            <p className="join-subtitle">
-              {intent === 'seller'
-                ? 'Set up your booth in 5 minutes and start selling fresh produce to neighbors.'
-                : 'Get notified when fresh, local produce becomes available in your neighborhood.'}
-            </p>
-            <div className="join-benefits">
-              {(intent === 'seller' ? [
-                '✅ Free to join — no subscription fees',
-                '✅ Keep up to 97% of every sale',
-                '✅ Sell anything you grow or make',
-                '✅ Buyers in your neighborhood already waiting',
-              ] : [
-                '✅ Fresh produce from neighbors near you',
-                '✅ Know exactly where your food comes from',
-                '✅ Support local growers in your community',
-                '✅ Better prices than grocery stores',
-              ]).map((b, i) => (
-                <p key={i} className="join-benefit">{b}</p>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="join-form-container">
-          <div className="join-form-card">
-            <h2 className="join-form-title">
-              {intent === 'seller' ? 'Create My Seller Account' : 'Get Early Access'}
-            </h2>
-            <Suspense fallback={<div className="join-loading">Loading...</div>}>
-              <JoinForm />
-            </Suspense>
-          </div>
-        </div>
-      </div>
+      <Suspense fallback={<div className="join-loading" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading...</div>}>
+        <JoinContent />
+      </Suspense>
 
       <style jsx>{`
         .marketing-root { min-height: 100vh; background: #0a0f0a; color: #f0faf0; font-family: 'Inter', system-ui, sans-serif; }

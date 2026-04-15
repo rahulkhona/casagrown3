@@ -135,6 +135,7 @@ export function FeedbackDetail({ id }: { id: string }) {
   }
 
   return (
+    <>
     <YStack flex={1} backgroundColor="white">
         <ScrollView>
       {/* Header */}
@@ -447,6 +448,7 @@ export function FeedbackDetail({ id }: { id: string }) {
       </ScrollView>
     </YStack>
     <NotificationPromptModal {...modalProps} />
+    </>
   )
 }
 
