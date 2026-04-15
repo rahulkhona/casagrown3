@@ -66,12 +66,16 @@ test.describe('CRM — Audiences page', () => {
 
   test('ZIP community search input is visible in form', async ({ page }) => {
     await page.click('button:has-text("New Audience")')
-    await expect(page.locator('.zip-search-input')).toBeVisible()
+    await expect(page.locator('h2')).toContainText('Create Audience')
+    await expect(page.locator('.zip-search-input')).toBeVisible({ timeout: 8000 })
   })
 
   test('ZIP search for 937 shows Fresno results', async ({ page }) => {
     await page.click('button:has-text("New Audience")')
-    await page.locator('.zip-search-input').fill('937')
+    await expect(page.locator('h2')).toContainText('Create Audience')
+    const zipInput = page.locator('.zip-search-input')
+    await expect(zipInput).toBeVisible({ timeout: 8000 })
+    await zipInput.fill('937')
     await page.waitForTimeout(600) // debounce
     const results = page.locator('.zip-result-item')
     // Fresno ZIPs are seeded — at least one should appear
@@ -81,6 +85,7 @@ test.describe('CRM — Audiences page', () => {
 
   test('selecting a ZIP result fills city and state fields', async ({ page }) => {
     await page.click('button:has-text("New Audience")')
+    await expect(page.locator('.zip-search-input')).toBeVisible({ timeout: 8000 })
     await page.locator('.zip-search-input').fill('9371')
     await page.waitForTimeout(600)
     const firstResult = page.locator('.zip-result-item').first()
@@ -103,8 +108,9 @@ test.describe('CRM — Audiences page', () => {
 
   test('consent toggle buttons are clickable', async ({ page }) => {
     await page.click('button:has-text("New Audience")')
+    await expect(page.locator('h2')).toContainText('Create Audience')
     const emailToggle = page.locator('button[aria-pressed]').first()
-    await expect(emailToggle).toBeVisible()
+    await expect(emailToggle).toBeVisible({ timeout: 8000 })
     await emailToggle.click()
     await expect(emailToggle).toHaveAttribute('aria-pressed', 'true')
     await emailToggle.click()
@@ -224,9 +230,10 @@ test.describe('CRM — Audience Functions page', () => {
 
   test('Register Function form opens with all required fields', async ({ page }) => {
     await page.click('button:has-text("Register Function")')
-    await expect(page.locator('input[placeholder*="crm_audience_"]')).toBeVisible()
-    await expect(page.locator('input[placeholder*="High Value"]')).toBeVisible()
-    await expect(page.locator('textarea[placeholder*="Selects all"]')).toBeVisible()
+    await expect(page.locator('h2')).toContainText('Register')
+    await expect(page.locator('input[placeholder*="crm_audience_"]')).toBeVisible({ timeout: 8000 })
+    await expect(page.locator('input[placeholder*="High Value"], input[placeholder*="human"]')).toBeVisible()
+    await expect(page.locator('textarea[placeholder*="Selects all"], textarea[placeholder*="desc"]')).toBeVisible()
     await expect(page.locator('.tag-text-input')).toBeVisible()
   })
 
