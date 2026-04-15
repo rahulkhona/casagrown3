@@ -725,7 +725,7 @@ export async function fetchCrmTraffic(dateRange: DateRange): Promise<CrmTrafficR
     p_start: dateRange.start,
     p_end: dateRange.end,
   })
-  if (error || !data) {
+  if (error || !data || !Array.isArray(data)) {
     markDemo()
     return [
       { page_slug: '/', visits: 1240, unique_sessions: 980, avg_duration_secs: 72, conversions: 38, conversion_rate: 3.9, top_utm_source: 'google' },
@@ -741,7 +741,7 @@ export async function fetchCrmLeadFunnel(dateRange: DateRange): Promise<CrmLeadF
     p_start: dateRange.start,
     p_end: dateRange.end,
   })
-  if (error || !data) {
+  if (error || !data || !Array.isArray(data)) {
     markDemo()
     return [
       { source: 'facebook', leads: 420, contacted: 180, converted: 42, conversion_rate: 10.0 },
@@ -758,7 +758,7 @@ export async function fetchCrmCampaignStats(dateRange: DateRange): Promise<CrmCa
     p_start: dateRange.start,
     p_end: dateRange.end,
   })
-  if (error || !data) {
+  if (error || !data || !Array.isArray(data)) {
     markDemo()
     return [
       { campaign_id: 'c1', campaign_name: 'Spring Launch Email', channel: 'email', sent: 1200, opened: 348, clicked: 96, bounced: 12, unsubscribed: 4, open_rate: 29.0, click_rate: 8.0 },
@@ -774,7 +774,7 @@ export async function fetchCrmAbResults(dateRange: DateRange): Promise<CrmAbResu
     p_start: dateRange.start,
     p_end: dateRange.end,
   })
-  if (error || !data) {
+  if (error || !data || !Array.isArray(data)) {
     markDemo()
     return [
       { landing_page_id: 'lp1', page_slug: '/join', variant: 'A', visits: 540, conversions: 32, conversion_rate: 5.9 },
@@ -791,7 +791,7 @@ export async function fetchCrmTrafficSources(dateRange: DateRange): Promise<{ so
     p_start: dateRange.start,
     p_end: dateRange.end,
   })
-  if (error || !data) {
+  if (error || !data || !Array.isArray(data)) {
     markDemo()
     const sources = [
       { source: 'organic', visits: 580 },
