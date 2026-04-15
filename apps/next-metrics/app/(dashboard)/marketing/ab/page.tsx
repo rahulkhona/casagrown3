@@ -24,7 +24,7 @@ export default function MarketingAbPage() {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">A/B Test Results</h1>
+        <h1 className="page-title">Landing Page A/B Test Results</h1>
         <p className="page-subtitle">Landing page variant performance comparison</p>
       </div>
 
