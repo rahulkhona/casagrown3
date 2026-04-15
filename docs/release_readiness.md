@@ -171,4 +171,84 @@ and [developer_guide.md § 5.7](developer_guide.md) for full setup instructions.
 
 ---
 
-_Last Updated: 2026-03-03_
+## 🟡 Twilio SMS — Approval-Gated
+
+All SMS code is implemented, tested, and deployed. SMS dispatch is **explicitly
+blocked** at the edge function layer until Twilio account approval is confirmed
+and credentials are added.
+
+> [!WARNING]
+> Do **not** set `ENABLE_PHONE_VERIFICATION=true` on Supabase until Twilio
+> account approval is confirmed. Setting it without credentials will cause the
+> `send-sms-notification` function to error.
+
+| Item                           | Status        | Notes                                                          |
+| ------------------------------ | ------------- | -------------------------------------------------------------- |
+| **SMS code & edge functions**  | ✅ Deployed   | `send-sms-notification`, `send-crm-campaign`, `twilio-campaign-webhook` |
+| **CRM SMS campaign path**      | ✅ Deployed   | `send-crm-campaign` handles channel=sms via `_shared/twilio.ts` |
+| **Feature flag (server-side)** | 🔒 OFF        | `ENABLE_PHONE_VERIFICATION` not set on Supabase secrets        |
+| **UI opt-in fields**           | ✅ Showing    | `NEXT_PUBLIC_ENABLE_PHONE_VERIFICATION=true` in `.env.local`   |
+| **Twilio account approval**    | ⏭️ Pending   | Credits purchased (2026-04-15). Awaiting account approval.     |
+
+### Activation Steps (run once Twilio is approved)
+
+```bash
+# 1. Set Twilio credentials on Supabase (from console.twilio.com → Account Info)
+supabase secrets set \
+  TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx \
+  TWILIO_AUTH_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx \
+  TWILIO_FROM_NUMBER=+1xxxxxxxxxx \
+  ENABLE_PHONE_VERIFICATION=true
+
+# 2. Also set in Vercel env vars for the market app (UI flag)
+NEXT_PUBLIC_ENABLE_PHONE_VERIFICATION=true
+
+# 3. Redeploy edge functions to pick up new secrets
+supabase functions deploy send-sms-notification send-crm-campaign twilio-campaign-webhook
+
+# 4. Verify with a test SMS (replace with a real number)
+curl -X POST https://<project>.supabase.co/functions/v1/send-sms-notification \
+  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": "<test-user-uuid>", "message": "Test SMS from CasaGrown 🌱"}'
+```
+
+> [!NOTE]
+> The SMS feature flag is **server-side only** in the edge function. The UI
+> (`NEXT_PUBLIC_ENABLE_PHONE_VERIFICATION`) only controls whether the phone
+> opt-in fields are shown. SMS dispatch is always blocked if Twilio secrets
+> are absent, regardless of the UI flag.
+
+---
+
+## 🟢 CRM & Marketing Platform — v1.23 (Live)
+
+Full CRM and marketing infrastructure deployed as of **2026-04-15 (v1.23)**.
+
+| Item                              | Status      | Details                                                             |
+| --------------------------------- | ----------- | ------------------------------------------------------------------- |
+| **CRM schema** (`crm_leads` etc.) | ✅ Deployed | Migration `20260415120000_crm_schema.sql` applied to staging        |
+| **Lead capture** (`/join`)        | ✅ Live     | Anon POST to `crm_leads` via PostgREST (return=minimal)             |
+| **Marketing pages** (`/sellers`)  | ✅ Live     | Analytics beacon + CRM attribution                                  |
+| **Short links** (`/r/[token]`)    | ✅ Live     | Click tracking, redirect, campaign attribution                      |
+| **Analytics beacon**              | ✅ Live     | `/api/crm/track` — graceful no-op if service role key absent        |
+| **FB Lead webhook**               | ✅ Deployed | `receive-facebook-lead` edge function                               |
+| **Postmark webhook**              | ✅ Deployed | `postmark-webhook` edge function                                    |
+| **Campaign sender**               | ✅ Deployed | `send-crm-campaign` — email via Postmark, SMS via Twilio (gated)    |
+| **Admin metrics**                 | ✅ Live     | Funnel, A/B, traffic source, ROI analytics in next-metrics          |
+| **E2E tests**                     | ✅ 36/36    | `landing-pages.spec.ts` + `notifications-payouts.spec.ts` passing   |
+
+### Local Dev Environment Notes
+
+Add these to `apps/next-market/.env` for local testing (already in gitignored file):
+```bash
+SUPABASE_SERVICE_ROLE_KEY=<local-service-role-key>  # from: supabase status --output env
+```
+
+The `crm/track` beacon and `/r/[token]` redirect degrade gracefully if the
+service role key is absent — they return `{ok:true,skipped:true}` and fall back
+to anon key respectively, so local tests still pass.
+
+---
+
+_Last Updated: 2026-04-15_
