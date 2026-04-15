@@ -292,6 +292,22 @@ else
   log_suite "Per-Function" "$FUNC_PASSED" "$FUNC_FAILED"
 fi
 
+# 5e: CRM edge function tests
+echo "  Running CRM edge function tests..."
+CRM_OUTPUT=$(cd supabase && deno test --allow-env --allow-net --allow-run --no-check \
+  functions/_tests/crm-functions.test.ts 2>&1)
+CRM_PASSED=$(echo "$CRM_OUTPUT" | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' || echo "0")
+CRM_FAILED=$(echo "$CRM_OUTPUT" | grep -oE '[0-9]+ failed' | grep -oE '[0-9]+' || echo "0")
+
+if [ "${CRM_FAILED:-0}" -eq 0 ] || [ -z "$CRM_FAILED" ]; then
+  echo -e "  ${GREEN}✅ CRM Edge Functions: ${CRM_PASSED} tests — ALL PASS${NC}"
+  log_suite "CRM Edge Functions" "$CRM_PASSED"
+else
+  echo -e "  ${RED}❌ CRM Edge Functions: ${CRM_PASSED} passed, ${CRM_FAILED} failed${NC}"
+  echo "$CRM_OUTPUT" | grep "FAILED" | head -10
+  log_suite "CRM Edge Functions" "$CRM_PASSED" "$CRM_FAILED"
+fi
+
 # ─────────────────────────────────────────────────────────────────────────
 # PHASE 6: Shell Integration Tests (Escalation Handling)
 # ─────────────────────────────────────────────────────────────────────────

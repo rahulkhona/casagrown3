@@ -5,7 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { YStack, XStack, Text, Button, Sheet, ScrollView, Separator } from 'tamagui'
 import { useMedia } from 'tamagui'
-import { Menu, LogOut, Users, ShoppingBag, Settings, Award, CreditCard, Receipt, ChevronRight, Store, FileSpreadsheet, DollarSign, BarChart, AlertTriangle } from '@tamagui/lucide-icons'
+import { Menu, LogOut, Users, ShoppingBag, Settings, Award, CreditCard, Receipt, ChevronRight, Store, FileSpreadsheet, DollarSign, BarChart, AlertTriangle, Mail } from '@tamagui/lucide-icons'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@casagrown/app/features/auth/auth-hook'
 import { useAdminPush } from '../../lib/useAdminPush'
@@ -76,6 +76,16 @@ const MENU_GROUPS: MenuGroup[] = [
     items: [
       { label: 'Settings & Fees', path: '/platform-settings' },
       { label: 'Post Type Expiration', path: '/post-policies' },
+    ]
+  },
+  {
+    title: 'CRM & MARKETING',
+    icon: Mail,
+    items: [
+      { label: 'Leads', path: '/crm/leads' },
+      { label: 'Email / SMS Campaigns', path: '/crm/campaigns' },
+      { label: 'Audiences', path: '/crm/audiences' },
+      { label: 'Assets', path: '/crm/assets' },
     ]
   },
   {

@@ -671,3 +671,142 @@ export async function fetchTransactionFlow(txnId: string): Promise<LogEntry[]> {
     }
   })
 }
+
+// ─── CRM & Marketing Metrics ────────────────────────────────────────────────
+
+export interface CrmTrafficRow {
+  page_slug: string
+  visits: number
+  unique_sessions: number
+  avg_duration_secs: number
+  conversions: number
+  conversion_rate: number
+  top_utm_source: string | null
+}
+
+export interface CrmFunnelRow {
+  stage: string
+  count: number
+  pct_of_top: number
+}
+
+export interface CrmCampaignStatsRow {
+  campaign_id: string
+  campaign_name: string
+  channel: string
+  sent: number
+  opened: number
+  clicked: number
+  bounced: number
+  unsubscribed: number
+  open_rate: number
+  click_rate: number
+}
+
+export interface CrmAbResult {
+  landing_page_id: string
+  page_slug: string
+  variant: string
+  visits: number
+  conversions: number
+  conversion_rate: number
+}
+
+export interface CrmLeadFunnelRow {
+  source: string
+  leads: number
+  contacted: number
+  converted: number
+  conversion_rate: number
+}
+
+export async function fetchCrmTraffic(dateRange: DateRange): Promise<CrmTrafficRow[]> {
+  const { data, error } = await supabase.rpc('metrics_crm_landing_pages', {
+    p_start: dateRange.start,
+    p_end: dateRange.end,
+  })
+  if (error || !data) {
+    markDemo()
+    return [
+      { page_slug: '/', visits: 1240, unique_sessions: 980, avg_duration_secs: 72, conversions: 38, conversion_rate: 3.9, top_utm_source: 'google' },
+      { page_slug: '/sellers', visits: 540, unique_sessions: 420, avg_duration_secs: 95, conversions: 22, conversion_rate: 5.2, top_utm_source: 'facebook' },
+      { page_slug: '/join', visits: 310, unique_sessions: 295, avg_duration_secs: 110, conversions: 88, conversion_rate: 29.8, top_utm_source: 'direct' },
+    ]
+  }
+  return data as CrmTrafficRow[]
+}
+
+export async function fetchCrmLeadFunnel(dateRange: DateRange): Promise<CrmLeadFunnelRow[]> {
+  const { data, error } = await supabase.rpc('metrics_crm_lead_funnel', {
+    p_start: dateRange.start,
+    p_end: dateRange.end,
+  })
+  if (error || !data) {
+    markDemo()
+    return [
+      { source: 'facebook', leads: 420, contacted: 180, converted: 42, conversion_rate: 10.0 },
+      { source: 'google', leads: 310, contacted: 140, converted: 38, conversion_rate: 12.3 },
+      { source: 'direct', leads: 190, contacted: 95, converted: 29, conversion_rate: 15.3 },
+      { source: 'instagram', leads: 85, contacted: 30, converted: 7, conversion_rate: 8.2 },
+    ]
+  }
+  return data as CrmLeadFunnelRow[]
+}
+
+export async function fetchCrmCampaignStats(dateRange: DateRange): Promise<CrmCampaignStatsRow[]> {
+  const { data, error } = await supabase.rpc('metrics_crm_campaigns', {
+    p_start: dateRange.start,
+    p_end: dateRange.end,
+  })
+  if (error || !data) {
+    markDemo()
+    return [
+      { campaign_id: 'c1', campaign_name: 'Spring Launch Email', channel: 'email', sent: 1200, opened: 348, clicked: 96, bounced: 12, unsubscribed: 4, open_rate: 29.0, click_rate: 8.0 },
+      { campaign_id: 'c2', campaign_name: 'Seller Onboarding SMS', channel: 'sms', sent: 420, opened: 0, clicked: 87, bounced: 6, unsubscribed: 1, open_rate: 0, click_rate: 20.7 },
+      { campaign_id: 'c3', campaign_name: 'May Produce Promo', channel: 'email', sent: 980, opened: 294, clicked: 68, bounced: 8, unsubscribed: 2, open_rate: 30.0, click_rate: 6.9 },
+    ]
+  }
+  return data as CrmCampaignStatsRow[]
+}
+
+export async function fetchCrmAbResults(dateRange: DateRange): Promise<CrmAbResult[]> {
+  const { data, error } = await supabase.rpc('metrics_crm_ab_results', {
+    p_start: dateRange.start,
+    p_end: dateRange.end,
+  })
+  if (error || !data) {
+    markDemo()
+    return [
+      { landing_page_id: 'lp1', page_slug: '/join', variant: 'A', visits: 540, conversions: 32, conversion_rate: 5.9 },
+      { landing_page_id: 'lp1', page_slug: '/join', variant: 'B', visits: 520, conversions: 44, conversion_rate: 8.5 },
+      { landing_page_id: 'lp2', page_slug: '/sellers', variant: 'A', visits: 280, conversions: 18, conversion_rate: 6.4 },
+      { landing_page_id: 'lp2', page_slug: '/sellers', variant: 'B', visits: 260, conversions: 22, conversion_rate: 8.5 },
+    ]
+  }
+  return data as CrmAbResult[]
+}
+
+export async function fetchCrmTrafficSources(dateRange: DateRange): Promise<{ source: string; visits: number; pct: number }[]> {
+  const { data, error } = await supabase.rpc('metrics_crm_traffic_sources', {
+    p_start: dateRange.start,
+    p_end: dateRange.end,
+  })
+  if (error || !data) {
+    markDemo()
+    const sources = [
+      { source: 'organic', visits: 580 },
+      { source: 'facebook', visits: 420 },
+      { source: 'google', visits: 310 },
+      { source: 'direct', visits: 190 },
+      { source: 'instagram', visits: 85 },
+    ]
+    const total = sources.reduce((s, r) => s + r.visits, 0)
+    return sources.map(r => ({ ...r, pct: Math.round((r.visits / total) * 100) }))
+  }
+  const total = (data as { visits: number }[]).reduce((s, r) => s + r.visits, 0)
+  return (data as { source: string; visits: number }[]).map(r => ({
+    ...r,
+    pct: total > 0 ? Math.round((r.visits / total) * 100) : 0,
+  }))
+}
+

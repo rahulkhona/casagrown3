@@ -655,3 +655,23 @@ entrypoint = "./functions/process-manual-fulfillments/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/process-manual-fulfillments/*.html" ]
+
+[functions.receive-facebook-lead]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/receive-facebook-lead/index.ts"
+
+[functions.send-crm-campaign]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/send-crm-campaign/index.ts"
+
+[functions.postmark-webhook]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/postmark-webhook/index.ts"
+
+[functions.twilio-campaign-webhook]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/twilio-campaign-webhook/index.ts"

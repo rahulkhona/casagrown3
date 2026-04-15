@@ -111,6 +111,13 @@ const NAV_ITEMS = [
   { href: '/logs', label: 'Log Search', icon: '🔍' },
 ]
 
+const MARKETING_NAV_ITEMS = [
+  { href: '/marketing', label: 'Traffic Overview', icon: '📈' },
+  { href: '/marketing/funnel', label: 'Lead Funnel', icon: '🔽' },
+  { href: '/marketing/campaigns', label: 'Campaign Stats', icon: '📧' },
+  { href: '/marketing/ab', label: 'A/B Tests', icon: '🔬' },
+]
+
 // ─── Layout Component ───────────────────────────────────────────────────────
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -141,6 +148,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="sidebar-nav">
             <div className="sidebar-section-label">Dashboards</div>
             {NAV_ITEMS.map(item => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`sidebar-link ${pathname === item.href ? 'active' : ''}`}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <span className="sidebar-link-icon">{item.icon}</span>
+                {item.label}
+              </Link>
+            ))}
+            <div className="sidebar-section-label" style={{ marginTop: 16 }}>Marketing</div>
+            {MARKETING_NAV_ITEMS.map(item => (
               <Link
                 key={item.href}
                 href={item.href}
