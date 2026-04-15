@@ -145,11 +145,16 @@ async function processGiftCard(supabase: any, env: any, redemption: Record<strin
     const product_id = metadata.product_id as string;
     const face_value_cents = metadata.face_value_cents as number;
 
+    // Fetch recipient email for gift card delivery
+    let recipientEmail = "";
+    const { data: authUser } = await supabase.auth.admin.getUserById(redemption.user_id);
+    recipientEmail = authUser?.user?.email || "";
+
     let providerResult;
     if (provider === "tremendous") {
-        providerResult = await orderFromTremendous(env("TREMENDOUS_API_KEY") || "", product_id, brand_name, face_value_cents);
+        providerResult = await orderFromTremendous(env("TREMENDOUS_API_KEY") || "", product_id, brand_name, face_value_cents, redemption.id as string, recipientEmail);
     } else {
-        providerResult = await orderFromReloadly(env("RELOADLY_CLIENT_ID") || "", env("RELOADLY_CLIENT_SECRET") || "", product_id, brand_name, face_value_cents, env("RELOADLY_SANDBOX") !== "false");
+        providerResult = await orderFromReloadly(env("RELOADLY_CLIENT_ID") || "", env("RELOADLY_CLIENT_SECRET") || "", product_id, brand_name, face_value_cents, env("RELOADLY_SANDBOX") !== "false", redemption.id as string, recipientEmail);
     }
 
     if (providerResult.cardUrl) {
@@ -200,13 +205,36 @@ async function processGlobalGiving(supabase: any, env: any, redemption: Record<s
     const dollarAmount = pointsAmount / 100;
     const donationCents = Math.round(dollarAmount * 100);
 
+    // Fetch donor email and name for GlobalGiving tax receipt (email is required by GG API)
+    const { data: donorProfile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", userId)
+        .single();
+
+    let donorEmail = "";
+    const { data: authUser } = await supabase.auth.admin.getUserById(userId);
+    donorEmail = authUser?.user?.email || "";
+    const donorName = donorProfile?.full_name || "CasaGrown User";
+    const [firstName, ...lastParts] = donorName.split(" ");
+    const lastName = lastParts.join(" ") || firstName;
+
     let externalOrderId = "";
     const ggApiKey = env("GLOBALGIVING_API_KEY");
     const isSandbox = env("GLOBALGIVING_SANDBOX") === "true";
 
     if (ggApiKey && projectId && !isSandbox) {
         const response = await fetch(`https://api.globalgiving.org/api/public/projects/${projectId}/donate?api_key=${ggApiKey}`, {
-            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount: dollarAmount, currency: "USD" }),
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+                amount: dollarAmount,
+                currency: "USD",
+                refcode: `cg_${userId.substring(0, 8)}_${Date.now()}`,
+                ...(donorEmail ? {
+                    email: donorEmail,
+                    firstname: firstName,
+                    lastname: lastName,
+                } : {}),
+            }),
         });
         if (!response.ok) throw new Error(`GlobalGiving API error: ${await response.text()}`);
         const data = await response.json();

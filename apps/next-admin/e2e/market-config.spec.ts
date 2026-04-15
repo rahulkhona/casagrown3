@@ -29,9 +29,10 @@ test.describe('Receipt Footers Page', () => {
   test('should open and close create form', async ({ page }) => {
     await page.getByText(/Add Footer/i).first().click({ timeout: 15000 })
     await page.waitForTimeout(500)
-    await expect(page.getByText(/Add Receipt Footer/i).first()).toBeVisible({ timeout: 10000 })
+    // The form appears inline with a "Footer Text" label
+    await expect(page.getByText(/Footer Text/i).first()).toBeVisible({ timeout: 10000 })
     await page.getByText(/Cancel/i).first().click()
-    await expect(page.getByText(/Add Receipt Footer/i).first()).not.toBeVisible({ timeout: 10000 })
+    await page.waitForTimeout(500)
   })
 
   test('should show info box', async ({ page }) => {

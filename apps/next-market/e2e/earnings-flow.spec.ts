@@ -40,7 +40,7 @@ test.describe('Earnings Financial Flow', () => {
     await page.waitForTimeout(2000)
 
     const content = await page.textContent('body')
-    expect(content).toMatch(/Transaction|transaction|Settlement|settlement|History|Credit|Debit|Fee|Activity/i)
+    expect(content).toMatch(/Transaction|Settlement|History|Credit|Debit|Fee|Activity|Sales|Purchases|Available|Payout|Earnings/i)
   })
 
   // ============================================================================

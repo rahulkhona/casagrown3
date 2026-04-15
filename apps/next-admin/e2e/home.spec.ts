@@ -20,13 +20,16 @@ test.describe('Home Page', () => {
 
   test('should navigate to Members page', async ({ page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' })
-    await page.waitForTimeout(2000)
+    await expect(page.getByText('CasaGrown Admin').first()).toBeVisible({ timeout: 15000 })
 
-    const membersLink = page.getByRole('button', { name: /Members/i }).first()
-    if ((await membersLink.count()) > 0) {
-      await membersLink.click()
-      await page.waitForURL('/members')
-      await expect(page).toHaveURL(/\/members/)
-    }
+    // Verify Members link exists in sidebar
+    const membersLink = page.getByRole('link', { name: /Members/i }).first()
+    await expect(membersLink).toBeVisible({ timeout: 5000 })
+    
+    // Navigate to /members and verify it loads
+    await page.goto('/members', { waitUntil: 'domcontentloaded' })
+    await expect(page).toHaveURL(/\/members/)
+    // Verify the page has meaningful content (not a blank error page)
+    await expect(page.locator('body')).toContainText(/Members|member|User/i, { timeout: 10000 })
   })
 })
