@@ -24,7 +24,7 @@ import { Platform } from "react-native";
 
 interface UseNotificationPromptReturn {
   /** Call at trigger points (Buy, Offer, Chat, Create Post) */
-  showPrompt: () => void;
+  showPrompt: (force?: boolean) => void;
   /** Spread onto NotificationPromptModal */
   modalProps: {
     visible: boolean;
@@ -64,14 +64,16 @@ export function useNotificationPrompt(
     }
   }, [userId]);
 
-  const showPrompt = useCallback(async () => {
+  const showPrompt = useCallback(async (force = false) => {
     // Prevent concurrent checks
     if (checkingRef.current) return;
     checkingRef.current = true;
 
     try {
-      const shouldShow = await shouldShowPrompt();
-      if (!shouldShow) return;
+      if (!force) {
+        const shouldShow = await shouldShowPrompt();
+        if (!shouldShow) return;
+      }
 
       const promptVariant = getPromptVariant();
       if (promptVariant === "none") {

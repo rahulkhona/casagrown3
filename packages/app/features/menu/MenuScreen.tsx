@@ -15,7 +15,9 @@ import {
   ShieldCheck,
   PackageCheck,
   History,
-  FileText
+  FileText,
+  Bell,
+  AlertCircle
 } from '@tamagui/lucide-icons'
 
 import { useAuth, supabase } from '../auth/auth-hook'
@@ -23,6 +25,9 @@ import { usePointsBalance } from '../../hooks/usePointsBalance'
 import { colors, borderRadius, shadows } from '../../design-tokens'
 import { normalizeStorageUrl } from '../../utils/normalize-storage-url'
 import { openContactSupport } from '../../utils/external-urls'
+import { useNotificationPrompt } from '../notifications/useNotificationPrompt'
+import { NotificationPromptModal } from '../notifications/NotificationPromptModal'
+import { getPermissionStatus } from '../notifications/notification-service'
 
 export function MenuScreen() {
   const { t } = useTranslation()
@@ -33,9 +38,13 @@ export function MenuScreen() {
 
   const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null)
   const [userDisplayName, setUserDisplayName] = useState<string | null>(null)
+  const [pushStatus, setPushStatus] = useState<string>('granted')
   
+  const { showPrompt, modalProps } = useNotificationPrompt(user?.id)
+
   // Re-fetch profile data when menu is opened
   useEffect(() => {
+    setPushStatus(getPermissionStatus())
     if (!user?.id) return
     const fetchProfile = async () => {
       try {
@@ -55,7 +64,8 @@ export function MenuScreen() {
     }
     fetchProfile()
     refetchBalance()
-  }, [user?.id, refetchBalance])
+    setPushStatus(getPermissionStatus())
+  }, [user?.id, refetchBalance, modalProps.visible])
 
   const handleSignOut = async () => {
     try {
@@ -107,27 +117,43 @@ export function MenuScreen() {
   )
 
   const renderAvatar = () => {
-    if (userAvatarUrl) {
-      return (
-        <Image 
-          source={{ uri: userAvatarUrl }} 
-          style={{ width: 64, height: 64, borderRadius: 32 }} 
-        />
-      )
-    }
+    const needsPush = pushStatus !== 'granted'
     
     return (
-      <YStack 
-        width={64} 
-        height={64} 
-        borderRadius={32} 
-        backgroundColor={colors.green[600]} 
-        alignItems="center" 
-        justifyContent="center"
-      >
-        <Text fontSize={24} fontWeight="700" color="white">
-          {userDisplayName ? userDisplayName.charAt(0).toUpperCase() : 'U'}
-        </Text>
+      <YStack>
+        {userAvatarUrl ? (
+          <Image 
+            source={{ uri: userAvatarUrl }} 
+            style={{ width: 64, height: 64, borderRadius: 32 }} 
+          />
+        ) : (
+          <YStack 
+            width={64} 
+            height={64} 
+            borderRadius={32} 
+            backgroundColor={colors.green[600]} 
+            alignItems="center" 
+            justifyContent="center"
+          >
+            <Text fontSize={24} fontWeight="700" color="white">
+              {userDisplayName ? userDisplayName.charAt(0).toUpperCase() : 'U'}
+            </Text>
+          </YStack>
+        )}
+        
+        {needsPush && (
+          <YStack
+            position="absolute"
+            top={0}
+            right={0}
+            width={16}
+            height={16}
+            borderRadius={8}
+            backgroundColor={colors.red[500]}
+            borderWidth={2}
+            borderColor={colors.green[700]}
+          />
+        )}
       </YStack>
     )
   }
@@ -170,6 +196,19 @@ export function MenuScreen() {
         
         {/* Account Settings */}
         <YStack marginTop="$4" backgroundColor="white" borderTopWidth={1} borderBottomWidth={1} borderColor={colors.gray[200]}>
+          
+          {pushStatus !== 'granted' && (
+            <>
+              <MenuItem 
+                icon={Bell} 
+                title="Enable Push Notifications" 
+                subtitle="Don't miss out on messages or offers"
+                onPress={() => showPrompt(true)} 
+              />
+              <Separator marginHorizontal="$4" borderColor={colors.gray[100]} />
+            </>
+          )}
+
           <MenuItem 
             icon={User} 
             title={t('header.profileTitle', 'Profile & Settings')} 
@@ -296,6 +335,8 @@ export function MenuScreen() {
           <Text fontSize={12} color={colors.gray[400]}>CasaGrown Version 1.0.0</Text>
         </YStack>
       </ScrollView>
+      
+      <NotificationPromptModal {...modalProps} />
     </YStack>
   )
 }

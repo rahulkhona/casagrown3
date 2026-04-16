@@ -6,7 +6,9 @@ if (typeof globalThis.__DEV__ === 'undefined') {
   globalThis.__DEV__ = process.env.NODE_ENV !== 'production'
 }
 
-module.exports = {
+const { withTamagui } = require('@tamagui/next-plugin')
+
+const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -69,3 +71,10 @@ module.exports = {
     return config
   },
 }
+
+module.exports = withTamagui({
+  config: '../../packages/config/src/tamagui.config.ts',
+  components: ['tamagui', '@casagrown/ui'],
+  outputCSS: process.env.NODE_ENV === 'production',
+  doesNotCompileTwice: true,
+})(nextConfig)

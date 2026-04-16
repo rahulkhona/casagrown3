@@ -1,5 +1,7 @@
+const { withTamagui } = require('@tamagui/next-plugin')
+
 /** @type {import('next').NextConfig} */
-module.exports = {
+const config = {
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -39,3 +41,10 @@ module.exports = {
     ],
   },
 }
+
+module.exports = withTamagui({
+  config: '../../packages/config/src/tamagui.config.ts',
+  components: ['tamagui', '@casagrown/ui'],
+  outputCSS: process.env.NODE_ENV === 'production',
+  doesNotCompileTwice: true,
+})(config)

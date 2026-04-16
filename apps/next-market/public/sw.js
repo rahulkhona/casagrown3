@@ -6,6 +6,27 @@
  *   - notificationclick: focus/open CasaGrown Market tab
  */
 
+if (typeof self !== 'undefined' && typeof self.importScripts === 'function') {
+  self.importScripts('https://storage.googleapis.com/workbox-cdn/releases/6.5.4/workbox-sw.js');
+}
+
+if (typeof workbox !== 'undefined' && workbox) {
+  workbox.routing.registerRoute(
+    ({url}) => url.origin.endsWith('.supabase.co') && url.pathname.startsWith('/storage/v1/object/public/'),
+    new workbox.strategies.CacheFirst({
+      cacheName: 'supabase-image-cache',
+      plugins: [
+        new workbox.expiration.ExpirationPlugin({
+          maxEntries: 200,
+          maxAgeSeconds: 30 * 24 * 60 * 60, // 30 Days
+        }),
+      ],
+    })
+  );
+} else {
+  console.log('[SW] Workbox could not be loaded. No caching available.');
+}
+
 // Show notification when a push event arrives
 self.addEventListener('push', (event) => {
   const data = event.data ? event.data.json() : {}

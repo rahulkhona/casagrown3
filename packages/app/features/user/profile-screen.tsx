@@ -44,6 +44,7 @@ import { uploadProfileAvatar } from '../profile-wizard/utils/media-upload'
 import { normalizeStorageUrl } from '../../utils/normalize-storage-url'
 
 import { getProduceEmoji } from '../profile-wizard/utils/produce-emoji'
+import { getPermissionStatus } from '../notifications/notification-service'
 
 // Platform-conditional import: React.lazy for web (avoids SSR crash from
 // Leaflet accessing `window` during module evaluation), require() for native
@@ -131,6 +132,7 @@ export function ProfileScreen() {
   const [customItemInput, setCustomItemInput] = useState('')
   const [blockedProducts, setBlockedProducts] = useState<string[]>([])
   const [blockedError, setBlockedError] = useState('')
+  const [pushStatus, setPushStatus] = useState<string>('granted')
 
   // Phone re-verification
   const [originalPhone, setOriginalPhone] = useState<string | null>(null)
@@ -199,6 +201,7 @@ export function ProfileScreen() {
 
   // Load profile on mount
   useEffect(() => {
+    setPushStatus(getPermissionStatus())
     if (user?.id) {
       loadProfile()
     } else if (!authLoading) {
@@ -746,6 +749,20 @@ export function ProfileScreen() {
                   </Text>
                 )}
               </YStack>
+
+              {pushStatus !== 'granted' && !isEditing && (
+                <YStack
+                  position="absolute"
+                  top={0}
+                  right={0}
+                  width={20}
+                  height={20}
+                  borderRadius={10}
+                  backgroundColor={colors.red[500]}
+                  borderWidth={2}
+                  borderColor="white"
+                />
+              )}
               
               {isEditing && (
                 <>

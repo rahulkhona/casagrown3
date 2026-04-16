@@ -13,6 +13,7 @@ export default defineConfig({
     trace: 'on-first-retry',
     navigationTimeout: 60_000,
     actionTimeout: 15_000,
+    serviceWorkers: 'block'
   },
   projects: [
     {
