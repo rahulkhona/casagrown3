@@ -10,7 +10,7 @@ RETURNS TABLE (
   reason text
 ) AS $$
 DECLARE
-  v_home geometry;
+  v_home extensions.geometry;
   v_h3 text;
 BEGIN
   -- We use home_location directly since we don't necessarily have zip-fallback here
