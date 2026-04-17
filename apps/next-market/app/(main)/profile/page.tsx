@@ -5,12 +5,15 @@ import { createClient } from '../../../lib/supabase'
 import { useAuth } from '../../../lib/useAuth'
 import CameraCapture from '../../../components/CameraCapture'
 import ImageCropper from '../../../components/ImageCropper'
+import { useNotificationPrompt, isNotificationsEnabled } from '../../../lib/useNotificationPrompt'
+import { NotificationPromptModal } from '../../components/NotificationPromptModal'
 import styles from './page.module.css'
 
 export default function ProfilePage() {
   const { user, isAuthenticated, loading: authLoading } = useAuth()
   const supabase = createClient()
   const fileRef = useRef<HTMLInputElement>(null)
+  const { showPrompt, modalProps } = useNotificationPrompt(user?.id)
 
   const [form, setForm] = useState({
     name: '',
@@ -377,6 +380,22 @@ export default function ProfilePage() {
             <div className="divider" />
             <h3 className={styles.sectionTitle}>Phone & Notifications</h3>
 
+            {!isNotificationsEnabled() && (
+              <div style={{ background: 'var(--yellow-50)', padding: 16, borderRadius: 12, marginBottom: 16, border: '1px solid var(--yellow-200)' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+                  <div>
+                    <h4 style={{ margin: '0 0 4px', fontSize: 14, color: 'var(--yellow-900)' }}>🔔 Push Notifications Disabled</h4>
+                    <p style={{ margin: 0, fontSize: 13, color: 'var(--yellow-800)', lineHeight: 1.4 }}>
+                      Turn on push notifications to instantly see when buyers message you or place orders.
+                    </p>
+                  </div>
+                  <button type="button" className="btn btn-primary btn-sm" onClick={() => showPrompt(true)} style={{ whiteSpace: 'nowrap' }}>
+                    Enable Push
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="form-group">
               <label className="label" htmlFor="phone">Phone Number <span style={{fontSize: 12, color: 'var(--gray-500)', fontWeight: 'normal'}}>(for order/payout SMS if push is unavailable)</span></label>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -418,19 +437,21 @@ export default function ProfilePage() {
               </div>
             )}
 
-            <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-              <input type="checkbox" id="smsEnabled" checked={smsEnabled} onChange={e => setSmsEnabled(e.target.checked)} />
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label htmlFor="smsEnabled" style={{ fontSize: 13, color: 'var(--gray-700)', cursor: 'pointer', fontWeight: 600 }}>
-                  Enable Order SMS Notifications
-                </label>
-                <span style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 4 }}>
-                  By providing your phone number and checking this box, you consent to receive critical transactional SMS notifications (like order updates) from CasaGrown. Reply STOP to cancel. Msg & data rates may apply.
-                </span>
+            {process.env.NEXT_PUBLIC_ENABLE_SMS_NOTIFICATIONS === 'true' && (
+              <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                <input type="checkbox" id="smsEnabled" checked={smsEnabled} onChange={e => setSmsEnabled(e.target.checked)} />
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <label htmlFor="smsEnabled" style={{ fontSize: 13, color: 'var(--gray-700)', cursor: 'pointer', fontWeight: 600 }}>
+                    Enable Order SMS Notifications
+                  </label>
+                  <span style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 4 }}>
+                    By providing your phone number and checking this box, you consent to receive critical transactional SMS notifications (like order updates) from CasaGrown. Reply STOP to cancel. Msg & data rates may apply.
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
 
-            {smsEnabled && twilioBlocked && (
+            {process.env.NEXT_PUBLIC_ENABLE_SMS_NOTIFICATIONS === 'true' && smsEnabled && twilioBlocked && (
               <div style={{ background: '#fef2f2', border: '1px solid #fecaca', padding: 12, borderRadius: 8, marginTop: 12 }}>
                 <p style={{ margin: 0, fontWeight: 600, color: '#991b1b', fontSize: 13 }}>⚠️ Carrier Block Detected</p>
                 <p style={{ margin: '4px 0 0', color: '#b91c1c', fontSize: 13 }}>
@@ -487,6 +508,7 @@ export default function ProfilePage() {
           {saving ? 'Saving...' : saved ? '✓ Saved' : 'Save Profile'}
         </button>
       </form>
+      <NotificationPromptModal {...modalProps} />
     </div>
   )
 }

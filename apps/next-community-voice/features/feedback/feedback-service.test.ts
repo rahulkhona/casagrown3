@@ -306,13 +306,13 @@ describe("Feedback Service", () => {
             const emptyChain = chainable({ data: [], error: null });
 
             (supabase.from as any)
-                .mockReturnValueOnce(ticketChain)    // user_feedback
-                .mockReturnValueOnce(commentsChain)  // feedback_comments
-                .mockReturnValueOnce(votesChain)      // feedback_votes (count)
-                .mockReturnValueOnce(profilesChain)   // profiles
-                .mockReturnValueOnce(emptyChain)      // feedback_media
-                .mockReturnValueOnce(emptyChain)      // feedback_comment_media
-                .mockReturnValue(emptyChain);          // feedback_flags
+                .mockReturnValueOnce(ticketChain)    // 1 user_feedback
+                .mockReturnValueOnce(commentsChain)  // 2 feedback_comments
+                .mockReturnValueOnce(votesChain)     // 3 feedback_votes 
+                .mockReturnValueOnce(emptyChain)     // 4 feedback_media
+                .mockReturnValueOnce(emptyChain)     // 5 feedback_flags
+                .mockReturnValueOnce(profilesChain)  // 6 profiles
+                .mockReturnValue(emptyChain);        // 7 feedback_comment_media
 
             const result = await fetchTicketById("ticket-1");
 

@@ -54,10 +54,14 @@ export default function SalesCategoriesPage() {
         // since categories count is very small < 15.
       }))
 
-      for (const map of updates) {
-        await adminApi.update('sales_categories', { display_order: map.display_order }, { eq: { name: map.name } })
-      }
-      
+      // --- MCO Phase 3: Parallelized Network Saving ---
+      // Replaced sequential for-loop with parallel Promise.all matrix
+      await Promise.all(
+        updates.map(map => 
+          adminApi.update('sales_categories', { display_order: map.display_order }, { eq: { name: map.name } })
+        )
+      )
+
       refresh()
       setIsDirty(false)
     } catch (e) {

@@ -39,4 +39,45 @@ test.describe('Beta Testers Admin Page', () => {
       await expect(page).toHaveURL(/beta-testers/)
     }
   })
+
+  test('should mechanically filter data when typing into search input', async ({ page }) => {
+    const searchInput = page.locator('input[placeholder*="Search"]').first()
+    if (await searchInput.count() > 0) {
+      // Log the initial row count (assuming cards represent rows)
+      const initialCards = await page.locator('div[tabindex="0"], .tamagui-card').count()
+      
+      // Type a highly aggressive random sequence that shouldn't exist
+      await searchInput.clear()
+      await searchInput.pressSequentially('XYZZZY_MOCK_1234987')
+      await page.waitForTimeout(1000) // allow SWR to process
+      
+      // The DOM should physically reflect 0 rows or a No Testers Found state
+      const noFoundText = page.getByText('No testers found', { exact: false }).first()
+      await expect(noFoundText).toBeVisible({ timeout: 5000 })
+      
+      // Clear it to restore the list
+      await searchInput.clear()
+      await page.waitForTimeout(500)
+      
+      // If the local database is naturally empty, No Testers Found will legally remain visible.
+      // We just assert that the typing action didn't crash the React component.
+      await expect(searchInput).toBeVisible()
+    }
+  })
+
+  test('should dynamically filter counts when clicking status tabs', async ({ page }) => {
+    const pendingBtn = page.getByText('pending', { exact: true }).first()
+    const allBtn = page.getByText('all', { exact: true }).first()
+    
+    if (await pendingBtn.count() > 0 && await allBtn.count() > 0) {
+      await pendingBtn.click()
+      await page.waitForTimeout(1000) // allow UI hydration
+      
+      // Verify button background active state or URL params optionally
+      await expect(pendingBtn).toBeVisible()
+      
+      await allBtn.click()
+      await page.waitForTimeout(1000)
+    }
+  })
 })

@@ -12,6 +12,8 @@ import { resetTour } from './GuidedTour'
 import { useCart } from '../../lib/useCart'
 import { useMarketStatus } from '../../lib/useMarketStatus'
 import { useErrorToast } from './ErrorToast'
+import { useNotificationPrompt, isNotificationsEnabled } from '../../lib/useNotificationPrompt'
+import { NotificationPromptModal } from './NotificationPromptModal'
 
 interface Notification {
   id: string
@@ -61,12 +63,14 @@ export function Navbar() {
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
   const [hasSession, setHasSession] = useState(false)
+  const [userId, setUserId] = useState<string | null>(null)
   const [profileName, setProfileName] = useState('')
   const [profileEmail, setProfileEmail] = useState('')
   const [profileAvatar, setProfileAvatar] = useState<string | null>(null)
   const [unreadCount, setUnreadCount] = useState(0)
   const menuRef = useRef<HTMLDivElement>(null)
   const { showError, showInfo } = useErrorToast()
+  const { showPrompt, modalProps } = useNotificationPrompt(userId || undefined)
 
   // Profile gate: grey out nav items unless fully onboarded (logged in + profile complete)
   const isProfileLocked = profileComplete !== true
@@ -79,7 +83,6 @@ export function Navbar() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [notifLoading, setNotifLoading] = useState(false)
   const notifRef = useRef<HTMLDivElement>(null)
-  const [userId, setUserId] = useState<string | null>(null)
 
   // Inline rating modal state
   const [ratingNotif, setRatingNotif] = useState<Notification | null>(null)
@@ -308,6 +311,7 @@ export function Navbar() {
   const primaryNav = [
     { href: '/community', label: 'Community', icon: '👥', locked: true, tour: 'nav-buzz' },
     { href: '/orders', label: 'Orders', icon: '📦', locked: true, tour: 'nav-orders' },
+    { href: '/messages', label: 'Messages', icon: '💬', locked: true, tour: 'nav-messages' },
     { href: '/market', label: 'Market', icon: '🛍️', locked: false, tour: 'nav-market' },
   ]
 
@@ -593,7 +597,7 @@ export function Navbar() {
 
                 {/* User info - only when logged in */}
                 {hasSession && (
-                  <div className={styles.menuUser}>
+                  <Link href="/profile" className={styles.menuUser} onClick={() => setMenuOpen(false)}>
                     {profileAvatar ? (
                       <img src={profileAvatar} alt="" className={styles.menuAvatar} style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }} />
                     ) : (
@@ -603,7 +607,7 @@ export function Navbar() {
                       <strong className={styles.menuUserName}>{profileName || 'User'}</strong>
                       <span className={styles.menuUserEmail}>{profileEmail}</span>
                     </div>
-                  </div>
+                  </Link>
                 )}
 
                 {/* Main navigation - only when logged in */}
@@ -641,6 +645,12 @@ export function Navbar() {
                         <span>{item.label}</span>
                       </Link>
                     ))}
+                    {(!isNotificationsEnabled()) && (
+                      <button className={styles.menuItem} onClick={() => { setMenuOpen(false); showPrompt(true); }}>
+                        <span className={styles.menuItemIcon}>🔔</span>
+                        <span>Enable Notifications</span>
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -879,6 +889,8 @@ export function Navbar() {
         </div>
       </>
     )}
+    {/* ── Notification Prompt Modal ── */}
+    <NotificationPromptModal {...modalProps} />
     </>
   )
 }

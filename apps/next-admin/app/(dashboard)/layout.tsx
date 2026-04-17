@@ -226,11 +226,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   )
 
   return (
-    <XStack flex={1} backgroundColor={colors.white} minHeight="100vh" flexDirection={isMobile ? 'column' : 'row'}>
+    <XStack flex={1} backgroundColor={colors.white} minHeight="100vh" flexDirection="row" $sm={{ flexDirection: 'column' }}>
       
       {/* 🖥️ DESKTOP SIDEBAR */}
-      {!isMobile && (
-        <YStack 
+      <YStack 
+        display="flex"
+        $sm={{ display: 'none' }}
           width={300} 
           borderRightWidth={1} 
           borderColor={colors.gray[200]} 
@@ -238,11 +239,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         >
           <SidebarContent />
         </YStack>
-      )}
 
       {/* 📱 MOBILE HEADER (Hamburger Menu) */}
-      {isMobile && (
-        <XStack 
+      <XStack 
+        display="none"
+        $sm={{ display: 'flex' }}
           alignItems="center" 
           justifyContent="space-between" 
           padding="$4" 
@@ -260,7 +261,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </XStack>
           <Button icon={Menu} chromeless size="$4" onPress={() => setMenuOpen(true)} />
         </XStack>
-      )}
 
       {/* 📱 MOBILE SHEET FOR SIDEBAR */}
       <Sheet 

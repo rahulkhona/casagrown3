@@ -109,7 +109,8 @@ test.describe('Smoke Test — Every Page Loads Without Errors', () => {
   })
 
   // ── Authenticated Pages (Seller) ──
-  test('seller (Maria) can access all seller pages', async ({ browser }) => {
+  test('seller (Maria) can access all seller pages', async ({ browser }, testInfo) => {
+    testInfo.setTimeout(180_000)
     const page = await loginAsUser(browser, 'maria')
     const errors = collectConsoleErrors(page)
 

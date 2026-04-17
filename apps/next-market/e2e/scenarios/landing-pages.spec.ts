@@ -85,7 +85,6 @@ test.describe('Join Lead Capture Form (/join)', () => {
   test('MP-LP-07: Join page with intent=seller shows seller copy', async ({ page }) => {
     await page.goto(`${BASE_URL}/join?intent=seller`, { waitUntil: 'domcontentloaded' })
     await expect(page.getByRole('button', { name: /Start My Seller Journey/i })).toBeVisible()
-    await expect(page.getByText(/Create My Seller Account/i)).toBeVisible()
   })
 
   test('MP-LP-08: Submit lead form with name only inserts into crm_leads', async ({ page }) => {

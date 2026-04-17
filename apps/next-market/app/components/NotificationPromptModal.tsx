@@ -27,6 +27,8 @@ const BENEFITS = [
 // Main Component
 // =============================================================================
 
+import { useState, useEffect } from 'react'
+
 export function NotificationPromptModal({
   visible,
   variant,
@@ -34,7 +36,10 @@ export function NotificationPromptModal({
   onDismiss,
   onPermanentDismiss,
 }: NotificationModalProps) {
-  if (!visible) return null
+  const [isMounted, setIsMounted] = useState(false)
+  useEffect(() => { setIsMounted(true) }, [])
+
+  if (!isMounted || !visible) return null
 
   return (
     <div className={styles.overlay} onClick={onDismiss}>

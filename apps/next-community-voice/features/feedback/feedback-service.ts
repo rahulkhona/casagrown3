@@ -225,42 +225,58 @@ export async function fetchTickets(
     // Fetch author profiles separately to avoid PostgREST schema cache issues
     const ticketIds = (data || []).map((r: any) => r.id);
     const authorIds = Array.from(new Set((data || []).map((r: any) => r.author_id).filter(Boolean)));
+    
+    // --- Massive Performance Optimization: Promise.all Batching ---
+    // Instead of sequentially waiting for profiles, votes, and comments (6x roundtrips),
+    // we fire them simultaneously to collapse network latency.
+    
+    const [
+        profilesRes,
+        votesRes,
+        commentsRes,
+        userVotesRes,
+        flagsRes,
+        userFlagsRes
+    ] = await Promise.all([
+        authorIds.length > 0 ? supabase.from("profiles").select("id, full_name, avatar_url").in("id", authorIds) : Promise.resolve({ data: null }),
+        ticketIds.length > 0 ? supabase.from("feedback_votes").select("feedback_id").in("feedback_id", ticketIds) : Promise.resolve({ data: null }),
+        ticketIds.length > 0 ? supabase.from("feedback_comments").select("feedback_id").in("feedback_id", ticketIds) : Promise.resolve({ data: null }),
+        (currentUserId && ticketIds.length > 0) ? supabase.from("feedback_votes").select("feedback_id").eq("user_id", currentUserId).in("feedback_id", ticketIds) : Promise.resolve({ data: null }),
+        ticketIds.length > 0 ? supabase.from("feedback_flags").select("feedback_id").in("feedback_id", ticketIds) : Promise.resolve({ data: null }),
+        (currentUserId && ticketIds.length > 0) ? supabase.from("feedback_flags").select("feedback_id").eq("user_id", currentUserId).in("feedback_id", ticketIds) : Promise.resolve({ data: null })
+    ]);
+
     let profileMap: Record<string, { full_name: string | null; avatar_url: string | null }> = {};
-    if (authorIds.length > 0) {
-        const { data: profiles } = await supabase
-            .from("profiles")
-            .select("id, full_name, avatar_url")
-            .in("id", authorIds);
-        if (profiles) {
-            for (const p of profiles) {
-                profileMap[p.id] = { full_name: p.full_name, avatar_url: p.avatar_url };
-            }
+    if (profilesRes.data) {
+        for (const p of profilesRes.data) {
+            profileMap[p.id] = { full_name: p.full_name, avatar_url: p.avatar_url };
         }
     }
 
-    // Fetch vote and comment counts separately
     let voteCounts: Record<string, number> = {};
-    let commentCounts: Record<string, number> = {};
-    if (ticketIds.length > 0) {
-        const { data: votes } = await supabase
-            .from("feedback_votes")
-            .select("feedback_id")
-            .in("feedback_id", ticketIds);
-        if (votes) {
-            for (const v of votes) {
-                voteCounts[v.feedback_id] = (voteCounts[v.feedback_id] || 0) + 1;
-            }
-        }
-        const { data: comments } = await supabase
-            .from("feedback_comments")
-            .select("feedback_id")
-            .in("feedback_id", ticketIds);
-        if (comments) {
-            for (const c of comments) {
-                commentCounts[c.feedback_id] = (commentCounts[c.feedback_id] || 0) + 1;
-            }
+    if (votesRes.data) {
+        for (const v of votesRes.data) {
+            voteCounts[v.feedback_id] = (voteCounts[v.feedback_id] || 0) + 1;
         }
     }
+
+    let commentCounts: Record<string, number> = {};
+    if (commentsRes.data) {
+        for (const c of commentsRes.data) {
+            commentCounts[c.feedback_id] = (commentCounts[c.feedback_id] || 0) + 1;
+        }
+    }
+
+    const votedIds = new Set(userVotesRes.data?.map((v: any) => v.feedback_id) || []);
+    
+    let flagCounts: Record<string, number> = {};
+    if (flagsRes.data) {
+        for (const f of flagsRes.data) {
+            flagCounts[f.feedback_id] = (flagCounts[f.feedback_id] || 0) + 1;
+        }
+    }
+
+    const flaggedIds = new Set(userFlagsRes.data?.map((f: any) => f.feedback_id) || []);
 
     let tickets: FeedbackTicket[] = (data || []).map((row: any) => ({
         id: row.id,
@@ -278,65 +294,10 @@ export async function fetchTickets(
         author_avatar: profileMap[row.author_id]?.avatar_url || null,
         vote_count: voteCounts[row.id] || 0,
         comment_count: commentCounts[row.id] || 0,
-        is_voted: false,
-        flag_count: 0,
-        is_flagged: false,
+        is_voted: votedIds.has(row.id),
+        flag_count: flagCounts[row.id] || 0,
+        is_flagged: flaggedIds.has(row.id),
     }));
-
-    // Check if current user has voted (batch query)
-    if (currentUserId && tickets.length > 0) {
-        const ticketIds = tickets.map((t) => t.id);
-        const { data: votes } = await supabase
-            .from("feedback_votes")
-            .select("feedback_id")
-            .eq("user_id", currentUserId)
-            .in("feedback_id", ticketIds);
-
-        if (votes) {
-            const votedIds = new Set(votes.map((v: { feedback_id: string }) => v.feedback_id));
-            tickets = tickets.map((t) => ({
-                ...t,
-                is_voted: votedIds.has(t.id),
-            }));
-        }
-    }
-
-    // Check flag counts (batch query)
-    if (tickets.length > 0) {
-        const ticketIds = tickets.map((t) => t.id);
-        const { data: flags } = await supabase
-            .from("feedback_flags")
-            .select("feedback_id")
-            .in("feedback_id", ticketIds);
-
-        if (flags) {
-            const flagCounts: Record<string, number> = {};
-            flags.forEach((f: { feedback_id: string }) => {
-                flagCounts[f.feedback_id] = (flagCounts[f.feedback_id] || 0) +
-                    1;
-            });
-            tickets = tickets.map((t) => ({
-                ...t,
-                flag_count: flagCounts[t.id] || 0,
-            }));
-        }
-
-        // Check if current user has flagged
-        if (currentUserId) {
-            const { data: userFlags } = await supabase
-                .from("feedback_flags")
-                .select("feedback_id")
-                .eq("user_id", currentUserId)
-                .in("feedback_id", ticketIds);
-            if (userFlags) {
-                const flaggedIds = new Set(userFlags.map((f: { feedback_id: string }) => f.feedback_id));
-                tickets = tickets.map((t) => ({
-                    ...t,
-                    is_flagged: flaggedIds.has(t.id),
-                }));
-            }
-        }
-    }
 
     // Client-side sort for vote-based ordering (PostgREST can't sort on aggregated counts)
     if (sort === "most_votes") {
@@ -379,81 +340,70 @@ export async function fetchTicketById(
         return null;
     }
 
-    // Fetch comments separately
-    const { data: commentsData } = await supabase
-        .from("feedback_comments")
-        .select("id, content, is_official_response, created_at, author_id, feedback_id")
-        .eq("feedback_id", id)
-        .order("created_at", { ascending: true });
-
-    // Fetch vote count separately
-    const { data: votesData } = await supabase
-        .from("feedback_votes")
-        .select("feedback_id")
-        .eq("feedback_id", id);
-
     const row = data as any;
-    row.feedback_comments = commentsData || [];
 
-    // Fetch author profiles separately
-    const allAuthorIds = new Set<string>();
-    if (row.author_id) allAuthorIds.add(row.author_id);
-    for (const c of (row.feedback_comments || [])) {
-        if (c.author_id) allAuthorIds.add(c.author_id);
-    }
-    let profileMap: Record<string, { full_name: string | null; avatar_url: string | null }> = {};
-    if (allAuthorIds.size > 0) {
-        const { data: profiles } = await supabase
-            .from("profiles")
-            .select("id, full_name, avatar_url")
-            .in("id", Array.from(allAuthorIds));
-        if (profiles) {
-            for (const p of profiles) {
-                profileMap[p.id] = { full_name: p.full_name, avatar_url: p.avatar_url };
-            }
+    // --- MCO Phase 1: Parallelize Independent Ticket Lookups ---
+    const [
+        commentsRes,
+        votesRes,
+        userVoteRes,
+        ticketMediaRes,
+        flagsRes
+    ] = await Promise.all([
+        supabase.from("feedback_comments").select("id, content, is_official_response, created_at, author_id, feedback_id").eq("feedback_id", id).order("created_at", { ascending: true }),
+        supabase.from("feedback_votes").select("feedback_id").eq("feedback_id", id),
+        currentUserId ? supabase.from("feedback_votes").select("feedback_id").eq("feedback_id", id).eq("user_id", currentUserId).maybeSingle() : Promise.resolve({ data: null }),
+        supabase.from("feedback_media").select("media:media_assets(id, storage_path, media_type, mime_type, metadata)").eq("feedback_id", id).order("display_order"),
+        supabase.from("feedback_flags").select("user_id").eq("feedback_id", id)
+    ]);
+
+    row.feedback_comments = commentsRes.data || [];
+    const voteCount = (votesRes.data || []).length;
+    let isVoted = !!userVoteRes.data;
+    
+    // Flag counts & is_flagged
+    let flagCount = 0;
+    let isFlagged = false;
+    if (flagsRes.data) {
+        flagCount = flagsRes.data.length;
+        if (currentUserId) {
+            isFlagged = flagsRes.data.some((f: any) => f.user_id === currentUserId);
         }
     }
 
-    // Check user vote
-    let isVoted = false;
-    if (currentUserId) {
-        const { data: vote } = await supabase
-            .from("feedback_votes")
-            .select("feedback_id")
-            .eq("feedback_id", id)
-            .eq("user_id", currentUserId)
-            .maybeSingle();
-        isVoted = !!vote;
-    }
-
-    // Fetch ticket-level media
-    const { data: ticketMedia } = await supabase
-        .from("feedback_media")
-        .select(
-            "media:media_assets(id, storage_path, media_type, mime_type, metadata)",
-        )
-        .eq("feedback_id", id)
-        .order("display_order");
-
-    const ticketAttachments: MediaAttachment[] = (ticketMedia || [])
+    const ticketAttachments: MediaAttachment[] = (ticketMediaRes.data || [])
         .map((m: any) => m.media)
         .filter(Boolean);
 
-    // Fetch comment-level media
-    const commentIds = (row.feedback_comments || []).map((c: any) => c.id);
+
+    // --- MCO Phase 2: Parallelize Dependent Lookups ---
+    // Now that we have all authors (from ticket + comments) and comment IDs, fetch profiles/media
+    const allAuthorIds = new Set<string>();
+    if (row.author_id) allAuthorIds.add(row.author_id);
+    const commentIds: string[] = [];
+    
+    for (const c of row.feedback_comments) {
+        if (c.author_id) allAuthorIds.add(c.author_id);
+        if (c.id) commentIds.push(c.id);
+    }
+
+    const [profilesRes, commentMediaRes] = await Promise.all([
+        allAuthorIds.size > 0 ? supabase.from("profiles").select("id, full_name, avatar_url").in("id", Array.from(allAuthorIds)) : Promise.resolve({ data: null }),
+        commentIds.length > 0 ? supabase.from("feedback_comment_media").select("comment_id, media:media_assets(id, storage_path, media_type, mime_type, metadata)").in("comment_id", commentIds) : Promise.resolve({ data: null })
+    ]);
+
+    let profileMap: Record<string, { full_name: string | null; avatar_url: string | null }> = {};
+    if (profilesRes.data) {
+        for (const p of profilesRes.data) {
+            profileMap[p.id] = { full_name: p.full_name, avatar_url: p.avatar_url };
+        }
+    }
+
     let commentMediaMap: Record<string, MediaAttachment[]> = {};
-    if (commentIds.length > 0) {
-        const { data: commentMedia } = await supabase
-            .from("feedback_comment_media")
-            .select(
-                "comment_id, media:media_assets(id, storage_path, media_type, mime_type, metadata)",
-            )
-            .in("comment_id", commentIds);
-        for (const cm of (commentMedia || []) as any[]) {
+    if (commentMediaRes.data) {
+        for (const cm of (commentMediaRes.data as any[])) {
             if (!cm.media) continue;
-            if (!commentMediaMap[cm.comment_id]) {
-                commentMediaMap[cm.comment_id] = [];
-            }
+            if (!commentMediaMap[cm.comment_id]) commentMediaMap[cm.comment_id] = [];
             commentMediaMap[cm.comment_id].push(cm.media);
         }
     }
@@ -472,11 +422,11 @@ export async function fetchTicketById(
         author_id: row.author_id,
         author_name: profileMap[row.author_id]?.full_name || "Anonymous",
         author_avatar: profileMap[row.author_id]?.avatar_url || null,
-        vote_count: (votesData || []).length,
+        vote_count: voteCount,
         comment_count: row.feedback_comments?.length || 0,
         is_voted: isVoted,
-        flag_count: 0,
-        is_flagged: false,
+        flag_count: flagCount,
+        is_flagged: isFlagged,
         attachments: ticketAttachments,
         comments: (row.feedback_comments || []).map((c: any) => ({
             id: c.id,
@@ -489,18 +439,6 @@ export async function fetchTicketById(
             attachments: commentMediaMap[c.id] || [],
         })),
     };
-
-    // Fetch flag count and user flag status
-    const { data: flags } = await supabase
-        .from("feedback_flags")
-        .select("user_id")
-        .eq("feedback_id", id);
-    if (flags) {
-        result.flag_count = flags.length;
-        if (currentUserId) {
-            result.is_flagged = flags.some((f: { user_id: string }) => f.user_id === currentUserId);
-        }
-    }
 
     return result;
 }

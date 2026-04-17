@@ -172,7 +172,7 @@ export function useNotificationPrompt(userId?: string) {
     await enableWebPush(userId)
   }, [userId])
 
-  const showPrompt = useCallback(async () => {
+  const showPrompt = useCallback(async (force?: boolean) => {
     if (checkingRef.current) return
     checkingRef.current = true
     try {
@@ -188,8 +188,10 @@ export function useNotificationPrompt(userId?: string) {
         return
       }
 
-      const shouldShow = await shouldShowPrompt()
-      if (!shouldShow) return
+      if (!force) {
+        const shouldShow = await shouldShowPrompt()
+        if (!shouldShow) return
+      }
 
       promptedThisSession = true
       const variant = getPromptVariant()

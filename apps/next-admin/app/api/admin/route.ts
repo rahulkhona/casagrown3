@@ -120,40 +120,67 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Verify the token via Supabase Auth REST API directly.
-    // The apikey header must be the publishable/anon key (not the service key).
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
-    const authResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'apikey': anonKey,
-      },
-    })
+    // --- MCO Phase 2: In-Memory Token Caching ---
+    // Instead of sequentially querying GoTrue then Postgres for every single dashboard request,
+    // we cache the verified admin state tightly against the JWT signature to collapse latency.
+    
+    // Static module-level cache (persists across Next.js API hot-requests)
+    const CACHE_TTL_MS = 60 * 1000; // 1 minute
+    let cachedAdmin = (global as any).__adminAuthCache?.get(accessToken);
+    let isAdmin = false;
 
-    if (!authResponse.ok) {
-      console.error('Admin API: auth validation failed:', authResponse.status)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (cachedAdmin && cachedAdmin.expiresAt > Date.now()) {
+      isAdmin = true;
+    } else {
+      // Not cached or expired: execute verification waterfall
+      const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+        || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
+      const authResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'apikey': anonKey,
+        },
+      })
+
+      if (!authResponse.ok) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+
+      const user = await authResponse.json()
+      if (!user?.email) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+
+      const serviceClient = getServiceClient()
+      const { data: staffRow } = await serviceClient
+        .from('staff_members')
+        .select('id, roles')
+        .eq('email', user.email.toLowerCase())
+        .maybeSingle()
+
+      if (!staffRow || !staffRow.roles?.includes('admin')) {
+        return NextResponse.json({ error: 'Forbidden: admin role required' }, { status: 403 })
+      }
+      
+      isAdmin = true;
+      
+      // Update the cache safely globally
+      if (!(global as any).__adminAuthCache) {
+          (global as any).__adminAuthCache = new Map<string, any>();
+      }
+      // Keep map small to avoid silent OOMs 
+      if ((global as any).__adminAuthCache.size > 200) (global as any).__adminAuthCache.clear();
+      
+      (global as any).__adminAuthCache.set(accessToken, { expiresAt: Date.now() + CACHE_TTL_MS });
     }
 
-    const user = await authResponse.json()
-    if (!user?.email) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!isAdmin) {
+       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     // Create service client for data operations
     const serviceClient = getServiceClient()
 
-    // 2. Verify admin role
-    const { data: staffRow } = await serviceClient
-      .from('staff_members')
-      .select('id, roles')
-      .eq('email', user.email.toLowerCase())
-      .maybeSingle()
-
-    if (!staffRow || !staffRow.roles?.includes('admin')) {
-      return NextResponse.json({ error: 'Forbidden: admin role required' }, { status: 403 })
-    }
 
     // 3. Parse and validate request
     const body: AdminRequestBody = await request.json()

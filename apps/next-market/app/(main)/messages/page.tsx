@@ -39,6 +39,8 @@ export default function MessagesInboxPage() {
         `)
         .or(`participant_a.eq.${user.id},participant_b.eq.${user.id}`)
         .order('last_message_at', { ascending: false })
+        .order('created_at', { ascending: false, foreignTable: 'market_chat_messages' })
+        .limit(1, { foreignTable: 'market_chat_messages' })
 
       if (data) {
         const formatted = data.map(conv => {
