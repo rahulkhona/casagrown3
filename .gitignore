@@ -91,3 +91,4 @@ vitest_output.txt
 schema.sql
 clear_verification.sql
 *.sh.bak
+.gemini/
