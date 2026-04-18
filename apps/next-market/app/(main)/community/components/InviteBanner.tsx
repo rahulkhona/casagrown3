@@ -4,6 +4,7 @@ import { useErrorToast } from '../../../components/ErrorToast'
 import styles from '../page.module.css'
 import SocialShareModal from '../../../components/SocialShareModal'
 import { getCommunityInviteMessage } from '../../../../lib/shareMessages'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 
 interface InviteBannerProps {
   h3Index: string
@@ -11,7 +12,12 @@ interface InviteBannerProps {
 }
 
 export default function InviteBanner({ h3Index, userId }: InviteBannerProps) {
-  const [showShareModal, setShowShareModal] = useState(false)
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const autoShare = searchParams?.get('share') === 'true'
+
+  const [showShareModal, setShowShareModal] = useState(autoShare)
   const refParam = userId ? `?ref=${userId}` : ''
   const inviteUrl = typeof window !== 'undefined' ? `${window.location.origin}/community${refParam}` : ''
 
@@ -35,7 +41,14 @@ export default function InviteBanner({ h3Index, userId }: InviteBannerProps) {
       {showShareModal && (
         <SocialShareModal
           isOpen={showShareModal}
-          onClose={() => setShowShareModal(false)}
+          onClose={() => {
+            setShowShareModal(false)
+            if (autoShare) {
+              const params = new URLSearchParams(searchParams?.toString())
+              params.delete('share')
+              router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+            }
+          }}
           title="Invite Neighbors"
           subtitle="Share the community with your neighborhood."
           shareUrl={inviteUrl}

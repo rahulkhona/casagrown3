@@ -22,6 +22,13 @@ function LoginPageInner() {
   const [otp, setOtp] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [resendCooldown, setResendCooldown] = useState(0)
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return
+    const timer = setInterval(() => setResendCooldown(p => p - 1), 1000)
+    return () => clearInterval(timer)
+  }, [resendCooldown])
 
   const supabase = createClient()
 
@@ -48,8 +55,8 @@ function LoginPageInner() {
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleEmailSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleEmailSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
     if (!email) return
     trackFormSubmit('login_email')
     setLoading(true)
@@ -69,6 +76,7 @@ function LoginPageInner() {
 
     setLoading(false)
     setStep('otp')
+    setResendCooldown(60)
   }
 
   const handleOtpSubmit = async (e: React.FormEvent) => {
@@ -192,9 +200,22 @@ function LoginPageInner() {
             <div className={styles.otpSent}>
               <span className={styles.checkIcon}>✉️</span>
               <p>Code sent to <strong>{email}</strong></p>
-              <button type="button" className={styles.changeEmail} onClick={() => { setStep('email'); setError('') }}>
-                Change email
-              </button>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                <button type="button" className={styles.changeEmail} onClick={() => { setStep('email'); setError('') }}>
+                  Change email
+                </button>
+                <span style={{ color: '#aaa' }}>|</span>
+                <button 
+                  type="button" 
+                  data-testid="resend-code-btn"
+                  className={styles.changeEmail} 
+                  disabled={resendCooldown > 0 || loading} 
+                  onClick={() => handleEmailSubmit()}
+                  style={resendCooldown > 0 ? { color: '#9ca3af', cursor: 'not-allowed', textDecoration: 'none' } : {}}
+                >
+                  {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend code'}
+                </button>
+              </div>
             </div>
             <div className="form-group">
               <label className="label" htmlFor="otp">Enter Code</label>

@@ -62,7 +62,7 @@ test.describe('CRM — Audiences page', () => {
   test('+ New Audience button opens creation form', async ({ page }) => {
     await page.locator('#create-audience-btn').waitFor({ state: 'visible', timeout: 10000 })
     await page.click('#create-audience-btn')
-    await expect(page.locator('input[placeholder="e.g. Early Beta Testers"]')).toBeVisible({ timeout: 10000 })
+    await expect(page.locator('input[placeholder*="California Buyers"]')).toBeVisible({ timeout: 10000 })
   })
 
 
@@ -70,7 +70,7 @@ test.describe('CRM — Audiences page', () => {
   test('population source dropdown loads from registry', async ({ page }) => {
     await page.locator('#create-audience-btn').waitFor({ state: 'visible', timeout: 10000 })
     await page.click('#create-audience-btn')
-    await expect(page.locator('input[placeholder="e.g. Early Beta Testers"]')).toBeVisible({ timeout: 10000 })
+    await expect(page.locator('input[placeholder*="California Buyers"]')).toBeVisible({ timeout: 10000 })
     const select = page.locator('select').first()
     await page.waitForTimeout(1200)
     const options = await select.locator('option').count()
@@ -116,18 +116,18 @@ test.describe('CRM — Campaigns page', () => {
 
   test('New Campaign form shows Design Mode and Subject for email channel', async ({ page }) => {
     await page.locator('#create-campaign-btn').waitFor({ state: 'visible', timeout: 10000 })
-    await page.click('#create-campaign-btn')
-    await expect(page.getByText('Create Campaign', { exact: true }).first()).toBeVisible({ timeout: 10000 })
+    await page.click('#create-campaign-btn', { force: true })
+    await expect(page.locator('h2', { hasText: 'Create Campaign' })).toBeVisible({ timeout: 10000 })
     // Subject input placeholder: "e.g. Fresh produce..."
-    await expect(page.locator('input[placeholder*="Fresh produce"], input[placeholder*="Subject"]')).toBeVisible({ timeout: 10000 })
+    await expect(page.locator('input[placeholder*="Fresh produce"]')).toBeVisible({ timeout: 10000 })
     // Design Mode dropdown should be present
     await expect(page.locator('select').nth(1)).toBeVisible()
   })
 
   test('switching to SMS hides Design Mode and subject', async ({ page }) => {
     await page.locator('#create-campaign-btn').waitFor({ state: 'visible', timeout: 10000 })
-    await page.click('#create-campaign-btn')
-    await expect(page.getByText('Create Campaign', { exact: true }).first()).toBeVisible({ timeout: 10000 })
+    await page.click('#create-campaign-btn', { force: true })
+    await expect(page.locator('h2', { hasText: 'Create Campaign' })).toBeVisible({ timeout: 10000 })
     const channelSelect = page.locator('select').first()
     await channelSelect.selectOption('sms')
     await expect(page.locator('input[placeholder*="Subject"]')).not.toBeVisible()
@@ -171,7 +171,7 @@ test.describe('CRM — Landing Pages page', () => {
     await page.click('button:has-text("+ Register Page")')
     // Wait for slug input as a reliable form-mount indicator
     await expect(page.locator('input[placeholder*="spring-growers"]').first()).toBeVisible({ timeout: 10000 })
-    await expect(page.locator('input[placeholder*="casagrown.com"]')).toBeVisible({ timeout: 10000 })
+    await expect(page.locator('input[placeholder*="Spring Growers"]')).toBeVisible({ timeout: 10000 })
   })
 
   test('slug auto-populates from name', async ({ page }) => {

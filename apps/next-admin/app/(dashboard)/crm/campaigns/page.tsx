@@ -66,6 +66,9 @@ export default function CrmCampaignsPage() {
     audience_id: '',
     scheduled_at: '',
     target_states: [] as string[],
+    target_cities: [] as string[],
+    target_counties: [] as string[],
+    target_zips: [] as string[],
   })
   
   const [templateMode, setTemplateMode] = useState(false)

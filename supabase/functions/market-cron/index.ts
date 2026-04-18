@@ -8,8 +8,8 @@
  * Invoke via pg_cron or external scheduler:
  *   POST /functions/v1/market-cron { "action": "market_reminder" | "daily_digest" }
  */
-
 import { serveWithCors, jsonOk } from '../_shared/serve-with-cors.ts'
+import { sendBroadcastEmailBatch } from '../_shared/postmark.ts'
 
 serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
   const body = await req.json().catch(() => ({ action: 'market_reminder' }))
@@ -482,11 +482,27 @@ export async function handleGrowerDigest(
     return jsonOk({ sent: 0, emails: 0, message: 'Queue completely empty / finished' }, corsHeaders)
   }
 
+  // 2. Auto-Create or Fetch Master Analytics Campaign
+  let campaignId = null;
+  const { data: camp } = await supabase.from('crm_campaigns').select('id').eq('system_alias', 'growers_digest').single();
+  if (camp) {
+    campaignId = camp.id;
+  } else {
+    const { data: newCamp } = await supabase.from('crm_campaigns').insert({
+      system_alias: 'growers_digest',
+      name: 'Algorithm: Growers Digest',
+      subject: 'Dynamic Weekly Produce Digest',
+      channel: 'email',
+      status: 'sending'
+    }).select('id').single();
+    campaignId = newCamp?.id;
+  }
+
   const postmarkToken = env('POSTMARK_BROADCAST_TOKEN');
   const fromEmail = env('POSTMARK_FROM_EMAIL') || 'no-reply@casagrown.com'
   const messageStream = env('POSTMARK_BROADCAST_STREAM') || 'broadcast'
 
-  const emailBatchPayloads = [];
+  const emailBatchPayloads: any[] = [];
   let pushCount = 0;
 
   for (const user of batch) {
@@ -547,32 +563,49 @@ export async function handleGrowerDigest(
     }
 
     const emailHtml = `<div style="max-width:560px;margin:0 auto;font-family:system-ui, -apple-system, sans-serif"><div style="padding:24px 16px"><h2 style="color:#166534;font-size:20px;margin:0 0 8px">Hi ${firstName}! 🌿</h2><p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 16px">We found new opportunities for you based on your activity on CasaGrown.</p>${sellSection}${buySection}</div></div>`;
+    const subject = `🌿 ${firstName}, your local daily digest is here!`;
+    const sendId = crypto.randomUUID();
 
     // Local Mailpit Fallback OR Postmark Batch payload
     if (!postmarkToken) {
       await fetch(emailUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceKey}` },
-        body: JSON.stringify({ to: targetEmail, subject: `🌿 ${firstName}, your local daily digest is here!`, html: emailHtml }),
+        body: JSON.stringify({ to: targetEmail, subject: subject, html: emailHtml }),
       }).catch(e => console.warn('Digest fallback email failed:', e))
     } else {
       emailBatchPayloads.push({
-        From: fromEmail,
-        To: targetEmail,
-        Subject: `🌿 ${firstName}, your local daily digest is here!`,
-        HtmlBody: emailHtml,
-        MessageStream: messageStream
+        to: targetEmail,
+        subject: subject,
+        htmlBody: emailHtml,
+        metadata: { send_id: sendId },
+        _sendId: sendId, // local tracker
+        _userId: user_id // local tracker
       });
     }
   }
 
   // Send batch to Postmark if we have a token
   if (postmarkToken && emailBatchPayloads.length > 0) {
-    await fetch("https://api.postmarkapp.com/email/batch", {
-        method: "POST",
-        headers: { "Accept": "application/json", "Content-Type": "application/json", "X-Postmark-Server-Token": postmarkToken },
-        body: JSON.stringify(emailBatchPayloads)
-    }).catch(e => console.error('Postmark Batch Failed:', e));
+    const payloads: any[] = emailBatchPayloads.map(({ to, subject, htmlBody, metadata }) => ({
+      to, subject, htmlBody, metadata
+    }));
+    
+    const result = await sendBroadcastEmailBatch(payloads);
+    
+    if (campaignId) {
+      const sendRecords = emailBatchPayloads.map(p => ({
+        id: p._sendId,
+        campaign_id: campaignId,
+        recipient_type: 'user',
+        recipient_id: p._userId,
+        email: p.to,
+        sent_at: result?.success ? new Date().toISOString() : null,
+        error: result?.success ? null : result?.error,
+      }));
+      await supabase.from("crm_campaign_sends").insert(sendRecords);
+      // Let CRM campaigns accumulate total_sent natively
+    }
   }
 
   // INFINITE SCALE: Self-recursion trigger

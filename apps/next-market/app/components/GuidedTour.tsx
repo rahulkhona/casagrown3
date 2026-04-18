@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '../../lib/useAuth'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import styles from './GuidedTour.module.css'
 
 const STORAGE_KEY = 'casagrown_tutorial_done'
@@ -67,19 +68,31 @@ const STEPS: TourStep[] = [
 
 export function GuidedTour() {
   const { profileComplete } = useAuth()
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
+  
   const [active, setActive] = useState(false)
   const [step, setStep] = useState(0)
   const [rect, setRect] = useState<DOMRect | null>(null)
 
   useEffect(() => {
-    // Tour is only triggered manually from the hamburger menu "Replay Tutorial"
-    // Check if the page just reloaded after resetTour cleared the flag
+    // 1. Trigger via Hamburger menu setting localStorage
     if (profileComplete && localStorage.getItem('casagrown_tour_pending')) {
       localStorage.removeItem('casagrown_tour_pending')
       const timer = setTimeout(() => setActive(true), 800)
       return () => clearTimeout(timer)
     }
-  }, [profileComplete])
+    
+    // 2. Trigger via deep link ?tour=true
+    if (profileComplete && searchParams?.get('tour') === 'true') {
+      const params = new URLSearchParams(searchParams.toString())
+      params.delete('tour')
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+      const timer = setTimeout(() => setActive(true), 800)
+      return () => clearTimeout(timer)
+    }
+  }, [profileComplete, searchParams, pathname, router])
 
   const currentStep = STEPS[step]
   const isCardStep = currentStep?.target === 'card'
