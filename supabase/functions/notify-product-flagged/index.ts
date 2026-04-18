@@ -9,6 +9,7 @@
  */
 
 import { sendTransactionEmail } from "../_shared/postmark.ts";
+import { wrapInBrandedTemplate, actionButton } from "../_shared/email-templates.ts";
 
 Deno.serve(async (req: Request) => {
     if (req.method === "OPTIONS") {
@@ -51,61 +52,40 @@ Deno.serve(async (req: Request) => {
             : `⚠️ Your product "${product_name}" has been flagged`;
 
 
-        const htmlBody = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8f9fa; padding: 0; margin: 0;">
-  <div style="max-width: 520px; margin: 32px auto; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
-    <!-- Header -->
-    <div style="background: linear-gradient(135deg, #fef3c7, #fde68a); padding: 32px 24px; text-align: center;">
-      <div style="font-size: 48px; margin-bottom: 8px;">⚠️</div>
-      <h1 style="margin: 0; font-size: 22px; color: #92400e;">Product Flagged</h1>
-    </div>
+        const warningGradient = "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)";
+        const darkTextColor = "#92400e";
+        const darkSubtitleColor = "#b45309";
 
-    <!-- Body -->
-    <div style="padding: 24px;">
-      <p style="color: #374151; font-size: 15px; line-height: 1.6;">
-        Hi ${seller_name || "there"},
-      </p>
-      <p style="color: #374151; font-size: 15px; line-height: 1.6;">
-        Your listing <strong>"${product_name}"</strong> was flagged by ${flagSource} and has been <strong>temporarily hidden</strong> from the market.
-      </p>
+        const htmlBody = wrapInBrandedTemplate({
+            title: "Product Flagged",
+            greeting: `Hi ${seller_name || "there"},`,
+            headerGradient: warningGradient,
+            headerTextColor: darkTextColor,
+            headerSubtitleColor: darkSubtitleColor,
+            bodyHtml: `
+              <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0 0 16px;">
+                Your listing <strong>"${product_name}"</strong> was flagged by ${flagSource} and has been <strong>temporarily hidden</strong> from the market.
+              </p>
 
-      ${reasonBlock}
+              ${reasonBlock}
 
-      <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 16px; margin: 20px 0;">
-        <p style="margin: 0 0 8px 0; font-weight: 600; color: #92400e;">What to do:</p>
-        <ol style="margin: 0; padding-left: 20px; color: #78350f; font-size: 14px; line-height: 1.8;">
-          <li>Review your listing for any guideline issues</li>
-          <li>Edit the name, photos, or description to address the concern</li>
-          <li>Save — your listing will be automatically re-reviewed and republished</li>
-        </ol>
-      </div>
+              <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 16px; margin: 20px 0;">
+                <p style="margin: 0 0 8px 0; font-weight: 600; color: #92400e;">What to do:</p>
+                <ol style="margin: 0; padding-left: 20px; color: #78350f; font-size: 14px; line-height: 1.8;">
+                  <li>Review your listing for any guideline issues</li>
+                  <li>Edit the name, photos, or description to address the concern</li>
+                  <li>Save — your listing will be automatically re-reviewed and republished</li>
+                </ol>
+              </div>
 
-      <div style="text-align: center; margin: 24px 0;">
-        <a href="${editUrl}" style="display: inline-block; background: #f59e0b; color: #fff; font-weight: 600; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-size: 15px;">
-          ✏️ Edit Listing
-        </a>
-      </div>
+              ${actionButton("✏️ Edit Listing", editUrl)}
 
-      <p style="color: #6b7280; font-size: 13px; line-height: 1.5;">
-        If you believe this was flagged in error, editing and saving will trigger a fresh review and make your listing visible again.
-      </p>
-    </div>
-
-    <!-- Footer -->
-    <div style="padding: 16px 24px; background: #f9fafb; text-align: center; border-top: 1px solid #e5e7eb;">
-      <p style="margin: 0; font-size: 12px; color: #9ca3af;">
-        CasaGrown Market · Fresh. Local. Trusted.
-      </p>
-    </div>
-  </div>
-</body>
-</html>`;
+              <p style="color: #6b7280; font-size: 13px; line-height: 1.5; margin-top: 24px;">
+                If you believe this was flagged in error, editing and saving will trigger a fresh review and make your listing visible again.
+              </p>
+            `,
+            footer: "CasaGrown Market &middot; Fresh. Local. Trusted."
+        });
 
         await sendTransactionEmail({
             to: seller_email,

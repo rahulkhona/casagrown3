@@ -18,6 +18,7 @@ import {
   serveWithCors,
 } from "../_shared/serve-with-cors.ts";
 import { sendTransactionEmail } from "../_shared/postmark.ts";
+import { wrapInBrandedTemplate } from "../_shared/email-templates.ts";
 
 // Site URL for logo
 const SITE_URL = Deno.env.get("SITE_URL") ?? "http://localhost:3000";
@@ -201,66 +202,9 @@ function renderReceipt(
            </tr>`
     : "";
 
-  // Inline template — file reads don't work in Docker edge runtime
-  // (functions compile to /var/tmp/sb-compile-edge-runtime/ where templates/ doesn't exist)
-  let html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CasaGrown Transaction Receipt</title>
-  <style>
-    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
-    body { margin: 0; padding: 0; width: 100% !important; height: 100% !important; }
-    @media (prefers-color-scheme: dark) {
-      .email-bg { background-color: #1a1a2e !important; }
-      .email-card { background-color: #16213e !important; }
-      .email-text { color: #e0e0e0 !important; }
-      .email-subtext { color: #b0b0b0 !important; }
-    }
-  </style>
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
-
-  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f4f7fa;" class="email-bg">
-    <tr>
-      <td align="center" style="padding: 40px 16px;">
-
-        <!-- Card -->
-        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width: 520px; background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); overflow: hidden;" class="email-card">
-
-          <!-- Header -->
-          <tr>
-            <td style="background: linear-gradient(135deg, #15803d 0%, #16a34a 50%, #22c55e 100%); padding: 24px 32px 20px; text-align: center;">
-              <div style="margin-bottom: 8px;">
-                <img src="{{siteUrl}}/logo.png" alt="CasaGrown" width="48" height="48" style="display: inline-block; width: 48px; height: 48px; object-fit: contain;" />
-              </div>
-              <h1 style="margin: 0; font-size: 22px; font-weight: 700; color: #ffffff; letter-spacing: -0.5px;">
-                Transaction Receipt
-              </h1>
-              <p style="margin: 8px 0 0; font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.9); letter-spacing: 3px; text-transform: uppercase;">
-                FRESH &bull; LOCAL &bull; TRUSTED
-              </p>
-            </td>
-          </tr>
-
-          <!-- Body -->
-          <tr>
-            <td style="padding: 28px 32px 0;">
-              <!-- Role-specific greeting -->
-              <p style="margin: 0 0 4px; font-size: 16px; font-weight: 600; color: #1a1a2e;" class="email-text">
-                {{greeting}}
-              </p>
-              <p style="margin: 0 0 20px; font-size: 13px; color: #666666; line-height: 1.5;" class="email-subtext">
-                {{summary}}
-              </p>
-            </td>
-          </tr>
-
-          <!-- Receipt Details -->
-          <tr>
-            <td style="padding: 0 32px;">
-              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background: #f0fdf4; border: 1px solid #dcfce7; border-radius: 10px; overflow: hidden;">
+  const txBodyHtml = `
+              <!-- Receipt Details -->
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background: #f0fdf4; border: 1px solid #dcfce7; border-radius: 10px; overflow: hidden; margin-top: 16px; margin-bottom: 0;">
 
                 <!-- Transaction Info -->
                 <tr>
@@ -341,48 +285,9 @@ function renderReceipt(
                 <!-- Seller/Delegator financial details (conditionally shown) -->
                 {{financialSection}}
 
-              </table>
-            </td>
-          </tr>
+              </table>`;
 
-          <!-- Receipt Footer (compliance) -->
-          <tr>
-            <td style="padding: 16px 32px 0;">
-              <p style="margin: 0; font-size: 11px; color: #9ca3af; line-height: 1.5; font-style: italic;">
-                {{receiptFooter}}
-              </p>
-            </td>
-          </tr>
-
-          <!-- Divider -->
-          <tr>
-            <td style="padding: 16px 32px 0;">
-              <div style="height: 1px; background-color: #eee;"></div>
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="padding: 16px 32px 24px; text-align: center;">
-              <p style="margin: 0; font-size: 11px; color: #999999; line-height: 1.6;">
-                Fresh from Neighbors' backyard 🌱<br />
-                This is an automated message. Please do not reply.
-              </p>
-            </td>
-          </tr>
-
-        </table>
-      </td>
-    </tr>
-  </table>
-
-</body>
-</html>`;
-
-  html = html
-    .replace(/\{\{siteUrl\}\}/g, SITE_URL)
-    .replace("{{greeting}}", greeting)
-    .replace("{{summary}}", summary)
+  const parsedTxBody = txBodyHtml
     .replace("{{transactionId}}", txIdShort)
     .replace("{{date}}", formattedDate)
     .replace("{{sellerName}}", data.sellerName || "N/A")
@@ -397,11 +302,14 @@ function renderReceipt(
     .replace("{{subtotal}}", String(data.subtotal || 0))
     .replace("{{tax}}", String(data.tax || 0))
     .replace("{{total}}", String(data.total || 0))
-    .replace("{{financialSection}}", financialSection)
-    .replace("{{receiptFooter}}", data.receiptFooter || "");
+    .replace("{{financialSection}}", financialSection);
 
-  // Strip trailing whitespace on each line to prevent MIME =20 artifacts
-  html = html.replace(/[ \t]+$/gm, "");
+  const html = wrapInBrandedTemplate({
+      title: "Transaction Receipt",
+      greeting,
+      bodyHtml: `<p style="margin: 0 0 20px; font-size: 13px; color: #666666; line-height: 1.5;" class="email-subtext">${summary}</p>${parsedTxBody}`,
+      footer: data.receiptFooter || "This receipt is for your records."
+  });
 
   return { subject, htmlBody: html };
 }

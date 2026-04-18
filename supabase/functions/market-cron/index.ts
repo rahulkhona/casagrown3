@@ -10,6 +10,7 @@
  */
 import { serveWithCors, jsonOk } from '../_shared/serve-with-cors.ts'
 import { sendBroadcastEmailBatch } from '../_shared/postmark.ts'
+import { wrapInBrandedTemplate, actionButton } from '../_shared/email-templates.ts'
 
 serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
   const body = await req.json().catch(() => ({ action: 'market_reminder' }))
@@ -31,21 +32,6 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
 })
 
 const FONT = "'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif"
-
-function getEmailHeader(siteUrl: string) {
-  const logoUrl = `${siteUrl}/logo.png`
-  return `
-  <div style="text-align:center;padding:20px 0;border-bottom:2px solid #16a34a">
-    <img src="${logoUrl}" alt="CasaGrown" style="height:40px;width:40px;vertical-align:middle;margin-right:8px">
-    <span style="color:#166534;font-size:22px;font-weight:700;font-family:'Inter',system-ui,sans-serif;vertical-align:middle">CasaGrown</span>
-    <p style="color:#4b5563;font-size:11px;letter-spacing:2px;margin:4px 0 0;font-weight:500">FRESH • LOCAL • TRUSTED</p>
-  </div>`
-}
-
-const EMAIL_FOOTER = `
-  <div style="border-top:1px solid #e5e7eb;padding-top:16px;color:#9ca3af;font-size:11px;text-align:center">
-    CasaGrown — Fresh. Local. Trusted.
-  </div>`
 
 // ═══════════════════════════════════════════════
 // (g) Market Open Reminder — based on market_reminders table
@@ -147,21 +133,20 @@ async function handleMarketReminder(
       body: JSON.stringify({
         to: email,
         subject: `🛒 CasaGrown Market ${whenLabel} — ${dateStr}`,
-        html: `
-          <div style="font-family:${FONT};max-width:480px;margin:0 auto;padding:24px;color:#1f2937">
-            ${getEmailHeader(siteUrl)}
-            <div style="padding:24px 0">
-              <p style="font-size:14px">Hi ${name},</p>
-              <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px;margin:16px 0">
-                <p style="color:#166534;font-size:16px;margin:0;font-weight:600">🛒 Market ${whenLabel}</p>
-                <p style="font-size:13px;margin:8px 0 0"><strong>${dateStr} · ${timeStr}</strong></p>
-                <p style="font-size:13px;margin:4px 0 0">${boothNames}${extra} will be selling fresh items.</p>
-              </div>
-              ${productRows ? `<div style="background:#f9fafb;border-radius:12px;padding:12px;margin:16px 0">${productRows}${moreCount > 0 ? `<p style="font-size:12px;color:#6b7280;margin:8px 0 0">+ ${moreCount} more items</p>` : ''}</div>` : ''}
-              <a href="${siteUrl}/market" style="display:inline-block;background:#16a34a;color:white;padding:10px 24px;border-radius:12px;text-decoration:none;font-weight:600;font-size:14px">Browse Market</a>
+        html: wrapInBrandedTemplate({
+          title: `Market ${whenLabel}`,
+          greeting: `Hi ${name},`,
+          bodyHtml: `
+            <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px;margin:16px 0">
+              <p style="color:#166534;font-size:16px;margin:0;font-weight:600">🛒 Market ${whenLabel}</p>
+              <p style="font-size:13px;margin:8px 0 0"><strong>${dateStr} &middot; ${timeStr}</strong></p>
+              <p style="font-size:13px;margin:4px 0 0">${boothNames}${extra} will be selling fresh items.</p>
             </div>
-            ${EMAIL_FOOTER}
-          </div>`,
+            ${productRows ? `<div style="background:#f9fafb;border-radius:12px;padding:12px;margin:16px 0">${productRows}${moreCount > 0 ? `<p style="font-size:12px;color:#6b7280;margin:8px 0 0">+ ${moreCount} more items</p>` : ''}</div>` : ''}
+            ${actionButton("Browse Market", `${siteUrl}/market`)}
+          `,
+          footer: "You received this reminder because you opted in to Market notifications."
+        }),
       }),
     }).catch(e => console.warn('Email failed:', e))
 
@@ -301,26 +286,23 @@ async function handleDailyDigest(
       body: JSON.stringify({
         to: email,
         subject: `CasaGrown — Daily Settlement Summary (${subjectAmount})`,
-        html: `
-          <div style="font-family:${FONT};max-width:580px;margin:0 auto;padding:24px;color:#1f2937">
-            ${getEmailHeader(siteUrl)}
-            <div style="padding:24px 0">
-              <p style="font-size:14px">Hi ${name},</p>
-              ${salesHtml}
-              ${purchasesHtml}
-              ${(sales.length > 0 && purchases.length > 0) ? `
-                <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px;margin:16px 0">
-                  <table style="width:100%"><tr>
-                    <td style="color:#166534;font-size:14px;font-weight:600">Net Balance Change</td>
-                    <td style="color:${netChange >= 0 ? '#166534' : '#b91c1c'};font-size:14px;font-weight:600;text-align:right">${netChange >= 0 ? '+' : ''}$${netChange.toFixed(2)}</td>
-                  </tr></table>
-                </div>` : ''}
-              <div style="margin-top:20px">
-                <a href="${siteUrl}/earnings" style="display:inline-block;background:#16a34a;color:white;padding:10px 24px;border-radius:12px;text-decoration:none;font-weight:600;font-size:14px">View Full Details</a>
-              </div>
-            </div>
-            ${EMAIL_FOOTER}
-          </div>`,
+        html: wrapInBrandedTemplate({
+          title: "Daily Settlement",
+          greeting: `Hi ${name},`,
+          bodyHtml: `
+            ${salesHtml}
+            ${purchasesHtml}
+            ${(sales.length > 0 && purchases.length > 0) ? `
+              <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px;margin:16px 0">
+                <table style="width:100%"><tr>
+                  <td style="color:#166534;font-size:14px;font-weight:600">Net Balance Change</td>
+                  <td style="color:${netChange >= 0 ? '#166534' : '#b91c1c'};font-size:14px;font-weight:600;text-align:right">${netChange >= 0 ? '+' : ''}$${netChange.toFixed(2)}</td>
+                </tr></table>
+              </div>` : ''}
+            ${actionButton("View Full Details", `${siteUrl}/earnings`)}
+          `,
+          footer: "CasaGrown Financial Summary &middot; Fresh. Local. Trusted."
+        }),
       }),
     }).catch(e => console.warn('Digest email failed:', e))
 
@@ -432,18 +414,18 @@ async function handleSellerLifecycle(
           body: JSON.stringify({
             to: email,
             subject: subject,
-            html: `
-              <div style="font-family:${FONT};max-width:480px;margin:0 auto;padding:24px;color:#1f2937">
-                ${getEmailHeader(siteUrl)}
-                <div style="padding:24px 0">
-                  <p style="font-size:14px">Hi ${name},</p>
-                  <div style="${type === 'closed' ? 'background:#f9fafb;border:1px solid #e5e7eb;' : 'background:#f0fdf4;border:1px solid #bbf7d0;'}border-radius:12px;padding:16px;margin:16px 0">
-                    <p style="color:${type === 'closed' ? '#374151' : '#166534'};font-size:15px;margin:0"><strong>${headline}</strong><br><br>${textBody}</p>
-                  </div>
-                  <a href="${siteUrl}/my-booth" style="display:inline-block;background:#16a34a;color:white;padding:10px 24px;border-radius:12px;text-decoration:none;font-weight:600;font-size:14px">${buttonText}</a>
+            html: wrapInBrandedTemplate({
+              title: headline,
+              greeting: `Hi ${name},`,
+              headerGradient: type === "closed" ? "linear-gradient(135deg, #1f2937, #374151)" : undefined,
+              bodyHtml: `
+                <div style="${type === 'closed' ? 'background:#f9fafb;border:1px solid #e5e7eb;' : 'background:#f0fdf4;border:1px solid #bbf7d0;'}border-radius:12px;padding:16px;margin:16px 0">
+                  <p style="color:${type === 'closed' ? '#374151' : '#166534'};font-size:15px;margin:0"><strong>${headline}</strong><br><br>${textBody}</p>
                 </div>
-                ${EMAIL_FOOTER}
-              </div>`
+                ${actionButton(buttonText, `${siteUrl}/my-booth`)}
+              `,
+              footer: "CasaGrown Seller Lifecycle Notifications"
+            })
           }),
         }).catch(e => console.warn('Seller email failed:', e))
         emailSentCount++
@@ -562,7 +544,16 @@ export async function handleGrowerDigest(
       buySection = `<div style="margin-top:20px"><div style="background:#1e40af;color:#fff;padding:10px 16px;border-radius:8px 8px 0 0;font-size:15px;font-weight:600">🛒 Products You're Looking For</div><div style="border:1px solid #d1d5db;border-top:none;border-radius:0 0 8px 8px;padding:4px 12px 12px">${buyCards.join('')}</div></div>`;
     }
 
-    const emailHtml = `<div style="max-width:560px;margin:0 auto;font-family:system-ui, -apple-system, sans-serif"><div style="padding:24px 16px"><h2 style="color:#166534;font-size:20px;margin:0 0 8px">Hi ${firstName}! 🌿</h2><p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 16px">We found new opportunities for you based on your activity on CasaGrown.</p>${sellSection}${buySection}</div></div>`;
+    const emailHtml = wrapInBrandedTemplate({
+      title: "Neighbors are searching!",
+      greeting: `Hi ${firstName}! 🌿`,
+      bodyHtml: `
+        <p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 16px">We found new opportunities for you based on your activity on CasaGrown.</p>
+        ${sellSection}
+        ${buySection}
+      `,
+      footer: "CasaGrown Weekly Marketplace Digest"
+    });
     const subject = `🌿 ${firstName}, your local daily digest is here!`;
     const sendId = crypto.randomUUID();
 

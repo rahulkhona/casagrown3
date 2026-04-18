@@ -4,6 +4,7 @@ import {
     sendPushNotification,
 } from "../_shared/push-notify.ts";
 import { sendTransactionEmail } from "../_shared/postmark.ts";
+import { wrapInBrandedTemplate, actionButton } from "../_shared/email-templates.ts";
 
 /**
  * notify-on-message — Supabase Edge Function
@@ -148,16 +149,26 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
             .eq("id", recipientId)
             .single();
 
-        if (profile?.email) {
+            const chatLink = `${Deno.env.get('MARKET_APP_URL') ?? 'https://market.casagrown.com'}${chatUrl}`;
             await sendTransactionEmail({
                 to: profile.email,
                 subject: `New message from ${title}`,
-                htmlBody: `<p><strong>${title}</strong> sent you a message:</p>
-                           <blockquote>${body}</blockquote>
-                           <p><a href="${Deno.env.get('MARKET_APP_URL') ?? 'https://market.casagrown.com'}${chatUrl}">View conversation</a></p>`,
-                textBody: `${title}: ${body}\n\nReply at: ${Deno.env.get('MARKET_APP_URL') ?? 'https://market.casagrown.com'}${chatUrl}`,
+                htmlBody: wrapInBrandedTemplate({
+                    title: "New Message",
+                    greeting: `Hi there,`,
+                    bodyHtml: `
+                      <p style="margin: 0 0 16px; font-size: 15px; color: #1a1a2e;">
+                        <strong>${title}</strong> sent you a message:
+                      </p>
+                      <div style="background: #f4f7fa; border-left: 4px solid #16a34a; padding: 12px 16px; margin: 0 0 24px; border-radius: 4px; font-style: italic; color: #4b5563;">
+                        ${body}
+                      </div>
+                      ${actionButton("View Conversation", chatLink)}
+                    `,
+                    footer: "CasaGrown Community Messaging"
+                }),
+                textBody: `${title}: ${body}\n\nReply at: ${chatLink}`,
             });
-        }
     }
 
     console.log(

@@ -20,6 +20,7 @@ import {
     serveWithCors,
 } from "../_shared/serve-with-cors.ts";
 import { sendTransactionEmail } from "../_shared/postmark.ts";
+import { wrapInBrandedTemplate, infoCard, actionButton } from "../_shared/email-templates.ts";
 
 const SITE_URL = Deno.env.get("SITE_URL") ?? "http://localhost:3000";
 
@@ -39,7 +40,10 @@ export type EmailType =
     | "points_refund"
     | "tax_threshold_warning"
     | "delegation_revoked"
-    | "delegation_accepted";
+    | "delegation_accepted"
+    | "refund_offer"
+    | "rating_reminder"
+    | "followed_seller_adds_item";
 
 export interface EmailRecipient {
     email: string;
@@ -180,6 +184,14 @@ export function renderEmailByType(
             return renderOfferMade(payload, recipient);
         case "order_disputed":
             return renderOrderDisputed(payload, recipient);
+        case "order_delivered":
+            return renderOrderDelivered(payload, recipient);
+        case "refund_offer":
+            return renderRefundOffer(payload, recipient);
+        case "rating_reminder":
+            return renderRatingReminder(payload, recipient);
+        case "followed_seller_adds_item":
+            return renderFollowedSellerAddsItem(payload, recipient);
         case "dispute_resolved":
             return renderDisputeResolved(payload, recipient);
         case "chat_initiated":
@@ -199,154 +211,6 @@ export function renderEmailByType(
         default:
             return null;
     }
-}
-
-// =============================================================================
-// Branded Template Wrapper
-// =============================================================================
-
-function wrapInBrandedTemplate(opts: {
-    title: string;
-    greeting: string;
-    bodyHtml: string;
-    footer?: string;
-}): string {
-    let html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>${opts.title}</title>
-<style>
-body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
-body { margin: 0; padding: 0; width: 100% !important; height: 100% !important; }
-@media (prefers-color-scheme: dark) {
-  .email-bg { background-color: #1a1a2e !important; }
-  .email-card { background-color: #16213e !important; }
-  .email-text { color: #e0e0e0 !important; }
-  .email-subtext { color: #b0b0b0 !important; }
-}
-</style>
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
-
-<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f4f7fa;" class="email-bg">
-<tr>
-<td align="center" style="padding: 40px 16px;">
-
-<!-- Card -->
-<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width: 520px; background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); overflow: hidden;" class="email-card">
-
-<!-- Header -->
-<tr>
-<td style="background: linear-gradient(135deg, #15803d 0%, #16a34a 50%, #22c55e 100%); padding: 24px 32px 20px; text-align: center;">
-<div style="margin-bottom: 8px;">
-<img src="${SITE_URL}/logo.png" alt="CasaGrown" width="48" height="48" style="display: inline-block; width: 48px; height: 48px; object-fit: contain;" />
-</div>
-<h1 style="margin: 0; font-size: 22px; font-weight: 700; color: #ffffff; letter-spacing: -0.5px;">
-${opts.title}
-</h1>
-<p style="margin: 8px 0 0; font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.9); letter-spacing: 3px; text-transform: uppercase;">
-FRESH &bull; LOCAL &bull; TRUSTED
-</p>
-</td>
-</tr>
-
-<!-- Body -->
-<tr>
-<td style="padding: 28px 32px 0;">
-<p style="margin: 0 0 4px; font-size: 16px; font-weight: 600; color: #1a1a2e;" class="email-text">
-${opts.greeting}
-</p>
-</td>
-</tr>
-
-<tr>
-<td style="padding: 8px 32px 20px;">
-${opts.bodyHtml}
-</td>
-</tr>
-
-${
-        opts.footer
-            ? `
-<tr>
-<td style="padding: 0 32px 16px;">
-<p style="margin: 0; font-size: 11px; color: #9ca3af; line-height: 1.5; font-style: italic;">
-${opts.footer}
-</p>
-</td>
-</tr>
-`
-            : ""
-    }
-
-<!-- Divider -->
-<tr>
-<td style="padding: 0 32px;">
-<div style="height: 1px; background-color: #eee;"></div>
-</td>
-</tr>
-
-<!-- Footer -->
-<tr>
-<td style="padding: 16px 32px 24px; text-align: center;">
-<p style="margin: 0; font-size: 11px; color: #999999; line-height: 1.6;">
-Fresh from Neighbors&rsquo; backyard 🌱<br />
-This is an automated message. Please do not reply.
-</p>
-</td>
-</tr>
-
-</table>
-</td>
-</tr>
-</table>
-
-</body>
-</html>`;
-
-    // Strip trailing whitespace to prevent MIME =20 artifacts
-    html = html.replace(/[ \t]+$/gm, "");
-    return html;
-}
-
-// =============================================================================
-// Helper: Info Card
-// =============================================================================
-
-function infoCard(rows: Array<{ label: string; value: string }>): string {
-    const rowsHtml = rows
-        .map(
-            (r) =>
-                `<tr>
-<td style="font-size: 13px; color: #6b7280; padding: 4px 0;">${r.label}</td>
-<td style="font-size: 13px; color: #1f2937; text-align: right; padding: 4px 0; font-weight: 500;">${r.value}</td>
-</tr>`,
-        )
-        .join("");
-
-    return `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background: #f0fdf4; border: 1px solid #dcfce7; border-radius: 10px; overflow: hidden;">
-<tr><td style="padding: 16px 20px;">
-<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
-${rowsHtml}
-</table>
-</td></tr>
-</table>`;
-}
-
-// =============================================================================
-// Helper: Action Button
-// =============================================================================
-
-function actionButton(label: string, url: string): string {
-    return `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-top: 20px;">
-<tr><td align="center">
-<a href="${url}" style="display: inline-block; padding: 12px 32px; background: linear-gradient(135deg, #15803d, #22c55e); color: #ffffff; font-size: 14px; font-weight: 600; text-decoration: none; border-radius: 8px;">
-${label}
-</a>
-</td></tr>
-</table>`;
 }
 
 // =============================================================================
@@ -974,5 +838,114 @@ ${actionButton("Manage Delegations", `${SITE_URL}/delegate`)}`;
             greeting,
             bodyHtml,
         }),
+    };
+}
+
+// =============================================================================
+// (o) Order Delivered, Rating, Refund, Followers (Extrapolated from Design)
+// =============================================================================
+
+function renderOrderDelivered(
+    p: NotificationPayload,
+    r: EmailRecipient,
+): { subject: string; htmlBody: string } {
+    const subject = `Order Delivered — ${p.product} | CasaGrown`;
+    const greeting = `Hi ${r.name || "there"},`;
+
+    const bodyHtml = `
+<div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:16px; margin:16px 0;">
+  <p style="color:#166534; font-size:16px; margin:0; font-weight:600">🚚 Your Order Has Been Delivered!</p>
+  <p style="color:#374151; font-size:13px; margin:8px 0 0;">
+    <strong>${p.product}</strong> from ${p.sellerName || 'your seller'} has been delivered. Please confirm receipt to complete the transaction.
+  </p>
+</div>
+<div style="margin-top: 16px;">
+  <a href="${SITE_URL}/orders" style="display:inline-block; background:#16a34a; color:white; padding:10px 24px; border-radius:12px; text-decoration:none; font-weight:600; font-size:14px;">Confirm Delivery</a>
+  <a href="${SITE_URL}/orders" style="display:inline-block; background:#dc2626; color:white; padding:10px 24px; border-radius:12px; text-decoration:none; font-weight:600; font-size:14px; margin-left:8px;">Report Issue</a>
+</div>
+`;
+    return {
+        subject,
+        htmlBody: wrapInBrandedTemplate({ title: "Order Delivered", greeting, bodyHtml }),
+    };
+}
+
+function renderRefundOffer(
+    p: NotificationPayload,
+    r: EmailRecipient,
+): { subject: string; htmlBody: string } {
+    const subject = `Refund Offer Received — ${p.product} | CasaGrown`;
+    const greeting = `Hi ${r.name || "there"},`;
+    
+    // Uses the amber yellow gradient styling
+    const bodyHtml = `
+<div style="background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:16px; margin:16px 0;">
+  <p style="color:#92400e; font-size:16px; margin:0; font-weight:600">💵 Refund Offer Received</p>
+  <p style="color:#374151; font-size:13px; margin:8px 0 0;">
+    ${p.sellerName || 'The seller'} has offered a <strong>$${(p.refundAmount || 0).toFixed(2)} partial refund</strong> to resolve your issue with <strong>${p.product}</strong>.
+  </p>
+</div>
+<div style="margin-top: 16px;">
+  <a href="${SITE_URL}/orders" style="display:inline-block; background:#16a34a; color:white; padding:10px 24px; border-radius:12px; text-decoration:none; font-weight:600; font-size:14px;">Accept Offer</a>
+  <a href="${SITE_URL}/orders" style="display:inline-block; background:#4b5563; color:white; padding:10px 24px; border-radius:12px; text-decoration:none; font-weight:600; font-size:14px; margin-left:8px;">Decline</a>
+</div>
+`;
+    return {
+        subject,
+        htmlBody: wrapInBrandedTemplate({ 
+            title: "Refund Offer", 
+            greeting, 
+            bodyHtml,
+            headerGradient: "linear-gradient(135deg, #d97706 0%, #f59e0b 50%, #fbbf24 100%)",
+            headerTextColor: "#ffffff"
+        }),
+    };
+}
+
+function renderRatingReminder(
+    p: NotificationPayload,
+    r: EmailRecipient,
+): { subject: string; htmlBody: string } {
+    const subject = `Rate Your Recent Transaction | CasaGrown`;
+    const greeting = `Hi ${r.name || "there"},`;
+    
+    const bodyHtml = `
+<div style="background:#e0f2fe; border:1px solid #bae6fd; border-radius:12px; padding:16px; margin:16px 0; text-align:center;">
+  <p style="font-size:32px; margin:0;">⭐⭐⭐⭐⭐</p>
+  <p style="color:#1e40af; font-size:16px; margin:8px 0; font-weight:600">How was your order?</p>
+  <p style="color:#374151; font-size:13px; margin:0;">
+    Rate your purchase of <strong>${p.product}</strong> from <strong>${p.sellerName}</strong>
+  </p>
+  <div style="margin-top:12px;">
+    <a href="${SITE_URL}/orders" style="display:inline-block; background:#d97706; color:white; padding:10px 24px; border-radius:12px; text-decoration:none; font-weight:600; font-size:14px; margin:4px;">Rate Now</a>
+    <a href="${SITE_URL}/orders" style="display:inline-block; background:#4b5563; color:white; padding:10px 24px; border-radius:12px; text-decoration:none; font-weight:600; font-size:14px; margin:4px;">Skip</a>
+  </div>
+</div>
+`;
+    return {
+        subject,
+        htmlBody: wrapInBrandedTemplate({ title: "Rate Transaction", greeting, bodyHtml }),
+    };
+}
+
+function renderFollowedSellerAddsItem(
+    p: NotificationPayload,
+    r: EmailRecipient,
+): { subject: string; htmlBody: string } {
+    const subject = `${p.sellerName} Added New Items! | CasaGrown`;
+    const greeting = `Hi ${r.name || "there"},`;
+    
+    const bodyHtml = `
+<div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:16px; margin:16px 0;">
+  <p style="color:#166534; font-size:16px; margin:0; font-weight:600">🌱 ${p.sellerName} Added New Items!</p>
+  <p style="color:#374151; font-size:13px; margin:8px 0 0;">
+    <strong>${p.product}</strong> — ${p.pointsPerUnit} pts/${p.unit}
+  </p>
+</div>
+${actionButton("View Booth", `${SITE_URL}/market`)}
+`;
+    return {
+        subject,
+        htmlBody: wrapInBrandedTemplate({ title: "New Item Available", greeting, bodyHtml }),
     };
 }
