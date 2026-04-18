@@ -3,7 +3,7 @@ SELECT plan(11);
 
 SELECT has_index('market_conversations', 'idx_market_conversations_participant_a', 'market_conversations needs btree index on participant_a for RLS optimization');
 SELECT has_index('market_conversations', 'idx_market_conversations_participant_b', 'market_conversations needs btree index on participant_b for RLS optimization');
-SELECT has_index('market_chat_messages', 'idx_market_chat_messages_conversation', 'market_chat_messages needs btree index on conversation_id for RLS nested loop optimization');
+SELECT has_index('market_chat_messages', 'idx_market_chat_msg_conv_created_desc', 'market_chat_messages needs btree index on conversation_id for RLS nested loop optimization');
 
 -- Setup test users
 INSERT INTO auth.users (id, email) VALUES
