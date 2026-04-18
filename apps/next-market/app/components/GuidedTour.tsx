@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { useAuth } from '../../lib/useAuth'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import styles from './GuidedTour.module.css'
@@ -66,7 +66,7 @@ const STEPS: TourStep[] = [
   },
 ]
 
-export function GuidedTour() {
+function GuidedTourInner() {
   const { profileComplete } = useAuth()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -242,6 +242,14 @@ export function GuidedTour() {
         </div>
       </div>
     </div>
+  )
+}
+
+export function GuidedTour() {
+  return (
+    <Suspense fallback={null}>
+      <GuidedTourInner />
+    </Suspense>
   )
 }
 
