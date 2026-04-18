@@ -31,23 +31,65 @@ Deno.serve(async (req: Request) => {
   );
 
   let campaignId: string | null = null;
+  let systemAlias: string | null = null;
+  let subjectOverride: string | null = null;
+  let templateOverride: string | null = null;
+  let audienceOverride: any[] | null = null; // direct array of { email, phone, name... }
+  
   if (req.method === "POST" && req.headers.get("content-type")?.includes("json")) {
     try {
       const body = await req.json();
       campaignId = body.campaign_id ?? null;
+      systemAlias = body.system_alias ?? null;
+      subjectOverride = body.subject ?? null;
+      templateOverride = body.template_alias ?? null;
+      audienceOverride = body.audience ?? null;
     } catch { /* ignore */ }
+  }
+
+  // ── Auto-Create System Alias logic ──────────────────────────────────
+  if (systemAlias && !campaignId) {
+    const { data: existing } = await supabase
+      .from("crm_campaigns")
+      .select("id")
+      .eq("system_alias", systemAlias)
+      .single();
+
+    if (existing) {
+      campaignId = existing.id;
+    } else {
+      console.log(`[SEND-CAMPAIGN] Auto-creating campaign for alias: ${systemAlias}`);
+      const { data: inserted, error: insertErr } = await supabase
+        .from("crm_campaigns")
+        .insert({
+          system_alias: systemAlias,
+          name: `Auto-created: ${systemAlias}`,
+          subject: subjectOverride ?? `Campaign: ${systemAlias}`,
+          postmark_template_alias: templateOverride ?? systemAlias,
+          channel: "email",
+          status: "sending"
+        })
+        .select()
+        .single();
+        
+      if (insertErr) {
+        return Response.json({ error: `Auto-create failed: ${insertErr.message}` }, { status: 500 });
+      }
+      campaignId = inserted.id;
+    }
   }
 
   // ── Load campaigns to send ──────────────────────────────────────────
   const campaignQuery = supabase
     .from("crm_campaigns")
-    .select("*, crm_audiences(*), crm_data_sources(*)")
-    .in("status", ["scheduled", "sending"]);
+    .select("*, crm_audiences(*), crm_data_sources(*)");
 
+  // If a specific ID is queried (from manual POST or auto-create), only process that one.
+  // Otherwise, fallback to cron-mode (look for scheduled items)
   if (campaignId) {
     campaignQuery.eq("id", campaignId);
   } else {
-    campaignQuery.lte("scheduled_at", new Date().toISOString());
+    campaignQuery.in("status", ["scheduled", "sending"]).lte("scheduled_at", new Date().toISOString());
   }
 
   const { data: campaigns, error: campErr } = await campaignQuery;
@@ -72,7 +114,10 @@ Deno.serve(async (req: Request) => {
       const audience = campaign.crm_audiences;
       let recipients: AudienceRow[] = [];
 
-      if (audience?.audience_rpc_name) {
+      if (audienceOverride && audienceOverride.length > 0) {
+         // Direct audience passing via API for 1-off trigger scenarios
+         recipients = audienceOverride;
+      } else if (audience?.audience_rpc_name) {
         const { data, error } = await supabase.rpc(audience.audience_rpc_name);
         if (error) throw new Error(`Audience RPC failed: ${error.message}`);
         recipients = data as AudienceRow[];
@@ -84,18 +129,21 @@ Deno.serve(async (req: Request) => {
       }
 
       // Apply behavioral filter_criteria (if any remain)
-      if (audience?.filter_criteria) {
+      // Only filter if not directly overridden
+      if (!audienceOverride && audience?.filter_criteria) {
         recipients = applyFilters(recipients, audience.filter_criteria);
       }
 
       // Apply Multi-Geo targets mapped directly from the Campaign object
-      recipients = applyGeoTargets(recipients, campaign);
+      if (!audienceOverride) {
+         recipients = applyGeoTargets(recipients, campaign);
+      }
 
       // Filter by channel consent
-      if (campaign.channel === "email") {
-        recipients = recipients.filter((r) => r.email && r.accepts_email);
-      } else {
-        recipients = recipients.filter((r) => r.phone && r.accepts_sms);
+      if (campaign.channel === "email" && !audienceOverride) {
+        recipients = recipients.filter((r) => r.email && r.accepts_email !== false);
+      } else if (campaign.channel === "sms" && !audienceOverride) {
+        recipients = recipients.filter((r) => r.phone && r.accepts_sms !== false);
       }
 
       // ── Resolve Data Source (if registered) ───────────────────────
