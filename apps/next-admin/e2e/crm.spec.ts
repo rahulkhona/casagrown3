@@ -62,68 +62,22 @@ test.describe('CRM — Audiences page', () => {
   test('+ New Audience button opens creation form', async ({ page }) => {
     await page.locator('#create-audience-btn').waitFor({ state: 'visible', timeout: 10000 })
     await page.click('#create-audience-btn')
-    // The form is mounted when the zip input appears
-    await expect(page.locator('.zip-search-input')).toBeVisible({ timeout: 10000 })
+    await expect(page.locator('input[placeholder="e.g. Early Beta Testers"]')).toBeVisible({ timeout: 10000 })
   })
 
-  test('ZIP community search input is visible in form', async ({ page }) => {
-    await page.locator('#create-audience-btn').waitFor({ state: 'visible', timeout: 10000 })
-    await page.click('#create-audience-btn')
-    await expect(page.locator('.zip-search-input')).toBeVisible({ timeout: 10000 })
-  })
 
-  test('ZIP search for 937 shows Fresno results', async ({ page }) => {
-    await page.locator('#create-audience-btn').waitFor({ state: 'visible', timeout: 10000 })
-    await page.click('#create-audience-btn')
-    const zipInput = page.locator('.zip-search-input')
-    await expect(zipInput).toBeVisible({ timeout: 10000 })
-    await zipInput.fill('937')
-    await page.waitForTimeout(700)
-    const results = page.locator('.zip-result-item')
-    const count = await results.count()
-    // Fresno ZIPs seeded in seed.sql — if seeded, at least 1 result; skip if DB not seeded
-    if (count === 0) {
-      console.log('No ZIP results — Fresno seed data may not be in DB. Skipping assertion.')
-    } else {
-      expect(count).toBeGreaterThanOrEqual(1)
-    }
-  })
-
-  test('selecting a ZIP result fills city and state fields', async ({ page }) => {
-    await page.locator('#create-audience-btn').waitFor({ state: 'visible', timeout: 10000 })
-    await page.click('#create-audience-btn')
-    await expect(page.locator('.zip-search-input')).toBeVisible({ timeout: 10000 })
-    await page.locator('.zip-search-input').fill('9371')
-    await page.waitForTimeout(700)
-    const firstResult = page.locator('.zip-result-item').first()
-    if (await firstResult.isVisible()) {
-      await firstResult.click()
-      const stateInput = page.locator('input[placeholder="e.g. CA"]')
-      await expect(stateInput).not.toHaveValue('')
-    }
-  })
 
   test('population source dropdown loads from registry', async ({ page }) => {
     await page.locator('#create-audience-btn').waitFor({ state: 'visible', timeout: 10000 })
     await page.click('#create-audience-btn')
-    await expect(page.locator('.zip-search-input')).toBeVisible({ timeout: 10000 })
+    await expect(page.locator('input[placeholder="e.g. Early Beta Testers"]')).toBeVisible({ timeout: 10000 })
     const select = page.locator('select').first()
     await page.waitForTimeout(1200)
     const options = await select.locator('option').count()
     expect(options).toBeGreaterThanOrEqual(0)
   })
 
-  test('consent toggle buttons are clickable', async ({ page }) => {
-    await page.locator('#create-audience-btn').waitFor({ state: 'visible', timeout: 10000 })
-    await page.click('#create-audience-btn')
-    await expect(page.locator('.zip-search-input')).toBeVisible({ timeout: 10000 })
-    const emailToggle = page.locator('button[aria-pressed]').first()
-    await expect(emailToggle).toBeVisible({ timeout: 10000 })
-    await emailToggle.click()
-    await expect(emailToggle).toHaveAttribute('aria-pressed', 'true')
-    await emailToggle.click()
-    await expect(emailToggle).toHaveAttribute('aria-pressed', 'false')
-  })
+
 })
 
 test.describe('CRM — Assets page', () => {
@@ -160,23 +114,43 @@ test.describe('CRM — Campaigns page', () => {
     expect(errors.filter(e => !e.includes('hydrat'))).toHaveLength(0)
   })
 
-  test('New Campaign form shows subject and preheader for email channel', async ({ page }) => {
+  test('New Campaign form shows Design Mode and Subject for email channel', async ({ page }) => {
     await page.locator('#create-campaign-btn').waitFor({ state: 'visible', timeout: 10000 })
     await page.click('#create-campaign-btn')
     await expect(page.getByText('Create Campaign', { exact: true }).first()).toBeVisible({ timeout: 10000 })
     // Subject input placeholder: "e.g. Fresh produce..."
     await expect(page.locator('input[placeholder*="Fresh produce"], input[placeholder*="Subject"]')).toBeVisible({ timeout: 10000 })
-    // Preheader input placeholder: "e.g. 3 new sellers..."
-    await expect(page.locator('input[placeholder*="new sellers"], input[placeholder*="preheader"], input[placeholder*="preview"]')).toBeVisible({ timeout: 10000 })
+    // Design Mode dropdown should be present
+    await expect(page.locator('select').nth(1)).toBeVisible()
   })
 
-  test('switching to SMS hides subject and preheader', async ({ page }) => {
+  test('switching to SMS hides Design Mode and subject', async ({ page }) => {
     await page.locator('#create-campaign-btn').waitFor({ state: 'visible', timeout: 10000 })
     await page.click('#create-campaign-btn')
     await expect(page.getByText('Create Campaign', { exact: true }).first()).toBeVisible({ timeout: 10000 })
     const channelSelect = page.locator('select').first()
     await channelSelect.selectOption('sms')
     await expect(page.locator('input[placeholder*="Subject"]')).not.toBeVisible()
+    await expect(page.getByText('Design Mode')).not.toBeVisible()
+  })
+})
+
+test.describe('CRM — Data Sources page', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/crm/data-sources', { waitUntil: 'domcontentloaded' })
+    await page.waitForTimeout(1500)
+  })
+
+  test('loads without JS errors', async ({ page }) => {
+    const errors: string[] = []
+    page.on('pageerror', e => errors.push(e.message))
+    await expect(page.locator('h1')).toContainText('Data Sources')
+    expect(errors.filter(e => !e.includes('hydrat'))).toHaveLength(0)
+  })
+
+  test('Register form opens securely', async ({ page }) => {
+    await page.click('button:has-text("+ Register Data Source")')
+    await expect(page.locator('input[placeholder*="Latest Market Products"]')).toBeVisible({ timeout: 10000 })
   })
 })
 

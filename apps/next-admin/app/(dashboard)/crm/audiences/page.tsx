@@ -13,7 +13,6 @@ type Audience = {
   name: string
   description: string | null
   audience_rpc_name: string
-  filter_criteria: Record<string, unknown> | null
   estimated_size: number | null
   created_at: string
 }
@@ -35,16 +34,6 @@ const defaultForm = {
   description:        '',
   source:             'crm_audience_all',
   custom_fn:          '',
-  filter_state:       '',
-  filter_city:        '',
-  filter_county:      '',
-  filter_zip:         '',
-  // date filters
-  filter_joined_after:  '',
-  filter_joined_before: '',
-  // consent filters
-  filter_accepts_email: false,
-  filter_accepts_sms:   false,
 }
 
 export default function CrmAudiencesPage() {
@@ -56,17 +45,6 @@ export default function CrmAudiencesPage() {
   const [saving, setSaving]             = useState(false)
   const [message, setMessage]           = useState('')
   const [form, setForm]                 = useState(defaultForm)
-
-  // ZIP community lookup
-  type ZipResult = {
-    zip_code: string
-    city_name: string
-    state_code: string
-    communities: string[]
-  }
-  const [zipSearch, setZipSearch]       = useState('')
-  const [zipResults, setZipResults]     = useState<ZipResult[]>([])
-  const [zipLooking, setZipLooking]     = useState(false)
 
   const fetchAudiences = async () => {
     setLoading(true)
@@ -94,56 +72,6 @@ export default function CrmAudiencesPage() {
     fetchAudienceFunctions()
   }, [])
 
-  // ZIP → city + named communities lookup (debounced)
-  useEffect(() => {
-    if (zipSearch.length < 3) { setZipResults([]); return }
-    const timer = setTimeout(async () => {
-      setZipLooking(true)
-      // 1. Get city + state for matching ZIPs via FK joins
-      const { data: zipData } = await supabase
-        .from('zip_codes')
-        .select('zip_code, cities(name, states(code))')
-        .ilike('zip_code', `${zipSearch}%`)
-        .limit(8)
-
-      if (!zipData) { setZipResults([]); setZipLooking(false); return }
-
-      // 2. Get communities for those ZIPs
-      const zips = zipData.map((z: Record<string, unknown>) => z.zip_code as string)
-      const { data: commData } = await supabase
-        .from('communities')
-        .select('zip_code, community_name')
-        .in('zip_code', zips)
-
-      // 3. Merge into ZipResult[]  
-      const commMap: Record<string, string[]> = {}
-      commData?.forEach((c: { zip_code: string; community_name: string }) => {
-        if (!commMap[c.zip_code]) commMap[c.zip_code] = []
-        commMap[c.zip_code].push(c.community_name)
-      })
-
-      const results: ZipResult[] = zipData.map((z: Record<string, unknown>) => {
-        const city = z.cities as { name: string; states: { code: string } } | null
-        return {
-          zip_code:   z.zip_code as string,
-          city_name:  city?.name ?? '',
-          state_code: city?.states?.code ?? '',
-          communities: commMap[z.zip_code as string] ?? [],
-        }
-      })
-
-      setZipResults(results)
-      setZipLooking(false)
-    }, 350)
-    return () => clearTimeout(timer)
-  }, [zipSearch])
-
-  const selectZip = (row: ZipResult) => {
-    setForm(f => ({ ...f, filter_zip: row.zip_code, filter_city: row.city_name, filter_state: row.state_code }))
-    setZipSearch('')
-    setZipResults([])
-  }
-
   const toast = (msg: string, ms = 4000) => { setMessage(msg); setTimeout(() => setMessage(''), ms) }
 
   const estimateSize = async (rpcName: string): Promise<number | null> => {
@@ -161,24 +89,12 @@ export default function CrmAudiencesPage() {
       ? (form.custom_fn.trim() || 'crm_audience_all')
       : form.source
 
-    const filter_criteria: Record<string, unknown> = {}
-    if (form.filter_state)         filter_criteria.state        = form.filter_state.toUpperCase()
-    if (form.filter_city)          filter_criteria.city         = form.filter_city
-    if (form.filter_county)        filter_criteria.county       = form.filter_county
-    if (form.filter_zip)           filter_criteria.zip          = form.filter_zip
-    if (form.filter_h3)            filter_criteria.h3_index     = form.filter_h3
-    if (form.filter_joined_after)  filter_criteria.joined_after = form.filter_joined_after
-    if (form.filter_joined_before) filter_criteria.joined_before= form.filter_joined_before
-    if (form.filter_accepts_email) filter_criteria.accepts_email= true
-    if (form.filter_accepts_sms)   filter_criteria.accepts_sms  = true
-
     const size = await estimateSize(rpcName)
 
     const { error } = await supabase.from('crm_audiences').insert({
       name:              form.name,
       description:       form.description || null,
       audience_rpc_name: rpcName,
-      filter_criteria:   Object.keys(filter_criteria).length > 0 ? filter_criteria : null,
       estimated_size:    size,
     })
 
@@ -290,124 +206,6 @@ export default function CrmAudiencesPage() {
             </div>
           )}
 
-          {/* Geo filters */}
-          <div className="crm-section-label">Geographic Filters <span className="crm-hint">— all optional, combined with AND</span></div>
-
-          {/* ZIP picker — primary entry point for geo targeting */}
-          <div className="crm-field zip-lookup-wrap">
-            <label>
-              Community / ZIP Code
-              <span className="crm-hint"> — type a ZIP to look up the city &amp; county, then select to apply all geo filters at once</span>
-            </label>
-            <div className="zip-search-row">
-              <input
-                placeholder="Type a ZIP code, e.g. 93710"
-                value={zipSearch}
-                onChange={e => setZipSearch(e.target.value)}
-                className="zip-search-input"
-              />
-              {zipLooking && <span className="crm-hint">Looking up…</span>}
-              {form.filter_zip && !zipSearch && (
-                <span className="zip-selected-chip">
-                  📍 {form.filter_zip} · {form.filter_city}{form.filter_state ? `, ${form.filter_state}` : ''}
-                  <button type="button" onClick={() => setForm(f => ({ ...f, filter_zip: '', filter_city: '', filter_county: '', filter_state: '' }))}>×</button>
-                </span>
-              )}
-            </div>
-            {zipResults.length > 0 && (
-              <div className="zip-results">
-                {zipResults.map(r => (
-                  <button
-                    key={r.zip_code}
-                    type="button"
-                    className="zip-result-item"
-                    onClick={() => selectZip(r)}
-                  >
-                    <div className="zip-result-main">
-                      <strong>{r.zip_code}</strong>
-                      <span>{r.city_name}{r.state_code ? `, ${r.state_code}` : ''}</span>
-                    </div>
-                    {r.communities.length > 0 && (
-                      <div className="zip-result-communities">
-                        {r.communities.map(c => (
-                          <span key={c} className="community-chip">{c}</span>
-                        ))}
-                      </div>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* State / City / County — auto-filled by ZIP picker, can also be typed manually */}
-          <div className="crm-form-grid col3">
-            <div className="crm-field">
-              <label>State <span className="crm-hint">(auto-filled)</span></label>
-              <input
-                placeholder="e.g. CA"
-                maxLength={2}
-                value={form.filter_state}
-                onChange={e => setForm(f => ({ ...f, filter_state: e.target.value }))}
-              />
-            </div>
-            <div className="crm-field">
-              <label>City <span className="crm-hint">(auto-filled)</span></label>
-              <input
-                placeholder="e.g. Fresno"
-                value={form.filter_city}
-                onChange={e => setForm(f => ({ ...f, filter_city: e.target.value }))}
-              />
-            </div>
-            <div className="crm-field">
-              <label>County <span className="crm-hint">(auto-filled)</span></label>
-              <input
-                placeholder="e.g. Fresno County"
-                value={form.filter_county}
-                onChange={e => setForm(f => ({ ...f, filter_county: e.target.value }))}
-              />
-            </div>
-          </div>
-
-          {/* Date range */}
-          <div className="crm-section-label">Date Range</div>
-          <div className="crm-form-grid col2">
-            <div className="crm-field">
-              <label>Joined After</label>
-              <input type="date" value={form.filter_joined_after} onChange={e => setForm(f => ({ ...f, filter_joined_after: e.target.value }))} />
-            </div>
-            <div className="crm-field">
-              <label>Joined Before</label>
-              <input type="date" value={form.filter_joined_before} onChange={e => setForm(f => ({ ...f, filter_joined_before: e.target.value }))} />
-            </div>
-          </div>
-
-          {/* Consent toggles */}
-          <div className="crm-section-label">Consent Requirements</div>
-          <div className="crm-toggles">
-            <button
-              type="button"
-              className={`crm-toggle ${form.filter_accepts_email ? 'active' : ''}`}
-              onClick={() => setForm(f => ({ ...f, filter_accepts_email: !f.filter_accepts_email }))}
-              aria-pressed={form.filter_accepts_email}
-            >
-              <span className="toggle-dot" />
-              <span>Accepts Email</span>
-            </button>
-            <button
-              type="button"
-              className={`crm-toggle ${form.filter_accepts_sms ? 'active' : ''}`}
-              onClick={() => setForm(f => ({ ...f, filter_accepts_sms: !f.filter_accepts_sms }))}
-              aria-pressed={form.filter_accepts_sms}
-            >
-              <span className="toggle-dot" />
-              <span>Accepts SMS</span>
-            </button>
-            <p className="crm-hint-block">
-              When enabled, only recipients who have explicitly opted in will be included.
-            </p>
-          </div>
-
           <div className="crm-form-actions">
             <button className="crm-btn-primary" onClick={handleCreate} disabled={saving || !form.name}>
               {saving ? 'Creating…' : 'Create Audience'}
@@ -443,11 +241,7 @@ export default function CrmAudiencesPage() {
                 </td>
                 <td className="crm-muted">{sourceLabel(a.audience_rpc_name)}</td>
                 <td>
-                  {a.filter_criteria
-                    ? Object.entries(a.filter_criteria).map(([k, v]) => (
-                      <span key={k} className="crm-badge filter">{k}: {String(v)}</span>
-                    ))
-                    : <span className="crm-muted">None</span>}
+                  <span className="crm-muted">Native RPC Filter</span>
                 </td>
                 <td>
                   {a.estimated_size != null

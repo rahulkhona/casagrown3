@@ -12,32 +12,22 @@ type LandingPage = {
   id: string
   name: string
   slug: string           // matches the URL path segment, e.g. "spring-sale"
-  url: string            // full public URL, e.g. https://casagrown.com/spring-sale
   description: string | null
   campaign_id: string | null
-  ab_variant: string | null
   is_active: boolean
   created_at: string
 }
 
-type PageStats = {
-  page_id: string
-  visit_count: number
-  lead_count: number
-}
 
 const defaultForm = {
   name:        '',
   slug:        '',
-  url:         '',
   description: '',
-  ab_variant:  '',
   is_active:   true,
 }
 
 export default function CrmLandingPagesPage() {
   const [pages, setPages]       = useState<LandingPage[]>([])
-  const [stats, setStats]       = useState<Record<string, PageStats>>({})
   const [loading, setLoading]   = useState(true)
   const [creating, setCreating] = useState(false)
   const [saving, setSaving]     = useState(false)
@@ -52,21 +42,6 @@ export default function CrmLandingPagesPage() {
       .order('created_at', { ascending: false })
     setPages((data as LandingPage[]) ?? [])
     setLoading(false)
-
-    // Fetch visit + lead counts per page
-    if (data && data.length > 0) {
-      const pageIds = (data as LandingPage[]).map(p => p.id)
-      const [{ data: visits }, { data: leads }] = await Promise.all([
-        supabase.from('crm_page_visits').select('page_id').in('page_id', pageIds),
-        supabase.from('crm_leads').select('landing_page_id').in('landing_page_id', pageIds),
-      ])
-
-      const statsMap: Record<string, PageStats> = {}
-      pageIds.forEach(id => { statsMap[id] = { page_id: id, visit_count: 0, lead_count: 0 } })
-      visits?.forEach((v: { page_id: string }) => { if (statsMap[v.page_id]) statsMap[v.page_id].visit_count++ })
-      leads?.forEach((l: { landing_page_id: string }) => { if (statsMap[l.landing_page_id]) statsMap[l.landing_page_id].lead_count++ })
-      setStats(statsMap)
-    }
   }
 
   useEffect(() => { fetchPages() }, [])
@@ -76,8 +51,7 @@ export default function CrmLandingPagesPage() {
   // Auto-derive slug from name
   const handleNameChange = (name: string) => {
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-    const url  = `https://casagrown.com/${slug}`
-    setForm(f => ({ ...f, name, slug, url }))
+    setForm(f => ({ ...f, name, slug }))
   }
 
   const handleCreate = async () => {
@@ -87,9 +61,7 @@ export default function CrmLandingPagesPage() {
     const { error } = await supabase.from('crm_landing_pages').insert({
       name:        form.name,
       slug:        form.slug,
-      url:         form.url,
       description: form.description || null,
-      ab_variant:  form.ab_variant || null,
       is_active:   form.is_active,
     })
 
@@ -116,20 +88,13 @@ export default function CrmLandingPagesPage() {
     toast('Landing page removed')
   }
 
-  const convRate = (pageId: string) => {
-    const s = stats[pageId]
-    if (!s || s.visit_count === 0) return '—'
-    return `${((s.lead_count / s.visit_count) * 100).toFixed(1)}%`
-  }
-
   return (
     <div className="crm-page">
       <div className="crm-header">
         <div>
           <h1 className="crm-title">Landing Pages</h1>
           <p className="crm-subtitle">
-            Register landing pages to enable tracking. Each page must call{' '}
-            <code>useMarketingAnalytics()</code> — visits and lead conversions will appear here automatically.
+            Register landing pages here to catalog their availability. Analytics and conversion pipelines are managed in the Metrics app.
           </p>
         </div>
         {!creating && (
@@ -165,27 +130,11 @@ export default function CrmLandingPagesPage() {
               />
             </div>
             <div className="crm-field full-width">
-              <label>Public URL</label>
-              <input
-                placeholder="https://casagrown.com/spring-growers"
-                value={form.url}
-                onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
-              />
-            </div>
-            <div className="crm-field full-width">
               <label>Description</label>
               <input
                 placeholder="What this page is for…"
                 value={form.description}
                 onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-              />
-            </div>
-            <div className="crm-field">
-              <label>A/B Variant <span className="crm-hint">— leave blank for control</span></label>
-              <input
-                placeholder="e.g. B, variant-2"
-                value={form.ab_variant}
-                onChange={e => setForm(f => ({ ...f, ab_variant: e.target.value }))}
               />
             </div>
             <div className="crm-field" style={{ justifyContent: 'flex-end' }}>
@@ -222,10 +171,6 @@ export default function CrmLandingPagesPage() {
             <tr>
               <th>Page</th>
               <th>Slug / URL</th>
-              <th>A/B</th>
-              <th>Visits</th>
-              <th>Leads</th>
-              <th>Conv. Rate</th>
               <th>Status</th>
               <th>Created</th>
               <th></th>
@@ -233,10 +178,10 @@ export default function CrmLandingPagesPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={9} className="crm-empty">Loading…</td></tr>
+              <tr><td colSpan={6} className="crm-empty">Loading…</td></tr>
             ) : pages.length === 0 ? (
               <tr>
-                <td colSpan={9} className="crm-empty">
+                <td colSpan={6} className="crm-empty">
                   No landing pages registered yet.<br />
                   <span style={{ fontSize: '0.85rem', color: '#9ca3af' }}>
                     Register a page above so visits and leads are attributed correctly.
@@ -252,19 +197,11 @@ export default function CrmLandingPagesPage() {
                 <td>
                   <code className="slug-code">/{page.slug}</code>
                   <div>
-                    <a href={page.url} target="_blank" rel="noreferrer" className="page-url">
-                      {page.url}
+                    <a href={`https://casagrown.com/${page.slug}`} target="_blank" rel="noreferrer" className="page-url">
+                      https://casagrown.com/{page.slug}
                     </a>
                   </div>
                 </td>
-                <td className="crm-muted">{page.ab_variant || '—'}</td>
-                <td>
-                  <span className="crm-badge stat-badge">{stats[page.id]?.visit_count ?? 0}</span>
-                </td>
-                <td>
-                  <span className="crm-badge stat-badge green">{stats[page.id]?.lead_count ?? 0}</span>
-                </td>
-                <td className="crm-muted">{convRate(page.id)}</td>
                 <td>
                   <button
                     className={`crm-status-pill ${page.is_active ? 'active' : 'inactive'}`}

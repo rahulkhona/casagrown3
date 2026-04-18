@@ -12,7 +12,8 @@
  *   campaigns with status='scheduled' and scheduled_at <= now().
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.6";
-import { sendBroadcastEmailBatch } from "../_shared/postmark.ts";
+import Mustache from "https://esm.sh/mustache@4.2.0";
+import { sendBroadcastEmailBatch, sendBroadcastTemplateBatch } from "../_shared/postmark.ts";
 import { sendSms } from "../_shared/twilio.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 
@@ -40,7 +41,7 @@ Deno.serve(async (req: Request) => {
   // ── Load campaigns to send ──────────────────────────────────────────
   const campaignQuery = supabase
     .from("crm_campaigns")
-    .select("*, crm_audiences(*)")
+    .select("*, crm_audiences(*), crm_data_sources(*)")
     .in("status", ["scheduled", "sending"]);
 
   if (campaignId) {
@@ -82,16 +83,30 @@ Deno.serve(async (req: Request) => {
         recipients = data as AudienceRow[];
       }
 
-      // Apply filter_criteria
+      // Apply behavioral filter_criteria (if any remain)
       if (audience?.filter_criteria) {
         recipients = applyFilters(recipients, audience.filter_criteria);
       }
+
+      // Apply Multi-Geo targets mapped directly from the Campaign object
+      recipients = applyGeoTargets(recipients, campaign);
 
       // Filter by channel consent
       if (campaign.channel === "email") {
         recipients = recipients.filter((r) => r.email && r.accepts_email);
       } else {
         recipients = recipients.filter((r) => r.phone && r.accepts_sms);
+      }
+
+      // ── Resolve Data Source (if registered) ───────────────────────
+      let dynamicModel: any = null;
+      if (campaign.crm_data_sources?.rpc_name) {
+        const { data, error } = await supabase.rpc(campaign.crm_data_sources.rpc_name);
+        if (error) {
+           console.error(`[SEND-CAMPAIGN] Data Source RPC Error (${campaign.crm_data_sources.rpc_name}):`, error);
+        } else {
+           dynamicModel = data;
+        }
       }
 
       console.log(`[SEND-CAMPAIGN] ${recipients.length} recipients for campaign ${campaign.id}`);
@@ -104,51 +119,85 @@ Deno.serve(async (req: Request) => {
         const batch = recipients.slice(i, i + BATCH_SIZE);
 
         if (campaign.channel === "email") {
-          // Create short links for each recipient and build email payloads
-          const emailPayloads = await Promise.all(
-            batch.map(async (r) => {
-              const personalizedHtml = await rewriteLinks(
-                campaign.content_html ?? "",
-                campaign.id,
-                r.id,
-                r.recipient_type,
-                supabase,
-              );
-              return {
-                to: r.email!,
-                subject: campaign.subject ?? "Message from CasaGrown",
-                htmlBody: personalizedHtml,
-                recipientId: r.id,
-              };
-            }),
-          );
+          let result;
+          const sendRecords: any[] = [];
 
-          const result = await sendBroadcastEmailBatch(
-            emailPayloads.map((p) => ({
-              to: p.to,
-              subject: p.subject,
-              htmlBody: p.htmlBody,
-            })),
-          );
+          if (campaign.postmark_template_alias) {
+            // ── Postmark Template API Mode ──
+            const templatePayloads = batch.map(r => ({
+              to: r.email!,
+              templateAlias: campaign.postmark_template_alias!,
+              templateModel: {
+                recipient_id: r.id,
+                name: r.name,
+                data_source: dynamicModel
+              }
+            }));
 
-          // Record sends
-          const sendRecords = emailPayloads.map((p) => ({
-            campaign_id: campaign.id,
-            recipient_type: batch.find((r) => r.email === p.to)?.recipient_type ?? "user",
-            recipient_id: p.recipientId,
-            email: p.to,
-            sent_at: result.success ? new Date().toISOString() : null,
-            error: result.success ? null : result.error,
-          }));
+            result = await sendBroadcastTemplateBatch(templatePayloads);
+            
+            sendRecords.push(...templatePayloads.map(p => ({
+              campaign_id: campaign.id,
+              recipient_type: batch.find(r => r.email === p.to)?.recipient_type ?? "user",
+              recipient_id: p.templateModel.recipient_id,
+              email: p.to,
+              sent_at: result?.success ? new Date().toISOString() : null,
+              error: result?.success ? null : result?.error,
+            })));
+            
+          } else {
+            // ── Standard Custom HTML Mode ──
+            const emailPayloads = await Promise.all(
+              batch.map(async (r) => {
+                const rawBody = campaign.content_html ?? "";
+                const renderedHtml = Mustache.render(rawBody, { name: r.name, data_source: dynamicModel });
+                
+                const personalizedHtml = await rewriteLinks(
+                  renderedHtml,
+                  campaign.id,
+                  r.id,
+                  r.recipient_type,
+                  supabase,
+                );
+                return {
+                  to: r.email!,
+                  subject: Mustache.render(campaign.subject ?? "Message from CasaGrown", { name: r.name, data_source: dynamicModel }),
+                  htmlBody: personalizedHtml,
+                  recipientId: r.id,
+                };
+              }),
+            );
+
+            result = await sendBroadcastEmailBatch(
+              emailPayloads.map((p) => ({
+                to: p.to,
+                subject: p.subject,
+                htmlBody: p.htmlBody,
+              })),
+            );
+
+            sendRecords.push(...emailPayloads.map(p => ({
+              campaign_id: campaign.id,
+              recipient_type: batch.find((r) => r.email === p.to)?.recipient_type ?? "user",
+              recipient_id: p.recipientId,
+              email: p.to,
+              sent_at: result?.success ? new Date().toISOString() : null,
+              error: result?.success ? null : result?.error,
+            })));
+          }
 
           await supabase.from("crm_campaign_sends").insert(sendRecords);
-          if (result.success) sent += batch.length;
+          if (result?.success) sent += batch.length;
           else failed += batch.length;
+
         } else {
           // SMS: send one by one (Twilio doesn't have batch API)
           for (const r of batch) {
+            const rawText = campaign.content_text ?? "";
+            const renderedText = Mustache.render(rawText, { name: r.name, data_source: dynamicModel });
+
             const smsBody = await rewriteLinksText(
-              campaign.content_text ?? "",
+              renderedText,
               campaign.id,
               r.id,
               r.recipient_type,
@@ -222,14 +271,40 @@ function applyFilters(
   criteria: Record<string, unknown>,
 ): AudienceRow[] {
   return rows.filter((r) => {
-    if (criteria.state_code && r.state_code !== criteria.state_code) return false;
-    if (criteria.city && r.city?.toLowerCase() !== (criteria.city as string).toLowerCase()) return false;
-    if (criteria.zip_code && r.zip_code !== criteria.zip_code) return false;
+    // Geo variables have been moved to Campaign Target Arrays, only process behavioral criteria here
     if (criteria.accepts_email === true && !r.accepts_email) return false;
     if (criteria.accepts_sms === true && !r.accepts_sms) return false;
     if (criteria.joined_after && new Date(r.joined_at) < new Date(criteria.joined_after as string)) return false;
     if (criteria.joined_before && new Date(r.joined_at) > new Date(criteria.joined_before as string)) return false;
     return true;
+  });
+}
+
+/** Apply Campaign-level Geographic Target Arrays */
+function applyGeoTargets(
+  rows: AudienceRow[],
+  campaign: Record<string, any>,
+): AudienceRow[] {
+  const hasStates   = Array.isArray(campaign.target_states)   && campaign.target_states.length > 0;
+  const hasCities   = Array.isArray(campaign.target_cities)   && campaign.target_cities.length > 0;
+  const hasCounties = Array.isArray(campaign.target_counties) && campaign.target_counties.length > 0;
+  const hasZips     = Array.isArray(campaign.target_zips)     && campaign.target_zips.length > 0;
+  const hasH3s      = Array.isArray(campaign.target_h3s)      && campaign.target_h3s.length > 0;
+
+  // If no inclusive targets are set, allow all global recipients to pass
+  if (!hasStates && !hasCities && !hasCounties && !hasZips && !hasH3s) {
+    return rows;
+  }
+
+  return rows.filter((r) => {
+    // If a recipient matches ANY of the target arrays, they are included (OR logic bounding box)
+    if (hasStates   && r.state_code             && campaign.target_states.includes(r.state_code)) return true;
+    if (hasCities   && r.city                   && campaign.target_cities.some((c: string) => c.toLowerCase() === r.city?.toLowerCase())) return true;
+    if (hasZips     && r.zip_code               && campaign.target_zips.includes(r.zip_code)) return true;
+    if (hasH3s      && r.community_h3           && campaign.target_h3s.includes(r.community_h3)) return true;
+    
+    // Recipient failed to map against any of the requested geo boundaries
+    return false;
   });
 }
 

@@ -13,7 +13,6 @@ CREATE TABLE IF NOT EXISTS crm_landing_pages (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   slug        TEXT NOT NULL UNIQUE,   -- 'sellers', 'earnings-calculator', 'buyers'
   title       TEXT NOT NULL,
-  url         TEXT NOT NULL,          -- casagrown.com/[slug]
   description TEXT,
   is_active   BOOLEAN NOT NULL DEFAULT true,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -100,7 +99,6 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 CREATE TABLE IF NOT EXISTS crm_assets (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   storage_path TEXT NOT NULL,         -- path in marketing-assets bucket
-  public_url   TEXT NOT NULL,         -- CDN-accessible public URL
   type         TEXT NOT NULL CHECK (type IN ('image', 'video', 'audio', 'document')),
   tags         TEXT[] NOT NULL DEFAULT '{}',
   description  TEXT,
@@ -182,7 +180,9 @@ CREATE TABLE IF NOT EXISTS crm_page_events (
                 'button_click', 'calculator_used', 'form_start',
                 'form_abandon', 'cta_clicked', 'scroll_50', 'scroll_90'
               )),
-  event_data  JSONB NOT NULL DEFAULT '{}',  -- { button: 'Join Now', calc_inputs: ... }
+  target_element TEXT,                -- 'Join Now Button', 'Seller Survey'
+  value_text     TEXT,                -- Logbed strings
+  value_int      INT,                 -- Calculated numeric output natively
   occurred_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -212,8 +212,7 @@ CREATE TABLE IF NOT EXISTS crm_audiences (
   description       TEXT,
   recipient_type    TEXT NOT NULL CHECK (recipient_type IN ('leads', 'users', 'both')),
   audience_rpc_name TEXT,              -- optional: name of Postgres RPC for behavioral filter
-  filter_criteria   JSONB NOT NULL DEFAULT '{}',
-  estimated_count   INT,               -- cached, refreshed before each send
+  estimated_count   INT,               
   last_estimated_at TIMESTAMPTZ,
   created_by        UUID REFERENCES profiles (id) ON DELETE SET NULL,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -230,20 +229,42 @@ DO $$ BEGIN
     WITH CHECK (EXISTS (SELECT 1 FROM staff_members WHERE user_id = auth.uid()));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- ─── 7. crm_campaigns ────────────────────────────────────────────────
+-- ─── 7. crm_data_sources ─────────────────────────────────────────────
+-- Registry of backend RPCs mapped to specific JSON output schemas for template designers
+CREATE TABLE IF NOT EXISTS crm_data_sources (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name              TEXT NOT NULL,
+  description       TEXT,
+  rpc_name          TEXT NOT NULL,
+  return_schema     JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ─── 8. crm_campaigns ────────────────────────────────────────────────
 -- Email or SMS campaign: content, audience reference, and schedule.
 CREATE TABLE IF NOT EXISTS crm_campaigns (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  system_alias TEXT UNIQUE,            -- e.g. 'sys-day3-welcome', used for programmatic automated dispatch
   name         TEXT NOT NULL,
   channel      TEXT NOT NULL CHECK (channel IN ('email', 'sms')),
   subject      TEXT,                   -- email only
   content_html TEXT,                   -- email HTML body (AI-generated, pasted in)
   content_text TEXT,                   -- SMS text or email plain-text fallback
+  postmark_template_alias TEXT,        -- If populated, bypasses custom HTML in favor of Postmark template API
   audience_id  UUID REFERENCES crm_audiences (id) ON DELETE SET NULL,
+  data_source_id UUID REFERENCES crm_data_sources (id) ON DELETE SET NULL,
+
+  -- Geographic Multiple Targeting
+  target_states   TEXT[] NOT NULL DEFAULT '{}',
+  target_cities   TEXT[] NOT NULL DEFAULT '{}',
+  target_counties TEXT[] NOT NULL DEFAULT '{}',
+  target_zips     TEXT[] NOT NULL DEFAULT '{}',
+  target_h3s      TEXT[] NOT NULL DEFAULT '{}',
+
   scheduled_at TIMESTAMPTZ,            -- NULL = draft
   sent_at      TIMESTAMPTZ,
   status       TEXT NOT NULL DEFAULT 'draft'
-               CHECK (status IN ('draft', 'scheduled', 'sending', 'sent', 'cancelled')),
+               CHECK (status IN ('draft', 'scheduled', 'sending', 'sent', 'cancelled', 'active')),
   stats        JSONB NOT NULL DEFAULT '{}', -- { total_sent, opened, clicked, bounced, unsubscribed }
   created_by   UUID REFERENCES profiles (id) ON DELETE SET NULL,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()

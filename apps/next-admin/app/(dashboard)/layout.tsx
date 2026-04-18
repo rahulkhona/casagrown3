@@ -83,6 +83,7 @@ const MENU_GROUPS: MenuGroup[] = [
     icon: Mail,
     items: [
       { label: 'Landing Pages', path: '/crm/landing-pages' },
+      { label: 'Data Sources', path: '/crm/data-sources' },
       { label: 'Leads', path: '/crm/leads' },
       { label: 'Email / SMS Campaigns', path: '/crm/campaigns' },
       { label: 'Audiences', path: '/crm/audiences' },

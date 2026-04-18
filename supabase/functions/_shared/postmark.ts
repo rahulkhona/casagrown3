@@ -271,3 +271,74 @@ export async function sendBroadcastEmailBatch(
         };
     }
 }
+
+export interface TemplatePayload {
+    to: string;
+    templateAlias: string;
+    templateModel: Record<string, unknown>;
+}
+
+/**
+ * Send an array of emails via Postmark's /email/batchWithTemplates API.
+ * Max 500 emails per batch.
+ */
+export async function sendBroadcastTemplateBatch(
+    payloads: TemplatePayload[],
+): Promise<{ success: boolean; error?: string }> {
+    if (payloads.length === 0) return { success: true };
+    if (payloads.length > 500) {
+        return { success: false, error: "Postmark max batch size is 500" };
+    }
+
+    const token = Deno.env.get("POSTMARK_BROADCAST_TOKEN");
+    const fromEmail = Deno.env.get("POSTMARK_BROADCAST_FROM_EMAIL") ??
+        Deno.env.get("POSTMARK_FROM_EMAIL") ?? "no-reply@news.casagrown.com";
+    const messageStream = Deno.env.get("POSTMARK_BROADCAST_STREAM") ?? "broadcast";
+
+    if (!token) {
+        console.log(`📡 Local dev: Mocking Batch With Templates for ${payloads.length} emails to Mailpit...`);
+        // We fallback to standard broadcast since Mailpit doesn't understand Postmark templates natively
+        for (const p of payloads) {
+            await sendBroadcastEmail({
+                to: p.to,
+                subject: `[TEMPLATE MOCK: ${p.templateAlias}]`,
+                htmlBody: `<p>Template Model: <pre>${JSON.stringify(p.templateModel, null, 2)}</pre></p>`
+            });
+        }
+        return { success: true };
+    }
+
+    const messages = payloads.map(p => ({
+        From: fromEmail,
+        To: p.to,
+        TemplateAlias: p.templateAlias,
+        TemplateModel: p.templateModel,
+        MessageStream: messageStream
+    }));
+
+    try {
+        const res = await fetch("https://api.postmarkapp.com/email/batchWithTemplates", {
+            method: "POST",
+            headers: {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "X-Postmark-Server-Token": token,
+            },
+            body: JSON.stringify({ Messages: messages })
+        });
+
+        if (!res.ok) {
+            const errStr = await res.text();
+            throw new Error(`Postmark template batch API error: ${res.status} ${errStr}`);
+        }
+
+        console.log(`📡 Template Batch sent via Postmark API: ${payloads.length} emails`);
+        return { success: true };
+    } catch (err) {
+        console.error(`❌ Template batch send failed:`, err);
+        return {
+            success: false,
+            error: err instanceof Error ? err.message : String(err),
+        };
+    }
+}

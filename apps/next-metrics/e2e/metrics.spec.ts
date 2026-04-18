@@ -4,6 +4,8 @@ import { test, expect } from '@playwright/test'
 // Login Page
 // ============================================================================
 test.describe('Login Page', () => {
+  test.use({ storageState: { cookies: [], origins: [] } })
+
   test('should display login page with branding', async ({ page }) => {
     await page.goto('/login')
     await page.waitForTimeout(2000)
@@ -50,6 +52,8 @@ test.describe('Login Page', () => {
 // Auth Guard — unauthenticated users get redirected to login
 // ============================================================================
 test.describe('Auth Guard Redirect', () => {
+  test.use({ storageState: { cookies: [], origins: [] } })
+  
   test('root page redirects to login', async ({ page }) => {
     await page.goto('/')
     await page.waitForTimeout(3000)
@@ -80,6 +84,8 @@ test.describe('Auth Guard Redirect', () => {
 // These tests check the login page since that's the only unauthenticated page.
 // ============================================================================
 test.describe('Login Page UI', () => {
+  test.use({ storageState: { cookies: [], origins: [] } })
+
   test('should have dark theme background', async ({ page }) => {
     await page.goto('/login')
     await page.waitForTimeout(2000)
@@ -116,12 +122,17 @@ test.describe('Login Page UI', () => {
 // ============================================================================
 test.describe('Attribution Page', () => {
   test('should redirect to login when unauthenticated', async ({ page }) => {
-    await page.goto('/attribution')
-    await page.waitForTimeout(3000)
+    // Clear state just for this test
+    const unAuthedContext = await page.context().browser()?.newContext({ storageState: { cookies: [], origins: [] } })
+    const unAuthedPage = await unAuthedContext!.newPage()
+    
+    await unAuthedPage.goto('/attribution')
+    await unAuthedPage.waitForTimeout(3000)
 
-    const url = page.url()
-    const body = await page.textContent('body')
+    const url = unAuthedPage.url()
+    const body = await unAuthedPage.textContent('body')
     expect(url.includes('/login') || body?.includes('Verifying')).toBeTruthy()
+    await unAuthedContext!.close()
   })
 
   test('should have attribution nav item in sidebar', async ({ page }) => {

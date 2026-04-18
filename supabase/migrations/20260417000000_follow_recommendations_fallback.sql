@@ -10,7 +10,7 @@ RETURNS TABLE (
   reason text
 ) AS $$
 DECLARE
-  v_home extensions.geometry;
+  v_home geometry;
   v_h3 text;
 BEGIN
   -- We use home_location directly since we don't necessarily have zip-fallback here
@@ -30,7 +30,7 @@ BEGIN
   nearby AS (
     SELECT id AS peer_id
     FROM profiles
-    WHERE v_home IS NOT NULL AND extensions.ST_DWithin(home_location, v_home, 804.672) -- 0.5 miles => 804.672 meters
+    WHERE v_home IS NOT NULL AND ST_DWithin(home_location, v_home, 804.672) -- 0.5 miles => 804.672 meters
     AND id != p_user_id
   ),
   same_community AS (

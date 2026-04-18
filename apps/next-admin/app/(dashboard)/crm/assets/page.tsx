@@ -16,7 +16,6 @@ type Asset = {
   content: string | null
   description: string | null
   tags: string[] | null
-  metadata: Record<string, unknown> | null
   created_at: string
 }
 
@@ -48,6 +47,7 @@ export default function CrmAssetsPage() {
   const [typeFilter, setTypeFilter] = useState('all')
   const [showForm, setShowForm]   = useState(false)
   const [form, setForm]           = useState(defaultForm)
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const fetchAssets = async () => {
@@ -66,45 +66,7 @@ export default function CrmAssetsPage() {
     setTimeout(() => setMessage(''), ms)
   }
 
-  /* ---------- File upload (image, video, audio, document) ---------- */
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-
-    // Determine type from MIME
-    const mime = file.type
-    let assetType: Asset['type'] = 'document'
-    if (mime.startsWith('image/'))   assetType = 'image'
-    else if (mime.startsWith('video/')) assetType = 'video'
-    else if (mime.startsWith('audio/')) assetType = 'audio'
-
-    const path = `campaign-media/${Date.now()}-${file.name}`
-    const { error: uploadErr } = await supabase.storage
-      .from('marketing-assets')
-      .upload(path, file, { upsert: true })
-
-    if (uploadErr) {
-      toast(`Upload failed: ${uploadErr.message}`)
-      setUploading(false)
-      return
-    }
-
-    const { data: urlData } = supabase.storage.from('marketing-assets').getPublicUrl(path)
-
-    const { error: insertErr } = await supabase.from('crm_assets').insert({
-      name: file.name,
-      type: assetType,
-      storage_path: path,
-      metadata: { public_url: urlData.publicUrl, mime_type: mime, size_bytes: file.size },
-    })
-
-    if (insertErr) toast(`DB insert failed: ${insertErr.message}`)
-    else { toast('Media uploaded!'); fetchAssets() }
-
-    setUploading(false)
-    if (fileRef.current) fileRef.current.value = ''
-  }
+  // Merged into handleSaveTemplate
 
   /* ---------- Tag chip input ---------- */
   const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -127,27 +89,54 @@ export default function CrmAssetsPage() {
   /* ---------- Save template / content record ---------- */
   const handleSaveTemplate = async () => {
     if (!form.name.trim()) return
+    const typeIsMedia = MEDIA_TYPES.includes(form.type)
+    if (typeIsMedia && !uploadFile) {
+      toast('Please select a file to upload')
+      return
+    }
+
     setUploading(true)
+    let finalPath = null
+
+    if (typeIsMedia && uploadFile) {
+      const path = `campaign-media/${Date.now()}-${uploadFile.name}`
+      const { error: uploadErr } = await supabase.storage
+        .from('marketing-assets')
+        .upload(path, uploadFile, { upsert: true })
+
+      if (uploadErr) {
+        toast(`Upload failed: ${uploadErr.message}`)
+        setUploading(false)
+        return
+      }
+      finalPath = path
+    }
 
     const { error } = await supabase.from('crm_assets').insert({
       name: form.name,
       description: form.description || null,
       type: form.type,
-      content: form.content || null,
+      storage_path: finalPath,
+      content: !typeIsMedia ? form.content || null : null,
       tags: form.tags.length > 0 ? form.tags : null,
     })
 
     if (!error) {
       setShowForm(false)
       setForm(defaultForm)
+      setUploadFile(null)
       toast('Asset saved!')
       fetchAssets()
+    } else {
+      toast(`Error saving asset: ${error.message}`)
     }
     setUploading(false)
   }
 
   const copyUrl = (asset: Asset) => {
-    const url = asset.metadata?.public_url as string
+    const url = asset.storage_path 
+      ? supabase.storage.from('marketing-assets').getPublicUrl(asset.storage_path).data.publicUrl
+      : ''
     if (url) { navigator.clipboard.writeText(url); toast('URL copied!', 2000) }
   }
 
@@ -175,17 +164,7 @@ export default function CrmAssetsPage() {
           <p className="crm-subtitle">Images, video, audio, templates, and documents for campaigns</p>
         </div>
         <div className="crm-header-actions">
-          <label className="crm-upload-btn" title="Upload image, video, audio, or document">
-            {uploading ? 'Uploading…' : '⬆ Upload Media'}
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.csv"
-              onChange={handleFileUpload}
-              hidden
-            />
-          </label>
-          <button className="crm-btn-primary" onClick={() => { setShowForm(true); setForm(defaultForm) }}>
+          <button className="crm-btn-primary" onClick={() => { setShowForm(true); setForm(defaultForm); setUploadFile(null); }}>
             + New Asset
           </button>
         </div>
@@ -246,6 +225,19 @@ export default function CrmAssetsPage() {
               </div>
             </div>
 
+            {/* Select File (only if media) */}
+            {typeIsMedia && (
+              <div className="crm-field full-width">
+                <label>Media File *</label>
+                <input
+                  type="file"
+                  accept={ASSET_TYPES.find(t => t.value === form.type)?.uploadAccept || ''}
+                  onChange={e => setUploadFile(e.target.files?.[0] || null)}
+                  style={{ background: '#f9fafb', padding: '12px' }}
+                />
+              </div>
+            )}
+
             {/* Content / AI Prompt — only for templates & documents */}
             {!typeIsMedia && (
               <div className="crm-field full-width">
@@ -294,10 +286,10 @@ export default function CrmAssetsPage() {
         ) : assets.map(asset => (
           <div key={asset.id} className="asset-card" data-testid={`asset-card-${asset.id}`}>
             <div className="asset-preview">
-              {asset.type === 'image' && asset.metadata?.public_url ? (
-                <img src={asset.metadata.public_url as string} alt={asset.name} />
-              ) : asset.type === 'video' && asset.metadata?.public_url ? (
-                <video src={asset.metadata.public_url as string} muted playsInline />
+              {asset.type === 'image' && asset.storage_path ? (
+                <img src={supabase.storage.from('marketing-assets').getPublicUrl(asset.storage_path).data.publicUrl} alt={asset.name} />
+              ) : asset.type === 'video' && asset.storage_path ? (
+                <video src={supabase.storage.from('marketing-assets').getPublicUrl(asset.storage_path).data.publicUrl} muted playsInline />
               ) : asset.type === 'audio' ? (
                 <span className="asset-type-icon">🎵</span>
               ) : (
@@ -322,7 +314,7 @@ export default function CrmAssetsPage() {
               </div>
             </div>
             <div className="asset-actions">
-              {asset.metadata?.public_url && (
+              {asset.storage_path && (
                 <button className="crm-btn-sm" onClick={() => copyUrl(asset)}>Copy URL</button>
               )}
               <button
