@@ -43,7 +43,8 @@ export type EmailType =
     | "delegation_accepted"
     | "refund_offer"
     | "rating_reminder"
-    | "followed_seller_adds_item";
+    | "followed_seller_adds_item"
+    | "welcome";
 
 export interface EmailRecipient {
     email: string;
@@ -192,6 +193,8 @@ export function renderEmailByType(
             return renderRatingReminder(payload, recipient);
         case "followed_seller_adds_item":
             return renderFollowedSellerAddsItem(payload, recipient);
+        case "welcome":
+            return renderWelcomeEmail(payload, recipient);
         case "dispute_resolved":
             return renderDisputeResolved(payload, recipient);
         case "chat_initiated":
@@ -947,5 +950,81 @@ ${actionButton("View Booth", `${SITE_URL}/market`)}
     return {
         subject,
         htmlBody: wrapInBrandedTemplate({ title: "New Item Available", greeting, bodyHtml }),
+    };
+}
+
+// =============================================================================
+// (t) Welcome Email
+// =============================================================================
+
+function renderWelcomeEmail(
+    p: NotificationPayload,
+    r: EmailRecipient,
+): { subject: string; htmlBody: string } {
+    const subject = "🏡 You're in! Welcome to your hyper-local neighborhood market.";
+    const greeting = r.name ? `Hi ${r.name},` : "Hi there,";
+
+    // Rely on SITE_URL for absolute image path
+    const heroImage = `${SITE_URL}/emails/welcome-hero.png`;
+
+    const bodyHtml = \`
+<div style="text-align: center; margin-bottom: 32px;">
+  <img src="\${heroImage}" alt="Thank You" style="width: 100%; max-width: 600px; border-radius: 12px; margin-bottom: 24px;" />
+</div>
+
+<p style="margin: 0 0 16px; font-size: 16px; color: #374151; line-height: 1.6;">
+  I wanted to personally reach out and welcome you to CasaGrown! Thank you for joining our hyper-local community and for being an essential part of our mission to revolutionize the way neighborhoods share food.
+</p>
+
+<p style="margin: 0 0 16px; font-size: 16px; color: #374151; line-height: 1.6;">
+  By participating in CasaGrown, you are directly helping us reduce produce waste, make fresh and healthy food more accessible for all our neighbors, and convert backyard waste into real savings.
+</p>
+
+<h3 style="margin: 32px 0 12px; font-size: 18px; color: #111827;">Explore the Platform Highlights 🌟</h3>
+<p style="margin: 0 0 12px; font-size: 15px; color: #4b5563; line-height: 1.6;">
+  As you get settled, we encourage you to try out some of our favorite novelties:
+</p>
+<ul style="margin: 0 0 24px; padding-left: 20px; font-size: 15px; color: #4b5563; line-height: 1.6;">
+  <li><strong>The Gardening Community</strong>: Connect with local growers, share harvests, and swap stories.</li>
+  <li><strong>CasaBot AI Assistant</strong>: Your personalized gardening companion! Ask CasaBot for hyper-local gardening tips, planting schedules, and harvesting advice.</li>
+</ul>
+
+<h3 style="margin: 32px 0 12px; font-size: 18px; color: #111827;">Your Safety is our Top Priority 🔒</h3>
+<p style="margin: 0 0 12px; font-size: 15px; color: #4b5563; line-height: 1.6;">
+  We designed CasaGrown to keep your private information secure. 
+  <strong>Your address is never shared publicly.</strong> It is strictly only revealed to sellers when they are actively delivering your order, or to buyers when you approve them for a local pickup.
+</p>
+<ul style="margin: 0 0 24px; padding-left: 20px; font-size: 15px; color: #4b5563; line-height: 1.6;">
+  <li><strong>Custom Pickup Locations</strong>: Prefer to meet at a nearby park or cafe? You can always set custom pickup spots.</li>
+  <li><strong>Touchless Delivery</strong>: Sellers can securely drop off produce at your door without any physical interaction.</li>
+</ul>
+
+<h3 style="margin: 32px 0 12px; font-size: 18px; color: #111827;">Market Netting (Keep Your Cash) 💸</h3>
+<p style="margin: 0 0 24px; font-size: 15px; color: #4b5563; line-height: 1.6;">
+  We've built a unified economy! With our advanced <strong>Market Netting</strong> feature, your balances are automatically settled across the platform. You only ever pay the difference between the produce you sell and the produce you buy.
+</p>
+
+<div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 24px; margin-top: 32px; text-align: center;">
+  <h3 style="margin: 0 0 12px; font-size: 18px; color: #166534;">Invite Your Neighbors! 🏡</h3>
+  <p style="margin: 0 0 20px; font-size: 15px; color: #15803d; line-height: 1.6;">
+    CasaGrown thrives on local network effects. As the size of our community grows, everyone benefits! A larger neighborhood means more delicious, fresh options available to buy, and significantly higher demand to quickly sell any excess produce you might have.
+  </p>
+  \${actionButton("Invite Your Neighbors Today", \`\${SITE_URL}/community?share=true&utm_source=welcome_email&utm_medium=email&utm_campaign=onboarding\`)}
+</div>
+
+<p style="margin: 32px 0 0; font-size: 16px; color: #374151; line-height: 1.6;">
+  Welcome home,<br>
+  <strong>Rahul Khona</strong><br>
+  Founder, CasaGrown
+</p>
+\`;
+
+    return {
+        subject,
+        htmlBody: wrapInBrandedTemplate({
+            title: "Welcome to CasaGrown!",
+            greeting,
+            bodyHtml,
+        }),
     };
 }

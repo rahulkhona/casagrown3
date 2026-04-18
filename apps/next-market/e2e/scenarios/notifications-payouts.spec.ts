@@ -62,7 +62,7 @@ async function queryTable(token: string, table: string, filter: string): Promise
 
 // ── Mailpit helpers (extended) ──
 
-const MAILPIT_URL = 'http://localhost:8025'
+const MAILPIT_URL = 'http://localhost:54324'
 
 async function getMailpitMessages(): Promise<any[]> {
   try {
@@ -438,6 +438,32 @@ test.describe('Notifications & Payouts', () => {
       // Should have at least one email (seeded data triggers emails)
       if (messages.length > 0) {
         expect(messages[0].Subject).toBeTruthy()
+      }
+    })
+
+    test('E3 — welcome email dispatched via trigger when community_id is populated', async () => {
+      await clearMailpit()
+
+      // 1. Reset public.profiles home_community_h3_index for a test user
+      execSql(`UPDATE public.profiles SET home_community_h3_index = NULL WHERE email = 'buyer@test.local';`)
+
+      // 2. Simulate completing the onboarding wizard by picking a community
+      const commRaw = execSql(`SELECT h3_index FROM public.communities LIMIT 1;`)
+      const commStrs = commRaw.split('\\n').filter((l: string) => l.trim().length > 0 && !l.includes('h3_index') && !l.includes('--'))
+      const communityId = commStrs.length > 0 ? commStrs[0].trim() : '89283082803ffff'
+      
+      execSql(`UPDATE public.profiles SET home_community_h3_index = '\${communityId}' WHERE email = 'buyer@test.local';`)
+
+      // 3. Wait for the Postgres async trigger -> pg_net -> Edge Function -> Mailpit sequence
+      const email = await findEmailBySubject('Welcome to your hyper-local neighborhood', 6000)
+
+      expect(email).toBeTruthy()
+      if (email) {
+        console.log('[E3] ✅ Welcome email received automatically via webhook')
+        // Verify tracking tags exist inside the CTA button
+        expect(email.body).toContain('utm_campaign=onboarding')
+        expect(email.body).toContain('share=true')
+        expect(email.body).toContain('CasaGrown')
       }
     })
   })
