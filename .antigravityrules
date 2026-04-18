@@ -1,0 +1,2 @@
+# Operational Rules
+1. Never run `git push` or deploy any changes without explicit, written confirmation ("push it", "deploy", etc.) from the user in the immediate chat turn. Always stop and ask for authorization once a feature is locally complete or tests have passed.
