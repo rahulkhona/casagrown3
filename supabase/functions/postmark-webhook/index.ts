@@ -45,46 +45,71 @@ Deno.serve(async (req: Request) => {
 
   const recordType = event.RecordType as string;
   const recipient = event.Recipient as string | undefined;
+  const metadata = event.Metadata as Record<string, string> | undefined;
+  const sendId = metadata?.send_id;
 
   if (!recipient) {
     return Response.json({ ok: true, skipped: "no recipient" });
   }
 
-  console.log(`[POSTMARK-WEBHOOK] Event: ${recordType} for ${recipient}`);
+  console.log(`[POSTMARK-WEBHOOK] Event: ${recordType} for ${recipient} (SendID: ${sendId ?? 'none'})`);
 
   switch (recordType) {
     case "Open": {
-      // Update opened_at for the earliest un-opened send to this email
-      await supabase
-        .from("crm_campaign_sends")
-        .update({ opened_at: new Date().toISOString() })
-        .eq("email", recipient)
-        .is("opened_at", null)
-        .order("sent_at", { ascending: false })
-        .limit(1);
+      if (sendId) {
+        await supabase
+          .from("crm_campaign_sends")
+          .update({ opened_at: new Date().toISOString() })
+          .eq("id", sendId)
+          .is("opened_at", null);
+      } else {
+        // Fallback for legacy sends without unique send_ids
+        await supabase
+          .from("crm_campaign_sends")
+          .update({ opened_at: new Date().toISOString() })
+          .eq("email", recipient)
+          .is("opened_at", null)
+          .order("sent_at", { ascending: false })
+          .limit(1);
+      }
       break;
     }
 
     case "Bounce":
     case "SpamComplaint": {
-      await supabase
-        .from("crm_campaign_sends")
-        .update({ bounced_at: new Date().toISOString() })
-        .eq("email", recipient)
-        .is("bounced_at", null);
+      if (sendId) {
+        await supabase
+          .from("crm_campaign_sends")
+          .update({ bounced_at: new Date().toISOString() })
+          .eq("id", sendId)
+          .is("bounced_at", null);
+      } else {
+        await supabase
+          .from("crm_campaign_sends")
+          .update({ bounced_at: new Date().toISOString() })
+          .eq("email", recipient)
+          .is("bounced_at", null);
+      }
       break;
     }
 
     case "SubscriptionChange": {
-      // Unsubscribe — mark in campaign_sends and update lead/profile
       if (event.SuppressSending === true) {
-        await supabase
-          .from("crm_campaign_sends")
-          .update({ unsubscribed_at: new Date().toISOString() })
-          .eq("email", recipient)
-          .is("unsubscribed_at", null);
+        if (sendId) {
+          await supabase
+            .from("crm_campaign_sends")
+            .update({ unsubscribed_at: new Date().toISOString() })
+            .eq("id", sendId)
+            .is("unsubscribed_at", null);
+        } else {
+          await supabase
+            .from("crm_campaign_sends")
+            .update({ unsubscribed_at: new Date().toISOString() })
+            .eq("email", recipient)
+            .is("unsubscribed_at", null);
+        }
 
-        // Also update crm_leads consent
+        // Always update crm_leads consent irrespective of send_id
         await supabase
           .from("crm_leads")
           .update({ accepts_email: false })

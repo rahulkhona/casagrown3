@@ -28,6 +28,8 @@ interface EmailPayload {
     subject: string;
     /** HTML body content */
     htmlBody: string;
+    /** Custom JSON string metadata for precise webhook mapping */
+    metadata?: Record<string, string>;
 }
 
 /**
@@ -242,7 +244,8 @@ export async function sendBroadcastEmailBatch(
         To: p.to,
         Subject: p.subject,
         HtmlBody: p.htmlBody,
-        MessageStream: messageStream
+        MessageStream: messageStream,
+        ...(p.metadata && { Metadata: p.metadata })
     }));
 
     try {
@@ -276,6 +279,7 @@ export interface TemplatePayload {
     to: string;
     templateAlias: string;
     templateModel: Record<string, unknown>;
+    metadata?: Record<string, string>;
 }
 
 /**
@@ -313,7 +317,8 @@ export async function sendBroadcastTemplateBatch(
         To: p.to,
         TemplateAlias: p.templateAlias,
         TemplateModel: p.templateModel,
-        MessageStream: messageStream
+        MessageStream: messageStream,
+        ...(p.metadata && { Metadata: p.metadata })
     }));
 
     try {

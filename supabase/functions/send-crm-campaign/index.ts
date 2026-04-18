@@ -124,19 +124,25 @@ Deno.serve(async (req: Request) => {
 
           if (campaign.postmark_template_alias) {
             // ── Postmark Template API Mode ──
-            const templatePayloads = batch.map(r => ({
-              to: r.email!,
-              templateAlias: campaign.postmark_template_alias!,
-              templateModel: {
-                recipient_id: r.id,
-                name: r.name,
-                data_source: dynamicModel
-              }
-            }));
+            const templatePayloads = batch.map(r => {
+              const sendId = crypto.randomUUID();
+              return {
+                to: r.email!,
+                templateAlias: campaign.postmark_template_alias!,
+                templateModel: {
+                  recipient_id: r.id,
+                  name: r.name,
+                  data_source: dynamicModel
+                },
+                metadata: { send_id: sendId },
+                _sendId: sendId // temporary for local mapping
+              };
+            });
 
-            result = await sendBroadcastTemplateBatch(templatePayloads);
+            result = await sendBroadcastTemplateBatch(templatePayloads.map(({ _sendId, ...rest }) => rest));
             
             sendRecords.push(...templatePayloads.map(p => ({
+              id: p._sendId,
               campaign_id: campaign.id,
               recipient_type: batch.find(r => r.email === p.to)?.recipient_type ?? "user",
               recipient_id: p.templateModel.recipient_id,
@@ -159,11 +165,14 @@ Deno.serve(async (req: Request) => {
                   r.recipient_type,
                   supabase,
                 );
+                const sendId = crypto.randomUUID();
                 return {
                   to: r.email!,
                   subject: Mustache.render(campaign.subject ?? "Message from CasaGrown", { name: r.name, data_source: dynamicModel }),
                   htmlBody: personalizedHtml,
                   recipientId: r.id,
+                  metadata: { send_id: sendId },
+                  _sendId: sendId
                 };
               }),
             );
@@ -173,10 +182,12 @@ Deno.serve(async (req: Request) => {
                 to: p.to,
                 subject: p.subject,
                 htmlBody: p.htmlBody,
+                metadata: p.metadata
               })),
             );
 
             sendRecords.push(...emailPayloads.map(p => ({
+              id: p._sendId,
               campaign_id: campaign.id,
               recipient_type: batch.find((r) => r.email === p.to)?.recipient_type ?? "user",
               recipient_id: p.recipientId,
