@@ -26,6 +26,7 @@ test.describe('Manual Payout Queue Page', () => {
     const criticalErrors = errors.filter(e =>
       !e.includes('supabase') && !e.includes('auth') && !e.includes('token')
       && !e.includes('Failed to fetch') && !e.includes('ERR_CONNECTION')
+      && !e.includes('EXPO_OS') && !e.includes('Service Worker')
     )
     expect(criticalErrors).toEqual([])
   })

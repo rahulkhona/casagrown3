@@ -3,6 +3,7 @@ if (typeof globalThis !== 'undefined' && typeof (globalThis as any).__DEV__ === 
   (globalThis as any).__DEV__ = process.env.NODE_ENV !== 'production'
 }
 
+import React from 'react'
 import { useColorScheme, Platform } from 'react-native'
 import { TamaguiProvider, type TamaguiProviderProps } from 'tamagui'
 import { config } from '@casagrown/config'
@@ -37,6 +38,9 @@ export function Provider({
     process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || 
     ''
 
+  const [mounted, setMounted] = React.useState(false)
+  React.useEffect(() => setMounted(true), [])
+
   const wrappedChildren = (
     <TamaguiProvider config={config} defaultTheme={theme} {...rest}>
       <ToastProvider swipeDirection="horizontal" duration={5000}>
@@ -46,16 +50,21 @@ export function Provider({
               {children}
             </NotificationProvider>
           )}
-          <CustomToast />
-          <ToastViewport 
-            left={0} 
-            right={0} 
-            top={Platform.OS === 'ios' ? 55 : Platform.OS === 'web' ? 75 : 10} 
-            zIndex={99999} 
-            alignItems="center" 
-          />
-          {!disableNotifications && Platform.OS === 'web' && <WebPushListener />}
-          {!disableNotifications && <RealtimeNotificationListener />}
+          {mounted && (
+            <>
+              <CustomToast />
+              <ToastViewport 
+                left={0} 
+                right={0} 
+                top={Platform.OS === 'ios' ? 55 : Platform.OS === 'web' ? 75 : 10} 
+                zIndex={99999} 
+                alignItems="center"
+                pointerEvents="box-none"
+              />
+              {!disableNotifications && Platform.OS === 'web' && <WebPushListener />}
+              {!disableNotifications && <RealtimeNotificationListener />}
+            </>
+          )}
         </SupabaseProvider>
       </ToastProvider>
     </TamaguiProvider>

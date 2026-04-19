@@ -5,9 +5,22 @@ test.describe.configure({ mode: 'serial' })
 
 test.describe('Pioneer Banner E2E', () => {
   test('banner appears for communities with <= 20 members and can be dismissed', async ({ browser }) => {
-    // Beth is in 89283470c2fffff, which has ~5 members in seed data
-    const page = await loginAsUser(browser, 'beth')
+    // Sam is in 89283470c2fffff, which has ~7 members in seed data. 
+    // We strictly use Sam instead of Beth because parallel E2E tests deliberately disrupt Beth's profile layout.
+    const page = await loginAsUser(browser, 'sam')
     
+    // Stabilize DOM before clearing localStorage to prevent race conditions with leftover async effects
+    await page.waitForTimeout(3000)
+
+    page.on('console', msg => {
+      if (msg.text().includes('[DEBUG]') || msg.type() === 'error') {
+        console.log(`BROWSER_${msg.type().toUpperCase()}:`, msg.text());
+      }
+    });
+    page.on('pageerror', error => {
+      console.log('BROWSER_EXCEPTION:', error.message);
+    });
+
     // Remove the known dismiss key BEFORE navigating to market for the first time.
     // The PioneerBanner component auto-sets this key on mount (impression tracking),
     // so we need to ensure it's cleared before the first market visit.
@@ -33,6 +46,7 @@ test.describe('Pioneer Banner E2E', () => {
     
     // Assert the banner text is visible (generous timeout for full async chain)
     const bannerHeading = page.getByText(/Welcome to CasaGrown!/i)
+    await page.screenshot({ path: 'market_dump.png' })
     await expect(bannerHeading).toBeVisible({ timeout: 15000 })
     
     const countText = page.getByText(/founding members/i)

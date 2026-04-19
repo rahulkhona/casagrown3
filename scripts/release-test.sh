@@ -336,62 +336,36 @@ if [ "$SKIP_E2E" = true ]; then
 else
   section "Phase 7: Playwright E2E Tests"
 
-  # ── Start dev servers ──
-  echo "  Starting dev servers..."
-  DEV_PIDS=()
-
-  # Market (:3001)
-  if ! lsof -nP -iTCP:3001 -sTCP:LISTEN &>/dev/null; then
-    (cd apps/next-market && npm run dev &>/dev/null) &
-    DEV_PIDS+=($!)
-    echo "    Market → :3001"
-  else
-    echo "    Market → :3001 (already running)"
-  fi
-
-  # Voice (:3002)
-  if ! lsof -nP -iTCP:3002 -sTCP:LISTEN &>/dev/null; then
-    (cd apps/next-community-voice && npm run dev &>/dev/null) &
-    DEV_PIDS+=($!)
-    echo "    Voice → :3002"
-  else
-    echo "    Voice → :3002 (already running)"
-  fi
-
-  # Admin (:3003)
-  if ! lsof -nP -iTCP:3003 -sTCP:LISTEN &>/dev/null; then
-    (cd apps/next-admin && PORT=3003 npm run dev &>/dev/null) &
-    DEV_PIDS+=($!)
-    echo "    Admin → :3003"
-  else
-    echo "    Admin → :3003 (already running)"
-  fi
-
-  # Metrics (:3004)
-  if ! lsof -nP -iTCP:3004 -sTCP:LISTEN &>/dev/null; then
-    (cd apps/next-metrics && npm run dev &>/dev/null) &
-    DEV_PIDS+=($!)
-    echo "    Metrics → :3004"
-  else
-    echo "    Metrics → :3004 (already running)"
-  fi
-
-  # Wait for servers to be ready
-  echo "  Waiting for dev servers..."
-  for port in 3001 3002 3003 3004; do
-    for i in $(seq 1 30); do
-      if curl -s "http://localhost:$port" &>/dev/null; then
-        break
-      fi
-      sleep 1
-    done
-  done
-  echo -e "  ${GREEN}✅ All dev servers ready${NC}"
-  echo ""
-
-  run_playwright() {
+  # ── Start dev servers and execute E2E sequentially ──
+  run_playwright_sequential() {
     local app_name="$1"
     local app_dir="$2"
+    local port="$3"
+    local use_port_env="$4"
+
+    echo "  Building and starting $app_name server..."
+    local pid=""
+    if ! lsof -nP -iTCP:$port -sTCP:LISTEN &>/dev/null; then
+      if [ "$use_port_env" = "true" ]; then
+        (cd "$app_dir" && npm run build &>/dev/null && PORT=$port npm run start &>/dev/null) &
+      else
+        (cd "$app_dir" && npm run build &>/dev/null && npm run start &>/dev/null) &
+      fi
+      pid=$!
+      echo "    $app_name → :$port"
+      
+      echo "    Waiting for $app_name server (up to 3 minutes for prod build)..."
+      for i in $(seq 1 180); do
+        if curl -s "http://localhost:$port" &>/dev/null; then
+          break
+        fi
+        sleep 1
+      done
+      echo -e "    ${GREEN}✅ $app_name server ready${NC}"
+    else
+      echo "    $app_name → :$port (already running)"
+    fi
+
     local logfile="scripts/output/playwright_$(echo "$app_name" | tr '[:upper:]' '[:lower:]').log"
 
     echo "  Running $app_name Playwright E2E..."
@@ -416,21 +390,21 @@ else
       echo "$output" | grep -E "^\s+\[chromium\].*›.*$" | head -10 | sed 's/^/    /'
       log_suite "${app_name} E2E" "$passed" "$failed" "$skipped"
     fi
+
+    # ── Kill dev server before moving to next ──
+    if [ -n "$pid" ]; then
+      kill "$pid" 2>/dev/null || true
+      # Hard kill just in case to free memory immediately
+      lsof -Pni :$port | grep LISTEN | awk '{print $2}' | xargs -r kill -9 2>/dev/null || true
+    fi
+    echo "  ⏳ Cooling down 10s before next app to aggressively free memory..."
+    sleep 10
   }
 
-  run_playwright "Market" "apps/next-market"
-  echo "  ⏳ Cooling down 15s after Market E2E (GC + server settle)..."
-  sleep 15
-  run_playwright "Admin" "apps/next-admin"
-  run_playwright "Voice" "apps/next-community-voice"
-  run_playwright "Metrics" "apps/next-metrics"
-
-  # ── Kill dev servers we started ──
-  if [ "${#DEV_PIDS[@]}" -gt 0 ]; then
-    for pid in "${DEV_PIDS[@]}"; do
-      kill "$pid" 2>/dev/null || true
-    done
-  fi
+  run_playwright_sequential "Market" "apps/next-market" "3001" "false"
+  run_playwright_sequential "Admin" "apps/next-admin" "3003" "true"
+  run_playwright_sequential "Voice" "apps/next-community-voice" "3002" "false"
+  run_playwright_sequential "Metrics" "apps/next-metrics" "3004" "false"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────

@@ -599,7 +599,7 @@ export function execSql(sql: string): string {
   const { execSync } = require('child_process')
   try {
     return execSync(
-      `PATH="/Applications/Docker.app/Contents/Resources/bin:/opt/homebrew/bin:$PATH" docker exec -i supabase_db_casagrown3 psql -U postgres -t -c "${sql.replace(/"/g, '\\"')}"`,
+      `PATH="/Applications/Docker.app/Contents/Resources/bin:/opt/homebrew/bin:$PATH" docker exec supabase_db_casagrown3 psql -U postgres -t -c "${sql.replace(/"/g, '\\"')}"`,
       { encoding: 'utf-8' },
     ).trim()
   } catch (e: any) {

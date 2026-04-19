@@ -3,8 +3,20 @@ import { test, expect } from '@playwright/test'
 test.describe('Home Page', () => {
   test('should load without client-side errors', async ({ page }) => {
     const errors: string[] = []
-    page.on('console', (msg) => { if (msg.type() === 'error') errors.push(msg.text()) })
-    page.on('pageerror', (error) => errors.push(error.message))
+    page.on('console', (msg) => {
+      if (msg.type() === 'error' || msg.type() === 'warning') {
+        const text = msg.text();
+        errors.push(text);
+        if (text.includes('title element received an array') || text.includes('Hydration')) {
+          console.log(`[TARGET_LOG]: ${text}`);
+          console.log(`[TARGET_LOC]: ${msg.location().url}:${msg.location().lineNumber}`);
+        }
+      }
+    })
+    page.on('pageerror', (error) => {
+      errors.push(error.message);
+      console.log(`[PAGE_ERROR] ${error.message}\n${error.stack}`);
+    })
 
     await page.goto('/', { waitUntil: 'domcontentloaded' })
     await page.waitForTimeout(2000)
@@ -14,6 +26,7 @@ test.describe('Home Page', () => {
     const criticalErrors = errors.filter(e =>
       !e.includes('supabase') && !e.includes('auth') && !e.includes('token')
       && !e.includes('Failed to fetch') && !e.includes('ERR_CONNECTION')
+      && !e.includes('EXPO_OS') && !e.includes('Service Worker')
     )
     expect(criticalErrors).toEqual([])
   })

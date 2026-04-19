@@ -222,12 +222,11 @@ function BrowseMarketPageInner() {
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Consolidated profile fetch — address + pioneer banner h3 in a single query.
+  // Consolidated profile fetch — address resolution.
   // Guard against addressResolved prevents re-geocoding on Supabase token refresh.
-  const pioneerFetchedRef = useRef(false)
   useEffect(() => {
-    if (addressResolved && pioneerFetchedRef.current) { setProfileLoading(false); return }
-    if (searchParams.has('lat') && pioneerFetchedRef.current) { setProfileLoading(false); return }
+    if (addressResolved) { setProfileLoading(false); return }
+    if (searchParams.has('lat')) { setProfileLoading(false); return }
     if (!user) { setProfileLoading(false); return }
 
     supabase.from('profiles')
@@ -249,25 +248,6 @@ function BrowseMarketPageInner() {
           setBuyerStateCode(profile.state_code)
         }
 
-        // Pioneer banner (only once)
-        if (!pioneerFetchedRef.current && profile?.home_community_h3_index) {
-          pioneerFetchedRef.current = true
-          try {
-            if (localStorage.getItem(`pioneer_banner_dismissed_${profile.home_community_h3_index}`)) {
-              setShowPioneerBanner(false)
-              setProfileLoading(false)
-              return
-            }
-          } catch {}
-          setUserH3(profile.home_community_h3_index)
-          supabase.rpc('get_community_member_count', { target_h3: profile.home_community_h3_index })
-            .then(({ data: count }) => {
-              if (typeof count === 'number') setCommunityMemberCount(count)
-            })
-        } else if (!profile?.home_community_h3_index) {
-          pioneerFetchedRef.current = true
-        }
-
         setProfileLoading(false)
       })
   }, [user, addressResolved]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -278,6 +258,32 @@ function BrowseMarketPageInner() {
     supabase.rpc('get_allowed_categories', { buyer_zip: zipCode || null })
       .then(({ data }) => { if (data) setAllowedCategories(data) })
   }, [addressResolved, zipCode]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch Pioneer Banner Independently
+  const pioneerFetchedRef = useRef(false)
+  useEffect(() => {
+    if (!user || pioneerFetchedRef.current) return
+    pioneerFetchedRef.current = true
+    
+    supabase.from('profiles').select('home_community_h3_index')
+      .eq('id', user.id).single()
+      .then(({ data: profile }) => {
+        if (!profile?.home_community_h3_index) return
+        
+        try {
+          if (localStorage.getItem(`pioneer_banner_dismissed_${profile.home_community_h3_index}`)) {
+            setShowPioneerBanner(false)
+            return
+          }
+        } catch {}
+        
+        setUserH3(profile.home_community_h3_index)
+        supabase.rpc('get_community_member_count', { target_h3: profile.home_community_h3_index })
+          .then(({ data: count }) => {
+            if (typeof count === 'number') setCommunityMemberCount(count)
+          })
+      })
+  }, [user])
 
   // Search booths
   const searchBooths = useCallback(async (silent = false) => {
@@ -615,6 +621,16 @@ function BrowseMarketPageInner() {
   // Load existing product reminders
   useEffect(() => {
     if (!user) return
+    // ---- DEBUGGING LOGS ----
+    console.log('[DEBUG] Market page render state:', { 
+      showPioneerBanner, 
+      communityMemberCount, 
+      userH3, 
+      marketIsOpen, 
+      isLoaded: !profileLoading,
+      addressResolved
+    })
+
     supabase.from('product_reminders').select('product_id').eq('user_id', user.id)
       .then(({ data }) => {
         if (data) setSavedProductIds(new Set(data.map(r => r.product_id)))
@@ -645,6 +661,24 @@ function BrowseMarketPageInner() {
   const isSearching = !!search.trim()
   const totalProducts = booths.reduce((sum, b) => sum + (b.matched_products?.length || 0), 0)
 
+  // Pioneer Banner Rendering (Profile Context, Global Overlay)
+  const renderPioneerBanner = () => {
+    if (!showPioneerBanner || communityMemberCount === null || communityMemberCount > 20 || !userH3) return null;
+    return (
+      <div style={{ position: 'relative', zIndex: 100 }}>
+        <PioneerBanner
+          memberCount={communityMemberCount}
+          communityH3={userH3}
+          onDismiss={() => {
+            setShowPioneerBanner(false)
+            try { localStorage.setItem(`pioneer_banner_dismissed_${userH3}`, '1') } catch {}
+          }}
+        />
+        <div style={{ height: 140 }} />
+      </div>
+    )
+  }
+
   // ── STATE 1: Loading profile or market status ──
   if (profileLoading || marketLoading) {
     return (
@@ -659,8 +693,10 @@ function BrowseMarketPageInner() {
   // ── STATE 2: Need address (only when market is open) ──
   if (!addressResolved && marketIsOpen) {
     return (
-      <div className="container">
-        <div className={styles.addressPrompt}>
+      <>
+        {renderPioneerBanner()}
+        <div className="container">
+          <div className={styles.addressPrompt}>
           <h2 className={styles.promptTitle}>Where should we look?</h2>
           <p className={styles.promptText}>Tell us where you are and we'll show you fresh produce available for delivery or pickup nearby.</p>
 
@@ -693,6 +729,7 @@ function BrowseMarketPageInner() {
           )}
         </div>
       </div>
+      </>
     )
   }
 
@@ -700,22 +737,11 @@ function BrowseMarketPageInner() {
   const demoBooths = booths.filter(b => b.is_demo)
 
   return (
-    <div className="container">
-      {/* Pioneer Banner (first 20 members) — shown FIRST so it's immediately visible */}
-      {showPioneerBanner && communityMemberCount !== null && communityMemberCount <= 20 && userH3 && (
-        <>
-          <PioneerBanner
-            memberCount={communityMemberCount}
-            communityH3={userH3}
-            onDismiss={() => setShowPioneerBanner(false)}
-          />
-          {/* Spacer to push content below the fixed pioneer banner */}
-          <div style={{ height: 140 }} />
-        </>
-      )}
-
-      {/* Compact closed market message + actions + demo header */}
-      {!marketIsOpen && (
+    <>
+      {renderPioneerBanner()}
+      <div className="container">
+        {/* Compact closed market message + actions + demo header */}
+        {!marketIsOpen && (
         <div style={{
           textAlign: 'center', padding: '16px 0 12px',
         }}>
@@ -1234,6 +1260,7 @@ function BrowseMarketPageInner() {
           />
         )}
     </div>
+    </>
   )
 }
 
