@@ -15,14 +15,17 @@ BEGIN
       current_setting('app.settings.supabase_url', true),
       'http://host.docker.internal:54321'
     );
-    v_service_key := current_setting('app.settings.service_role_key', true);
+    v_service_key := coalesce(
+      current_setting('app.settings.service_role_key', true),
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
+    );
 
     -- Fire via pg_net `http_post` asynchronously
     PERFORM net.http_post(
       url := v_supabase_url || '/functions/v1/send-notification-email',
       headers := jsonb_build_object(
         'Content-Type', 'application/json',
-        'Authorization', 'Bearer ' || coalesce(v_service_key, '')
+        'Authorization', 'Bearer ' || v_service_key
       ),
       body := jsonb_build_object(
         'type', 'welcome',
