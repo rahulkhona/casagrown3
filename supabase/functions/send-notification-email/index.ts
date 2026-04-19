@@ -1015,7 +1015,7 @@ function renderWelcomeEmail(
   <p style="margin: 0 0 20px; font-size: 15px; color: #15803d; line-height: 1.6;">
     CasaGrown thrives on local network effects. As the size of our community grows, everyone benefits! A larger neighborhood means more delicious, fresh options available to buy, and significantly higher demand to quickly sell any excess produce you might have.
   </p>
-  \${actionButton("Invite Your Neighbors Today", \`\${SITE_URL}/community?share=true&utm_source=welcome_email&utm_medium=email&utm_campaign=onboarding\`)}
+  ${actionButton("Invite Your Neighbors Today", `${SITE_URL}/community?share=true&utm_source=welcome_email&utm_medium=email&utm_campaign=onboarding`)}
 </div>
 
 <p style="margin: 32px 0 0; font-size: 16px; color: #374151; line-height: 1.6;">

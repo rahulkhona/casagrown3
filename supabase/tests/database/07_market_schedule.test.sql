@@ -39,18 +39,18 @@ SELECT ok(
   'marketNeverCloses is false when disabled'
 );
 
--- T6: When market_never_closes=true, all days are returned
+-- T6: When market_never_closes=true, genuine schedule length is preserved
 UPDATE market_settings SET market_never_closes = true WHERE id = true;
 SELECT is(
   jsonb_array_length(get_market_config()->'schedule'),
-  7,
-  'market_never_closes returns all 7 days'
+  1,
+  'schedule length is preserved regardless of market_never_closes'
 );
 
--- T7: When market_never_closes=true, days use 00:00-23:59
+-- T7: When market_never_closes=true, days maintain real openTime
 SELECT ok(
-  (get_market_config()->'schedule'->0->>'openTime') = '00:00',
-  'market_never_closes uses 00:00 open time'
+  (get_market_config()->'schedule'->0->>'openTime') = '08:00',
+  'schedule openTime is preserved regardless of market_never_closes'
 );
 
 -- T8: Schedule entries have required fields

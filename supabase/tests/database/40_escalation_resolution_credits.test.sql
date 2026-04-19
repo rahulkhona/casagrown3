@@ -305,13 +305,11 @@ SELECT results_eq(
 -- TEST 17–19: FIFO credit consumption at checkout
 -- ──────────────────────────────────────────────────────────
 
+SELECT _complete_market_order_with_receipt('aa400001-0a00-0000-0000-000000000004'::uuid);
 SELECT results_eq(
-  $$SELECT apply_credits_to_order(
-    'aa400001-0a00-0000-0000-000000000004'::uuid,
-    'aa400001-0000-0000-0000-000000000002'::uuid
-  )::text$$,
+  $$SELECT credit_applied_usd::text FROM market_orders WHERE id = 'aa400001-0a00-0000-0000-000000000004'$$,
   ARRAY['5.00'],
-  'Credits applied to order (capped by remaining balance, not % because 20% of $50 = $10 > $5)'
+  'Credit applied to order correctly'
 );
 
 SELECT results_eq(
@@ -367,13 +365,11 @@ VALUES ('aa400001-0a00-0000-0000-000000000006'::uuid,
         'Organic Tomatoes', 4, 12.50, 50.00, 50.00,
         'delivery', 'pending', 10, 5.00, 0, 0);
 
+SELECT _complete_market_order_with_receipt('aa400001-0a00-0000-0000-000000000006'::uuid);
 SELECT results_eq(
-  $$SELECT apply_credits_to_order(
-    'aa400001-0a00-0000-0000-000000000006'::uuid,
-    'aa400001-0000-0000-0000-000000000004'::uuid
-  )::text$$,
+  $$SELECT credit_applied_usd::text FROM market_orders WHERE id = 'aa400001-0a00-0000-0000-000000000006'$$,
   ARRAY['5.00'],
-  'Credit capped at 10% of $50 = $5 despite $100 available'
+  '10% cap limits $100 credit to $5.00 on a $50 order'
 );
 
 SELECT results_eq(

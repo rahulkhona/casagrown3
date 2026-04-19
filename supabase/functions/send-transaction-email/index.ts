@@ -54,6 +54,8 @@ interface OrderData {
   delegatorShare?: number;
   delegatorName?: string;
   delegateName?: string;
+  // Credit applied
+  creditApplied?: number;
   // Compliance
   receiptFooter?: string;
 }
@@ -202,6 +204,13 @@ function renderReceipt(
            </tr>`
     : "";
 
+  const creditAppliedRow = (recipient.role === "buyer" && data.creditApplied && data.creditApplied > 0)
+    ? `<tr>
+        <td style="font-size: 12px; color: #059669; font-weight: 600; padding: 2px 0;">Store Credit Applied</td>
+        <td style="font-size: 12px; color: #059669; font-weight: 600; text-align: right; padding: 2px 0;">-${data.creditApplied.toFixed(2)} pts</td>
+       </tr>`
+    : "";
+
   const txBodyHtml = `
               <!-- Receipt Details -->
               <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background: #f0fdf4; border: 1px solid #dcfce7; border-radius: 10px; overflow: hidden; margin-top: 16px; margin-bottom: 0;">
@@ -274,6 +283,7 @@ function renderReceipt(
                         <td style="font-size: 12px; color: #6b7280; padding: 2px 0;">Sales Tax</td>
                         <td style="font-size: 12px; color: #1f2937; text-align: right; padding: 2px 0;">{{tax}} pts</td>
                       </tr>
+                      {{creditAppliedRow}}
                       <tr>
                         <td style="font-size: 12px; font-weight: 600; color: #1f2937; padding: 4px 0 2px;">Total</td>
                         <td style="font-size: 12px; font-weight: 600; color: #1f2937; text-align: right; padding: 4px 0 2px;">{{total}} pts</td>
@@ -301,6 +311,7 @@ function renderReceipt(
     .replace("{{pointsPerUnit}}", String(data.pointsPerUnit || 0))
     .replace("{{subtotal}}", String(data.subtotal || 0))
     .replace("{{tax}}", String(data.tax || 0))
+    .replace("{{creditAppliedRow}}", creditAppliedRow)
     .replace("{{total}}", String(data.total || 0))
     .replace("{{financialSection}}", financialSection);
 

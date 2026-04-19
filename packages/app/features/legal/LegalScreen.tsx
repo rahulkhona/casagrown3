@@ -24,7 +24,7 @@ interface Section {
   paragraphs: string[]
 }
 
-const TERMS_OF_USE: { title: string; effectiveDate: string; sections: Section[] } = {
+const TERMS_OF_USE = (feePct: number): { title: string; effectiveDate: string; sections: Section[] } => ({
   title: 'Terms of Use: CasaGrown Marketplace',
   effectiveDate: 'Effective Date: March 4, 2026',
   sections: [
@@ -90,9 +90,9 @@ const TERMS_OF_USE: { title: string; effectiveDate: string; sections: Section[] 
       ],
     },
   ],
-}
+})
 
-const PRIVACY_POLICY: { title: string; lastUpdated: string; intro: string; sections: Section[] } = {
+const PRIVACY_POLICY = (feePct: number): { title: string; lastUpdated: string; intro: string; sections: Section[] } => ({
   title: 'Privacy Policy: CasaGrown',
   lastUpdated: 'Last Updated: March 4, 2026',
   intro: 'This Privacy Policy describes how CasaGrown ("we," "us," or "our") collects, uses, and shares your personal information when you use our hyperlocal marketplace (the "Platform"). By using the Platform, you agree to the collection and use of information in accordance with this policy.',
@@ -162,9 +162,9 @@ const PRIVACY_POLICY: { title: string; lastUpdated: string; intro: string; secti
       ],
     },
   ],
-}
+})
 
-const COMMUNITY_GUIDELINES: { title: string; effectiveDate: string; intro: string; sections: Section[] } = {
+const COMMUNITY_GUIDELINES = (feePct: number): { title: string; effectiveDate: string; intro: string; sections: Section[] } => ({
   title: 'CasaGrown Community Guidelines',
   effectiveDate: 'Effective Date: March 4, 2026',
   intro: 'Welcome to the neighborhood! To keep our marketplace safe and fun, please follow these simple rules:',
@@ -190,7 +190,7 @@ const COMMUNITY_GUIDELINES: { title: string; effectiveDate: string; intro: strin
     {
       title: 'Transparent Fees',
       paragraphs: [
-        'We take a 10% fee to keep the lights on, the app running, and the community growing.',
+        `We take a ${feePct}% fee to keep the lights on, the app running, and the community growing.`,
       ],
     },
     {
@@ -206,9 +206,9 @@ const COMMUNITY_GUIDELINES: { title: string; effectiveDate: string; intro: strin
       ],
     },
   ],
-}
+})
 
-const SELLERS_HANDBOOK: { title: string; effectiveDate: string; intro: string; sections: Section[] } = {
+const SELLERS_HANDBOOK = (feePct: number): { title: string; effectiveDate: string; intro: string; sections: Section[] } => ({
   title: 'The CasaGrown Seller\'s Handbook',
   effectiveDate: 'Effective Date: March 4, 2026',
   intro: 'As a CasaGrown Seller, you are an independent affiliate. You are the "Face" of your backyard farm!',
@@ -225,7 +225,7 @@ const SELLERS_HANDBOOK: { title: string; effectiveDate: string; intro: string; s
       title: '2. Getting Paid',
       paragraphs: [
         'The Hold Period: When a buyer "buys" your tomatoes, the points move to a "Pending" state. Once they confirm delivery, the points land in your "Earned" balance.',
-        'Platform Fees: Remember that 10% of the sale stays with CasaGrown to cover payment processing and marketplace maintenance.',
+        `Platform Fees: Remember that ${feePct}% of the sale stays with CasaGrown to cover payment processing and marketplace maintenance.`,
       ],
     },
     {
@@ -242,11 +242,9 @@ const SELLERS_HANDBOOK: { title: string; effectiveDate: string; intro: string; s
       ],
     },
   ],
-}
+})
 
-// =============================================================================
-// Component
-// =============================================================================
+import { getPlatformFeePercent } from '../create-post/post-service'
 
 export type LegalDocType = 'terms' | 'privacy' | 'guidelines' | 'sellers-handbook'
 
@@ -257,16 +255,26 @@ export interface LegalScreenProps {
 export function LegalScreen({ type }: LegalScreenProps) {
   const insets = useSafeAreaInsets()
   const router = useRouter()
+  
+  const [feePct, setFeePct] = React.useState(10)
+  
+  React.useEffect(() => {
+    let mounted = true
+    getPlatformFeePercent().then((val) => {
+      if (mounted) setFeePct(val)
+    }).catch(console.error)
+    return () => { mounted = false }
+  }, [])
 
   const docMap = {
-    terms: TERMS_OF_USE,
-    privacy: PRIVACY_POLICY,
-    guidelines: COMMUNITY_GUIDELINES,
-    'sellers-handbook': SELLERS_HANDBOOK,
+    terms: TERMS_OF_USE(feePct),
+    privacy: PRIVACY_POLICY(feePct),
+    guidelines: COMMUNITY_GUIDELINES(feePct),
+    'sellers-handbook': SELLERS_HANDBOOK(feePct),
   }
   const doc = docMap[type]
   const subtitle = type === 'privacy'
-    ? PRIVACY_POLICY.lastUpdated
+    ? PRIVACY_POLICY(feePct).lastUpdated
     : (doc as any).effectiveDate || ''
 
   return (

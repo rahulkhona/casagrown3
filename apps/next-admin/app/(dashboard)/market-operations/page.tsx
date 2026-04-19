@@ -235,6 +235,18 @@ export default function MarketOperationsPage() {
           </YStack>
         ) : null}
 
+        {marketNeverCloses && (
+          <YStack backgroundColor={colors.orange[50]} padding="$3" borderRadius="$2" borderWidth={1} borderColor={colors.orange[200]} marginBottom="$2">
+            <XStack alignItems="center" gap="$2">
+              <Text fontSize="$4" color={colors.orange[800]}>⚠️</Text>
+              <YStack>
+                <Text color={colors.orange[800]} fontWeight="700">Market Override Active</Text>
+                <Text color={colors.orange[800]} fontSize="$3">The market is currently forced open 24/7. You may still perfectly edit and save the schedule below, but closures will not be enforced until the override toggle above is disabled.</Text>
+              </YStack>
+            </XStack>
+          </YStack>
+        )}
+
         {scheduleLoading ? (
           <Text>Loading schedule...</Text>
         ) : scheduleError ? (

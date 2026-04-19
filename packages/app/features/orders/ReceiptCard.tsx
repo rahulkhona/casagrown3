@@ -163,7 +163,9 @@ export function ReceiptCard({ data, variant = 'card' }: ReceiptCardProps) {
         <>
           <YStack height={1} backgroundColor={colors.green[200]} marginVertical={2} />
           <XStack justifyContent="space-between">
-            <Text fontSize={11} color={colors.amber[700]}>Platform Fee (10%)</Text>
+            <Text fontSize={11} color={colors.amber[700]}>
+              Platform Fee ({data.subtotal ? Math.round((data.platformFee / data.subtotal) * 100) : 10}%)
+            </Text>
             <Text fontSize={11} color={colors.amber[700]}>
               -{data.platformFee.toLocaleString()} pts
             </Text>

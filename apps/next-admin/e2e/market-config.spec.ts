@@ -7,12 +7,31 @@ test.describe('Market Operations Page', () => {
   })
 
   test('should load market settings and schedule', async ({ page }) => {
-    await expect(page.getByRole('button', { name: /Save Settings/i })).toBeVisible({ timeout: 15000 })
+    await expect(page.getByRole('button', { name: /Save Configuration/i })).toBeVisible({ timeout: 15000 })
     await expect(page.getByText('Saturday')).toBeVisible()
   })
 
   test('should show info box', async ({ page }) => {
     await expect(page.getByText('How Market Hours Work')).toBeVisible({ timeout: 15000 })
+  })
+
+  test('should decouple market never closes flag and display schedule override warning', async ({ page }) => {
+    // Locate the Switch for "Market Never Closes"
+    const neverClosesSwitch = page.locator('button[id="market-never-closes"]')
+    
+    // Ensure it's active so the warning banner appears
+    const isChecked = await neverClosesSwitch.getAttribute('aria-checked') === 'true'
+    if (!isChecked) {
+      await neverClosesSwitch.click()
+    }
+
+    // Verify the warning banner is actively displayed showing schedule decoupling
+    await expect(page.getByText('Market Override Active')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText(/You may still perfectly edit and save the schedule below/)).toBeVisible()
+    
+    // Verify the schedule itself is STILL beautifully displayed and editable underneath
+    await expect(page.getByText('Saturday')).toBeVisible()
+    await expect(page.getByText('Market Schedule')).toBeVisible()
   })
 })
 
@@ -81,7 +100,7 @@ test.describe('Sidebar Navigation', () => {
     await page.getByRole('button', { name: /Market Settings & Hours/i }).first().click()
     await page.waitForTimeout(1000)
     await page.waitForURL('/market-operations', { timeout: 15000 })
-    await expect(page.getByRole('button', { name: /Save Settings/i })).toBeVisible({ timeout: 20000 })
+    await expect(page.getByRole('button', { name: /Save Configuration/i })).toBeVisible({ timeout: 20000 })
   })
 
   test('should navigate to Receipt Footers from sidebar', async ({ page }) => {

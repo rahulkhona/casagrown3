@@ -213,13 +213,25 @@ export async function getActiveDelegators(
  * Fetch the platform fee percentage for a specific user.
  * Falls back to 10 if the RPC fails.
  */
-export async function getPlatformFeePercent(userId: string): Promise<number> {
+export async function getPlatformFeePercent(userId?: string, countryCode?: string): Promise<number> {
+  let activeUserId = userId;
+  if (!activeUserId) {
+    try {
+      const { data } = await supabase.auth.getSession();
+      activeUserId = data?.session?.user?.id;
+    } catch (e) {
+      // Ignore auth errors during static render
+    }
+  }
+
   const { data, error } = await supabase.rpc("get_platform_fee_for_user", {
-    p_user_id: userId,
+    p_user_id: activeUserId || null,
+    p_country_code: countryCode || null,
   });
 
   if (error || data == null) {
-    return 10; // Default fallback
+    console.error("Failed to fetch platform fee config:", error);
+    return 0; // Absolute offline failsafe (avoids UI crashing if DB goes down)
   }
   // Convert 0.10 format to percentage format (10) for UI
   return Number(data) * 100;
