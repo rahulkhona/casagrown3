@@ -44,7 +44,9 @@ export type EmailType =
     | "refund_offer"
     | "rating_reminder"
     | "followed_seller_adds_item"
-    | "welcome";
+    | "welcome"
+    | "abandoned_tos"
+    | "abandoned_profile";
 
 export interface EmailRecipient {
     email: string;
@@ -203,6 +205,10 @@ export function renderEmailByType(
             return renderPointsPurchase(payload, recipient);
         case "points_redemption":
             return renderPointsRedemption(payload, recipient);
+        case "abandoned_tos":
+            return renderAbandonedTosEmail(payload, recipient);
+        case "abandoned_profile":
+            return renderAbandonedProfileEmail(payload, recipient);
         case "points_refund":
             return renderPointsRefund(payload, recipient);
         case "tax_threshold_warning":
@@ -967,9 +973,9 @@ function renderWelcomeEmail(
     // Rely on SITE_URL for absolute image path
     const heroImage = `${SITE_URL}/emails/welcome-hero.png`;
 
-    const bodyHtml = \`
+    const bodyHtml = `
 <div style="text-align: center; margin-bottom: 32px;">
-  <img src="\${heroImage}" alt="Thank You" style="width: 100%; max-width: 600px; border-radius: 12px; margin-bottom: 24px;" />
+  <img src="${heroImage}" alt="Thank You" style="width: 100%; max-width: 600px; border-radius: 12px; margin-bottom: 24px;" />
 </div>
 
 <p style="margin: 0 0 16px; font-size: 16px; color: #374151; line-height: 1.6;">
@@ -1017,7 +1023,7 @@ function renderWelcomeEmail(
   <strong>Rahul Khona</strong><br>
   Founder, CasaGrown
 </p>
-\`;
+`;
 
     return {
         subject,
@@ -1026,5 +1032,95 @@ function renderWelcomeEmail(
             greeting,
             bodyHtml,
         }),
+    };
+}
+
+// =============================================================================
+// (u) Abandoned Onboarding - ToS
+// =============================================================================
+
+function renderAbandonedTosEmail(
+    p: NotificationPayload,
+    r: EmailRecipient,
+): { subject: string; htmlBody: string } {
+    const subject = "You're almost there! One last step to join your community";
+    const greeting = r.name ? "Hi " + r.name + "," : "Hi there,";
+
+    const heroImage = `${SITE_URL}/emails/tos-hero.png`;
+
+    const bodyHtml = `
+<div style="text-align: center; margin-bottom: 32px;">
+  <img src="${heroImage}" alt="Handshake over neighborhood" style="width: 100%; max-width: 600px; border-radius: 12px; margin-bottom: 24px;" />
+</div>
+
+<p style="margin: 0 0 16px; font-size: 16px; color: #374151; line-height: 1.6;">
+  We noticed you stopped exploring right before finalizing your account. We get it—reading terms isn't exactly the most fun part of the day!
+</p>
+
+<p style="margin: 0 0 24px; font-size: 16px; color: #374151; line-height: 1.6;">
+  Our Terms of Service are simply built to guarantee a secure, trusted ecosystem where neighbors know exactly who they are dealing with. Your address is always kept strictly private, and CasaGrown protects every transaction. Complete your setup today to explore the platform safely.
+</p>
+
+<div style="text-align: center; margin: 32px 0;">
+  ${actionButton("Complete Registration", `${SITE_URL}/onboarding`)}
+</div>
+
+<p style="margin: 32px 0 0; font-size: 16px; color: #374151; line-height: 1.6;">
+  Warmly,<br>
+  <strong>The CasaGrown Team</strong>
+</p>
+`;
+    return {
+        subject,
+        htmlBody: wrapInBrandedTemplate({ title: "Finish Setup", greeting, bodyHtml }),
+    };
+}
+
+// =============================================================================
+// (v) Abandoned Onboarding - Profile/Community Setup
+// =============================================================================
+
+function renderAbandonedProfileEmail(
+    p: NotificationPayload,
+    r: EmailRecipient,
+): { subject: string; htmlBody: string } {
+    const subject = "Your neighbors are waiting! Complete your profile";
+    const greeting = r.name ? "Hi " + r.name + "," : "Hi there,";
+
+    const heroImage = `${SITE_URL}/emails/profile-hero.png`;
+
+    const bodyHtml = `
+<div style="text-align: center; margin-bottom: 32px;">
+  <img src="${heroImage}" alt="CasaGrown Value Propositions" style="width: 100%; max-width: 600px; border-radius: 12px; margin-bottom: 24px;" />
+</div>
+
+<p style="margin: 0 0 16px; font-size: 16px; color: #374151; line-height: 1.6;">
+  Your neighbors are already trading! We noticed you registered but haven't found your local community block yet. CasaGrown relies on authentic, hyper-local connections, and until you set your home location, your neighborhood market remains hidden.
+</p>
+
+<p style="margin: 0 0 16px; font-size: 16px; color: #374151; line-height: 1.6;">
+  By joining your community, you'll be part of a massive movement to stop the 11.5 billion pounds of backyard produce wasted every year, all while putting the absolute freshest food directly on your family's table.
+</p>
+
+<p style="margin: 0 0 16px; font-size: 16px; color: #374151; line-height: 1.6;">
+  Plus, did you know that actively sharing your own backyard extras—from fresh lemons to homegrown herbs—is estimated to put up to <strong>$800 a year</strong> in extra cash back into your pocket? Instead of letting that extra harvest fall to the ground and go entirely to waste every year, you can seamlessly convert it into real value for your community.
+</p>
+
+<p style="margin: 0 0 24px; font-size: 16px; color: #374151; line-height: 1.6;">
+  You've already done the hard part by signing up. Set your location today so your neighbors know you're here and ready to swap!
+</p>
+
+<div style="text-align: center; margin: 32px 0;">
+  ${actionButton("Find My Community", `${SITE_URL}/community`)}
+</div>
+
+<p style="margin: 32px 0 0; font-size: 16px; color: #374151; line-height: 1.6;">
+  Warmly,<br>
+  <strong>The CasaGrown Team</strong>
+</p>
+`;
+    return {
+        subject,
+        htmlBody: wrapInBrandedTemplate({ title: "Find Your Community", greeting, bodyHtml }),
     };
 }

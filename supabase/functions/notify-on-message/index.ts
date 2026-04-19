@@ -149,6 +149,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
             .eq("id", recipientId)
             .single();
 
+        if (profile?.email) {
             const chatLink = `${Deno.env.get('MARKET_APP_URL') ?? 'https://market.casagrown.com'}${chatUrl}`;
             await sendTransactionEmail({
                 to: profile.email,
@@ -167,8 +168,8 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
                     `,
                     footer: "CasaGrown Community Messaging"
                 }),
-                textBody: `${title}: ${body}\n\nReply at: ${chatLink}`,
             });
+        }
     }
 
     console.log(

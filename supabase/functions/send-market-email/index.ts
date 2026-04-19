@@ -62,13 +62,13 @@ serveWithCors(async (req, { corsHeaders }) => {
     if (linkUrl && linkUrl.startsWith('http')) {
        // Filter out the link from the text so we can make it a button
        messageText = messageText.replace(linkUrl, '').trim();
-       bodyHtml = \`
-         <p style="margin: 0 0 16px; font-size: 14px; color: #374151;">\${messageText}</p>
-         \${actionButton("View Details", linkUrl)}
-       \`;
+       bodyHtml = `
+         <p style="margin: 0 0 16px; font-size: 14px; color: #374151;">${messageText}</p>
+         ${actionButton("View Details", linkUrl)}
+       `;
     } else {
        messageText = text || '';
-       bodyHtml = \`<p style="margin: 0 0 16px; font-size: 14px; color: #374151;">\${messageText}</p>\`;
+       bodyHtml = `<p style="margin: 0 0 16px; font-size: 14px; color: #374151;">${messageText}</p>`;
     }
 
     finalHtml = wrapInBrandedTemplate({
@@ -85,9 +85,9 @@ serveWithCors(async (req, { corsHeaders }) => {
      });
   }
 
-  await sendTransactionEmail({ to, subject, htmlBody: finalHtml, textBody: text })
+  await sendTransactionEmail({ to, subject, htmlBody: finalHtml })
 
-  console.log(\`[send-market-email] Sent to \${to}: \${subject}\`)
+  console.log(`[send-market-email] Sent to ${to}: ${subject}`)
 
   return new Response(
     JSON.stringify({ success: true }),

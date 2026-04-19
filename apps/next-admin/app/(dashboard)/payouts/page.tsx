@@ -105,10 +105,10 @@ export default function PayoutsPage() {
         setSelectedIds(new Set())
         await fetchData()
       } else {
-        alert(data?.error || 'Execution failed')
+        window.alert(data?.error || 'Execution failed')
       }
     } catch (err: any) {
-      alert('Error during execution: ' + err.message)
+      window.alert('Error during execution: ' + err.message)
     } finally {
       setProcessing(false)
     }
@@ -140,10 +140,10 @@ export default function PayoutsPage() {
         setManualFulfillModalOpen(false)
         await fetchData()
       } else {
-        alert(data?.error || 'Execution failed')
+        window.alert(data?.error || 'Execution failed')
       }
     } catch (err: any) {
-      alert('Error during execution: ' + err.message)
+      window.alert('Error during execution: ' + err.message)
     } finally {
       setProcessing(false)
     }
@@ -249,10 +249,10 @@ export default function PayoutsPage() {
         setCsvFileName('')
         await fetchData()
       } else {
-        alert(data?.error || 'CSV import failed')
+        window.alert(data?.error || 'CSV import failed')
       }
     } catch (err: any) {
-      alert('Error during CSV import: ' + err.message)
+      window.alert('Error during CSV import: ' + err.message)
     } finally {
       setCsvProcessing(false)
     }
@@ -353,7 +353,7 @@ export default function PayoutsPage() {
     }
 
     if (fileCount > 1) {
-      alert(`Downloaded ${fileCount} CSV files — one per provider.`)
+      window.alert(`Downloaded ${fileCount} CSV files — one per provider.`)
     }
   }
 

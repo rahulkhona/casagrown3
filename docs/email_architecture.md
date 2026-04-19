@@ -15,6 +15,7 @@ This document exhaustively maps every single email generated across the **Market
 
 | Scheduled System | Specific Email Events | Trigger Mechanism | Underlying Dispatcher Code | Route |
 | :--- | :--- | :--- | :--- | :--- |
+| **Abandoned Onboarding Recapture** | `abandoned_tos`, `abandoned_profile` | `pg_cron` executing `/functions/v1/send-notification-email` asynchronously | `sendTransactionEmail(...)` inside `_shared/postmark.ts` | **Transactional** (`POSTMARK_SERVER_TOKEN`) |
 | **Market Switchboard** | `market_reminder` (Upcoming popup alert), `daily_digest` (Settlement receipt), `seller_lifecycle` (Restock Nudge) | `pg_cron` executing `/functions/v1/market-cron` | POSTs internally to `/functions/v1/send-market-email` -> `sendTransactionEmail(...)` | **Transactional** (`POSTMARK_SERVER_TOKEN`) |
 | **Recommendation Engine** | `grower_digest` (Cross-meshing buyer searches with local seller inventory) | `pg_cron` executing `/functions/v1/market-cron` | Inline raw `fetch("https://api.postmarkapp.com/email/batch")` | **Bulk/Broadcast** (`POSTMARK_BROADCAST_TOKEN`) |
 | **Admin CRM Engine** | Mass Newsletters, Targeted Geographic Drops, System Pipelines (like Welcome Series) | Admin UI executing `/functions/v1/send-crm-campaign` | `sendBroadcastEmailBatch(...)` or `sendBroadcastTemplateBatch(...)` | **Bulk/Broadcast** (`POSTMARK_BROADCAST_TOKEN`) |
