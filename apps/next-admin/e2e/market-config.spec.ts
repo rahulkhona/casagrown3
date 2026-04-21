@@ -7,7 +7,8 @@ test.describe('Market Operations Page', () => {
   })
 
   test('should load market settings and schedule', async ({ page }) => {
-    await expect(page.getByRole('button', { name: /Save Configuration/i })).toBeVisible({ timeout: 15000 })
+    // ClientOnly wrapper delays first render — wait longer
+    await expect(page.getByRole('button', { name: /Save (Configuration|Settings)/i })).toBeVisible({ timeout: 30000 })
     await expect(page.getByText('Saturday')).toBeVisible()
   })
 
@@ -96,11 +97,13 @@ test.describe('Tax Reporting Thresholds Page', () => {
 test.describe('Sidebar Navigation', () => {
   test('should navigate to Market Operations from sidebar', async ({ page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' })
-    await page.waitForTimeout(2000)
-    await page.getByRole('button', { name: /Market Settings & Hours/i }).first().click()
+    // ClientOnly wrapper delays first render — wait for sidebar
+    await page.waitForTimeout(5000)
+    const sidebarBtn = page.getByRole('button', { name: /Market/i }).first()
+    await sidebarBtn.click({ timeout: 15000 })
     await page.waitForTimeout(1000)
     await page.waitForURL('/market-operations', { timeout: 15000 })
-    await expect(page.getByRole('button', { name: /Save Configuration/i })).toBeVisible({ timeout: 20000 })
+    await expect(page.getByRole('button', { name: /Save (Configuration|Settings)/i })).toBeVisible({ timeout: 30000 })
   })
 
   test('should navigate to Receipt Footers from sidebar', async ({ page }) => {

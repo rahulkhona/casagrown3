@@ -10,6 +10,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@casagrown/app/features/auth/auth-hook'
 import { useAdminPush } from '../../lib/useAdminPush'
 import { colors } from '@casagrown/app/design-tokens'
+import ClientOnly from '../ClientOnly'
 
 type MenuItem = {
   label: string;
@@ -227,12 +228,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   )
 
   return (
-    <XStack flex={1} backgroundColor={colors.white} minHeight="100vh" flexDirection="row" $sm={{ flexDirection: 'column' }}>
+    <ClientOnly>
+    <XStack flex={1} backgroundColor={colors.white} minHeight="100vh" flexDirection={isDesktop ? 'row' : 'column'}>
       
       {/* 🖥️ DESKTOP SIDEBAR */}
-      <YStack 
-        display="flex"
-        $sm={{ display: 'none' }}
+      {isDesktop && (
+        <YStack 
           width={300} 
           borderRightWidth={1} 
           borderColor={colors.gray[200]} 
@@ -240,11 +241,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         >
           <SidebarContent />
         </YStack>
+      )}
 
       {/* 📱 MOBILE HEADER (Hamburger Menu) */}
-      <XStack 
-        display="none"
-        $sm={{ display: 'flex' }}
+      {isMobile && (
+        <XStack 
           alignItems="center" 
           justifyContent="space-between" 
           padding="$4" 
@@ -262,6 +263,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </XStack>
           <Button icon={Menu} chromeless size="$4" onPress={() => setMenuOpen(true)} />
         </XStack>
+      )}
 
       {/* 📱 MOBILE SHEET FOR SIDEBAR */}
       <Sheet 
@@ -289,5 +291,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </YStack>
 
     </XStack>
+    </ClientOnly>
   )
 }

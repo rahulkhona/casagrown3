@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { NextTamaguiProvider } from '@casagrown/app/provider/NextTamaguiProvider'
 import { AuthProvider } from '@casagrown/app/features/auth/auth-hook'
 import { AuthGuard } from './auth-guard'
+import ClientOnly from './ClientOnly'
 
 // @ts-ignore – __DEV__ polyfill
 if (typeof globalThis.__DEV__ === 'undefined') {
@@ -40,7 +41,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body suppressHydrationWarning>
         <AuthProvider>
           <NextTamaguiProvider disableNotifications>
-            <AuthGuard>{children}</AuthGuard>
+            <ClientOnly>
+              <AuthGuard>{children}</AuthGuard>
+            </ClientOnly>
           </NextTamaguiProvider>
         </AuthProvider>
       </body>
