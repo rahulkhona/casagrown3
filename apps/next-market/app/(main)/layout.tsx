@@ -10,7 +10,6 @@ import { BottomNav } from '../components/BottomNav'
 import { RatingReminder } from '../components/RatingReminder'
 import { AnalyticsTracker } from '../components/AnalyticsTracker'
 import { ErrorToastProvider } from '../components/ErrorToast'
-import { AlphaBanner } from '../components/AlphaBanner'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { GuidedTour } from '../components/GuidedTour'
@@ -129,7 +128,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       <CartProvider>
       <ErrorToastProvider userId={user?.id}>
         <AnalyticsTracker />
-        <AlphaBanner />
         <Navbar />
         <main className="page-wrapper">
           <ErrorBoundary>

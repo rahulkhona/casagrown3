@@ -112,7 +112,6 @@ test.describe('Guide / How It Works', () => {
     await page.goto('/guide')
     await page.waitForTimeout(2000)
     const body = await page.textContent('body')
-    expect(body).toContain('Alpha Testing')
     expect(body).toContain('Settlements')
     expect(body).toContain('Safety')
     // Market Schedule section has been removed (always-on market)

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useMarketStatus } from '../../../lib/useMarketStatus'
 import styles from './page.module.css'
 
 interface Section {
@@ -12,23 +13,6 @@ interface Section {
 }
 
 const SECTIONS: Section[] = [
-  {
-    id: 'alpha',
-    icon: '🧪',
-    title: 'Alpha Testing — What to Know',
-    content: (
-      <>
-        <p>You&apos;re using an <strong>early test version</strong> of CasaGrown Market. Here&apos;s what that means:</p>
-        <ul>
-          <li>💳 <strong>Money transactions are simulated</strong> — no real charges will be made to your card</li>
-          <li>🥬 You <strong>can trade real produce</strong> — the marketplace works, just the payments are test-only</li>
-          <li>🐛 You may encounter <strong>bugs</strong> — please report them using the ❓ button in the top bar</li>
-          <li>📊 Your feedback directly shapes the product — every report is read by our team</li>
-        </ul>
-        <p className={styles.tip}>💡 <strong>Tip:</strong> Use the ❓ button to send bug reports, feature requests, or support questions. A screenshot is auto-captured for you!</p>
-      </>
-    ),
-  },
   {
     id: 'schedule',
     icon: '📅',
@@ -153,11 +137,17 @@ const SECTIONS: Section[] = [
 ]
 
 export default function GuidePage() {
-  const [openSection, setOpenSection] = useState<string | null>('alpha')
+  const { neverCloses } = useMarketStatus()
+  const [openSection, setOpenSection] = useState<string | null>('buying')
 
   const toggle = (id: string) => {
     setOpenSection(prev => prev === id ? null : id)
   }
+
+  const visibleSections = SECTIONS.filter(s => {
+    if (s.id === 'schedule' && neverCloses) return false
+    return true
+  })
 
   return (
     <div className={styles.page}>
@@ -173,7 +163,7 @@ export default function GuidePage() {
 
       {/* Table of Contents */}
       <nav className={styles.toc}>
-        {SECTIONS.map(s => (
+        {visibleSections.map(s => (
           <a
             key={s.id}
             href={`#${s.id}`}
@@ -188,7 +178,7 @@ export default function GuidePage() {
 
       {/* Accordion Sections */}
       <div className={styles.sections}>
-        {SECTIONS.map(section => (
+        {visibleSections.map(section => (
           <div key={section.id} id={section.id} className={styles.section}>
             <button
               className={`${styles.sectionHeader} ${openSection === section.id ? styles.sectionHeaderOpen : ''}`}

@@ -39,6 +39,7 @@ test.describe('Pioneer Banner E2E', () => {
     // Navigate to market — this is the FIRST market visit, so the PioneerBanner
     // should mount fresh, check localStorage (key is cleared), and start animating in
     await navigateToMarket(page)
+    await page.waitForTimeout(500)
     
     // Banner depends on: auth → profile fetch (home_community_h3_index) → community member
     // count RPC → React state update → PioneerBanner mount → 500ms animation delay.
