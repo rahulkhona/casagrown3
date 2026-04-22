@@ -429,7 +429,7 @@ export default function ProfilePage() {
                 />
                 {phone && !phoneVerified && !showVerify && (
                   <button type="button" className="btn btn-outline" onClick={handleSendOtp} disabled={isSendingOtp}>
-                    {isSendingOtp ? 'Sending...' : 'Verify'}
+                    {isSendingOtp ? 'Sending...' : 'Send Code'}
                   </button>
                 )}
                 {phoneVerified && <span style={{ color: 'var(--green-600)', fontWeight: 600, fontSize: 13, flexShrink: 0 }}>✓ Verified</span>}
