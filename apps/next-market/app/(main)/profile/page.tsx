@@ -55,7 +55,7 @@ export default function ProfilePage() {
     if (!user) return
     supabase
       .from('profiles')
-      .select('full_name, street_address, city, state_code, zip_plus4, avatar_url, phone_number, phone_verified, sms_enabled, twilio_blocked')
+      .select('full_name, street_address, city, state_code, zip_code, zip_plus4, avatar_url, phone_number, phone_verified, sms_enabled, twilio_blocked')
       .eq('id', user.id)
       .single()
       .then(({ data, error: fetchErr }) => {
@@ -66,7 +66,7 @@ export default function ProfilePage() {
           street: data?.street_address || '',
           city: data?.city || '',
           state: data?.state_code || '',
-          zip: data?.zip_plus4 || '',
+          zip: data?.zip_code || (data?.zip_plus4 ? data.zip_plus4.split('-')[0] : ''),
         })
         if (data?.avatar_url) {
           setAvatarUrl(data.avatar_url)
@@ -122,7 +122,7 @@ export default function ProfilePage() {
             validatedState = uspsResult.address.state || validatedState
             validatedZipPlus4 = uspsResult.address.ZIPPlus4 || validatedZipPlus4
             county = uspsResult.jurisdiction?.county || null
-            setForm(prev => ({ ...prev, street: validatedStreet, city: validatedCity, state: validatedState, zip: validatedZipPlus4 }))
+            setForm(prev => ({ ...prev, street: validatedStreet, city: validatedCity, state: validatedState, zip: validatedZipPlus4.split('-')[0] }))
           } else {
             console.warn('USPS validation failed, using user-entered address:', uspsError)
           }

@@ -57,7 +57,7 @@ function ProfileSetupPageInner() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('full_name, street_address, city, state_code, zip_plus4, avatar_url, phone_number, phone_verified, sms_enabled, twilio_blocked')
+        .select('full_name, street_address, city, state_code, zip_code, zip_plus4, avatar_url, phone_number, phone_verified, sms_enabled, twilio_blocked')
         .eq('id', user.id)
         .single()
         
@@ -66,7 +66,7 @@ function ProfileSetupPageInner() {
         setStreetAddress(profile.street_address || '')
         setCity(profile.city || '')
         setStateCode(profile.state_code || '')
-        setZip(profile.zip_plus4 || '')
+        setZip(profile.zip_code || (profile.zip_plus4 ? profile.zip_plus4.split('-')[0] : ''))
         if (profile.avatar_url) {
           setAvatarUrl(profile.avatar_url)
           setAvatarPreview(profile.avatar_url)
@@ -210,7 +210,7 @@ function ProfileSetupPageInner() {
           setStreetAddress(validatedStreet)
           setCity(validatedCity)
           setStateCode(validatedState)
-          setZip(validatedZipPlus4)
+          setZip(validatedZipPlus4.split('-')[0])
         } else {
           console.warn('USPS validation failed, using user-entered address:', uspsError)
         }
