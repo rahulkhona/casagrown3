@@ -675,3 +675,18 @@ entrypoint = "./functions/postmark-webhook/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/twilio-campaign-webhook/index.ts"
+
+[functions.webhook-paypal]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/webhook-paypal/index.ts"
+
+[functions.webhook-reloadly]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/webhook-reloadly/index.ts"
+
+[functions.webhook-tremendous]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/webhook-tremendous/index.ts"
