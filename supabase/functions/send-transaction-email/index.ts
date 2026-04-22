@@ -54,8 +54,10 @@ interface OrderData {
   delegatorShare?: number;
   delegatorName?: string;
   delegateName?: string;
-  // Credit applied
+  // Credit applied (buyer purchase credit)
   creditApplied?: number;
+  // Credit applied (seller platform_fee credit)
+  sellerFeeCredit?: number;
   // Compliance
   receiptFooter?: string;
 }
@@ -163,6 +165,7 @@ function renderReceipt(
           yourShare: data.delegateShare!,
           otherShare: data.delegatorShare!,
           otherName: data.delegatorName || "Delegator",
+          sellerFeeCredit: data.sellerFeeCredit,
         });
       } else {
         subject = `Sale Complete — ${data.product} | CasaGrown Receipt`;
@@ -174,6 +177,7 @@ function renderReceipt(
           feeRate: data.feeRate,
           afterFee: data.sellerPayout!,
           delegated: false,
+          sellerFeeCredit: data.sellerFeeCredit,
         });
       }
       break;
@@ -193,6 +197,7 @@ function renderReceipt(
         yourShare: data.delegatorShare!,
         otherShare: data.delegateShare!,
         otherName: data.delegateName || data.sellerName || "Delegate",
+        sellerFeeCredit: data.sellerFeeCredit,
       });
       break;
   }
@@ -206,8 +211,8 @@ function renderReceipt(
 
   const creditAppliedRow = (recipient.role === "buyer" && data.creditApplied && data.creditApplied > 0)
     ? `<tr>
-        <td style="font-size: 12px; color: #059669; font-weight: 600; padding: 2px 0;">Store Credit Applied</td>
-        <td style="font-size: 12px; color: #059669; font-weight: 600; text-align: right; padding: 2px 0;">-${data.creditApplied.toFixed(2)} pts</td>
+        <td style="font-size: 12px; color: #059669; font-weight: 600; padding: 2px 0;">Credit Applied</td>
+        <td style="font-size: 12px; color: #059669; font-weight: 600; text-align: right; padding: 2px 0;">-$${data.creditApplied.toFixed(2)}</td>
        </tr>`
     : "";
 
@@ -273,20 +278,20 @@ function renderReceipt(
                     <p style="margin: 0 0 6px; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">Order Details</p>
                     <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
                       <tr>
-                        <td style="font-size: 12px; color: #1f2937; padding: 2px 0;">{{product}} &mdash; {{quantity}} {{unit}} @ {{pointsPerUnit}} pts</td>
+                        <td style="font-size: 12px; color: #1f2937; padding: 2px 0;">{{product}} &mdash; {{quantity}} {{unit}} @ {{priceDisplay}}</td>
                       </tr>
                       <tr>
                         <td style="font-size: 12px; color: #6b7280; padding: 2px 0;">Subtotal</td>
-                        <td style="font-size: 12px; color: #1f2937; text-align: right; padding: 2px 0;">{{subtotal}} pts</td>
+                        <td style="font-size: 12px; color: #1f2937; text-align: right; padding: 2px 0;">{{subtotalDisplay}}</td>
                       </tr>
                       <tr>
                         <td style="font-size: 12px; color: #6b7280; padding: 2px 0;">Sales Tax</td>
-                        <td style="font-size: 12px; color: #1f2937; text-align: right; padding: 2px 0;">{{tax}} pts</td>
+                        <td style="font-size: 12px; color: #1f2937; text-align: right; padding: 2px 0;">{{taxDisplay}}</td>
                       </tr>
                       {{creditAppliedRow}}
                       <tr>
                         <td style="font-size: 12px; font-weight: 600; color: #1f2937; padding: 4px 0 2px;">Total</td>
-                        <td style="font-size: 12px; font-weight: 600; color: #1f2937; text-align: right; padding: 4px 0 2px;">{{total}} pts</td>
+                        <td style="font-size: 12px; font-weight: 600; color: #1f2937; text-align: right; padding: 4px 0 2px;">{{totalDisplay}}</td>
                       </tr>
                     </table>
                   </td>
@@ -308,11 +313,11 @@ function renderReceipt(
     .replace("{{product}}", data.product || "Item")
     .replace("{{quantity}}", String(data.quantity || 0))
     .replace("{{unit}}", data.unit || "")
-    .replace("{{pointsPerUnit}}", String(data.pointsPerUnit || 0))
-    .replace("{{subtotal}}", String(data.subtotal || 0))
-    .replace("{{tax}}", String(data.tax || 0))
+    .replace("{{priceDisplay}}", "$" + String(data.pointsPerUnit || 0))
+    .replace("{{subtotalDisplay}}", "$" + String(data.subtotal || 0))
+    .replace("{{taxDisplay}}", "$" + String(data.tax || 0))
     .replace("{{creditAppliedRow}}", creditAppliedRow)
-    .replace("{{total}}", String(data.total || 0))
+    .replace("{{totalDisplay}}", "$" + String(data.total || 0))
     .replace("{{financialSection}}", financialSection);
 
   const html = wrapInBrandedTemplate({
@@ -334,6 +339,7 @@ function buildFinancialSection(opts: {
   yourShare?: number;
   otherShare?: number;
   otherName?: string;
+  sellerFeeCredit?: number;
 }): string {
   let rows = `
         <tr><td style="padding: 0 20px;"><div style="height: 1px; background: #dcfce7;"></div></td></tr>
@@ -345,8 +351,16 @@ function buildFinancialSection(opts: {
                 <td style="font-size: 12px; color: #d97706; padding: 2px 0;">Platform Fee (${
     Math.round(opts.feeRate * 100)
   }%)</td>
-                <td style="font-size: 12px; color: #d97706; text-align: right; padding: 2px 0;">-${opts.platformFee} pts</td>
+                <td style="font-size: 12px; color: #d97706; text-align: right; padding: 2px 0;">-$${opts.platformFee.toFixed(2)}</td>
               </tr>`;
+
+  if (opts.sellerFeeCredit && opts.sellerFeeCredit > 0) {
+    rows += `
+              <tr>
+                <td style="font-size: 12px; color: #059669; font-weight: 600; padding: 2px 0;">Fee Credit Applied</td>
+                <td style="font-size: 12px; color: #059669; font-weight: 600; text-align: right; padding: 2px 0;">-$${opts.sellerFeeCredit.toFixed(2)}</td>
+              </tr>`;
+  }
 
   if (opts.delegated) {
     rows += `
@@ -359,17 +373,17 @@ function buildFinancialSection(opts: {
               </tr>
               <tr>
                 <td style="font-size: 12px; color: #16a34a; font-weight: 600; padding: 2px 0;">Your Share</td>
-                <td style="font-size: 12px; color: #16a34a; font-weight: 600; text-align: right; padding: 2px 0;">${opts.yourShare} pts</td>
+                <td style="font-size: 12px; color: #16a34a; font-weight: 600; text-align: right; padding: 2px 0;">$${(opts.yourShare ?? 0).toFixed(2)}</td>
               </tr>
               <tr>
                 <td style="font-size: 12px; color: #6b7280; padding: 2px 0;">${opts.otherName}'s Share</td>
-                <td style="font-size: 12px; color: #6b7280; text-align: right; padding: 2px 0;">${opts.otherShare} pts</td>
+                <td style="font-size: 12px; color: #6b7280; text-align: right; padding: 2px 0;">$${(opts.otherShare ?? 0).toFixed(2)}</td>
               </tr>`;
   } else {
     rows += `
               <tr>
                 <td style="font-size: 12px; color: #16a34a; font-weight: 600; padding: 4px 0 2px;">You Received</td>
-                <td style="font-size: 12px; color: #16a34a; font-weight: 600; text-align: right; padding: 4px 0 2px;">${opts.afterFee} pts</td>
+                <td style="font-size: 12px; color: #16a34a; font-weight: 600; text-align: right; padding: 4px 0 2px;">$${opts.afterFee.toFixed(2)}</td>
               </tr>`;
   }
 

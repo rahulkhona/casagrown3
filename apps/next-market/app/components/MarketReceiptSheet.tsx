@@ -40,6 +40,7 @@ export interface MarketReceiptData {
   platformFee?: number
   platformFeePct?: number
   netPayout?: number
+  creditApplied?: number
   // Total
   total: number
   // Fulfillment
@@ -181,6 +182,13 @@ export function MarketReceiptSheet({ visible, data, onClose }: Props) {
               </span>
               <span className={styles.rowValue}>{formatUsd(data.taxAmount)}</span>
             </div>
+
+            {data.viewAs === 'buyer' && data.creditApplied != null && data.creditApplied > 0 && (
+              <div className={styles.row}>
+                <span className={styles.rowLabel} style={{ color: 'var(--green-600)' }}>Credit Applied</span>
+                <span className={styles.rowValue} style={{ color: 'var(--green-600)' }}>-{formatUsd(data.creditApplied)}</span>
+              </div>
+            )}
 
             <div className={`${styles.row} ${styles.totalRow}`}>
               <span className={styles.totalLabel}>Total</span>

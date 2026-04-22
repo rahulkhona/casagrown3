@@ -288,10 +288,12 @@ describe('Resolution — Credit Both (combo)', () => {
       p_reason: 'Both parties had valid points - Vitest',
       p_credit_amount_usd: 5.00,
       p_credit_type: 'purchase',
-      p_credit_max_pct: 20,
+      p_credit_cap_type: 'percentage',
+      p_credit_cap_value: 20,
       p_secondary_credit_usd: 3.00,
       p_secondary_credit_type: 'purchase',
-      p_secondary_credit_max_pct: 20,
+      p_secondary_credit_cap_type: 'percentage',
+      p_secondary_credit_cap_value: 20,
     })
     expect(result.status).toBe(200)
     expect(result.data?.success).toBe(true)

@@ -199,7 +199,7 @@ Deno.test({
       p_reason: "Issuing goodwill credit - Deno test",
       p_credit_amount_usd: 7.50,
       p_credit_type: "purchase",
-      p_credit_max_pct: 25,
+      p_credit_cap_value: 25,
     });
 
     assertEquals(result.status, 200);
@@ -248,10 +248,10 @@ Deno.test({
       p_reason: "Both parties had valid arguments - Deno combo test",
       p_credit_amount_usd: 5.00,
       p_credit_type: "purchase",
-      p_credit_max_pct: 20,
+      p_credit_cap_value: 20,
       p_secondary_credit_usd: 3.00,
       p_secondary_credit_type: "purchase",
-      p_secondary_credit_max_pct: 15,
+      p_secondary_credit_cap_value: 15,
     });
 
     assertEquals(result.status, 200);

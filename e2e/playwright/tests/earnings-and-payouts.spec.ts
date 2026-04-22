@@ -35,6 +35,50 @@ test.describe("Earnings & Payout Dashboard UX", () => {
         await expect(page.getByText("$12.34").first()).toBeVisible();
     });
 
+    test("Earnings summary page prominently displays Store Credits when user has an active balance", async ({ page }) => {
+        // Mock the transaction summary
+        await page.route(
+            "**/rest/v1/rpc/get_transaction_summary*",
+            async (route) => {
+                await route.fulfill({
+                    status: 200,
+                    contentType: "application/json",
+                    body: JSON.stringify({ available_usd: 0, processing_payouts_usd: 0, total_sales: 0, pending_usd: 0 }),
+                });
+            },
+        );
+
+        // Mock the user credit balance
+        await page.route(
+            "**/rest/v1/rpc/get_user_credit_balance*",
+            async (route) => {
+                await route.fulfill({
+                    status: 200,
+                    contentType: "application/json",
+                    body: JSON.stringify({
+                        purchase_credits_usd: 25.50,
+                        platform_fee_credits_usd: 5.00,
+                        total_credits_usd: 30.50
+                    }),
+                });
+            },
+        );
+
+        await page.goto("/earnings");
+        await page.waitForTimeout(1000);
+
+        if (page.url().includes("/login")) {
+            test.skip();
+        }
+
+        // Verify the Store Credits section is visible
+        await expect(page.getByText("Credits Available")).toBeVisible();
+        await expect(page.getByText("For Purchases")).toBeVisible();
+        await expect(page.getByText("$25.50").first()).toBeVisible();
+        await expect(page.getByText("For Seller Fees")).toBeVisible();
+        await expect(page.getByText("$5.00").first()).toBeVisible();
+    });
+
     test("Payout page defaults to Auto-Payout flow for new users", async ({ page }) => {
         // Mock auto config to return null ( simulating a new user )
         await page.route(

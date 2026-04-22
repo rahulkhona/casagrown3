@@ -97,6 +97,7 @@ const MENU_GROUPS: MenuGroup[] = [
     icon: Award,
     items: [
       { label: 'Campaigns', path: '/campaigns' },
+      { label: 'Recurring Incentives', path: '/campaigns/incentives' },
     ]
   },
   {

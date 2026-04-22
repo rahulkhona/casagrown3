@@ -169,7 +169,6 @@ fi
 # PHASE 3: Database Tests (pgTAP)
 # ─────────────────────────────────────────────────────────────────────────
 section "Phase 3: pgTAP Database Tests"
-
 npx supabase test db > /tmp/pgtap_output.log 2>&1
 PGTAP_EXIT=$?
 PGTAP_OUTPUT=$(cat /tmp/pgtap_output.log)
@@ -201,9 +200,9 @@ run_vitest() {
   output=$(cd "$app_dir" && npx vitest run 2>&1)
   local exit_code=$?
 
-  local passed=$(echo "$output" | grep "Tests" | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' || echo "0")
-  local failed=$(echo "$output" | grep "Tests" | grep -oE '[0-9]+ failed' | grep -oE '[0-9]+' || echo "0")
-  local files_p=$(echo "$output" | grep "Test Files" | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' || echo "0")
+  local passed=$(echo "$output" | grep "Tests" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
+  local failed=$(echo "$output" | grep "Tests" | tail -n 10 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
+  local files_p=$(echo "$output" | grep "Test Files" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
 
   if [ "$exit_code" -eq 0 ]; then
     echo -e "  ${GREEN}✅ ${app_name} Vitest: ${files_p} files, ${passed} tests — ALL PASS${NC}"
@@ -228,8 +227,8 @@ section "Phase 5: Deno Integration Tests"
 # 5a: Main integration tests
 echo "  Running Deno integration tests (_tests/)..."
 DENO_OUTPUT=$(cd supabase && deno test --allow-env --allow-net --allow-run --no-check functions/_tests/ 2>&1)
-DENO_PASSED=$(echo "$DENO_OUTPUT" | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' || echo "0")
-DENO_FAILED=$(echo "$DENO_OUTPUT" | grep -oE '[0-9]+ failed' | grep -oE '[0-9]+' || echo "0")
+DENO_PASSED=$(echo "$DENO_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
+DENO_FAILED=$(echo "$DENO_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
 
 if [ "${DENO_FAILED:-0}" -eq 0 ] || [ -z "$DENO_FAILED" ]; then
   echo -e "  ${GREEN}✅ Deno Integration: ${DENO_PASSED} tests — ALL PASS${NC}"
@@ -245,8 +244,8 @@ echo "  Running Deno legacy tests..."
 LEGACY_OUTPUT=$(cd supabase && deno test --allow-env --allow-net --allow-run --no-check \
   functions/tests/edge_functions_test.ts \
   functions/tests/cash_flow_test.ts 2>&1)
-LEGACY_PASSED=$(echo "$LEGACY_OUTPUT" | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' || echo "0")
-LEGACY_FAILED=$(echo "$LEGACY_OUTPUT" | grep -oE '[0-9]+ failed' | grep -oE '[0-9]+' || echo "0")
+LEGACY_PASSED=$(echo "$LEGACY_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
+LEGACY_FAILED=$(echo "$LEGACY_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
 
 if [ "${LEGACY_FAILED:-0}" -eq 0 ] || [ -z "$LEGACY_FAILED" ]; then
   echo -e "  ${GREEN}✅ Deno Legacy: ${LEGACY_PASSED} tests — ALL PASS${NC}"
@@ -264,8 +263,8 @@ PROVIDER_OUTPUT=$(cd supabase && deno test --allow-env --allow-net --allow-run -
   functions/_provider-tests/giftcard-cache.test.ts \
   functions/_provider-tests/toggles.test.ts \
   functions/_compliance-tests/compliance.test.ts 2>&1)
-PROVIDER_PASSED=$(echo "$PROVIDER_OUTPUT" | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' || echo "0")
-PROVIDER_FAILED=$(echo "$PROVIDER_OUTPUT" | grep -oE '[0-9]+ failed' | grep -oE '[0-9]+' || echo "0")
+PROVIDER_PASSED=$(echo "$PROVIDER_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
+PROVIDER_FAILED=$(echo "$PROVIDER_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
 
 if [ "${PROVIDER_FAILED:-0}" -eq 0 ] || [ -z "$PROVIDER_FAILED" ]; then
   echo -e "  ${GREEN}✅ Provider/Compliance: ${PROVIDER_PASSED} tests — ALL PASS${NC}"
@@ -281,8 +280,8 @@ FUNC_OUTPUT=$(cd supabase && deno test --allow-env --allow-net --allow-run --no-
   functions/confirm-payment/fifo.test.ts \
   functions/process-redemptions/index.test.ts \
   functions/resolve-usps-address/integration.test.ts 2>&1)
-FUNC_PASSED=$(echo "$FUNC_OUTPUT" | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' || echo "0")
-FUNC_FAILED=$(echo "$FUNC_OUTPUT" | grep -oE '[0-9]+ failed' | grep -oE '[0-9]+' || echo "0")
+FUNC_PASSED=$(echo "$FUNC_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
+FUNC_FAILED=$(echo "$FUNC_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
 
 if [ "${FUNC_FAILED:-0}" -eq 0 ] || [ -z "$FUNC_FAILED" ]; then
   echo -e "  ${GREEN}✅ Per-Function: ${FUNC_PASSED} tests — ALL PASS${NC}"
@@ -296,8 +295,8 @@ fi
 echo "  Running CRM edge function tests..."
 CRM_OUTPUT=$(cd supabase && deno test --allow-env --allow-net --allow-run --no-check \
   functions/_tests/crm-functions.test.ts 2>&1)
-CRM_PASSED=$(echo "$CRM_OUTPUT" | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' || echo "0")
-CRM_FAILED=$(echo "$CRM_OUTPUT" | grep -oE '[0-9]+ failed' | grep -oE '[0-9]+' || echo "0")
+CRM_PASSED=$(echo "$CRM_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
+CRM_FAILED=$(echo "$CRM_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
 
 if [ "${CRM_FAILED:-0}" -eq 0 ] || [ -z "$CRM_FAILED" ]; then
   echo -e "  ${GREEN}✅ CRM Edge Functions: ${CRM_PASSED} tests — ALL PASS${NC}"

@@ -5,7 +5,7 @@
 -- ============================================================
 BEGIN;
 
-SELECT plan(13);
+SELECT plan(23);
 
 -- ──────────────────────────────────────────────────────────
 -- SETUP: Create isolated test users
@@ -24,6 +24,11 @@ UPDATE profiles SET full_name = 'Seller CC', email = 'seller_46@test.com'
   WHERE id = 'cc460001-0000-0000-0000-000000000002';
 UPDATE profiles SET full_name = 'Buyer Two', email = 'buyer2_46@test.com'
   WHERE id = 'cc460001-0000-0000-0000-000000000003';
+
+INSERT INTO auth.users (id, email) VALUES
+  ('cc460001-0000-0000-0000-000000000004', 'buyer4_46@test.com');
+UPDATE profiles SET full_name = 'Buyer Four', email = 'buyer4_46@test.com'
+  WHERE id = 'cc460001-0000-0000-0000-000000000004';
 
 -- Seed product
 INSERT INTO market_products (id, seller_id, name, price_usd, market_date) VALUES
@@ -45,9 +50,9 @@ INSERT INTO market_products (id, seller_id, name, price_usd, market_date) VALUES
 -- ──────────────────────────────────────────────────────────
 
 -- Give Seller a $100 Platform Fee credit (max 10% of subtotal per txn)
-INSERT INTO user_credits (id, user_id, amount_usd, remaining_usd, credit_type, max_pct_per_txn, source)
+INSERT INTO user_credits (id, user_id, amount_usd, remaining_usd, credit_type, cap_type, cap_value, source)
 VALUES ('cc460001-c000-0000-0000-000000000001', 'cc460001-0000-0000-0000-000000000002',
-  100.00, 100.00, 'platform_fee', 10, 'escalation_resolution');
+  100.00, 100.00, 'platform_fee', 'percentage', 10, 'escalation_resolution');
 
 -- Create $50 order (Buyer1 → Seller)
 INSERT INTO market_orders (id, buyer_id, seller_id, subtotal_usd, total_usd, status,
@@ -91,9 +96,9 @@ SELECT results_eq(
 -- ──────────────────────────────────────────────────────────
 
 -- Give Buyer2 a $20 purchase credit (100% cap)
-INSERT INTO user_credits (id, user_id, amount_usd, remaining_usd, credit_type, max_pct_per_txn, source)
+INSERT INTO user_credits (id, user_id, amount_usd, remaining_usd, credit_type, cap_type, cap_value, source)
 VALUES ('cc460001-c000-0000-0000-000000000002', 'cc460001-0000-0000-0000-000000000003',
-  20.00, 20.00, 'purchase', 100, 'escalation_resolution');
+  20.00, 20.00, 'purchase', 'percentage', 100, 'escalation_resolution');
 
 -- Give Buyer2 zero balance to isolate credit netting
 INSERT INTO user_balances (user_id, pending_usd, total_earned_usd, held_balance_usd, total_spent_usd)
@@ -209,10 +214,9 @@ SELECT results_eq(
 --   Applied: $5, remaining: $95
 -- ──────────────────────────────────────────────────────────
 
-INSERT INTO user_credits (user_id, amount_usd, remaining_usd, credit_type,
-  max_pct_per_txn, source, reason, granted_by)
+INSERT INTO user_credits (user_id, amount_usd, remaining_usd, credit_type, cap_type, cap_value, source, reason, granted_by)
 VALUES ('cc460001-0000-0000-0000-000000000001',
-  100.00, 100.00, 'purchase', 10,
+  100.00, 100.00, 'purchase', 'percentage', 10,
   'escalation_resolution', 'Test large credit',
   'cc460001-0000-0000-0000-000000000002');
 
@@ -241,5 +245,160 @@ SELECT results_eq(
   'Only $5 consumed from $100 credit due to 10% cap'
 );
 
+
+-- ──────────────────────────────────────────────────────────
+-- TEST 14-16: FLAT CAP AND STRICT 1-CREDIT LIMIT
+--
+-- Buyer4 gets two flat-capped credits:
+-- Credit A: $10 remaining, $5 flat cap
+-- Credit B: $20 remaining, $10 flat cap
+-- Order: $50
+-- Expect: Only Credit A applied for $5. Credit B untouched.
+-- ──────────────────────────────────────────────────────────
+
+-- Give Buyer4 two flat amount credits
+INSERT INTO user_credits (id, user_id, amount_usd, remaining_usd, credit_type, cap_type, cap_value, source, created_at)
+VALUES ('cc460001-c000-0000-0000-00000000000A', 'cc460001-0000-0000-0000-000000000004',
+  10.00, 10.00, 'purchase', 'flat_amount', 5.00, 'promotion', now() - interval '2 days');
+
+INSERT INTO user_credits (id, user_id, amount_usd, remaining_usd, credit_type, cap_type, cap_value, source, created_at)
+VALUES ('cc460001-c000-0000-0000-00000000000B', 'cc460001-0000-0000-0000-000000000004',
+  20.00, 20.00, 'purchase', 'flat_amount', 10.00, 'promotion', now() - interval '1 day');
+
+INSERT INTO market_orders (id, buyer_id, seller_id, subtotal_usd, total_usd, status,
+  booth_id, product_id, product_name, quantity, unit_price_usd, fulfillment_type)
+VALUES ('cc460001-aa00-0000-0000-000000000004',
+  'cc460001-0000-0000-0000-000000000004', 'cc460001-0000-0000-0000-000000000002',
+  50.00, 50.00, 'delivered',
+  (SELECT id FROM market_booths WHERE owner_id = 'cc460001-0000-0000-0000-000000000002'),
+  'cc460001-a100-0000-0000-000000000001', 'Test Product', 5, 10.00, 'delivery');
+
+SELECT _complete_market_order_with_receipt('cc460001-aa00-0000-0000-000000000004');
+
+SELECT results_eq(
+  $$SELECT credit_applied_usd::numeric FROM market_orders WHERE id = 'cc460001-aa00-0000-0000-000000000004'$$,
+  ARRAY[5.00::numeric],
+  'Flat cap limits credit to $5.00, and only ONE credit is applied'
+);
+
+SELECT results_eq(
+  $$SELECT remaining_usd::numeric FROM user_credits WHERE id = 'cc460001-c000-0000-0000-00000000000A'$$,
+  ARRAY[5.00::numeric],
+  'First (older) credit had $5 deducted'
+);
+
+SELECT results_eq(
+  $$SELECT remaining_usd::numeric FROM user_credits WHERE id = 'cc460001-c000-0000-0000-00000000000B'$$,
+  ARRAY[20.00::numeric],
+  'Second credit untouched due to strict 1-credit per txn rule'
+);
+
+-- ──────────────────────────────────────────────────────────
+-- TEST 17-19: UNIVERSAL CREDIT APPLICATION
+--
+-- Business logic:
+--   Buyer1 gets $15 universal credit (100% cap)
+--   Order: $15
+--   Expect: Universal credit consumed, notification explicitly mentions credit.
+-- ──────────────────────────────────────────────────────────
+
+-- Give Buyer2 a $15 universal credit
+INSERT INTO user_credits (id, user_id, amount_usd, remaining_usd, credit_type, cap_type, cap_value, source)
+VALUES ('cc460001-c000-0000-0000-000000000011', 'cc460001-0000-0000-0000-000000000003',
+  15.00, 15.00, 'universal', 'percentage', 100, 'promotion');
+
+INSERT INTO market_orders (id, buyer_id, seller_id, subtotal_usd, total_usd, status,
+  booth_id, product_id, product_name, quantity, unit_price_usd, fulfillment_type)
+VALUES ('cc460001-aa00-0000-0000-000000000005',
+  'cc460001-0000-0000-0000-000000000003', 'cc460001-0000-0000-0000-000000000002',
+  15.00, 15.00, 'delivered',
+  (SELECT id FROM market_booths WHERE owner_id = 'cc460001-0000-0000-0000-000000000002'),
+  'cc460001-a100-0000-0000-000000000001', 'Test Product', 1, 15.00, 'delivery');
+
+SELECT _complete_market_order_with_receipt('cc460001-aa00-0000-0000-000000000005');
+
+-- Trigger the status update to create notifications
+UPDATE market_orders SET status = 'completed' WHERE id = 'cc460001-aa00-0000-0000-000000000005';
+
+SELECT results_eq(
+  $$SELECT credit_applied_usd::numeric FROM market_orders WHERE id = 'cc460001-aa00-0000-0000-000000000005'$$,
+  ARRAY[15.00::numeric],
+  'Universal credit applied successfully to purchase total'
+);
+
+SELECT results_eq(
+  $$SELECT remaining_usd::numeric FROM user_credits WHERE id = 'cc460001-c000-0000-0000-000000000011'$$,
+  ARRAY[0.00::numeric],
+  'Universal credit fully consumed'
+);
+
+SELECT results_eq(
+  $$SELECT count(*)::int FROM market_notifications WHERE user_id = 'cc460001-0000-0000-0000-000000000003' AND content LIKE '%$15.00 credit applied!%'$$,
+  ARRAY[1],
+  'Completion notification includes the credit applied text'
+);
+
+
+-- ──────────────────────────────────────────────────────────
+-- TEST 20: SELLER RECEIPT CONTAINS REDUCED PLATFORM FEE
+-- ──────────────────────────────────────────────────────────
+
+SELECT results_eq(
+  $$SELECT (seller_receipt->>'platform_fee')::numeric FROM digital_receipts WHERE order_id = 'cc460001-aa00-0000-0000-000000000001'$$,
+  ARRAY[0.00::numeric],
+  'Seller receipt records zero platform_fee after full credit waiver'
+);
+
+
+-- ──────────────────────────────────────────────────────────
+-- TEST 21: SELLER RECEIPT PAYOUT REFLECTS FEE CREDIT
+-- ──────────────────────────────────────────────────────────
+
+SELECT results_eq(
+  $$SELECT (seller_receipt->>'seller_payout')::numeric FROM digital_receipts WHERE order_id = 'cc460001-aa00-0000-0000-000000000001'$$,
+  ARRAY[50.00::numeric],
+  'Seller receipt payout is full subtotal ($50) when fee fully credited (fee = $0)'
+);
+
+
+-- ──────────────────────────────────────────────────────────
+-- TEST 22-23: EXPIRED CREDIT IS SKIPPED
+--
+-- Business logic:
+--   Buyer5 (fresh user, no active credits) gets $50 expired credit (expired yesterday)
+--   Order: $25
+--   Expect: credit_applied_usd = 0
+-- ──────────────────────────────────────────────────────────
+
+INSERT INTO auth.users (id, email) VALUES
+  ('cc460001-0000-0000-0000-000000000005', 'buyer5_46@test.com');
+UPDATE profiles SET full_name = 'Buyer Five', email = 'buyer5_46@test.com'
+  WHERE id = 'cc460001-0000-0000-0000-000000000005';
+
+INSERT INTO user_credits (id, user_id, amount_usd, remaining_usd, credit_type, cap_type, cap_value, source, expires_at)
+VALUES ('cc460001-c000-0000-0000-000000000099', 'cc460001-0000-0000-0000-000000000005',
+  50.00, 50.00, 'purchase', 'percentage', 100, 'promotion', now() - interval '1 day');
+
+INSERT INTO market_orders (id, buyer_id, seller_id, subtotal_usd, total_usd, status,
+  booth_id, product_id, product_name, quantity, unit_price_usd, fulfillment_type)
+VALUES ('cc460001-aa00-0000-0000-000000000006',
+  'cc460001-0000-0000-0000-000000000005', 'cc460001-0000-0000-0000-000000000002',
+  25.00, 25.00, 'delivered',
+  (SELECT id FROM market_booths WHERE owner_id = 'cc460001-0000-0000-0000-000000000002'),
+  'cc460001-a100-0000-0000-000000000001', 'Test Product', 2, 12.50, 'delivery');
+
+SELECT _complete_market_order_with_receipt('cc460001-aa00-0000-0000-000000000006');
+
+SELECT results_eq(
+  $$SELECT credit_applied_usd::numeric FROM market_orders WHERE id = 'cc460001-aa00-0000-0000-000000000006'$$,
+  ARRAY[0.00::numeric],
+  'Expired credit is skipped — no credit applied to order'
+);
+
+SELECT results_eq(
+  $$SELECT remaining_usd::numeric FROM user_credits WHERE id = 'cc460001-c000-0000-0000-000000000099'$$,
+  ARRAY[50.00::numeric],
+  'Expired credit balance unchanged'
+);
 
 ROLLBACK;

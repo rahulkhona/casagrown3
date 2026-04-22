@@ -346,9 +346,9 @@ SELECT results_eq(
 
 -- Give buyer a large credit with 10% cap
 INSERT INTO user_credits (user_id, amount_usd, remaining_usd, credit_type,
-  max_pct_per_txn, source, reason, granted_by)
+  cap_type, cap_value, source, reason, granted_by)
 VALUES ('aa400001-0000-0000-0000-000000000004'::uuid,
-        100.00, 100.00, 'purchase', 10,
+        100.00, 100.00, 'purchase', 'percentage', 10,
         'escalation_resolution', 'Test large credit',
         'aa400001-0000-0000-0000-000000000001'::uuid);
 

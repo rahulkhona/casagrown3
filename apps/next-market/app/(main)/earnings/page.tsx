@@ -96,6 +96,7 @@ export default function EarningsPage() {
   const [transactions, setTransactions] = useState<TransactionEntry[]>([])
   const [pending, setPending] = useState<TransactionEntry[]>([])
   const [summary, setSummary] = useState<TransactionSummary | null>(null)
+  const [credits, setCredits] = useState<{ purchase_credits_usd: number, platform_fee_credits_usd: number, total_credits_usd: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
@@ -169,12 +170,24 @@ export default function EarningsPage() {
     }
   }, [userId, supabase])
 
+  // ── Fetch credits ──
+  const fetchCredits = useCallback(async () => {
+    if (!userId) return
+    try {
+      const { data, error } = await supabase.rpc('get_user_credit_balance', { p_user_id: userId })
+      if (!error && data) setCredits(data as any)
+    } catch (err) {
+      console.error('[EARNINGS] Credits error:', err)
+    }
+  }, [userId, supabase])
+
   // ── Fetch on mount / date change ──
   useEffect(() => {
     if (isAuthenticated && userId) {
       fetchTransactions()
       fetchSummary()
       fetchPending()
+      fetchCredits()
 
       // Load user state and tax reporting threshold
       supabase.from('profiles').select('state_code').eq('id', userId).single()
@@ -199,7 +212,7 @@ export default function EarningsPage() {
           }
         })
     }
-  }, [isAuthenticated, userId, fetchTransactions, fetchSummary, fetchPending])
+  }, [isAuthenticated, userId, fetchTransactions, fetchSummary, fetchPending, fetchCredits])
 
   // Trigger notification prompt on mount
   useEffect(() => { showPrompt() }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -249,6 +262,7 @@ export default function EarningsPage() {
       taxAmount: m.tax_amount || 0,
       platformFee: m.platform_fee || 0,
       netPayout: m.net_payout,
+      creditApplied: m.credit_applied || 0,
       total: m.total || tx.amount,
       fulfillment: m.fulfillment || 'pickup',
       settlementId: m.settlement_id,
@@ -385,6 +399,36 @@ export default function EarningsPage() {
             </>
           )}
         </div>
+
+        {/* ── Credits ── */}
+        {credits && credits.total_credits_usd > 0 && (
+          <div style={{
+            background: 'var(--green-50)', border: '1px solid var(--green-200)', borderRadius: 12,
+            padding: '16px 20px', marginBottom: 16, display: 'flex', gap: 12, alignItems: 'flex-start',
+          }}>
+            <span style={{ fontSize: 28 }}>💰</span>
+            <div style={{ flex: 1 }}>
+              <strong style={{ color: 'var(--green-900)', fontSize: 16 }}>Credits Available</strong>
+              <div style={{ display: 'flex', gap: 24, marginTop: 8 }}>
+                {credits.purchase_credits_usd > 0 && (
+                  <div>
+                    <div style={{ fontSize: 12, color: 'var(--green-700)', fontWeight: 600, textTransform: 'uppercase' }}>For Purchases</div>
+                    <div style={{ fontSize: 20, color: 'var(--green-800)', fontWeight: 700 }}>{formatUsd(credits.purchase_credits_usd)}</div>
+                  </div>
+                )}
+                {credits.platform_fee_credits_usd > 0 && (
+                  <div>
+                    <div style={{ fontSize: 12, color: 'var(--green-700)', fontWeight: 600, textTransform: 'uppercase' }}>For Seller Fees</div>
+                    <div style={{ fontSize: 20, color: 'var(--green-800)', fontWeight: 700 }}>{formatUsd(credits.platform_fee_credits_usd)}</div>
+                  </div>
+                )}
+              </div>
+              <p style={{ color: 'var(--green-800)', fontSize: 13, margin: '8px 0 0', lineHeight: 1.5 }}>
+                Credits are automatically applied to your transactions. Strictly 1 credit applies per order.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ── Summary Cards ── */}
         <div className={styles.summaryGrid}>

@@ -182,7 +182,7 @@ if [ -n "$DISPUTE2" ] && [ "$DISPUTE2" != "" ]; then
       '$ORDER2'::uuid,
       'credit_both'::escalation_resolution_type,
       'Both parties had valid points - shell test',
-      NULL, 5.00, 'purchase'::credit_type, 20, 3.00, 'purchase'::credit_type, 20);
+      NULL, 5.00, 'purchase'::credit_type, 20, 'percentage'::credit_cap_type, 3.00, 'purchase'::credit_type, 20, 'percentage'::credit_cap_type);
     COMMIT;
   " 2>&1)
 
