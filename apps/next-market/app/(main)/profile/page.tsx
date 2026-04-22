@@ -95,6 +95,10 @@ export default function ProfilePage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!user) return
+    if (phone.trim() && !phoneVerified) {
+      setError('Please verify your phone number by clicking "Send Code", or clear the field before saving.')
+      return
+    }
     setSaving(true)
     setError('')
 
@@ -166,6 +170,14 @@ export default function ProfilePage() {
         county,
         avatar_url: avatarUrl || null,
         sms_enabled: smsEnabled
+      }
+      if (phone.trim() && phoneVerified) {
+        profileUpdate.phone_number = phone.startsWith('+') ? phone.trim() : `+1${phone.replace(/\D/g, '')}`
+        profileUpdate.phone_verified = true
+      } else if (!phone.trim()) {
+        profileUpdate.phone_number = null
+        profileUpdate.phone_verified = false
+        profileUpdate.sms_enabled = false
       }
       if (h3Index) {
         profileUpdate.home_community_h3_index = h3Index

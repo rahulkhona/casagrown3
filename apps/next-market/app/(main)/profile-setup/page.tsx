@@ -179,6 +179,10 @@ function ProfileSetupPageInner() {
     if (!city.trim()) { setError('Please enter your city'); return }
     if (!stateCode.trim()) { setError('Please enter your state'); return }
     if (!zip.trim()) { setError('Please enter your zip code'); return }
+    if (showPhoneOptIn && phone.trim() && !phoneVerified) {
+      setError('Please verify your phone number by clicking "Send Code", or clear the field before saving.')
+      return
+    }
 
     trackFormSubmit('profile_setup', { hasAvatar: !!avatarUrl })
     setSaving(true); setError('')
@@ -276,10 +280,14 @@ function ProfileSetupPageInner() {
         // (20260331002000_auto_create_community.sql auto-creates the community if missing)
       }
 
-      if (phoneVerified) {
-        profileUpdate.phone_number = phone.startsWith('+') ? phone : `+1${phone.replace(/\D/g, '')}`
+      if (showPhoneOptIn && phone.trim() && phoneVerified) {
+        profileUpdate.phone_number = phone.startsWith('+') ? phone.trim() : `+1${phone.replace(/\D/g, '')}`
         profileUpdate.sms_enabled = smsEnabled
         profileUpdate.phone_verified = true
+      } else if (!showPhoneOptIn || !phone.trim()) {
+        profileUpdate.phone_number = null
+        profileUpdate.sms_enabled = false
+        profileUpdate.phone_verified = false
       }
 
       const { error: updateErr } = await supabase
