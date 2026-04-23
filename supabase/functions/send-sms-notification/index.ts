@@ -35,9 +35,12 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     }
 
     // ── Global Feature Flag Check ──
-    const enableSms = Deno.env.get("ENABLE_PHONE_VERIFICATION") === "true" || Deno.env.get("NEXT_PUBLIC_ENABLE_PHONE_VERIFICATION") === "true";
+    // SMS notifications are gated by ENABLE_SMS_NOTIFICATIONS (server-side)
+    // or NEXT_PUBLIC_ENABLE_SMS_NOTIFICATIONS (client-side).
+    // This is SEPARATE from ENABLE_PHONE_VERIFICATION which gates OTP/Verify.
+    const enableSms = Deno.env.get("ENABLE_SMS_NOTIFICATIONS") === "true" || Deno.env.get("NEXT_PUBLIC_ENABLE_SMS_NOTIFICATIONS") === "true";
     if (!enableSms) {
-        return jsonOk({ success: true, message: "Skipped: SMS feature flag is disabled" }, corsHeaders);
+        return jsonOk({ success: true, message: "Skipped: SMS notifications feature flag is disabled" }, corsHeaders);
     }
 
     // ── Check if user has a fresh push subscription (updated within 90 days) ──
@@ -58,7 +61,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     // ── Check if user is eligible for SMS ──
     const { data: profile } = await supabase
         .from("profiles")
-        .select("phone_number, phone_verified, sms_enabled")
+        .select("phone_number, phone_verified, sms_enabled, twilio_blocked")
         .eq("id", userId)
         .single();
 
@@ -68,6 +71,10 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
 
     if (!profile.phone_verified || !profile.sms_enabled || !profile.phone_number) {
         return jsonOk({ success: true, message: "Skipped: user not SMS-eligible" }, corsHeaders);
+    }
+
+    if (profile.twilio_blocked) {
+        return jsonOk({ success: true, message: "Skipped: user has opted out (STOP)" }, corsHeaders);
     }
 
 

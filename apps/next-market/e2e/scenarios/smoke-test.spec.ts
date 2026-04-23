@@ -57,7 +57,7 @@ const SELLER_PAGES = [
 test.describe('Smoke Test — Every Page Loads Without Errors', () => {
   // ── Unauthenticated Pages ──
   test('unauthenticated pages load correctly', async ({ browser }) => {
-    const context = await browser.newContext()
+    const context = await browser.newContext({ storageState: { cookies: [], origins: [] } })
     const page = await context.newPage()
     const errors = collectConsoleErrors(page)
 

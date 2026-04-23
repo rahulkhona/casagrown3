@@ -93,6 +93,22 @@ vi.mock('../../lib/useAuth', () => ({
   useAuth: () => ({ user: null, isAuthenticated: false, loading: false, isBanned: false, banReason: null }),
 }))
 
+// Mock useBootstrap (useAuth depends on this)
+vi.mock('../../lib/useBootstrap', () => ({
+  useBootstrap: () => ({
+    data: {
+      profile: null,
+      market_config: { schedule: [], productsNeverExpire: false, marketNeverCloses: true },
+      badges: null,
+    },
+    loading: false,
+    user: null,
+    isAuthenticated: false,
+    refresh: vi.fn(),
+  }),
+  BootstrapProvider: ({ children }: any) => React.createElement(React.Fragment, null, children),
+}))
+
 // Mock analytics
 vi.mock('../../lib/analytics', () => ({
   trackClick: vi.fn(), trackError: vi.fn(), trackEvent: vi.fn(), trackPageView: vi.fn(), setAnalyticsUser: vi.fn(), trackFormSubmit: vi.fn(),

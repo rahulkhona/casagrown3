@@ -2,9 +2,11 @@
 /**
  * BuyModal — Negative / Error-handling tests
  *
- * Covers: order RPC failures, hold failures, Stripe card declines,
- * price change detection, sold-out products, free products,
- * and the order rollback mechanism on failures.
+ * Covers: hold failures, order RPC failures, Stripe card declines,
+ * price change detection, sold-out products, free products.
+ *
+ * HOLD-FIRST: The flow is hold → confirm card → place order.
+ * If the hold fails, no order is created (no rollback needed).
  *
  * NOTE: Since loadStripe is mocked null (no real Stripe in tests),
  * we test error paths using balance-covered scenarios (needsCard=false)
@@ -144,8 +146,13 @@ describe('BuyModal — Negative Tests', () => {
     expect(container.textContent).not.toContain('Price Breakdown')
   })
 
-  // ── Order RPC failure ──
+  // ── Order RPC failure (hold succeeds, order fails) ──
   it('shows error when place_market_order RPC fails', async () => {
+    // Hold succeeds first, then order RPC fails
+    mockFunctionsInvoke.mockResolvedValue({
+      data: { holdAmountCents: 0, balanceAppliedCents: 250, isTopUp: false, requiresCardEntry: false, holdId: 'hold-1' },
+      error: null,
+    })
     mockRpc.mockImplementation((fnName: string) => {
       if (fnName === 'place_market_order') {
         return Promise.resolve({ data: null, error: { message: 'Product not found' } })
@@ -167,8 +174,12 @@ describe('BuyModal — Negative Tests', () => {
     expect(defaultProps.onSuccess).not.toHaveBeenCalled()
   })
 
-  // ── Price change detection ──
+  // ── Price change detection (hold succeeds, order detects price change) ──
   it('shows price change message when order returns price_changed code', async () => {
+    mockFunctionsInvoke.mockResolvedValue({
+      data: { holdAmountCents: 0, balanceAppliedCents: 250, isTopUp: false, requiresCardEntry: false, holdId: 'hold-1' },
+      error: null,
+    })
     mockRpc.mockImplementation((fnName: string) => {
       if (fnName === 'place_market_order') {
         return Promise.resolve({
@@ -198,17 +209,8 @@ describe('BuyModal — Negative Tests', () => {
     expect(defaultProps.onSuccess).not.toHaveBeenCalled()
   })
 
-  // ── Hold (edge function) failure with order rollback ──
-  it('shows hold error and rolls back order when market-hold fails', async () => {
-    mockRpc.mockImplementation((fnName: string) => {
-      if (fnName === 'place_market_order') {
-        return Promise.resolve({
-          data: { order_id: 'order-abc', total_cents: 250, total_usd: 2.50, success: true },
-          error: null,
-        })
-      }
-      return Promise.resolve({ data: { available_usd: 10 } })
-    })
+  // ── Hold failure — no order created (hold-first) ──
+  it('shows hold error with no order created when market-hold fails', async () => {
     mockFunctionsInvoke.mockResolvedValue({
       data: { success: false, error: 'Failed to update hold record' },
       error: null,
@@ -223,21 +225,13 @@ describe('BuyModal — Negative Tests', () => {
     await act(async () => { await new Promise(r => setTimeout(r, 100)) })
 
     expect(container.textContent).toContain('Failed to update hold record')
-    expect(mockUpdateChain.update).toHaveBeenCalled() // rollback
+    // No rollback needed — no order was created
+    expect(mockUpdateChain.update).not.toHaveBeenCalled()
     expect(defaultProps.onSuccess).not.toHaveBeenCalled()
   })
 
-  // ── Hold edge function network error ──
+  // ── Hold edge function network error — no order created ──
   it('shows hold error when edge function returns holdErr', async () => {
-    mockRpc.mockImplementation((fnName: string) => {
-      if (fnName === 'place_market_order') {
-        return Promise.resolve({
-          data: { order_id: 'order-def', total_cents: 250, total_usd: 2.50, success: true },
-          error: null,
-        })
-      }
-      return Promise.resolve({ data: { available_usd: 10 } })
-    })
     mockFunctionsInvoke.mockResolvedValue({
       data: null,
       error: { message: 'Edge function timeout' },
@@ -252,12 +246,19 @@ describe('BuyModal — Negative Tests', () => {
     await act(async () => { await new Promise(r => setTimeout(r, 100)) })
 
     expect(container.textContent).toContain('Edge function timeout')
-    expect(mockUpdateChain.update).toHaveBeenCalled() // rollback
+    // No rollback needed — no order was created
+    expect(mockUpdateChain.update).not.toHaveBeenCalled()
     expect(defaultProps.onSuccess).not.toHaveBeenCalled()
   })
 
-  // ── Successful order flow (balance-covered) ──
-  it('calls onSuccess when order + hold succeed (balance covers)', async () => {
+  // ── Successful order flow (balance-covered, hold-first) ──
+  it('calls onSuccess when hold + order succeed (balance covers)', async () => {
+    // Step 1: Hold succeeds
+    mockFunctionsInvoke.mockResolvedValue({
+      data: { holdAmountCents: 0, balanceAppliedCents: 250, isTopUp: false, requiresCardEntry: false, holdId: 'hold-1' },
+      error: null,
+    })
+    // Step 2: Order succeeds (after hold)
     mockRpc.mockImplementation((fnName: string) => {
       if (fnName === 'place_market_order') {
         return Promise.resolve({
@@ -266,10 +267,6 @@ describe('BuyModal — Negative Tests', () => {
         })
       }
       return Promise.resolve({ data: { available_usd: 10 } })
-    })
-    mockFunctionsInvoke.mockResolvedValue({
-      data: { holdAmountCents: 0, balanceAppliedCents: 250, isTopUp: false, requiresCardEntry: false },
-      error: null,
     })
 
     const { container } = render(React.createElement(BuyModal, defaultProps))

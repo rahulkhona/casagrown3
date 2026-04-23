@@ -637,7 +637,7 @@ const MarketContext = createContext<{
 export function MarketProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState)
 
-  // Load market config from DB on mount
+  // Load market config from DB on mount (fallback if bootstrap hasn't loaded yet)
   useEffect(() => {
     import('../lib/supabase').then(({ createClient }) => {
       const supabase = createClient()

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useMarket, isMarketOpen } from '../../lib/store'
 import { useAuth } from '../../lib/useAuth'
+import { useBootstrap } from '../../lib/useBootstrap'
 import { createClient } from '../../lib/supabase'
 import styles from './BottomNav.module.css'
 
@@ -162,10 +163,17 @@ export function BottomNav() {
   const router = useRouter()
   const { state } = useMarket()
   const { user, profileComplete, isAuthenticated } = useAuth()
+  const { data: bootstrapData } = useBootstrap()
   const keyboardOpen = useKeyboardVisible()
   const unreadCount = useUnreadMessageCount(user?.id)
   const actionableOrders = useActionableOrderCount(user?.id)
   const communityUnreadCount = useCommunityUnreadCount(user?.id, pathname)
+
+  // Seed badge counts from bootstrap on first render (instant, no poll delay)
+  const bootstrapBadges = bootstrapData?.badges
+  const effectiveDmUnread = unreadCount || bootstrapBadges?.dm_unread || 0
+  const effectiveOrders = actionableOrders || bootstrapBadges?.actionable_orders || 0
+  const effectiveCommunity = communityUnreadCount || bootstrapBadges?.community_unread || 0
 
   const isActive = (href: string) => pathname.startsWith(href)
   const isProfileLocked = profileComplete !== true
@@ -197,7 +205,7 @@ export function BottomNav() {
           >
             <span className={styles.icon}>
               {tab.icon}
-              {tab.href === '/community' && communityUnreadCount > 0 && (
+              {tab.href === '/community' && effectiveCommunity > 0 && (
                 <span style={{
                   position: 'absolute', top: -4, right: -4,
                   background: '#ef4444', color: 'white', fontSize: '0.65rem',
@@ -205,10 +213,10 @@ export function BottomNav() {
                   alignItems: 'center', justifyContent: 'center', borderRadius: '50%',
                   border: '1px solid white'
                 }}>
-                  {communityUnreadCount > 9 ? '9+' : communityUnreadCount}
+                  {effectiveCommunity > 9 ? '9+' : effectiveCommunity}
                 </span>
               )}
-              {tab.href === '/messages' && unreadCount > 0 && (
+              {tab.href === '/messages' && effectiveDmUnread > 0 && (
                 <span style={{
                   position: 'absolute', top: -4, right: -4,
                   background: '#ef4444', color: 'white', fontSize: '0.65rem',
@@ -216,10 +224,10 @@ export function BottomNav() {
                   alignItems: 'center', justifyContent: 'center', borderRadius: '50%',
                   border: '1px solid white'
                 }}>
-                  {unreadCount > 9 ? '9+' : unreadCount}
+                  {effectiveDmUnread > 9 ? '9+' : effectiveDmUnread}
                 </span>
               )}
-              {tab.href === '/orders' && actionableOrders > 0 && (
+              {tab.href === '/orders' && effectiveOrders > 0 && (
                 <span style={{
                   position: 'absolute', top: -4, right: -4,
                   background: '#ef4444', color: 'white', fontSize: '0.65rem',
@@ -227,7 +235,7 @@ export function BottomNav() {
                   alignItems: 'center', justifyContent: 'center', borderRadius: '50%',
                   border: '1px solid white'
                 }}>
-                  {actionableOrders > 9 ? '9+' : actionableOrders}
+                  {effectiveOrders > 9 ? '9+' : effectiveOrders}
                 </span>
               )}
             </span>

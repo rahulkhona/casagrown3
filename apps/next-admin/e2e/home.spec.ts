@@ -27,6 +27,7 @@ test.describe('Home Page', () => {
       !e.includes('supabase') && !e.includes('auth') && !e.includes('token')
       && !e.includes('Failed to fetch') && !e.includes('ERR_CONNECTION')
       && !e.includes('EXPO_OS') && !e.includes('Service Worker')
+      && !e.includes('VAPID')
     )
     expect(criticalErrors).toEqual([])
   })

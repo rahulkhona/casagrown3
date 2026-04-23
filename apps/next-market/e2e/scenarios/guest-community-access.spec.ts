@@ -23,8 +23,10 @@ import {
 test.describe.configure({ mode: 'serial' })
 
 // Helper: create a fresh guest browser context (no auth)
+// Must explicitly clear storageState to prevent the chromium project's
+// storageState (which includes supabase.auth.token in localStorage) from leaking in.
 async function createGuestPage(browser: Browser): Promise<Page> {
-  const context = await browser.newContext()
+  const context = await browser.newContext({ storageState: { cookies: [], origins: [] } })
   return await context.newPage()
 }
 
@@ -106,7 +108,7 @@ test.describe('Guest Community Access', () => {
 
   test('Guest cannot send DMs, reactions, or flag messages', async ({ browser }) => {
     // Use mobile viewport to match other guest tests (BottomNav is hidden on desktop)
-    const context = await browser.newContext({ viewport: { width: 375, height: 812 } })
+    const context = await browser.newContext({ viewport: { width: 375, height: 812 }, storageState: { cookies: [], origins: [] } })
     const page = await context.newPage()
 
     await page.goto(`${BASE_URL}/community`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
@@ -150,7 +152,7 @@ test.describe('Guest Community Access', () => {
 
   test('Guest locked nav tabs redirect to /login', async ({ browser }) => {
     // BottomNav is display:none on desktop (>769px). Use mobile viewport.
-    const context = await browser.newContext({ viewport: { width: 375, height: 812 } })
+    const context = await browser.newContext({ viewport: { width: 375, height: 812 }, storageState: { cookies: [], origins: [] } })
     const page = await context.newPage()
 
     // Navigate to community first

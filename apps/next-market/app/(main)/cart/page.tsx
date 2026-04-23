@@ -184,7 +184,7 @@ export default function CartPage() {
     }
   }, [needsCard, balanceLoaded, stripeLoaded]) // Re-run when needsCard changes OR Stripe finishes loading
 
-  // Unified checkout with Stripe card entry and rollback
+  // Unified checkout with Stripe card entry — HOLD-FIRST flow
   const handleUnifiedCheckout = async () => {
     if (!user || !isAuthenticated) { router.push('/login?redirect=/cart'); return }
     if (!balanceLoaded) { setCheckoutError('Still loading payment info, please wait'); return }
@@ -193,8 +193,6 @@ export default function CartPage() {
     }
     setCheckingOut(true)
     setCheckoutError('')
-
-    const placedOrderIds: string[] = []
 
     try {
       // Group available items by booth
@@ -210,11 +208,7 @@ export default function CartPage() {
         return
       }
 
-      // Step 1: Re-validate windows + place orders (atomic per item)
-      const placedProductIds: string[] = []
-      let orderTotal = 0
-
-      // Re-fetch fresh data for all products to validate windows at checkout time
+      // Step 1: Re-validate windows
       const allProductIds = orderGroups.flatMap(g => g.items.map(i => i.product.id))
       const { data: freshData } = await supabase.rpc('refresh_product_data', { product_ids: allProductIds })
       const freshMap = new Map((freshData as any[] || []).map((d: any) => [d.id, d]))
@@ -244,69 +238,31 @@ export default function CartPage() {
         return
       }
 
-      for (const group of orderGroups) {
-        for (const item of group.items) {
-          const { data: orderResult, error: orderErr } = await supabase.rpc('place_market_order', {
-            p_product_id: item.product.id,
-            p_quantity: item.qty,
-            p_fulfillment_type: 'delivery',
-          })
+      // Step 2: Create/top-up hold FIRST (before any orders)
+      const totalCents = Math.round(grandTotal * 100)
+      const holdCents = Math.round(Math.max(0, grandTotal - balanceApplied) * 100)
+      let holdResult: any = null
 
-          if (orderErr) {
-            setCheckoutError(`Failed to order ${item.product.name}: ${orderErr.message}`)
-            // Rollback: cancel already-placed orders
-            for (const oid of placedOrderIds) {
-              await supabase.from('market_orders').update({ status: 'cancelled' }).eq('id', oid)
-            }
-            setCheckingOut(false)
-            return
-          }
-          if (orderResult?.error) {
-            setCheckoutError(`${item.product.name}: ${orderResult.error}`)
-            for (const oid of placedOrderIds) {
-              await supabase.from('market_orders').update({ status: 'cancelled' }).eq('id', oid)
-            }
-            setCheckingOut(false)
-            return
-          }
-
-          placedOrderIds.push(orderResult.order_id)
-          placedProductIds.push(item.product.id)
-          orderTotal += Number(orderResult.total_usd)
-        }
-      }
-
-      // Step 2: Create/top-up hold via market-hold edge function (uses first order's ID)
-      const totalCents = Math.round(orderTotal * 100)
-      const holdCents = Math.round(Math.max(0, orderTotal - balanceApplied) * 100)
-      if (holdCents > 0 || needsCard) {
-        const { data: holdResult, error: holdErr } = await supabase.functions.invoke('market-hold', {
+      if (holdCents > 0 || needsCard || totalCents > 0) {
+        const { data: hr, error: holdErr } = await supabase.functions.invoke('market-hold', {
           body: {
-            order_id: placedOrderIds[0], // Required — first order triggers the hold
             amount_cents: totalCents,
             suggested_hold_cents: holdCents,
           },
         })
 
-        if (holdErr || holdResult?.error) {
-          const msg = holdResult?.error || holdErr?.message || 'Unknown error'
-          setCheckoutError('Failed to authorize card: ' + msg)
-          // Rollback all orders
-          for (const oid of placedOrderIds) {
-            await supabase.from('market_orders').update({ status: 'cancelled' }).eq('id', oid)
-          }
+        if (holdErr || hr?.error) {
+          const msg = hr?.error || holdErr?.message || 'Unknown error'
+          setCheckoutError('Failed to authorize payment: ' + msg)
           setCheckingOut(false)
           return
         }
+        holdResult = hr
 
         // Step 3: Confirm card payment if Stripe requires it
         if (holdResult?.requiresCardEntry) {
           if (!stripeRef.current || !cardElementRef.current) {
-            // Card is required but element not mounted — rollback and error
             setCheckoutError('Card payment is required but the card form did not load. Please refresh and try again.')
-            for (const oid of placedOrderIds) {
-              await supabase.from('market_orders').update({ status: 'cancelled' }).eq('id', oid)
-            }
             setCheckingOut(false)
             return
           }
@@ -319,24 +275,42 @@ export default function CartPage() {
           )
           if (stripeErr) {
             setCheckoutError(stripeErr.message || 'Card declined')
-            // Rollback: cancel all orders, balance is restored by DB trigger
-            for (const oid of placedOrderIds) {
-              await supabase.from('market_orders').update({ status: 'cancelled' }).eq('id', oid)
-            }
             setCheckingOut(false)
             return
           }
         }
+      }
 
-        // Link remaining orders to the same hold
-        if (holdResult?.holdId && placedOrderIds.length > 1) {
-          for (let i = 1; i < placedOrderIds.length; i++) {
-            await supabase.from('market_orders').update({ hold_id: holdResult.holdId }).eq('id', placedOrderIds[i])
+      // Step 4: Place orders ONLY after payment is secured
+      const placedOrderIds: string[] = []
+      const placedProductIds: string[] = []
+
+      for (const group of orderGroups) {
+        for (const item of group.items) {
+          const { data: orderResult, error: orderErr } = await supabase.rpc('place_market_order', {
+            p_product_id: item.product.id,
+            p_quantity: item.qty,
+            p_fulfillment_type: item.fulfillmentMode || 'delivery',
+            p_hold_id: holdResult?.holdId || null,
+          })
+
+          if (orderErr) {
+            setCheckoutError(`Failed to order ${item.product.name}: ${orderErr.message}`)
+            setCheckingOut(false)
+            return
           }
+          if (orderResult?.error) {
+            setCheckoutError(`${item.product.name}: ${orderResult.error}`)
+            setCheckingOut(false)
+            return
+          }
+
+          placedOrderIds.push(orderResult.order_id)
+          placedProductIds.push(item.product.id)
         }
       }
 
-      // Step 4: Success — remove items from cart
+      // Step 5: Success — remove items from cart
       for (const pid of placedProductIds) {
         removeItem(pid)
       }
@@ -345,12 +319,6 @@ export default function CartPage() {
 
     } catch (err: any) {
       setCheckoutError('Checkout failed: ' + (err?.message || 'Unknown error'))
-      // Rollback any orders placed before the crash
-      for (const oid of placedOrderIds) {
-        try {
-          await supabase.from('market_orders').update({ status: 'cancelled' }).eq('id', oid)
-        } catch {} // best-effort cleanup
-      }
     }
     setCheckingOut(false)
   }

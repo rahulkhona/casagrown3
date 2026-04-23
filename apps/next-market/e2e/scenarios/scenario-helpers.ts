@@ -11,8 +11,8 @@ import { Browser, Page, expect } from '@playwright/test'
 import { config } from 'dotenv'
 import { resolve } from 'path'
 
-// Load env vars: .env.local (has SUPABASE_SERVICE_ROLE_KEY) and root .env (has STRIPE_SECRET_KEY)
-config({ path: resolve(__dirname, '../../.env.local') })
+// Load env vars: .env (app config), root .env (shared secrets)
+config({ path: resolve(__dirname, '../../.env') })
 config({ path: resolve(__dirname, '../../../../.env') })
 
 // ── Constants ──
@@ -23,6 +23,31 @@ export const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY |
 export const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || ''
 export const MAILPIT_URL = 'http://localhost:54324'
 export const BASE_URL = 'http://localhost:3001'
+
+/**
+ * Derive the @supabase/ssr cookie name from the Supabase URL the app uses.
+ * @supabase/ssr extracts a project ref from the URL and names cookies sb-<ref>-auth-token.
+ * For local dev (http://127.0.0.1:54321) → ref = '127'
+ * For staging (https://xyz.supabase.co) → ref = 'xyz'
+ */
+function getSupabaseCookieName(): string {
+  const appUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || SUPABASE_URL
+  try {
+    const url = new URL(appUrl)
+    // For *.supabase.co, the ref is the subdomain
+    if (url.hostname.endsWith('.supabase.co')) {
+      const ref = url.hostname.split('.')[0]
+      return `sb-${ref}-auth-token`
+    }
+    // For local (127.0.0.1), use the first octet
+    const ref = url.hostname.split('.')[0]
+    return `sb-${ref}-auth-token`
+  } catch {
+    return 'sb-127-auth-token'
+  }
+}
+
+const SUPABASE_COOKIE_NAME = getSupabaseCookieName()
 
 export const TEST_ADDRESS = '449 Meridian Ave, San Jose CA, 95120'
 export const TEST_LAT = '37.2296'
@@ -102,7 +127,7 @@ export async function loginAsUser(
   // Supabase SSR may chunk large cookies, so we set as a single cookie
   await context.addCookies([
     {
-      name: 'sb-127-auth-token',
+      name: SUPABASE_COOKIE_NAME,
       value: sessionData,
       domain: 'localhost',
       path: '/',
@@ -110,9 +135,9 @@ export async function loginAsUser(
       secure: false,
       sameSite: 'Lax',
     },
-    // Some versions split into base64 chunks as sb-127-auth-token.0, .1, etc.
+    // Some versions split into base64 chunks as <cookie>.0, .1, etc.
     {
-      name: 'sb-127-auth-token.0',
+      name: `${SUPABASE_COOKIE_NAME}.0`,
       value: btoa(sessionData).substring(0, 3600),
       domain: 'localhost',
       path: '/',
@@ -123,15 +148,16 @@ export async function loginAsUser(
   ])
 
   await page.evaluate(
-    ({ accessToken, refreshToken, u }) => {
+    ({ accessToken, refreshToken, u, cookieName }) => {
       const sessionPayload = JSON.stringify({
         access_token: accessToken,
         refresh_token: refreshToken,
         user: u,
       })
       localStorage.setItem('supabase.auth.token', sessionPayload)
+      // Set both the local and dynamic cookie-name keys for maximum compatibility
       localStorage.setItem(
-        'sb-127-auth-token',
+        cookieName,
         JSON.stringify({
           access_token: accessToken,
           refresh_token: refreshToken,
@@ -139,6 +165,18 @@ export async function loginAsUser(
           user: u,
         }),
       )
+      // Also set under sb-127 key as fallback for local dev
+      if (cookieName !== 'sb-127-auth-token') {
+        localStorage.setItem(
+          'sb-127-auth-token',
+          JSON.stringify({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+            expires_at: Math.floor(Date.now() / 1000) + 3600,
+            user: u,
+          }),
+        )
+      }
       // Dismiss alpha banner and legal consent
       localStorage.setItem('casagrown_alpha_ack', 'true')
       // Accept legal consent (prevents terms/privacy overlay)
@@ -146,15 +184,48 @@ export async function loginAsUser(
       localStorage.setItem('terms_accepted', 'true')
       localStorage.setItem('privacy_accepted', 'true')
     },
-    { accessToken: access_token, refreshToken: refresh_token, u: authUser },
+    { accessToken: access_token, refreshToken: refresh_token, u: authUser, cookieName: SUPABASE_COOKIE_NAME },
   )
 
   // 5. Reload so the Supabase client picks up the auth from cookies/localStorage
-  try {
-    await page.reload({ waitUntil: 'networkidle', timeout: 15_000 })
-  } catch {
-    // HMR WebSocket may prevent networkidle — page is loaded, auth is injected
-    await page.waitForTimeout(2000)
+  // Retry up to 3 times — SSR cookie injection can be flaky
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await page.reload({ waitUntil: 'networkidle', timeout: 15_000 })
+    } catch {
+      // HMR WebSocket may prevent networkidle — page is loaded, auth is injected
+      await page.waitForTimeout(2000)
+    }
+
+    // Verify auth was picked up — check if page still shows sign-in prompts
+    const bodyText = await page.locator('body').innerText().catch(() => '')
+    const lowerBody = bodyText.toLowerCase()
+    const needsAuth = lowerBody.includes('sign in to') || lowerBody.includes('please sign in') ||
+      (lowerBody.includes('sign in') && !lowerBody.includes('sign in with'))
+    if (!needsAuth || attempt === 2) break
+
+    // Re-inject cookies and try again
+    await context.addCookies([
+      {
+        name: SUPABASE_COOKIE_NAME,
+        value: sessionData,
+        domain: 'localhost',
+        path: '/',
+        httpOnly: false,
+        secure: false,
+        sameSite: 'Lax',
+      },
+      {
+        name: `${SUPABASE_COOKIE_NAME}.0`,
+        value: btoa(sessionData).substring(0, 3600),
+        domain: 'localhost',
+        path: '/',
+        httpOnly: false,
+        secure: false,
+        sameSite: 'Lax',
+      },
+    ])
+    await page.waitForTimeout(500)
   }
 
   return page

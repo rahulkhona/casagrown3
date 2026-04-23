@@ -88,12 +88,47 @@ vi.mock('../../../lib/useAuth', () => ({
   }),
 }))
 
+// ── useBootstrap mock — provides profile data for Navbar ──
+let mockBootstrapUser: any = { id: 'user-1', email: 'test@test.com' }
+let mockBootstrapProfile: any = {
+  full_name: 'Alice Smith',
+  avatar_url: null,
+  is_banned: false,
+  ban_reason: null,
+  tos_accepted_at: '2026-01-01',
+  profile_completed_at: '2026-01-01',
+}
+
+vi.mock('../../../lib/useBootstrap', () => ({
+  useBootstrap: () => ({
+    data: {
+      profile: mockBootstrapProfile,
+      market_config: { schedule: [], productsNeverExpire: false, marketNeverCloses: true },
+      badges: { dm_unread: 0, community_unread: 0, actionable_orders: 0 },
+    },
+    loading: false,
+    user: mockBootstrapUser,
+    isAuthenticated: !!mockBootstrapUser,
+    refresh: vi.fn(),
+  }),
+  BootstrapProvider: ({ children }: any) => children,
+}))
+
 // Mock CSS modules
 vi.mock('../Navbar.module.css', () => ({ default: new Proxy({}, { get: (_, key) => key }) }))
 
 beforeEach(() => {
   vi.clearAllMocks()
   mockPathname = '/market'
+  mockBootstrapUser = { id: 'user-1', email: 'test@test.com' }
+  mockBootstrapProfile = {
+    full_name: 'Alice Smith',
+    avatar_url: null,
+    is_banned: false,
+    ban_reason: null,
+    tos_accepted_at: '2026-01-01',
+    profile_completed_at: '2026-01-01',
+  }
   // Setup profile fetch
   ;(mockSupabase.from as any).mockImplementation((table: string) => {
     if (table === 'profiles') return chain(mockProfile)
@@ -129,6 +164,8 @@ describe('Navbar', () => {
   })
 
   it('hides profile badge when no session', async () => {
+    mockBootstrapUser = null
+    mockBootstrapProfile = null
     mockSupabase.auth.getSession.mockResolvedValue({ data: { session: null } })
     mockSupabase.auth.getUser.mockResolvedValue({ data: { user: null } })
     const { Navbar } = await import('../Navbar')
@@ -166,6 +203,8 @@ describe('Navbar', () => {
   })
 
   it('shows Sign In link when not authenticated', async () => {
+    mockBootstrapUser = null
+    mockBootstrapProfile = null
     mockSupabase.auth.getSession.mockResolvedValue({ data: { session: null } })
     mockSupabase.auth.getUser.mockResolvedValue({ data: { user: null } })
     const { Navbar } = await import('../Navbar')
@@ -211,6 +250,8 @@ describe('Navbar', () => {
   })
 
   it('redirects to login when clicking bell without session', async () => {
+    mockBootstrapUser = null
+    mockBootstrapProfile = null
     mockSupabase.auth.getSession.mockResolvedValue({ data: { session: null } })
     mockSupabase.auth.getUser.mockResolvedValue({ data: { user: null } })
     const { Navbar } = await import('../Navbar')

@@ -213,6 +213,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
 
   const handleOrder = useCallback(async () => {
     if (!user) { setError('Please sign in to make a purchase'); return }
+    if (qty <= 0) { setError('Quantity must be at least 1'); return }
     if (qty > available) { setError(`Only ${available} available`); return }
     if (fulfillment === 'delivery' && !deliveryAddress.trim()) { setError('Please enter a delivery address'); return }
     if (!hasValidWindows(windowDates, deliveryWindows, pickupWindows, fulfillment)) {
@@ -226,13 +227,58 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
     trackClick('place_order', { productId: product.id, boothId: booth.id, boothName: booth.name, qty, total, fulfillment })
 
     try {
-      // Step 1: Place order (atomic)
+      const totalCents = Math.round(total * 100)
+
+      // Step 1: Create Stripe hold (BEFORE order — no order_id needed)
+      const { data: holdResult, error: holdErr } = await supabase.functions.invoke('market-hold', {
+        body: {
+          amount_cents: totalCents,
+        },
+      })
+
+      if (holdErr || holdResult?.error) {
+        const msg = holdResult?.error || holdErr?.message || 'Failed to create payment hold'
+        setError(msg)
+        setLoading(false)
+        return
+      }
+
+      // Diagnostic: log hold result for debugging PI-not-found issues
+      console.log('[BuyModal] Hold result:', {
+        holdId: holdResult.holdId,
+        holdAmountCents: holdResult.holdAmountCents,
+        balanceAppliedCents: holdResult.balanceAppliedCents,
+        requiresCardEntry: holdResult.requiresCardEntry,
+        clientSecretPrefix: holdResult.clientSecret?.substring(0, 20),
+      })
+
+      // Step 2: Confirm with Stripe Elements (only if card entry is needed)
+      if (holdResult.requiresCardEntry && stripeRef.current && cardElementRef.current) {
+        console.log('[BuyModal] Confirming card payment with client_secret prefix:', holdResult.clientSecret?.substring(0, 20))
+        const { error: stripeErr } = await stripeRef.current.confirmCardPayment(
+          holdResult.clientSecret,
+          {
+            payment_method: { card: cardElementRef.current },
+            return_url: `${window.location.origin}/orders`,
+          },
+        )
+        if (stripeErr) {
+          console.error('[BuyModal] confirmCardPayment FAILED:', stripeErr.type, stripeErr.code, stripeErr.message, stripeErr.decline_code)
+          setError(stripeErr.message || 'Card declined')
+          setLoading(false)
+          return
+        }
+        console.log('[BuyModal] confirmCardPayment succeeded')
+      }
+
+      // Step 3: Place order ONLY after payment is secured
       const { data: orderResult, error: orderErr } = await supabase.rpc('place_market_order', {
         p_product_id: product.id,
         p_quantity: qty,
         p_fulfillment_type: fulfillment,
         p_buyer_zip: buyerZip || null,
         p_expected_price: currentPrice,
+        p_hold_id: holdResult.holdId || null,
       })
 
       if (orderErr) { setError(orderErr.message); setLoading(false); return }
@@ -248,40 +294,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
         setError(orderResult.error); setLoading(false); return
       }
 
-      // Step 2: Create/top-up Stripe hold (exact order amount — no larger hold)
-      const { data: holdResult, error: holdErr } = await supabase.functions.invoke('market-hold', {
-        body: {
-          order_id: orderResult.order_id,
-          amount_cents: orderResult.total_cents,
-        },
-      })
-
-      if (holdErr || holdResult?.error) {
-        const msg = holdResult?.error || holdErr?.message || 'Failed to create payment hold'
-        setError(msg)
-        // Rollback: cancel the order we just placed
-        await supabase.from('market_orders').update({ status: 'cancelled' }).eq('id', orderResult.order_id)
-        setLoading(false)
-        return
-      }
-
-      // Step 3: Confirm with Stripe Elements (only if card entry is needed)
-      if (holdResult.requiresCardEntry && stripeRef.current && cardElementRef.current) {
-        const { error: stripeErr } = await stripeRef.current.confirmCardPayment(
-          holdResult.clientSecret,
-          {
-            payment_method: { card: cardElementRef.current },
-            return_url: `${window.location.origin}/orders`,
-          },
-        )
-        if (stripeErr) {
-          setError(stripeErr.message || 'Card declined')
-          setLoading(false)
-          return
-        }
-      }
-
-      // Success
+      // Success — order created with payment secured
       onSuccess({
         orderId: orderResult.order_id,
         quantity: qty,

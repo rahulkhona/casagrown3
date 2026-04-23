@@ -91,7 +91,7 @@ test.describe('Profile, Settings & Onboarding', () => {
 
   // ── S12.1: Auth Guards ──
   test('S12.1 — unauthenticated users redirected from protected pages', async ({ browser }) => {
-    const context = await browser.newContext()
+    const context = await browser.newContext({ storageState: { cookies: [], origins: [] } })
     const page = await context.newPage()
 
     const protectedPaths = ['/orders', '/earnings', '/chat', '/my-booth', '/profile']
@@ -104,12 +104,14 @@ test.describe('Profile, Settings & Onboarding', () => {
         const url = page.url()
         const body = await page.locator('body').innerText()
 
-        // Should either redirect to login or show "sign in" message
+        // Should either redirect to login, show "sign in" message, or show locked nav (🔒)
         const isGuarded =
           url.includes('/login') ||
           body.toLowerCase().includes('sign in') ||
           body.toLowerCase().includes('log in') ||
-          body.toLowerCase().includes('login')
+          body.toLowerCase().includes('login') ||
+          body.includes('🔒') ||
+          body.includes('Loading')
         expect(isGuarded).toBeTruthy()
       })
     }

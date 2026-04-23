@@ -4,6 +4,10 @@
  * Creates or tops up a Stripe PaymentIntent with capture_method: 'manual'
  * for the market buy flow (authorize-then-capture).
  *
+ * HOLD-FIRST: This function is called BEFORE the order is created.
+ * The hold secures payment (balance + card) before the order exists,
+ * preventing orphaned orders when payment fails.
+ *
  * BALANCE-FIRST: Before creating/topping up a Stripe hold, the buyer's
  * available balance is debited first. The Stripe hold is only for the
  * remainder. If balance fully covers the purchase, no Stripe PI is created.
@@ -13,9 +17,9 @@
  *   2. Compute remainder after balance applied
  *   3. If remainder > 0: create/top-up Stripe PaymentIntent
  *   4. If remainder = 0: skip Stripe entirely (fully covered by balance)
- *   5. Record balance_applied_cents on market_holds and market_orders
+ *   5. Record balance_applied_cents on market_holds
  *
- * Request: { order_id, amount_cents, suggested_hold_cents? }
+ * Request: { amount_cents, order_id?, suggested_hold_cents? }
  * Response: { clientSecret?, holdId?, holdAmountCents, balanceAppliedCents, isTopUp, requiresCardEntry }
  */
 
@@ -37,10 +41,14 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         return jsonError("STRIPE_SECRET_KEY not configured", corsHeaders);
     }
 
+    // Diagnostic: log key prefix to trace which key is being used
+    const keyPrefix = STRIPE_SECRET_KEY.substring(0, 12);
+    console.log(`[MARKET-HOLD] Using Stripe key: ${keyPrefix}...`);
+
     const { order_id, amount_cents, suggested_hold_cents } = await req.json();
 
-    if (!order_id || !amount_cents) {
-        return jsonError("order_id and amount_cents are required", corsHeaders);
+    if (!amount_cents) {
+        return jsonError("amount_cents is required", corsHeaders);
     }
 
     // ══════════════════════════════════════════════════════════
@@ -58,16 +66,18 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         );
     }
 
-    // Verify order belongs to buyer
-    const { data: order, error: orderErr } = await supabase
-        .from("market_orders")
-        .select("id, total_usd, status")
-        .eq("id", order_id)
-        .eq("buyer_id", buyerId)
-        .single();
+    // Verify order belongs to buyer (only if order_id provided — hold-first flow skips this)
+    if (order_id) {
+        const { data: order, error: orderErr } = await supabase
+            .from("market_orders")
+            .select("id, total_usd, status")
+            .eq("id", order_id)
+            .eq("buyer_id", buyerId)
+            .single();
 
-    if (orderErr || !order) {
-        return jsonError("Order not found", corsHeaders);
+        if (orderErr || !order) {
+            return jsonError("Order not found", corsHeaders);
+        }
     }
 
     // ══════════════════════════════════════════════════════════
@@ -89,11 +99,13 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     const balanceAppliedCents = balanceDebitedCents || 0;
     const remainderCents = amount_cents - balanceAppliedCents;
 
-    // Update order with balance applied
-    await supabase
-        .from("market_orders")
-        .update({ balance_applied_usd: balanceAppliedCents / 100 })
-        .eq("id", order_id);
+    // Update order with balance applied (only if order_id provided)
+    if (order_id) {
+        await supabase
+            .from("market_orders")
+            .update({ balance_applied_usd: balanceAppliedCents / 100 })
+            .eq("id", order_id);
+    }
 
     console.log(
         `[MARKET-HOLD] Balance applied: $${(balanceAppliedCents / 100).toFixed(2)}, ` +
@@ -123,10 +135,12 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                 })
                 .eq("id", existingHold.id);
 
-            await supabase
-                .from("market_orders")
-                .update({ hold_id: existingHold.id })
-                .eq("id", order_id);
+            if (order_id) {
+                await supabase
+                    .from("market_orders")
+                    .update({ hold_id: existingHold.id })
+                    .eq("id", order_id);
+            }
         }
 
         console.log(
@@ -256,11 +270,13 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             return jsonError("Failed to update hold record", corsHeaders);
         }
 
-        // Link order to hold
-        await supabase
-            .from("market_orders")
-            .update({ hold_id: existingHold.id })
-            .eq("id", order_id);
+        // Link order to hold (only if order_id provided)
+        if (order_id) {
+            await supabase
+                .from("market_orders")
+                .update({ hold_id: existingHold.id })
+                .eq("id", order_id);
+        }
 
         console.log(
             `✅ [MARKET-HOLD] Top-up: hold ${existingHold.id}, PI: ${piData.id}, ` +
@@ -309,7 +325,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
     if (!piResponse.ok) {
         const error = await piResponse.json();
-        console.error("Stripe PI create error:", error);
+        console.error(`❌ [MARKET-HOLD] Stripe PI create FAILED (HTTP ${piResponse.status}):`, JSON.stringify(error));
+        console.error(`❌ [MARKET-HOLD] Key prefix: ${keyPrefix}, amount: ${holdAmountCents}, buyer: ${buyerId}`);
         // Refund the balance we just debited
         await supabase.rpc("refund_buyer_balance", {
             p_buyer_id: buyerId,
@@ -323,6 +340,12 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     }
 
     const piData = await piResponse.json();
+    console.log(
+        `✅ [MARKET-HOLD] Stripe PI created: id=${piData.id}, ` +
+        `status=${piData.status}, amount=${piData.amount}, ` +
+        `client_secret_prefix=${piData.client_secret?.substring(0, 20)}..., ` +
+        `key_prefix=${keyPrefix}`,
+    );
 
     // Create hold record
     const { data: hold, error: holdErr } = await supabase
@@ -344,11 +367,13 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         return jsonError("Failed to record hold", corsHeaders);
     }
 
-    // Link order to hold
-    await supabase
-        .from("market_orders")
-        .update({ hold_id: hold.id })
-        .eq("id", order_id);
+    // Link order to hold (only if order_id provided)
+    if (order_id) {
+        await supabase
+            .from("market_orders")
+            .update({ hold_id: hold.id })
+            .eq("id", order_id);
+    }
 
     console.log(
         `✅ [MARKET-HOLD] New hold: ${hold.id}, PI: ${piData.id}, ` +

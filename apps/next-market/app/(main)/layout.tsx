@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { MarketProvider } from '../../lib/store'
 import { CartProvider } from '../../lib/useCart'
 import { useAuth } from '../../lib/useAuth'
+import { BootstrapProvider } from '../../lib/useBootstrap'
 import { Navbar } from '../components/Navbar'
 import { BottomNav } from '../components/BottomNav'
 import { RatingReminder } from '../components/RatingReminder'
@@ -116,13 +117,12 @@ function OnboardingGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-export default function MainLayout({ children }: { children: React.ReactNode }) {
+function MainLayoutInner({ children }: { children: React.ReactNode }) {
   const { isBanned, banReason, user } = useAuth()
 
   // Capture referral/UTM params from URL on every page load
   useReferralCapture()
 
-  // Always show nav — the Navbar/BottomNav handle their own greying
   return (
     <MarketProvider>
       <CartProvider>
@@ -143,5 +143,13 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       </ErrorToastProvider>
       </CartProvider>
     </MarketProvider>
+  )
+}
+
+export default function MainLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <BootstrapProvider>
+      <MainLayoutInner>{children}</MainLayoutInner>
+    </BootstrapProvider>
   )
 }
