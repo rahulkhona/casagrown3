@@ -46,7 +46,10 @@ export type EmailType =
     | "followed_seller_adds_item"
     | "welcome"
     | "abandoned_tos"
-    | "abandoned_profile";
+    | "abandoned_profile"
+    | "credit_granted"
+    | "credit_expiring"
+    | "credit_expired";
 
 export interface EmailRecipient {
     email: string;
@@ -108,6 +111,16 @@ export interface NotificationPayload {
     delegatorName?: string;
     delegatePct?: number;
     revokedBy?: string;
+    // Credit fields
+    creditAmountUsd?: number;
+    creditType?: string;       // 'purchase' | 'platform_fee' | 'universal'
+    creditReason?: string;
+    creditCapValue?: number;
+    creditCapType?: string;    // 'percentage' | 'flat_amount'
+    creditExpiresAt?: string;
+    creditUsageRules?: string; // pre-built human-readable rules from DB
+    creditRemainingUsd?: number;
+    creditDaysLeft?: number;
 }
 
 // =============================================================================
@@ -217,6 +230,12 @@ export function renderEmailByType(
             return renderDelegationRevoked(payload, recipient);
         case "delegation_accepted":
             return renderDelegationAccepted(payload, recipient);
+        case "credit_granted":
+            return renderCreditGranted(payload, recipient);
+        case "credit_expiring":
+            return renderCreditExpiring(payload, recipient);
+        case "credit_expired":
+            return renderCreditExpired(payload, recipient);
         default:
             return null;
     }
@@ -1122,5 +1141,187 @@ function renderAbandonedProfileEmail(
     return {
         subject,
         htmlBody: wrapInBrandedTemplate({ title: "Find Your Community", greeting, bodyHtml }),
+    };
+}
+
+// =============================================================================
+// (s) Credit Granted
+// =============================================================================
+
+function renderCreditGranted(
+    p: NotificationPayload,
+    r: EmailRecipient,
+): { subject: string; htmlBody: string } {
+    const amount = p.creditAmountUsd || 0;
+    const creditType = p.creditType || "purchase";
+    const subject = `💰 You received $${amount.toFixed(2)} in CasaGrown credits!`;
+    const greeting = `Hi ${r.name || "there"},`;
+
+    // Build usage explanation based on credit_type
+    let usageExplain: string;
+    if (creditType === "purchase") {
+        usageExplain = "This credit applies toward your <strong>purchases as a buyer</strong>. It will be automatically deducted from your order total at checkout.";
+    } else if (creditType === "platform_fee") {
+        usageExplain = "This credit reduces your <strong>seller platform fees</strong>. It will be automatically applied when your sales are settled.";
+    } else if (creditType === "universal") {
+        usageExplain = "This credit can be used toward <strong>both purchases and seller fees</strong>. It will be automatically applied to your next transaction.";
+    } else {
+        usageExplain = "This credit will be automatically applied to your transactions.";
+    }
+
+    // Build cap explanation
+    let capExplain: string;
+    const capVal = p.creditCapValue || 0;
+    if (p.creditCapType === "percentage") {
+        if (creditType === "platform_fee") {
+            capExplain = `Up to <strong>${capVal}%</strong> of your platform fees per sale.`;
+        } else {
+            capExplain = `Up to <strong>${capVal}%</strong> of your order total per transaction.`;
+        }
+    } else {
+        if (creditType === "platform_fee") {
+            capExplain = `Up to <strong>$${capVal.toFixed(2)}</strong> off your seller fees per sale.`;
+        } else {
+            capExplain = `Up to <strong>$${capVal.toFixed(2)}</strong> off your purchase per order.`;
+        }
+    }
+
+    // Build expiry line
+    const expiryLine = p.creditExpiresAt
+        ? `Expires: <strong>${new Date(p.creditExpiresAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</strong>`
+        : "No expiration date.";
+
+    const bodyHtml = `
+<p style="margin: 0 0 16px; font-size: 13px; color: #666666; line-height: 1.6;">
+You've been awarded <strong>$${amount.toFixed(2)}</strong> in ${creditType.replace("_", " ")} credits${p.creditReason ? ` — ${p.creditReason}` : ""}.
+</p>
+${infoCard([
+    { label: "Credit Amount", value: `$${amount.toFixed(2)}` },
+    { label: "Credit Type", value: creditType.replace("_", " ").replace(/\b\w/g, (c: string) => c.toUpperCase()) },
+    { label: "Per-Order Cap", value: p.creditCapType === "percentage" ? `${capVal}%` : `$${capVal.toFixed(2)}` },
+    { label: "Expires", value: p.creditExpiresAt ? new Date(p.creditExpiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Never" },
+    ...(p.creditReason ? [{ label: "Reason", value: p.creditReason }] : []),
+])}
+<div style="margin: 16px 0; padding: 16px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px;">
+  <p style="margin: 0 0 8px; font-size: 13px; color: #166534; font-weight: 600;">📋 How It Works</p>
+  <ul style="margin: 0; padding: 0 0 0 18px; font-size: 12px; color: #374151; line-height: 1.8;">
+    <li>${usageExplain}</li>
+    <li>${capExplain}</li>
+    <li>Only <strong>1 credit</strong> is applied per transaction.</li>
+    <li>${expiryLine}</li>
+  </ul>
+</div>
+${actionButton("Shop Now →", `${SITE_URL}/market`)}`;
+
+    return {
+        subject,
+        htmlBody: wrapInBrandedTemplate({
+            title: "Credits Received!",
+            greeting,
+            bodyHtml,
+            headerEmoji: "💰",
+        }),
+    };
+}
+
+// =============================================================================
+// (t) Credit Expiring Soon
+// =============================================================================
+
+function renderCreditExpiring(
+    p: NotificationPayload,
+    r: EmailRecipient,
+): { subject: string; htmlBody: string } {
+    const remaining = p.creditRemainingUsd || 0;
+    const daysLeft = p.creditDaysLeft ?? 0;
+    const creditType = p.creditType || "purchase";
+
+    const subject = daysLeft === 0
+        ? `⏰ Your $${remaining.toFixed(2)} CasaGrown credit expires today!`
+        : `⏰ Your $${remaining.toFixed(2)} CasaGrown credit expires in ${daysLeft} day${daysLeft > 1 ? "s" : ""}`;
+    const greeting = `Hi ${r.name || "there"},`;
+
+    const urgencyColor = daysLeft === 0 ? "#dc2626" : "#b45309";
+    const urgencyBg = daysLeft === 0 ? "#fef2f2" : "#fffbeb";
+    const urgencyBorder = daysLeft === 0 ? "#fca5a5" : "#fde68a";
+    const urgencyText = daysLeft === 0
+        ? "Your credit expires <strong>today</strong>! Use it before midnight or it will be lost."
+        : `Your credit expires in <strong>${daysLeft} day${daysLeft > 1 ? "s" : ""}</strong>. Don't let it go to waste!`;
+
+    let usageHint: string;
+    if (creditType === "purchase") {
+        usageHint = "Use this credit by purchasing fresh produce from your neighbors.";
+    } else if (creditType === "platform_fee") {
+        usageHint = "This credit will automatically reduce your seller fees on your next sale.";
+    } else {
+        usageHint = "This credit can be used for purchases or will reduce your seller fees.";
+    }
+
+    const bodyHtml = `
+<div style="margin: 0 0 16px; padding: 16px; background: ${urgencyBg}; border: 1px solid ${urgencyBorder}; border-radius: 10px;">
+  <p style="margin: 0; font-size: 14px; color: ${urgencyColor}; line-height: 1.6;">
+    ${urgencyText}
+  </p>
+</div>
+${infoCard([
+    { label: "Remaining Balance", value: `$${remaining.toFixed(2)}` },
+    { label: "Credit Type", value: creditType.replace("_", " ").replace(/\b\w/g, (c: string) => c.toUpperCase()) },
+    { label: "Expires", value: p.creditExpiresAt ? new Date(p.creditExpiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "Today" },
+])}
+<p style="margin: 16px 0 0; font-size: 13px; color: #374151; line-height: 1.6;">
+${usageHint}
+</p>
+${actionButton(creditType === "platform_fee" ? "View Earnings →" : "Shop Now →", creditType === "platform_fee" ? `${SITE_URL}/earnings` : `${SITE_URL}/market`)}`;
+
+    return {
+        subject,
+        htmlBody: wrapInBrandedTemplate({
+            title: daysLeft === 0 ? "Credit Expires Today!" : "Credit Expiring Soon",
+            greeting,
+            bodyHtml,
+            headerGradient: "linear-gradient(135deg, #b45309 0%, #f59e0b 50%, #fbbf24 100%)",
+            headerEmoji: "⏰",
+        }),
+    };
+}
+
+// =============================================================================
+// (u) Credit Expired
+// =============================================================================
+
+function renderCreditExpired(
+    p: NotificationPayload,
+    r: EmailRecipient,
+): { subject: string; htmlBody: string } {
+    const remaining = p.creditRemainingUsd || 0;
+    const creditType = p.creditType || "purchase";
+    const subject = `❌ Your $${remaining.toFixed(2)} CasaGrown credit has expired`;
+    const greeting = `Hi ${r.name || "there"},`;
+
+    const bodyHtml = `
+<div style="margin: 0 0 16px; padding: 16px; background: #fef2f2; border: 1px solid #fca5a5; border-radius: 10px;">
+  <p style="margin: 0; font-size: 14px; color: #991b1b; line-height: 1.6;">
+    Your <strong>$${remaining.toFixed(2)}</strong> ${creditType.replace("_", " ")} credit has expired and can no longer be used.
+  </p>
+</div>
+${infoCard([
+    { label: "Expired Amount", value: `$${remaining.toFixed(2)}` },
+    { label: "Credit Type", value: creditType.replace("_", " ").replace(/\b\w/g, (c: string) => c.toUpperCase()) },
+    { label: "Expired On", value: p.creditExpiresAt ? new Date(p.creditExpiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Today" },
+])}
+<p style="margin: 16px 0 0; font-size: 13px; color: #6b7280; line-height: 1.6;">
+Keep an eye on your wallet for future credits. You can check your credit balance anytime in the Earnings section.
+</p>
+${actionButton("View Earnings", `${SITE_URL}/earnings`)}`;
+
+    return {
+        subject,
+        htmlBody: wrapInBrandedTemplate({
+            title: "Credit Expired",
+            greeting,
+            bodyHtml,
+            headerGradient: "linear-gradient(135deg, #6b7280 0%, #9ca3af 50%, #d1d5db 100%)",
+            headerEmoji: "❌",
+        }),
     };
 }

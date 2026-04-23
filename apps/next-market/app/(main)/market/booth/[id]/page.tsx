@@ -28,10 +28,9 @@ export async function generateMetadata(
       .single()
 
     if (booth) {
-      // Use Next.js image optimization to resize for OG, or fallback to default CasaGrown share image
-      const ogImage = booth.header_image_url
-        ? `${siteUrl}/_next/image?url=${encodeURIComponent(booth.header_image_url)}&w=1200&q=75`
-        : `${siteUrl}/og-share.jpg`
+      // Use raw storage URL for OG — social crawlers (WhatsApp, iMessage)
+      // time out on /_next/image proxy during Vercel cold starts
+      const ogImage = booth.header_image_url || `${siteUrl}/og-share.jpg`
       const title = `${booth.name || 'Neighborhood Booth'} | CasaGrown Market`
       
       let description = booth.description || booth.description_html?.replace(/<[^>]+>/g, '') || ''

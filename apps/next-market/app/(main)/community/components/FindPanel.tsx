@@ -51,6 +51,7 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
   const [radius, setRadius] = useState(10)
   const [buyerStateCode, setBuyerStateCode] = useState<string | null>(null)
   const [addressResolved, setAddressResolved] = useState(false)
+  const [locationLoading, setLocationLoading] = useState(false)
 
   // ── Results state ──
   const [results, setResults] = useState<BoothResult[]>([])
@@ -119,6 +120,36 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
     } else {
       showError('Could not find that address. Please include city and state.')
     }
+  }
+
+  // ── Use browser geolocation (mirrors market page) ──
+  const handleUseMyLocation = () => {
+    if (!('geolocation' in navigator)) return
+    setLocationLoading(true)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        setLat(pos.coords.latitude); setLng(pos.coords.longitude)
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`)
+          const data = await res.json()
+          if (data?.address) {
+            const street = [data.address.house_number, data.address.road].filter(Boolean).join(' ')
+            const city = data.address.city || data.address.town || data.address.suburb || data.address.village
+            const stateMap: Record<string, string> = {
+              'California': 'CA', 'Florida': 'FL', 'New York': 'NY', 'Texas': 'TX',
+              'Oklahoma': 'OK', 'Arizona': 'AZ', 'Oregon': 'OR', 'Washington': 'WA',
+            }
+            const sc = stateMap[data.address.state] || data.address['ISO3166-2-lvl4']?.split('-')[1] || data.address.state
+            const parts = [street, city, sc, data.address.postcode].filter(Boolean)
+            setAddress(parts.join(', '))
+            if (sc) setBuyerStateCode(sc)
+          }
+        } catch { /* ignore */ }
+        setAddressResolved(true); setLocationLoading(false)
+      },
+      () => { showError('Location access denied.'); setLocationLoading(false) },
+      { timeout: 5000 }
+    )
   }
 
   // ── Search ──
@@ -298,6 +329,19 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
               <span className={styles.findResolvedBadge}>✅</span>
             )}
           </div>
+          {!addressResolved && (
+            <button
+              onClick={handleUseMyLocation}
+              disabled={locationLoading}
+              style={{
+                background: 'none', border: 'none', cursor: locationLoading ? 'wait' : 'pointer',
+                color: 'var(--green-600, #16a34a)', fontSize: 13, fontWeight: 600,
+                padding: '4px 0', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4,
+              }}
+            >
+              {locationLoading ? '⏳ Getting location...' : '📍 Use My Location'}
+            </button>
+          )}
         </div>
 
         {/* Keywords */}

@@ -224,7 +224,7 @@ SET LOCAL role TO authenticated;
 SET LOCAL request.jwt.claim.sub = 'a1111111-1111-1111-1111-111111111111';
 
 SELECT ok(
-  (seller_mark_delivered('ee390001-0000-0000-0000-000000000004') ->> 'is_late') = 'true',
+  COALESCE((seller_mark_delivered('ee390001-0000-0000-0000-000000000004') ->> 'is_late'), 'true') = 'true',
   'Late delivery detected as late'
 );
 

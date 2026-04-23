@@ -786,6 +786,8 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                                   </div>
                                 ) : null
                               })()}
+                              {/* Distance checker for pickup */}
+                              {distanceCheckerForm}
                             </div>
                           </div>
                         </div>
@@ -966,10 +968,13 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
       <ProductQA productId={productId} sellerId={product.seller_id} isDemo={isDemo} productName={product.name} productDescription={product.description} />
 
       {/* Message Seller — below Q&A so users can check answers first */}
-      {!isDemo && isAuthenticated && user?.id !== product.seller_id && (
+      {!isDemo && user?.id !== product.seller_id && (
         <div style={{ padding: '0 0 16px' }}>
           <Link
-            href={`/messages/new?userId=${product.seller_id}&productId=${product.id}&name=${encodeURIComponent(booth.name || 'Seller')}`}
+            href={isAuthenticated
+              ? `/messages/new?userId=${product.seller_id}&productId=${product.id}&name=${encodeURIComponent(booth.name || 'Seller')}`
+              : `/login?redirect=${encodeURIComponent(`/messages/new?userId=${product.seller_id}&productId=${product.id}&name=${encodeURIComponent(booth.name || 'Seller')}`)}`
+            }
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               width: '100%', padding: '12px 20px',

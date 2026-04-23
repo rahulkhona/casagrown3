@@ -27,10 +27,9 @@ export async function generateMetadata(
 
     if (product) {
       const photo = product.photos?.[0]
-      // Use Next.js image optimization to resize for OG (WhatsApp needs < ~300KB), or fallback to default image
-      const ogImage = photo
-        ? `${siteUrl}/_next/image?url=${encodeURIComponent(photo)}&w=1200&q=75`
-        : `${siteUrl}/og-share.jpg`
+      // Use raw Supabase storage URL for OG — social crawlers (WhatsApp, iMessage)
+      // time out on /_next/image proxy during Vercel cold starts
+      const ogImage = photo || `${siteUrl}/og-share.jpg`
       const price = product.price_usd === 0 ? 'Free' : `$${Number(product.price_usd).toFixed(2)}/${product.unit}`
       const title = `${product.name} — ${price} | CasaGrown Market`
       const description = product.description

@@ -27,6 +27,22 @@ interface TransactionEntry {
   metadata: Record<string, any>
 }
 
+interface CreditDetail {
+  credit_id: string
+  credit_type: string
+  source: string
+  reason: string | null
+  amount_usd: number
+  remaining_usd: number
+  used_usd: number
+  cap_value: number
+  cap_type: string
+  expires_at: string | null
+  created_at: string
+  is_expired: boolean
+  is_fully_used: boolean
+}
+
 interface TransactionSummary {
   total_sales: number
   sales_count: number
@@ -97,6 +113,8 @@ export default function EarningsPage() {
   const [pending, setPending] = useState<TransactionEntry[]>([])
   const [summary, setSummary] = useState<TransactionSummary | null>(null)
   const [credits, setCredits] = useState<{ purchase_credits_usd: number, platform_fee_credits_usd: number, total_credits_usd: number } | null>(null)
+  const [creditDetails, setCreditDetails] = useState<CreditDetail[]>([])
+  const [showCreditDetails, setShowCreditDetails] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
@@ -181,6 +199,17 @@ export default function EarningsPage() {
     }
   }, [userId, supabase])
 
+  // ── Fetch credit details ──
+  const fetchCreditDetails = useCallback(async () => {
+    if (!userId) return
+    try {
+      const { data, error } = await supabase.rpc('get_user_credit_details', { p_user_id: userId })
+      if (!error && data) setCreditDetails(data as CreditDetail[])
+    } catch (err) {
+      console.error('[EARNINGS] Credit details error:', err)
+    }
+  }, [userId, supabase])
+
   // ── Fetch on mount / date change ──
   useEffect(() => {
     if (isAuthenticated && userId) {
@@ -188,6 +217,7 @@ export default function EarningsPage() {
       fetchSummary()
       fetchPending()
       fetchCredits()
+      fetchCreditDetails()
 
       // Load user state and tax reporting threshold
       supabase.from('profiles').select('state_code').eq('id', userId).single()
@@ -212,7 +242,7 @@ export default function EarningsPage() {
           }
         })
     }
-  }, [isAuthenticated, userId, fetchTransactions, fetchSummary, fetchPending, fetchCredits])
+  }, [isAuthenticated, userId, fetchTransactions, fetchSummary, fetchPending, fetchCredits, fetchCreditDetails])
 
   // Trigger notification prompt on mount
   useEffect(() => { showPrompt() }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -403,30 +433,121 @@ export default function EarningsPage() {
         {/* ── Credits ── */}
         {credits && credits.total_credits_usd > 0 && (
           <div style={{
-            background: 'var(--green-50)', border: '1px solid var(--green-200)', borderRadius: 12,
-            padding: '16px 20px', marginBottom: 16, display: 'flex', gap: 12, alignItems: 'flex-start',
+            background: 'var(--green-50)', border: '1px solid var(--green-200)', borderRadius: 10,
+            padding: '10px 16px', marginBottom: 16,
           }}>
-            <span style={{ fontSize: 28 }}>💰</span>
-            <div style={{ flex: 1 }}>
-              <strong style={{ color: 'var(--green-900)', fontSize: 16 }}>Credits Available</strong>
-              <div style={{ display: 'flex', gap: 24, marginTop: 8 }}>
-                {credits.purchase_credits_usd > 0 && (
-                  <div>
-                    <div style={{ fontSize: 12, color: 'var(--green-700)', fontWeight: 600, textTransform: 'uppercase' }}>For Purchases</div>
-                    <div style={{ fontSize: 20, color: 'var(--green-800)', fontWeight: 700 }}>{formatUsd(credits.purchase_credits_usd)}</div>
-                  </div>
-                )}
-                {credits.platform_fee_credits_usd > 0 && (
-                  <div>
-                    <div style={{ fontSize: 12, color: 'var(--green-700)', fontWeight: 600, textTransform: 'uppercase' }}>For Seller Fees</div>
-                    <div style={{ fontSize: 20, color: 'var(--green-800)', fontWeight: 700 }}>{formatUsd(credits.platform_fee_credits_usd)}</div>
+            {/* Compact single-line header */}
+            <button
+              onClick={() => setShowCreditDetails(!showCreditDetails)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+              }}
+            >
+              <span style={{ fontSize: 18 }}>💰</span>
+              <span style={{ fontSize: 14, color: 'var(--green-900)', fontWeight: 600 }}>Credits</span>
+              <span style={{ fontSize: 14, color: 'var(--green-700)', fontWeight: 700 }}>{formatUsd(credits.total_credits_usd)}</span>
+              <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--green-600)', fontWeight: 500 }}>
+                {showCreditDetails ? '▲ Hide' : '▼ Details'}
+              </span>
+            </button>
+
+            {/* Expanded: breakdown + table */}
+            {showCreditDetails && (
+              <div style={{ marginTop: 12, borderTop: '1px solid var(--green-200)', paddingTop: 12 }}>
+                {/* Credit type breakdown */}
+                <div style={{ display: 'flex', gap: 20, marginBottom: 8 }}>
+                  {credits.purchase_credits_usd > 0 && (
+                    <div style={{ fontSize: 12 }}>
+                      <span style={{ color: 'var(--green-600)' }}>Purchases: </span>
+                      <strong style={{ color: 'var(--green-800)' }}>{formatUsd(credits.purchase_credits_usd)}</strong>
+                    </div>
+                  )}
+                  {credits.platform_fee_credits_usd > 0 && (
+                    <div style={{ fontSize: 12 }}>
+                      <span style={{ color: 'var(--green-600)' }}>Seller Fees: </span>
+                      <strong style={{ color: 'var(--green-800)' }}>{formatUsd(credits.platform_fee_credits_usd)}</strong>
+                    </div>
+                  )}
+                </div>
+                <p style={{ color: 'var(--green-700)', fontSize: 11, margin: '0 0 12px', lineHeight: 1.4 }}>
+                  Auto-applied at checkout. 1 credit per order.
+                </p>
+
+                {/* Credit Details Table */}
+                {creditDetails.length > 0 && (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                      <thead>
+                        <tr style={{ borderBottom: '2px solid var(--green-200)' }}>
+                          <th style={{ textAlign: 'left', padding: '6px 4px', color: 'var(--green-800)', fontWeight: 600 }}>Type</th>
+                          <th style={{ textAlign: 'left', padding: '6px 4px', color: 'var(--green-800)', fontWeight: 600 }}>Reason</th>
+                          <th style={{ textAlign: 'right', padding: '6px 4px', color: 'var(--green-800)', fontWeight: 600 }}>Amount</th>
+                          <th style={{ textAlign: 'right', padding: '6px 4px', color: 'var(--green-800)', fontWeight: 600 }}>Left</th>
+                          <th style={{ textAlign: 'left', padding: '6px 4px', color: 'var(--green-800)', fontWeight: 600 }}>Cap</th>
+                          <th style={{ textAlign: 'left', padding: '6px 4px', color: 'var(--green-800)', fontWeight: 600 }}>Expires</th>
+                          <th style={{ textAlign: 'center', padding: '6px 4px', color: 'var(--green-800)', fontWeight: 600 }}>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {creditDetails.map(cd => {
+                          const isActive = !cd.is_expired && !cd.is_fully_used
+                          const expiresDate = cd.expires_at ? new Date(cd.expires_at) : null
+                          const daysLeft = expiresDate ? Math.ceil((expiresDate.getTime() - Date.now()) / 86400000) : null
+                          const isExpiringSoon = daysLeft !== null && daysLeft <= 3 && daysLeft >= 0
+
+                          return (
+                            <tr key={cd.credit_id} style={{
+                              borderBottom: '1px solid var(--green-100)',
+                              opacity: isActive ? 1 : 0.5,
+                            }}>
+                              <td style={{ padding: '6px 4px', textTransform: 'capitalize' }}>
+                                {cd.credit_type.replace('_', ' ')}
+                              </td>
+                              <td style={{ padding: '6px 4px', color: 'var(--gray-600)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {cd.reason || cd.source.replace('_', ' ')}
+                              </td>
+                              <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 600 }}>
+                                {formatUsd(cd.amount_usd)}
+                              </td>
+                              <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 600, color: isActive ? 'var(--green-700)' : 'var(--gray-400)' }}>
+                                {formatUsd(cd.remaining_usd)}
+                              </td>
+                              <td style={{ padding: '6px 4px', fontSize: 11 }}>
+                                {cd.cap_type === 'percentage' ? `${cd.cap_value}%` : formatUsd(cd.cap_value)}/order
+                              </td>
+                              <td style={{ padding: '6px 4px', fontSize: 11 }}>
+                                {expiresDate ? (
+                                  <span style={{ color: isExpiringSoon ? '#dc2626' : 'var(--gray-600)', fontWeight: isExpiringSoon ? 600 : 400 }}>
+                                    {expiresDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                    {isExpiringSoon && daysLeft !== null && (
+                                      <span style={{ fontSize: 10 }}>
+                                        {' '}{daysLeft === 0 ? '⚠️' : `${daysLeft}d`}
+                                      </span>
+                                    )}
+                                  </span>
+                                ) : (
+                                  <span style={{ color: 'var(--gray-400)' }}>—</span>
+                                )}
+                              </td>
+                              <td style={{ padding: '6px 4px', textAlign: 'center' }}>
+                                {cd.is_fully_used ? (
+                                  <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 8, background: 'var(--gray-100)', color: 'var(--gray-500)' }}>Used</span>
+                                ) : cd.is_expired ? (
+                                  <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 8, background: '#fef2f2', color: '#dc2626' }}>Expired</span>
+                                ) : (
+                                  <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 8, background: '#dcfce7', color: '#15803d' }}>Active</span>
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </div>
-              <p style={{ color: 'var(--green-800)', fontSize: 13, margin: '8px 0 0', lineHeight: 1.5 }}>
-                Credits are automatically applied to your transactions. Strictly 1 credit applies per order.
-              </p>
-            </div>
+            )}
           </div>
         )}
 

@@ -685,7 +685,7 @@ export function Navbar() {
                         <span className={styles.menuItemIcon}>🔄</span>
                         <span>Guided Tour</span>
                       </button>
-                      <Link href="/voice/board" className={`${styles.menuItem} ${pathname.startsWith('/voice') ? styles.menuItemActive : ''}`}>
+                      <Link href="/voice/submit?type=support" className={`${styles.menuItem} ${pathname.startsWith('/voice') ? styles.menuItemActive : ''}`}>
                         <span className={styles.menuItemIcon}>📋</span>
                         <span>Contact Support</span>
                       </Link>

@@ -45,6 +45,7 @@ These secrets securely power your Edge Functions. They MUST NOT be exposed to th
 | `TWILIO_VERIFY_SERVICE_SID` | Specifically points to your Twilio Verify service for OTPs. | Twilio Console -> Verify Service |
 | `TWILIO_FROM_NUMBER` | The actual Twilio phone number used for sending standard SMS messages. | Twilio Console -> Phone Numbers |
 | `TWILIO_WEBHOOK_SECRET` | Webhook security string (Generated: `twsec_8f92a4b1c7d3e6f5g8h0j2k4l6m8n9p1`). | Developer generated |
+| `ENABLE_PHONE_VERIFICATION` | Feature flag that enables `send-phone-otp` Edge Function to process OTP requests. Must be `true` for phone verification to work. Without it, the function returns 503. | `true` or `false` |
 | `USPS_CONSUMER_KEY` | Geocodes and validates physical agricultural addresses. | USPS Web Tools API |
 | `USPS_CONSUMER_SECRET`| Authenticates USPS Web Tools API. | USPS Web Tools API |
 

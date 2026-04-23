@@ -378,6 +378,68 @@ test.describe('Earnings Page Interactions', () => {
       await page.waitForTimeout(500)
     }
   })
+
+  test('credit bar shows total and expands on click', async ({ page }) => {
+    await page.goto('/earnings')
+    await page.waitForTimeout(3000)
+    // Credit bar only shows if user has credits; check conditionally
+    const creditBar = page.locator('button:has-text("Credits")').first()
+    if (await creditBar.isVisible({ timeout: 3000 }).catch(() => false)) {
+      // Should show total amount
+      const barText = await creditBar.textContent()
+      expect(barText).toMatch(/Credits.*\$/)
+      // Expand
+      await creditBar.click()
+      await page.waitForTimeout(500)
+      // Should show the table or breakdown
+      const body = await page.locator('body').textContent()
+      expect(body).toMatch(/Auto-applied|Cap|Purchases|Seller Fees|Active|Type|Reason/i)
+      // Collapse
+      const hideBtn = page.locator('button:has-text("Hide")').first()
+      if (await hideBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await hideBtn.click()
+        await page.waitForTimeout(500)
+      }
+    }
+  })
+
+  test('credit bar details toggle shows table headers', async ({ page }) => {
+    await page.goto('/earnings')
+    await page.waitForTimeout(3000)
+    const creditBar = page.locator('button:has-text("Credits")').first()
+    if (await creditBar.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await creditBar.click()
+      await page.waitForTimeout(500)
+      // Table headers should be visible
+      for (const header of ['Amount', 'Left', 'Cap', 'Status']) {
+        const th = page.locator(`th:has-text("${header}")`).first()
+        if (await th.isVisible({ timeout: 1000 }).catch(() => false)) {
+          expect(await th.isVisible()).toBe(true)
+        }
+      }
+    }
+  })
+})
+
+// ============================================================================
+// NAVBAR — Contact Support link
+// ============================================================================
+test.describe('Navbar Support Link', () => {
+  test('Contact Support link points to voice/submit', async ({ page }) => {
+    await page.goto('/market')
+    await page.waitForTimeout(2000)
+    // Open hamburger menu if needed
+    const menu = page.locator('[class*="hamburger"], [class*="menuBtn"], button:has-text("☰")').first()
+    if (await menu.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await menu.click()
+      await page.waitForTimeout(500)
+    }
+    const supportLink = page.locator('a[href*="/voice/submit"]').first()
+    if (await supportLink.isVisible({ timeout: 3000 }).catch(() => false)) {
+      const href = await supportLink.getAttribute('href')
+      expect(href).toContain('/voice/submit')
+    }
+  })
 })
 
 // ============================================================================

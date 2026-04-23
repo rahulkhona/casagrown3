@@ -12,7 +12,7 @@
  * 3. Photo carousel arrows with aria-labels
  * 4. Dot indicators for photos
  * 5. DM button uses seller first name (not "Message Seller")
- * 6. Q&A component referenced without 💬 icon
+ * 6. Q&A component referenced with 💬 icon
  * 7. Address check is inside delivery section, not after pickup
  * 8. Anonymized address function called for pickup
  */
@@ -200,23 +200,17 @@ describe('ProductListingCard — UX Contract', () => {
 // PRODUCT Q&A
 // ============================================================================
 describe('ProductQA — UX Contract', () => {
-  it('title does NOT contain 💬 chat icon', () => {
-    // The Q&A header should not have the chat emoji
-    const titleSection = qaSrc.match(/Questions.*Answers/)?.[0]
-    expect(titleSection).toBeTruthy()
-    // Check: 💬 should not be adjacent to title
-    expect(qaSrc).not.toMatch(/💬.*Questions & Answers/)
-    expect(qaSrc).not.toMatch(/Questions & Answers.*💬/)
+  it('title contains 💬 chat icon', () => {
+    // The Q&A header should have the chat emoji
+    expect(qaSrc).toMatch(/💬.*Questions & Answers/)
   })
 
-  it('empty state uses ❓ not 💬', () => {
-    // The empty state should use the question mark emoji
-    expect(qaSrc).toContain('❓')
-    // Should not use chat icon in empty state area
+  it('empty state uses 💬 icon', () => {
+    // The empty state should use the chat icon
     const emptyIdx = qaSrc.indexOf('No questions yet')
     if (emptyIdx > -1) {
       const emptyArea = qaSrc.slice(Math.max(0, emptyIdx - 200), emptyIdx + 200)
-      expect(emptyArea).not.toContain('💬')
+      expect(emptyArea).toContain('💬')
     }
   })
 })
