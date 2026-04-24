@@ -567,11 +567,20 @@ export default function EarningsPage() {
             </span>
             <span className={styles.summaryHint}>Transfers requested and arriving soon</span>
           </div>
-          <div className={styles.summaryCard}>
-            <span className={styles.summaryLabel}>Pending</span>
-            <span className={styles.summaryValue}>{formatUsd(summary?.pending_usd || 0)}</span>
-            <span className={styles.summaryHint}>Awaiting payment confirmation</span>
-          </div>
+          {(summary?.unsettled_sales_usd || 0) > 0 && (
+            <div className={styles.summaryCard} style={{ borderColor: 'var(--blue-200, #bfdbfe)', background: 'var(--blue-50, #eff6ff)' }}>
+              <span className={styles.summaryLabel}>📦 Unsettled</span>
+              <span className={styles.summaryValue} style={{ color: 'var(--blue-700, #1d4ed8)' }}>{formatUsd(summary?.unsettled_sales_usd || 0)}</span>
+              <span className={styles.summaryHint}>{summary?.unsettled_order_count || 0} order{(summary?.unsettled_order_count || 0) !== 1 ? 's' : ''} awaiting nightly settlement</span>
+            </div>
+          )}
+          {(summary?.pending_usd || 0) > 0 && (
+            <div className={styles.summaryCard} style={{ borderColor: 'var(--amber-200, #fde68a)', background: 'var(--amber-50, #fffbeb)' }}>
+              <span className={styles.summaryLabel}>⏳ Pending Payment</span>
+              <span className={styles.summaryValue} style={{ color: 'var(--amber-700, #b45309)' }}>{formatUsd(summary?.pending_usd || 0)}</span>
+              <span className={styles.summaryHint}>Awaiting payment confirmation from Stripe</span>
+            </div>
+          )}
           {(summary?.held_balance_usd || 0) > 0 && (
             <div className={styles.summaryCard} style={{ borderColor: 'var(--amber-300)', background: 'var(--amber-50)' }}>
               <span className={styles.summaryLabel}>🔒 Held for Purchases</span>
