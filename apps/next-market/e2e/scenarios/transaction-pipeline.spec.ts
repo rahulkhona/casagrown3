@@ -455,10 +455,10 @@ test.describe('Transaction Pipeline — Full Financial Lifecycle', () => {
       expect(body).not.toContain('$NaN')
     }
 
-    // Unsettled tab
-    const unsettledTab = samPage.getByText('Unsettled', { exact: false }).first()
-    if (await unsettledTab.isVisible()) {
-      await unsettledTab.click()
+    // Pending tab
+    const pendingTab = samPage.getByText('Pending', { exact: false }).first()
+    if (await pendingTab.isVisible()) {
+      await pendingTab.click()
       await samPage.waitForTimeout(1000)
       await assertPageHealthy(samPage)
     }

@@ -5,7 +5,7 @@
  * S5.1  Earnings overview — summary cards
  * S5.2  Activity tab — transaction list
  * S5.3  Transaction receipt sheet
- * S5.4  Unsettled tab
+ * S5.4  Pending tab
  * S5.5  Summary tab — financial breakdown + 1099 tracker
  * S5.6  Date range filters
  * S6.1  Gift card redemption flow
@@ -103,22 +103,22 @@ test.describe('Earnings & Financial Flows', () => {
     await page.context().close()
   })
 
-  // ── S5.4: Unsettled Tab ──
-  test('S5.4 — unsettled tab shows pending or empty state', async ({ browser }) => {
+  // ── S5.4: Pending Tab ──
+  test('S5.4 — pending tab shows pending or empty state', async ({ browser }) => {
     const page = await loginAsUser(browser, 'sam')
     await navigateTo(page, '/earnings')
 
-    const unsettledTab = page.getByText('Unsettled', { exact: false }).first()
-    if (await unsettledTab.isVisible()) {
-      await unsettledTab.click()
+    const pendingTab = page.getByText('Pending', { exact: false }).first()
+    if (await pendingTab.isVisible()) {
+      await pendingTab.click()
       await page.waitForTimeout(1000)
       await assertPageHealthy(page)
 
       const body = await page.locator('body').innerText()
       const hasContent =
-        body.includes('Unsettled') ||
-        body.includes('clearance') ||
-        body.includes('everything has been cleared')
+        body.includes('Pending') ||
+        body.includes('payment confirmation') ||
+        body.includes('all funds have been confirmed')
       expect(hasContent).toBeTruthy()
     }
 

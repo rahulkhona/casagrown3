@@ -568,9 +568,9 @@ export default function EarningsPage() {
             <span className={styles.summaryHint}>Transfers requested and arriving soon</span>
           </div>
           <div className={styles.summaryCard}>
-            <span className={styles.summaryLabel}>Unsettled</span>
+            <span className={styles.summaryLabel}>Pending</span>
             <span className={styles.summaryValue}>{formatUsd(summary?.pending_usd || 0)}</span>
-            <span className={styles.summaryHint}>{pending.length} orders awaiting clearance</span>
+            <span className={styles.summaryHint}>Awaiting payment confirmation</span>
           </div>
           {(summary?.held_balance_usd || 0) > 0 && (
             <div className={styles.summaryCard} style={{ borderColor: 'var(--amber-300)', background: 'var(--amber-50)' }}>
@@ -609,7 +609,7 @@ export default function EarningsPage() {
         <div className={styles.tabBar}>
           {([
             { key: 'activity' as Tab, label: '📋 Activity' },
-            { key: 'pending' as Tab, label: `⏳ Unsettled (${pending.length})` },
+            { key: 'pending' as Tab, label: `⏳ Pending (${pending.length})` },
             { key: 'summary' as Tab, label: '📊 Summary' },
           ]).map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
@@ -901,17 +901,17 @@ export default function EarningsPage() {
           </>
         )}
 
-        {/* ── Unsettled Tab ── */}
+        {/* ── Pending Tab ── */}
         {tab === 'pending' && (
           <>
             <div className={styles.infoBox}>
-              <strong>⏳ Unsettled Transactions</strong>
-              <p>These orders are awaiting the next market clearance. Once the market closes and netting is complete, they&apos;ll appear in your Activity tab.</p>
+              <strong>⏳ Pending Transactions</strong>
+              <p>These earnings are being processed. Once payment is confirmed by our payment provider, funds will move to your Available balance.</p>
             </div>
             {pending.length === 0 ? (
               <div className={styles.emptyState}>
                 <span className={styles.emptyIcon}>✅</span>
-                <p>No unsettled transactions — everything has been cleared!</p>
+                <p>No pending transactions — all funds have been confirmed!</p>
               </div>
             ) : (
               <div className={styles.txList}>

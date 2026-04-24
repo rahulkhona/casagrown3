@@ -229,7 +229,7 @@ test.describe('Smoke Test — Every Page Loads Without Errors', () => {
     expect(body).toContain('Activity')
 
     // Click through tabs
-    const tabs = ['Activity', 'Unsettled', 'Summary']
+    const tabs = ['Activity', 'Pending', 'Summary']
     for (const tabName of tabs) {
       const tab = page.getByText(tabName, { exact: false }).first()
       if (await tab.isVisible()) {

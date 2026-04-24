@@ -372,7 +372,7 @@ test.describe('Earnings Page Interactions', () => {
   test('activity tabs switch content', async ({ page }) => {
     await page.goto('/earnings')
     await page.waitForTimeout(2000)
-    const activityTab = page.locator('button:has-text("Activity"), button:has-text("Unsettled")').first()
+    const activityTab = page.locator('button:has-text("Activity"), button:has-text("Pending")').first()
     if (await activityTab.isVisible({ timeout: 3000 }).catch(() => false)) {
       await activityTab.click()
       await page.waitForTimeout(500)
