@@ -101,15 +101,15 @@ UPDATE market_orders SET status = 'completed' WHERE id = 'ff000000-0000-0000-000
 
 SELECT ok(
   EXISTS(SELECT 1 FROM market_notifications
-    WHERE user_id = 'ff000000-0000-0000-0000-000000000a01' AND content LIKE '%Order completed%'),
-  'Completed: buyer gets completion notification'
+    WHERE user_id = 'ff000000-0000-0000-0000-000000000a01' AND content LIKE '%Order completed%' AND content LIKE '%settled%'),
+  'Completed: buyer gets completion notification with settled amount'
 );
 
 -- ── (6) Completed — seller ─────────────────────────────────────────────
 SELECT ok(
   EXISTS(SELECT 1 FROM market_notifications
-    WHERE user_id = 'ff000000-0000-0000-0000-000000000a02' AND content LIKE '%Sale completed%'),
-  'Completed: seller gets sale completed notification'
+    WHERE user_id = 'ff000000-0000-0000-0000-000000000a02' AND content LIKE '%Sale completed%' AND content LIKE '%total%'),
+  'Completed: seller gets sale completed notification with total (not earned)'
 );
 
 -- ── (7) Cancelled ──────────────────────────────────────────────────────

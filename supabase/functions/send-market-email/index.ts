@@ -55,6 +55,28 @@ serveWithCors(async (req, { corsHeaders }) => {
     if (text?.includes('1099-K')) title = "Important Tax Notice";
     if (text?.includes('Withdrawal complete')) title = "Redemption Complete";
 
+    // Completion & sale
+    if (text?.includes('Sale completed')) title = "Sale Completed";
+    if (text?.includes('Order completed')) title = "Order Completed";
+
+    // Settlement
+    if (text?.includes('Daily settlement')) title = "Daily Settlement";
+
+    // Delivery/pickup
+    if (text?.includes('ready for pickup')) title = "Ready for Pickup";
+
+    // Decline/cancel
+    if (text?.includes('was declined')) title = "Order Declined";
+    if (text?.includes('has been cancelled')) title = "Order Cancelled";
+
+    // Disputes (most specific first)
+    if (text?.includes('escalated to admin')) title = "Dispute Escalated";
+    if (text?.includes('dispute') && text?.includes('resolved')) title = "Dispute Resolved";
+    if (text?.includes('Dispute') || text?.includes('dispute')) title = "Dispute Opened";
+
+    // New order
+    if (text?.includes('New order:')) title = "New Order";
+
     const lines = text?.split('\n') || [];
     let messageText = lines[0] || 'You have a new notification.';
     let linkUrl = lines.length > 1 ? lines[lines.length - 1] : null;

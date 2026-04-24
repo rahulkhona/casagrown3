@@ -508,7 +508,7 @@ export default function MessageThreadPage() {
   if (loading || authLoading) return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading thread...</div>
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 130px)', background: '#f9fafb' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 144px)', maxWidth: '100vw', overflow: 'hidden', background: '#f9fafb' }}>
       
       {/* Toast Error Banner */}
       {errorToast && (

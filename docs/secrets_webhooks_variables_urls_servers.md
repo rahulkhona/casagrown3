@@ -72,6 +72,43 @@ These secrets securely power your Edge Functions. They MUST NOT be exposed to th
 | `SITE_URL` | Used dynamically to format link anchors in password reset emails. | e.g. `https://casagrown.com` |
 | `MARKET_APP_URL` | Used to deeply link flagging/moderator notifications. | e.g. `https://market.casagrown.com` |
 
+### F. Supabase Vault Secrets (Required for DB Triggers)
+
+> [!IMPORTANT]
+> Database triggers (e.g. `trigger_welcome_email`, `notify_market_event`, `process_abandoned_onboarding`) call Edge Functions via `pg_net` from **inside Postgres**. They cannot access Edge Function environment variables — they resolve the URL and auth key from **Supabase Vault** at runtime.
+
+These secrets must be created **once per environment** (staging, production) via the Supabase SQL Editor or CLI. They are **not needed locally** — local dev falls back to the hardcoded `supabase-demo` JWT automatically.
+
+| Vault Secret Name | Purpose | Example Value |
+| :--- | :--- | :--- |
+| `edge_functions_base_url` | Base URL for all Edge Function HTTP calls from DB triggers. | `https://[PROJECT_ID].supabase.co/functions/v1` |
+| `service_role_key` | Service role JWT for authenticating DB-to-Edge-Function calls. | `eyJ...` (from Supabase Dashboard → API → service_role) |
+
+**How to create (run once per environment):**
+
+```sql
+-- Via Supabase Dashboard → SQL Editor, or via CLI:
+-- npx supabase db execute --db-url "postgres://..." -c "<SQL>"
+
+SELECT vault.create_secret(
+  'https://[PROJECT_ID].supabase.co/functions/v1',
+  'edge_functions_base_url'
+);
+
+SELECT vault.create_secret(
+  'eyJ...your-service-role-key...',
+  'service_role_key'
+);
+```
+
+**Resolution chain** (defined in `get_edge_fn_base_url()` and `get_service_role_key()`):
+1. `current_setting('app.settings.*')` — PG runtime config (rarely used)
+2. `vault.decrypted_secrets` — **primary method on staging/production**
+3. Hardcoded local fallback — only reached in local dev
+
+> [!WARNING]
+> If these Vault secrets are missing on staging/production, all DB-triggered notifications (welcome emails, order status emails, push notifications, SMS) will **fail silently**. The triggers have `EXCEPTION WHEN OTHERS` guards so they won't break transactions, but no notifications will be sent.
+
 ---
 
 ## 3. Webhook Infrastructure

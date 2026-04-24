@@ -107,6 +107,12 @@ describe('RatingReminder', () => {
     const submitBtn = Array.from(container.querySelectorAll('button')).find(b => b.textContent?.includes('Submit Rating'))!
     await act(async () => { fireEvent.click(submitBtn) })
     expect(mockSupabase.rpc).toHaveBeenCalledWith('rate_market_order', { p_order_id: 'order-2', p_rating: 4, p_review: null })
+
+    // Verify localStorage persistence (prevents re-prompt after app restart)
+    await act(async () => { await new Promise(r => setTimeout(r, 50)) })
+    const rated = JSON.parse(localStorage.getItem('casagrown_rated_orders') || '[]')
+    expect(rated).toContain('order-2')
+
     expect(container.textContent).toContain('Thanks for rating!')
   })
 

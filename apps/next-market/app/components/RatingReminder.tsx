@@ -34,6 +34,10 @@ export function RatingReminder() {
       const skipUntil = localStorage.getItem('rating_skip_until')
       if (skipUntil && new Date(skipUntil) > new Date()) return
 
+      // Skip orders already rated in this browser
+      let ratedOrders: string[] = []
+      try { ratedOrders = JSON.parse(localStorage.getItem('casagrown_rated_orders') || '[]') } catch {}
+
       // Find most recent completed order without rating
       // Check as buyer first
       const { data: buyerOrder } = await supabase
@@ -46,7 +50,7 @@ export function RatingReminder() {
         .limit(1)
         .maybeSingle()
 
-      if (buyerOrder) {
+      if (buyerOrder && !ratedOrders.includes(buyerOrder.id)) {
         // Get seller name
         const { data: seller } = await supabase
           .from('profiles')
@@ -74,7 +78,7 @@ export function RatingReminder() {
         .limit(1)
         .maybeSingle()
 
-      if (sellerOrder) {
+      if (sellerOrder && !ratedOrders.includes(sellerOrder.id)) {
         const { data: buyer } = await supabase
           .from('profiles')
           .select('full_name')
@@ -105,20 +109,32 @@ export function RatingReminder() {
 
   const handleRate = useCallback(async (stars: number, reviewText?: string) => {
     if (!order) return
-    setSubmitted(true)
     const supabase = createClient()
     try {
-      await supabase.rpc('rate_market_order', {
+      const { error } = await supabase.rpc('rate_market_order', {
         p_order_id: order.id,
         p_rating: stars,
         p_review: reviewText?.trim() || null
       })
+      if (error) {
+        console.error('Rating failed:', error)
+        showError('Failed to submit rating. Please try again.')
+        return
+      }
+      // Persist to prevent re-prompt after app restart
+      try {
+        const rated = JSON.parse(localStorage.getItem('casagrown_rated_orders') || '[]')
+        rated.push(order.id)
+        localStorage.setItem('casagrown_rated_orders', JSON.stringify(rated))
+      } catch {}
+      setSubmitted(true)
     } catch (e) {
       console.error('Rating failed:', e)
       showError('Failed to submit rating. Please try again.')
+      return
     }
     setTimeout(() => setDismissed(true), 1500)
-  }, [order])
+  }, [order, showError])
 
   const handleSkip = useCallback(() => {
     // Don't show again for 24 hours

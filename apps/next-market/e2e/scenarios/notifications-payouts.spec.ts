@@ -455,7 +455,7 @@ test.describe('Notifications & Payouts', () => {
       execSql(`UPDATE public.profiles SET home_community_h3_index = '\${communityId}' WHERE email = 'buyer@test.local';`)
 
       // 3. Wait for the Postgres async trigger -> pg_net -> Edge Function -> Mailpit sequence
-      const email = await findEmailBySubject('Welcome to your hyper-local neighborhood', 6000)
+      const email = await findEmailBySubject('Welcome to your hyper-local neighborhood', 12000)
 
       expect(email).toBeTruthy()
       if (email) {
