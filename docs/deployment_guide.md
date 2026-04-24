@@ -1,13 +1,19 @@
-# Database Deployment Strategy
+# CasaGrown Deployment Guide
 
 ## Table of Contents
 
-0. [🚀 Tonight's Deployment Runbook](#0--tonights-deployment-runbook)
+0. [🚀 Deployment Runbook](#0--deployment-runbook)
 1. [Initial Deployment — How It Works](#1-initial-deployment--how-it-works)
 2. [Backward Compatibility Rules](#2-backward-compatibility-rules)
 3. [Staging vs Production Strategy](#3-staging-vs-production-strategy)
 4. [Migration Workflow](#4-migration-workflow)
 5. [CI/CD Integration](#5-cicd-integration)
+6. [Vercel Configuration (Frontend)](#6-vercel-configuration-frontend)
+7. [Supabase Secrets (Edge Functions)](#7-supabase-secrets-edge-functions)
+8. [Webhook Infrastructure](#8-webhook-infrastructure)
+9. [Cron Jobs Reference](#9-cron-jobs-reference)
+10. [GitHub Configuration (CI/CD)](#10-github-configuration-cicd)
+11. [Production Health Monitoring](#11-production-health-monitoring)
 
 ---
 
@@ -503,3 +509,246 @@ fi
 | **Migration ordering?** | Timestamp-based, never edit after push to `main` |
 | **Fix a mistake?** | Create a new migration that corrects it |
 | **DB before or after app?** | DB first (additive changes are safe before app knows about them) |
+
+## 6. Vercel Configuration (Frontend)
+
+These variables must be added to your Vercel Project Settings. They expose public keys and routing configuration to the Next.js `apps/next-market` application.
+
+| Variable Name | Purpose | Example / Where to find |
+| :--- | :--- | :--- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Connects Next.js to your Supabase instance. | `https://[PROJECT_ID].supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public key for Supabase Auth and Row Level Security. | Supabase Dashboard -> Project Settings -> API |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Enables Stripe Elements (credit card inputs/Apple Pay). | `pk_test_...` or `pk_live_...` from Stripe Dashboard |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Public key for browser Push Notifications. | `BNekJ12j-POg5NswygqWO1iCZjKx8ErjnJd35smwv1ST9mKXWV3v-8AgJ96DmD9nbgPbfMHtCeKe6_tjXVtEzCs` |
+| `NEXT_PUBLIC_ENABLE_PHONE_VERIFICATION`| Feature flag for Twilio OTP flows. | `true` or `false` |
+
+---
+
+## 7. Supabase Secrets (Edge Functions)
+
+These secrets securely power your Edge Functions. They MUST NOT be exposed to the frontend. Add them using the Supabase CLI (`supabase secrets set KEY="value"`) or the Supabase Cloud Dashboard.
+
+### A. Financial Integrity (Payments, Donations & Cashouts)
+| Secret | Purpose | Source |
+| :--- | :--- | :--- |
+| `STRIPE_SECRET_KEY` | Processes payments and platform fees. | Stripe Dashboard -> API Keys (`sk_live_...`) |
+| `STRIPE_WEBHOOK_SECRET` | Cryptographically verifies incoming Stripe payloads. | Stripe Dashboard -> Webhooks (`whsec_...`) |
+| `PAYPAL_CLIENT_ID` | OAuth Client ID for PayPal checkouts (No `test_` or `live_` prefix—verify in dashboard). | PayPal Developer Dashboard |
+| `PAYPAL_SECRET` | OAuth Secret for PayPal transactions. | PayPal Developer Dashboard |
+| `PAYPAL_BASE_URL` | Routing target (`api-m.paypal.com` vs `api-m.sandbox.paypal.com`). Dictates Sandbox vs Live! | PayPal Developer Dashboard |
+| `PAYPAL_ENABLED` | Feature flag to actively show PayPal checkout to users. | `true` or `false` |
+| `GLOBALGIVING_API_KEY` | Authenticates donations to agricultural non-profits at checkout.| GlobalGiving API Dashboard |
+| `GLOBALGIVING_SANDBOX` | Points GlobalGiving to sandbox vs production. | `true` or `false` |
+| `ZIPTAX_API_KEY` | Calculates dynamic interstate sales tax for botanical orders. | ZipTax Dashboard -> API Keys |
+| `TREMENDOUS_API_KEY` | Issues digital gift cards/VISA debit for US cashouts. | Tremendous Dashboard |
+| `RELOADLY_CLIENT_ID` | OAuth Client ID for Global (Mexico/Canada) cashouts. | Reloadly API Dashboard |
+| `RELOADLY_CLIENT_SECRET` | OAuth Secret for Global cashouts. | Reloadly API Dashboard |
+| `RELOADLY_SANDBOX` | Points Reloadly to sandbox vs production. | `true` or `false` |
+
+### B. Trust & Safety (Identity & Location)
+| Secret | Purpose | Source |
+| :--- | :--- | :--- |
+| `TWILIO_ACCOUNT_SID` | Core Twilio account credential. | Twilio Console |
+| `TWILIO_AUTH_TOKEN` | Twilio authorization token. | Twilio Console |
+| `TWILIO_VERIFY_SERVICE_SID` | Specifically points to your Twilio Verify service for OTPs. | Twilio Console -> Verify Service |
+| `TWILIO_FROM_NUMBER` | The actual Twilio phone number used for sending standard SMS messages. | Twilio Console -> Phone Numbers |
+| `TWILIO_WEBHOOK_SECRET` | Webhook security string (Generated: `twsec_8f92a4b1c7d3e6f5g8h0j2k4l6m8n9p1`). | Developer generated |
+| `ENABLE_PHONE_VERIFICATION` | Feature flag that enables `send-phone-otp` Edge Function to process OTP requests. Must be `true` for phone verification to work. Without it, the function returns 503. | `true` or `false` |
+| `USPS_CONSUMER_KEY` | Geocodes and validates physical agricultural addresses. | USPS Web Tools API |
+| `USPS_CONSUMER_SECRET`| Authenticates USPS Web Tools API. | USPS Web Tools API |
+
+### C. Communications (Push & Email)
+| Secret | Purpose | Source |
+| :--- | :--- | :--- |
+| `POSTMARK_SERVER_TOKEN` | Transactional router (Receipts, Welcome emails). | Postmark -> Primary Server -> API Tokens |
+| `POSTMARK_BROADCAST_TOKEN`| Core Broadcast routing (Daily Grower Digest). | Postmark -> Broadcast Server -> API Tokens |
+| `POSTMARK_MESSAGE_STREAM` | Outbound stream routing identifier. | Usually `outbound` |
+| `VAPID_PUBLIC_KEY` | Supabase-side public key (matches Vercel `NEXT_PUBLIC_VAPID_PUBLIC_KEY`). | `BNekJ12j-POg5NswygqWO1iCZjKx8ErjnJd35smwv1ST9mKXWV3v-8AgJ96DmD9nbgPbfMHtCeKe6_tjXVtEzCs` |
+| `VAPID_PRIVATE_KEY` | Cryptographic signer for Web Push. **Never expose to frontend.** | `L4MTDJ2gTMbt3eKSmjF5ZEeWm_btAMfDQxG2NDNUocE` |
+| `VAPID_SUBJECT` | Admin contact for VAPID protocol. | `mailto:support@casagrown.com` |
+
+### D. Artificial Intelligence (CasaBot & Moderation)
+| Secret | Purpose | Source |
+| :--- | :--- | :--- |
+| `GEMINI_API_KEY` | AI Vision analysis for verifying product photos. | Google Cloud Platform / Vertex AI |
+| `OPENROUTER_API_KEY` | Fallback routing for Multi-LLM model engines. | OpenRouter Dashboard |
+| `AI_MODEL` | Explicitly binds the model engine. | e.g. `gemma-4-31b-it` |
+
+### E. App Configuration URLs
+| Secret | Purpose | Source |
+| :--- | :--- | :--- |
+| `SITE_URL` | Used dynamically to format link anchors in password reset emails. | e.g. `https://casagrown.com` |
+| `MARKET_APP_URL` | Used to deeply link flagging/moderator notifications. | e.g. `https://market.casagrown.com` |
+
+### F. Supabase Vault Secrets (Required for Cron Jobs & DB Triggers)
+
+> [!IMPORTANT]
+> Database triggers and cron jobs call Edge Functions via `pg_net` from **inside Postgres**. They cannot access Edge Function environment variables — they resolve the URL and auth key from **Supabase Vault** at runtime.
+
+These secrets must be created **once per environment** (staging, production) via the Supabase SQL Editor or CLI. They are **not needed locally** — local dev falls back to the hardcoded `supabase-demo` JWT automatically.
+
+| Vault Secret Name | Purpose | Example Value |
+| :--- | :--- | :--- |
+| `edge_functions_base_url` | Base URL for all Edge Function HTTP calls from DB triggers. | `https://[PROJECT_ID].supabase.co/functions/v1` |
+| `service_role_key` | Service role JWT for authenticating DB-to-Edge-Function calls. | `eyJ...` (from Supabase Dashboard → API → service_role) |
+
+**How to create (run once per environment):**
+
+```sql
+-- Via Supabase Dashboard → SQL Editor, or via CLI:
+-- npx supabase db execute --db-url "postgres://..." -c "<SQL>"
+
+SELECT vault.create_secret(
+  'https://[PROJECT_ID].supabase.co/functions/v1',
+  'edge_functions_base_url'
+);
+
+SELECT vault.create_secret(
+  'eyJ...your-service-role-key...',
+  'service_role_key'
+);
+```
+
+**Helper functions** (created in migration `20260425000100`):
+- `get_edge_fn_base_url()` — resolves the Edge Function URL at runtime
+- `get_service_role_key()` — resolves the service role JWT at runtime
+- `edge_fn_headers()` — returns `{"Content-Type": "application/json", "Authorization": "Bearer <key>"}` for use in `net.http_post()` calls
+
+**Resolution chain** (used by all three helpers):
+1. `current_setting('app.settings.*')` — PG runtime config (rarely used)
+2. `vault.decrypted_secrets` — **primary method on staging/production**
+3. Hardcoded local fallback — only reached in local Docker dev
+
+> [!WARNING]
+> If these Vault secrets are missing on staging/production, **all cron-driven edge function calls and DB-triggered notifications** (welcome emails, order status emails, push notifications, SMS, settlement captures) will **fail silently**. The triggers have `EXCEPTION WHEN OTHERS` guards so they won't break transactions, but no work will be performed.
+
+> [!CAUTION]
+> **Never use `format()` to bake URLs into cron schedules.** The URL must be resolved at execution time via `get_edge_fn_base_url()`. Using `format()` evaluates the vault query once at migration time — if the secret doesn't exist yet, it permanently bakes in the localhost fallback.
+
+---
+
+## 8. Webhook Infrastructure
+
+> [!WARNING]
+> **CRITICAL DEPLOYMENT GOTCHA**: All Edge Functions default to requiring a valid Supabase User JWT. Since external services (PayPal, Stripe, etc.) do not have User JWTs, they will receive a `401 Unauthorized` error from the API Gateway before the code even executes.
+>
+> You **MUST** ensure all webhooks are listed in your `supabase/config.toml` file with `verify_jwt = false`.
+>
+> If you deploy a new webhook without adding it to `config.toml`, you must manually bypass it during deployment: `supabase functions deploy [function_name] --no-verify-jwt`.
+
+To keep Supabase completely synchronized with external physical world events, you must log into the dashboard of the following third parties and point their webhooks to your Supabase Edge Functions.
+
+### A. Stripe Webhook
+*   **Destination URL**: `https://[YOUR_SUPABASE_PROJECT].supabase.co/functions/v1/stripe-webhook`
+*   **Events**: `checkout.session.completed` (Fulfills orders after cash capture), `account.updated` (Updates merchant KYC onboarding status).
+
+### B. PayPal / Venmo Webhook
+*   **Destination URL**: `https://[YOUR_SUPABASE_PROJECT].supabase.co/functions/v1/webhook-paypal`
+*   **Events**: `PAYMENT.PAYOUTS-ITEM.SUCCEEDED`, `PAYMENT.PAYOUTS-ITEM.FAILED` (Synchronizes PayPal & Venmo cashout statuses with your DB).
+
+### C. Tremendous Webhook (US Gift Cards / Cashouts)
+*   **Destination URL**: `https://[YOUR_SUPABASE_PROJECT].supabase.co/functions/v1/webhook-tremendous`
+*   **Events**: `rewards.completed`, `rewards.failed` (Notifies user and releases escrow if failed).
+
+### D. Reloadly Webhook (Global Cashouts)
+*   **Destination URL**: `https://[YOUR_SUPABASE_PROJECT].supabase.co/functions/v1/webhook-reloadly`
+*   **Events**: `transaction.success`, `transaction.failed` (Handles async Global/LatAm redemption resolutions).
+
+### E. Twilio Status Webhook (Optional but Recommended)
+*   **Destination URL**: `https://[YOUR_SUPABASE_PROJECT].supabase.co/functions/v1/webhook-twilio?secret=twsec_8f92a4b1c7d3e6f5g8h0j2k4l6m8n9p1`
+*   **Events**: "A MESSAGE COMES IN" (Handles STOP/START SMS replies to update user's `twilio_blocked` boolean).
+
+---
+
+## 9. Cron Jobs Reference
+
+### Edge Function Cron Jobs (use vault for URL + auth)
+
+| Job Name | Schedule (UTC) | PDT Equivalent | Edge Function | Purpose |
+|---|---|---|---|---|
+| `daily-market-settlement` | `59 6 * * *` | 11:59 PM | *(SQL only)* | Settle completed orders |
+| `execute-settlement-captures` | `5 7 * * *` | 12:05 AM | `/execute-settlement-captures` | Capture Stripe holds |
+| `retry-settlement-captures` | `0 */4 * * *` | Every 4h | `/execute-settlement-captures` | Safety net for missed captures |
+| `daily-settlement-digest` | `0 15 * * *` | 8:00 AM | `/market-cron` | Settlement receipt emails |
+| `daily-grower-digest` | `0 17 * * *` | 10:00 AM | `/market-cron` | Grower digest emails |
+| `casabot-starter-post` | `0 14 * * *` | 7:00 AM | `/casabot-starter-post` | Daily community starter |
+| `casabot-auto-reply` | `*/5 * * * *` | Every 5 min | `/casabot-auto-reply` | Bot auto-replies |
+| `enrich-communities` | `30 4 * * *` | 9:30 PM | `/enrich-communities` | Community data enrichment |
+| `send-market-reminders` | `*/5 * * * *` | Every 5 min | `/send-market-reminders` | Market day reminders |
+| `refresh-donation-projects` | `5 0 * * *` | 5:05 PM | `/fetch-donation-projects` | Donation project cache |
+| `refresh-giftcard-catalog` | `0 0 * * *` | 5:00 PM | `/fetch-gift-cards` | Gift card cache |
+| `execute-auto-payouts` | `30 0 * * *` | 5:30 PM | `/execute-auto-payouts` | Auto payout execution |
+| `process-redemptions` | `*/15 * * * *` | Every 15 min | `/process-redemptions` | Redemption processing |
+| `reconcile-redemptions` | `*/5 * * * *` | Every 5 min | `/market-cron` | Redemption reconciliation |
+
+### Pure SQL Cron Jobs (no external URL)
+
+| Job Name | Schedule | Purpose |
+|---|---|---|
+| `abandoned-onboarding-job` | `0 * * * *` | Process abandoned onboarding |
+| `auto-complete-orders` | `*/5 * * * *` | Auto-complete delivered orders |
+| `cleanup-expired-product-watches` | `0 4 * * *` | Clean expired watches |
+| `cleanup-old-market-notifications` | `0 3 * * *` | Purge old notifications |
+| `cleanup-old-sms-logs` | `0 4 * * *` | Purge old SMS logs |
+| `cleanup-sms-rate-limits` | `0 * * * *` | Purge old rate limits |
+| `credit-expiry-reminders` | `0 16 * * *` | Credit expiry reminders |
+| `market_close_dow_6` | `0 18 * * 6` | Close Saturday market |
+| `market_open_ping_dow_6` | `0 9 * * 6` | Saturday open notification |
+| `market_prep_ping_dow_6` | `0 17 * * 5` | Friday prep notification |
+| `process_recurring_incentives` | `0 0 * * *` | Process recurring credits |
+| `purge-stale-push-subscriptions` | `0 8 * * 0` | Purge old push subs |
+
+### Adding a New Cron Job
+
+Always use the helper functions for edge function calls:
+
+```sql
+PERFORM cron.schedule('my-new-job', '0 12 * * *',
+  $cmd$
+  SELECT net.http_post(
+    url := get_edge_fn_base_url() || '/my-edge-function',
+    headers := edge_fn_headers(),
+    body := '{"key": "value"}'::jsonb
+  )
+  $cmd$
+);
+```
+
+**Never** use `format()` to bake URLs at schedule creation time — it will resolve to localhost on fresh deployments.
+
+---
+
+## 10. GitHub Configuration (CI/CD)
+
+If you are running the `quarantine-bot` or Playwright regression suites natively in GitHub actions, you only need to ensure GitHub has access to a dedicated staging environment so it does not corrupt Production.
+
+| Secret | Purpose |
+| :--- | :--- |
+| `SUPABASE_URL` | Staging Supabase URL for E2E tests. |
+| `SUPABASE_ANON_KEY` | Staging Anon Key. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Allows Github to seed database and wipe tables. |
+
+*(Note: Vercel automatically deploys pushes to Git `main`. You do not need explicit GitHub Action workflow keys for Next.js since Vercel automatically assumes authority).*
+
+---
+
+## 11. Production Health Monitoring
+
+You can proactively scan the database for failed payouts, unresolved escalations, and critical errors without having to manually dig through tables.
+
+### A. The Audit Script
+Run the built-in audit script from your terminal:
+```bash
+SUPABASE_SERVICE_ROLE_KEY="[YOUR_SERVICE_KEY]" npx tsx scripts/audit-production-errors.ts
+```
+
+### B. Finding your `SUPABASE_SERVICE_ROLE_KEY`
+This key acts as the master password to your database, bypassing all Row Level Security. **Never commit it to your repository or expose it to the frontend.**
+
+To find your remote key:
+1. Log into your **Supabase Dashboard** and select your project.
+2. Click the **Project Settings** (gear icon) in the bottom left.
+3. Click **API** under Configuration.
+4. Under the **Project API keys** section, look for the key labeled `service_role` and `secret`.
+5. Click the eye icon to reveal and copy it.
+

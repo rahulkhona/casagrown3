@@ -5,7 +5,7 @@ Exact step-by-step commands and instructions for deploying market, admin, voice,
 > **Related docs:**
 > - `docs/production_ddl.sql` — Consolidated DDL for first-time DB setup
 > - `docs/baseline_migration_history.sql` — Seeds migration history after DDL
-> - `docs/database_deployment_strategy.md` — Backward compatibility rules & migration workflow
+> - `docs/deployment_guide.md` — Full deployment guide (secrets, cron jobs, webhooks, migration workflow)
 
 ---
 
