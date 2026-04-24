@@ -145,7 +145,7 @@ SELECT results_eq(
 --   Hold = $35 → capture $15, release $20
 -- ──────────────────────────────────────────────────────────
 
-SELECT run_market_settlement();
+SELECT run_market_settlement((CURRENT_DATE + interval '46 days')::date);
 
 SELECT results_eq(
   $$SELECT capture_amount_usd::numeric FROM settlement_captures WHERE hold_id = 'cc460001-aaa0-0000-0000-000000000001'$$,
