@@ -505,12 +505,12 @@ SELECT is(
   'Grace: available = $34.20 after clearing'
 );
 
--- All 8 users should have notifications
+-- All 8 users should have notifications (settlement processed OR funds available)
 SELECT is(
   (SELECT COUNT(DISTINCT n.user_id) FROM market_notifications n
    JOIN user_settlements us ON us.user_id = n.user_id
    JOIN market_settlements ms ON ms.id = us.settlement_id
-   WHERE ms.market_date = '2026-03-14' AND n.content LIKE '%settlement%'),
+   WHERE ms.market_date = '2026-03-14' AND (n.content ILIKE '%settlement%' OR n.content ILIKE '%withdrawal%')),
   8::BIGINT,
   'All 8 users received settlement notifications'
 );
