@@ -43,22 +43,12 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
         return jsonOk({ success: true, message: "Skipped: SMS notifications feature flag is disabled" }, corsHeaders);
     }
 
-    // ── Check if user has a fresh push subscription (updated within 90 days) ──
-    // Subscriptions older than 90 days may be stale (user changed browser/device).
-    // Silent re-registration (useNotificationPrompt Fix 5) keeps updated_at current.
-    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
-    const { data: subData } = await supabase
-        .from("push_subscriptions")
-        .select("id")
-        .eq("user_id", userId)
-        .gte("updated_at", ninetyDaysAgo)
-        .limit(1);
-
-    if (subData && subData.length > 0) {
-        return jsonOk({ success: true, message: "Skipped: user has active push enabled" }, corsHeaders);
-    }
-
     // ── Check if user is eligible for SMS ──
+    // SMS is an independent channel: sent to any user who has opted in,
+    // regardless of push subscription status. The user controls SMS via
+    // phone_verified + sms_enabled + not twilio_blocked.
+    // NOTE: To re-gate SMS behind push (cost savings), uncomment the push
+    // subscription check that was previously here.
     const { data: profile } = await supabase
         .from("profiles")
         .select("phone_number, phone_verified, sms_enabled, twilio_blocked")
