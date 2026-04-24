@@ -4447,3 +4447,1296 @@ created for a specific market date. Delivery/pickup inherits from the booth.
 `idx_market_products_booth_date` (composite)
 
 **RLS Policies**: Public read, booth owner write (subquery on `market_booths.owner_id`).
+
+
+---
+
+## Undocumented / Recently Added Entities
+
+> Auto-generated documentation for schema elements that were missing from the sections above.
+
+### Tables
+
+#### `available_redemption_methods`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `method` | `USER-DEFINED` | No |  |
+| `is_active` | `boolean` | No | `true` |
+| `updated_at` | `timestamp with time zone` | Yes | `now()` |
+
+#### `beta_testers`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `full_name` | `text` | No |  |
+| `email` | `text` | No |  |
+| `phone_number` | `text` | Yes |  |
+| `nearest_highschool` | `text` | No |  |
+| `zip_code` | `text` | No |  |
+| `campaign_code` | `text` | Yes |  |
+| `referral_source` | `text` | Yes |  |
+| `referral_url` | `text` | Yes |  |
+| `signed_up_at` | `timestamp with time zone` | No | `now()` |
+| `notes` | `text` | Yes |  |
+| `status` | `text` | No | `'pending'::text` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+
+#### `booth_helpers`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `booth_id` | `uuid` | No |  |
+| `helper_id` | `uuid` | No |  |
+| `status` | `text` | No | `'pending'::text` |
+| `created_at` | `timestamp with time zone` | Yes | `now()` |
+| `updated_at` | `timestamp with time zone` | Yes | `now()` |
+| `role` | `text` | Yes | `'delivery'::text` |
+
+#### `buyer_debts`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `buyer_id` | `uuid` | No |  |
+| `settlement_id` | `uuid` | No |  |
+| `capture_id` | `uuid` | Yes |  |
+| `amount_usd` | `numeric` | No |  |
+| `reason` | `text` | No |  |
+| `status` | `text` | No | `'outstanding'::text` |
+| `stripe_payment_intent_id` | `text` | Yes |  |
+| `error_message` | `text` | Yes |  |
+| `retry_count` | `integer` | No | `0` |
+| `recovered_at` | `timestamp with time zone` | Yes |  |
+| `metadata` | `jsonb` | Yes | `'{}'::jsonb` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+
+#### `buyer_product_notifications`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `buyer_id` | `uuid` | No |  |
+| `product_id` | `uuid` | No |  |
+| `match_source` | `text` | No | `'interest'::text` |
+| `keyword` | `text` | Yes |  |
+| `notified_at` | `timestamp with time zone` | Yes |  |
+| `created_at` | `timestamp with time zone` | Yes | `now()` |
+
+#### `client_errors`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `user_id` | `uuid` | Yes |  |
+| `page_url` | `text` | No |  |
+| `error_message` | `text` | No |  |
+| `stack_trace` | `text` | Yes | `''::text` |
+| `component_stack` | `text` | Yes | `''::text` |
+| `browser_info` | `text` | Yes | `''::text` |
+| `created_at` | `timestamp with time zone` | Yes | `now()` |
+
+#### `comment_flags`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `comment_id` | `uuid` | No |  |
+| `user_id` | `uuid` | No |  |
+| `reason` | `text` | No |  |
+| `details` | `text` | Yes |  |
+| `created_at` | `timestamp with time zone` | Yes | `now()` |
+
+#### `comment_likes`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `comment_id` | `uuid` | No |  |
+| `user_id` | `uuid` | No |  |
+| `created_at` | `timestamp with time zone` | Yes | `now()` |
+
+#### `community_chat_flags`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `message_id` | `uuid` | No |  |
+| `user_id` | `uuid` | No |  |
+| `reason` | `text` | No | `'inappropriate'::text` |
+| `created_at` | `timestamp with time zone` | Yes | `now()` |
+
+#### `community_chat_messages`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `community_h3_index` | `text` | No |  |
+| `author_id` | `uuid` | No |  |
+| `parent_id` | `uuid` | Yes |  |
+| `content` | `text` | No |  |
+| `media` | `jsonb` | Yes | `'[]'::jsonb` |
+| `product_listing_id` | `uuid` | Yes |  |
+| `is_system` | `boolean` | Yes | `false` |
+| `is_pinned` | `boolean` | Yes | `false` |
+| `edited_at` | `timestamp with time zone` | Yes |  |
+| `created_at` | `timestamp with time zone` | Yes | `now()` |
+| `bumped_at` | `timestamp with time zone` | Yes |  |
+
+#### `community_chat_mutes`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `user_id` | `uuid` | No |  |
+| `community_h3_index` | `text` | No |  |
+| `created_at` | `timestamp with time zone` | Yes | `now()` |
+
+#### `community_chat_reactions`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `message_id` | `uuid` | No |  |
+| `user_id` | `uuid` | No |  |
+| `emoji` | `text` | No |  |
+| `created_at` | `timestamp with time zone` | Yes | `now()` |
+
+#### `community_discussion_topics`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `content` | `text` | No |  |
+| `category` | `text` | No | `'general'::text` |
+| `season` | `text` | Yes |  |
+| `posted_count` | `integer` | No | `0` |
+| `last_posted_at` | `timestamp with time zone` | Yes |  |
+| `is_active` | `boolean` | No | `true` |
+| `created_at` | `timestamp with time zone` | Yes | `now()` |
+
+#### `counties`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `state_id` | `uuid` | No |  |
+| `name` | `text` | No |  |
+| `fips_code` | `text` | Yes |  |
+| `created_at` | `timestamp with time zone` | Yes | `now()` |
+
+#### `credit_usage_log`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `credit_id` | `uuid` | No |  |
+| `order_id` | `uuid` | No |  |
+| `amount_usd` | `numeric` | No |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+
+#### `crm_assets`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `storage_path` | `text` | No |  |
+| `type` | `text` | No |  |
+| `tags` | `ARRAY` | No | `'{}'::text[]` |
+| `description` | `text` | Yes |  |
+| `uploaded_by` | `uuid` | Yes |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+
+#### `crm_audience_functions`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `name` | `text` | No |  |
+| `label` | `text` | No |  |
+| `description` | `text` | Yes |  |
+| `is_rpc` | `boolean` | No | `false` |
+| `is_active` | `boolean` | No | `true` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `tags` | `ARRAY` | Yes |  |
+
+#### `crm_audiences`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `name` | `text` | No |  |
+| `description` | `text` | Yes |  |
+| `recipient_type` | `text` | No |  |
+| `audience_rpc_name` | `text` | Yes |  |
+| `estimated_count` | `integer` | Yes |  |
+| `last_estimated_at` | `timestamp with time zone` | Yes |  |
+| `created_by` | `uuid` | Yes |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+
+#### `crm_campaign_sends`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `campaign_id` | `uuid` | No |  |
+| `recipient_type` | `text` | No |  |
+| `recipient_id` | `uuid` | No |  |
+| `email` | `text` | Yes |  |
+| `phone` | `text` | Yes |  |
+| `sent_at` | `timestamp with time zone` | Yes |  |
+| `opened_at` | `timestamp with time zone` | Yes |  |
+| `clicked_at` | `timestamp with time zone` | Yes |  |
+| `bounced_at` | `timestamp with time zone` | Yes |  |
+| `unsubscribed_at` | `timestamp with time zone` | Yes |  |
+| `error` | `text` | Yes |  |
+
+#### `crm_campaigns`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `system_alias` | `text` | Yes |  |
+| `name` | `text` | No |  |
+| `channel` | `text` | No |  |
+| `subject` | `text` | Yes |  |
+| `content_html` | `text` | Yes |  |
+| `content_text` | `text` | Yes |  |
+| `postmark_template_alias` | `text` | Yes |  |
+| `audience_id` | `uuid` | Yes |  |
+| `data_source_id` | `uuid` | Yes |  |
+| `target_states` | `ARRAY` | No | `'{}'::text[]` |
+| `target_cities` | `ARRAY` | No | `'{}'::text[]` |
+| `target_counties` | `ARRAY` | No | `'{}'::text[]` |
+| `target_zips` | `ARRAY` | No | `'{}'::text[]` |
+| `target_h3s` | `ARRAY` | No | `'{}'::text[]` |
+| `scheduled_at` | `timestamp with time zone` | Yes |  |
+| `sent_at` | `timestamp with time zone` | Yes |  |
+| `status` | `text` | No | `'draft'::text` |
+| `stats` | `jsonb` | No | `'{}'::jsonb` |
+| `created_by` | `uuid` | Yes |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+
+#### `crm_data_sources`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `name` | `text` | No |  |
+| `description` | `text` | Yes |  |
+| `rpc_name` | `text` | No |  |
+| `return_schema` | `jsonb` | No | `'{}'::jsonb` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+
+#### `crm_landing_pages`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `slug` | `text` | No |  |
+| `title` | `text` | No |  |
+| `description` | `text` | Yes |  |
+| `is_active` | `boolean` | No | `true` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+
+#### `crm_leads`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `name` | `text` | No |  |
+| `email` | `text` | Yes |  |
+| `phone` | `text` | Yes |  |
+| `source_platform` | `text` | Yes |  |
+| `source_url` | `text` | Yes |  |
+| `source_ad_id` | `text` | Yes |  |
+| `utm_campaign` | `text` | Yes |  |
+| `utm_content` | `text` | Yes |  |
+| `utm_medium` | `text` | Yes |  |
+| `form_version` | `text` | Yes |  |
+| `landing_page_id` | `uuid` | Yes |  |
+| `referring_user_id` | `uuid` | Yes |  |
+| `accepts_email` | `boolean` | No | `false` |
+| `accepts_sms` | `boolean` | No | `false` |
+| `status` | `text` | No | `'new'::text` |
+| `converted_user_id` | `uuid` | Yes |  |
+| `metadata` | `jsonb` | No | `'{}'::jsonb` |
+| `notes` | `text` | Yes |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `zipcode` | `text` | Yes |  |
+| `has_backyard` | `boolean` | Yes |  |
+| `produce_interests` | `text` | Yes |  |
+| `ip_address` | `text` | Yes |  |
+| `device_type` | `text` | Yes |  |
+| `city` | `text` | Yes |  |
+| `county` | `text` | Yes |  |
+| `state_code` | `text` | Yes |  |
+| `country` | `text` | Yes |  |
+
+#### `crm_page_events`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `session_id` | `text` | No |  |
+| `page_slug` | `text` | No |  |
+| `event_type` | `text` | No |  |
+| `target_element` | `text` | Yes |  |
+| `value_text` | `text` | Yes |  |
+| `value_int` | `integer` | Yes |  |
+| `occurred_at` | `timestamp with time zone` | No | `now()` |
+
+#### `crm_page_visits`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `session_id` | `text` | No |  |
+| `page_slug` | `text` | No |  |
+| `referrer` | `text` | Yes |  |
+| `utm_source` | `text` | Yes |  |
+| `utm_campaign` | `text` | Yes |  |
+| `utm_content` | `text` | Yes |  |
+| `utm_medium` | `text` | Yes |  |
+| `country` | `text` | Yes |  |
+| `region` | `text` | Yes |  |
+| `duration_secs` | `integer` | Yes |  |
+| `converted` | `boolean` | No | `false` |
+| `lead_id` | `uuid` | Yes |  |
+| `user_id` | `uuid` | Yes |  |
+| `visited_at` | `timestamp with time zone` | No | `now()` |
+
+#### `crm_short_links`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `token` | `text` | No |  |
+| `destination_url` | `text` | No |  |
+| `campaign_id` | `uuid` | Yes |  |
+| `recipient_id` | `uuid` | Yes |  |
+| `recipient_type` | `text` | Yes |  |
+| `clicked_at` | `timestamp with time zone` | Yes |  |
+| `click_count` | `integer` | No | `0` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+
+#### `demo_booth_templates`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `integer` | No | `nextval('demo_booth_templates_id_seq'::regclass)` |
+| `seller_name` | `text` | No |  |
+| `booth_name` | `text` | No |  |
+| `description` | `text` | No |  |
+| `decorative_theme` | `text` | No | `'garden'::text` |
+| `delivery_radius_miles` | `integer` | No | `5` |
+| `rating_min` | `numeric` | No | `4.0` |
+| `rating_max` | `numeric` | No | `5.0` |
+| `rating_count_min` | `integer` | No | `8` |
+| `rating_count_max` | `integer` | No | `25` |
+
+#### `demo_product_catalog`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `integer` | No | `nextval('demo_product_catalog_id_seq'::regclass)` |
+| `name` | `text` | No |  |
+| `description` | `text` | No |  |
+| `price_usd` | `numeric` | No |  |
+| `unit` | `text` | No |  |
+| `category` | `text` | No |  |
+| `photo_url` | `text` | No |  |
+
+#### `dispute_admin_views`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `dispute_id` | `uuid` | No |  |
+| `admin_id` | `uuid` | No |  |
+| `viewed_at` | `timestamp with time zone` | No | `now()` |
+
+#### `grower_produces`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `user_id` | `uuid` | No |  |
+| `produce_name` | `text` | No |  |
+| `category` | `text` | Yes |  |
+| `notify_on_search` | `boolean` | Yes | `true` |
+| `created_at` | `timestamp with time zone` | Yes | `now()` |
+
+#### `grower_search_notifications`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `grower_id` | `uuid` | No |  |
+| `keyword` | `text` | No |  |
+| `searcher_id` | `uuid` | No |  |
+| `community_h3` | `text` | Yes |  |
+| `notified_at` | `timestamp with time zone` | Yes |  |
+| `created_at` | `timestamp with time zone` | Yes | `now()` |
+| `match_source` | `text` | Yes | `'garden'::text` |
+| `past_product_id` | `uuid` | Yes |  |
+
+#### `instrument_queuing_status`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `instrument` | `USER-DEFINED` | No |  |
+| `is_queuing` | `boolean` | No | `false` |
+| `updated_at` | `timestamp with time zone` | Yes | `now()` |
+
+#### `market_blocks`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `blocker_id` | `uuid` | No |  |
+| `blocked_id` | `uuid` | No |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+
+#### `market_chat_messages`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `conversation_id` | `uuid` | No |  |
+| `sender_id` | `uuid` | No |  |
+| `parent_id` | `uuid` | Yes |  |
+| `content` | `text` | No |  |
+| `media` | `jsonb` | Yes | `'[]'::jsonb` |
+| `offer_product_id` | `uuid` | Yes |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+
+#### `market_chat_reactions`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `message_id` | `uuid` | No |  |
+| `user_id` | `uuid` | No |  |
+| `emoji` | `text` | No |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+
+#### `market_conversations`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `participant_a` | `uuid` | No |  |
+| `participant_b` | `uuid` | No |  |
+| `unread_count_a` | `integer` | No | `0` |
+| `unread_count_b` | `integer` | No | `0` |
+| `last_message_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+
+#### `market_followers`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `follower_id` | `uuid` | No |  |
+| `booth_id` | `uuid` | No |  |
+| `created_at` | `timestamp with time zone` | Yes | `now()` |
+
+#### `market_holds`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `buyer_id` | `uuid` | No |  |
+| `stripe_payment_intent_id` | `text` | No |  |
+| `stripe_client_secret` | `text` | No |  |
+| `hold_amount_cents` | `integer` | No |  |
+| `spent_amount_cents` | `integer` | No | `0` |
+| `status` | `text` | No | `'active'::text` |
+| `created_at` | `timestamp with time zone` | Yes | `now()` |
+| `updated_at` | `timestamp with time zone` | Yes | `now()` |
+| `balance_applied_cents` | `integer` | No | `0` |
+| `top_up_count` | `integer` | No | `0` |
+
+#### `market_ledger`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `integer` | No | `nextval('market_ledger_id_seq'::regclass)` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `event_type` | `text` | No |  |
+| `user_id` | `uuid` | No |  |
+| `order_id` | `uuid` | Yes |  |
+| `settlement_id` | `uuid` | Yes |  |
+| `amount_usd` | `numeric` | No |  |
+| `direction` | `text` | No |  |
+| `balance_after` | `numeric` | No |  |
+| `metadata` | `jsonb` | Yes | `'{}'::jsonb` |
+
+#### `market_notifications`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `user_id` | `uuid` | No |  |
+| `content` | `text` | No |  |
+| `link_url` | `text` | Yes |  |
+| `read_at` | `timestamp with time zone` | Yes |  |
+| `created_at` | `timestamp with time zone` | Yes | `now()` |
+
+#### `market_orders`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `buyer_id` | `uuid` | No |  |
+| `seller_id` | `uuid` | No |  |
+| `booth_id` | `uuid` | No |  |
+| `product_id` | `uuid` | No |  |
+| `product_name` | `text` | No |  |
+| `quantity` | `integer` | No |  |
+| `unit_price_usd` | `numeric` | No |  |
+| `subtotal_usd` | `numeric` | No |  |
+| `tax_rate_pct` | `numeric` | No | `0` |
+| `tax_amount_usd` | `numeric` | No | `0` |
+| `platform_fee_pct` | `numeric` | No | `10` |
+| `platform_fee_usd` | `numeric` | No | `0` |
+| `total_usd` | `numeric` | No |  |
+| `fulfillment_type` | `text` | No |  |
+| `status` | `USER-DEFINED` | No | `'pending'::market_order_status` |
+| `created_at` | `timestamp with time zone` | Yes | `now()` |
+| `updated_at` | `timestamp with time zone` | Yes | `now()` |
+| `hold_id` | `uuid` | Yes |  |
+| `decline_reason` | `text` | Yes |  |
+| `delivery_proof` | `jsonb` | Yes | `'[]'::jsonb` |
+| `delivered_at` | `timestamp with time zone` | Yes |  |
+| `auto_complete_at` | `timestamp with time zone` | Yes |  |
+| `completed_at` | `timestamp with time zone` | Yes |  |
+| `buyer_passcode` | `text` | Yes |  |
+| `seller_passcode` | `text` | Yes |  |
+| `buyer_passcode_entered` | `boolean` | Yes | `false` |
+| `seller_passcode_entered` | `boolean` | Yes | `false` |
+| `settlement_id` | `uuid` | Yes |  |
+| `buyer_rating` | `smallint` | Yes |  |
+| `seller_rating` | `smallint` | Yes |  |
+| `buyer_review` | `text` | Yes |  |
+| `seller_review` | `text` | Yes |  |
+| `delivered_by` | `uuid` | Yes |  |
+| `balance_applied_usd` | `numeric` | No | `0` |
+| `delivery_address` | `text` | Yes |  |
+| `credit_applied_usd` | `numeric` | Yes | `0` |
+| `ready_for_pickup_at` | `timestamp with time zone` | Yes |  |
+
+#### `market_reminders`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `user_id` | `uuid` | No |  |
+| `remind_at` | `timestamp with time zone` | No |  |
+| `market_date` | `timestamp with time zone` | No |  |
+| `reminder_minutes` | `integer` | No | `30` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `sent_at` | `timestamp with time zone` | Yes |  |
+
+#### `market_schedule_policies`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `day_of_week` | `integer` | No |  |
+| `day_name` | `text` | No |  |
+| `open_time` | `text` | No | `'08:00'::text` |
+| `close_time` | `text` | No | `'14:00'::text` |
+| `is_enabled` | `boolean` | No | `true` |
+| `updated_at` | `timestamp with time zone` | Yes | `now()` |
+| `updated_by` | `uuid` | Yes |  |
+
+#### `market_settings`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `boolean` | No | `true` |
+| `products_never_expire` | `boolean` | No | `false` |
+| `market_never_closes` | `boolean` | No | `false` |
+| `updated_at` | `timestamp with time zone` | Yes | `now()` |
+| `updated_by` | `uuid` | Yes |  |
+| `enable_cart` | `boolean` | No | `false` |
+| `demo_booth_min_total` | `integer` | No | `12` |
+
+#### `market_settlements`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `market_date` | `date` | No |  |
+| `status` | `USER-DEFINED` | No | `'captures_sent'::clearing_status` |
+| `total_orders` | `integer` | No | `0` |
+| `total_captured_usd` | `numeric` | No | `0` |
+| `total_released_usd` | `numeric` | No | `0` |
+| `total_payouts_usd` | `numeric` | No | `0` |
+| `total_fees_usd` | `numeric` | No | `0` |
+| `total_refunds_usd` | `numeric` | No | `0` |
+| `stripe_payout_id` | `text` | Yes |  |
+| `stripe_payout_amount_usd` | `numeric` | Yes |  |
+| `stripe_payout_received_at` | `timestamp with time zone` | Yes |  |
+| `reconciliation_check` | `jsonb` | Yes | `'{}'::jsonb` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+
+#### `market_state_blocks`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `state_id` | `uuid` | No |  |
+| `reason` | `text` | Yes |  |
+| `created_at` | `timestamp with time zone` | Yes | `now()` |
+
+#### `order_chat_messages`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `order_id` | `uuid` | No |  |
+| `sender_id` | `uuid` | No |  |
+| `content` | `text` | No |  |
+| `created_at` | `timestamp with time zone` | Yes | `now()` |
+
+#### `order_dispute_messages`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `dispute_id` | `uuid` | No |  |
+| `sender_id` | `uuid` | No |  |
+| `body` | `text` | No |  |
+| `photos` | `jsonb` | Yes | `'[]'::jsonb` |
+| `created_at` | `timestamp with time zone` | Yes | `now()` |
+
+#### `order_disputes`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `order_id` | `uuid` | No |  |
+| `initiated_by` | `uuid` | No |  |
+| `reason` | `text` | No |  |
+| `photos` | `jsonb` | Yes | `'[]'::jsonb` |
+| `refund_type` | `text` | Yes |  |
+| `refund_amount_usd` | `numeric` | Yes |  |
+| `pickup_offered` | `boolean` | Yes | `false` |
+| `status` | `USER-DEFINED` | No | `'open'::dispute_status` |
+| `staff_decision` | `text` | Yes |  |
+| `staff_notes` | `text` | Yes |  |
+| `resolved_at` | `timestamp with time zone` | Yes |  |
+| `created_at` | `timestamp with time zone` | Yes | `now()` |
+| `updated_at` | `timestamp with time zone` | Yes | `now()` |
+| `type` | `USER-DEFINED` | Yes |  |
+| `quantity_received` | `integer` | Yes |  |
+| `dispute_type` | `text` | Yes |  |
+| `resolved_by` | `uuid` | Yes |  |
+| `claimed_by` | `uuid` | Yes |  |
+
+#### `order_status_log`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `order_id` | `uuid` | No |  |
+| `old_status` | `text` | Yes |  |
+| `new_status` | `text` | No |  |
+| `changed_by` | `uuid` | Yes |  |
+| `changed_at` | `timestamp with time zone` | No | `now()` |
+| `metadata` | `jsonb` | Yes |  |
+
+#### `platform_bank_ledger`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `bigint` | No | `nextval('platform_bank_ledger_id_seq'::regclass)` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `event_type` | `text` | No |  |
+| `direction` | `text` | No |  |
+| `amount_usd` | `numeric` | No |  |
+| `balance_after` | `numeric` | No |  |
+| `provider` | `text` | No |  |
+| `reference_type` | `text` | Yes |  |
+| `reference_id` | `text` | Yes |  |
+| `settlement_id` | `uuid` | Yes |  |
+| `metadata` | `jsonb` | Yes | `'{}'::jsonb` |
+
+#### `product_comments`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `product_id` | `uuid` | No |  |
+| `author_id` | `uuid` | No |  |
+| `parent_id` | `uuid` | Yes |  |
+| `body` | `text` | No |  |
+| `is_hidden` | `boolean` | Yes | `false` |
+| `created_at` | `timestamp with time zone` | Yes | `now()` |
+
+#### `product_flags`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `product_id` | `uuid` | No |  |
+| `user_id` | `uuid` | No |  |
+| `reason` | `text` | No |  |
+| `details` | `text` | Yes |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+
+#### `product_reminders`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `user_id` | `uuid` | No |  |
+| `product_id` | `uuid` | No |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+
+#### `product_watches`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `user_id` | `uuid` | No |  |
+| `keywords` | `text` | No |  |
+| `fulfillment_type` | `text` | No | `'all'::text` |
+| `radius_miles` | `integer` | No | `10` |
+| `lat` | `double precision` | Yes |  |
+| `lng` | `double precision` | Yes |  |
+| `state_code` | `text` | Yes |  |
+| `community_h3_index` | `text` | Yes |  |
+| `expires_at` | `timestamp with time zone` | No | `(now() + '7 days'::interval)` |
+| `created_at` | `timestamp with time zone` | Yes | `now()` |
+
+#### `profile_audit_log`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `bigint` | No |  |
+| `user_id` | `uuid` | No |  |
+| `changed_at` | `timestamp with time zone` | No | `now()` |
+| `changed_by` | `uuid` | Yes |  |
+| `old_values` | `jsonb` | No | `'{}'::jsonb` |
+| `new_values` | `jsonb` | No | `'{}'::jsonb` |
+
+#### `quarantine_bot_health`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `run_started_at` | `timestamp with time zone` | No |  |
+| `run_ended_at` | `timestamp with time zone` | No |  |
+| `status` | `text` | No |  |
+| `schema_drift_detected` | `boolean` | No | `false` |
+| `total_records` | `integer` | No | `0` |
+
+#### `quarantine_pest_categories`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `pest_name` | `text` | No |  |
+| `sales_categories` | `ARRAY` | No |  |
+| `produce_categories` | `ARRAY` | No |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+| `keywords` | `ARRAY` | No | `'{}'::text[]` |
+
+#### `quarantine_zones`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `country_iso_3` | `text` | Yes | `'USA'::text` |
+| `state_id` | `uuid` | Yes |  |
+| `county_id` | `uuid` | Yes |  |
+| `city_id` | `uuid` | Yes |  |
+| `category` | `text` | No |  |
+| `pest_name` | `text` | No |  |
+| `starts_at` | `date` | No | `CURRENT_DATE` |
+| `ends_at` | `date` | Yes |  |
+| `source_url` | `text` | Yes |  |
+| `reason` | `text` | Yes |  |
+| `is_active` | `boolean` | No | `true` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+| `created_by_admin` | `boolean` | No | `false` |
+| `admin_overridden` | `boolean` | No | `false` |
+| `produce_categories` | `ARRAY` | No | `'{}'::text[]` |
+| `keywords` | `ARRAY` | No | `'{}'::text[]` |
+| `data_source` | `text` | No | `'seed'::text` |
+
+#### `redemption_queue`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `user_id` | `uuid` | No |  |
+| `method` | `text` | No |  |
+| `amount_usd` | `numeric` | No |  |
+| `config` | `jsonb` | No | `'{}'::jsonb` |
+| `status` | `text` | No | `'queued'::text` |
+| `error_message` | `text` | Yes |  |
+| `settlement_id` | `uuid` | Yes |  |
+| `processed_at` | `timestamp with time zone` | Yes |  |
+| `created_at` | `timestamp with time zone` | Yes | `now()` |
+
+#### `referral_touches`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `user_id` | `uuid` | No |  |
+| `source` | `text` | No |  |
+| `referrer_id` | `uuid` | Yes |  |
+| `utm_source` | `text` | Yes |  |
+| `utm_medium` | `text` | Yes |  |
+| `utm_campaign` | `text` | Yes |  |
+| `landing_url` | `text` | Yes |  |
+| `touched_at` | `timestamp with time zone` | No | `now()` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+
+#### `settlement_captures`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `settlement_id` | `uuid` | No |  |
+| `hold_id` | `uuid` | No |  |
+| `buyer_id` | `uuid` | No |  |
+| `stripe_payment_intent_id` | `text` | No |  |
+| `hold_amount_usd` | `numeric` | No |  |
+| `capture_amount_usd` | `numeric` | No |  |
+| `release_amount_usd` | `numeric` | No |  |
+| `capture_status` | `text` | No | `'pending'::text` |
+| `stripe_capture_id` | `text` | Yes |  |
+| `error_message` | `text` | Yes |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+
+#### `sms_notification_log`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `user_id` | `uuid` | No |  |
+| `phone_number` | `text` | No |  |
+| `message` | `text` | No |  |
+| `status` | `text` | No | `'sent'::text` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+
+#### `stripe_disputes`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `stripe_dispute_id` | `text` | No |  |
+| `stripe_charge_id` | `text` | Yes |  |
+| `stripe_payment_intent_id` | `text` | Yes |  |
+| `buyer_id` | `uuid` | Yes |  |
+| `amount_usd` | `numeric` | No |  |
+| `fee_usd` | `numeric` | Yes | `15.00` |
+| `reason` | `text` | Yes |  |
+| `status` | `text` | No | `'needs_response'::text` |
+| `evidence_due_by` | `timestamp with time zone` | Yes |  |
+| `evidence_submitted_at` | `timestamp with time zone` | Yes |  |
+| `evidence_json` | `jsonb` | Yes |  |
+| `settlement_id` | `uuid` | Yes |  |
+| `market_date` | `date` | Yes |  |
+| `resolved_at` | `timestamp with time zone` | Yes |  |
+| `stripe_metadata` | `jsonb` | Yes |  |
+| `admin_notes` | `text` | Yes |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+
+#### `stripe_payout_events`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `stripe_payout_id` | `text` | No |  |
+| `event_type` | `text` | No |  |
+| `amount_usd` | `numeric` | No |  |
+| `failure_code` | `text` | Yes |  |
+| `failure_message` | `text` | Yes |  |
+| `matched_settlement_ids` | `ARRAY` | Yes | `'{}'::uuid[]` |
+| `affected_user_ids` | `ARRAY` | Yes | `'{}'::uuid[]` |
+| `raw_event` | `jsonb` | Yes | `'{}'::jsonb` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+
+#### `tax_reporting_thresholds`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `state_code` | `text` | No |  |
+| `amount` | `numeric` | No |  |
+| `min_txns` | `integer` | No | `0` |
+| `warn_pct` | `numeric` | No | `0.75` |
+| `updated_at` | `timestamp with time zone` | Yes | `now()` |
+| `updated_by` | `uuid` | Yes |  |
+
+#### `user_analytics`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `user_id` | `uuid` | Yes |  |
+| `session_id` | `text` | No |  |
+| `txn_id` | `text` | No |  |
+| `event_type` | `text` | No |  |
+| `event_name` | `text` | No |  |
+| `page_path` | `text` | Yes |  |
+| `metadata` | `jsonb` | Yes | `'{}'::jsonb` |
+| `user_agent` | `text` | Yes |  |
+| `created_at` | `timestamp with time zone` | Yes | `now()` |
+| `element_id` | `text` | Yes |  |
+| `element_label` | `text` | Yes |  |
+| `stack_trace` | `text` | Yes |  |
+
+#### `user_auto_redemption_config`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `user_id` | `uuid` | No |  |
+| `enabled` | `boolean` | No | `false` |
+| `method` | `text` | No | `'cashout'::text` |
+| `threshold_usd` | `numeric` | No | `50.00` |
+| `cashout_payout_id` | `text` | Yes |  |
+| `gift_card_brand` | `text` | Yes |  |
+| `gift_card_amount_usd` | `numeric` | Yes |  |
+| `charity_project_id` | `text` | Yes |  |
+| `charity_project_name` | `text` | Yes |  |
+| `created_at` | `timestamp with time zone` | Yes | `now()` |
+| `updated_at` | `timestamp with time zone` | Yes | `now()` |
+
+#### `user_credits`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `user_id` | `uuid` | No |  |
+| `amount_usd` | `numeric` | No |  |
+| `remaining_usd` | `numeric` | No |  |
+| `credit_type` | `USER-DEFINED` | No | `'purchase'::credit_type` |
+| `cap_value` | `numeric` | No | `20.00` |
+| `source` | `USER-DEFINED` | No |  |
+| `source_id` | `uuid` | Yes |  |
+| `reason` | `text` | Yes |  |
+| `granted_by` | `uuid` | Yes |  |
+| `expires_at` | `timestamp with time zone` | Yes | `(now() + '1 year'::interval)` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `cap_type` | `USER-DEFINED` | No | `'percentage'::credit_cap_type` |
+
+#### `user_incentives`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `user_id` | `uuid` | No |  |
+| `amount_usd` | `numeric` | No |  |
+| `credit_type` | `USER-DEFINED` | No | `'purchase'::credit_type` |
+| `cap_type` | `USER-DEFINED` | No | `'percentage'::credit_cap_type` |
+| `cap_value` | `numeric` | No |  |
+| `expiration_frequency` | `USER-DEFINED` | No |  |
+| `start_date` | `timestamp with time zone` | No | `now()` |
+| `stop_date` | `timestamp with time zone` | Yes |  |
+| `is_active` | `boolean` | No | `true` |
+| `created_by` | `uuid` | Yes |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+
+#### `user_settlements`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `settlement_id` | `uuid` | No |  |
+| `user_id` | `uuid` | No |  |
+| `gross_sales_usd` | `numeric` | No | `0` |
+| `total_purchases_usd` | `numeric` | No | `0` |
+| `refunds_issued_usd` | `numeric` | No | `0` |
+| `refunds_received_usd` | `numeric` | No | `0` |
+| `platform_fees_usd` | `numeric` | No | `0` |
+| `hold_captured_usd` | `numeric` | No | `0` |
+| `hold_released_usd` | `numeric` | No | `0` |
+| `net_payout_usd` | `numeric` | No | `0` |
+| `status` | `text` | No | `'pending'::text` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+
+#### `zone_pulse`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `zone_id` | `text` | No |  |
+| `last_updated` | `timestamp with time zone` | Yes | `now()` |
+
+### Database Functions
+
+- `_complete_market_order_with_receipt`
+- `_get_latest_window_end`
+- `_notify_chat_initiated`
+- `_notify_delegation_revoked`
+- `_notify_points_event`
+- `_send_notification_email`
+- `addgeometrycolumn`
+- `admin_add_dispute_comment`
+- `admin_claim_escalation`
+- `admin_create_user_incentive`
+- `admin_get_user_incentives`
+- `admin_grant_credit`
+- `admin_relinquish_escalation`
+- `admin_resolve_escalation`
+- `admin_update_user_incentive`
+- `admin_view_escalation`
+- `append_bank_ledger_entry`
+- `append_ledger_entry`
+- `apply_credits_to_order`
+- `auto_cancel_stale_orders`
+- `auto_complete_delivered_orders`
+- `auto_complete_expired_pickups`
+- `auto_create_booth_on_profile`
+- `auto_generate_pickup_display_address`
+- `auto_post_market_product_to_buzz`
+- `auto_post_product_to_chat`
+- `auto_recover_buyer_debt`
+- `batch_debit_market_balance`
+- `buyer_accept_refund`
+- `buyer_cancel_order`
+- `buyer_confirm_delivery`
+- `buyer_dispute_order`
+- `buyer_resolve_dispute`
+- `check_1099k_threshold`
+- `check_chat_flag_threshold`
+- `check_comment_flag_threshold`
+- `check_post_flag_threshold`
+- `check_product_flag_threshold`
+- `check_quarantine_for_product`
+- `check_quarantine_for_seller`
+- `check_zone_pulse`
+- `claim_daily_digest_batch`
+- `cleanup_sent_reminders`
+- `cleanup_stale_chat_messages`
+- `clear_product_flags`
+- `close_market_booths`
+- `confirm_manual_payout_verification`
+- `confirm_payout_verification`
+- `confirm_settlement_funds_received`
+- `contains_2d`
+- `crm_audience_all`
+- `crm_audience_expressed_buying_interest`
+- `crm_audience_has_bought_before`
+- `crm_audience_has_sold_before`
+- `debit_buyer_balance`
+- `debit_market_balance`
+- `disablelongtransactions`
+- `dispute_order_with_message`
+- `dropgeometrycolumn`
+- `dropgeometrytable`
+- `enablelongtransactions`
+- `enforce_free_market_price`
+- `ensure_community_exists`
+- `equals`
+- `escalate_dispute`
+- `escalate_order_with_message`
+- `execute_market_cron_sync`
+- `find_srid`
+- `generate_pickup_display_address`
+- `geog_brin_inclusion_add_value`
+- `geom2d_brin_inclusion_add_value`
+- `geom3d_brin_inclusion_add_value`
+- `geom4d_brin_inclusion_add_value`
+- `geomfromewkb`
+- `geomfromewkt`
+- `get_admin_emails`
+- `get_allowed_categories`
+- `get_auto_payout_eligible_users`
+- `get_auto_redemption_config`
+- `get_client_bootstrap`
+- `get_community_chat_messages`
+- `get_community_chat_replies`
+- `get_community_chat_unread_count`
+- `get_community_member_count`
+- `get_dispute_evidence`
+- `get_dispute_stats`
+- `get_disputes_admin`
+- `get_edge_fn_base_url`
+- `get_escalated_orders_admin`
+- `get_escalation_detail_admin`
+- `get_escalation_stats_admin`
+- `get_failed_captures_admin`
+- `get_helper_queue`
+- `get_market_config`
+- `get_my_community_unread_count`
+- `get_payout_event_details`
+- `get_payout_events_admin`
+- `get_payout_status`
+- `get_pending_payouts_admin`
+- `get_pending_transactions`
+- `get_platform_bank_balance`
+- `get_platform_bank_statement`
+- `get_platform_fee_for_user`
+- `get_proj4_from_srid`
+- `get_quarantines_for_user`
+- `get_recommended_people_to_follow`
+- `get_reconciliation_status`
+- `get_service_role_key`
+- `get_settlements_admin`
+- `get_transaction_log`
+- `get_transaction_summary`
+- `get_user_credit_balance`
+- `get_user_credit_details`
+- `get_user_jurisdiction`
+- `get_user_ledger_balance`
+- `gettransactionid`
+- `gidx_in`
+- `gidx_out`
+- `gserialized_gist_joinsel_2d`
+- `gserialized_gist_joinsel_nd`
+- `gserialized_gist_sel_2d`
+- `gserialized_gist_sel_nd`
+- `h3_to_r5`
+- `handle_delegation_revocation`
+- `helper_mark_delivered`
+- `initiate_payout_verification`
+- `is_booth_helper`
+- `is_buyer_blocked`
+- `is_contained_2d`
+- `is_market_blocked_for_user`
+- `is_staff_email`
+- `join_booth_as_helper`
+- `link_staff_user_id_on_profile`
+- `link_staff_user_id_on_staff_insert`
+- `lockrow`
+- `log_order_created`
+- `log_order_status_change`
+- `longtransactionsenabled`
+- `make_refund_offer_with_message`
+- `mark_order_delivered`
+- `metrics_community_chat`
+- `metrics_crm_ab_results`
+- `metrics_crm_campaigns`
+- `metrics_crm_landing_pages`
+- `metrics_crm_lead_funnel`
+- `metrics_crm_traffic_sources`
+- `metrics_marketplace_health`
+- `metrics_page_analytics`
+- `metrics_payout_trends`
+- `metrics_platform_usage`
+- `metrics_reveal_user`
+- `metrics_sales_summary`
+- `metrics_search_logs`
+- `metrics_session_timeline`
+- `metrics_settlement_summary`
+- `metrics_user_growth`
+- `nearby_booths`
+- `notify_followers_new_product`
+- `notify_market_event`
+- `notify_market_pickup`
+- `notify_on_delegation_revoked`
+- `notify_product_watchers`
+- `overlaps_2d`
+- `overlaps_geog`
+- `overlaps_nd`
+- `pgis_asflatgeobuf_finalfn`
+- `pgis_asflatgeobuf_transfn`
+- `pgis_asgeobuf_finalfn`
+- `pgis_asgeobuf_transfn`
+- `pgis_asmvt_combinefn`
+- `pgis_asmvt_deserialfn`
+- `pgis_asmvt_finalfn`
+- `pgis_asmvt_serialfn`
+- `pgis_asmvt_transfn`
+- `pgis_geometry_accum_transfn`
+- `pgis_geometry_clusterintersecting_finalfn`
+- `pgis_geometry_clusterwithin_finalfn`
+- `pgis_geometry_collect_finalfn`
+- `pgis_geometry_makeline_finalfn`
+- `pgis_geometry_polygonize_finalfn`
+- `pgis_geometry_union_parallel_combinefn`
+- `pgis_geometry_union_parallel_deserialfn`
+- `pgis_geometry_union_parallel_finalfn`
+- `pgis_geometry_union_parallel_serialfn`
+- `pgis_geometry_union_parallel_transfn`
+- `place_market_order`
+- `platform_cash_position`
+- `populate_geometry_columns`
+- `post_daily_discussion`
+- `process_abandoned_onboarding`
+- `process_credit_expiry_reminders`
+- `process_post_settlement_refund`
+- `process_recurring_incentives`
+- `queue_buyer_product_notifications`
+- `queue_grower_search_match`
+- `rate_market_order`
+- `recompute_market_buyer_rating`
+- `recompute_market_seller_rating`
+- `recompute_seller_rating`
+- `reconcile_platform_balances`
+- `refresh_product_data`
+- `refund_buyer_balance`
+- `run_market_settlement`
+- `save_auto_redemption_config`
+- `save_dispute_evidence_draft`
+- `search_community_chat`
+- `search_dm_users`
+- `search_people_to_follow`
+- `seller_decline_order`
+- `seller_mark_delivered`
+- `seller_mark_ready_pickup`
+- `seller_respond_dispute`
+- `send_market_lifecycle_ping`
+- `send_notification_email`
+- `send_push_via_edge`
+- `set_feedback_resolved_at`
+- `set_post_expires_at`
+- `set_product_expires_at`
+- `settle_stale_orders`
+- `spheroid_in`
+- `spheroid_out`
+- `staff_ban_user`
+- `staff_delete_feedback`
+- `staff_fetch_users`
+- `staff_update_feedback_status`
+- `sync_booth_location_from_profile`
+- `sync_bot_quarantines`
+- `sync_market_schedule_cron`
+- `trg_booth_helper_status_notify`
+- `trg_booth_open_notify_reminders`
+- `trg_credit_granted_notify`
+- `trg_dm_inapp_notification`
+- `trg_market_order_placed_notify`
+- `trg_market_order_status_notify`
+- `trg_notify_admin_on_dispute_message`
+- `trg_notify_admins_on_escalation`
+- `trg_notify_dm_inserted_webhook`
+- `trg_notify_market_chat_message`
+- `trg_payment_failed_notify`
+- `trg_product_added_notify_followers`
+- `trg_product_comment_notify`
+- `trg_profile_audit`
+- `trg_redemption_notify`
+- `trg_settlement_status_notify`
+- `trigger_welcome_email`
+- `unlockrows`
+- `update_feedback_updated_at`
+- `update_last_active_on_order`
+- `update_market_conversation_timestamp`
+- `update_profile_last_seen`
+- `update_zone_pulse`
+- `updategeometrysrid`
+- `user_has_active_push`
+
+### Storage Buckets
+
+- `post-media`
+- `feedback-media`
+- `product-photos`
+- `order-evidence`
+- `community-chat-media`
+- `feedback-screenshots`
+- `marketing-assets`
+- `delivery-proofs`
+- `dispute-proofs`
+
