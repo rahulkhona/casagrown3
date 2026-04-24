@@ -10786,6 +10786,7 @@ __metadata:
     "@vitest/coverage-v8": "npm:2.1.9"
     base64-arraybuffer: "npm:^1.0.2"
     check-dependency-version-consistency: "npm:^4.1.0"
+    csv-parse: "npm:^6.2.1"
     expo: "npm:^54"
     h3-js: "npm:^4.4.0"
     husky: "npm:^9.1.6"
@@ -11649,6 +11650,13 @@ __metadata:
   version: 3.2.3
   resolution: "csstype@npm:3.2.3"
   checksum: 10/ad41baf7e2ffac65ab544d79107bf7cd1a4bb9bab9ac3302f59ab4ba655d5e30942a8ae46e10ba160c6f4ecea464cc95b975ca2fefbdeeacd6ac63f12f99fe1f
+  languageName: node
+  linkType: hard
+
+"csv-parse@npm:^6.2.1":
+  version: 6.2.1
+  resolution: "csv-parse@npm:6.2.1"
+  checksum: 10/7fbde1225c6df6aaea01a202934e1f15ce16ed55e544ead0d066b0c4dc9ae1a2fc881b412889cbf115cd74cbf14ea17388b394e8a31e05cb412dd7dc6114bebd
   languageName: node
   linkType: hard
 
