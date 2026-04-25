@@ -463,6 +463,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                         p_user_id: staff.user_id,
                         p_content: alertContent,
                         p_link_url: "/earnings/admin/payouts",
+                        p_send_sms: true, // GAP-6: SMS for critical admin alerts
                     });
                 } catch (notifErr) {
                     console.warn(
@@ -851,6 +852,23 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                     });
                 } catch (e) {
                     console.warn("Close notification failed:", e);
+                }
+
+                // GAP-7: Send typed email for dispute closure
+                if (staff.email) {
+                    try {
+                        await supabase.functions.invoke("send-notification-email", {
+                            body: {
+                                type: "dispute_closed",
+                                recipients: [{ email: staff.email, name: "Admin" }],
+                                dollarAmount: disputeAmountClosed,
+                                disputeWon: isWon,
+                                disputeFeeUsd: 15,
+                            },
+                        });
+                    } catch (emailErr) {
+                        console.warn(`Dispute close email to ${staff.email} failed:`, emailErr);
+                    }
                 }
             }
 

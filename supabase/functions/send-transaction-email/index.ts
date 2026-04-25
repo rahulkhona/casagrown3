@@ -1,5 +1,5 @@
 /**
- * send-transaction-email — Supabase Edge Function
+ * send-transaction-email - Supabase Edge Function
  *
  * Sends branded transaction receipt emails for completed orders.
  * Called by DB triggers via net.http_post when an order is completed.
@@ -69,7 +69,7 @@ serveWithCors(async (req, { corsHeaders, env }) => {
 
   if (!isServiceRole) {
     return jsonError(
-      "Unauthorized — service_role required",
+      "Unauthorized - service_role required",
       corsHeaders,
       401,
     );
@@ -143,7 +143,7 @@ function renderReceipt(
 
   switch (recipient.role) {
     case "buyer":
-      subject = `Order Complete — ${data.product} | CasaGrown Receipt`;
+      subject = `Order Complete - ${data.product} | CasaGrown Receipt`;
       greeting = `Hi ${data.buyerName},`;
       summary =
         `Your order for ${data.quantity} ${data.unit} of ${data.product} has been completed. Here's your receipt.`;
@@ -152,7 +152,7 @@ function renderReceipt(
     case "seller":
       if (data.delegated) {
         subject =
-          `Sale Complete — ${data.product} (Delegated) | CasaGrown Receipt`;
+          `Sale Complete - ${data.product} (Delegated) | CasaGrown Receipt`;
         greeting = `Hi ${data.sellerName},`;
         summary =
           `Great news! Your delegated sale of ${data.quantity} ${data.unit} of ${data.product} has been completed.`;
@@ -168,7 +168,7 @@ function renderReceipt(
           sellerFeeCredit: data.sellerFeeCredit,
         });
       } else {
-        subject = `Sale Complete — ${data.product} | CasaGrown Receipt`;
+        subject = `Sale Complete - ${data.product} | CasaGrown Receipt`;
         greeting = `Hi ${data.sellerName},`;
         summary =
           `Great news! Your sale of ${data.quantity} ${data.unit} of ${data.product} has been completed.`;
@@ -183,7 +183,7 @@ function renderReceipt(
       break;
 
     case "delegator":
-      subject = `Delegation Sale — ${data.product} | CasaGrown Receipt`;
+      subject = `Delegation Sale - ${data.product} | CasaGrown Receipt`;
       greeting = `Hi ${data.delegatorName || "there"},`;
       summary = `Your delegate ${
         data.delegateName || data.sellerName

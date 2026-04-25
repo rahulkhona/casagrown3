@@ -10,7 +10,7 @@ import { sendTransactionEmail, getUserEmail } from "../_shared/postmark.ts";
 import { buildPayoutEmail } from "../_shared/payout-email.ts";
 
 /**
- * market-cashout-paypal — Supabase Edge Function
+ * market-cashout-paypal - Supabase Edge Function
  *
  * Request body: { pointsToRedeem: number (cents), payoutId?: string }
  *
@@ -34,7 +34,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     return jsonError("PayPal API keys are missing", corsHeaders);
   }
 
-  // Kill switch constant — checked right before making external API calls
+  // Kill switch constant - checked right before making external API calls
   const paypalEnabled = env("PAYPAL_ENABLED") !== "false";
 
   // 1. Authenticate user

@@ -374,7 +374,254 @@ Deno.test("unknown type returns null", () => {
 });
 
 // =============================================================================
-// Template Structure
+// (v) Card Hold Placed
+// =============================================================================
+
+Deno.test("card_hold_placed — shows hold amount and card info", () => {
+    const p = makePayload("card_hold_placed", {
+        holdAmountUsd: 25.50,
+        cardLast4: "4242",
+    });
+    const r = makeRecipient({ name: "Alice" });
+    const result = renderEmailByType(p, r);
+
+    assertEquals(result !== null, true);
+    assertStringIncludes(result!.subject, "Payment Hold");
+    assertStringIncludes(result!.subject, "$25.50");
+    assertStringIncludes(result!.htmlBody, "Hi Alice,");
+    assertStringIncludes(result!.htmlBody, "$25.50");
+    assertStringIncludes(result!.htmlBody, "•••• 4242");
+    assertStringIncludes(result!.htmlBody, "temporary authorization");
+    assertStringIncludes(result!.htmlBody, "What does this mean?");
+    assertStringIncludes(result!.htmlBody, "View Earnings");
+});
+
+Deno.test("card_hold_placed — works without card last4", () => {
+    const p = makePayload("card_hold_placed", {
+        holdAmountUsd: 10.00,
+    });
+    const r = makeRecipient({ name: "Bob" });
+    const result = renderEmailByType(p, r);
+
+    assertEquals(result !== null, true);
+    assertStringIncludes(result!.subject, "$10.00");
+    assertStringIncludes(result!.htmlBody, "$10.00");
+    // Should NOT contain card row if no last4
+    assertEquals(result!.htmlBody.includes("••••"), false);
+});
+
+Deno.test("card_hold_placed — falls back to dollarAmount if no holdAmountUsd", () => {
+    const p = makePayload("card_hold_placed", {
+        dollarAmount: 15.75,
+    });
+    const r = makeRecipient({});
+    const result = renderEmailByType(p, r);
+
+    assertStringIncludes(result!.subject, "$15.75");
+    assertStringIncludes(result!.htmlBody, "$15.75");
+});
+
+// =============================================================================
+// (w) Card Charged (Settlement Capture)
+// =============================================================================
+
+Deno.test("card_charged — shows charge amount and settlement date", () => {
+    const p = makePayload("card_charged", {
+        chargeAmountUsd: 42.99,
+    });
+    const r = makeRecipient({ name: "Alice" });
+    const result = renderEmailByType(p, r);
+
+    assertEquals(result !== null, true);
+    assertStringIncludes(result!.subject, "Card Charged");
+    assertStringIncludes(result!.subject, "$42.99");
+    assertStringIncludes(result!.htmlBody, "Hi Alice,");
+    assertStringIncludes(result!.htmlBody, "$42.99");
+    assertStringIncludes(result!.htmlBody, "Charge Amount");
+    assertStringIncludes(result!.htmlBody, "Settlement Date");
+    assertStringIncludes(result!.htmlBody, "daily settlement");
+    assertStringIncludes(result!.htmlBody, "View Earnings");
+});
+
+Deno.test("card_charged — falls back to dollarAmount", () => {
+    const p = makePayload("card_charged", {
+        dollarAmount: 8.50,
+    });
+    const r = makeRecipient({});
+    const result = renderEmailByType(p, r);
+
+    assertStringIncludes(result!.subject, "$8.50");
+});
+
+// =============================================================================
+// (x) Order Cancelled — Seller Notification
+// =============================================================================
+
+Deno.test("order_cancelled_seller — shows product and buyer info", () => {
+    const p = makePayload("order_cancelled_seller", {
+        product: "Tomatoes",
+        quantity: 5,
+        unit: "lb",
+        buyerName: "Alice",
+    });
+    const r = makeRecipient({ name: "Bob" });
+    const result = renderEmailByType(p, r);
+
+    assertEquals(result !== null, true);
+    assertStringIncludes(result!.subject, "Order Cancelled");
+    assertStringIncludes(result!.subject, "Tomatoes");
+    assertStringIncludes(result!.htmlBody, "Hi Bob,");
+    assertStringIncludes(result!.htmlBody, "Tomatoes");
+    assertStringIncludes(result!.htmlBody, "Alice");
+    assertStringIncludes(result!.htmlBody, "5 lb");
+    assertStringIncludes(result!.htmlBody, "No further action");
+    assertStringIncludes(result!.htmlBody, "View Orders");
+});
+
+Deno.test("order_cancelled_seller — works without buyer name", () => {
+    const p = makePayload("order_cancelled_seller", {
+        product: "Herbs",
+    });
+    const r = makeRecipient({ name: "Seller" });
+    const result = renderEmailByType(p, r);
+
+    assertEquals(result !== null, true);
+    assertStringIncludes(result!.subject, "Herbs");
+    // Should not have a Buyer row in the info card
+    assertEquals(result!.htmlBody.includes("Buyer"), false);
+});
+
+Deno.test("order_cancelled_seller — uses grey gradient header", () => {
+    const p = makePayload("order_cancelled_seller", {
+        product: "Lettuce",
+    });
+    const r = makeRecipient({});
+    const result = renderEmailByType(p, r);
+
+    assertStringIncludes(result!.htmlBody, "#6b7280");
+    assertStringIncludes(result!.htmlBody, "🔄");
+});
+
+// =============================================================================
+// (y) Capture Failed — Payment Issue
+// =============================================================================
+
+Deno.test("capture_failed — shows amount due and action steps", () => {
+    const p = makePayload("capture_failed", {
+        dollarAmount: 35.00,
+        cardLast4: "1234",
+    });
+    const r = makeRecipient({ name: "Alice" });
+    const result = renderEmailByType(p, r);
+
+    assertEquals(result !== null, true);
+    assertStringIncludes(result!.subject, "Payment Issue");
+    assertStringIncludes(result!.subject, "Please Update Card");
+    assertStringIncludes(result!.htmlBody, "Hi Alice,");
+    assertStringIncludes(result!.htmlBody, "$35.00");
+    assertStringIncludes(result!.htmlBody, "•••• 1234");
+    assertStringIncludes(result!.htmlBody, "unable to charge");
+    assertStringIncludes(result!.htmlBody, "What to do:");
+    assertStringIncludes(result!.htmlBody, "Update Payment Method");
+    assertStringIncludes(result!.htmlBody, "/profile");
+});
+
+Deno.test("capture_failed — uses warning gradient header", () => {
+    const p = makePayload("capture_failed", {
+        dollarAmount: 10.00,
+    });
+    const r = makeRecipient({});
+    const result = renderEmailByType(p, r);
+
+    assertStringIncludes(result!.htmlBody, "#fef3c7");
+    assertStringIncludes(result!.htmlBody, "⚠️");
+    assertStringIncludes(result!.htmlBody, "#92400e");
+});
+
+Deno.test("capture_failed — shows steps as ordered list", () => {
+    const p = makePayload("capture_failed", {
+        dollarAmount: 20.00,
+    });
+    const r = makeRecipient({});
+    const result = renderEmailByType(p, r);
+
+    assertStringIncludes(result!.htmlBody, "update your payment method");
+    assertStringIncludes(result!.htmlBody, "retried automatically");
+    assertStringIncludes(result!.htmlBody, "won't be able to place new orders");
+});
+
+// =============================================================================
+// (z) Dispute Closed — Admin Notification
+// =============================================================================
+
+Deno.test("dispute_closed — won: shows green result and fee note", () => {
+    const p = makePayload("dispute_closed", {
+        dollarAmount: 50.00,
+        disputeWon: true,
+        disputeFeeUsd: 15,
+    });
+    const r = makeRecipient({ name: "Admin" });
+    const result = renderEmailByType(p, r);
+
+    assertEquals(result !== null, true);
+    assertStringIncludes(result!.subject, "✅");
+    assertStringIncludes(result!.subject, "Won");
+    assertStringIncludes(result!.subject, "$50.00");
+    assertStringIncludes(result!.htmlBody, "Hi Admin,");
+    assertStringIncludes(result!.htmlBody, "resolved in our favor");
+    assertStringIncludes(result!.htmlBody, "$15.00");
+    assertStringIncludes(result!.htmlBody, "permanent");
+    assertStringIncludes(result!.htmlBody, "-$15.00 (fee only)");
+    // Uses green header gradient
+    assertStringIncludes(result!.htmlBody, "#15803d");
+});
+
+Deno.test("dispute_closed — lost: shows red result and total impact", () => {
+    const p = makePayload("dispute_closed", {
+        dollarAmount: 50.00,
+        disputeWon: false,
+        disputeFeeUsd: 15,
+    });
+    const r = makeRecipient({ name: "Admin" });
+    const result = renderEmailByType(p, r);
+
+    assertStringIncludes(result!.subject, "❌");
+    assertStringIncludes(result!.subject, "Lost");
+    assertStringIncludes(result!.htmlBody, "was lost");
+    assertStringIncludes(result!.htmlBody, "-$65.00");
+    // Uses red header gradient
+    assertStringIncludes(result!.htmlBody, "#991b1b");
+});
+
+Deno.test("dispute_closed — defaults to lost when disputeWon not set", () => {
+    const p = makePayload("dispute_closed", {
+        dollarAmount: 25.00,
+    });
+    const r = makeRecipient({});
+    const result = renderEmailByType(p, r);
+
+    assertStringIncludes(result!.subject, "❌");
+    assertStringIncludes(result!.subject, "Lost");
+});
+
+Deno.test("dispute_closed — info card shows all rows", () => {
+    const p = makePayload("dispute_closed", {
+        dollarAmount: 100.00,
+        disputeWon: true,
+        disputeFeeUsd: 15,
+    });
+    const r = makeRecipient({});
+    const result = renderEmailByType(p, r);
+
+    assertStringIncludes(result!.htmlBody, "Result");
+    assertStringIncludes(result!.htmlBody, "Disputed Amount");
+    assertStringIncludes(result!.htmlBody, "Dispute Fee");
+    assertStringIncludes(result!.htmlBody, "Net Impact");
+    assertStringIncludes(result!.htmlBody, "View Disputes");
+});
+
+// =============================================================================
+// Template Structure — includes new types
 // =============================================================================
 
 Deno.test("all emails contain branded wrapper elements", () => {
@@ -390,6 +637,11 @@ Deno.test("all emails contain branded wrapper elements", () => {
         "tax_threshold_warning",
         "delegation_revoked",
         "delegation_accepted",
+        "card_hold_placed",
+        "card_charged",
+        "order_cancelled_seller",
+        "capture_failed",
+        "dispute_closed",
     ];
 
     for (const type of types) {
@@ -403,20 +655,22 @@ Deno.test("all emails contain branded wrapper elements", () => {
             delegatorName: "Test",
             delegateName: "Test",
             revokedBy: "delegator",
+            holdAmountUsd: 10,
+            chargeAmountUsd: 10,
+            dollarAmount: 10,
+            disputeWon: true,
         });
         const r = makeRecipient({});
         const result = renderEmailByType(p, r);
 
         assertEquals(result !== null, true, `Type ${type} returned null`);
-        assertStringIncludes(
-            result!.htmlBody,
-            "CasaGrown",
-            `Type ${type} missing CasaGrown branding`,
-        );
-        assertStringIncludes(
-            result!.htmlBody,
-            "logo.png",
-            `Type ${type} missing logo`,
+        // Emails use either a logo image (with "CasaGrown" alt text) or an emoji header
+        const hasLogo = result!.htmlBody.includes("logo.png");
+        const hasEmojiHeader = result!.htmlBody.includes("font-size: 48px");
+        assertEquals(
+            hasLogo || hasEmojiHeader,
+            true,
+            `Type ${type} missing logo or emoji header`,
         );
         assertStringIncludes(
             result!.htmlBody,
@@ -430,3 +684,4 @@ Deno.test("all emails contain branded wrapper elements", () => {
         );
     }
 });
+

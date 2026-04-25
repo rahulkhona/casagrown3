@@ -1,5 +1,5 @@
 /**
- * webhook-paypal — Supabase Edge Function
+ * webhook-paypal - Supabase Edge Function
  *
  * Receives webhook events from PayPal when payout items succeed, fail, or are blocked.
  *
@@ -185,7 +185,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         }
 
         case "PAYMENT.PAYOUTS-ITEM.UNCLAIMED": {
-            // Payout sent but recipient hasn't claimed — notify user
+            // Payout sent but recipient hasn't claimed - notify user
             await supabase.from("redemptions").update({
                 metadata: {
                     ...redemption.metadata,

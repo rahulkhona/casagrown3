@@ -1,5 +1,5 @@
 /**
- * webhook-tremendous — Supabase Edge Function
+ * webhook-tremendous - Supabase Edge Function
  *
  * Receives webhook events from Tremendous when gift card rewards are delivered or fail.
  *

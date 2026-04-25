@@ -1,5 +1,5 @@
 /**
- * webhook-reloadly — Supabase Edge Function
+ * webhook-reloadly - Supabase Edge Function
  *
  * Receives webhook callbacks from Reloadly when gift card transactions complete or fail.
  *

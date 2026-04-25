@@ -114,11 +114,14 @@ export default function ProductListingCard({ productId, messageContent, currentU
       setLoading(false)
 
       if (prod && b && onShareDataLoaded) {
-        const fulfillmentText = b.offers_delivery && b.offers_pickup 
+        // Derive from product-level overrides: null = disabled
+        const offersDelivery = prod.product_delivery_windows !== null && b.offers_delivery
+        const offersPickup = prod.product_pickup_windows !== null && b.offers_pickup
+        const fulfillmentText = offersDelivery && offersPickup 
           ? `🚗 Delivery or 📍 Pickup near ${b.pickup_display_address || anonymizeAddress(b.pickup_address) || 'you'}`
-          : b.offers_delivery 
+          : offersDelivery 
             ? `🚗 Delivery near ${b.pickup_display_address || anonymizeAddress(b.pickup_address) || 'you'}`
-            : b.offers_pickup 
+            : offersPickup 
               ? `📍 Pickup near ${b.pickup_display_address || anonymizeAddress(b.pickup_address) || 'you'}`
               : '📍 Available nearby'
         
@@ -167,14 +170,18 @@ export default function ProductListingCard({ productId, messageContent, currentU
   }, [product, booth]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Compute distance when both locations are available
+  // Derive product-level fulfillment: null = disabled
+  const productOffersDelivery = product?.product_delivery_windows !== null && !!booth?.offers_delivery
+  const productOffersPickup = product?.product_pickup_windows !== null && !!booth?.offers_pickup
+
   useEffect(() => {
     if (buyerLat == null || buyerLng == null || sellerLat == null || sellerLng == null) return
     const dist = metersToMiles(haversineMeters(buyerLat, buyerLng, sellerLat, sellerLng))
     setDistanceMiles(Math.round(dist * 10) / 10)
-    if (booth?.offers_delivery) {
-      setWithinDelivery(dist <= (booth.delivery_radius_miles || 5))
+    if (productOffersDelivery) {
+      setWithinDelivery(dist <= (booth?.delivery_radius_miles || 5))
     }
-  }, [buyerLat, buyerLng, sellerLat, sellerLng, booth?.delivery_radius_miles, booth?.offers_delivery])
+  }, [buyerLat, buyerLng, sellerLat, sellerLng, booth?.delivery_radius_miles, productOffersDelivery])
 
   // Handle alternative address check
   const handleCheckAddress = async () => {
@@ -298,7 +305,7 @@ export default function ProductListingCard({ productId, messageContent, currentU
         {/* Fulfillment options */}
         {booth && (
           <div className={styles.plcFulfillment}>
-            {booth.offers_delivery && (
+            {productOffersDelivery && (
               <div className={`${styles.plcFulfillmentOption} ${withinDelivery === true ? styles.plcFulfillmentOk : withinDelivery === false ? styles.plcFulfillmentNo : ''}`}>
                 <span className={styles.plcFulfillmentIcon}>🚗</span>
                 <div className={styles.plcFulfillmentText}>
@@ -372,7 +379,7 @@ export default function ProductListingCard({ productId, messageContent, currentU
               </div>
             )}
 
-            {booth.offers_pickup && (
+            {productOffersPickup && (
               <div className={styles.plcFulfillmentOption}>
                 <span className={styles.plcFulfillmentIcon}>📍</span>
                 <div className={styles.plcFulfillmentText}>

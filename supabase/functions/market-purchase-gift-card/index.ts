@@ -1,10 +1,10 @@
 /**
- * market-purchase-gift-card — Edge Function for purchasing gift cards with market earnings
+ * market-purchase-gift-card - Edge Function for purchasing gift cards with market earnings
  *
  * Flow:
  * 1. Validate user's available market balance
  * 2. Look up brand in cached catalog to find available providers
- * 3. Pick cheapest provider (Tremendous first — free, Reloadly as fallback)
+ * 3. Pick cheapest provider (Tremendous first - free, Reloadly as fallback)
  * 4. If Reloadly: compute net fee = fee − discount. Add to cost if > 0
  * 5. Atomically debit market balance via debit_market_balance RPC
  * 6. Place order with selected provider
@@ -141,7 +141,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
   if (!selectedProvider) {
     return jsonError(
-      "No gift card provider available — API keys not configured",
+      "No gift card provider available - API keys not configured",
       corsHeaders,
     );
   }
@@ -332,7 +332,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   }
 
   if (isQueuing || externalErrorMsg) {
-    // Provider failed or queue is explicitly on — queue for retry
+    // Provider failed or queue is explicitly on - queue for retry
     const finalReason = externalErrorMsg ||
       "Queue is currently enabled for this instrument";
 

@@ -179,8 +179,8 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
 
     // ── In-app notification for seller ──────────────────────────────────
     getUserDisplayName(supabase, buyerId).then(async (buyerName: string) => {
-        // 1. Insert into notifications table (powers in-app bell + panel)
-        await supabase.from("notifications").insert({
+        // 1. Insert into market_notifications table (powers in-app bell + panel)
+        await supabase.from("market_notifications").insert({
             user_id: sellerId,
             content:
                 `🛒 New Order! ${buyerName} ordered ${quantity} ${product}`,

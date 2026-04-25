@@ -61,6 +61,9 @@ interface TransactionSummary {
   total_earned_usd: number
   total_spent_usd: number
   total_withdrawn_usd: number
+  unsettled_sales_usd?: number
+  unsettled_purchases_usd?: number
+  unsettled_order_count?: number
 }
 
 type Tab = 'activity' | 'pending' | 'summary'

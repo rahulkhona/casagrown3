@@ -74,7 +74,8 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
         body = "Sent you a message";
     }
 
-    await sendPushNotification(supabase, {
+    // 5. Send push notification
+    const pushResult = await sendPushNotification(supabase, {
         userIds: [recipientId],
         title,
         body,
@@ -88,6 +89,52 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
         content: `💬 ${title}: ${body}`,
         link_url: `/messages/${conversationId}`
     });
+
+    // GAP-8: Email fallback if recipient has no push subscription
+    // Batched: only send if no DM email was sent in the last hour
+    try {
+        const { data: hasPush } = await supabase
+            .from("push_subscriptions")
+            .select("id")
+            .eq("user_id", recipientId)
+            .limit(1);
+
+        if (!hasPush || hasPush.length === 0) {
+            // Check if we already sent a DM email to this user in the last hour
+            const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+            const { data: recentEmail } = await supabase
+                .from("market_notifications")
+                .select("id")
+                .eq("user_id", recipientId)
+                .like("content", "💬 %")
+                .gte("created_at", oneHourAgo)
+                .limit(2);
+
+            // Only send email if this is the first DM notification in the last hour
+            // (recentEmail includes the one we just inserted above, so check for <= 1)
+            if (!recentEmail || recentEmail.length <= 1) {
+                const { data: emailData } = await supabase
+                    .rpc("get_user_email", { p_user_id: recipientId });
+                const recipientName = await getUserDisplayName(supabase, recipientId);
+
+                if (emailData) {
+                    await supabase.functions.invoke("send-notification-email", {
+                        body: {
+                            type: "chat_initiated",
+                            recipients: [{ email: emailData, name: recipientName }],
+                            senderName: title,
+                            messagePreview: body,
+                        },
+                    });
+                    console.log(`📧 DM email sent to ${recipientId} (no push subscription)`);
+                }
+            } else {
+                console.log(`📧 DM email batched for ${recipientId} (recent email exists)`);
+            }
+        }
+    } catch (emailErr) {
+        console.warn("DM email fallback failed:", emailErr);
+    }
 
     console.log(
         `📬 DM notification: ${title} → 1 recipient in ${conversationId}`,

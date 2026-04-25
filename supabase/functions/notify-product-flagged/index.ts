@@ -74,7 +74,7 @@ Deno.serve(async (req: Request) => {
                 <ol style="margin: 0; padding-left: 20px; color: #78350f; font-size: 14px; line-height: 1.8;">
                   <li>Review your listing for any guideline issues</li>
                   <li>Edit the name, photos, or description to address the concern</li>
-                  <li>Save — your listing will be automatically re-reviewed and republished</li>
+                  <li>Save - your listing will be automatically re-reviewed and republished</li>
                 </ol>
               </div>
 

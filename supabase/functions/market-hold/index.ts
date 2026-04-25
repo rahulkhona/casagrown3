@@ -380,6 +380,40 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         `card: $${(holdAmountCents / 100).toFixed(2)}, balance: $${(balanceAppliedCents / 100).toFixed(2)}`,
     );
 
+    // GAP-1: Notify buyer that a hold has been placed on their card
+    try {
+        // In-app notification
+        await supabase.from("market_notifications").insert({
+            user_id: buyerId,
+            content: `💳 A hold of $${(holdAmountCents / 100).toFixed(2)} has been placed on your card for your market purchases.`,
+            link_url: "/earnings",
+        });
+
+        // Typed email via send-notification-email
+        const { data: profile } = await supabase
+            .from("profiles").select("full_name").eq("id", buyerId).single();
+        const { data: emailData } = await supabase
+            .rpc("get_user_email", { p_user_id: buyerId });
+
+        if (emailData) {
+            // Extract last4 from Stripe PI if available
+            const cardLast4 = piData.payment_method_options?.card?.last4 ||
+                piData.charges?.data?.[0]?.payment_method_details?.card?.last4 || "";
+
+            await supabase.functions.invoke("send-notification-email", {
+                body: {
+                    type: "card_hold_placed",
+                    recipients: [{ email: emailData, name: profile?.full_name || "there" }],
+                    holdAmountUsd: holdAmountCents / 100,
+                    cardLast4,
+                },
+            });
+        }
+    } catch (notifErr) {
+        // Non-critical — don't fail the hold
+        console.warn("Hold notification failed:", notifErr);
+    }
+
     return jsonOk({
         clientSecret: piData.client_secret,
         holdId: hold.id,

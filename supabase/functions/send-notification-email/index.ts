@@ -1,5 +1,5 @@
 /**
- * send-notification-email — Unified CasaGrown Email Notification Edge Function
+ * send-notification-email - Unified CasaGrown Email Notification Edge Function
  *
  * Handles ALL platform email notifications via a `type` discriminator.
  * Called by DB triggers via net.http_post or directly from other edge functions.
@@ -49,7 +49,12 @@ export type EmailType =
     | "abandoned_profile"
     | "credit_granted"
     | "credit_expiring"
-    | "credit_expired";
+    | "credit_expired"
+    | "card_hold_placed"
+    | "card_charged"
+    | "order_cancelled_seller"
+    | "capture_failed"
+    | "dispute_closed";
 
 export interface EmailRecipient {
     email: string;
@@ -121,6 +126,12 @@ export interface NotificationPayload {
     creditUsageRules?: string; // pre-built human-readable rules from DB
     creditRemainingUsd?: number;
     creditDaysLeft?: number;
+    // Card / payment fields
+    holdAmountUsd?: number;
+    chargeAmountUsd?: number;
+    // Dispute closed fields
+    disputeWon?: boolean;
+    disputeFeeUsd?: number;
 }
 
 // =============================================================================
@@ -133,7 +144,7 @@ serveWithCors(async (req, { corsHeaders, env }) => {
 
     if (!isServiceRole) {
         return jsonError(
-            "Unauthorized — service_role required",
+            "Unauthorized - service_role required",
             corsHeaders,
             401,
         );
@@ -236,6 +247,16 @@ export function renderEmailByType(
             return renderCreditExpiring(payload, recipient);
         case "credit_expired":
             return renderCreditExpired(payload, recipient);
+        case "card_hold_placed":
+            return renderCardHoldPlaced(payload, recipient);
+        case "card_charged":
+            return renderCardCharged(payload, recipient);
+        case "order_cancelled_seller":
+            return renderOrderCancelledSeller(payload, recipient);
+        case "capture_failed":
+            return renderCaptureFailed(payload, recipient);
+        case "dispute_closed":
+            return renderDisputeClosed(payload, recipient);
         default:
             return null;
     }
@@ -251,8 +272,8 @@ function renderOrderPlaced(
 ): { subject: string; htmlBody: string } {
     const isBuyer = r.email === p.buyerEmail;
     const subject = isBuyer
-        ? `Order Placed — ${p.product} | CasaGrown`
-        : `New Order — ${p.product} | CasaGrown`;
+        ? `Order Placed - ${p.product} | CasaGrown`
+        : `New Order - ${p.product} | CasaGrown`;
     const greeting = `Hi ${r.name || "there"},`;
 
     let bodyHtml: string;
@@ -315,7 +336,7 @@ function renderOfferMade(
     p: NotificationPayload,
     r: EmailRecipient,
 ): { subject: string; htmlBody: string } {
-    const subject = `New Offer on Your Post — ${p.product} | CasaGrown`;
+    const subject = `New Offer on Your Post - ${p.product} | CasaGrown`;
     const greeting = `Hi ${r.name || "there"},`;
 
     const bodyHtml = `
@@ -368,7 +389,7 @@ function renderOrderDisputed(
     p: NotificationPayload,
     r: EmailRecipient,
 ): { subject: string; htmlBody: string } {
-    const subject = `Order Disputed — ${p.product} | CasaGrown`;
+    const subject = `Order Disputed - ${p.product} | CasaGrown`;
     const greeting = `Hi ${r.name || "there"},`;
 
     const bodyHtml = `
@@ -411,7 +432,7 @@ function renderDisputeResolved(
     p: NotificationPayload,
     r: EmailRecipient,
 ): { subject: string; htmlBody: string } {
-    const subject = `Dispute Resolved — ${p.product} | CasaGrown`;
+    const subject = `Dispute Resolved - ${p.product} | CasaGrown`;
     const greeting = `Hi ${r.name || "there"},`;
 
     const discountRow = p.refundAmount
@@ -500,7 +521,7 @@ function renderPointsPurchase(
     p: NotificationPayload,
     r: EmailRecipient,
 ): { subject: string; htmlBody: string } {
-    const subject = `Payment Confirmation — ${
+    const subject = `Payment Confirmation - ${
         p.pointsAmount || 0
     } Points Purchased | CasaGrown`;
     const greeting = `Hi ${r.name || "there"},`;
@@ -562,13 +583,13 @@ function renderPointsRedemption(
 
     const subject = isGiftCard
         ? `Redeemed: ${brand} $${faceValue.toFixed(0)} Gift Card | CasaGrown`
-        : `Redemption Confirmed — ${method} | CasaGrown`;
+        : `Redemption Confirmed - ${method} | CasaGrown`;
     const greeting = `Hi ${r.name || "there"},`;
 
     let bodyHtml: string;
 
     if (isGiftCard) {
-        // Gift card redemption — include link to gift card + transaction log
+        // Gift card redemption - include link to gift card + transaction log
         bodyHtml = `
 <p style="margin: 0 0 16px; font-size: 13px; color: #666666; line-height: 1.6;">
 Your gift card redemption has been completed. Here are your details.
@@ -661,7 +682,7 @@ function renderPointsRefund(
         : null;
     const subject = cardInfo
         ? `Refund to ${cardInfo} | CasaGrown`
-        : `Points Return — ${p.pointsAmount || 0} pts | CasaGrown`;
+        : `Points Return - ${p.pointsAmount || 0} pts | CasaGrown`;
     const greeting = `Hi ${r.name || "there"},`;
 
     const bodyHtml = `
@@ -724,7 +745,7 @@ function renderTaxThresholdWarning(
     p: NotificationPayload,
     r: EmailRecipient,
 ): { subject: string; htmlBody: string } {
-    const subject = `Important Tax Information — Your CasaGrown Earnings`;
+    const subject = `Important Tax Information - Your CasaGrown Earnings`;
     const greeting = `Hi ${r.name || "there"},`;
 
     const bodyHtml = `
@@ -772,7 +793,7 @@ function renderDelegationRevoked(
     const otherParty = r.email === p.buyerEmail
         ? p.sellerName
         : (p.revokedBy === "delegator" ? p.delegatorName : p.delegateName);
-    const subject = `Delegation Ended — ${otherParty || "Partner"} | CasaGrown`;
+    const subject = `Delegation Ended - ${otherParty || "Partner"} | CasaGrown`;
     const greeting = `Hi ${r.name || "there"},`;
 
     const bodyHtml = `
@@ -828,7 +849,7 @@ function renderDelegationAccepted(
     p: NotificationPayload,
     r: EmailRecipient,
 ): { subject: string; htmlBody: string } {
-    const subject = `Delegation Accepted — ${
+    const subject = `Delegation Accepted - ${
         p.delegateName || "Your delegate"
     } is now selling for you | CasaGrown`;
     const greeting = `Hi ${r.name || "there"},`;
@@ -877,7 +898,7 @@ function renderOrderDelivered(
     p: NotificationPayload,
     r: EmailRecipient,
 ): { subject: string; htmlBody: string } {
-    const subject = `Order Delivered — ${p.product} | CasaGrown`;
+    const subject = `Order Delivered - ${p.product} | CasaGrown`;
     const greeting = `Hi ${r.name || "there"},`;
 
     const bodyHtml = `
@@ -902,7 +923,7 @@ function renderRefundOffer(
     p: NotificationPayload,
     r: EmailRecipient,
 ): { subject: string; htmlBody: string } {
-    const subject = `Refund Offer Received — ${p.product} | CasaGrown`;
+    const subject = `Refund Offer Received - ${p.product} | CasaGrown`;
     const greeting = `Hi ${r.name || "there"},`;
     
     // Uses the amber yellow gradient styling
@@ -967,7 +988,7 @@ function renderFollowedSellerAddsItem(
 <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:16px; margin:16px 0;">
   <p style="color:#166534; font-size:16px; margin:0; font-weight:600">🌱 ${p.sellerName} Added New Items!</p>
   <p style="color:#374151; font-size:13px; margin:8px 0 0;">
-    <strong>${p.product}</strong> — ${p.pointsPerUnit} pts/${p.unit}
+    <strong>${p.product}</strong> - ${p.pointsPerUnit} pts/${p.unit}
   </p>
 </div>
 ${actionButton("View Booth", `${SITE_URL}/market`)}
@@ -1193,7 +1214,7 @@ function renderCreditGranted(
 
     const bodyHtml = `
 <p style="margin: 0 0 16px; font-size: 13px; color: #666666; line-height: 1.6;">
-You've been awarded <strong>$${amount.toFixed(2)}</strong> in ${creditType.replace("_", " ")} credits${p.creditReason ? ` — ${p.creditReason}` : ""}.
+You've been awarded <strong>$${amount.toFixed(2)}</strong> in ${creditType.replace("_", " ")} credits${p.creditReason ? ` - ${p.creditReason}` : ""}.
 </p>
 ${infoCard([
     { label: "Credit Amount", value: `$${amount.toFixed(2)}` },
@@ -1322,6 +1343,218 @@ ${actionButton("View Earnings", `${SITE_URL}/earnings`)}`;
             bodyHtml,
             headerGradient: "linear-gradient(135deg, #6b7280 0%, #9ca3af 50%, #d1d5db 100%)",
             headerEmoji: "❌",
+        }),
+    };
+}
+
+// =============================================================================
+// (v) Card Hold Placed
+// =============================================================================
+
+function renderCardHoldPlaced(
+    p: NotificationPayload,
+    r: EmailRecipient,
+): { subject: string; htmlBody: string } {
+    const amount = p.holdAmountUsd || p.dollarAmount || 0;
+    const subject = `💳 Payment Hold - $${amount.toFixed(2)} | CasaGrown`;
+    const greeting = `Hi ${r.name || "there"},`;
+
+    const bodyHtml = `
+<p style="margin: 0 0 16px; font-size: 13px; color: #666666; line-height: 1.6;">
+  A hold of <strong>$${amount.toFixed(2)}</strong> has been placed on your card for your market purchases.
+</p>
+${infoCard([
+    { label: "Hold Amount", value: `$${amount.toFixed(2)}` },
+    ...(p.cardLast4 ? [{ label: "Card", value: `•••• ${p.cardLast4}` }] : []),
+])}
+<div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px; margin: 16px 0;">
+  <p style="margin: 0; font-size: 13px; color: #1e40af; line-height: 1.6;">
+    <strong>What does this mean?</strong> This is a temporary authorization, not a charge.
+    Your card will only be charged at the end of the day during settlement for completed orders.
+    Any unused hold amount will be released automatically.
+  </p>
+</div>
+${actionButton("View Earnings", `${SITE_URL}/earnings`)}`;
+
+    return {
+        subject,
+        htmlBody: wrapInBrandedTemplate({
+            title: "Payment Hold",
+            greeting,
+            bodyHtml,
+            headerEmoji: "💳",
+        }),
+    };
+}
+
+// =============================================================================
+// (w) Card Charged (Settlement Capture)
+// =============================================================================
+
+function renderCardCharged(
+    p: NotificationPayload,
+    r: EmailRecipient,
+): { subject: string; htmlBody: string } {
+    const amount = p.chargeAmountUsd || p.dollarAmount || 0;
+    const subject = `💳 Card Charged - $${amount.toFixed(2)} | CasaGrown`;
+    const greeting = `Hi ${r.name || "there"},`;
+
+    const bodyHtml = `
+<p style="margin: 0 0 16px; font-size: 13px; color: #666666; line-height: 1.6;">
+  Your card has been charged <strong>$${amount.toFixed(2)}</strong> for your completed market orders.
+  This charge reflects the daily settlement of your purchases.
+</p>
+${infoCard([
+    { label: "Charge Amount", value: `$${amount.toFixed(2)}` },
+    { label: "Settlement Date", value: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) },
+])}
+<p style="margin: 16px 0 0; font-size: 13px; color: #6b7280; line-height: 1.6;">
+  You can view a breakdown of all charges in your Earnings section.
+</p>
+${actionButton("View Earnings", `${SITE_URL}/earnings`)}`;
+
+    return {
+        subject,
+        htmlBody: wrapInBrandedTemplate({
+            title: "Card Charged",
+            greeting,
+            bodyHtml,
+            headerEmoji: "💳",
+        }),
+    };
+}
+
+// =============================================================================
+// (x) Order Cancelled - Seller Notification
+// =============================================================================
+
+function renderOrderCancelledSeller(
+    p: NotificationPayload,
+    r: EmailRecipient,
+): { subject: string; htmlBody: string } {
+    const subject = `Order Cancelled - ${p.product} | CasaGrown`;
+    const greeting = `Hi ${r.name || "there"},`;
+
+    const bodyHtml = `
+<p style="margin: 0 0 16px; font-size: 13px; color: #666666; line-height: 1.6;">
+  An order for <strong>${p.quantity || ""} ${p.unit || ""} of ${p.product}</strong>
+  has been cancelled.
+</p>
+${infoCard([
+    { label: "Product", value: p.product || "N/A" },
+    ...(p.quantity ? [{ label: "Quantity", value: `${p.quantity} ${p.unit || ""}` }] : []),
+    ...(p.buyerName ? [{ label: "Buyer", value: p.buyerName }] : []),
+])}
+<p style="margin: 16px 0 0; font-size: 13px; color: #6b7280; line-height: 1.6;">
+  No further action is needed on your part. Your available inventory has been updated.
+</p>
+${actionButton("View Orders", `${SITE_URL}/orders`)}`;
+
+    return {
+        subject,
+        htmlBody: wrapInBrandedTemplate({
+            title: "Order Cancelled",
+            greeting,
+            bodyHtml,
+            headerGradient: "linear-gradient(135deg, #6b7280 0%, #9ca3af 50%, #d1d5db 100%)",
+            headerEmoji: "🔄",
+        }),
+    };
+}
+
+// =============================================================================
+// (y) Capture Failed - Payment Issue
+// =============================================================================
+
+function renderCaptureFailed(
+    p: NotificationPayload,
+    r: EmailRecipient,
+): { subject: string; htmlBody: string } {
+    const amount = p.dollarAmount || 0;
+    const subject = `⚠️ Payment Issue - Please Update Card | CasaGrown`;
+    const greeting = `Hi ${r.name || "there"},`;
+
+    const warningGradient = "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)";
+
+    const bodyHtml = `
+<div style="margin: 0 0 16px; padding: 16px; background: #fef2f2; border: 1px solid #fca5a5; border-radius: 10px;">
+  <p style="margin: 0; font-size: 14px; color: #991b1b; line-height: 1.6;">
+    We were unable to charge <strong>$${amount.toFixed(2)}</strong> from your card.
+    Please update your payment method to continue using the market.
+  </p>
+</div>
+${infoCard([
+    { label: "Amount Due", value: `$${amount.toFixed(2)}` },
+    ...(p.cardLast4 ? [{ label: "Card", value: `•••• ${p.cardLast4}` }] : []),
+])}
+<div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 16px; margin: 20px 0;">
+  <p style="margin: 0 0 8px 0; font-weight: 600; color: #92400e;">What to do:</p>
+  <ol style="margin: 0; padding-left: 20px; color: #78350f; font-size: 14px; line-height: 1.8;">
+    <li>Go to your Profile and update your payment method</li>
+    <li>The outstanding amount will be retried automatically</li>
+    <li>You won't be able to place new orders until this is resolved</li>
+  </ol>
+</div>
+${actionButton("Update Payment Method", `${SITE_URL}/profile`)}`;
+
+    return {
+        subject,
+        htmlBody: wrapInBrandedTemplate({
+            title: "Payment Issue",
+            greeting,
+            bodyHtml,
+            headerGradient: warningGradient,
+            headerTextColor: "#92400e",
+            headerSubtitleColor: "#b45309",
+            headerEmoji: "⚠️",
+        }),
+    };
+}
+
+// =============================================================================
+// (z) Dispute Closed - Admin Notification
+// =============================================================================
+
+function renderDisputeClosed(
+    p: NotificationPayload,
+    r: EmailRecipient,
+): { subject: string; htmlBody: string } {
+    const amount = p.dollarAmount || 0;
+    const isWon = p.disputeWon ?? false;
+    const fee = p.disputeFeeUsd ?? 15;
+    const emoji = isWon ? "✅" : "❌";
+    const resultText = isWon ? "Won" : "Lost";
+    const subject = `${emoji} Dispute Closed: ${resultText} - $${amount.toFixed(2)} | CasaGrown`;
+    const greeting = `Hi ${r.name || "Admin"},`;
+
+    const resultDetail = isWon
+        ? `The dispute for <strong>$${amount.toFixed(2)}</strong> has been resolved in our favor. The funds have been reinstated to our account. Note: the <strong>$${fee.toFixed(2)}</strong> dispute fee is permanent and will not be returned.`
+        : `The dispute for <strong>$${amount.toFixed(2)}</strong> was lost. The disputed amount plus the <strong>$${fee.toFixed(2)}</strong> dispute fee have been deducted from our account.`;
+
+    const bodyHtml = `
+<div style="margin: 0 0 16px; padding: 16px; background: ${isWon ? "#f0fdf4" : "#fef2f2"}; border: 1px solid ${isWon ? "#bbf7d0" : "#fca5a5"}; border-radius: 10px;">
+  <p style="margin: 0; font-size: 14px; color: ${isWon ? "#166534" : "#991b1b"}; line-height: 1.6;">
+    ${resultDetail}
+  </p>
+</div>
+${infoCard([
+    { label: "Result", value: `${emoji} ${resultText}` },
+    { label: "Disputed Amount", value: `$${amount.toFixed(2)}` },
+    { label: "Dispute Fee", value: `$${fee.toFixed(2)}` },
+    { label: "Net Impact", value: isWon ? `-$${fee.toFixed(2)} (fee only)` : `-$${(amount + fee).toFixed(2)}` },
+])}
+${actionButton("View Disputes", `${SITE_URL}/disputes`)}`;
+
+    return {
+        subject,
+        htmlBody: wrapInBrandedTemplate({
+            title: `Dispute ${resultText}`,
+            greeting,
+            bodyHtml,
+            headerGradient: isWon
+                ? "linear-gradient(135deg, #15803d 0%, #16a34a 50%, #22c55e 100%)"
+                : "linear-gradient(135deg, #991b1b 0%, #dc2626 50%, #ef4444 100%)",
+            headerEmoji: emoji,
         }),
     };
 }

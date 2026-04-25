@@ -1,5 +1,5 @@
 /**
- * market-donate-earnings — Edge Function for donating market earnings to GlobalGiving
+ * market-donate-earnings - Edge Function for donating market earnings to GlobalGiving
  *
  * Flow:
  * 1. Validate user's available market balance

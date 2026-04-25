@@ -6,8 +6,8 @@
 // Called by DB triggers via net.http_post from notify_market_event().
 //
 // Required env vars (Supabase secrets):
-//   POSTMARK_SERVER_TOKEN  — Postmark server API token
-//   POSTMARK_FROM_EMAIL    — Verified sender address
+//   POSTMARK_SERVER_TOKEN  - Postmark server API token
+//   POSTMARK_FROM_EMAIL    - Verified sender address
 //
 // Falls back to Mailpit (local Docker) when POSTMARK_SERVER_TOKEN is not set.
 

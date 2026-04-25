@@ -7,7 +7,7 @@ import { sendTransactionEmail } from "../_shared/postmark.ts";
 import { wrapInBrandedTemplate, actionButton } from "../_shared/email-templates.ts";
 
 /**
- * notify-on-message — Supabase Edge Function
+ * notify-on-message - Supabase Edge Function
  *
  * Called by a Postgres trigger when a new chat message is inserted.
  * Sends a push notification to the OTHER participant in the conversation.
@@ -19,7 +19,7 @@ import { wrapInBrandedTemplate, actionButton } from "../_shared/email-templates.
  * Request body (from pg_net trigger):
  *   { messageId, conversationId, senderId (nullable), messageType }
  *
- * Uses service-role key from the trigger — no user auth required.
+ * Uses service-role key from the trigger - no user auth required.
  */
 
 serveWithCors(async (req, { supabase, corsHeaders }) => {
@@ -91,7 +91,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     const isSystemMessage = message.type === "system" || !senderId;
 
     if (isSystemMessage) {
-        // System message — order/offer state change
+        // System message - order/offer state change
         title = "CasaGrown";
         let content = message.content || "";
         content = content.replace(
@@ -103,7 +103,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
             ? content.substring(0, 117) + "..."
             : content || "Order update";
     } else {
-        // User message — look up sender name
+        // User message - look up sender name
         title = await getUserDisplayName(supabase, senderId);
 
         if (message.type === "text") {
@@ -142,7 +142,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
             tag: `chat-${conversationId}`,
         });
 
-        // Email (fire-and-forget — fetch recipient email address)
+        // Email (fire-and-forget - fetch recipient email address)
         const { data: profile } = await supabase
             .from("profiles")
             .select("email")

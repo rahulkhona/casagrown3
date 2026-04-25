@@ -129,13 +129,46 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                     retry_count: 2,
                 });
 
-                // Notify buyer
-                await supabase.from("notifications").insert({
+                // Notify buyer (GAP-9: fix table + add email + SMS)
+                await supabase.from("market_notifications").insert({
                     user_id: capture.buyer_id,
                     content: `⚠️ Payment of $${capture.capture_amount_usd.toFixed(2)} could not be processed. ` +
                         `Please update your payment method to continue using the market.`,
-                    link_url: "/earnings",
+                    link_url: "/profile",
                 });
+
+                // Typed email for capture failure
+                try {
+                    const { data: profile } = await supabase
+                        .from("profiles").select("full_name").eq("id", capture.buyer_id).single();
+                    const { data: emailData } = await supabase
+                        .rpc("get_user_email", { p_user_id: capture.buyer_id });
+
+                    if (emailData) {
+                        await supabase.functions.invoke("send-notification-email", {
+                            body: {
+                                type: "capture_failed",
+                                recipients: [{ email: emailData, name: profile?.full_name || "there" }],
+                                dollarAmount: capture.capture_amount_usd,
+                            },
+                        });
+                    }
+                } catch (emailErr) {
+                    console.warn("Capture failure email failed:", emailErr);
+                }
+
+                // SMS fallback for capture failure
+                try {
+                    await supabase.functions.invoke("send-sms-notification", {
+                        body: {
+                            userId: capture.buyer_id,
+                            message: `⚠️ CasaGrown: Payment of $${capture.capture_amount_usd.toFixed(2)} could not be processed. Please update your payment method.`,
+                            linkUrl: "/profile",
+                        },
+                    });
+                } catch (smsErr) {
+                    console.warn("Capture failure SMS failed:", smsErr);
+                }
 
                 console.error(`❌ [CAPTURE] Failed permanently: ${capture.stripe_payment_intent_id} → debt created`);
                 failed++;
