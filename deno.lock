@@ -562,7 +562,7 @@
             "npm:react-dom@19.0.0",
             "npm:react-native-web@~0.21.2",
             "npm:react-native@0.79.2",
-            "npm:react-quill@2",
+            "npm:react-quill-new@^3.8.3",
             "npm:react@19.0.0",
             "npm:tamagui@^2.0.0-rc.0",
             "npm:tree-kill@^1.2.2",

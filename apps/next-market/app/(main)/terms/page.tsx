@@ -12,7 +12,7 @@ import styles from './page.module.css'
 // Terms of Use content — matches the community app's LegalScreen.tsx
 // ---------------------------------------------------------------------------
 
-const TERMS_SECTIONS = [
+export const TERMS_SECTIONS = [
   {
     title: '1. Scope of Service & Jurisdiction',
     paragraphs: [
@@ -115,7 +115,7 @@ const TERMS_SECTIONS = [
 // Privacy Policy content
 // ---------------------------------------------------------------------------
 
-const PRIVACY_SECTIONS = [
+export const PRIVACY_SECTIONS = [
   {
     title: '1. Information Collection',
     paragraphs: [

@@ -83,6 +83,7 @@ const MENU_GROUPS: MenuGroup[] = [
     title: 'CRM & MARKETING',
     icon: Mail,
     items: [
+      { label: 'Promotions Builder', path: '/crm/promotions' },
       { label: 'Landing Pages', path: '/crm/landing-pages' },
       { label: 'Data Sources', path: '/crm/data-sources' },
       { label: 'Leads', path: '/crm/leads' },

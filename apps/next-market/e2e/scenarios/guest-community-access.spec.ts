@@ -160,7 +160,7 @@ test.describe('Guest Community Access', () => {
     await page.waitForTimeout(4000)
 
     // Community tab should be accessible (not locked) — it's a <a> not a <button>
-    const communityTab = page.locator('a[href="/community"]').first()
+    const communityTab = page.locator('a[href="/community"]:visible').first()
     await expect(communityTab).toBeVisible({ timeout: 5000 })
     // Community tab should NOT have a lock icon
     const communityLock = communityTab.locator('text=🔒')

@@ -236,3 +236,59 @@ test.describe('CRM — Audience Functions page', () => {
     await expect(page.locator('.tag-chip')).toContainText('buyers')
   })
 })
+
+test.describe('CRM — Campaigns page', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/crm/campaigns', { waitUntil: 'domcontentloaded' })
+    await page.waitForTimeout(1500)
+  })
+
+  test('Campaign builder opens and toggles HTML mode', async ({ page }) => {
+    const newBtn = page.locator('button:has-text("New Campaign")')
+    await expect(newBtn).toBeVisible()
+    await newBtn.click()
+
+    await expect(page.locator('input[placeholder="e.g. Spring Launch Email"]')).toBeVisible()
+
+    // Test audience dropdown presence
+    const audienceSelect = page.locator('select').nth(1)
+    await expect(audienceSelect).toBeVisible()
+
+    // Select Email channel to reveal WYSIWYG/Raw HTML toggles
+    await page.locator('select').nth(0).selectOption('email')
+    
+    // Select Custom HTML Mode
+    const modeSelect = page.locator('select').filter({ hasText: /Custom HTML/ })
+    if (await modeSelect.count() > 0) {
+      await modeSelect.selectOption('custom')
+      
+      const toggleWysiwyg = page.locator('button:has-text("Inline WYSIWYG")')
+      const toggleRaw = page.locator('button:has-text("Raw HTML")')
+      
+      if (await toggleWysiwyg.count() > 0) {
+        await toggleRaw.click()
+        await expect(page.locator('textarea[placeholder*="<h1>Hello"]')).toBeVisible()
+        
+        await toggleWysiwyg.click()
+        await expect(page.locator('.ql-container')).toBeVisible()
+      }
+    }
+  })
+
+  test('Delete campaign asks for confirmation', async ({ page }) => {
+    let dialogHandled = false
+    page.on('dialog', async dialog => {
+      expect(dialog.message()).toContain('Are you sure you want to delete this campaign?')
+      await dialog.dismiss()
+      dialogHandled = true
+    })
+
+    await page.waitForSelector('.crm-table')
+    const deleteBtns = page.locator('.crm-btn-danger-icon')
+    
+    if (await deleteBtns.count() > 0) {
+      await deleteBtns.first().click()
+      expect(dialogHandled).toBe(true)
+    }
+  })
+})

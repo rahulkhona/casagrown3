@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
 import { useAuth } from '../../../lib/useAuth'
 import CameraCapture from '../../../components/CameraCapture'
@@ -9,8 +10,9 @@ import { useNotificationPrompt, isNotificationsEnabled } from '../../../lib/useN
 import { NotificationPromptModal } from '../../components/NotificationPromptModal'
 import styles from './page.module.css'
 
-export default function ProfilePage() {
+function ProfilePageInner() {
   const { user, isAuthenticated, loading: authLoading } = useAuth()
+  const searchParams = useSearchParams()
   const supabase = createClient()
   const fileRef = useRef<HTMLInputElement>(null)
   const { showPrompt, modalProps } = useNotificationPrompt(user?.id)
@@ -82,6 +84,12 @@ export default function ProfilePage() {
         setLoading(false)
       })
   }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (searchParams.get('verifyPhone') === 'true') {
+      setError('Please verify your phone number below to ensure you receive order notifications.')
+    }
+  }, [searchParams])
 
   // Handle file upload from gallery
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -522,5 +530,13 @@ export default function ProfilePage() {
       </form>
       <NotificationPromptModal {...modalProps} />
     </div>
+  )
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 80, textAlign: 'center' }}>Loading...</div>}>
+      <ProfilePageInner />
+    </Suspense>
   )
 }

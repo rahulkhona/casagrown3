@@ -10,7 +10,7 @@ const supabase = createClient(
 
 type LandingPage = {
   id: string
-  name: string
+  title: string
   slug: string           // matches the URL path segment, e.g. "spring-sale"
   description: string | null
   campaign_id: string | null
@@ -18,9 +18,11 @@ type LandingPage = {
   created_at: string
 }
 
+const marketUrl = process.env.NODE_ENV === 'development' ? 'http://localhost:3001' : 'https://casagrown.com'
+
 
 const defaultForm = {
-  name:        '',
+  title:       '',
   slug:        '',
   description: '',
   is_active:   true,
@@ -48,18 +50,18 @@ export default function CrmLandingPagesPage() {
 
   const toast = (msg: string, ms = 3000) => { setMessage(msg); setTimeout(() => setMessage(''), ms) }
 
-  // Auto-derive slug from name
-  const handleNameChange = (name: string) => {
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-    setForm(f => ({ ...f, name, slug }))
+  // Auto-derive slug from title
+  const handleTitleChange = (title: string) => {
+    const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+    setForm(f => ({ ...f, title, slug }))
   }
 
   const handleCreate = async () => {
-    if (!form.name.trim() || !form.slug.trim()) return
+    if (!form.title.trim() || !form.slug.trim()) return
     setSaving(true)
 
     const { error } = await supabase.from('crm_landing_pages').insert({
-      name:        form.name,
+      title:       form.title,
       slug:        form.slug,
       description: form.description || null,
       is_active:   form.is_active,
@@ -82,7 +84,7 @@ export default function CrmLandingPagesPage() {
   }
 
   const deletePage = async (id: string) => {
-    if (!confirm('Delete this landing page record? Visit data will remain.')) return
+    if (!confirm('WARNING: Deleting this canonical landing page registry will break the URL /p/... and visitors will see a 404 error! \n\nAny active promotions tied to this page will be safely preserved in the database, but they will become "homeless" until you assign them a new URL in the Promo Builder. \n\nAre you sure you want to proceed?')) return
     await supabase.from('crm_landing_pages').delete().eq('id', id)
     setPages(prev => prev.filter(p => p.id !== id))
     toast('Landing page removed')
@@ -112,11 +114,11 @@ export default function CrmLandingPagesPage() {
 
           <div className="crm-form-grid">
             <div className="crm-field">
-              <label>Page Name *</label>
+              <label>Page Title *</label>
               <input
                 placeholder="e.g. Spring Growers Campaign"
-                value={form.name}
-                onChange={e => handleNameChange(e.target.value)}
+                value={form.title}
+                onChange={e => handleTitleChange(e.target.value)}
               />
             </div>
             <div className="crm-field">
@@ -157,7 +159,7 @@ export default function CrmLandingPagesPage() {
           </div>
 
           <div className="crm-form-actions">
-            <button className="crm-btn-primary" onClick={handleCreate} disabled={saving || !form.name || !form.slug}>
+            <button className="crm-btn-primary" onClick={handleCreate} disabled={saving || !form.title || !form.slug}>
               {saving ? 'Registering…' : 'Register Page'}
             </button>
             <button className="crm-btn-secondary" onClick={() => setCreating(false)}>Cancel</button>
@@ -191,14 +193,14 @@ export default function CrmLandingPagesPage() {
             ) : pages.map(page => (
               <tr key={page.id} data-testid={`lp-row-${page.id}`}>
                 <td>
-                  <div className="crm-name">{page.name}</div>
+                  <div className="crm-name">{page.title}</div>
                   {page.description && <div className="crm-muted">{page.description}</div>}
                 </td>
                 <td>
-                  <code className="slug-code">/{page.slug}</code>
+                  <code className="slug-code">/p/{page.slug}</code>
                   <div>
-                    <a href={`https://casagrown.com/${page.slug}`} target="_blank" rel="noreferrer" className="page-url">
-                      https://casagrown.com/{page.slug}
+                    <a href={`${marketUrl}/p/${page.slug}`} target="_blank" rel="noreferrer" className="page-url">
+                      {marketUrl.replace('https://', '')}/p/{page.slug}
                     </a>
                   </div>
                 </td>

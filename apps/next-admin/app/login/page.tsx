@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { colors } from '@casagrown/app/design-tokens'
 import { ArrowLeft, Mail } from '@tamagui/lucide-icons'
 import { useAuth } from '@casagrown/app/features/auth/auth-hook'
+import ClientOnly from '../ClientOnly'
 
 function LoginContent() {
   const router = useRouter()
@@ -183,8 +184,10 @@ function LoginContent() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<Spinner size="large" color={colors.green[600]} />}>
-        <LoginContent />
-    </Suspense>
+    <ClientOnly>
+      <Suspense fallback={<Spinner size="large" color={colors.green[600]} />}>
+          <LoginContent />
+      </Suspense>
+    </ClientOnly>
   )
 }

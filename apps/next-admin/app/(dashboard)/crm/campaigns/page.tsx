@@ -1,7 +1,11 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import dynamic from 'next/dynamic'
+import 'react-quill-new/dist/quill.snow.css'
+
+const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false })
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -48,6 +52,7 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 export default function CrmCampaignsPage() {
+  const quillRef = useRef<any>(null)
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [audiences, setAudiences] = useState<Audience[]>([])
   const [dataSources, setDataSources] = useState<DataSource[]>([])
@@ -57,7 +62,9 @@ export default function CrmCampaignsPage() {
   const [sending, setSending] = useState<string | null>(null)
   const [message, setMessage] = useState('')
 
-  const [form, setForm] = useState({
+  const [editingId, setEditingId] = useState<string | null>(null)
+
+  const emptyForm = {
     name: '',
     channel: 'email' as 'email' | 'sms',
     subject: '',
@@ -69,10 +76,90 @@ export default function CrmCampaignsPage() {
     target_cities: [] as string[],
     target_counties: [] as string[],
     target_zips: [] as string[],
-  })
+    data_source_id: '',
+    postmark_template_alias: ''
+  }
+
+  const [form, setForm] = useState(emptyForm)
+
+  const handleEdit = async (c: Campaign) => {
+    const { data } = await supabase.from('crm_campaigns').select('*').eq('id', c.id).single()
+    if (!data) return
+    setForm({
+      name: data.name,
+      channel: data.channel,
+      subject: data.subject || '',
+      content_html: data.content_html || '',
+      content_text: data.content_text || '',
+      audience_id: data.audience_id || '',
+      scheduled_at: data.scheduled_at ? new Date(data.scheduled_at).toISOString().slice(0, 16) : '',
+      target_states: data.target_states || [],
+      target_cities: data.target_cities || [],
+      target_counties: data.target_counties || [],
+      target_zips: data.target_zips || [],
+      data_source_id: data.data_source_id || '',
+      postmark_template_alias: data.postmark_template_alias || ''
+    })
+    setTemplateMode(!!data.postmark_template_alias)
+    setEditingId(c.id)
+    setCreating(true)
+  }
+
+  const deleteCampaign = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this campaign? This cannot be undone.')) return
+    await supabase.from('crm_campaigns').delete().eq('id', id)
+    const { data } = await supabase.from('crm_campaigns').select('*').order('created_at', { ascending: false })
+    if (data) setCampaigns(data as Campaign[])
+    setMessage('Campaign deleted')
+    setTimeout(() => setMessage(''), 3000)
+  }
   
   const [templateMode, setTemplateMode] = useState(false)
+  const [htmlMode, setHtmlMode] = useState<'wysiwyg' | 'raw'>('wysiwyg')
   const [addGeo, setAddGeo] = useState({ states: '', cities: '', counties: '', zips: '' })
+
+  const [assetPickerOpen, setAssetPickerOpen] = useState(false)
+  const [assets, setAssets] = useState<{name: string, url: string}[]>([])
+  const [loadingAssets, setLoadingAssets] = useState(false)
+  const quillSelectionRef = useRef<number | null>(null)
+
+  const openAssetPicker = useCallback(async () => {
+    const quill = quillRef.current?.getEditor()
+    if (quill) {
+      quillSelectionRef.current = quill.getSelection()?.index || 0
+    }
+    setAssetPickerOpen(true)
+    setLoadingAssets(true)
+    const { data, error } = await supabase.storage.from('media').list('crm', { limit: 100, sortBy: { column: 'created_at', order: 'desc' } })
+    if (data) {
+      const formatted = data.filter(f => f.name !== '.emptyFolderPlaceholder').map(f => ({
+        name: f.name,
+        url: supabase.storage.from('media').getPublicUrl(`crm/${f.name}`).data.publicUrl
+      }))
+      setAssets(formatted)
+    }
+    setLoadingAssets(false)
+  }, [])
+
+  const imageHandler = useCallback(() => {
+    openAssetPicker()
+  }, [openAssetPicker])
+
+  const quillModules = useMemo(() => ({
+    toolbar: {
+      container: [
+        [{ 'header': [1, 2, 3, false] }],
+        ['bold', 'italic', 'underline', 'strike'],
+        [{ 'color': [] }, { 'background': [] }],
+        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+        ['link', 'image'],
+        ['clean']
+      ],
+      handlers: {
+        image: imageHandler
+      }
+    }
+  }), [imageHandler])
 
   // ZIP community lookup
   type ZipResult = {
@@ -172,11 +259,10 @@ export default function CrmCampaignsPage() {
     setAddGeo(prev => ({ ...prev, [type]: '' }))
   }
 
-  const handleCreate = async () => {
+  const handleSave = async () => {
     if (!form.name.trim()) return
     setSaving(true)
-
-    const { data, error } = await supabase.from('crm_campaigns').insert({
+    const payload = {
       name: form.name,
       channel: form.channel,
       subject: templateMode ? null : (form.subject || null),
@@ -191,13 +277,29 @@ export default function CrmCampaignsPage() {
       target_states: form.target_states,
       scheduled_at: form.scheduled_at ? new Date(form.scheduled_at).toISOString() : null,
       status: form.scheduled_at ? 'scheduled' : 'draft',
-    }).select().single()
+    }
+
+    let error, data;
+    if (editingId) {
+      const res = await supabase.from('crm_campaigns').update(payload).eq('id', editingId).select().single()
+      error = res.error
+      data = res.data
+    } else {
+      const res = await supabase.from('crm_campaigns').insert(payload).select().single()
+      error = res.error
+      data = res.data
+    }
 
     if (!error && data) {
-      setCampaigns(prev => [data as Campaign, ...prev])
+      const { data: refreshed } = await supabase.from('crm_campaigns').select('*').order('created_at', { ascending: false })
+      if (refreshed) setCampaigns(refreshed as Campaign[])
       setCreating(false)
-      setForm({ name: '', channel: 'email', subject: '', content_html: '', content_text: '', audience_id: '', scheduled_at: '', target_zips: [], target_cities: [], target_counties: [], target_states: [], data_source_id: '', postmark_template_alias: '' })
-      setMessage('Campaign created')
+      setEditingId(null)
+      setForm(emptyForm)
+      setMessage(editingId ? 'Campaign updated' : 'Campaign created')
+      setTimeout(() => setMessage(''), 3000)
+    } else {
+      setMessage(`Error: ${error?.message}`)
       setTimeout(() => setMessage(''), 3000)
     }
     setSaving(false)
@@ -245,7 +347,7 @@ export default function CrmCampaignsPage() {
 
       {creating && (
         <div className="crm-form-card">
-          <h2 className="crm-form-title">Create Campaign</h2>
+          <h2 className="crm-form-title">{editingId ? 'Edit Campaign' : 'Create Campaign'}</h2>
           <div className="crm-form-grid">
             <div className="crm-field">
               <label>Campaign Name *</label>
@@ -271,6 +373,64 @@ export default function CrmCampaignsPage() {
               <div className="crm-field full-width">
                 <label>Email Subject *</label>
                 <input placeholder="e.g. Fresh produce just dropped in your area 🌱" value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} />
+              </div>
+            )}
+            
+            {form.channel === 'email' && !templateMode && (
+              <div className="crm-field full-width">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4 }}>
+                  <label>Email Content (HTML)</label>
+                  <select value={htmlMode} onChange={e => setHtmlMode(e.target.value as 'wysiwyg' | 'raw')} style={{ width: 'auto', padding: '4px 8px', fontSize: '0.8rem' }}>
+                    <option value="wysiwyg">Inline Editor (WYSIWYG)</option>
+                    <option value="raw">Raw HTML (Paste Template)</option>
+                  </select>
+                </div>
+                {htmlMode === 'wysiwyg' ? (
+                  <div style={{ background: 'white', borderRadius: 8, overflow: 'hidden' }}>
+                    <ReactQuill 
+                      ref={quillRef}
+                      theme="snow" 
+                      modules={quillModules}
+                      value={form.content_html} 
+                      onChange={val => setForm(f => ({...f, content_html: val}))} 
+                      style={{ minHeight: '300px' }}
+                    />
+                  </div>
+                ) : (
+                  <textarea 
+                    placeholder="<html><body>...</body></html>" 
+                    value={form.content_html} 
+                    onChange={e => setForm(f => ({ ...f, content_html: e.target.value }))} 
+                    style={{ minHeight: '300px', fontFamily: 'monospace', fontSize: '0.85rem' }} 
+                  />
+                )}
+                <div className="crm-hint" style={{ marginTop: 8 }}>
+                  💡 To insert images, use the Image button in the toolbar and paste the public URL of any image from your Assets tab.
+                </div>
+              </div>
+            )}
+
+            {form.channel === 'email' && !templateMode && (
+              <div className="crm-field full-width">
+                <label>Plain Text Fallback (Optional) <span className="crm-hint">— used if the user's client strips HTML</span></label>
+                <textarea 
+                  placeholder="Hello, ..." 
+                  value={form.content_text} 
+                  onChange={e => setForm(f => ({ ...f, content_text: e.target.value }))} 
+                  style={{ minHeight: '100px' }} 
+                />
+              </div>
+            )}
+
+            {form.channel === 'sms' && (
+              <div className="crm-field full-width">
+                <label>SMS Text Content *</label>
+                <textarea 
+                  placeholder="Hey, spring drop is live! 🍓 Reply STOP to unsub." 
+                  value={form.content_text} 
+                  onChange={e => setForm(f => ({ ...f, content_text: e.target.value }))} 
+                  style={{ minHeight: '100px' }} 
+                />
               </div>
             )}
             {form.channel === 'email' && templateMode && (
@@ -407,24 +567,12 @@ export default function CrmCampaignsPage() {
               <label>Schedule Send (optional)</label>
               <input type="datetime-local" value={form.scheduled_at} onChange={e => setForm(f => ({ ...f, scheduled_at: e.target.value }))} />
             </div>
-            <div className="crm-field full-width">
-              <label>{form.channel === 'email' ? 'HTML Content' : 'SMS Text'}</label>
-              <textarea
-                rows={6}
-                placeholder={form.channel === 'email' ? '<h1>Hello {{name}}!</h1>\n<p>Message here...</p>' : 'Your SMS message here. Max 160 chars.'}
-                value={form.channel === 'email' ? form.content_html : form.content_text}
-                onChange={e => setForm(f => ({
-                  ...f,
-                  ...(form.channel === 'email' ? { content_html: e.target.value } : { content_text: e.target.value })
-                }))}
-              />
-            </div>
           </div>
-          <div className="crm-form-actions">
-            <button className="crm-btn-primary" onClick={handleCreate} disabled={saving || !form.name}>
-              {saving ? 'Saving...' : 'Save Campaign'}
+          <div className="crm-form-actions" style={{ marginTop: 24 }}>
+            <button className="crm-btn-primary" onClick={handleSave} disabled={saving || !form.name}>
+              {saving ? 'Saving...' : (editingId ? 'Save Changes' : 'Save Campaign')}
             </button>
-            <button className="crm-btn-secondary" onClick={() => setCreating(false)}>Cancel</button>
+            <button className="crm-btn-secondary" onClick={() => { setCreating(false); setEditingId(null); setForm(emptyForm); }}>Cancel</button>
           </div>
         </div>
       )}
@@ -471,16 +619,20 @@ export default function CrmCampaignsPage() {
                 </td>
                 <td className="crm-muted">{c.scheduled_at ? new Date(c.scheduled_at).toLocaleString() : '—'}</td>
                 <td>
-                  {(c.status === 'draft' || c.status === 'scheduled') && (
-                    <button
-                      className="crm-btn-send"
-                      disabled={sending === c.id}
-                      onClick={() => sendNow(c.id)}
-                      data-testid={`campaign-send-${c.id}`}
-                    >
-                      {sending === c.id ? 'Sending...' : '▶ Send Now'}
-                    </button>
-                  )}
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {(c.status === 'draft' || c.status === 'scheduled') && (
+                      <button
+                        className="crm-btn-send"
+                        disabled={sending === c.id}
+                        onClick={() => sendNow(c.id)}
+                        data-testid={`campaign-send-${c.id}`}
+                      >
+                        {sending === c.id ? 'Sending...' : '▶ Send'}
+                      </button>
+                    )}
+                    <button className="crm-btn-edit-icon" onClick={() => handleEdit(c)} title="Edit Campaign">✏️</button>
+                    <button className="crm-btn-danger-icon" onClick={() => deleteCampaign(c.id)} title="Delete Campaign">🗑</button>
+                  </div>
                   {c.status === 'active' && (
                      <span className="crm-muted">Automated</span>
                   )}
@@ -490,6 +642,87 @@ export default function CrmCampaignsPage() {
           </tbody>
         </table>
       </div>
+
+      {assetPickerOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content asset-picker-modal">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#1a2e1a' }}>Select Image</h3>
+              <button onClick={() => setAssetPickerOpen(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6b7280' }}>&times;</button>
+            </div>
+            
+            <div style={{ marginBottom: 16 }}>
+              <button className="crm-btn-primary" onClick={() => {
+                const input = document.createElement('input')
+                input.setAttribute('type', 'file')
+                input.setAttribute('accept', 'image/*')
+                input.click()
+
+                input.onchange = async () => {
+                  const file = input.files ? input.files[0] : null
+                  if (!file) return
+                  
+                  setMessage('Uploading image to assets...')
+                  setAssetPickerOpen(false)
+                  const ext = file.name.split('.').pop()
+                  const fileName = `crm/${Date.now()}-${file.name}`
+                  
+                  const { error } = await supabase.storage.from('media').upload(fileName, file)
+                  if (error) {
+                    setMessage(`Upload failed: ${error.message}`)
+                    setTimeout(() => setMessage(''), 3000)
+                    return
+                  }
+                  
+                  await supabase.from('crm_assets').insert({
+                    name: `Campaign Upload: ${file.name}`,
+                    type: 'image',
+                    storage_path: fileName
+                  })
+                  
+                  const { data: publicUrlData } = supabase.storage.from('media').getPublicUrl(fileName)
+                  
+                  const quill = quillRef.current?.getEditor()
+                  if (quill) {
+                    quill.insertEmbed(quillSelectionRef.current || 0, 'image', publicUrlData.publicUrl)
+                  }
+                  setMessage('Image inserted!')
+                  setTimeout(() => setMessage(''), 3000)
+                }
+              }} style={{ width: '100%', padding: '12px' }}>+ Upload New Image from Computer</button>
+            </div>
+
+            <div style={{ height: '350px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, background: '#f9fafb' }}>
+              {loadingAssets ? (
+                <div className="crm-muted" style={{ textAlign: 'center', padding: 40 }}>Loading assets...</div>
+              ) : assets.length === 0 ? (
+                <div className="crm-muted" style={{ textAlign: 'center', padding: 40 }}>No images found in your Assets library.</div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 12 }}>
+                  {assets.map(a => (
+                    <div key={a.name} 
+                         onClick={() => {
+                           const quill = quillRef.current?.getEditor()
+                           if (quill) {
+                             quill.insertEmbed(quillSelectionRef.current || 0, 'image', a.url)
+                           }
+                           setAssetPickerOpen(false)
+                         }}
+                         style={{ border: '1px solid #d1d5db', borderRadius: 8, overflow: 'hidden', cursor: 'pointer', background: 'white' }}
+                         className="asset-thumb-card"
+                    >
+                      <div style={{ height: 90, backgroundImage: `url(${a.url})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+                      <div style={{ padding: '6px 8px', fontSize: '0.7rem', color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={a.name}>
+                        {a.name}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         .crm-page { }
@@ -529,6 +762,12 @@ export default function CrmCampaignsPage() {
         .crm-status { font-weight: 600; font-size: 0.85rem; }
         .crm-rate { font-weight: 600; color: #059669; }
         .crm-empty { text-align: center; color: #9ca3af; padding: 48px; }
+        .crm-btn-danger-icon, .crm-btn-edit-icon { background: none; border: none; cursor: pointer; font-size: 1.1rem; opacity: 0.6; transition: opacity 0.15s; padding: 4px; margin-right: 4px; }
+        .crm-btn-danger-icon:hover { opacity: 1; color: #dc2626; }
+        .crm-btn-edit-icon:hover { opacity: 1; color: #2563eb; }
+        
+        :global(.ql-container) { resize: vertical; overflow-y: auto; min-height: 250px; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }
+        :global(.ql-toolbar) { border-top-left-radius: 8px; border-top-right-radius: 8px; }
 
         /* Multi-Geo Styles */
         .zip-lookup-wrap { position: relative; }
@@ -545,6 +784,11 @@ export default function CrmCampaignsPage() {
         .geo-chip button { background: none; border: none; font-size: 1rem; line-height: 0.5; font-weight: 700; color: #9ca3af; cursor: pointer; padding: 0 2px; }
         .geo-chip button:hover { color: #ef4444; }
         .geo-table-stack { display: flex; flex-wrap: wrap; gap: 4px; }
+        
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 24px; }
+        .modal-content { background: white; border-radius: 16px; padding: 24px; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); }
+        .asset-thumb-card { transition: all 0.15s ease; }
+        .asset-thumb-card:hover { border-color: #3b82f6 !important; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); transform: translateY(-1px); }
       `}</style>
     </div>
   )

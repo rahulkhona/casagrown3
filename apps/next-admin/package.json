@@ -22,7 +22,7 @@
     "react-dom": "19.0.0",
     "react-native": "0.79.2",
     "react-native-web": "^0.21.2",
-    "react-quill": "^2.0.0",
+    "react-quill-new": "^3.8.3",
     "tamagui": "^2.0.0-rc.0",
     "vercel": "latest"
   },

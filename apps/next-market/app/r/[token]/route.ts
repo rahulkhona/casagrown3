@@ -57,5 +57,20 @@ export async function GET(
       .is('clicked_at', null)
   }
 
-  return NextResponse.redirect(link.destination_url, { status: 301 })
+  let finalUrl = link.destination_url
+
+  // Dynamically inject the campaign_id to automatically attribute the lead
+  if (link.campaign_id) {
+    try {
+      const urlObj = new URL(finalUrl, process.env.NEXT_PUBLIC_SITE_URL ?? 'https://casagrown.com')
+      if (!urlObj.searchParams.has('utm_campaign') && !urlObj.searchParams.has('campaign_id')) {
+        urlObj.searchParams.set('campaign_id', link.campaign_id)
+        finalUrl = urlObj.toString()
+      }
+    } catch (e) {
+      // Ignore URL parsing errors and fallback to original
+    }
+  }
+
+  return NextResponse.redirect(finalUrl, { status: 301 })
 }
