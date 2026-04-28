@@ -62,7 +62,13 @@ export default function CrmCampaignsPage() {
   const [sending, setSending] = useState<string | null>(null)
   const [message, setMessage] = useState('')
 
+  const toast = (msg: string, ms = 5000) => {
+    setMessage(msg);
+    if (!msg.startsWith('Error')) setTimeout(() => setMessage(''), ms);
+  }
+
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const emptyForm = {
     name: '',
@@ -106,12 +112,16 @@ export default function CrmCampaignsPage() {
   }
 
   const deleteCampaign = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this campaign? This cannot be undone.')) return
-    await supabase.from('crm_campaigns').delete().eq('id', id)
+    const { error } = await supabase.from('crm_campaigns').delete().eq('id', id)
+    if (error) {
+      toast(`Error: Could not delete campaign - ${error.message}`)
+      setDeletingId(null)
+      return
+    }
     const { data } = await supabase.from('crm_campaigns').select('*').order('created_at', { ascending: false })
     if (data) setCampaigns(data as Campaign[])
-    setMessage('Campaign deleted')
-    setTimeout(() => setMessage(''), 3000)
+    toast('Campaign deleted')
+    setDeletingId(null)
   }
   
   const [templateMode, setTemplateMode] = useState(false)
@@ -296,10 +306,9 @@ export default function CrmCampaignsPage() {
       setCreating(false)
       setEditingId(null)
       setForm(emptyForm)
-      setMessage(editingId ? 'Campaign updated' : 'Campaign created')
-      setTimeout(() => setMessage(''), 3000)
+      toast(editingId ? 'Campaign updated' : 'Campaign created')
     } else {
-      setMessage(`Error: ${error?.message}`)
+      toast(`Error: ${error?.message}`)
     }
     setSaving(false)
   }
@@ -327,10 +336,9 @@ export default function CrmCampaignsPage() {
         result = { error: `Invalid server response: ${text.slice(0, 50)}...` };
       }
 
-      setMessage(res.ok ? `Sent! ${result.message ?? ''}` : `Error: ${result.error}`)
-      if (res.ok) setTimeout(() => setMessage(''), 5000)
+      toast(res.ok ? `Sent! ${result.message ?? ''}` : `Error: ${result.error}`)
     } catch (e: any) {
-      setMessage(`Error: Failed to connect to server - ${e.message}`)
+      toast(`Error: Failed to connect to server - ${e.message}`)
     } finally {
       setSending(null)
       // Refresh campaign list
@@ -648,7 +656,7 @@ export default function CrmCampaignsPage() {
                       </button>
                     )}
                     <button className="crm-btn-edit-icon" onClick={() => handleEdit(c)} title="Edit Campaign">✏️</button>
-                    <button className="crm-btn-danger-icon" onClick={() => deleteCampaign(c.id)} title="Delete Campaign">🗑</button>
+                    <button className="crm-btn-danger-icon" onClick={() => setDeletingId(c.id)} title="Delete Campaign">🗑</button>
                   </div>
                   {c.status === 'active' && (
                      <span className="crm-muted">Automated</span>
@@ -679,14 +687,14 @@ export default function CrmCampaignsPage() {
                   const file = input.files ? input.files[0] : null
                   if (!file) return
                   
-                  setMessage('Uploading image to assets...')
+                  toast('Uploading image to assets...', 10000)
                   setAssetPickerOpen(false)
                   const ext = file.name.split('.').pop()
                   const fileName = `crm/${Date.now()}-${file.name}`
                   
                   const { error } = await supabase.storage.from('media').upload(fileName, file)
                   if (error) {
-                    setMessage(`Error: Upload failed - ${error.message}`)
+                    toast(`Error: Upload failed - ${error.message}`)
                     return
                   }
                   
@@ -702,8 +710,7 @@ export default function CrmCampaignsPage() {
                   if (quill) {
                     quill.insertEmbed(quillSelectionRef.current || 0, 'image', publicUrlData.publicUrl)
                   }
-                  setMessage('Image inserted!')
-                  setTimeout(() => setMessage(''), 3000)
+                  toast('Image inserted!')
                 }
               }} style={{ width: '100%', padding: '12px' }}>+ Upload New Image from Computer</button>
             </div>
@@ -735,6 +742,34 @@ export default function CrmCampaignsPage() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deletingId && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '400px', textAlign: 'center', padding: '32px 24px' }}>
+            <div style={{ fontSize: '3rem', marginBottom: 16 }}>🗑️</div>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '1.25rem', color: '#111827' }}>Delete Campaign?</h3>
+            <p style={{ color: '#4b5563', fontSize: '0.95rem', marginBottom: 24, lineHeight: 1.5 }}>
+              Are you sure you want to delete this campaign? All analytics and tracking links will be unlinked. <b>This action cannot be undone.</b>
+            </p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+              <button 
+                className="crm-btn-secondary" 
+                onClick={() => setDeletingId(null)}
+                style={{ flex: 1 }}
+              >
+                Cancel
+              </button>
+              <button 
+                className="crm-btn-primary" 
+                onClick={() => deleteCampaign(deletingId)}
+                style={{ flex: 1, background: '#ef4444' }}
+              >
+                Yes, Delete
+              </button>
             </div>
           </div>
         </div>
