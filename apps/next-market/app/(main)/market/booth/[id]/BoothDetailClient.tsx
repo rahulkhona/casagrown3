@@ -392,7 +392,7 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
                     {p.price_usd === 0 ? <span style={{ color: '#16a34a', fontWeight: 'bold' }}>Free</span> : <>{formatUsd(p.price_usd)}<span className={styles.productUnit}>/ {p.unit}</span></>}
                   </p>
                   <p className={styles.productQty}>
-                    {p.inventory > 3 ? `${p.inventory} available` : p.inventory > 0 ? `Only ${p.inventory} left!` : 'Sold out'}
+                    {p.inventory > 3 ? `${p.inventory} ${p.unit === 'dozen' ? p.unit : p.unit === 'box' && p.inventory !== 1 ? 'boxes' : p.unit === 'bag' && p.inventory !== 1 ? 'bags' : p.unit !== 'piece' && p.unit !== 'each' ? p.unit : p.unit === 'each' ? 'each' : ''} available`.replace('  ', ' ') : p.inventory > 0 ? `Only ${p.inventory} ${p.unit === 'dozen' ? p.unit : p.unit === 'box' && p.inventory !== 1 ? 'boxes' : p.unit === 'bag' && p.inventory !== 1 ? 'bags' : p.unit !== 'piece' && p.unit !== 'each' ? p.unit : p.unit === 'each' ? 'each' : ''} left!`.replace('  ', ' ') : 'Sold out'}
                   </p>
                   {p.harvested_at && (
                     <p className={styles.productHarvest}>

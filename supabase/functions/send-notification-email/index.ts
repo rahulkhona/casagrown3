@@ -22,7 +22,7 @@ import {
 import { sendTransactionEmail } from "../_shared/postmark.ts";
 import { wrapInBrandedTemplate, infoCard, actionButton } from "../_shared/email-templates.ts";
 
-const SITE_URL = Deno.env.get("SITE_URL") ?? "http://localhost:3000";
+const SITE_URL = Deno.env.get("SITE_URL") ?? "https://www.casagrown.com";
 
 // =============================================================================
 // Types

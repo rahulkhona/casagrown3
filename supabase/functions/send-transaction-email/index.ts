@@ -21,7 +21,7 @@ import { sendTransactionEmail } from "../_shared/postmark.ts";
 import { wrapInBrandedTemplate } from "../_shared/email-templates.ts";
 
 // Site URL for logo
-const SITE_URL = Deno.env.get("SITE_URL") ?? "http://localhost:3000";
+const SITE_URL = Deno.env.get("SITE_URL") ?? "https://www.casagrown.com";
 
 interface Recipient {
   email: string;

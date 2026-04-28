@@ -357,6 +357,7 @@ inspector_port = 8083
 deno_version = 2
 
 [edge_runtime.secrets]
+SITE_URL = "http://localhost:3001"
 USPS_CONSUMER_KEY = "env(USPS_CONSUMER_KEY)"
 USPS_CONSUMER_SECRET = "env(USPS_CONSUMER_SECRET)"
 STRIPE_SECRET_KEY = "env(STRIPE_SECRET_KEY)"

@@ -91,6 +91,23 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
         console.warn(`⚠️ notify-on-market-message: Failed to trigger SMS fallback: ${err}`);
     }
 
+    // 7. Invoke Email Fallback
+    try {
+        const { data: recipientEmail } = await supabase.rpc('get_user_email', { p_user_id: recipientId });
+        if (recipientEmail) {
+            await supabase.functions.invoke("send-market-email", {
+                body: {
+                    to: recipientEmail,
+                    subject: `New Message: ${senderName} — ${order.product_name}`,
+                    html: `You have a new message regarding your order for <strong>${order.product_name}</strong>.<br/><br/><strong>${senderName}:</strong> ${body}`,
+                    text: `💬 ${senderName}: ${body}\n/orders/${orderId}`
+                }
+            });
+        }
+    } catch (err) {
+        console.warn(`⚠️ notify-on-market-message: Failed to trigger Email fallback: ${err}`);
+    }
+
     console.log(
         `📬 Market chat notification: ${senderName} → ${recipientId} (order ${orderId})`,
     );

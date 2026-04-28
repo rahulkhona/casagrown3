@@ -1,6 +1,14 @@
 -- Seed Data for E2E Testing and Local Development
 -- Deterministic IDs used for reliability
 
+-- Inject a validly-formatted dummy JWT for local Edge Functions
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM vault.decrypted_secrets WHERE name = 'service_role_key') THEN
+    PERFORM vault.create_secret('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU', 'service_role_key', 'Dummy key for local development');
+  END IF;
+END $$;
+
 -- 1. Countries
 insert into public.countries (iso_3, name, currency_symbol, phone_code)
 values ('USA', 'United States', '$', '+1')
@@ -1686,3 +1694,14 @@ VALUES
   ('89283470c2fffff', 'a0000000-0000-0000-0000-00000ca5ab07',
    '🌻 Ask me anything about gardening! Mention @CasaBot for planting schedules, pest control, soil tips, and more.',
    true, false, now() - interval '1 hour');
+
+-- ============================================================================
+-- Local Development Environment Overrides
+-- ============================================================================
+
+-- Ensure that local environments always default to localhost for email links.
+-- The 20260423000100 migration creates a production vault secret as a failsafe 
+-- when app.settings is missing. By deleting it here in the seed script, 
+-- we guarantee local testing behaves correctly after a `supabase db reset`.
+DELETE FROM vault.decrypted_secrets WHERE name = 'app_url';
+

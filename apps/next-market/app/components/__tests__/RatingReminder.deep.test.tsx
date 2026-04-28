@@ -110,7 +110,7 @@ describe('RatingReminder', () => {
 
     // Verify localStorage persistence (prevents re-prompt after app restart)
     await act(async () => { await new Promise(r => setTimeout(r, 50)) })
-    const rated = JSON.parse(localStorage.getItem('casagrown_rated_orders') || '[]')
+    const rated = JSON.parse(localStorage.getItem('casagrown_rated_orders_u1') || '[]')
     expect(rated).toContain('order-2')
 
     expect(container.textContent).toContain('Thanks for rating!')
@@ -138,7 +138,7 @@ describe('RatingReminder', () => {
     await act(async () => { fireEvent.click(skipBtn!) })
 
     // Should set localStorage
-    expect(localStorage.getItem('rating_skip_until')).toBeTruthy()
+    expect(localStorage.getItem('rating_skip_until_u1')).toBeTruthy()
     // Component dismisses
     expect(container.innerHTML).toBe('')
   })
@@ -146,7 +146,7 @@ describe('RatingReminder', () => {
   it('respects skip cooldown from localStorage', async () => {
     // Set skip_until to 24h from now
     const future = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-    localStorage.setItem('rating_skip_until', future)
+    localStorage.setItem('rating_skip_until_u1', future)
 
     mockSupabase.from.mockImplementation(() => chain({ id: 'order-4', product_name: 'Corn', seller_id: 's1' }))
 

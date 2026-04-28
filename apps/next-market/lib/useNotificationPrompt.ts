@@ -129,10 +129,31 @@ async function enableWebPush(userId: string): Promise<boolean> {
 
   try {
     const registration = await navigator.serviceWorker.ready
-    const subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY).buffer as ArrayBuffer,
-    })
+    let subscription: PushSubscription | null = null
+
+    try {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY).buffer as ArrayBuffer,
+      })
+    } catch (err: any) {
+      if (err.name === 'InvalidStateError') {
+        console.warn('[Notifications] VAPID key mismatch detected. Unsubscribing old subscription...')
+        const oldSubscription = await registration.pushManager.getSubscription()
+        if (oldSubscription) {
+          await oldSubscription.unsubscribe()
+        }
+        // Retry subscription with new key
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY).buffer as ArrayBuffer,
+        })
+      } else {
+        throw err
+      }
+    }
+
+    if (!subscription) return false
 
     const supabase = createClient()
     await supabase.functions.invoke('register-push-token', {

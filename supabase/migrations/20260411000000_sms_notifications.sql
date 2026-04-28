@@ -83,7 +83,7 @@ BEGIN
           ),
           body := jsonb_build_object(
             'to', v_user_email,
-            'subject', 'CasaGrown Market — ' || LEFT(p_content, 60),
+            'subject', 'CasaGrown Market — ' || LEFT(split_part(p_content, CHR(10), 1), 100),
             'html',
               '<div style="font-family: -apple-system, BlinkMacSystemFont, ''Segoe UI'', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">' ||
                 '<div style="text-align: center; margin-bottom: 24px;">' ||
@@ -144,10 +144,23 @@ $$;
 -- 3. Update order and financial triggers to pass p_send_sms := true
 CREATE OR REPLACE FUNCTION trg_market_order_placed_notify()
 RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  v_buyer_name TEXT;
+  v_msg TEXT;
 BEGIN
+  SELECT full_name INTO v_buyer_name FROM profiles WHERE id = NEW.buyer_id;
+
+  v_msg := '🛒 New order: ' || NEW.quantity || '× ' || NEW.product_name || ' ($' || NEW.total_usd || ')' || CHR(10) ||
+           'Buyer: ' || COALESCE(v_buyer_name, 'Unknown') || CHR(10) ||
+           'Fulfillment: ' || INITCAP(NEW.fulfillment_type);
+           
+  IF NEW.fulfillment_type = 'delivery' AND NEW.delivery_address IS NOT NULL THEN
+    v_msg := v_msg || CHR(10) || 'Address: ' || NEW.delivery_address;
+  END IF;
+
   PERFORM notify_market_event(
     NEW.seller_id,
-    '🛒 New order: ' || NEW.quantity || '× ' || NEW.product_name || ' ($' || NEW.total_usd || ')',
+    v_msg,
     '/orders/' || NEW.id,
     true, -- send email
     true  -- send sms
@@ -158,57 +171,46 @@ $$;
 
 CREATE OR REPLACE FUNCTION trg_market_order_status_notify()
 RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  v_base_msg TEXT;
+  v_details TEXT;
+  v_buyer_name TEXT;
+  v_seller_name TEXT;
 BEGIN
   IF OLD.status = NEW.status THEN RETURN NEW; END IF;
 
+  SELECT full_name INTO v_buyer_name FROM profiles WHERE id = NEW.buyer_id;
+  SELECT name INTO v_seller_name FROM market_booths WHERE owner_id = NEW.seller_id;
+
+  v_details := CHR(10) || 'Order: #' || substr(NEW.id::text, 1, 8) || CHR(10) ||
+               'Seller: ' || COALESCE(v_seller_name, 'Unknown') || CHR(10) ||
+               'Fulfillment: ' || INITCAP(NEW.fulfillment_type) || CHR(10) ||
+               'Total: $' || NEW.total_usd;
+
   CASE NEW.status
     WHEN 'confirmed' THEN
-      PERFORM notify_market_event(
-        NEW.buyer_id,
-        '✅ Your order for ' || NEW.product_name || ' has been accepted by the seller!',
-        '/orders/' || NEW.id,
-        true, true
-      );
+      v_base_msg := '✅ Your order for ' || NEW.product_name || ' has been accepted by the seller!';
+      PERFORM notify_market_event(NEW.buyer_id, v_base_msg || v_details, '/orders/' || NEW.id, true, true);
 
     WHEN 'delivered' THEN
       IF NEW.fulfillment_type = 'pickup' THEN
-        PERFORM notify_market_event(
-          NEW.buyer_id,
-          '📍 Your ' || NEW.product_name || ' is ready for pickup!',
-          '/orders/' || NEW.id,
-          true, true
-        );
+        v_base_msg := '🛍️ Your ' || NEW.product_name || ' has been picked up! You have 4 hours to confirm receipt before auto-completion.';
+        PERFORM notify_market_event(NEW.buyer_id, v_base_msg || v_details, '/orders/' || NEW.id, true, true);
       ELSE
-        PERFORM notify_market_event(
-          NEW.buyer_id,
-          '🚚 Your ' || NEW.product_name || ' has been delivered! You have 4 hours to confirm receipt before auto-completion.',
-          '/orders/' || NEW.id,
-          true, true
-        );
+        v_base_msg := '🚚 Your ' || NEW.product_name || ' has been delivered! You have 4 hours to confirm receipt before auto-completion.';
+        PERFORM notify_market_event(NEW.buyer_id, v_base_msg || v_details, '/orders/' || NEW.id, true, true);
       END IF;
 
     WHEN 'completed' THEN
-      PERFORM notify_market_event(
-        NEW.buyer_id,
-        '✅ Order completed: ' || NEW.product_name || '. Rate your experience!',
-        '/orders/' || NEW.id,
-        true, true
-      );
-      PERFORM notify_market_event(
-        NEW.seller_id,
-        '💰 Sale completed: ' || NEW.product_name || ' — $' || NEW.subtotal_usd || ' earned. Rate the buyer!',
-        '/orders/' || NEW.id,
-        true, true
-      );
+      v_base_msg := '✅ Order completed: ' || NEW.product_name || '. Rate your experience!';
+      PERFORM notify_market_event(NEW.buyer_id, v_base_msg || v_details, '/orders/' || NEW.id, true, true);
+      
+      v_base_msg := '💰 Sale completed: ' || NEW.product_name || ' — $' || NEW.subtotal_usd || ' earned. Rate the buyer!';
+      PERFORM notify_market_event(NEW.seller_id, v_base_msg || CHR(10) || 'Order: #' || substr(NEW.id::text, 1, 8) || CHR(10) || 'Buyer: ' || COALESCE(v_buyer_name, 'Unknown'), '/orders/' || NEW.id, true, true);
 
     WHEN 'declined' THEN
-      PERFORM notify_market_event(
-        NEW.buyer_id,
-        '❌ Your order for ' || NEW.product_name || ' was declined' ||
-          CASE WHEN NEW.decline_reason IS NOT NULL THEN ': ' || NEW.decline_reason ELSE '' END,
-        '/orders/' || NEW.id,
-        true, true
-      );
+      v_base_msg := '❌ Your order for ' || NEW.product_name || ' was declined' || CASE WHEN NEW.decline_reason IS NOT NULL THEN ': ' || NEW.decline_reason ELSE '' END;
+      PERFORM notify_market_event(NEW.buyer_id, v_base_msg || v_details, '/orders/' || NEW.id, true, true);
 
     WHEN 'disputed' THEN
       DECLARE
@@ -221,24 +223,23 @@ BEGIN
           WHEN 'quantity_mismatch' THEN 'Quantity Mismatch'
           ELSE 'Dispute Opened'
         END INTO v_dispute_label
-        FROM order_disputes d WHERE d.order_id = NEW.id
-        ORDER BY d.created_at DESC LIMIT 1;
+        FROM order_disputes d WHERE d.order_id = NEW.id ORDER BY d.created_at DESC LIMIT 1;
         v_dispute_label := coalesce(v_dispute_label, 'Dispute Opened');
-
-        PERFORM notify_market_event(NEW.buyer_id, '⚠️ ' || v_dispute_label || ' for your ' || NEW.product_name || ' order.', '/orders/' || NEW.id, true, true);
-        PERFORM notify_market_event(NEW.seller_id, '⚠️ ' || v_dispute_label || ' for your ' || NEW.product_name || ' sale.', '/orders/' || NEW.id, true, true);
+        
+        PERFORM notify_market_event(NEW.buyer_id, '⚠️ ' || v_dispute_label || ' for your ' || NEW.product_name || ' order.' || v_details, '/orders/' || NEW.id, true, true);
+        PERFORM notify_market_event(NEW.seller_id, '⚠️ ' || v_dispute_label || ' for your ' || NEW.product_name || ' sale.' || CHR(10) || 'Order: #' || substr(NEW.id::text, 1, 8) || CHR(10) || 'Buyer: ' || COALESCE(v_buyer_name, 'Unknown'), '/orders/' || NEW.id, true, true);
       END;
 
     WHEN 'escalated' THEN
-      PERFORM notify_market_event(NEW.buyer_id, '📋 Your dispute for ' || NEW.product_name || ' has been escalated to admin review.', '/orders/' || NEW.id, true, true);
-      PERFORM notify_market_event(NEW.seller_id, '📋 The dispute for ' || NEW.product_name || ' has been escalated to admin review.', '/orders/' || NEW.id, true, true);
+      PERFORM notify_market_event(NEW.buyer_id, '📋 Your dispute for ' || NEW.product_name || ' has been escalated to admin review.' || v_details, '/orders/' || NEW.id, true, true);
+      PERFORM notify_market_event(NEW.seller_id, '📋 The dispute for ' || NEW.product_name || ' has been escalated to admin review.' || CHR(10) || 'Order: #' || substr(NEW.id::text, 1, 8) || CHR(10) || 'Buyer: ' || COALESCE(v_buyer_name, 'Unknown'), '/orders/' || NEW.id, true, true);
 
     WHEN 'resolved' THEN
-      PERFORM notify_market_event(NEW.buyer_id, '✅ Your dispute for ' || NEW.product_name || ' has been resolved.', '/orders/' || NEW.id, true, true);
-      PERFORM notify_market_event(NEW.seller_id, '✅ The dispute for ' || NEW.product_name || ' has been resolved.', '/orders/' || NEW.id, true, true);
+      PERFORM notify_market_event(NEW.buyer_id, '✅ Your dispute for ' || NEW.product_name || ' has been resolved.' || v_details, '/orders/' || NEW.id, true, true);
+      PERFORM notify_market_event(NEW.seller_id, '✅ The dispute for ' || NEW.product_name || ' has been resolved.' || CHR(10) || 'Order: #' || substr(NEW.id::text, 1, 8) || CHR(10) || 'Buyer: ' || COALESCE(v_buyer_name, 'Unknown'), '/orders/' || NEW.id, true, true);
 
     WHEN 'cancelled' THEN
-      PERFORM notify_market_event(NEW.buyer_id, '🔄 Your order for ' || NEW.product_name || ' has been cancelled.', '/orders/' || NEW.id, true, true);
+      PERFORM notify_market_event(NEW.buyer_id, '🔄 Your order for ' || NEW.product_name || ' has been cancelled.' || v_details, '/orders/' || NEW.id, true, true);
 
     ELSE NULL;
   END CASE;

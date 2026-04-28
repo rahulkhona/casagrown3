@@ -18,6 +18,7 @@ export function RatingReminder() {
     counterparty_name: string
     role: 'buyer' | 'seller'
   } | null>(null)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [hoverStar, setHoverStar] = useState(0)
   const [ratingValue, setRatingValue] = useState(0)
   const [ratingReview, setRatingReview] = useState('')
@@ -30,13 +31,14 @@ export function RatingReminder() {
     const supabase = createClient()
 
     const check = async (userId: string) => {
+      setCurrentUserId(userId)
       // Check dismissed cache (don't show again for 24h after skip)
-      const skipUntil = localStorage.getItem('rating_skip_until')
+      const skipUntil = localStorage.getItem(`rating_skip_until_${userId}`)
       if (skipUntil && new Date(skipUntil) > new Date()) return
 
       // Skip orders already rated in this browser
       let ratedOrders: string[] = []
-      try { ratedOrders = JSON.parse(localStorage.getItem('casagrown_rated_orders') || '[]') } catch {}
+      try { ratedOrders = JSON.parse(localStorage.getItem(`casagrown_rated_orders_${userId}`) || '[]') } catch {}
 
       // Find most recent completed order without rating
       // Check as buyer first
@@ -45,7 +47,7 @@ export function RatingReminder() {
         .select('id, product_name, seller_id')
         .eq('buyer_id', userId)
         .eq('status', 'completed')
-        .is('buyer_rating', null)
+        .is('seller_rating', null)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
@@ -73,7 +75,7 @@ export function RatingReminder() {
         .select('id, product_name, buyer_id')
         .eq('seller_id', userId)
         .eq('status', 'completed')
-        .is('seller_rating', null)
+        .is('buyer_rating', null)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
@@ -108,7 +110,7 @@ export function RatingReminder() {
   }, [])
 
   const handleRate = useCallback(async (stars: number, reviewText?: string) => {
-    if (!order) return
+    if (!order || !currentUserId) return
     const supabase = createClient()
     try {
       const { error } = await supabase.rpc('rate_market_order', {
@@ -123,9 +125,9 @@ export function RatingReminder() {
       }
       // Persist to prevent re-prompt after app restart
       try {
-        const rated = JSON.parse(localStorage.getItem('casagrown_rated_orders') || '[]')
+        const rated = JSON.parse(localStorage.getItem(`casagrown_rated_orders_${currentUserId}`) || '[]')
         rated.push(order.id)
-        localStorage.setItem('casagrown_rated_orders', JSON.stringify(rated))
+        localStorage.setItem(`casagrown_rated_orders_${currentUserId}`, JSON.stringify(rated))
       } catch {}
       setSubmitted(true)
     } catch (e) {
@@ -134,14 +136,15 @@ export function RatingReminder() {
       return
     }
     setTimeout(() => setDismissed(true), 1500)
-  }, [order, showError])
+  }, [order, currentUserId, showError])
 
   const handleSkip = useCallback(() => {
+    if (!currentUserId) return
     // Don't show again for 24 hours
     const skipUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-    localStorage.setItem('rating_skip_until', skipUntil)
+    localStorage.setItem(`rating_skip_until_${currentUserId}`, skipUntil)
     setDismissed(true)
-  }, [])
+  }, [currentUserId])
 
   if (!order || dismissed) return null
 

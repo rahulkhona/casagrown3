@@ -38,7 +38,7 @@ Deno.serve(async (req: Request) => {
             );
         }
 
-        const marketUrl = Deno.env.get("MARKET_APP_URL") ?? "http://localhost:3001";
+        const marketUrl = Deno.env.get("SITE_URL") ?? "https://www.casagrown.com";
         const editUrl = `${marketUrl}/my-booth/products/${product_id}`;
 
         const flagSource = ai_flagged

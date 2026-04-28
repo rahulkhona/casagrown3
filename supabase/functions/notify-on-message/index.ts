@@ -150,7 +150,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
             .single();
 
         if (profile?.email) {
-            const chatLink = `${Deno.env.get('MARKET_APP_URL') ?? 'https://market.casagrown.com'}${chatUrl}`;
+            const chatLink = `${Deno.env.get('SITE_URL') ?? 'https://www.casagrown.com'}${chatUrl}`;
             await sendTransactionEmail({
                 to: profile.email,
                 subject: `New message from ${title}`,

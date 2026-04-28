@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '../../lib/supabase'
 import { useAuth } from '../../lib/useAuth'
 import { formatUsd } from '../../lib/store'
@@ -211,7 +211,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
     else setQty(n)
   }
 
-  const handleOrder = useCallback(async () => {
+  const handleOrder = async () => {
     if (!user) { setError('Please sign in to make a purchase'); return }
     if (qty <= 0) { setError('Quantity must be at least 1'); return }
     if (qty > available) { setError(`Only ${available} available`); return }
@@ -312,7 +312,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
     } finally {
       setLoading(false)
     }
-  }, [user, qty, available, fulfillment, deliveryAddress, buyerZip, product.id, stripeReady, supabase, onSuccess])
+  }
 
   return (
     <div className={styles.overlay} onClick={onClose}>
@@ -372,7 +372,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
                 max={available}
               />
               <button className={styles.qtyBtn} onClick={() => setQty(Math.min(available, qty + 1))} disabled={qty >= available}>+</button>
-              <span className={styles.qtyAvail}>{available} {product.unit}s available</span>
+              <span className={styles.qtyAvail}>{available}{product.unit ? ` ${product.unit === 'dozen' ? product.unit : product.unit === 'box' && available !== 1 ? 'boxes' : product.unit === 'bag' && available !== 1 ? 'bags' : product.unit !== 'piece' ? (available !== 1 ? product.unit + 's' : product.unit) : ''}` : ''} available</span>
             </div>
           </div>
 
@@ -442,7 +442,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
               {balanceApplied > 0 && (
                 <>
                   <div className={styles.breakdownRow} style={{ color: '#16a34a', fontWeight: 500 }}>
-                    <span>💰 From Balance</span>
+                    <span>💰 Balance Applied (Hold)</span>
                     <span>−{formatUsd(balanceApplied)}</span>
                   </div>
                   <div className={styles.breakdownRow} style={{ fontWeight: 600 }}>

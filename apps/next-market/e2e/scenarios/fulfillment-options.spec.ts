@@ -116,29 +116,12 @@ test.describe('Product Fulfillment Options', () => {
     await page.waitForTimeout(3000)
     await assertPageHealthy(page)
 
-    const body = await page.locator('body').innerText()
-
-    // Should show Pickup
-    expect(body).toContain('Pickup')
+    // Wait for the UI to render the correct option
+    await expect(page.locator('text=📍 Pickup').first()).toBeVisible({ timeout: 5000 })
 
     // Should NOT show Delivery as a fulfillment option
-    // We need to be careful — "Delivery" might appear in other contexts (e.g., page chrome)
-    // Check the fulfillment section specifically
-    const fulfillmentSection = page.locator('[class*="fulfillment"], [class*="Fulfillment"]')
-    const fulfillmentCount = await fulfillmentSection.count()
-
-    if (fulfillmentCount > 0) {
-      const fulfillmentText = await fulfillmentSection.first().innerText()
-      expect(fulfillmentText).toContain('Pickup')
-      expect(fulfillmentText).not.toContain('Delivery')
-      console.log('[FF2] ✅ Only Pickup shown, no Delivery')
-    } else {
-      // Fallback: check for delivery-specific UI elements
-      const deliveryOption = page.locator('text=🚗')
-      const deliveryVisible = await deliveryOption.isVisible({ timeout: 2000 }).catch(() => false)
-      expect(deliveryVisible).toBe(false)
-      console.log('[FF2] ✅ No delivery icon (🚗) found')
-    }
+    await expect(page.locator('text=🚗 Delivery')).toHaveCount(0)
+    console.log('[FF2] ✅ Only Pickup shown, no Delivery')
 
     await page.context().close()
   })
@@ -151,27 +134,12 @@ test.describe('Product Fulfillment Options', () => {
     await page.waitForTimeout(3000)
     await assertPageHealthy(page)
 
-    const body = await page.locator('body').innerText()
+    // Wait for the UI to render the correct option
+    await expect(page.locator('text=🚗 Delivery').first()).toBeVisible({ timeout: 5000 })
 
-    // Should show Delivery
-    expect(body).toContain('Delivery')
-
-    // Check fulfillment section doesn't show Pickup
-    const fulfillmentSection = page.locator('[class*="fulfillment"], [class*="Fulfillment"]')
-    const fulfillmentCount = await fulfillmentSection.count()
-
-    if (fulfillmentCount > 0) {
-      const fulfillmentText = await fulfillmentSection.first().innerText()
-      expect(fulfillmentText).toContain('Delivery')
-      expect(fulfillmentText).not.toContain('Pickup')
-      console.log('[FF3] ✅ Only Delivery shown, no Pickup')
-    } else {
-      // Fallback: pickup icon should not be present
-      const pickupOption = page.locator('text=📍 Pickup').first()
-      const pickupVisible = await pickupOption.isVisible({ timeout: 2000 }).catch(() => false)
-      expect(pickupVisible).toBe(false)
-      console.log('[FF3] ✅ No pickup option found')
-    }
+    // Should NOT show Pickup as a fulfillment option
+    await expect(page.locator('text=📍 Pickup')).toHaveCount(0)
+    console.log('[FF3] ✅ Only Delivery shown, no Pickup')
 
     await page.context().close()
   })

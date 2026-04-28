@@ -83,6 +83,7 @@ const TX_ICONS: Record<string, { icon: string; cls: string }> = {
   refund:            { icon: '↩️', cls: styles.iconRefund },
   balance_held:      { icon: '🔒', cls: styles.iconCharge },
   balance_released:  { icon: '🔓', cls: styles.iconCredit },
+  card_hold:         { icon: '💳', cls: styles.iconCharge },
 }
 
 function getDateRange(range: DateRange, customStart?: string, customEnd?: string) {
@@ -157,6 +158,15 @@ export default function EarningsPage() {
           setTransactions(data)
         }
         setHasMore(data.length === 50)
+        
+        // Seed rated orders from metadata
+        const rated: Record<string, number> = {}
+        data.forEach((tx: any) => {
+          if (tx.metadata?.order_id && tx.metadata.rating_given) {
+            rated[tx.metadata.order_id] = tx.metadata.rating_given
+          }
+        })
+        setRatedOrders(prev => ({ ...prev, ...rated }))
       }
     } catch (err) {
       console.error('[EARNINGS] Fetch error:', err)

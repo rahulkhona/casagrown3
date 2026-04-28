@@ -1965,33 +1965,40 @@ function NewProductPageInner() {
               {errors.submit}
             </div>
           )}
-          <button 
-            type="submit" 
-            className={styles.submitBtn} 
-            disabled={validating}
-            style={(photos.length === 0 || !priceUsd || !quantity) ? { background: '#f59e0b' } : undefined}
-            onClick={() => setForceDraft(false)}
-          >
-            {validating
-              ? '⏳ Saving...'
-              : (photos.length === 0 || !priceUsd || !quantity) 
-                ? 'Save Draft' 
-                : (isRelist || editingInactive) ? '🌱 Re-list & Publish'
-                : (isEditMode ? 'Save Changes' : '🌱 Publish Product')
-            }
-          </button>
-          {/* Secondary draft button — only when form is complete enough to publish */}
-          {!isEditMode && photos.length > 0 && priceUsd && quantity && (
-            <button
-              type="submit"
-              className={`${styles.submitBtn} ${styles.submitBtnDraft}`}
-              disabled={validating}
-              onClick={() => setForceDraft(true)}
-              style={{ marginTop: 8 }}
-            >
-              📝 Save as Draft Instead
-            </button>
-          )}
+          {(() => {
+            const isMissingInfo = photos.length === 0 || !priceUsd || !quantity || (!productOffersDelivery && !productOffersPickup)
+            return (
+              <>
+                <button 
+                  type="submit" 
+                  className={styles.submitBtn} 
+                  disabled={validating}
+                  style={isMissingInfo ? { background: '#f59e0b' } : undefined}
+                  onClick={() => setForceDraft(false)}
+                >
+                  {validating
+                    ? '⏳ Saving...'
+                    : isMissingInfo
+                      ? 'Save Draft' 
+                      : (isRelist || editingInactive) ? '🌱 Re-list & Publish'
+                      : (isEditMode ? 'Save Changes' : '🌱 Publish Product')
+                  }
+                </button>
+                {/* Secondary draft button — only when form is complete enough to publish */}
+                {!isEditMode && !isMissingInfo && (
+                  <button
+                    type="submit"
+                    className={`${styles.submitBtn} ${styles.submitBtnDraft}`}
+                    disabled={validating}
+                    onClick={() => setForceDraft(true)}
+                    style={{ marginTop: 8 }}
+                  >
+                    📝 Save as Draft Instead
+                  </button>
+                )}
+              </>
+            )
+          })()}
 
           {/* Preview link for sellers in edit mode */}
           {isEditMode && editId && boothId && (

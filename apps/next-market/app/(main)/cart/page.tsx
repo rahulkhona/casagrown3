@@ -540,7 +540,7 @@ export default function CartPage() {
             </div>
             {balanceApplied > 0 && (
               <div className={styles.balanceRow}>
-                <span>💰 Available Balance</span>
+                <span>💰 Balance Applied (Hold)</span>
                 <span style={{ color: '#16a34a' }}>-{formatUsd(balanceApplied)}</span>
               </div>
             )}

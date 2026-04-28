@@ -461,7 +461,7 @@ function BrowseMarketPageInner() {
     }
   }, [lat, lng, fulfillment, maxMiles, search, minPrice, maxPrice, category, buyerStateCode]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { if (lat && lng && addressResolved) searchBooths() }, [lat, lng, fulfillment, maxMiles, category]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (lat && lng && addressResolved) searchBooths() }, [lat, lng, fulfillment, maxMiles, category, addressResolved, buyerStateCode]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Debounced search
   useEffect(() => {
@@ -1058,7 +1058,11 @@ function BrowseMarketPageInner() {
                         {booth.is_demo && (
                           <span className="badge" style={{ fontSize: 10, background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac' }}>🌿 Demo</span>
                         )}
-                        <span className="badge badge-green" style={{ fontSize: 11 }}>{booth.distance_miles} mi</span>
+                        {booth.owner_id === user?.id ? (
+                          <span className="badge" style={{ fontSize: 11, background: '#dbeafe', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>Your Booth</span>
+                        ) : (
+                          <span className="badge badge-green" style={{ fontSize: 11 }}>{booth.distance_miles} mi</span>
+                        )}
                         <span style={{ color: 'var(--gray-400)' }}>·</span>
                         <span>{booth.product_count} items</span>
                       </div>
@@ -1108,7 +1112,7 @@ function BrowseMarketPageInner() {
                               <span className={styles.productName}>{p.name}</span>
                               <div className={styles.productMeta}>
                                 <span className={styles.productPrice}>{p.price_usd === 0 ? <span style={{ color: '#16a34a', fontWeight: 'bold' }}>Free</span> : <>{formatUsd(p.price_usd)}<span className={styles.unit}>/{p.unit}</span></>}</span>
-                                <span className={styles.qty}>{p.inventory > 0 ? `${p.inventory} avail` : 'Sold out'}</span>
+                                <span className={styles.qty}>{p.inventory > 0 ? `${p.inventory} ${p.unit === 'dozen' ? p.unit : p.unit === 'box' && p.inventory !== 1 ? 'boxes' : p.unit === 'bag' && p.inventory !== 1 ? 'bags' : p.unit !== 'piece' && p.unit !== 'each' ? p.unit : p.unit === 'each' ? 'each' : ''} avail`.replace('  ', ' ') : 'Sold out'}</span>
                               </div>
                             </div>
                           </Link>

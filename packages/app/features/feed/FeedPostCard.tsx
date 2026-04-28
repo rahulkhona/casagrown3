@@ -337,7 +337,8 @@ function FeedPostCardInner({
               <>
                 <Text fontSize={12} color={colors.gray[300]}>·</Text>
                 <Text fontSize={12} color={colors.gray[500]}>
-                  {t('feed.qty')}: {post.sell_details.total_quantity_available}{unit ? ` ${unit === 'dozen' ? unit : unit === 'box' && post.sell_details.total_quantity_available !== 1 ? 'boxes' : unit === 'bag' && post.sell_details.total_quantity_available !== 1 ? 'bags' : unit !== 'piece' ? unit : ''}` : ''}
+                  {t('feed.qty')}: {post.sell_details.total_quantity_available}
+                  {unit ? ` ${unit === 'dozen' ? unit : unit === 'box' && post.sell_details.total_quantity_available !== 1 ? 'boxes' : unit === 'bag' && post.sell_details.total_quantity_available !== 1 ? 'bags' : unit !== 'piece' ? unit : ''}` : ''}
                 </Text>
               </>
             )}

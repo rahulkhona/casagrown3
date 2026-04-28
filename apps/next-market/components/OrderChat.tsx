@@ -136,7 +136,7 @@ export default function OrderChat({ orderId, otherUserName, otherUserId, myAvata
     const text = `I'm on my way!\nETA: ${eta}`
     setEtaMode(false)
     setEtaValue('')
-    await sendQuickReply(text)
+    await sendQuickReply(text, true)
     // Notify the other party
     if (user && otherUserId) {
       const myName = (user as any).user_metadata?.full_name || user.email?.split('@')[0] || 'Someone'

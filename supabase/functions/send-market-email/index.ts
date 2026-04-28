@@ -23,7 +23,13 @@ interface EmailRequest {
 }
 
 serveWithCors(async (req, { corsHeaders }) => {
-  const { to, subject, html, text } = (await req.json()) as EmailRequest
+  let { to, subject, html, text } = (await req.json()) as EmailRequest
+
+  // Strip emojis and non-ASCII characters (e.g. 🛒, 📦, —, ×) from the subject
+  // to prevent Mailpit/SMTP from encoding the subject as =?utf-8?Q?...
+  if (subject) {
+    subject = subject.replace(/[^\x00-\x7F]/g, "").replace(/\s+/g, " ").trim();
+  }
 
   if (!to || !subject || !html) {
     return new Response(
@@ -32,7 +38,7 @@ serveWithCors(async (req, { corsHeaders }) => {
     )
   }
 
-  const SITE_URL = Deno.env.get("SITE_URL") ?? "http://localhost:3000";
+  const SITE_URL = Deno.env.get("SITE_URL") ?? "https://www.casagrown.com";
 
   let finalHtml = html;
 
@@ -78,18 +84,23 @@ serveWithCors(async (req, { corsHeaders }) => {
     if (text?.includes('New order:')) title = "New Order";
 
     const lines = text?.split('\n') || [];
-    let messageText = lines[0] || 'You have a new notification.';
-    let linkUrl = lines.length > 1 ? lines[lines.length - 1] : null;
+    // The link is typically the last line if it starts with http
+    const lastLine = lines.length > 0 ? lines[lines.length - 1].trim() : '';
+    let linkUrl = lastLine.startsWith('http') ? lastLine : null;
+    
+    let messageText = '';
+    if (linkUrl) {
+       messageText = lines.slice(0, -1).join('<br/>').trim();
+    } else {
+       messageText = lines.join('<br/>').trim() || 'You have a new notification.';
+    }
 
-    if (linkUrl && linkUrl.startsWith('http')) {
-       // Filter out the link from the text so we can make it a button
-       messageText = messageText.replace(linkUrl, '').trim();
+    if (linkUrl) {
        bodyHtml = `
          <p style="margin: 0 0 16px; font-size: 14px; color: #374151;">${messageText}</p>
          ${actionButton("View Details", linkUrl)}
        `;
     } else {
-       messageText = text || '';
        bodyHtml = `<p style="margin: 0 0 16px; font-size: 14px; color: #374151;">${messageText}</p>`;
     }
 

@@ -125,7 +125,10 @@ export default function ProductListingCard({ productId, messageContent, currentU
               ? `📍 Pickup near ${b.pickup_display_address || anonymizeAddress(b.pickup_address) || 'you'}`
               : '📍 Available nearby'
         
-        onShareDataLoaded(`🛒 **${prod.name}** — ${prod.price_usd === 0 ? 'Free' : `$${prod.price_usd.toFixed(2)}/${prod.unit}`}${prod.inventory > 0 ? ` (${prod.inventory} available)` : ' (Sold Out)'}\n${fulfillmentText}`)
+        const formattedQty = prod.inventory > 0 
+          ? ` (${prod.inventory}${prod.unit ? ` ${prod.unit === 'dozen' ? prod.unit : prod.unit === 'box' && prod.inventory !== 1 ? 'boxes' : prod.unit === 'bag' && prod.inventory !== 1 ? 'bags' : prod.unit !== 'piece' ? (prod.inventory !== 1 ? prod.unit + 's' : prod.unit) : ''}` : ''} available)` 
+          : ' (Sold Out)'
+        onShareDataLoaded(`🛒 **${prod.name}** — ${prod.price_usd === 0 ? 'Free' : `$${prod.price_usd.toFixed(2)}/${prod.unit}`}${formattedQty}\n${fulfillmentText}`)
       }
     }
     load()
@@ -297,7 +300,7 @@ export default function ProductListingCard({ productId, messageContent, currentU
           </span>
           {!isSoldOut && (
             <span className={styles.plcInventory}>
-              {product.inventory} available
+              {product.inventory}{product.unit ? ` ${product.unit === 'dozen' ? product.unit : product.unit === 'box' && product.inventory !== 1 ? 'boxes' : product.unit === 'bag' && product.inventory !== 1 ? 'bags' : product.unit !== 'piece' ? (product.inventory !== 1 ? product.unit + 's' : product.unit) : ''}` : ''} available
             </span>
           )}
         </div>

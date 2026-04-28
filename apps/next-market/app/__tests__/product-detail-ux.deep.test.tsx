@@ -119,11 +119,11 @@ describe('ProductDetailClient — UX Contract', () => {
   })
 
   it('enables Buy Now for quarantined item', () => {
-    expect(detailSrc).toContain('disabled={product.inventory === 0 || windowsExpired || isExpired}')
+    expect(detailSrc).toContain('disabled={product.inventory === 0 || isUnavailable}')
   })
 
   it('shows Add to Cart when quarantined', () => {
-    expect(detailSrc).toContain('!windowsExpired && !isExpired && product.inventory > 0 && (')
+    expect(detailSrc).toContain('!isUnavailable && product.inventory > 0 && (')
   })
 
   it('links to quarantines info page from banner', () => {

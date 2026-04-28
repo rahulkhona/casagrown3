@@ -465,6 +465,9 @@ test.describe('Notifications & Payouts', () => {
         expect(email.body).toContain('share=true')
         expect(email.body).toContain('CasaGrown')
       }
+
+      // 4. Restore the original community ID to prevent cascading test failures
+      execSql(`UPDATE public.profiles SET home_community_h3_index = '89283470c2fffff' WHERE email = 'buyer@test.local';`)
     })
   })
 

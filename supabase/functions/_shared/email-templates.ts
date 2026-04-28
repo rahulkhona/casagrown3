@@ -31,8 +31,8 @@ body { margin: 0; padding: 0; width: 100% !important; height: 100% !important; }
 @media (prefers-color-scheme: dark) {
   .email-bg { background-color: #1a1a2e !important; }
   .email-card { background-color: #16213e !important; }
-  .email-text { color: #e0e0e0 !important; }
-  .email-subtext { color: #b0b0b0 !important; }
+  .email-text, .email-text p, .email-text li { color: #e0e0e0 !important; }
+  .email-subtext, .email-subtext p { color: #b0b0b0 !important; }
 }
 </style>
 </head>

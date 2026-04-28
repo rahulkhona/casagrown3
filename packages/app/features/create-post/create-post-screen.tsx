@@ -8,7 +8,7 @@
 
 import { useState, useEffect } from 'react'
 import { YStack, XStack, Text, Button, ScrollView } from 'tamagui'
-import { Pressable } from 'react-native'
+import { Pressable, Platform } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { colors, borderRadius, shadows, tc } from '../../design-tokens'
 import { useTranslation } from 'react-i18next'
@@ -133,8 +133,22 @@ export function CreatePostScreen({ onBack, onSuccess, initialType, editId, clone
     }
   }
 
-  const handlePostSuccess = () => {
+  const handlePostSuccess = async () => {
     setSelectedType(null)
+    if (Platform.OS === 'web') {
+      try {
+        sessionStorage.removeItem('feedScrollPos')
+      } catch (e) {
+        // ignore
+      }
+    }
+    // Let the FeedScreen fetch fresh data
+    try {
+      const { clearFeedCache } = await import('../feed/feed-cache')
+      await clearFeedCache()
+    } catch (e) {
+      console.warn('Failed to clear feed cache', e)
+    }
     onSuccess?.()
   }
 

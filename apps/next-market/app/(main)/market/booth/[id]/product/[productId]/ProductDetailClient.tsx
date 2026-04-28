@@ -553,7 +553,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
             {isExpired ? (
               <span className="badge badge-red">⏰ Listing Expired</span>
             ) : product.inventory > 0 ? (
-              <span className="badge badge-green">✓ In Stock ({product.inventory} available)</span>
+              <span className="badge badge-green">✓ In Stock ({product.inventory} {product.unit === 'dozen' ? product.unit : product.unit === 'box' && product.inventory !== 1 ? 'boxes' : product.unit === 'bag' && product.inventory !== 1 ? 'bags' : product.unit !== 'piece' && product.unit !== 'each' ? product.unit : product.unit === 'each' ? 'each' : ''} available)</span>
             ) : (
               <span className="badge badge-red">Sold Out</span>
             )}
@@ -710,7 +710,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                       disabled={cartQty >= product.inventory}
                     >+</button>
                     <span style={{ fontSize: 13, color: 'var(--gray-500)', marginLeft: 4 }}>
-                      {product.inventory} available
+                      {product.inventory} {product.unit === 'dozen' ? product.unit : product.unit === 'box' && product.inventory !== 1 ? 'boxes' : product.unit === 'bag' && product.inventory !== 1 ? 'bags' : product.unit !== 'piece' && product.unit !== 'each' ? product.unit : product.unit === 'each' ? 'each' : ''} available
                     </span>
                   </div>
                 )}
@@ -871,30 +871,35 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
 
                 {/* Buy Now + Add to Cart — side by side */}
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    className="btn btn-primary btn-lg"
-                    style={{ flex: 1, fontSize: 14, padding: '12px 8px' }}
-                    onClick={() => {
-                      if (!isAuthenticated) {
-                        router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
-                        return
-                      }
-                      if (profileComplete !== true) {
-                        router.push('/profile-setup')
-                        return
-                      }
-                      setShowBuy(true)
-                    }}
-                    disabled={product.inventory === 0 || windowsExpired || isExpired}
-                  >
-                    {windowsExpired || isExpired
-                      ? '⏰ Unavailable'
-                      : product.inventory === 0
-                        ? 'Sold Out'
-                        : `⚡ ${product.price_usd === 0 ? 'Buy Now — Free' : `Buy Now`}`}
-                  </button>
+                  {(() => {
+                    const isOutsideRange = selectedFulfillment === 'delivery' && withinDelivery === false
+                    const isUnavailable = windowsExpired || isExpired || isOutsideRange
+                    return (
+                      <>
+                        <button
+                          className="btn btn-primary btn-lg"
+                          style={{ flex: 1, fontSize: 14, padding: '12px 8px' }}
+                          onClick={() => {
+                            if (!isAuthenticated) {
+                              router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
+                              return
+                            }
+                            if (profileComplete !== true) {
+                              router.push('/profile-setup')
+                              return
+                            }
+                            setShowBuy(true)
+                          }}
+                          disabled={product.inventory === 0 || isUnavailable}
+                        >
+                          {isUnavailable
+                            ? (isOutsideRange ? '❌ Outside Range' : '⏰ Unavailable')
+                            : product.inventory === 0
+                              ? 'Sold Out'
+                              : `⚡ ${product.price_usd === 0 ? 'Buy Now — Free' : `Buy Now`}`}
+                        </button>
 
-                  {!windowsExpired && !isExpired && product.inventory > 0 && (
+                        {!isUnavailable && product.inventory > 0 && (
                     <button
                       style={{
                         flex: 1, padding: '12px 8px',
@@ -942,7 +947,10 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                         : `🛒 Add to Cart`}
                     </button>
                   )}
-                </div>
+                  </>
+                )
+              })()}
+            </div>
 
                 {existingCartQty > 0 && (
                   <button

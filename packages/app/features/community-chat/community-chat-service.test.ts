@@ -1,4 +1,3 @@
-
 import {
   fetchCommunityMessages,
   sendCommunityMessage,
@@ -6,7 +5,6 @@ import {
   editCommunityMessage,
   toggleMessageReaction,
   flagMessage,
-  fetchCommunityReplies,
   getCommunityUnreadCount,
   searchCommunityMessages,
 } from './community-chat-service'
@@ -41,7 +39,6 @@ describe('community-chat-service', () => {
     expect(typeof editCommunityMessage).toBe('function')
     expect(typeof toggleMessageReaction).toBe('function')
     expect(typeof flagMessage).toBe('function')
-    expect(typeof fetchCommunityReplies).toBe('function')
     expect(typeof getCommunityUnreadCount).toBe('function')
     expect(typeof searchCommunityMessages).toBe('function')
   })
@@ -58,7 +55,7 @@ describe('community-chat-service', () => {
       error: null
     } as any)
     
-    const messages = await fetchCommunityMessages(mockH3)
+    const messages = await fetchCommunityMessages(mockH3, 'test-user')
     
     expect(spy).toHaveBeenCalledWith('get_community_chat_messages', {
       p_h3_index: mockH3,
@@ -84,7 +81,7 @@ describe('community-chat-service', () => {
       getPublicUrl: (path: string) => ({ data: { publicUrl: `https://mock.supabase.co/storage/v1/object/public/com-chat/${path}` } })
     } as any)
     
-    const messages = await fetchCommunityMessages(mockH3)
+    const messages = await fetchCommunityMessages(mockH3, 'test-user')
     
     expect(messages[0].media[0].url).toBe('https://mock.supabase.co/storage/v1/object/public/com-chat/user/123-img.png')
     

@@ -326,6 +326,7 @@ export default function ClientPage({
     
     // Initial mount
     connectWebSocket()
+    checkNewMessages() // Catch any messages (like newly published products) created while navigating away
     document.addEventListener('visibilitychange', handleVisChange)
     
     return () => {
