@@ -13,7 +13,7 @@ type Audience = {
   name: string
   description: string | null
   audience_rpc_name: string
-  estimated_size: number | null
+  estimated_count: number | null
   created_at: string
 }
 
@@ -95,7 +95,7 @@ export default function CrmAudiencesPage() {
       name:              form.name,
       description:       form.description || null,
       audience_rpc_name: rpcName,
-      estimated_size:    size,
+      estimated_count:   size,
     })
 
     if (!error) {
@@ -244,8 +244,8 @@ export default function CrmAudiencesPage() {
                   <span className="crm-muted">Native RPC Filter</span>
                 </td>
                 <td>
-                  {a.estimated_size != null
-                    ? <span className="crm-badge size">{a.estimated_size.toLocaleString()}</span>
+                  {a.estimated_count != null
+                    ? <span className="crm-badge size">{a.estimated_count.toLocaleString()}</span>
                     : '—'}
                 </td>
                 <td className="crm-muted">{new Date(a.created_at).toLocaleDateString()}</td>
