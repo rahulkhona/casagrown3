@@ -300,7 +300,7 @@ export default function CrmCampaignsPage() {
       setTimeout(() => setMessage(''), 3000)
     } else {
       setMessage(`Error: ${error?.message}`)
-      setTimeout(() => setMessage(''), 3000)
+      setTimeout(() => setMessage(''), 6000)
     }
     setSaving(false)
   }
