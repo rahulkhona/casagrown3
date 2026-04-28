@@ -204,8 +204,11 @@ Deno.serve(async (req: Request) => {
             const emailPayloads = await Promise.all(
               batch.map(async (r) => {
                 const rawBody = campaign.content_html ?? "";
+                const rawText = campaign.content_text ?? "";
                 const model = buildTemplateModel(r.name, dynamicModel);
+                
                 const renderedHtml = Mustache.render(rawBody, model);
+                const renderedText = rawText ? Mustache.render(rawText, model) : "";
                 
                 const personalizedHtml = await rewriteLinks(
                   renderedHtml,
@@ -214,11 +217,21 @@ Deno.serve(async (req: Request) => {
                   r.recipient_type,
                   supabase,
                 );
+
+                const personalizedText = renderedText ? await rewriteLinksText(
+                  renderedText,
+                  campaign.id,
+                  r.id,
+                  r.recipient_type,
+                  supabase,
+                ) : undefined;
+
                 const sendId = crypto.randomUUID();
                 return {
                   to: r.email!,
                   subject: Mustache.render(campaign.subject ?? "Message from CasaGrown", model),
                   htmlBody: personalizedHtml,
+                  textBody: personalizedText,
                   recipientId: r.id,
                   metadata: { send_id: sendId },
                   _sendId: sendId
@@ -231,6 +244,7 @@ Deno.serve(async (req: Request) => {
                 to: p.to,
                 subject: p.subject,
                 htmlBody: p.htmlBody,
+                ...(p.textBody && { textBody: p.textBody }),
                 metadata: p.metadata
               })),
             );

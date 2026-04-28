@@ -28,6 +28,8 @@ interface EmailPayload {
     subject: string;
     /** HTML body content */
     htmlBody: string;
+    /** Plain text body content fallback */
+    textBody?: string;
     /** Custom JSON string metadata for precise webhook mapping */
     metadata?: Record<string, string>;
 }
@@ -84,6 +86,7 @@ export async function sendTransactionEmail(
             subject: payload.subject,
             content: "auto",
             html: payload.htmlBody,
+            ...(payload.textBody && { text: payload.textBody }),
         };
 
         // Only add Postmark headers in production
@@ -185,6 +188,7 @@ export async function sendBroadcastEmail(
             subject: payload.subject,
             content: "auto",
             html: payload.htmlBody,
+            ...(payload.textBody && { text: payload.textBody }),
         };
 
         if (isProduction) {
@@ -244,6 +248,7 @@ export async function sendBroadcastEmailBatch(
         To: p.to,
         Subject: p.subject,
         HtmlBody: p.htmlBody,
+        ...(p.textBody && { TextBody: p.textBody }),
         MessageStream: messageStream,
         ...(p.metadata && { Metadata: p.metadata })
     }));
