@@ -45,6 +45,9 @@ export default function CrmAudiencesPage() {
   const [saving, setSaving]             = useState(false)
   const [message, setMessage]           = useState('')
   const [form, setForm]                 = useState(defaultForm)
+  const [testingAudience, setTestingAudience] = useState<Audience | null>(null)
+  const [testResults, setTestResults]   = useState<any[]>([])
+  const [testing, setTesting]           = useState(false)
 
   const fetchAudiences = async () => {
     setLoading(true)
@@ -110,6 +113,19 @@ export default function CrmAudiencesPage() {
   const deleteAudience = async (id: string) => {
     await supabase.from('crm_audiences').delete().eq('id', id)
     setAudiences(prev => prev.filter(a => a.id !== id))
+  }
+
+  const testAudience = async (audience: Audience) => {
+    setTestingAudience(audience)
+    setTesting(true)
+    const { data, error } = await supabase.rpc(audience.audience_rpc_name)
+    if (!error && data) {
+      setTestResults((data as any[]).slice(0, 100))
+    } else {
+      setTestResults([])
+      toast('Failed to execute audience function')
+    }
+    setTesting(false)
   }
 
   const sourceLabel = (rpcName: string) =>
@@ -250,17 +266,68 @@ export default function CrmAudiencesPage() {
                 </td>
                 <td className="crm-muted">{new Date(a.created_at).toLocaleDateString()}</td>
                 <td>
-                  <button
-                    className="crm-btn-danger-sm"
-                    onClick={() => deleteAudience(a.id)}
-                    data-testid={`audience-delete-${a.id}`}
-                  >Delete</button>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      className="crm-btn-secondary-sm"
+                      onClick={() => testAudience(a)}
+                      data-testid={`audience-test-${a.id}`}
+                    >Test</button>
+                    <button
+                      className="crm-btn-danger-sm"
+                      onClick={() => deleteAudience(a.id)}
+                      data-testid={`audience-delete-${a.id}`}
+                    >Delete</button>
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {/* Test Results Modal */}
+      {testingAudience && (
+        <div className="crm-modal-overlay">
+          <div className="crm-modal">
+            <div className="crm-modal-header">
+              <h3>Testing: {testingAudience.name}</h3>
+              <button onClick={() => setTestingAudience(null)}>✕</button>
+            </div>
+            <div className="crm-modal-body">
+              {testing ? (
+                <p className="crm-muted">Executing query...</p>
+              ) : testResults.length === 0 ? (
+                <p className="crm-muted">No recipients found for this audience.</p>
+              ) : (
+                <div className="crm-table-wrap" style={{ maxHeight: '400px', margin: 0 }}>
+                  <table className="crm-table">
+                    <thead>
+                      <tr>
+                        <th>Email</th>
+                        <th>Name</th>
+                        <th>Phone</th>
+                        <th>State</th>
+                        <th>City</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {testResults.map((r, i) => (
+                        <tr key={i}>
+                          <td>{r.email || '—'}</td>
+                          <td>{r.name || '—'}</td>
+                          <td>{r.phone || '—'}</td>
+                          <td>{r.state_code || '—'}</td>
+                          <td>{r.city || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         .crm-page { }
@@ -315,6 +382,8 @@ export default function CrmAudiencesPage() {
         .crm-btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
         .crm-btn-secondary { background: white; color: #6b7280; border: 1px solid #d1d5db; border-radius: 10px; padding: 10px 20px; cursor: pointer; font-size: 0.95rem; }
         .crm-btn-danger-sm { background: white; color: #ef4444; border: 1px solid #fecaca; border-radius: 6px; padding: 4px 10px; font-size: 0.8rem; cursor: pointer; }
+        .crm-btn-secondary-sm { background: white; color: #374151; border: 1px solid #d1d5db; border-radius: 6px; padding: 4px 10px; font-size: 0.8rem; cursor: pointer; }
+        .crm-btn-secondary-sm:hover { background: #f3f4f6; }
 
         .crm-table-wrap { overflow-x: auto; border: 1px solid #e5e7eb; border-radius: 12px; margin-top: 8px; }
         .crm-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
@@ -327,6 +396,13 @@ export default function CrmAudiencesPage() {
         .crm-badge.filter { background: #ede9fe; color: #7c3aed; }
         .crm-badge.size { background: #ecfdf5; color: #059669; }
         .crm-empty { text-align: center; color: #9ca3af; padding: 48px; }
+
+        .crm-modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; }
+        .crm-modal { background: white; border-radius: 12px; width: 800px; max-width: 90vw; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
+        .crm-modal-header { padding: 16px 24px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; }
+        .crm-modal-header h3 { margin: 0; font-size: 1.1rem; color: #111827; }
+        .crm-modal-header button { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #6b7280; }
+        .crm-modal-body { padding: 24px; overflow-y: auto; }
       `}</style>
     </div>
   )
