@@ -180,7 +180,7 @@ Deno.serve(async (req: Request) => {
                 templateModel: {
                   recipient_id: r.id,
                   name: r.name,
-                  first_name: r.name ? r.name.split(' ')[0] : null,
+                  first_name: (r.name ? r.name.split(' ')[0] : null) || 'Neighbor',
                   last_name: r.name && r.name.includes(' ') ? r.name.substring(r.name.indexOf(' ') + 1) : null,
                   data_source: dynamicModel
                 },
@@ -206,7 +206,7 @@ Deno.serve(async (req: Request) => {
             const emailPayloads = await Promise.all(
               batch.map(async (r) => {
                 const rawBody = campaign.content_html ?? "";
-                const firstName = r.name ? r.name.split(' ')[0] : null;
+                const firstName = (r.name ? r.name.split(' ')[0] : null) || 'Neighbor';
                 const lastName = r.name && r.name.includes(' ') ? r.name.substring(r.name.indexOf(' ') + 1) : null;
                 const renderedHtml = Mustache.render(rawBody, { name: r.name, first_name: firstName, last_name: lastName, data_source: dynamicModel });
                 
@@ -257,7 +257,7 @@ Deno.serve(async (req: Request) => {
           // SMS: send one by one (Twilio doesn't have batch API)
           for (const r of batch) {
             const rawText = campaign.content_text ?? "";
-            const firstName = r.name ? r.name.split(' ')[0] : null;
+            const firstName = (r.name ? r.name.split(' ')[0] : null) || 'Neighbor';
             const lastName = r.name && r.name.includes(' ') ? r.name.substring(r.name.indexOf(' ') + 1) : null;
             const renderedText = Mustache.render(rawText, { name: r.name, first_name: firstName, last_name: lastName, data_source: dynamicModel });
 
