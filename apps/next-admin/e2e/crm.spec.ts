@@ -301,6 +301,47 @@ test.describe('CRM — Campaigns page', () => {
     }
   })
 
+  test('Campaign builder Email Preview modal opens and toggles tabs', async ({ page }) => {
+    const newBtn = page.locator('button:has-text("New Campaign")')
+    if (await newBtn.count() > 0) {
+      await newBtn.click()
+      
+      // Select Email channel
+      await page.locator('select').nth(0).selectOption('email')
+      
+      // Select Custom HTML Mode
+      const modeSelect = page.locator('select').filter({ hasText: /Custom HTML/ })
+      if (await modeSelect.count() > 0) {
+        await modeSelect.selectOption('custom')
+        
+        // Click Preview Email
+        const previewBtn = page.locator('button', { hasText: 'Preview Email' })
+        await expect(previewBtn).toBeVisible()
+        await previewBtn.click()
+        
+        // Verify Modal opens
+        const modal = page.locator('.modal-overlay')
+        await expect(modal).toBeVisible()
+        await expect(modal.locator('h3')).toContainText('Email Preview')
+        
+        // Verify Tabs
+        const htmlTab = modal.locator('button', { hasText: 'HTML View' })
+        const textTab = modal.locator('button', { hasText: 'Plain Text' })
+        
+        await expect(htmlTab).toBeVisible()
+        await expect(textTab).toBeVisible()
+        
+        // Click Plain Text tab
+        await textTab.click()
+        await expect(modal.locator('pre')).toBeVisible()
+        
+        // Close Modal
+        await modal.locator('button', { hasText: 'Close' }).click()
+        await expect(modal).not.toBeVisible()
+      }
+    }
+  })
+
   test('Delete campaign asks for confirmation', async ({ page }) => {
     await page.waitForSelector('.crm-table')
     const deleteBtns = page.locator('.crm-btn-danger-icon')
