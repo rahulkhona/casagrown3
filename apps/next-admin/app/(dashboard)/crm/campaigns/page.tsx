@@ -306,24 +306,37 @@ export default function CrmCampaignsPage() {
 
   const sendNow = async (campaignId: string) => {
     setSending(campaignId)
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/send-crm-campaign`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        },
-        body: JSON.stringify({ campaign_id: campaignId }),
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/send-crm-campaign`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+          },
+          body: JSON.stringify({ campaign_id: campaignId }),
+        }
+      )
+      
+      let result;
+      const text = await res.text();
+      try {
+        result = JSON.parse(text);
+      } catch (e) {
+        result = { error: `Invalid server response: ${text.slice(0, 50)}...` };
       }
-    )
-    const result = await res.json()
-    setSending(null)
-    setMessage(res.ok ? `Sent! ${result.message ?? ''}` : `Error: ${result.error}`)
-    if (res.ok) setTimeout(() => setMessage(''), 5000)
-    // Refresh campaign list
-    const { data } = await supabase.from('crm_campaigns').select('*').order('created_at', { ascending: false })
-    if (data) setCampaigns(data as Campaign[])
+
+      setMessage(res.ok ? `Sent! ${result.message ?? ''}` : `Error: ${result.error}`)
+      if (res.ok) setTimeout(() => setMessage(''), 5000)
+    } catch (e: any) {
+      setMessage(`Error: Failed to connect to server - ${e.message}`)
+    } finally {
+      setSending(null)
+      // Refresh campaign list
+      const { data } = await supabase.from('crm_campaigns').select('*').order('created_at', { ascending: false })
+      if (data) setCampaigns(data as Campaign[])
+    }
   }
 
 
