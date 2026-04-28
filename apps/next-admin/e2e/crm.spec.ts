@@ -276,19 +276,18 @@ test.describe('CRM — Campaigns page', () => {
   })
 
   test('Delete campaign asks for confirmation', async ({ page }) => {
-    let dialogHandled = false
-    page.on('dialog', async dialog => {
-      expect(dialog.message()).toContain('Are you sure you want to delete this campaign?')
-      await dialog.dismiss()
-      dialogHandled = true
-    })
-
     await page.waitForSelector('.crm-table')
     const deleteBtns = page.locator('.crm-btn-danger-icon')
     
     if (await deleteBtns.count() > 0) {
       await deleteBtns.first().click()
-      expect(dialogHandled).toBe(true)
+      
+      const modal = page.locator('.modal-overlay')
+      await expect(modal).toBeVisible()
+      await expect(modal.locator('h3')).toContainText('Delete Campaign?')
+      
+      await modal.locator('button:has-text("Cancel")').click()
+      await expect(modal).not.toBeVisible()
     }
   })
 })
