@@ -1,4 +1,5 @@
 -- Fix the All audience to actually include both leads and users
+DROP FUNCTION IF EXISTS crm_audience_all();
 CREATE OR REPLACE FUNCTION crm_audience_all()
 RETURNS TABLE(
   id             UUID,
@@ -50,6 +51,7 @@ LANGUAGE sql SECURITY DEFINER AS $$
 $$;
 
 -- Create the completely missing Leads Only audience
+DROP FUNCTION IF EXISTS crm_audience_leads_only();
 CREATE OR REPLACE FUNCTION crm_audience_leads_only()
 RETURNS TABLE(
   id             UUID,
@@ -84,6 +86,7 @@ LANGUAGE sql SECURITY DEFINER AS $$
 $$;
 
 -- Create the completely missing Users Only audience
+DROP FUNCTION IF EXISTS crm_audience_users_only();
 CREATE OR REPLACE FUNCTION crm_audience_users_only()
 RETURNS TABLE(
   id             UUID,
