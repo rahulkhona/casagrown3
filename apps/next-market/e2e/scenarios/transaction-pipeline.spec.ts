@@ -132,6 +132,7 @@ test.describe('Transaction Pipeline — Full Financial Lifecycle', () => {
 
   // ── Phase 1: Create Multiple Orders ──
   test('Phase 1 — create orders across multiple buyer-seller pairs', async ({ browser }) => {
+    test.setTimeout(90_000) // 4 page navigations need more than default 30s during Next.js compilation
     // We'll use direct RPCs to create orders since the Buy Now button
     // depends on market being open and specific product availability.
     // Instead, we verify the UI for existing seeded orders.
