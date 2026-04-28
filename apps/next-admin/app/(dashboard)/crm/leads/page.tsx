@@ -75,7 +75,10 @@ export default function CrmLeadsPage() {
 
   useEffect(() => { fetchLeads() }, [fetchLeads])
 
-  const toast = (msg: string, ms = 2500) => { setMessage(msg); setTimeout(() => setMessage(''), ms) }
+  const toast = (msg: string, ms = 2500) => { 
+    setMessage(msg); 
+    if (!msg.startsWith('Error')) setTimeout(() => setMessage(''), ms) 
+  }
 
   const updateStatus = async (id: string, status: string) => {
     await supabase.from('crm_leads').update({ status }).eq('id', id)
@@ -251,7 +254,12 @@ export default function CrmLeadsPage() {
         </div>
       </div>
 
-      {message && <div className="crm-toast">{message}</div>}
+      {message && (
+        <div className={`crm-toast ${message.startsWith('Error') ? 'error' : 'success'}`}>
+          <span style={{ flex: 1 }}>{message}</span>
+          <button onClick={() => setMessage('')} className="toast-close">✕</button>
+        </div>
+      )}
 
       {csvFile && (
         <div className="crm-form-card csv-mapping-card">
@@ -476,7 +484,11 @@ export default function CrmLeadsPage() {
         .crm-stat.contacted { background: #fffbeb; color: #f59e0b; }
         .crm-stat.converted { background: #f0fdf4; color: #22c55e; }
         .crm-stat.partial { background: #fef3c7; color: #b45309; }
-        .crm-toast { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; font-size: 0.9rem; }
+        .crm-toast { display: flex; align-items: center; justify-content: space-between; border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; font-weight: 500; font-size: 0.9rem; }
+        .crm-toast.success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+        .crm-toast.error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+        .toast-close { background: none; border: none; font-size: 1.1rem; cursor: pointer; opacity: 0.6; padding: 0 0 0 12px; }
+        .toast-close:hover { opacity: 1; }
         .crm-toolbar { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
         .crm-search { flex: 1; min-width: 180px; border: 1px solid #d1d5db; border-radius: 8px; padding: 10px 14px; font-size: 0.95rem; outline: none; }
         .crm-search:focus { border-color: #4ade80; }

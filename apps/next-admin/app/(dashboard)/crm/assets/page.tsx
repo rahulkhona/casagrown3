@@ -63,7 +63,7 @@ export default function CrmAssetsPage() {
 
   const toast = (msg: string, ms = 3000) => {
     setMessage(msg)
-    setTimeout(() => setMessage(''), ms)
+    if (!msg.startsWith('Error')) setTimeout(() => setMessage(''), ms)
   }
 
   // Merged into handleSaveTemplate
@@ -170,7 +170,12 @@ export default function CrmAssetsPage() {
         </div>
       </div>
 
-      {message && <div className="crm-toast">{message}</div>}
+      {message && (
+        <div className={`crm-toast ${message.startsWith('Error') ? 'error' : 'success'}`}>
+          <span style={{ flex: 1 }}>{message}</span>
+          <button onClick={() => setMessage('')} className="toast-close">✕</button>
+        </div>
+      )}
 
       {showForm && (
         <div className="crm-form-card">
@@ -335,7 +340,11 @@ export default function CrmAssetsPage() {
         .crm-header-actions { display: flex; gap: 12px; align-items: center; }
         .crm-upload-btn { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 10px; padding: 10px 20px; cursor: pointer; font-size: 0.95rem; font-weight: 500; white-space: nowrap; }
         .crm-upload-btn:hover { background: #e5e7eb; }
-        .crm-toast { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; }
+        .crm-toast { display: flex; align-items: center; justify-content: space-between; border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; font-weight: 500; font-size: 0.9rem; }
+        .crm-toast.success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+        .crm-toast.error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+        .toast-close { background: none; border: none; font-size: 1.1rem; cursor: pointer; opacity: 0.6; padding: 0 0 0 12px; }
+        .toast-close:hover { opacity: 1; }
         .crm-form-card { background: white; border: 1px solid #e5e7eb; border-radius: 16px; padding: 28px; margin-bottom: 24px; }
         .crm-form-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 20px; color: #1a2e1a; }
         .crm-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }

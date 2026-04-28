@@ -60,7 +60,9 @@ export default function CrmDataSourcesPage() {
       setTimeout(() => setMessage('Data Source registered!'), 500)
     }
     setSaving(false)
-    setTimeout(() => setMessage(''), 4000)
+    if (!error) {
+      setTimeout(() => setMessage(''), 4000)
+    }
   }
 
   const deleteSource = async (id: string) => {
@@ -85,7 +87,12 @@ export default function CrmDataSourcesPage() {
         )}
       </div>
 
-      {message && <div className="crm-toast">{message}</div>}
+      {message && (
+        <div className={`crm-toast ${message.startsWith('Error') || message.startsWith('Invalid') ? 'error' : 'success'}`}>
+          <span style={{ flex: 1 }}>{message}</span>
+          <button onClick={() => setMessage('')} className="toast-close">✕</button>
+        </div>
+      )}
 
       {creating && (
         <div className="crm-form-card">
@@ -174,7 +181,11 @@ export default function CrmDataSourcesPage() {
         .crm-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; gap: 16px; }
         .crm-title { font-size: 1.6rem; font-weight: 700; color: #1a2e1a; }
         .crm-subtitle { color: #6b7280; font-size: 0.9rem; margin-top: 4px; max-width: 560px; }
-        .crm-toast { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; }
+        .crm-toast { display: flex; align-items: center; justify-content: space-between; border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; font-weight: 500; font-size: 0.9rem; }
+        .crm-toast.success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+        .crm-toast.error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+        .toast-close { background: none; border: none; font-size: 1.1rem; cursor: pointer; opacity: 0.6; padding: 0 0 0 12px; }
+        .toast-close:hover { opacity: 1; }
         .crm-form-card { background: white; border: 1px solid #e5e7eb; border-radius: 16px; padding: 28px; margin-bottom: 24px; }
         .crm-form-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 20px; color: #1a2e1a; }
         .crm-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }

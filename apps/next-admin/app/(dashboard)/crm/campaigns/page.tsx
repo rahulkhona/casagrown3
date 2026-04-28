@@ -300,7 +300,6 @@ export default function CrmCampaignsPage() {
       setTimeout(() => setMessage(''), 3000)
     } else {
       setMessage(`Error: ${error?.message}`)
-      setTimeout(() => setMessage(''), 6000)
     }
     setSaving(false)
   }
@@ -321,7 +320,7 @@ export default function CrmCampaignsPage() {
     const result = await res.json()
     setSending(null)
     setMessage(res.ok ? `Sent! ${result.message ?? ''}` : `Error: ${result.error}`)
-    setTimeout(() => setMessage(''), 5000)
+    if (res.ok) setTimeout(() => setMessage(''), 5000)
     // Refresh campaign list
     const { data } = await supabase.from('crm_campaigns').select('*').order('created_at', { ascending: false })
     if (data) setCampaigns(data as Campaign[])
@@ -343,7 +342,12 @@ export default function CrmCampaignsPage() {
         )}
       </div>
 
-      {message && <div className="crm-toast">{message}</div>}
+      {message && (
+        <div className={`crm-toast ${message.startsWith('Error') ? 'error' : 'success'}`}>
+          <span style={{ flex: 1 }}>{message}</span>
+          <button onClick={() => setMessage('')} className="toast-close">✕</button>
+        </div>
+      )}
 
       {creating && (
         <div className="crm-form-card">
@@ -669,8 +673,7 @@ export default function CrmCampaignsPage() {
                   
                   const { error } = await supabase.storage.from('media').upload(fileName, file)
                   if (error) {
-                    setMessage(`Upload failed: ${error.message}`)
-                    setTimeout(() => setMessage(''), 3000)
+                    setMessage(`Error: Upload failed - ${error.message}`)
                     return
                   }
                   
@@ -729,7 +732,11 @@ export default function CrmCampaignsPage() {
         .crm-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
         .crm-title { font-size: 1.6rem; font-weight: 700; color: #1a2e1a; }
         .crm-subtitle { color: #6b7280; font-size: 0.9rem; margin-top: 4px; }
-        .crm-toast { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; }
+        .crm-toast { display: flex; align-items: center; justify-content: space-between; border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; font-weight: 500; }
+        .crm-toast.success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+        .crm-toast.error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+        .toast-close { background: none; border: none; font-size: 1.1rem; cursor: pointer; opacity: 0.6; padding: 0 0 0 12px; }
+        .toast-close:hover { opacity: 1; }
         .crm-form-card { background: white; border: 1px solid #e5e7eb; border-radius: 16px; padding: 28px; margin-bottom: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
         .crm-form-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 20px; color: #1a2e1a; }
         .crm-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
