@@ -179,7 +179,7 @@ Deno.serve(async (req: Request) => {
                 templateAlias: campaign.postmark_template_alias!,
                 templateModel: {
                   recipient_id: r.id,
-                  name: r.name || 'Neighbor',
+                  name: (r.name ? r.name.split(' ')[0] : null) || 'Neighbor',
                   data_source: dynamicModel
                 },
                 metadata: { send_id: sendId },
@@ -204,7 +204,8 @@ Deno.serve(async (req: Request) => {
             const emailPayloads = await Promise.all(
               batch.map(async (r) => {
                 const rawBody = campaign.content_html ?? "";
-                const renderedHtml = Mustache.render(rawBody, { name: r.name || 'Neighbor', data_source: dynamicModel });
+                const firstName = (r.name ? r.name.split(' ')[0] : null) || 'Neighbor';
+                const renderedHtml = Mustache.render(rawBody, { name: firstName, data_source: dynamicModel });
                 
                 const personalizedHtml = await rewriteLinks(
                   renderedHtml,
@@ -216,7 +217,7 @@ Deno.serve(async (req: Request) => {
                 const sendId = crypto.randomUUID();
                 return {
                   to: r.email!,
-                  subject: Mustache.render(campaign.subject ?? "Message from CasaGrown", { name: r.name || 'Neighbor', data_source: dynamicModel }),
+                  subject: Mustache.render(campaign.subject ?? "Message from CasaGrown", { name: firstName, data_source: dynamicModel }),
                   htmlBody: personalizedHtml,
                   recipientId: r.id,
                   metadata: { send_id: sendId },
@@ -253,7 +254,8 @@ Deno.serve(async (req: Request) => {
           // SMS: send one by one (Twilio doesn't have batch API)
           for (const r of batch) {
             const rawText = campaign.content_text ?? "";
-            const renderedText = Mustache.render(rawText, { name: r.name || 'Neighbor', data_source: dynamicModel });
+            const firstName = (r.name ? r.name.split(' ')[0] : null) || 'Neighbor';
+            const renderedText = Mustache.render(rawText, { name: firstName, data_source: dynamicModel });
 
             const smsBody = await rewriteLinksText(
               renderedText,
