@@ -118,7 +118,7 @@ export default function CrmAssetsPage() {
       type: form.type,
       storage_path: finalPath,
       content: !typeIsMedia ? form.content || null : null,
-      tags: form.tags.length > 0 ? form.tags : null,
+      tags: form.tags,
     })
 
     if (!error) {

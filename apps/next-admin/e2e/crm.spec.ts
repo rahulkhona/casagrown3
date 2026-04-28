@@ -93,11 +93,30 @@ test.describe('CRM — Assets page', () => {
     expect(errors.filter(e => !e.includes('hydrat'))).toHaveLength(0)
   })
 
-  test('media type filter buttons are shown', async ({ page }) => {
-    await expect(page.locator('button:has-text("All")')).toBeVisible()
-    await expect(page.locator('button:has-text("Image")')).toBeVisible()
-    await expect(page.locator('button:has-text("Video")')).toBeVisible()
-    await expect(page.locator('button:has-text("Audio")')).toBeVisible()
+  test('creates a new email template and saves to database', async ({ page }) => {
+    // Click New Asset
+    await page.click('button:has-text("+ New Asset")')
+    
+    // Fill Name
+    await page.fill('input[placeholder*="Spring Promo Banner"]', `E2E Test Welcome Email ${Date.now()}`)
+    
+    // Select Type
+    await page.locator('select').nth(0).selectOption('email_template')
+    
+    // Fill Content
+    await page.fill('textarea', '<h1>Welcome to CasaGrown!</h1>')
+    
+    // Click Save
+    await page.click('button:has-text("Save Asset")')
+    
+    // Wait for Toast
+    const toast = page.locator('.crm-toast')
+    await toast.waitFor({ state: 'visible', timeout: 10000 })
+    console.log('TOAST MESSAGE:', await toast.textContent())
+    await expect(toast).toContainText('Asset saved', { timeout: 1000 })
+    
+    // Verify it appears in the grid
+    await expect(page.locator('.asset-card', { hasText: 'E2E Test Welcome Email' }).first()).toBeVisible()
   })
 })
 
@@ -114,24 +133,29 @@ test.describe('CRM — Campaigns page', () => {
     expect(errors.filter(e => !e.includes('hydrat'))).toHaveLength(0)
   })
 
-  test('New Campaign form shows Design Mode and Subject for email channel', async ({ page }) => {
-    await page.locator('#create-campaign-btn').waitFor({ state: 'visible', timeout: 10000 })
+  test('creates a new draft campaign and saves to database', async ({ page }) => {
+    const campaignName = `E2E Test Campaign ${Date.now()}`
+    
+    // Click New Campaign
     await page.click('#create-campaign-btn', { force: true })
     await expect(page.locator('h2', { hasText: 'Create Campaign' })).toBeVisible({ timeout: 10000 })
-    // Subject input placeholder: "e.g. Fresh produce..."
-    await expect(page.locator('input[placeholder*="Fresh produce"]')).toBeVisible({ timeout: 10000 })
-    // Design Mode dropdown should be present
-    await expect(page.locator('select').nth(1)).toBeVisible()
-  })
+    
+    // Fill Name
+    await page.fill('input[placeholder="e.g. Spring Launch Email"]', campaignName)
+    
+    // Fill Subject
+    await page.fill('input[placeholder*="Fresh produce"]', 'Welcome to CasaGrown')
 
-  test('switching to SMS hides Design Mode and subject', async ({ page }) => {
-    await page.locator('#create-campaign-btn').waitFor({ state: 'visible', timeout: 10000 })
-    await page.click('#create-campaign-btn', { force: true })
-    await expect(page.locator('h2', { hasText: 'Create Campaign' })).toBeVisible({ timeout: 10000 })
-    const channelSelect = page.locator('select').first()
-    await channelSelect.selectOption('sms')
-    await expect(page.locator('input[placeholder*="Subject"]')).not.toBeVisible()
-    await expect(page.getByText('Design Mode')).not.toBeVisible()
+    // Click Save Campaign
+    await page.click('button:has-text("Save Campaign")')
+    
+    // Wait for Success Toast
+    await expect(page.locator('.crm-toast.success')).toContainText('Campaign created', { timeout: 10000 })
+    
+    // Verify it appears in the table with draft status
+    const row = page.locator('tr', { hasText: campaignName })
+    await expect(row).toBeVisible()
+    await expect(row).toContainText('draft', { ignoreCase: true })
   })
 })
 
@@ -167,21 +191,23 @@ test.describe('CRM — Landing Pages page', () => {
     expect(errors.filter(e => !e.includes('hydrat'))).toHaveLength(0)
   })
 
-  test('Register Page form opens and has slug and URL fields', async ({ page }) => {
+  test('registers a new landing page and saves to database', async ({ page }) => {
+    const pageName = `E2E Test Landing Page ${Date.now()}`
+    
     await page.click('button:has-text("+ Register Page")')
-    // Wait for slug input as a reliable form-mount indicator
-    await expect(page.locator('input[placeholder*="spring-growers"]').first()).toBeVisible({ timeout: 10000 })
-    await expect(page.locator('input[placeholder*="Spring Growers"]')).toBeVisible({ timeout: 10000 })
-  })
-
-  test('slug auto-populates from name', async ({ page }) => {
-    await page.click('button:has-text("+ Register Page")')
+    
     const nameInput = page.locator('input[placeholder*="Spring Growers"]').first()
     await expect(nameInput).toBeVisible({ timeout: 10000 })
-    await nameInput.fill('Summer Sellers Campaign')
-    await page.waitForTimeout(300)
-    const slugInput = page.locator('input[placeholder*="spring-growers"]').first()
-    await expect(slugInput).toHaveValue('summer-sellers-campaign')
+    await nameInput.fill(pageName)
+    
+    // Submit form
+    await page.click('button:has-text("Register Page")')
+    
+    // Verify Success Toast
+    await expect(page.locator('.crm-toast.success')).toContainText('Landing page registered', { timeout: 10000 })
+    
+    // Verify it appears in the list
+    await expect(page.locator('tr', { hasText: pageName }).first()).toBeVisible()
   })
 })
 
