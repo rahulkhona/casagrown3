@@ -16,7 +16,8 @@ const BUCKETS = [
   { id: 'post-media', public: true }, // Handles both images and videos for posts
   { id: 'chat-media', public: false }, // Private bucket for chat
   { id: 'delivery-proofs', public: false }, // For order delivery proofs
-  { id: 'dispute-proofs', public: false }   // For dispute evidence
+  { id: 'dispute-proofs', public: false },  // For dispute evidence
+  { id: 'media', public: true }             // For general CRM assets and media
 ];
 
 async function initStorage() {
