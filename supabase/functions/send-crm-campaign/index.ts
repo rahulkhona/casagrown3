@@ -16,6 +16,7 @@ import Mustache from "https://esm.sh/mustache@4.2.0";
 import { sendBroadcastEmailBatch, sendBroadcastTemplateBatch } from "../_shared/postmark.ts";
 import { sendSms } from "../_shared/twilio.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import { buildTemplateModel } from "./utils.ts";
 
 const SITE_URL = Deno.env.get("SITE_URL") ?? "https://casagrown.com";
 const BATCH_SIZE = 500;
@@ -179,10 +180,7 @@ Deno.serve(async (req: Request) => {
                 templateAlias: campaign.postmark_template_alias!,
                 templateModel: {
                   recipient_id: r.id,
-                  name: r.name,
-                  first_name: (r.name ? r.name.split(' ')[0] : null) || 'Neighbor',
-                  last_name: r.name && r.name.includes(' ') ? r.name.substring(r.name.indexOf(' ') + 1) : null,
-                  data_source: dynamicModel
+                  ...buildTemplateModel(r.name, dynamicModel)
                 },
                 metadata: { send_id: sendId },
                 _sendId: sendId // temporary for local mapping
@@ -206,9 +204,8 @@ Deno.serve(async (req: Request) => {
             const emailPayloads = await Promise.all(
               batch.map(async (r) => {
                 const rawBody = campaign.content_html ?? "";
-                const firstName = (r.name ? r.name.split(' ')[0] : null) || 'Neighbor';
-                const lastName = r.name && r.name.includes(' ') ? r.name.substring(r.name.indexOf(' ') + 1) : null;
-                const renderedHtml = Mustache.render(rawBody, { name: r.name, first_name: firstName, last_name: lastName, data_source: dynamicModel });
+                const model = buildTemplateModel(r.name, dynamicModel);
+                const renderedHtml = Mustache.render(rawBody, model);
                 
                 const personalizedHtml = await rewriteLinks(
                   renderedHtml,
@@ -220,7 +217,7 @@ Deno.serve(async (req: Request) => {
                 const sendId = crypto.randomUUID();
                 return {
                   to: r.email!,
-                  subject: Mustache.render(campaign.subject ?? "Message from CasaGrown", { name: r.name, first_name: firstName, last_name: lastName, data_source: dynamicModel }),
+                  subject: Mustache.render(campaign.subject ?? "Message from CasaGrown", model),
                   htmlBody: personalizedHtml,
                   recipientId: r.id,
                   metadata: { send_id: sendId },
@@ -257,9 +254,8 @@ Deno.serve(async (req: Request) => {
           // SMS: send one by one (Twilio doesn't have batch API)
           for (const r of batch) {
             const rawText = campaign.content_text ?? "";
-            const firstName = (r.name ? r.name.split(' ')[0] : null) || 'Neighbor';
-            const lastName = r.name && r.name.includes(' ') ? r.name.substring(r.name.indexOf(' ') + 1) : null;
-            const renderedText = Mustache.render(rawText, { name: r.name, first_name: firstName, last_name: lastName, data_source: dynamicModel });
+            const model = buildTemplateModel(r.name, dynamicModel);
+            const renderedText = Mustache.render(rawText, model);
 
             const smsBody = await rewriteLinksText(
               renderedText,

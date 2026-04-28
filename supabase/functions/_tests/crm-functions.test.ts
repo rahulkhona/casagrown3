@@ -232,3 +232,33 @@ Deno.test('send-crm-campaign: no scheduled campaigns returns 0 processed', async
   const body = await res.json()
   assertExists(body.processed, 'processed field should exist')
 })
+
+// ── send-crm-campaign template model helper ───────────────────────────────────
+
+import { buildTemplateModel } from '../send-crm-campaign/utils.ts'
+
+Deno.test('send-crm-campaign: buildTemplateModel resolves names correctly', () => {
+  // Test full name
+  const model1 = buildTemplateModel('John Doe');
+  assertEquals(model1.name, 'John Doe');
+  assertEquals(model1.first_name, 'John');
+  assertEquals(model1.last_name, 'Doe');
+
+  // Test single name
+  const model2 = buildTemplateModel('Prince');
+  assertEquals(model2.name, 'Prince');
+  assertEquals(model2.first_name, 'Prince');
+  assertEquals(model2.last_name, null);
+
+  // Test no name (fallback to Neighbor)
+  const model3 = buildTemplateModel(null);
+  assertEquals(model3.name, null);
+  assertEquals(model3.first_name, 'Neighbor');
+  assertEquals(model3.last_name, null);
+
+  // Test empty string (fallback to Neighbor)
+  const model4 = buildTemplateModel('');
+  assertEquals(model4.name, '');
+  assertEquals(model4.first_name, 'Neighbor');
+  assertEquals(model4.last_name, null);
+});
