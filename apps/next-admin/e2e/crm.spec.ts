@@ -314,6 +314,10 @@ test.describe('CRM — Campaigns page', () => {
       if (await modeSelect.count() > 0) {
         await modeSelect.selectOption('custom')
         
+        // Fill the content fields to test data binding
+        const textArea = page.locator('textarea[placeholder*="Hello, ..."]')
+        await textArea.fill('This is a plain text test string')
+        
         // Click Preview Email
         const previewBtn = page.locator('button', { hasText: 'Preview Email' })
         await expect(previewBtn).toBeVisible()
@@ -331,9 +335,9 @@ test.describe('CRM — Campaigns page', () => {
         await expect(htmlTab).toBeVisible()
         await expect(textTab).toBeVisible()
         
-        // Click Plain Text tab
+        // Click Plain Text tab and verify content
         await textTab.click()
-        await expect(modal.locator('pre')).toBeVisible()
+        await expect(modal.locator('pre')).toContainText('This is a plain text test string')
         
         // Close Modal
         await modal.locator('button', { hasText: 'Close' }).click()
