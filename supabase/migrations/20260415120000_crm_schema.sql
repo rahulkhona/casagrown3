@@ -229,37 +229,18 @@ DO $$ BEGIN
     WITH CHECK (EXISTS (SELECT 1 FROM staff_members WHERE user_id = auth.uid()));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- ─── 7. crm_data_sources ─────────────────────────────────────────────
--- Registry of backend RPCs mapped to specific JSON output schemas for template designers
-CREATE TABLE IF NOT EXISTS crm_data_sources (
-  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name              TEXT NOT NULL,
-  description       TEXT,
-  rpc_name          TEXT NOT NULL,
-  return_schema     JSONB NOT NULL DEFAULT '{}'::jsonb,
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
-);
+
 
 -- ─── 8. crm_campaigns ────────────────────────────────────────────────
 -- Email or SMS campaign: content, audience reference, and schedule.
 CREATE TABLE IF NOT EXISTS crm_campaigns (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  system_alias TEXT UNIQUE,            -- e.g. 'sys-day3-welcome', used for programmatic automated dispatch
   name         TEXT NOT NULL,
   channel      TEXT NOT NULL CHECK (channel IN ('email', 'sms')),
   subject      TEXT,                   -- email only
   content_html TEXT,                   -- email HTML body (AI-generated, pasted in)
   content_text TEXT,                   -- SMS text or email plain-text fallback
-  postmark_template_alias TEXT,        -- If populated, bypasses custom HTML in favor of Postmark template API
   audience_id  UUID REFERENCES crm_audiences (id) ON DELETE SET NULL,
-  data_source_id UUID REFERENCES crm_data_sources (id) ON DELETE SET NULL,
-
-  -- Geographic Multiple Targeting
-  target_states   TEXT[] NOT NULL DEFAULT '{}',
-  target_cities   TEXT[] NOT NULL DEFAULT '{}',
-  target_counties TEXT[] NOT NULL DEFAULT '{}',
-  target_zips     TEXT[] NOT NULL DEFAULT '{}',
-  target_h3s      TEXT[] NOT NULL DEFAULT '{}',
 
   scheduled_at TIMESTAMPTZ,            -- NULL = draft
   sent_at      TIMESTAMPTZ,
