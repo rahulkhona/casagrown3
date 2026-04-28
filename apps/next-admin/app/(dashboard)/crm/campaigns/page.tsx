@@ -127,6 +127,8 @@ export default function CrmCampaignsPage() {
   const [templateMode, setTemplateMode] = useState(false)
   const [htmlMode, setHtmlMode] = useState<'wysiwyg' | 'raw'>('wysiwyg')
   const [addGeo, setAddGeo] = useState({ states: '', cities: '', counties: '', zips: '' })
+  const [previewEmail, setPreviewEmail] = useState<{ html: string, text: string } | null>(null)
+  const [previewTab, setPreviewTab] = useState<'html' | 'text'>('html')
 
   const [assetPickerOpen, setAssetPickerOpen] = useState(false)
   const [assets, setAssets] = useState<{name: string, url: string}[]>([])
@@ -442,8 +444,24 @@ export default function CrmCampaignsPage() {
                   placeholder="Hello, ..." 
                   value={form.content_text} 
                   onChange={e => setForm(f => ({ ...f, content_text: e.target.value }))} 
-                  style={{ minHeight: '100px' }} 
+                  style={{ minHeight: '150px', fontFamily: 'monospace', whiteSpace: 'pre', overflowX: 'auto' }} 
                 />
+              </div>
+            )}
+
+            {form.channel === 'email' && !templateMode && (
+              <div className="crm-field full-width" style={{ marginTop: '4px' }}>
+                <button 
+                  type="button" 
+                  className="crm-btn-secondary" 
+                  onClick={() => {
+                    setPreviewEmail({ html: form.content_html, text: form.content_text })
+                    setPreviewTab('html')
+                  }}
+                  style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <span style={{ fontSize: '1.2rem' }}>👁️</span> Preview Email
+                </button>
               </div>
             )}
 
@@ -770,6 +788,42 @@ export default function CrmCampaignsPage() {
               >
                 Yes, Delete
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {previewEmail && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '800px', height: '85vh', display: 'flex', flexDirection: 'column', padding: '0', background: '#f3f4f6' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', background: 'white', borderBottom: '1px solid #e5e7eb', borderTopLeftRadius: '16px', borderTopRightRadius: '16px' }}>
+              <h3 style={{ margin: 0, fontSize: '1.15rem', color: '#111827' }}>Email Preview</h3>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', background: '#f3f4f6', padding: '4px', borderRadius: '8px' }}>
+                  <button 
+                    type="button"
+                    style={{ background: previewTab === 'html' ? 'white' : 'transparent', border: 'none', padding: '6px 16px', borderRadius: '6px', fontWeight: previewTab === 'html' ? 600 : 400, boxShadow: previewTab === 'html' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none', cursor: 'pointer', color: '#374151' }} 
+                    onClick={() => setPreviewTab('html')}
+                  >HTML View</button>
+                  <button 
+                    type="button"
+                    style={{ background: previewTab === 'text' ? 'white' : 'transparent', border: 'none', padding: '6px 16px', borderRadius: '6px', fontWeight: previewTab === 'text' ? 600 : 400, boxShadow: previewTab === 'text' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none', cursor: 'pointer', color: '#374151' }} 
+                    onClick={() => setPreviewTab('text')}
+                  >Plain Text</button>
+                </div>
+                <button type="button" className="crm-btn-secondary" style={{ padding: '6px 14px' }} onClick={() => setPreviewEmail(null)}>✕ Close</button>
+              </div>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto', padding: '24px' }}>
+              {previewTab === 'html' ? (
+                <div style={{ background: 'white', maxWidth: '600px', margin: '0 auto', minHeight: '100%', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)', borderRadius: '8px', overflow: 'hidden' }}>
+                  <div dangerouslySetInnerHTML={{ __html: previewEmail.html }} />
+                </div>
+              ) : (
+                <pre style={{ background: 'white', maxWidth: '600px', margin: '0 auto', padding: '24px', minHeight: '100%', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)', borderRadius: '8px', fontFamily: 'monospace', whiteSpace: 'pre', overflowX: 'auto', color: '#333', fontSize: '0.9rem', lineHeight: '1.5' }}>
+                  {previewEmail.text || 'No plain text fallback provided.'}
+                </pre>
+              )}
             </div>
           </div>
         </div>
