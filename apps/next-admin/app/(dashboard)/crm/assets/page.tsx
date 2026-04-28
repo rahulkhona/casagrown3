@@ -101,7 +101,7 @@ export default function CrmAssetsPage() {
     if (typeIsMedia && uploadFile) {
       const path = `crm/${Date.now()}-${uploadFile.name}`
       const { error: uploadErr } = await supabase.storage
-        .from('media')
+        .from('marketing-assets')
         .upload(path, uploadFile, { upsert: true })
 
       if (uploadErr) {
@@ -135,14 +135,14 @@ export default function CrmAssetsPage() {
 
   const copyUrl = (asset: Asset) => {
     const url = asset.storage_path 
-      ? supabase.storage.from('media').getPublicUrl(asset.storage_path).data.publicUrl
+      ? supabase.storage.from('marketing-assets').getPublicUrl(asset.storage_path).data.publicUrl
       : ''
     if (url) { navigator.clipboard.writeText(url); toast('URL copied!', 2000) }
   }
 
   const deleteAsset = async (asset: Asset) => {
     if (asset.storage_path) {
-      await supabase.storage.from('media').remove([asset.storage_path])
+      await supabase.storage.from('marketing-assets').remove([asset.storage_path])
     }
     await supabase.from('crm_assets').delete().eq('id', asset.id)
     setAssets(prev => prev.filter(a => a.id !== asset.id))
