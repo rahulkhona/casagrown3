@@ -7,3 +7,6 @@
 .ql-editor ul { list-style-type: disc !important; }
 .ql-editor ol { list-style-type: decimal !important; }
 .ql-editor li { margin-bottom: 0.25em !important; display: list-item !important; }
+
+/* Custom Promo Toolbar Button */
+.ql-promo::before { content: '🎁'; font-size: 14px; line-height: 1; display: inline-block; padding-top: 2px; }

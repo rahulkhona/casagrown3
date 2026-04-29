@@ -165,6 +165,11 @@ export default function CrmCampaignsPage() {
   const [loadingAssets, setLoadingAssets] = useState(false)
   const quillSelectionRef = useRef<number | null>(null)
 
+  const [landingPages, setLandingPages] = useState<any[]>([])
+  const [promotions, setPromotions] = useState<any[]>([])
+  const [promoModalOpen, setPromoModalOpen] = useState(false)
+  const [linkSearch, setLinkSearch] = useState('')
+
   const openAssetPicker = useCallback(async () => {
     const quill = quillRef.current?.getEditor()
     if (quill) {
@@ -187,6 +192,14 @@ export default function CrmCampaignsPage() {
     openAssetPicker()
   }, [openAssetPicker])
 
+  const insertPromoHandler = useCallback(() => {
+    const quill = quillRef.current?.getEditor()
+    if (quill) {
+      quillSelectionRef.current = quill.getSelection()?.index || 0
+    }
+    setPromoModalOpen(true)
+  }, [])
+
   const quillModules = useMemo(() => ({
     toolbar: {
       container: [
@@ -194,14 +207,15 @@ export default function CrmCampaignsPage() {
         ['bold', 'italic', 'underline', 'strike'],
         [{ 'color': [] }, { 'background': [] }],
         [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-        ['link', 'image'],
+        ['link', 'image', 'promo'],
         ['clean']
       ],
       handlers: {
-        image: imageHandler
+        image: imageHandler,
+        promo: insertPromoHandler
       }
     }
-  }), [imageHandler])
+  }), [imageHandler, insertPromoHandler])
 
   // ZIP community lookup
   type ZipResult = {
@@ -217,14 +231,18 @@ export default function CrmCampaignsPage() {
   useEffect(() => {
     const fetchAll = async () => {
       setLoading(true)
-      const [{ data: camps }, { data: auds }, { data: sources }] = await Promise.all([
+      const [{ data: camps }, { data: auds }, { data: sources }, { data: lps }, { data: promos }] = await Promise.all([
         supabase.from('crm_campaigns').select('*').order('created_at', { ascending: false }),
         supabase.from('crm_audiences').select('id, name').order('name'),
         supabase.from('crm_data_sources').select('id, name, rpc_name').order('name'),
+        supabase.from('crm_landing_pages').select('id, slug, title').eq('is_active', true),
+        supabase.from('crm_promotions').select('id, name, landing_page_id').order('created_at', { ascending: false })
       ])
       setCampaigns((camps as Campaign[]) ?? [])
       setAudiences((auds as Audience[]) ?? [])
       setDataSources((sources as DataSource[]) ?? [])
+      setLandingPages(lps || [])
+      setPromotions(promos || [])
       setLoading(false)
     }
     fetchAll()
@@ -440,13 +458,22 @@ export default function CrmCampaignsPage() {
                   <label>Email Content (HTML)</label>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     {htmlMode === 'raw' && (
-                      <button
-                        type="button"
-                        onClick={() => setForm(f => ({ ...f, content_html: formatHTML(f.content_html) }))}
-                        style={{ padding: '4px 8px', fontSize: '0.8rem', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '4px', cursor: 'pointer' }}
-                      >
-                        ✨ Pretty Print
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setPromoModalOpen(true)}
+                          style={{ padding: '4px 8px', fontSize: '0.8rem', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                        >
+                          🔗 Copy a Link...
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setForm(f => ({ ...f, content_html: formatHTML(f.content_html) }))}
+                          style={{ padding: '4px 8px', fontSize: '0.8rem', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                          ✨ Pretty Print
+                        </button>
+                      </>
                     )}
                     <select value={htmlMode} onChange={e => setHtmlMode(e.target.value as 'wysiwyg' | 'raw')} style={{ width: 'auto', padding: '4px 8px', fontSize: '0.8rem' }}>
                       <option value="wysiwyg">Inline Editor (WYSIWYG)</option>
@@ -813,6 +840,80 @@ export default function CrmCampaignsPage() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {promoModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '500px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Insert Link</h3>
+              <button className="toast-close" onClick={() => setPromoModalOpen(false)}>×</button>
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <input 
+                type="text" 
+                placeholder="Search promotions or landing pages..." 
+                value={linkSearch} 
+                onChange={e => setLinkSearch(e.target.value)}
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6 }}
+                autoFocus
+              />
+            </div>
+
+            <div style={{ height: '350px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, background: '#f9fafb' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ fontWeight: 'bold', fontSize: '0.85rem', color: '#6b7280', textTransform: 'uppercase', marginTop: 8 }}>Active Promotions</div>
+                {promotions.filter(p => p.name.toLowerCase().includes(linkSearch.toLowerCase())).map(p => {
+                  const lp = landingPages.find(l => l.id === p.landing_page_id);
+                  if (!lp) return null;
+                  const url = `${process.env.NEXT_PUBLIC_MARKET_URL || 'https://casagrown.com'}/p/${lp.slug}?promo=${p.id}`;
+                  return (
+                    <button key={p.id} type="button" onClick={() => {
+                      if (htmlMode === 'wysiwyg') {
+                        const quill = quillRef.current?.getEditor();
+                        if (quill) {
+                          quill.insertText(quillSelectionRef.current || 0, p.name, 'link', url);
+                        }
+                      } else {
+                        navigator.clipboard.writeText(url);
+                        toast('Link copied to clipboard!');
+                      }
+                      setPromoModalOpen(false);
+                      setLinkSearch('');
+                    }} style={{ textAlign: 'left', padding: '10px 12px', background: 'white', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer' }}>
+                      <div style={{ fontWeight: 600, color: '#111827' }}>🎁 {p.name}</div>
+                      <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: 4 }}>{url}</div>
+                    </button>
+                  )
+                })}
+
+                <div style={{ fontWeight: 'bold', fontSize: '0.85rem', color: '#6b7280', textTransform: 'uppercase', marginTop: 16 }}>Landing Pages</div>
+                {landingPages.filter(lp => lp.title.toLowerCase().includes(linkSearch.toLowerCase()) || lp.slug.toLowerCase().includes(linkSearch.toLowerCase())).map(lp => {
+                  const url = `${process.env.NEXT_PUBLIC_MARKET_URL || 'https://casagrown.com'}/p/${lp.slug}`;
+                  return (
+                    <button key={lp.id} type="button" onClick={() => {
+                      if (htmlMode === 'wysiwyg') {
+                        const quill = quillRef.current?.getEditor();
+                        if (quill) {
+                          quill.insertText(quillSelectionRef.current || 0, lp.title, 'link', url);
+                        }
+                      } else {
+                        navigator.clipboard.writeText(url);
+                        toast('Link copied to clipboard!');
+                      }
+                      setPromoModalOpen(false);
+                      setLinkSearch('');
+                    }} style={{ textAlign: 'left', padding: '10px 12px', background: 'white', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer' }}>
+                      <div style={{ fontWeight: 600, color: '#111827' }}>📄 {lp.title}</div>
+                      <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: 4 }}>{url}</div>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           </div>
         </div>
