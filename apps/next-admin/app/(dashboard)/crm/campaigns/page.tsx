@@ -898,16 +898,6 @@ export default function CrmCampaignsPage() {
         :global(.ql-container) { resize: vertical; overflow-y: auto; min-height: 250px; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }
         :global(.ql-toolbar) { border-top-left-radius: 8px; border-top-right-radius: 8px; }
         
-        /* Restore standard typography inside the WYSIWYG editor that Tailwind strips away */
-        :global(.ql-editor p) { margin-bottom: 1em; }
-        :global(.ql-editor h1) { font-size: 2em; margin-bottom: 0.67em; font-weight: bold; }
-        :global(.ql-editor h2) { font-size: 1.5em; margin-bottom: 0.83em; font-weight: bold; }
-        :global(.ql-editor h3) { font-size: 1.17em; margin-bottom: 1em; font-weight: bold; }
-        :global(.ql-editor ul), :global(.ql-editor ol) { padding-left: 2em; margin-bottom: 1em; }
-        :global(.ql-editor ul) { list-style-type: disc; }
-        :global(.ql-editor ol) { list-style-type: decimal; }
-        :global(.ql-editor li) { margin-bottom: 0.25em; }
-
         /* Multi-Geo Styles */
         .zip-lookup-wrap { position: relative; }
         .zip-results { position: absolute; top: 72px; left: 0; right: 0; background: white; border: 1px solid #d1d5db; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-height: 240px; overflow-y: auto; z-index: 10; padding: 4px; }
@@ -929,6 +919,17 @@ export default function CrmCampaignsPage() {
         .asset-thumb-card { transition: all 0.15s ease; }
         .asset-thumb-card:hover { border-color: #3b82f6 !important; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); transform: translateY(-1px); }
       `}</style>
+      <style dangerouslySetInnerHTML={{ __html: `
+        /* Restore standard typography inside the WYSIWYG editor that Tailwind strips away */
+        .ql-editor p { margin-bottom: 1em !important; }
+        .ql-editor h1 { font-size: 2em !important; margin-bottom: 0.67em !important; font-weight: bold !important; }
+        .ql-editor h2 { font-size: 1.5em !important; margin-bottom: 0.83em !important; font-weight: bold !important; }
+        .ql-editor h3 { font-size: 1.17em !important; margin-bottom: 1em !important; font-weight: bold !important; }
+        .ql-editor ul, .ql-editor ol { padding-left: 2em !important; margin-bottom: 1em !important; }
+        .ql-editor ul { list-style-type: disc !important; }
+        .ql-editor ol { list-style-type: decimal !important; }
+        .ql-editor li { margin-bottom: 0.25em !important; }
+      `}} />
     </div>
   )
 }
