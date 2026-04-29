@@ -11,6 +11,7 @@ import { useAuth } from '@casagrown/app/features/auth/auth-hook'
 import { useAdminPush } from '../../lib/useAdminPush'
 import { colors } from '@casagrown/app/design-tokens'
 import ClientOnly from '../ClientOnly'
+import './quill-overrides.css'
 
 type MenuItem = {
   label: string;
