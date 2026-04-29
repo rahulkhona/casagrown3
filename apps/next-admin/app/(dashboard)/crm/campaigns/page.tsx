@@ -897,6 +897,16 @@ export default function CrmCampaignsPage() {
         
         :global(.ql-container) { resize: vertical; overflow-y: auto; min-height: 250px; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }
         :global(.ql-toolbar) { border-top-left-radius: 8px; border-top-right-radius: 8px; }
+        
+        /* Restore standard typography inside the WYSIWYG editor that Tailwind strips away */
+        :global(.ql-editor p) { margin-bottom: 1em; }
+        :global(.ql-editor h1) { font-size: 2em; margin-bottom: 0.67em; font-weight: bold; }
+        :global(.ql-editor h2) { font-size: 1.5em; margin-bottom: 0.83em; font-weight: bold; }
+        :global(.ql-editor h3) { font-size: 1.17em; margin-bottom: 1em; font-weight: bold; }
+        :global(.ql-editor ul), :global(.ql-editor ol) { padding-left: 2em; margin-bottom: 1em; }
+        :global(.ql-editor ul) { list-style-type: disc; }
+        :global(.ql-editor ol) { list-style-type: decimal; }
+        :global(.ql-editor li) { margin-bottom: 0.25em; }
 
         /* Multi-Geo Styles */
         .zip-lookup-wrap { position: relative; }
