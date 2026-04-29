@@ -383,7 +383,7 @@ export default function CrmCampaignsPage() {
     setSaving(false)
   }
 
-  const sendNow = async (campaignId: string) => {
+  const sendNow = async (campaignId: string, isTest = false) => {
     setSending(campaignId)
     try {
       const res = await fetch(
@@ -394,7 +394,7 @@ export default function CrmCampaignsPage() {
             'Content-Type': 'application/json',
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
           },
-          body: JSON.stringify({ campaign_id: campaignId }),
+          body: JSON.stringify({ campaign_id: campaignId, is_test: isTest }),
         }
       )
       
@@ -580,8 +580,8 @@ export default function CrmCampaignsPage() {
             </div>
             <div className="crm-field">
               <label>Audience / Behavioral Filter</label>
-              <select value={form.audience_id} onChange={e => setForm(f => ({ ...f, audience_id: e.target.value }))}>
-                <option value="">All (no filter)</option>
+              <select value={form.audience_id || ""} onChange={e => setForm(f => ({ ...f, audience_id: e.target.value || "" }))}>
+                <option value="">None (Use Test Emails only)</option>
                 {audiences.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
             </div>
@@ -763,14 +763,25 @@ export default function CrmCampaignsPage() {
                 <td>
                   <div style={{ display: 'flex', gap: 6 }}>
                     {(c.status === 'draft' || c.status === 'scheduled') && (
-                      <button
-                        className="crm-btn-send"
-                        disabled={sending === c.id}
-                        onClick={() => sendNow(c.id)}
-                        data-testid={`campaign-send-${c.id}`}
-                      >
-                        {sending === c.id ? 'Sending...' : '▶ Send'}
-                      </button>
+                      <>
+                        <button
+                          className="crm-btn-send crm-btn-secondary"
+                          disabled={sending === c.id || !c.test_emails || c.test_emails.length === 0}
+                          onClick={() => sendNow(c.id, true)}
+                          title={(!c.test_emails || c.test_emails.length === 0) ? "Add Test Emails first" : "Send to Test Emails only"}
+                          style={{ padding: '4px 8px', fontSize: '0.8rem', background: '#e5e7eb', color: '#374151', border: '1px solid #d1d5db', borderRadius: 4, cursor: (!c.test_emails || c.test_emails.length === 0) ? 'not-allowed' : 'pointer' }}
+                        >
+                          🧪 Test
+                        </button>
+                        <button
+                          className="crm-btn-send"
+                          disabled={sending === c.id}
+                          onClick={() => sendNow(c.id)}
+                          data-testid={`campaign-send-${c.id}`}
+                        >
+                          {sending === c.id ? 'Sending...' : '▶ Send'}
+                        </button>
+                      </>
                     )}
                     <button className="crm-btn-edit-icon" onClick={() => handleEdit(c)} title="Edit Campaign">✏️</button>
                     <button className="crm-btn-danger-icon" onClick={() => setDeletingId(c.id)} title="Delete Campaign">🗑</button>

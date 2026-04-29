@@ -37,6 +37,8 @@ Deno.serve(async (req: Request) => {
   let templateOverride: string | null = null;
   let audienceOverride: any[] | null = null; // direct array of { email, phone, name... }
   
+  let isTest = false;
+  
   if (req.method === "POST" && req.headers.get("content-type")?.includes("json")) {
     try {
       const body = await req.json();
@@ -45,6 +47,7 @@ Deno.serve(async (req: Request) => {
       subjectOverride = body.subject ?? null;
       templateOverride = body.template_alias ?? null;
       audienceOverride = body.audience ?? null;
+      isTest = body.is_test === true;
     } catch { /* ignore */ }
   }
 
@@ -107,15 +110,32 @@ Deno.serve(async (req: Request) => {
   for (const campaign of campaigns) {
     console.log(`[SEND-CAMPAIGN] Processing campaign: ${campaign.name} (${campaign.id})`);
 
-    // Mark as sending
-    await supabase.from("crm_campaigns").update({ status: "sending" }).eq("id", campaign.id);
+    // Mark as sending only if it's not a test
+    if (!isTest) {
+      await supabase.from("crm_campaigns").update({ status: "sending" }).eq("id", campaign.id);
+    }
 
     try {
       // ── Resolve audience ──────────────────────────────────────────
       const audience = campaign.crm_audiences;
       let recipients: AudienceRow[] = [];
 
-      if (audienceOverride && audienceOverride.length > 0) {
+      if (isTest && campaign.test_emails && campaign.test_emails.length > 0) {
+         recipients = campaign.test_emails.map((email: string) => ({
+             id: 'test-user-id',
+             recipient_type: 'user',
+             email: email.trim(),
+             phone: null,
+             name: 'Test User',
+             state_code: null,
+             city: null,
+             zip_code: null,
+             community_h3: null,
+             joined_at: new Date().toISOString(),
+             accepts_email: true,
+             accepts_sms: false,
+         }));
+      } else if (audienceOverride && audienceOverride.length > 0) {
          // Direct audience passing via API for 1-off trigger scenarios
          recipients = audienceOverride;
       } else if (audience?.audience_rpc_name) {
@@ -123,10 +143,9 @@ Deno.serve(async (req: Request) => {
         if (error) throw new Error(`Audience RPC failed: ${error.message}`);
         recipients = data as AudienceRow[];
       } else {
-        // Default: query all leads + users based on recipient_type
-        const { data, error } = await supabase.rpc("crm_audience_all");
-        if (error) throw new Error(`Default audience RPC failed: ${error.message}`);
-        recipients = data as AudienceRow[];
+        // Explicitly require an audience. If they selected "None", this array stays empty,
+        // and the campaign will only send to test_emails if any, or no one.
+        console.log(`[SEND-CAMPAIGN] No audience selected. Skipping global fallback.`);
       }
 
       // Apply behavioral filter_criteria (if any remain)
@@ -296,21 +315,30 @@ Deno.serve(async (req: Request) => {
       }
 
       // ── Update campaign stats ─────────────────────────────────────
-      await supabase.from("crm_campaigns").update({
-        status: "sent",
-        sent_at: new Date().toISOString(),
-        stats: { total_sent: sent, failed, opened: 0, clicked: 0, bounced: 0, unsubscribed: 0 },
-      }).eq("id", campaign.id);
+      if (!isTest) {
+        await supabase.from("crm_campaigns").update({
+          status: "sent",
+          sent_at: new Date().toISOString(),
+          stats: { total_sent: sent, failed, opened: 0, clicked: 0, bounced: 0, unsubscribed: 0 },
+        }).eq("id", campaign.id);
+      } else {
+        // Just revert to draft/scheduled if it was a test
+        await supabase.from("crm_campaigns").update({
+          status: campaign.status === 'sending' ? 'scheduled' : campaign.status
+        }).eq("id", campaign.id);
+      }
 
       totalProcessed++;
       console.log(`[SEND-CAMPAIGN] Done: ${sent} sent, ${failed} failed`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[SEND-CAMPAIGN] Campaign ${campaign.id} failed: ${msg}`);
-      await supabase.from("crm_campaigns").update({
-        status: "scheduled", // revert so it retries
-        stats: { error: msg },
-      }).eq("id", campaign.id);
+      if (!isTest) {
+        await supabase.from("crm_campaigns").update({
+          status: "scheduled", // revert so it retries
+          stats: { error: msg },
+        }).eq("id", campaign.id);
+      }
       totalErrors++;
     }
   }
