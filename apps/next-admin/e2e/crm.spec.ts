@@ -337,7 +337,9 @@ test.describe('CRM — Campaigns page', () => {
         
         // Click Plain Text tab and verify content
         await textTab.click()
-        await expect(modal.locator('pre')).toContainText('This is a plain text test string')
+        // Plain text is rendered in a styled div (monospace), not a <pre>
+        const plainTextPane = modal.locator('div[style*="monospace"]')
+        await expect(plainTextPane).toContainText('This is a plain text test string')
         
         // Close Modal
         await modal.locator('button', { hasText: 'Close' }).click()

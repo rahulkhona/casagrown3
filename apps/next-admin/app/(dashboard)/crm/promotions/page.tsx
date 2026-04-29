@@ -556,10 +556,9 @@ export default function CrmPromotionsBuilderPage() {
               <div className="crm-field">
                 <label>Credit Type</label>
                 <select value={form.credit_type} onChange={(e) => setForm(f => ({...f, credit_type: e.target.value}))} style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #d1d5db' }}>
-                  <option value="universal">Universal (Apply Anywhere)</option>
-                  <option value="market">Market Purchase Only</option>
-                  <option value="delivery_fee">Delivery Fee Only</option>
-                  <option value="shipping">Shipping Only</option>
+                  <option value="universal">Universal (Both Purchase & Platform Fee)</option>
+                  <option value="purchase">Market Purchase Only</option>
+                  <option value="platform_fee">Platform Fee Only</option>
                 </select>
               </div>
               <div className="crm-field">
