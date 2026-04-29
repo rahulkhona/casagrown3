@@ -5,6 +5,7 @@ import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import dynamic from 'next/dynamic'
 import 'react-quill-new/dist/quill.snow.css'
+import './quill-overrides.css'
 
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false })
 
@@ -956,17 +957,6 @@ export default function CrmCampaignsPage() {
         .asset-thumb-card { transition: all 0.15s ease; }
         .asset-thumb-card:hover { border-color: #3b82f6 !important; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); transform: translateY(-1px); }
       `}</style>
-      <style dangerouslySetInnerHTML={{ __html: `
-        /* Restore standard typography inside the WYSIWYG editor that Tailwind strips away */
-        .ql-editor p { margin-bottom: 1em !important; }
-        .ql-editor h1 { font-size: 2em !important; margin-bottom: 0.67em !important; font-weight: bold !important; }
-        .ql-editor h2 { font-size: 1.5em !important; margin-bottom: 0.83em !important; font-weight: bold !important; }
-        .ql-editor h3 { font-size: 1.17em !important; margin-bottom: 1em !important; font-weight: bold !important; }
-        .ql-editor ul, .ql-editor ol { padding-left: 2em !important; margin-bottom: 1em !important; }
-        .ql-editor ul { list-style-type: disc !important; }
-        .ql-editor ol { list-style-type: decimal !important; }
-        .ql-editor li { margin-bottom: 0.25em !important; }
-      `}} />
     </div>
   )
 }
