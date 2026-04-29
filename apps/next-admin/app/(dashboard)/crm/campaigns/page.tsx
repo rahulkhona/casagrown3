@@ -840,9 +840,9 @@ export default function CrmCampaignsPage() {
                   />
                 </div>
               ) : (
-                <pre style={{ background: 'white', maxWidth: '600px', margin: '0 auto', padding: '24px', minHeight: '100%', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)', borderRadius: '8px', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#333', fontSize: '0.9rem', lineHeight: '1.5' }}>
+                <div style={{ background: 'white', maxWidth: '600px', margin: '0 auto', padding: '32px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)', borderRadius: '8px', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#333', fontSize: '0.9rem', lineHeight: '1.6', position: 'relative', isolation: 'isolate' }}>
                   {previewEmail.text || 'No plain text fallback provided.'}
-                </pre>
+                </div>
               )}
             </div>
           </div>
