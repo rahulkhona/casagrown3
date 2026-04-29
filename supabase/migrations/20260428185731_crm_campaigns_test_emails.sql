@@ -1,0 +1,1 @@
+ALTER TABLE crm_campaigns ADD COLUMN IF NOT EXISTS test_emails TEXT[] NOT NULL DEFAULT '{}';

@@ -39,6 +39,7 @@ type Campaign = {
   created_at: string
   data_source_id?: string | null
   postmark_template_alias?: string | null
+  test_emails: string[]
 }
 
 type Audience = { id: string; name: string }
@@ -84,7 +85,8 @@ export default function CrmCampaignsPage() {
     target_counties: [] as string[],
     target_zips: [] as string[],
     data_source_id: '',
-    postmark_template_alias: ''
+    postmark_template_alias: '',
+    test_emails: ''
   }
 
   const [form, setForm] = useState(emptyForm)
@@ -105,7 +107,8 @@ export default function CrmCampaignsPage() {
       target_counties: data.target_counties || [],
       target_zips: data.target_zips || [],
       data_source_id: data.data_source_id || '',
-      postmark_template_alias: data.postmark_template_alias || ''
+      postmark_template_alias: data.postmark_template_alias || '',
+      test_emails: data.test_emails ? data.test_emails.join(', ') : ''
     })
     setTemplateMode(!!data.postmark_template_alias)
     setEditingId(c.id)
@@ -284,6 +287,7 @@ export default function CrmCampaignsPage() {
       audience_id: form.audience_id || null,
       data_source_id: form.data_source_id || null,
       postmark_template_alias: templateMode ? (form.postmark_template_alias || null) : null,
+      test_emails: form.test_emails ? form.test_emails.split(',').map((e: string) => e.trim()).filter(Boolean) : [],
       target_zips: form.target_zips,
       target_cities: form.target_cities,
       target_counties: form.target_counties,
@@ -498,6 +502,17 @@ export default function CrmCampaignsPage() {
                 {audiences.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
             </div>
+            
+            {form.channel === 'email' && (
+              <div className="crm-field full-width">
+                <label>Adhoc Test Emails <span className="crm-hint">— Comma separated, for testing this template</span></label>
+                <input 
+                  placeholder="e.g. admin@casagrown.com, founder@casagrown.com" 
+                  value={form.test_emails} 
+                  onChange={e => setForm(f => ({ ...f, test_emails: e.target.value }))} 
+                />
+              </div>
+            )}
 
             {/* Geographic Targets */}
             <div className="crm-field zip-lookup-wrap full-width" style={{ marginTop: 8 }}>
@@ -819,7 +834,7 @@ export default function CrmCampaignsPage() {
               {previewTab === 'html' ? (
                 <div style={{ background: 'white', maxWidth: '600px', margin: '0 auto', height: '100%', minHeight: '600px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)', borderRadius: '8px', overflow: 'hidden', display: 'flex' }}>
                   <iframe 
-                    srcDoc={previewEmail.html}
+                    srcDoc={previewEmail.html || ''}
                     style={{ width: '100%', height: '100%', border: 'none', flex: 1 }}
                     title="Email Preview"
                   />
