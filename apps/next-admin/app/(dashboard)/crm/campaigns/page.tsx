@@ -53,6 +53,32 @@ const STATUS_COLORS: Record<string, string> = {
   paused: '#ef4444',
 }
 
+const formatHTML = (html: string) => {
+  let formatted = '';
+  let indent = 0;
+  let temp = html.replace(/>\s+</g, '><');
+  const tokens = temp.split(/(<[^>]+>)/g).filter(t => t.trim() !== '');
+  
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (token.match(/^<\//)) {
+      indent = Math.max(0, indent - 1);
+      formatted += '\n' + '  '.repeat(indent) + token;
+    } else if (token.match(/^<[^\/]/) && !token.match(/\/>$/) && !token.match(/^<(img|hr|br|meta|link|input)/i)) {
+      if (i > 0) formatted += '\n' + '  '.repeat(indent);
+      formatted += token;
+      indent++;
+    } else {
+      if (token.startsWith('<')) {
+         formatted += '\n' + '  '.repeat(indent) + token;
+      } else {
+         formatted += token;
+      }
+    }
+  }
+  return formatted.trim();
+}
+
 export default function CrmCampaignsPage() {
   const quillRef = useRef<any>(null)
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
@@ -412,10 +438,21 @@ export default function CrmCampaignsPage() {
               <div className="crm-field full-width">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4 }}>
                   <label>Email Content (HTML)</label>
-                  <select value={htmlMode} onChange={e => setHtmlMode(e.target.value as 'wysiwyg' | 'raw')} style={{ width: 'auto', padding: '4px 8px', fontSize: '0.8rem' }}>
-                    <option value="wysiwyg">Inline Editor (WYSIWYG)</option>
-                    <option value="raw">Raw HTML (Paste Template)</option>
-                  </select>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    {htmlMode === 'raw' && (
+                      <button
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, content_html: formatHTML(f.content_html) }))}
+                        style={{ padding: '4px 8px', fontSize: '0.8rem', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '4px', cursor: 'pointer' }}
+                      >
+                        ✨ Pretty Print
+                      </button>
+                    )}
+                    <select value={htmlMode} onChange={e => setHtmlMode(e.target.value as 'wysiwyg' | 'raw')} style={{ width: 'auto', padding: '4px 8px', fontSize: '0.8rem' }}>
+                      <option value="wysiwyg">Inline Editor (WYSIWYG)</option>
+                      <option value="raw">Raw HTML (Paste Template)</option>
+                    </select>
+                  </div>
                 </div>
                 {htmlMode === 'wysiwyg' ? (
                   <div style={{ background: 'white', borderRadius: 8, overflow: 'hidden' }}>
