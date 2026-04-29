@@ -445,7 +445,7 @@ export default function CrmCampaignsPage() {
                   placeholder="Hello, ..." 
                   value={form.content_text} 
                   onChange={e => setForm(f => ({ ...f, content_text: e.target.value }))} 
-                  style={{ minHeight: '150px', fontFamily: 'monospace', whiteSpace: 'pre', overflowX: 'auto' }} 
+                  style={{ minHeight: '150px', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }} 
                 />
               </div>
             )}
@@ -817,11 +817,15 @@ export default function CrmCampaignsPage() {
             </div>
             <div style={{ flex: 1, overflow: 'auto', padding: '24px' }}>
               {previewTab === 'html' ? (
-                <div style={{ background: 'white', maxWidth: '600px', margin: '0 auto', minHeight: '100%', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)', borderRadius: '8px', overflow: 'hidden' }}>
-                  <div dangerouslySetInnerHTML={{ __html: previewEmail.html }} />
+                <div style={{ background: 'white', maxWidth: '600px', margin: '0 auto', height: '100%', minHeight: '600px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)', borderRadius: '8px', overflow: 'hidden', display: 'flex' }}>
+                  <iframe 
+                    srcDoc={previewEmail.html}
+                    style={{ width: '100%', height: '100%', border: 'none', flex: 1 }}
+                    title="Email Preview"
+                  />
                 </div>
               ) : (
-                <pre style={{ background: 'white', maxWidth: '600px', margin: '0 auto', padding: '24px', minHeight: '100%', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)', borderRadius: '8px', fontFamily: 'monospace', whiteSpace: 'pre', overflowX: 'auto', color: '#333', fontSize: '0.9rem', lineHeight: '1.5' }}>
+                <pre style={{ background: 'white', maxWidth: '600px', margin: '0 auto', padding: '24px', minHeight: '100%', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)', borderRadius: '8px', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#333', fontSize: '0.9rem', lineHeight: '1.5' }}>
                   {previewEmail.text || 'No plain text fallback provided.'}
                 </pre>
               )}
