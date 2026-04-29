@@ -163,7 +163,7 @@ export default function CrmCampaignsPage() {
   const [assetPickerOpen, setAssetPickerOpen] = useState(false)
   const [assets, setAssets] = useState<{name: string, url: string}[]>([])
   const [loadingAssets, setLoadingAssets] = useState(false)
-  const quillSelectionRef = useRef<number | null>(null)
+  const quillSelectionRef = useRef<{ index: number, length: number } | null>(null)
 
   const [landingPages, setLandingPages] = useState<any[]>([])
   const [promotions, setPromotions] = useState<any[]>([])
@@ -173,7 +173,8 @@ export default function CrmCampaignsPage() {
   const openAssetPicker = useCallback(async () => {
     const quill = quillRef.current?.getEditor()
     if (quill) {
-      quillSelectionRef.current = quill.getSelection()?.index || 0
+      const sel = quill.getSelection()
+      quillSelectionRef.current = sel ? { index: sel.index, length: sel.length } : { index: 0, length: 0 }
     }
     setAssetPickerOpen(true)
     setLoadingAssets(true)
@@ -195,7 +196,24 @@ export default function CrmCampaignsPage() {
   const insertPromoHandler = useCallback(() => {
     const quill = quillRef.current?.getEditor()
     if (quill) {
-      quillSelectionRef.current = quill.getSelection()?.index || 0
+      const sel = quill.getSelection()
+      if (sel && sel.length > 0) {
+        quillSelectionRef.current = { index: sel.index, length: sel.length }
+      } else if (sel) {
+        // If no text is selected, check if we are currently inside a link.
+        // If so, select the entire link so it gets replaced.
+        const [leaf, offset] = quill.getLeaf(sel.index)
+        if (leaf && leaf.parent && leaf.parent.domNode && leaf.parent.domNode.tagName === 'A') {
+          const linkIndex = quill.getIndex(leaf.parent)
+          const linkLength = leaf.parent.length()
+          quillSelectionRef.current = { index: linkIndex, length: linkLength }
+          quill.setSelection(linkIndex, linkLength)
+        } else {
+          quillSelectionRef.current = { index: sel.index, length: 0 }
+        }
+      } else {
+        quillSelectionRef.current = { index: 0, length: 0 }
+      }
     }
     setPromoModalOpen(true)
   }, [])
@@ -206,6 +224,7 @@ export default function CrmCampaignsPage() {
         [{ 'header': [1, 2, 3, false] }],
         ['bold', 'italic', 'underline', 'strike'],
         [{ 'color': [] }, { 'background': [] }],
+        [{ 'align': [] }],
         [{ 'list': 'ordered'}, { 'list': 'bullet' }],
         ['link', 'image', 'promo'],
         ['clean']
@@ -825,7 +844,8 @@ export default function CrmCampaignsPage() {
                          onClick={() => {
                            const quill = quillRef.current?.getEditor()
                            if (quill) {
-                             quill.insertEmbed(quillSelectionRef.current || 0, 'image', a.url)
+                             const idx = quillSelectionRef.current?.index || 0;
+                             quill.insertEmbed(idx, 'image', a.url)
                            }
                            setAssetPickerOpen(false)
                          }}
@@ -876,7 +896,12 @@ export default function CrmCampaignsPage() {
                       if (htmlMode === 'wysiwyg') {
                         const quill = quillRef.current?.getEditor();
                         if (quill) {
-                          quill.insertText(quillSelectionRef.current || 0, p.name, 'link', url);
+                          const sel = quillSelectionRef.current || { index: 0, length: 0 };
+                          if (sel.length > 0) {
+                            quill.formatText(sel.index, sel.length, 'link', url);
+                          } else {
+                            quill.insertText(sel.index, p.name, 'link', url);
+                          }
                         }
                       } else {
                         navigator.clipboard.writeText(url);
@@ -899,7 +924,12 @@ export default function CrmCampaignsPage() {
                       if (htmlMode === 'wysiwyg') {
                         const quill = quillRef.current?.getEditor();
                         if (quill) {
-                          quill.insertText(quillSelectionRef.current || 0, lp.title, 'link', url);
+                          const sel = quillSelectionRef.current || { index: 0, length: 0 };
+                          if (sel.length > 0) {
+                            quill.formatText(sel.index, sel.length, 'link', url);
+                          } else {
+                            quill.insertText(sel.index, lp.title, 'link', url);
+                          }
                         }
                       } else {
                         navigator.clipboard.writeText(url);
