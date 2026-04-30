@@ -77,7 +77,7 @@ Deno.serve(async (req: Request) => {
         .single();
         
       if (insertErr) {
-        return Response.json({ error: `Auto-create failed: ${insertErr.message}` }, { status: 500 });
+        return Response.json({ error: `Auto-create failed: ${insertErr.message}` }, { status: 500, headers: corsHeaders });
       }
       campaignId = inserted.id;
     }
@@ -98,10 +98,10 @@ Deno.serve(async (req: Request) => {
 
   const { data: campaigns, error: campErr } = await campaignQuery;
   if (campErr) {
-    return Response.json({ error: campErr.message }, { status: 500 });
+    return Response.json({ error: campErr.message }, { status: 500, headers: corsHeaders });
   }
   if (!campaigns || campaigns.length === 0) {
-    return Response.json({ processed: 0, message: "No campaigns to send" });
+    return Response.json({ processed: 0, message: "No campaigns to send" }, { headers: corsHeaders });
   }
 
   let totalProcessed = 0;
@@ -346,7 +346,7 @@ Deno.serve(async (req: Request) => {
   return Response.json({
     processed: totalProcessed,
     errors: totalErrors,
-  });
+  }, { headers: corsHeaders });
 });
 
 // ── Types ────────────────────────────────────────────────────────────────────
