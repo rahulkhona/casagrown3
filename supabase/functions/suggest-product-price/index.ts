@@ -27,7 +27,8 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { name, state, city } = await req.json();
+    const { name, state, city, unit } = await req.json();
+    const validUnits = ["each", "bunch", "dozen", "jar", "bag", "box", "basket"];
 
     if (!name || typeof name !== "string" || name.trim().length < 2) {
       return new Response(JSON.stringify({ error: "Missing product name" }), {
@@ -52,6 +53,11 @@ Deno.serve(async (req: Request) => {
     }
 
     const geography = [city, state].filter(Boolean).join(", ") || "United States";
+    const requestedUnit = unit && validUnits.includes(unit) ? unit : null;
+
+    const unitConstraint = requestedUnit 
+      ? `\n- The user has requested the price for the specific unit: "${requestedUnit}". You MUST estimate the price per ${requestedUnit}.\n- IMPORTANT: The "unit" field in your JSON response MUST exactly match "${requestedUnit}".`
+      : `\n- Price per individual item ("each"), per bunch, per dozen, per jar, etc.\n- For produce typically sold by weight (e.g. plums, apples), estimate the price PER ITEM, not per pound.\n- IMPORTANT: CasaGrown does NOT use weight-based units (no lb, oz, kg, g). All products are sold by countable units.`;
 
     const prompt = `You are a produce pricing assistant for CasaGrown, a neighborhood backyard produce marketplace in ${geography}.
 
@@ -60,15 +66,12 @@ A seller wants to list "${name.trim()}" for sale. Suggest a fair retail price th
 Consider:
 - Local farmers market prices for this region
 - The product is homegrown / backyard quality (not commercial)
-- Prices should be reasonable for neighbor-to-neighbor sales
-- IMPORTANT: CasaGrown does NOT use weight-based units (no lb, oz, kg, g). All products are sold by countable units.
-- Price per individual item ("each"), per bunch, per dozen, per jar, etc.
-- For produce typically sold by weight (e.g. plums, apples), estimate the price PER ITEM, not per pound.
+- Prices should be reasonable for neighbor-to-neighbor sales${unitConstraint}
 
 Respond ONLY with a JSON object (no markdown, no code fences):
 {
   "price_usd": <number, e.g. 4.50>,
-  "unit": "<one of: each | bunch | dozen | jar | bag | box | basket>"
+  "unit": "${requestedUnit ? requestedUnit : '<one of: each | bunch | dozen | jar | bag | box | basket>'}"
 }`;
 
     let aiRes = await fetch(AI_URL, {
@@ -134,7 +137,6 @@ Respond ONLY with a JSON object (no markdown, no code fences):
     }
 
     // Validate
-    const validUnits = ["each", "bunch", "dozen", "jar", "bag", "box", "basket"];
     // If AI returned a weight-based unit despite instructions, discard — price would be misleading
     if (!validUnits.includes(result.unit)) {
       console.warn(`AI returned unsupported unit "${result.unit}", discarding suggestion`);

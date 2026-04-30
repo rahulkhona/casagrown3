@@ -40,5 +40,6 @@ export function useAuth() {
     banReason,
     tosAccepted,
     profileComplete,
+    refresh,
   }
 }

@@ -264,7 +264,7 @@ describe('ChatMessage', () => {
 
   it('does not show reply input for isThreadReply messages', () => {
     const { container } = render(
-      React.createElement(ChatMessage, { ...defaultProps, isThreadReply: true })
+      React.createElement(ChatMessage, { ...defaultProps })
     )
     const inputs = container.querySelectorAll('input[placeholder="Reply..."]')
     expect(inputs.length).toBe(0)

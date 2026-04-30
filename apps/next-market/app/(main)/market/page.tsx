@@ -1206,7 +1206,7 @@ function BrowseMarketPageInner() {
               Transactions are not available for demo listings.
             </p>
             <Link
-              href={user ? "/my-booth/products/new" : "/login?redirect=%2Fmy-booth%2Fproducts%2Fnew"}
+              href="/create-listing"
               style={{
                 display: 'block', padding: '14px 24px', borderRadius: 12,
                 background: 'linear-gradient(135deg, #16a34a, #15803d)',
@@ -1233,7 +1233,7 @@ function BrowseMarketPageInner() {
 
       {/* Sell Something FAB — visible when market is open and user is authenticated */}
       <Link
-          href={user ? "/my-booth/products/new" : "/login?redirect=%2Fmy-booth%2Fproducts%2Fnew"}
+          href="/create-listing"
           id="sell-fab"
           style={{
             position: 'fixed', bottom: 80, right: 24,
