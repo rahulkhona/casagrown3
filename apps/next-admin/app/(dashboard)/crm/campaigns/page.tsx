@@ -563,7 +563,16 @@ export default function CrmCampaignsPage() {
 
             {form.channel === 'email' && !templateMode && (
               <div className="crm-field full-width">
-                <label>Plain Text Fallback (Optional) <span className="crm-hint">— used if the user's client strips HTML</span></label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4 }}>
+                  <label>Plain Text Fallback (Optional) <span className="crm-hint">— used if the user's client strips HTML</span></label>
+                  <button
+                    type="button"
+                    onClick={() => setPromoModalOpen(true)}
+                    style={{ padding: '4px 8px', fontSize: '0.8rem', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                    🔗 Get Short Links
+                  </button>
+                </div>
                 <textarea 
                   placeholder="Hello, ..." 
                   value={form.content_text} 
@@ -591,7 +600,16 @@ export default function CrmCampaignsPage() {
 
             {form.channel === 'sms' && (
               <div className="crm-field full-width">
-                <label>SMS Text Content *</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4 }}>
+                  <label>SMS Text Content *</label>
+                  <button
+                    type="button"
+                    onClick={() => setPromoModalOpen(true)}
+                    style={{ padding: '4px 8px', fontSize: '0.8rem', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                    🔗 Get Short Links
+                  </button>
+                </div>
                 <textarea 
                   placeholder="Hey, spring drop is live! 🍓 Reply STOP to unsub." 
                   value={form.content_text} 
