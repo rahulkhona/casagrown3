@@ -258,6 +258,7 @@ export default function CrmCampaignsPage() {
     toolbar: {
       container: [
         [{ 'header': [1, 2, 3, false] }],
+        [{ 'font': ['sans-serif', 'serif', 'monospace', 'arial', 'courier', 'garamond', 'tahoma', 'times', 'verdana'] }],
         [{ 'size': ['10px', '12px', '14px', '16px', '18px', '20px', '24px', '32px'] }],
         ['bold', 'italic', 'underline', 'strike'],
         [{ 'color': [] }, { 'background': [] }],
