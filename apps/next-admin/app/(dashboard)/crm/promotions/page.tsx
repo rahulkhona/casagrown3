@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import dynamic from 'next/dynamic'
 import 'react-quill-new/dist/quill.snow.css'
 
-const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false })
+const ReactQuill = dynamic(() => import('../../../components/QuillEditor'), { ssr: false })
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -15,7 +15,7 @@ const supabase = createClient(
 const quillModules = {
   toolbar: [
     [{ 'header': [1, 2, 3, false] }],
-    [{ 'size': ['small', false, 'large', 'huge'] }],
+    [{ 'size': ['10px', '12px', '14px', '16px', '18px', '20px', '24px', '32px'] }],
     ['bold', 'italic', 'underline', 'strike'],
     [{ 'color': [] }, { 'background': [] }],
     [{ 'list': 'ordered'}, { 'list': 'bullet' }],
