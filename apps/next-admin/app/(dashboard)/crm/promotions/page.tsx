@@ -18,6 +18,7 @@ const quillModules = {
     ['bold', 'italic', 'underline', 'strike'],
     [{ 'color': [] }, { 'background': [] }],
     [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+    [{ 'align': [] }],
     ['link', 'clean'] // 'clean' is the crucial clear formatting button
   ],
 }
