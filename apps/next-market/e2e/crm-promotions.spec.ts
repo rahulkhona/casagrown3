@@ -85,11 +85,11 @@ test.describe('Market — CRM Promotions Landing Page (Full Flow)', () => {
     
     // 1. Initial State
     await expect(page.locator('h1')).toHaveText('Spring Harvest Combo Promo')
-    await expect(page.locator('text=$10')).toBeVisible()
+    await expect(page.locator('text=$10').first()).toBeVisible()
 
-    // Mock RPC to say email IS registered
-    await page.route('**/rest/v1/rpc/is_email_registered', async route => {
-      await route.fulfill({ status: 200, body: JSON.stringify(true) })
+    // Mock RPC to say email IS registered and eligible
+    await page.route('**/rest/v1/rpc/crm_check_promo_eligibility', async route => {
+      await route.fulfill({ status: 200, body: JSON.stringify({ eligible: true, is_registered: true }) })
     })
 
     // Mock signInWithOtp
@@ -110,9 +110,9 @@ test.describe('Market — CRM Promotions Landing Page (Full Flow)', () => {
   test('Flow for NEW user (prompts for profile collection)', async ({ page }) => {
     await page.goto(`/p/${testSlug}?promo=promo-123`, { waitUntil: 'domcontentloaded' })
     
-    // Mock RPC to say email IS NOT registered
-    await page.route('**/rest/v1/rpc/is_email_registered', async route => {
-      await route.fulfill({ status: 200, body: JSON.stringify(false) })
+    // Mock RPC to say email IS NOT registered but is eligible
+    await page.route('**/rest/v1/rpc/crm_check_promo_eligibility', async route => {
+      await route.fulfill({ status: 200, body: JSON.stringify({ eligible: true, is_registered: false }) })
     })
 
     // Mock signInWithOtp
@@ -145,8 +145,8 @@ test.describe('Market — CRM Promotions Landing Page (Full Flow)', () => {
     await page.goto(`/p/${testSlug}?promo=promo-123`, { waitUntil: 'domcontentloaded' })
     
     // Fast-forward to OTP step
-    await page.route('**/rest/v1/rpc/is_email_registered', async route => {
-      await route.fulfill({ status: 200, body: JSON.stringify(true) })
+    await page.route('**/rest/v1/rpc/crm_check_promo_eligibility', async route => {
+      await route.fulfill({ status: 200, body: JSON.stringify({ eligible: true, is_registered: true }) })
     })
     await page.route('**/auth/v1/otp', async route => {
       await route.fulfill({ status: 200, body: JSON.stringify({}) })

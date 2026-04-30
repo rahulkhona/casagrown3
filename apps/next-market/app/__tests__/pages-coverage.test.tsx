@@ -284,7 +284,7 @@ describe('my-booth/products/new/page.tsx', () => {
 describe('get-started/[template]/page.tsx', () => {
   it('renders booth creation wizard', async () => {
     const mod = await import('../(main)/get-started/[template]/page')
-    const c = renderPage(mod)
+    const c = renderPage(mod, { params: Promise.resolve({ template: 'farm' }) })
     await act(async () => { await new Promise(r => setTimeout(r, 100)) })
     expect(c).toBeTruthy()
   })
@@ -296,7 +296,7 @@ describe('get-started/[template]/page.tsx', () => {
 describe('join-booth/[code]/page.tsx', () => {
   it('renders join booth page', async () => {
     const mod = await import('../(main)/join-booth/[code]/page')
-    const c = renderPage(mod)
+    const c = renderPage(mod, { params: Promise.resolve({ code: 'test' }) })
     await act(async () => { await new Promise(r => setTimeout(r, 100)) })
     expect(c).toBeTruthy()
   })
@@ -358,7 +358,7 @@ describe('login/page.tsx — deep', () => {
 describe('chat/[id]/page.tsx', () => {
   it('renders chat conversation page', async () => {
     const mod = await import('../(main)/chat/[id]/page')
-    const c = renderPage(mod)
+    const c = renderPage(mod, { params: Promise.resolve({ id: 'chat-1' }) })
     await act(async () => { await new Promise(r => setTimeout(r, 100)) })
     expect(c).toBeTruthy()
   })
@@ -396,7 +396,7 @@ describe('earnings/tax-info/page.tsx', () => {
 describe('market/booth/[id]/about/page.tsx', () => {
   it('renders booth about page', async () => {
     const mod = await import('../(main)/market/booth/[id]/about/page')
-    const c = renderPage(mod)
+    const c = renderPage(mod, { params: Promise.resolve({ id: 'booth-1' }) })
     await act(async () => { await new Promise(r => setTimeout(r, 100)) })
     expect(c).toBeTruthy()
   })
@@ -431,7 +431,7 @@ describe('market/page.tsx — deep auth', () => {
 describe('market/booth/[id]/page.tsx — deep', () => {
   it('renders booth detail page', async () => {
     const mod = await import('../(main)/market/booth/[id]/page')
-    const c = renderPage(mod)
+    const c = renderPage(mod, { params: Promise.resolve({ id: 'booth-1' }) })
     await act(async () => { await new Promise(r => setTimeout(r, 100)) })
     expect(c).toBeTruthy()
   })
@@ -440,7 +440,7 @@ describe('market/booth/[id]/page.tsx — deep', () => {
 describe('market/booth/[id]/product/[productId]/page.tsx — deep', () => {
   it('renders product detail page', async () => {
     const mod = await import('../(main)/market/booth/[id]/product/[productId]/page')
-    const c = renderPage(mod)
+    const c = renderPage(mod, { params: Promise.resolve({ id: 'booth-1', productId: 'prod-1' }) })
     await act(async () => { await new Promise(r => setTimeout(r, 100)) })
     expect(c).toBeTruthy()
   })

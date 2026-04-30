@@ -40,9 +40,16 @@ type LandingPage = {
   slug: string
 }
 
+type Audience = {
+  id: string
+  name: string
+  estimated_count: number
+}
+
 export default function CrmPromotionsBuilderPage() {
   const [promotions, setPromotions] = useState<Promotion[]>([])
   const [landingPages, setLandingPages] = useState<LandingPage[]>([])
+  const [audiences, setAudiences] = useState<Audience[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -59,6 +66,7 @@ export default function CrmPromotionsBuilderPage() {
     landing_page_id: '',
     new_slug: '',
     new_title: '',
+    audience_id: '',
     allow_existing_users: true,
     short_link: '',
     include_giveaway: false,
@@ -81,12 +89,14 @@ export default function CrmPromotionsBuilderPage() {
 
   const fetchPromotions = async () => {
     setLoading(true)
-    const [promoRes, lpRes] = await Promise.all([
+    const [promoRes, lpRes, audRes] = await Promise.all([
       supabase.from('crm_promotions').select('*').order('created_at', { ascending: false }),
-      supabase.from('crm_landing_pages').select('id, title, slug').eq('is_active', true)
+      supabase.from('crm_landing_pages').select('id, title, slug').eq('is_active', true),
+      supabase.from('crm_audiences').select('id, name, estimated_count').order('name')
     ])
     setPromotions((promoRes.data as Promotion[]) ?? [])
     setLandingPages((lpRes.data as LandingPage[]) ?? [])
+    setAudiences((audRes.data as Audience[]) ?? [])
     setLoading(false)
   }
 
@@ -181,10 +191,10 @@ export default function CrmPromotionsBuilderPage() {
       if (promo.landing_page_id) {
         const matchingLp = landingPages.find(lp => lp.id === promo.landing_page_id)
         if (matchingLp) {
-           const destUrl = `${marketUrl}/p/${matchingLp.slug}?promo=${id}`
+           const destUrlSuffix = `/p/${matchingLp.slug}?promo=${id}`
            const { data: slData } = await supabase.from('crm_short_links')
              .select('token')
-             .eq('destination_url', destUrl)
+             .ilike('destination_url', `%${destUrlSuffix}`)
              .is('campaign_id', null)
              .maybeSingle()
            if (slData) existingShortLink = slData.token
@@ -200,6 +210,7 @@ export default function CrmPromotionsBuilderPage() {
         landing_page_id: promo.landing_page_id || '',
         new_slug: '',
         new_title: '',
+        audience_id: promo.audience_id || '',
         allow_existing_users: promo.allow_existing_users ?? true,
         short_link: existingShortLink,
         
@@ -262,14 +273,16 @@ export default function CrmPromotionsBuilderPage() {
       
       if (editingId) {
         // Update Promotion
-        await supabase.from('crm_promotions').update({
+        const { error: promoErr } = await supabase.from('crm_promotions').update({
           name: form.name,
           description_html: form.description_html,
           enrollment_deadline: deadline.toISOString(),
           max_enrollees: parseInt(form.max_enrollees || '1000'),
           landing_page_id: finalLandingPageId,
+          audience_id: form.audience_id || null,
           allow_existing_users: form.allow_existing_users
         }).eq('id', editingId)
+        if (promoErr) throw new Error("Promotion update failed: " + promoErr.message)
       } else {
         // Insert Promotion
         const { data: promoData, error: promoErr } = await supabase.from('crm_promotions').insert({
@@ -278,6 +291,7 @@ export default function CrmPromotionsBuilderPage() {
           enrollment_deadline: deadline.toISOString(),
           max_enrollees: parseInt(form.max_enrollees || '1000'),
           landing_page_id: finalLandingPageId,
+          audience_id: form.audience_id || null,
           allow_existing_users: form.allow_existing_users
         }).select().single()
         if (promoErr || !promoData) throw new Error(promoErr?.message || 'Failed to create promotion')
@@ -289,10 +303,16 @@ export default function CrmPromotionsBuilderPage() {
         const slug = form.landing_page_id === 'NEW_SLUG' ? form.new_slug : landingPages.find(lp => lp.id === finalLandingPageId)?.slug
         if (slug) {
           const destUrl = `${marketUrl}/p/${slug}?promo=${promoId}`
-          const { data: existingSL } = await supabase.from('crm_short_links').select('token').eq('destination_url', destUrl).is('campaign_id', null).maybeSingle()
+          const destUrlSuffix = `/p/${slug}?promo=${promoId}`
+          const { data: existingSL } = await supabase.from('crm_short_links')
+             .select('token')
+             .ilike('destination_url', `%${destUrlSuffix}`)
+             .is('campaign_id', null)
+             .maybeSingle()
           if (!existingSL) {
             const token = 'P-' + Math.random().toString(36).substring(2, 8).toUpperCase()
-            await supabase.from('crm_short_links').insert({ token, destination_url: destUrl })
+            const { error: insErr } = await supabase.from('crm_short_links').insert({ token, destination_url: destUrl })
+            if (insErr) throw new Error("Short link generation failed: " + insErr.message)
           }
         }
       }
@@ -464,6 +484,21 @@ export default function CrmPromotionsBuilderPage() {
                 <span className="toggle-dot" />
                 <span>{form.allow_existing_users ? 'New & Existing Users can claim' : 'Strictly New Signups Only'}</span>
               </button>
+            </div>
+            <div className="crm-field">
+              <label>Limit to Audience (Optional)</label>
+              <select 
+                value={form.audience_id} 
+                onChange={e => setForm({...form, audience_id: e.target.value})} 
+                className="crm-select"
+                style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d1d5db' }}
+              >
+                <option value="">No limit (Open to everyone with the link)</option>
+                {audiences.map(a => (
+                  <option key={a.id} value={a.id}>{a.name} (~{a.estimated_count} users)</option>
+                ))}
+              </select>
+              <p style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '4px' }}>If selected, only emails matching this audience can enroll.</p>
             </div>
             <div className="crm-field">
               <label>Max Total Claims / Enrollees</label>

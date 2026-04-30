@@ -12,6 +12,7 @@ type PromotionDetails = {
   description_html: string
   enrollment_deadline: string
   allow_existing_users: boolean
+  is_capacity_reached?: boolean
   giveaway?: { title?: string; description?: string; start_date: string; end_date: string; photos: string[] }
   credits?: { 
     amount_usd: number; 
@@ -42,6 +43,8 @@ function PromoContent() {
 
   // Form states
   const [step, setStep] = useState<'initial' | 'profile' | 'otp' | 'success'>('initial')
+  const [fallbackMode, setFallbackMode] = useState<{message: string} | null>(null)
+  const [skipPromo, setSkipPromo] = useState(false)
   const [email, setEmail] = useState('')
   const [interested, setInterested] = useState(false)
   const [name, setName] = useState('')
@@ -97,6 +100,7 @@ function PromoContent() {
             description_html: promoData.description_html,
             enrollment_deadline: promoData.enrollment_deadline,
             allow_existing_users: promoData.allow_existing_users,
+            is_capacity_reached: promoData.is_capacity_reached,
             giveaway: promoData.giveaway || undefined,
             credits: promoData.credits || undefined,
             hero_image_url: promoData.hero_image_url || null
@@ -119,14 +123,16 @@ function PromoContent() {
     setErrorMsg('')
     const supabase = createClient()
     try {
-      const { data, error } = await supabase.rpc('is_email_registered', { p_email: email })
+      const { data, error } = await supabase.rpc('crm_check_promo_eligibility', { p_promo_id: promo?.id, p_email: email })
       if (error) throw error
-      if (data) {
-        if (!promo?.allow_existing_users) {
-          setErrorMsg('This promotion is for new users only. Please sign in normally.')
-          setSubmitting(false)
-          return
-        }
+      
+      if (!data.eligible) {
+        setFallbackMode({ message: data.error })
+        setSubmitting(false)
+        return
+      }
+
+      if (data.is_registered) {
         setIsExistingUser(true)
         const { error: otpErr } = await supabase.auth.signInWithOtp({ email })
         if (otpErr) throw otpErr
@@ -181,12 +187,14 @@ function PromoContent() {
       const { data: { session }, error: verifyError } = await supabase.auth.verifyOtp({ email, token: otp, type: 'email' })
       if (verifyError) throw verifyError
       
-      const { error: enrollErr } = await supabase.rpc('crm_enroll_in_promotion', { 
-        p_promotion_id: promo?.id,
-        p_campaign_id: campaign_id || null
-      })
-      if (enrollErr && !enrollErr.message.includes('already enrolled')) {
-        throw enrollErr
+      if (!skipPromo) {
+        const { error: enrollErr } = await supabase.rpc('crm_enroll_in_promotion', { 
+          p_promotion_id: promo?.id,
+          p_campaign_id: campaign_id || null
+        })
+        if (enrollErr && !enrollErr.message.includes('already enrolled')) {
+          throw enrollErr
+        }
       }
       setStep('success')
       setTimeout(() => {
@@ -209,6 +217,48 @@ function PromoContent() {
   const isDeadlinePassed = new Date() > new Date(promo.enrollment_deadline)
   const bgImage = promo.hero_image_url || getBackgroundImage()
 
+  const incentivesContent = (
+    <div className="promo-incentive-grid">
+      {promo.giveaway && (
+        <div className="incentive-item giveaway-item">
+          {promo.giveaway.photos && promo.giveaway.photos.length > 0 ? (
+            <img src={promo.giveaway.photos[0]} alt={promo.giveaway.title || 'Giveaway'} className="incentive-photo" />
+          ) : (
+            <span className="incentive-icon">🎁</span>
+          )}
+          <div className="incentive-text">
+            <strong>{promo.giveaway.title || 'Exclusive Giveaway'}</strong>
+            {promo.giveaway.description ? (
+              <div className="giveaway-html" dangerouslySetInnerHTML={{ __html: promo.giveaway.description.replace(/&nbsp;/g, ' ') }} />
+            ) : (
+              <p>Enter for a chance to win our prize bundle.</p>
+            )}
+          </div>
+        </div>
+      )}
+      {promo.credits && (
+        <div className="incentive-item credits-item">
+          {promo.credits.image_url ? (
+            <img src={promo.credits.image_url} alt="Credit Bonus" className="incentive-photo" />
+          ) : (
+            <span className="incentive-icon">💰</span>
+          )}
+          <div className="incentive-text">
+            <strong>${promo.credits.amount_usd} Purchase Credit</strong>
+            <p>Issued {promo.credits.frequency === 'monthly' ? 'once a month' : `every ${promo.credits.frequency}`} for {promo.credits.occurrences} {promo.credits.occurrences === 1 ? 'month' : 'months'}.</p>
+            <ul className="credit-rules">
+              {getRenewalText() && <li>✓ {getRenewalText()}</li>}
+              <li>✓ Valid towards {promo.credits.credit_type === 'universal' ? 'purchases and fees' : promo.credits.credit_type === 'platform_fee' ? 'platform fees' : 'purchases'} on casagrown.com</li>
+              <li>✓ Covers up to {promo.credits.cap_type === 'percentage' ? `${promo.credits.cap_value}%` : `$${promo.credits.cap_value}`} per order</li>
+              <li>✓ Credits expire after 1 {promo.credits.frequency === 'monthly' ? 'month' : promo.credits.frequency === 'weekly' ? 'week' : promo.credits.frequency.replace('ly', '')}</li>
+              <li>✓ Cannot be exchanged for cash or payouts</li>
+            </ul>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+
   return (
     <>
       {/* Dynamic Full-Bleed Background Image */}
@@ -226,6 +276,8 @@ function PromoContent() {
 
             {isMounted && isDeadlinePassed ? (
               <div className="promo-badge deadline-passed">Promotion Ended</div>
+            ) : isMounted && promo.is_capacity_reached ? (
+              <div className="promo-badge deadline-passed">Promotion Limit Reached</div>
             ) : isMounted ? (
               <div className="promo-badge active">
                 Ends {new Date(promo.enrollment_deadline).toLocaleDateString()}
@@ -234,44 +286,8 @@ function PromoContent() {
               <div className="promo-badge active" style={{ opacity: 0 }}>Ends...</div>
             )}
 
-            <div className="promo-incentive-grid">
-              {promo.giveaway && (
-                <div className="incentive-item giveaway-item">
-                  {promo.giveaway.photos && promo.giveaway.photos.length > 0 ? (
-                    <img src={promo.giveaway.photos[0]} alt={promo.giveaway.title || 'Giveaway'} className="incentive-photo" />
-                  ) : (
-                    <span className="incentive-icon">🎁</span>
-                  )}
-                  <div className="incentive-text">
-                    <strong>{promo.giveaway.title || 'Exclusive Giveaway'}</strong>
-                    {promo.giveaway.description ? (
-                      <div className="giveaway-html" dangerouslySetInnerHTML={{ __html: promo.giveaway.description.replace(/&nbsp;/g, ' ') }} />
-                    ) : (
-                      <p>Enter for a chance to win our prize bundle.</p>
-                    )}
-                  </div>
-                </div>
-              )}
-              {promo.credits && (
-                <div className="incentive-item credits-item">
-                  {promo.credits.image_url ? (
-                    <img src={promo.credits.image_url} alt="Credit Bonus" className="incentive-photo" />
-                  ) : (
-                    <span className="incentive-icon">💰</span>
-                  )}
-                  <div className="incentive-text">
-                    <strong>${promo.credits.amount_usd} Purchase Credit</strong>
-                    <p>Issued {promo.credits.frequency === 'monthly' ? 'once a month' : `every ${promo.credits.frequency}`} for {promo.credits.occurrences} {promo.credits.occurrences === 1 ? 'month' : 'months'}.</p>
-                    <ul className="credit-rules">
-                      {getRenewalText() && <li>✓ {getRenewalText()}</li>}
-                      <li>✓ Valid towards {promo.credits.credit_type === 'universal' ? 'purchases and fees' : promo.credits.credit_type === 'platform_fee' ? 'platform fees' : 'purchases'} on casagrown.com</li>
-                      <li>✓ Covers up to {promo.credits.cap_type === 'percentage' ? `${promo.credits.cap_value}%` : `$${promo.credits.cap_value}`} per order</li>
-                      <li>✓ Credits expire after 1 {promo.credits.frequency === 'monthly' ? 'month' : promo.credits.frequency === 'weekly' ? 'week' : promo.credits.frequency.replace('ly', '')}</li>
-                      <li>✓ Cannot be exchanged for cash or payouts</li>
-                    </ul>
-                  </div>
-                </div>
-              )}
+            <div className="desktop-incentives">
+              {incentivesContent}
             </div>
           </div>
 
@@ -285,6 +301,31 @@ function PromoContent() {
             ) : isMounted && isDeadlinePassed ? (
               <div className="form-error-state">
                 We're sorry, but the deadline for this promotion has passed.
+              </div>
+            ) : isMounted && promo.is_capacity_reached ? (
+              <div className="form-fallback-state fade-in-up" style={{ background: 'white', padding: '40px', borderRadius: '24px', boxShadow: '0 16px 40px rgba(0,0,0,0.08)' }}>
+                <div className="form-error-banner" style={{ marginBottom: '24px' }}>
+                  We're sorry, but this promotion has reached its maximum capacity.
+                </div>
+                <h2 className="form-heading">You can still join CasaGrown!</h2>
+                <p className="form-subheading">While you missed out on this specific offer, you can still sign up to access the market and receive future promotions.</p>
+                <Link href="/market" className="btn-action" style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }}>
+                  Continue to Market
+                </Link>
+              </div>
+            ) : fallbackMode ? (
+              <div className="form-fallback-state fade-in-up" style={{ background: 'white', padding: '40px', borderRadius: '24px', boxShadow: '0 16px 40px rgba(0,0,0,0.08)' }}>
+                <div className="form-error-banner" style={{ marginBottom: '24px' }}>
+                  {fallbackMode.message}
+                </div>
+                <h2 className="form-heading">You can still join CasaGrown!</h2>
+                <p className="form-subheading">While you aren't eligible for this specific offer, you can still sign up to access the market and receive future promotions.</p>
+                <button onClick={() => { setSkipPromo(true); setFallbackMode(null); setStep('profile') }} className="btn-action" style={{ marginBottom: '16px' }}>
+                  Continue Sign Up Without Promo
+                </button>
+                <Link href="/market" style={{ display: 'block', textAlign: 'center', color: '#166534', textDecoration: 'underline', fontWeight: 600 }}>
+                  Or browse the market
+                </Link>
               </div>
             ) : isMounted ? (
               <div className="dynamic-form">
@@ -379,6 +420,10 @@ function PromoContent() {
               </div>
             ) : null}
           </div>
+
+          <div className="mobile-incentives">
+            {incentivesContent}
+          </div>
         </div>
       </div>
 
@@ -410,13 +455,11 @@ export default function PromoPage() {
       {/* Sticky Premium Navbar */}
       <nav className="casagrown-nav">
         <div className="nav-left">
-          <Link href="/">
+          <Link href="https://casagrown.com" className="nav-brand">
             <img src="/logo.png" alt="CasaGrown" className="nav-logo-img" />
+            <span className="nav-brand-name">CasaGrown</span>
           </Link>
           <span className="nav-tagline">Fresh. Local. Trusted.</span>
-        </div>
-        <div className="nav-right">
-          <Link href="/market" className="nav-market-link">Go to Market</Link>
         </div>
       </nav>
 
@@ -470,10 +513,10 @@ export default function PromoPage() {
           z-index: 10;
         }
         .nav-left { display: flex; align-items: center; gap: 20px; }
+        .nav-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+        .nav-brand-name { font-weight: 800; font-size: 1.4rem; color: #14532d; letter-spacing: -0.5px; }
         .nav-logo-img { height: 40px; width: auto; }
         .nav-tagline { font-weight: 600; font-size: 0.95rem; color: #166534; letter-spacing: 0.5px; border-left: 2px solid #bbf7d0; padding-left: 20px; }
-        .nav-market-link { font-weight: 700; color: #15803d; text-decoration: none; padding: 10px 20px; background: #dcfce7; border-radius: 20px; transition: all 0.2s ease; }
-        .nav-market-link:hover { background: #bbf7d0; transform: translateY(-1px); }
 
         /* Main Content Wrapper */
         .promo-content-wrapper {
@@ -526,6 +569,8 @@ export default function PromoPage() {
         .promo-badge.deadline-passed { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
 
         /* Incentive Items */
+        .desktop-incentives { display: block; }
+        .mobile-incentives { display: none; }
         .promo-incentive-grid { display: flex; flex-direction: column; gap: 20px; }
         .incentive-item { display: flex; align-items: center; gap: 16px; background: rgba(255,255,255,0.85); backdrop-filter: blur(12px); padding: 20px; border-radius: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.06); border: 1px solid rgba(255,255,255,0.8); }
         .incentive-icon { font-size: 2.5rem; flex-shrink: 0; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1)); }
@@ -591,12 +636,30 @@ export default function PromoPage() {
 
         /* Responsive Design */
         @media (max-width: 900px) {
+          .promo-content-wrapper { padding: 20px 16px; align-items: flex-start; }
           .promo-main-glass { flex-direction: column; }
-          .promo-hero-section { padding: 40px 32px; border-right: none; border-bottom: 1px solid rgba(255,255,255,0.5); }
-          .promo-form-section { padding: 40px 32px; }
-          .promo-headline { font-size: 2.4rem; }
-          .casagrown-nav { padding: 16px 24px; flex-direction: column; gap: 16px; text-align: center; }
-          .nav-tagline { border-left: none; padding-left: 0; border-top: 2px solid #bbf7d0; padding-top: 8px; display: block; margin-top: 8px; }
+          .promo-hero-section { 
+            padding: 32px 24px; 
+            border-right: none; 
+            border-bottom: 1px solid rgba(255,255,255,0.5); 
+          }
+          .desktop-incentives { display: none; }
+          .mobile-incentives { 
+            display: block; 
+            padding: 32px 24px; 
+            background: rgba(220, 252, 231, 0.4); 
+            border-top: 1px solid rgba(255,255,255,0.5); 
+          }
+          .promo-form-section { padding: 32px 24px; }
+          .promo-headline { font-size: 2rem; margin-bottom: 16px; }
+          .casagrown-nav { padding: 16px 24px; text-align: center; }
+          .nav-left { flex-direction: column; gap: 8px; align-items: center; width: 100%; }
+          .nav-brand { flex-direction: row; justify-content: center; gap: 12px; }
+          .nav-tagline { border-left: none; padding-left: 0; border-top: none; padding-top: 0; margin-top: 0; width: 100%; }
+          .promo-badge { margin-bottom: 0; }
+          .incentive-item { padding: 16px; gap: 12px; }
+          .incentive-icon { font-size: 2rem; }
+          .incentive-photo { width: 48px; height: 48px; }
         }
       `}</style>
     </div>

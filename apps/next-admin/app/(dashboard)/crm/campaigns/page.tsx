@@ -40,9 +40,10 @@ type Campaign = {
   data_source_id?: string | null
   postmark_template_alias?: string | null
   test_emails: string[]
+  audience_id?: string | null
 }
 
-type Audience = { id: string; name: string }
+type Audience = { id: string; name: string; audience_rpc_name?: string }
 type DataSource = { id: string; name: string; rpc_name: string }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -89,6 +90,10 @@ export default function CrmCampaignsPage() {
   const [saving, setSaving] = useState(false)
   const [sending, setSending] = useState<string | null>(null)
   const [message, setMessage] = useState('')
+  const [previewingAudience, setPreviewingAudience] = useState(false)
+  const [previewingChannel, setPreviewingChannel] = useState<'email' | 'sms'>('email')
+  const [audienceMembers, setAudienceMembers] = useState<any[]>([])
+  const [audienceLoading, setAudienceLoading] = useState(false)
 
   const toast = (msg: string, ms = 5000) => {
     setMessage(msg);
@@ -116,6 +121,37 @@ export default function CrmCampaignsPage() {
   }
 
   const [form, setForm] = useState(emptyForm)
+
+  const handlePreviewAudience = async (audienceId: string, channel: 'email' | 'sms') => {
+    if (!audienceId) return
+    const audience = audiences.find(a => a.id === audienceId)
+    if (!audience || !audience.audience_rpc_name) {
+      toast("Error: No behavioral RPC defined for this audience.")
+      return
+    }
+
+    setPreviewingChannel(channel)
+    setPreviewingAudience(true)
+    setAudienceLoading(true)
+    setAudienceMembers([])
+
+    const { data, error } = await supabase.rpc(audience.audience_rpc_name)
+    setAudienceLoading(false)
+
+    if (error) {
+      toast("Error fetching audience: " + error.message)
+      return
+    }
+
+    // Filter based on channel
+    const filtered = (data || []).filter((m: any) => {
+      if (channel === 'email') return m.email && m.accepts_email
+      if (channel === 'sms') return m.phone && m.accepts_sms
+      return true
+    })
+
+    setAudienceMembers(filtered)
+  }
 
   const handleEdit = async (c: Campaign) => {
     const { data } = await supabase.from('crm_campaigns').select('*').eq('id', c.id).single()
@@ -252,7 +288,7 @@ export default function CrmCampaignsPage() {
       setLoading(true)
       const [{ data: camps }, { data: auds }, { data: sources }, { data: lps }, { data: promos }] = await Promise.all([
         supabase.from('crm_campaigns').select('*').order('created_at', { ascending: false }),
-        supabase.from('crm_audiences').select('id, name').order('name'),
+        supabase.from('crm_audiences').select('id, name, audience_rpc_name').order('name'),
         supabase.from('crm_data_sources').select('id, name, rpc_name').order('name'),
         supabase.from('crm_landing_pages').select('id, slug, title').eq('is_active', true),
         supabase.from('crm_promotions').select('id, name, landing_page_id').order('created_at', { ascending: false })
@@ -580,10 +616,17 @@ export default function CrmCampaignsPage() {
             </div>
             <div className="crm-field">
               <label>Audience / Behavioral Filter</label>
-              <select value={form.audience_id || ""} onChange={e => setForm(f => ({ ...f, audience_id: e.target.value || "" }))}>
-                <option value="">None (Use Test Emails only)</option>
-                {audiences.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <select value={form.audience_id || ""} onChange={e => setForm(f => ({ ...f, audience_id: e.target.value || "" }))} style={{ flex: 1 }}>
+                  <option value="">None (Use Test Emails only)</option>
+                  {audiences.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+                {form.audience_id && (
+                  <button type="button" className="crm-btn-secondary" onClick={() => handlePreviewAudience(form.audience_id, form.channel)}>
+                    Preview Audience
+                  </button>
+                )}
+              </div>
             </div>
             
             {form.channel === 'email' && (
@@ -744,6 +787,11 @@ export default function CrmCampaignsPage() {
                     {c.system_alias && <span style={{ background: '#e0e7ff', color: '#3730a3', fontSize: '0.65rem', padding: '2px 6px', borderRadius: 4, fontWeight: 700, letterSpacing: '0.5px' }}>{c.system_alias}</span>}
                   </div>
                   {c.subject && <div className="crm-muted">{c.subject}</div>}
+                  {c.system_alias && (
+                    <div style={{ fontSize: '0.75rem', color: '#3b82f6', marginTop: 4 }}>
+                      🔗 {process.env.NEXT_PUBLIC_MARKET_URL || 'https://casagrown.com'}/c/{c.system_alias}
+                    </div>
+                  )}
                 </td>
                 <td><span className="crm-badge channel">{c.channel === 'email' ? '📧 Email' : '💬 SMS'}</span></td>
                 <td>
@@ -764,6 +812,15 @@ export default function CrmCampaignsPage() {
                   <div style={{ display: 'flex', gap: 6 }}>
                     {(c.status === 'draft' || c.status === 'scheduled') && (
                       <>
+                        <button
+                          className="crm-btn-send crm-btn-secondary"
+                          disabled={!c.audience_id}
+                          onClick={() => handlePreviewAudience(c.audience_id!, c.channel)}
+                          title={!c.audience_id ? "No audience assigned" : "Preview Audience"}
+                          style={{ padding: '4px 8px', fontSize: '0.8rem', background: '#e5e7eb', color: '#374151', border: '1px solid #d1d5db', borderRadius: 4, cursor: !c.audience_id ? 'not-allowed' : 'pointer' }}
+                        >
+                          👥 Preview
+                        </button>
                         <button
                           className="crm-btn-send crm-btn-secondary"
                           disabled={sending === c.id || !c.test_emails || c.test_emails.length === 0}
@@ -983,6 +1040,51 @@ export default function CrmCampaignsPage() {
               >
                 Yes, Delete
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {previewingAudience && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '700px', height: '80vh', display: 'flex', flexDirection: 'column', padding: '0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', background: '#f3f4f6', borderBottom: '1px solid #e5e7eb', borderTopLeftRadius: '16px', borderTopRightRadius: '16px' }}>
+              <h3 style={{ margin: 0, fontSize: '1.15rem', color: '#111827' }}>
+                Audience Preview <span className="crm-hint">({audienceMembers.length} valid {previewingChannel} recipients)</span>
+              </h3>
+              <button type="button" className="crm-btn-secondary" style={{ padding: '6px 14px' }} onClick={() => setPreviewingAudience(false)}>✕ Close</button>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto', padding: '24px' }}>
+              {audienceLoading ? (
+                <div style={{ textAlign: 'center', color: '#6b7280', padding: '40px' }}>Loading audience list...</div>
+              ) : audienceMembers.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#6b7280', padding: '40px' }}>
+                  No recipients found. Either the audience is empty, or no one in it has opted in to receive {previewingChannel}s.
+                </div>
+              ) : (
+                <table className="crm-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>{previewingChannel === 'email' ? 'Email' : 'Phone'}</th>
+                      <th>Type</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {audienceMembers.map((m, i) => (
+                      <tr key={m.id || i}>
+                        <td>{m.name || 'Unknown'}</td>
+                        <td><code className="slug-code">{previewingChannel === 'email' ? m.email : m.phone}</code></td>
+                        <td>
+                          <span className={`crm-badge stat-badge ${m.recipient_type === 'user' ? 'green' : ''}`}>
+                            {m.recipient_type || 'Unknown'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         </div>

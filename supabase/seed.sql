@@ -1108,8 +1108,8 @@ BEGIN
   ON CONFLICT (email) DO NOTHING;
 
   -- Bootstrap admin (always present for development)
-  INSERT INTO staff_members (email, roles, granted_at)
-  VALUES ('admin@casagrown.com', '{admin}', now())
+  INSERT INTO staff_members (email, user_id, roles, granted_at)
+  VALUES ('admin@casagrown.com', NULL, '{admin}', now())
   ON CONFLICT (email) DO NOTHING;
 
   -- Public feedback tickets
@@ -1705,3 +1705,39 @@ VALUES
 -- we guarantee local testing behaves correctly after a `supabase db reset`.
 DELETE FROM vault.decrypted_secrets WHERE name = 'app_url';
 
+
+-- ─── CRM Audiences ───────────────────────────────────────────────────────────
+INSERT INTO crm_audiences (id, name, description, recipient_type, audience_rpc_name)
+VALUES 
+  ('11111111-2222-3333-4444-555555555555', 'All Active Users', 'Returns all registered users', 'users', 'crm_audience_users_only'),
+  ('22222222-3333-4444-5555-666666666666', 'All Leads', 'Returns all un-registered leads', 'leads', 'crm_audience_leads_only'),
+  ('33333333-4444-5555-6666-777777777777', 'Everyone (Leads + Users)', 'Returns all users and leads', 'both', 'crm_audience_all')
+ON CONFLICT DO NOTHING;
+
+CREATE OR REPLACE FUNCTION get_audience_all_users()
+RETURNS TABLE (
+  id uuid,
+  name text,
+  email text,
+  phone text,
+  accepts_email boolean,
+  accepts_sms boolean,
+  recipient_type text
+)
+LANGUAGE sql
+SECURITY DEFINER
+AS $$
+  SELECT 
+    p.id,
+    p.full_name as name,
+    p.email,
+    p.phone_number as phone,
+    true as accepts_email,
+    true as accepts_sms,
+    'user'::text as recipient_type
+  FROM profiles p;
+$$;
+
+INSERT INTO crm_audiences (id, name, description, recipient_type, audience_rpc_name)
+VALUES ('77777777-8888-9999-0000-111111111111', 'All Users (Local Dev)', 'Local test audience returning everyone without filtering test domains', 'users', 'get_audience_all_users')
+ON CONFLICT DO NOTHING;
