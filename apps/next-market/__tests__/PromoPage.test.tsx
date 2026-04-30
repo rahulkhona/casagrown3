@@ -75,7 +75,7 @@ describe('PromoPage component', () => {
 
     // Wait for page to load
     await waitFor(() => {
-      expect(screen.getByText(/Founders Promo/i)).toBeDefined()
+      expect(screen.getAllByText(/Founders Promo/i).length).toBeGreaterThan(0)
     })
 
     // Fill out the form
