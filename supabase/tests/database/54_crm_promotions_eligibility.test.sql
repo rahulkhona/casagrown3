@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT plan(7);
+SELECT plan(9);
 
 -- Clean up test data
 DELETE FROM auth.users WHERE email IN ('valid_target@gmail.com', 'invalid_target@gmail.com', 'existing_user@gmail.com');
@@ -60,6 +60,12 @@ SELECT results_eq(
 );
 
 SELECT results_eq(
+    $$ SELECT (crm_check_promo_eligibility('c0000000-0000-0000-0000-000000000001', 'VALID_TARGET@GMAIL.COM'))->>'eligible' $$,
+    ARRAY['true'::TEXT],
+    'Eligible user in audience should be approved regardless of email case'
+);
+
+SELECT results_eq(
     $$ SELECT (crm_check_promo_eligibility('c0000000-0000-0000-0000-000000000001', 'invalid_target@gmail.com'))->>'eligible' $$,
     ARRAY['false'::TEXT],
     'User not in audience should be rejected'
@@ -75,6 +81,12 @@ SELECT results_eq(
     $$ SELECT (crm_check_promo_eligibility('c0000000-0000-0000-0000-000000000002', 'existing_user@gmail.com'))->>'eligible' $$,
     ARRAY['false'::TEXT],
     'Existing user should be rejected for new-users-only promo'
+);
+
+SELECT results_eq(
+    $$ SELECT (crm_check_promo_eligibility('c0000000-0000-0000-0000-000000000002', 'EXISTING_USER@GMAIL.COM'))->>'eligible' $$,
+    ARRAY['false'::TEXT],
+    'Existing user should be rejected for new-users-only promo regardless of email case'
 );
 
 SELECT results_eq(
