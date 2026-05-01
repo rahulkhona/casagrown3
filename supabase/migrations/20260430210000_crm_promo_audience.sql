@@ -121,16 +121,17 @@ BEGIN
     END IF;
 
     -- Upsert the user blueprint (active)
-    INSERT INTO user_recurring_incentives (
+    INSERT INTO user_incentives (
       user_id,
       amount_usd,
       credit_type,
       cap_type,
       cap_value,
-      frequency,
+      expiration_frequency,
       start_date,
       stop_date,
-      is_active
+      is_active,
+      created_by
     ) VALUES (
       v_uid,
       v_blueprint.amount_usd,
@@ -140,18 +141,9 @@ BEGIN
       v_blueprint.frequency,
       v_blueprint.start_date,
       v_stop_date,
-      true
-    )
-    ON CONFLICT (user_id) DO UPDATE SET
-      amount_usd = EXCLUDED.amount_usd,
-      credit_type = EXCLUDED.credit_type,
-      cap_type = EXCLUDED.cap_type,
-      cap_value = EXCLUDED.cap_value,
-      frequency = EXCLUDED.frequency,
-      start_date = EXCLUDED.start_date,
-      stop_date = EXCLUDED.stop_date,
-      is_active = true,
-      updated_at = now();
+      true,
+      NULL
+    );
   END IF;
 
   RETURN jsonb_build_object('success', true);

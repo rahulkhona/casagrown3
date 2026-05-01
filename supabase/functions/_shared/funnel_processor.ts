@@ -21,6 +21,8 @@ export type IngestionConfig = {
   resultKey: string;
   getAiPrompt: (payload: any) => string;
   getCacheQuery?: (supabaseAdmin: any, payload: any) => Promise<any>;
+  saveCacheResults?: (supabaseAdmin: any, payload: any, aiResult: any) => Promise<void>;
+  mergeAiResult?: (payload: any, aiResult: any) => any;
 };
 
 export async function handleLeadIngestion(req: Request, config: IngestionConfig): Promise<Response> {
@@ -181,9 +183,20 @@ export async function handleLeadIngestion(req: Request, config: IngestionConfig)
               .replace(/<thought>[\s\S]*?<\/thought>/g, "")
               .trim();
     
-            const result = JSON.parse(jsonStr);
+            const parsedResult = JSON.parse(jsonStr);
+            const result = config.mergeAiResult ? config.mergeAiResult(payload, parsedResult) : parsedResult;
             
             const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+            
+            if (config.saveCacheResults) {
+              try {
+                // saveCacheResults should only save the newly generated parsedResult, not the merged result
+                await config.saveCacheResults(supabaseAdmin, payload, parsedResult);
+              } catch (cacheSaveErr) {
+                console.error("Failed to save to global cache:", cacheSaveErr);
+              }
+            }
+
             await supabaseAdmin.from('crm_leads').update({
               metadata: { ...finalLeadMetadata, [config.resultKey]: result }
             }).eq('id', leadId);
