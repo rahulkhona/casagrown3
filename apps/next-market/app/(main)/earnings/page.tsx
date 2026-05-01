@@ -92,16 +92,20 @@ function getDateRange(range: DateRange, customStart?: string, customEnd?: string
   switch (range) {
     case 'month': {
       const start = new Date(now.getFullYear(), now.getMonth(), 1)
-      return { start: start.toISOString().split('T')[0], end: now.toISOString().split('T')[0] }
+      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
+      return { start: start.toISOString(), end: end.toISOString() }
     }
     case 'ytd': {
       const start = new Date(now.getFullYear(), 0, 1)
-      return { start: start.toISOString().split('T')[0], end: now.toISOString().split('T')[0] }
+      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
+      return { start: start.toISOString(), end: end.toISOString() }
     }
     case 'lifetime':
       return { start: null, end: null }
     case 'custom':
-      return { start: customStart || null, end: customEnd || null }
+      const start = customStart ? new Date(customStart + 'T00:00:00') : null
+      const end = customEnd ? new Date(customEnd + 'T23:59:59') : null
+      return { start: start?.toISOString() || null, end: end?.toISOString() || null }
   }
 }
 
