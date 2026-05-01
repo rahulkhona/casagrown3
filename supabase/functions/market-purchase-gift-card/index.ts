@@ -216,6 +216,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
       item_id: null,
       point_cost: totalPointsCost, // cents for backward compat
       status: "pending",
+      provider: selectedProvider.provider,
       metadata: {
         brand_name: brandName,
         face_value_cents: faceValueCents,
@@ -336,7 +337,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     await supabase.from("market_notifications").insert({
       user_id: userId,
       content: queuedMessage,
-      link_url: "/transaction-history",
+      link_url: "/earnings",
     });
 
     // Run external notifications in parallel with a timeout to prevent hanging
@@ -345,7 +346,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         userIds: [userId],
         title: "Redemption Queued ⏳",
         body: queuedMessage,
-        url: "/transaction-history",
+        url: "/earnings",
       });
 
       const userEmail = await getUserEmail(supabase, userId);
@@ -453,14 +454,14 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   await supabase.from("market_notifications").insert({
     user_id: userId,
     content: successMessage,
-    link_url: providerResult!.cardUrl || "/transaction-history",
+    link_url: providerResult!.cardUrl || "/earnings",
   });
 
   await sendPushNotification(supabase, {
     userIds: [userId],
     title: "Gift Card Ready! 🎁",
     body: successMessage,
-    url: providerResult!.cardUrl || "/transaction-history",
+    url: providerResult!.cardUrl || "/earnings",
   });
 
   // Email notification for successful gift card
