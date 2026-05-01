@@ -1741,3 +1741,25 @@ $$;
 INSERT INTO crm_audiences (id, name, description, recipient_type, audience_rpc_name)
 VALUES ('77777777-8888-9999-0000-111111111111', 'All Users (Local Dev)', 'Local test audience returning everyone without filtering test domains', 'users', 'get_audience_all_users')
 ON CONFLICT DO NOTHING;
+
+-- =============================================================================
+-- Queued Payouts for Admin Testing
+-- =============================================================================
+INSERT INTO public.redemption_merchandize (id, name, point_cost, type, reach_type)
+VALUES (
+  '07753e6c-c695-4af3-9028-f95555dee7e0',
+  'Admin Test Payout Item',
+  1500,
+  'donation',
+  'global'
+) ON CONFLICT DO NOTHING;
+
+INSERT INTO public.redemptions (id, user_id, item_id, point_cost, status, created_at)
+VALUES (
+  '00000000-0000-0000-0000-000000000001',
+  'a1111111-1111-1111-1111-111111111111',
+  '07753e6c-c695-4af3-9028-f95555dee7e0',
+  1500,
+  'queued',
+  now()
+) ON CONFLICT DO NOTHING;

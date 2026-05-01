@@ -4,6 +4,7 @@ import {
     serveWithCors,
 } from "../_shared/serve-with-cors.ts";
 import webpush from "npm:web-push@^3.6.7";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.6";
 
 /**
  * send-push-notification — Supabase Edge Function
@@ -86,6 +87,24 @@ serveWithCors(async (req, { supabase, corsHeaders, env }) => {
         return jsonOk({ sent: 0, failed: 0, skipped: 0, message: "No valid userIds provided" }, corsHeaders);
     }
 
+    // ── Log Push Dispatch ──
+    // We log once per user to ensure tests can verify the payload even if the user has no active subscriptions
+    const adminClient = createClient(
+        env("SUPABASE_URL") ?? "",
+        env("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    );
+
+    const logs = cleanUserIds.map((uid: string) => ({
+        user_id: uid,
+        platform: "multi",
+        title,
+        body,
+        url,
+        tag,
+        status: !enableMobilePush ? "skipped_disabled" : "attempted",
+    }));
+    await adminClient.from("push_notification_log").insert(logs);
+
     // Fetch all push subscriptions for the target users
     const { data: subscriptions, error: fetchError } = await supabase
         .from("push_subscriptions")
@@ -165,7 +184,7 @@ serveWithCors(async (req, { supabase, corsHeaders, env }) => {
     }
 
     console.log(
-        `📬 Push: sent=${sent}, failed=${failed}, skipped=${skipped}, total=${subscriptions.length}`,
+        `📬 Push: sent=${sent}, failed=${failed}, skipped=${skipped}, total=${subscriptions?.length || 0}`,
     );
     return jsonOk({ sent, failed, skipped }, corsHeaders);
 });

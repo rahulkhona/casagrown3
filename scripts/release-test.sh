@@ -418,10 +418,10 @@ else
     sleep 10
   }
 
-  run_playwright_sequential "Market" "apps/next-market" "3001" "false"
+  run_playwright_sequential "Market" "apps/next-market" "3001" "true"
   run_playwright_sequential "Admin" "apps/next-admin" "3003" "true"
-  run_playwright_sequential "Voice" "apps/next-community-voice" "3002" "false"
-  run_playwright_sequential "Metrics" "apps/next-metrics" "3004" "false"
+  run_playwright_sequential "Voice" "apps/next-community-voice" "3002" "true"
+  run_playwright_sequential "Metrics" "apps/next-metrics" "3004" "true"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────

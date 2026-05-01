@@ -361,3 +361,109 @@ test.describe('CSV Export & Import Workflow', () => {
     fs.unlinkSync(tmpFile)
   })
 })
+
+test.describe('Reject & Refund Workflow', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/payouts', { waitUntil: 'domcontentloaded' })
+    await page.waitForTimeout(2000)
+  })
+
+  test('should reject a payout, refund balance, and verify all notifications', async ({ page, request }) => {
+    // 1. Check if our seeded queued payout is in the table
+    // Seeded redemption for user seller@test.local (a1111111-1111-1111-1111-111111111111)
+    // The UI uses Tamagui (XStack divs), not HTML tables (tr)
+    const emailLocator = page.getByText('seller@test.local').first()
+    await expect(emailLocator).toBeVisible({ timeout: 15000 })
+    
+    // Find the row container by getting the parent that has the checkbox
+    const targetRow = emailLocator.locator('xpath=ancestor::div[.//button[@role="checkbox"] | .//input[@type="checkbox"]][1]')
+    await expect(targetRow).toBeVisible({ timeout: 15000 })
+    
+    // 2. Click the Reject & Refund button for the row
+    // The admin UI has a checkbox for the row, and a global "Reject & Refund" button
+    const checkbox = targetRow.locator('button[role="checkbox"]')
+    if (await checkbox.count() > 0) {
+        await checkbox.click()
+    } else {
+        const inputCb = targetRow.locator('input[type="checkbox"]')
+        if (await inputCb.count() > 0) await inputCb.click()
+    }
+    
+    // Click global Reject & Refund button
+    const globalRejectBtn = page.getByRole('button', { name: /Reject & Refund/i })
+    await expect(globalRejectBtn).toBeVisible({ timeout: 5000 })
+    await globalRejectBtn.click()
+
+    // 3. Fill in the rejection reason modal
+    const reasonInput = page.getByPlaceholder(/verify your identity/i).first()
+    await expect(reasonInput).toBeVisible({ timeout: 5000 })
+    const rejectReason = "Admin test rejection 123"
+    await reasonInput.fill(rejectReason)
+    
+    // Accept the browser confirm dialog that appears
+    page.once('dialog', dialog => dialog.accept())
+    
+    // 4. Submit the rejection
+    const confirmBtn = page.getByRole('button', { name: /Confirm Rejection/i }).first()
+    await confirmBtn.click()
+
+    // Wait for the row to disappear (status changed)
+    // The navbar also has 'seller@test.local', so the count should go from 2 down to 1.
+    await expect(page.getByText('seller@test.local', { exact: true })).toHaveCount(1, { timeout: 15000 })
+
+    // 5. Verify the email via Mailpit (API exposed locally on 54324 usually in test env)
+    // In our test, Mailpit is running on localhost:54324
+    let emailFound = false;
+    for (let i = 0; i < 5; i++) {
+        await page.waitForTimeout(2000)
+        const mailRes = await request.get('http://localhost:54324/api/v1/messages')
+        if (mailRes.ok()) {
+            const data = await mailRes.json()
+            const messages = data.messages || []
+            if (messages.some((m: any) => m.Subject.includes('CasaGrown Market') && m.Snippet.includes(rejectReason))) {
+                emailFound = true;
+                break;
+            }
+        }
+    }
+    expect(emailFound).toBe(true)
+
+    // 6. Verify SMS via supabase rest API (service role bypass)
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321'
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
+    
+    const smsRes = await request.get(`${supabaseUrl}/rest/v1/sms_notification_log?message=ilike.*${encodeURIComponent(rejectReason)}*`, {
+        headers: { 'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey }
+    })
+    expect(smsRes.ok()).toBe(true)
+    const smsData = await smsRes.json()
+    expect(smsData.length).toBeGreaterThan(0)
+    expect(smsData[0].status).toBe('skipped_disabled') // from our feature flag
+
+    // 7. Verify Push via supabase rest API
+    const pushRes = await request.get(`${supabaseUrl}/rest/v1/push_notification_log?body=ilike.*${encodeURIComponent(rejectReason)}*`, {
+        headers: { 'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey }
+    })
+    expect(pushRes.ok()).toBe(true)
+    const pushData = await pushRes.json()
+    expect(pushData.length).toBeGreaterThan(0)
+
+    // 8. Verify In-App Notification via supabase rest API
+    const inAppRes = await request.get(`${supabaseUrl}/rest/v1/market_notifications?content=ilike.*${encodeURIComponent(rejectReason)}*`, {
+        headers: { 'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey }
+    })
+    expect(inAppRes.ok()).toBe(true)
+    const inAppData = await inAppRes.json()
+    expect(inAppData.length).toBeGreaterThan(0)
+
+    // 9. Verify Funds Return (Ledger entry for refund)
+    const ledgerRes = await request.get(`${supabaseUrl}/rest/v1/market_ledger?user_id=eq.a1111111-1111-1111-1111-111111111111&event_type=eq.refund_issued`, {
+        headers: { 'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey }
+    })
+    expect(ledgerRes.ok()).toBe(true)
+    const ledgerData = await ledgerRes.json()
+    expect(ledgerData.length).toBeGreaterThan(0)
+    expect(ledgerData[0].amount_usd).toBe(15) // The refunded amount from our seed in USD
+  })
+})
+

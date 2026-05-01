@@ -38,11 +38,24 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     }
 
     // ── Global Feature Flag Check ──
-    // SMS notifications are gated by ENABLE_SMS_NOTIFICATIONS (server-side)
-    // or NEXT_PUBLIC_ENABLE_SMS_NOTIFICATIONS (client-side).
-    // This is SEPARATE from ENABLE_PHONE_VERIFICATION which gates OTP/Verify.
     const enableSms = Deno.env.get("ENABLE_SMS_NOTIFICATIONS") === "true" || Deno.env.get("NEXT_PUBLIC_ENABLE_SMS_NOTIFICATIONS") === "true";
     if (!enableSms) {
+        // Log it as skipped so tests can still verify the content
+        const adminClient = createClient(
+            Deno.env.get("SUPABASE_URL") ?? "",
+            Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+        );
+        let smsBody = `CasaGrown: ${message}`;
+        if (linkUrl) smsBody += `\nView: https://casagrown.com${linkUrl}`;
+        smsBody += `\nReply STOP to cancel`;
+        
+        await adminClient.from("sms_notification_log").insert({
+            user_id: userId,
+            phone_number: "+10000000000", // dummy for skipped
+            message: smsBody,
+            status: "skipped_disabled",
+        });
+
         return jsonOk({ success: true, message: "Skipped: SMS notifications feature flag is disabled" }, corsHeaders);
     }
 

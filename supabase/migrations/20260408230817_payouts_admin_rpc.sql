@@ -42,7 +42,7 @@ BEGIN
   FROM redemptions r
   LEFT JOIN profiles p ON p.id = r.user_id
   LEFT JOIN auth.users u ON u.id = r.user_id
-  WHERE r.status IN ('pending', 'failed')
+  WHERE r.status IN ('pending', 'queued', 'failed')
   ORDER BY r.created_at ASC
   LIMIT p_limit
   OFFSET p_offset;

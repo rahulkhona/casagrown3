@@ -37,6 +37,10 @@ export default function PayoutsPage() {
   const [manualFulfillModalOpen, setManualFulfillModalOpen] = useState(false)
   const [manualInputs, setManualInputs] = useState<Record<string, { fulfillment_source: string, reference_id: string, proof_url: string }>>({})
 
+  // Reject State
+  const [rejectModalOpen, setRejectModalOpen] = useState(false)
+  const [rejectReason, setRejectReason] = useState('')
+
   // CSV Upload State
   const [csvUploadOpen, setCsvUploadOpen] = useState(false)
   const [csvProvider, setCsvProvider] = useState<string>('paypal')
@@ -147,6 +151,44 @@ export default function PayoutsPage() {
     } finally {
       setProcessing(false)
     }
+  }
+
+  const executeRejectPayouts = async () => {
+    if (!rejectReason.trim()) {
+      window.alert('Please provide a reason for rejection. This will be sent to the user.')
+      return
+    }
+    if (!confirm(`Are you sure you want to reject and refund ${selectedIds.size} payout(s)? This cannot be undone.`)) return
+    
+    setProcessing(true)
+    setProcessResult(null)
+    
+    let processed = 0
+    let failed = 0
+    
+    for (const id of Array.from(selectedIds)) {
+      try {
+        const { error } = await adminApi.rpc('cancel_redemption_with_refund', { 
+          p_redemption_id: id, 
+          p_reason: rejectReason 
+        })
+        if (error) {
+          failed++
+          console.error('Failed to reject:', id, error)
+        } else {
+          processed++
+        }
+      } catch (err) {
+        failed++
+      }
+    }
+    
+    setProcessResult({ success: processed, failed })
+    setSelectedIds(new Set())
+    setRejectModalOpen(false)
+    setRejectReason('')
+    await fetchData()
+    setProcessing(false)
   }
 
   // ── CSV Upload Logic ──
@@ -475,13 +517,24 @@ export default function PayoutsPage() {
                 
                 <Button 
                   size="$3" 
-                  backgroundColor={selectedIds.size > 0 && !manualFulfillModalOpen ? colors.green[600] : colors.gray[300]} 
-                  disabled={selectedIds.size === 0 || processing || manualFulfillModalOpen}
-                  icon={processing && !manualFulfillModalOpen ? <Spinner color="white" /> : Play}
+                  backgroundColor={selectedIds.size > 0 && !manualFulfillModalOpen && !rejectModalOpen ? colors.green[600] : colors.gray[300]} 
+                  disabled={selectedIds.size === 0 || processing || manualFulfillModalOpen || rejectModalOpen}
+                  icon={processing && !manualFulfillModalOpen && !rejectModalOpen ? <Spinner color="white" /> : Play}
                   onPress={executeSelectedPayouts}
                 >
                   <Text color="white" fontWeight="bold">
-                    {processing && !manualFulfillModalOpen ? 'Processing...' : `Execute Auto API (${fmt(selectedUsd * 100)})`}
+                    {processing && !manualFulfillModalOpen && !rejectModalOpen ? 'Processing...' : `Execute Auto API (${fmt(selectedUsd * 100)})`}
+                  </Text>
+                </Button>
+
+                <Button 
+                  size="$3" 
+                  backgroundColor={selectedIds.size > 0 && !manualFulfillModalOpen && !rejectModalOpen ? colors.red[600] : colors.gray[300]} 
+                  disabled={selectedIds.size === 0 || processing || manualFulfillModalOpen || rejectModalOpen}
+                  onPress={() => setRejectModalOpen(true)}
+                >
+                  <Text color="white" fontWeight="bold">
+                    Reject & Refund
                   </Text>
                 </Button>
               </XStack>
@@ -490,6 +543,33 @@ export default function PayoutsPage() {
           </XStack>
 
         </XStack>
+
+        {rejectModalOpen && (
+          <YStack backgroundColor="#fef2f2" padding="$4" borderRadius="$2" gap="$4" borderWidth={1} borderColor="#fecaca" marginTop="$2">
+            <Text fontSize={16} fontWeight="bold" color="#991b1b">Reject & Refund Payouts</Text>
+            <Text fontSize={13} color="#7f1d1d">This will cancel the selected payouts, refund the USD back to the users' market balances, and send them a notification containing the reason provided below.</Text>
+            
+            <YStack gap="$2">
+              <Text fontSize={12} fontWeight="bold" color="#991b1b">Reason for Rejection</Text>
+              <Input 
+                value={rejectReason}
+                onChangeText={setRejectReason}
+                placeholder="e.g. Please verify your identity first."
+                backgroundColor="white"
+                borderColor="#fecaca"
+              />
+            </YStack>
+
+            <XStack gap="$3" justifyContent="flex-end" marginTop="$2">
+              <Button size="$3" backgroundColor="white" color="#991b1b" borderWidth={1} borderColor="#fecaca" onPress={() => setRejectModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button size="$3" backgroundColor="#dc2626" color="white" onPress={executeRejectPayouts} disabled={processing || !rejectReason.trim()}>
+                {processing ? <Spinner color="white" /> : `Confirm Rejection (${selectedIds.size})`}
+              </Button>
+            </XStack>
+          </YStack>
+        )}
 
         {manualFulfillModalOpen && (
           <YStack backgroundColor="#f8fafc" padding="$4" borderRadius="$2" gap="$4" borderWidth={1} borderColor="#cbd5e1" marginTop="$2">

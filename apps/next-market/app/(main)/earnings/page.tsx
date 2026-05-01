@@ -81,6 +81,7 @@ const TX_ICONS: Record<string, { icon: string; cls: string }> = {
   settlement_credit: { icon: '✅', cls: styles.iconCredit },
   funds_cleared:     { icon: '🏦', cls: styles.iconCredit },
   refund:            { icon: '↩️', cls: styles.iconRefund },
+  payout_refund:     { icon: '↩️', cls: styles.iconRefund },
   balance_held:      { icon: '🔒', cls: styles.iconCharge },
   balance_released:  { icon: '🔓', cls: styles.iconCredit },
   card_hold:         { icon: '💳', cls: styles.iconCharge },
@@ -673,6 +674,11 @@ export default function EarningsPage() {
                               {new Date(tx.tx_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                               {tx.counterparty ? ` • ${tx.counterparty}` : ''}
                             </span>
+                            {tx.tx_type === 'payout_refund' && tx.metadata?.reason && (
+                              <span style={{ fontSize: 12, color: 'var(--amber-700, #b45309)', marginTop: 2, display: 'block' }}>
+                                Reason: {tx.metadata.reason}
+                              </span>
+                            )}
                           </div>
                         </div>
                         <div className={styles.txRight}>
@@ -849,6 +855,11 @@ export default function EarningsPage() {
                               {tx.metadata.cashout_txn_id && <div className={styles.metaItem}><span className={styles.metaLabel}>Txn ID:</span> {tx.metadata.cashout_txn_id}</div>}
                               {tx.metadata.payout_method && <div className={styles.metaItem}><span className={styles.metaLabel}>Method:</span> {tx.metadata.payout_method}</div>}
                             </>
+                          )}
+                          {tx.tx_type === 'payout_refund' && tx.metadata?.reason && (
+                            <div className={styles.metaItem} style={{ color: 'var(--amber-700, #b45309)', backgroundColor: 'var(--amber-50, #fffbeb)', padding: '6px 10px', borderRadius: '6px', marginTop: '4px', border: '1px solid var(--amber-200, #fde68a)' }}>
+                              <span className={styles.metaLabel} style={{ color: 'var(--amber-800, #92400e)' }}>Reason:</span> {tx.metadata.reason}
+                            </div>
                           )}
                           {tx.tx_type === 'cc_purchase' && (
                             <>
