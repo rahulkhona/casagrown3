@@ -42,7 +42,6 @@ self.addEventListener('push', (event) => {
   const options = {
     body: data.body || 'You have a new update',
     icon: '/logo.png',
-    badge: '/favicon.ico',
     tag,
     data: { url: data.url || '/market' },
   }
