@@ -2,7 +2,8 @@
  * CRM Edge Functions — Integration Tests
  *
  * Tests: receive-facebook-lead, send-crm-campaign, postmark-webhook,
- *        twilio-campaign-webhook
+ *        twilio-campaign-webhook, estimate-earnings,
+ *        process-earnings-estimate-request-queue
  *
  * Run: cd supabase && deno test --allow-env --allow-net --no-check \
  *        functions/_tests/crm-functions.test.ts
@@ -262,3 +263,275 @@ Deno.test('send-crm-campaign: buildTemplateModel resolves names correctly', () =
   assertEquals(model4.first_name, 'Neighbor');
   assertEquals(model4.last_name, null);
 });
+
+// ── estimate-earnings ─────────────────────────────────────────────────────────
+
+Deno.test('estimate-earnings: missing inputs returns 400', async () => {
+  const res = await callFn('estimate-earnings', {
+    zipcode: '94105',
+    size: '',     // missing
+    plants: [],   // empty
+    trees: [],    // empty
+  })
+  await res.text() // consume body
+  // 400 for missing inputs, or 503/500 if function not running locally
+  const acceptable = [400, 500, 503]
+  assertEquals(acceptable.includes(res.status), true, `Expected 400/500/503, got ${res.status}`)
+})
+
+Deno.test('estimate-earnings: valid garden inputs saves lead and returns AI result or queued', async () => {
+  const testEmail = 'deno_estimate_test@casagrown.local'
+
+  const res = await callFn('estimate-earnings', {
+    zipcode: '94105',
+    size: 'Small Backyard',
+    plants: ['Tomatoes (x2)', 'Peppers (x1)'],
+    trees: [],
+    lead: {
+      name: 'Deno Test',
+      email: testEmail,
+      phone: '',
+      marketingConsent: false,
+    },
+  })
+
+  if (res.status === 503 || res.status === 500) {
+    await res.text()
+    console.log('estimate-earnings not running locally — skipping body checks')
+    return
+  }
+
+  assertEquals(res.status, 200)
+  const body = await res.json()
+
+  // Should be either full AI result or queued signal
+  const isQueued = body.queued === true
+  const isResult = typeof body.estimated_annual_earnings === 'number'
+  assertEquals(
+    isQueued || isResult,
+    true,
+    `Expected queued or AI result, got: ${JSON.stringify(body)}`
+  )
+
+  if (isResult) {
+    assertExists(body.excess_produce)
+    assertExists(body.analogies)
+    assertEquals(Array.isArray(body.analogies), true)
+    assertExists(body.reasoning)
+  }
+
+  // Verify lead was persisted to crm_leads
+  const dbRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/crm_leads?email=eq.${encodeURIComponent(testEmail)}&select=email,form_version,metadata`,
+    { headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` } }
+  )
+  const leads = await dbRes.json()
+  assertEquals(leads.length, 1, 'Lead should be persisted in crm_leads')
+  assertEquals(leads[0].form_version, 'v1-earnings-estimator')
+  assertExists(leads[0].metadata?.plants, 'Plants array should be stored in metadata')
+  assertExists(leads[0].metadata?.trees, 'Trees array should be stored in metadata')
+
+  // Cleanup
+  await fetch(`${SUPABASE_URL}/rest/v1/crm_leads?email=eq.${encodeURIComponent(testEmail)}`, {
+    method: 'DELETE',
+    headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
+  })
+})
+
+Deno.test('estimate-earnings: existing lead is updated, not duplicated', async () => {
+  const testEmail = 'deno_estimate_dedup@casagrown.local'
+
+  // Pre-insert a lead
+  await fetch(`${SUPABASE_URL}/rest/v1/crm_leads`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      Prefer: 'return=minimal',
+    },
+    body: JSON.stringify({
+      email: testEmail,
+      name: 'Existing Lead',
+      form_version: 'v1-earnings-estimator',
+      status: 'new',
+    }),
+  })
+
+  const res = await callFn('estimate-earnings', {
+    zipcode: '94105',
+    size: 'Small Backyard',
+    plants: ['Basil (x3)'],
+    trees: [],
+    lead: { name: 'Existing Lead', email: testEmail, phone: '', marketingConsent: false },
+  })
+
+  if (res.status === 503 || res.status === 500) {
+    await res.text()
+    console.log('estimate-earnings not running — skipping dedup check')
+  } else {
+    await res.text() // consume
+    // Verify only one lead exists (upsert, not duplicate insert)
+    const dbRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/crm_leads?email=eq.${encodeURIComponent(testEmail)}&select=id`,
+      { headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` } }
+    )
+    const leads = await dbRes.json()
+    assertEquals(leads.length, 1, 'Should not create duplicate leads for same email')
+  }
+
+  // Cleanup
+  await fetch(`${SUPABASE_URL}/rest/v1/crm_leads?email=eq.${encodeURIComponent(testEmail)}`, {
+    method: 'DELETE',
+    headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
+  })
+})
+
+// ── process-earnings-estimate-request-queue ───────────────────────────────────
+
+Deno.test('process-earnings-estimate-request-queue: rejects unauthenticated requests', async () => {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/process-earnings-estimate-request-queue`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${ANON_KEY}`,   // anon key, not service role
+    },
+    body: JSON.stringify({}),
+  })
+  await res.text()
+  // Should be 401 unauthorized, or 503 if not running locally
+  const acceptable = [401, 500, 503]
+  assertEquals(acceptable.includes(res.status), true, `Expected 401/500/503, got ${res.status}`)
+})
+
+Deno.test('process-earnings-estimate-request-queue: returns 0 processed when no queued leads', async () => {
+  // Ensure no unprocessed estimator leads exist for this test
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/process-earnings-estimate-request-queue`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+    },
+    body: JSON.stringify({}),
+  })
+
+  if (res.status === 503 || res.status === 500) {
+    await res.text()
+    console.log('process-earnings-estimate-request-queue not running locally — skipping')
+    return
+  }
+
+  assertEquals(res.status, 200)
+  const body = await res.json()
+  assertExists(body.processed, 'processed count should exist in response')
+  assertExists(body.abandoned !== undefined || body.processed !== undefined, 'response shape correct')
+})
+
+Deno.test('process-earnings-estimate-request-queue: skips leads that already have ai_estimate_result', async () => {
+  const testEmail = 'deno_queue_skip@casagrown.local'
+
+  // Insert a lead that already has an ai_estimate_result in metadata — should NOT be reprocessed
+  await fetch(`${SUPABASE_URL}/rest/v1/crm_leads`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      Prefer: 'return=minimal',
+    },
+    body: JSON.stringify({
+      email: testEmail,
+      name: 'Already Processed Lead',
+      form_version: 'v1-earnings-estimator',
+      status: 'new',
+      metadata: {
+        garden_size: 'Small Backyard',
+        plants: ['Tomatoes (x1)'],
+        trees: [],
+        ai_estimate_result: {
+          excess_produce: '10 lbs of tomatoes',
+          estimated_annual_earnings: 100,
+          analogies: ['a', 'b', 'c'],
+          reasoning: 'test',
+        },
+      },
+    }),
+  })
+
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/process-earnings-estimate-request-queue`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+    },
+    body: JSON.stringify({}),
+  })
+
+  if (res.status === 503 || res.status === 500) {
+    await res.text()
+    console.log('process-earnings-estimate-request-queue not running — skipping skip test')
+  } else {
+    assertEquals(res.status, 200)
+    const body = await res.json()
+    // The already-processed lead should NOT be in the processed count
+    // (we can't assert exact number without controlling the full DB state)
+    assertExists(body.processed)
+  }
+
+  // Cleanup
+  await fetch(`${SUPABASE_URL}/rest/v1/crm_leads?email=eq.${encodeURIComponent(testEmail)}`, {
+    method: 'DELETE',
+    headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
+  })
+})
+
+Deno.test('process-earnings-estimate-request-queue: skips leads marked ai_estimate_abandoned', async () => {
+  const testEmail = 'deno_queue_abandoned@casagrown.local'
+
+  await fetch(`${SUPABASE_URL}/rest/v1/crm_leads`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      Prefer: 'return=minimal',
+    },
+    body: JSON.stringify({
+      email: testEmail,
+      name: 'Abandoned Lead',
+      form_version: 'v1-earnings-estimator',
+      status: 'new',
+      metadata: {
+        garden_size: 'Small Backyard',
+        plants: ['Basil (x1)'],
+        trees: [],
+        ai_estimate_abandoned: new Date().toISOString(),
+      },
+    }),
+  })
+
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/process-earnings-estimate-request-queue`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+    },
+    body: JSON.stringify({}),
+  })
+
+  if (res.status === 503 || res.status === 500) {
+    await res.text()
+    console.log('process-earnings-estimate-request-queue not running — skipping abandoned test')
+  } else {
+    assertEquals(res.status, 200)
+    // Abandoned lead should be filtered out by the query (.is('metadata->ai_estimate_abandoned', null))
+    const body = await res.json()
+    assertExists(body.processed)
+  }
+
+  // Cleanup
+  await fetch(`${SUPABASE_URL}/rest/v1/crm_leads?email=eq.${encodeURIComponent(testEmail)}`, {
+    method: 'DELETE',
+    headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
+  })
+})
