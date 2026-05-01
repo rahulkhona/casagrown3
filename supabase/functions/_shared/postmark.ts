@@ -45,10 +45,19 @@ export async function sendTransactionEmail(
     payload: EmailPayload,
 ): Promise<{ success: boolean; error?: string }> {
     const token = Deno.env.get("POSTMARK_SERVER_TOKEN");
-    const fromEmail = Deno.env.get("POSTMARK_FROM_EMAIL") ??
+    let fromEmail = Deno.env.get("POSTMARK_FROM_EMAIL") ??
         "no-reply@alerts.casagrown.com";
-    const messageStream = Deno.env.get("POSTMARK_MESSAGE_STREAM") ??
-        "outbound";
+        
+    // Auto-correct typo in staging environment variable
+    if (fromEmail.includes("casasgrown.com")) {
+        fromEmail = fromEmail.replace("casasgrown.com", "casagrown.com");
+    }
+    let messageStream = Deno.env.get("POSTMARK_MESSAGE_STREAM") ?? "outbound";
+    
+    // Safety fallback: if an invalid stream was configured in staging, route to the default transactional stream
+    if (messageStream === "casagrown_transactional") {
+        messageStream = "outbound";
+    }
 
     const isProduction = !!token;
 
