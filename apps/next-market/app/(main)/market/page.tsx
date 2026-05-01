@@ -729,6 +729,28 @@ function BrowseMarketPageInner() {
           )}
         </div>
       </div>
+      
+      {/* Start Selling FAB for unauthenticated / address-prompt state */}
+      <Link href="/create-listing" style={{
+        position: 'fixed',
+        bottom: 24,
+        right: 24,
+        background: 'var(--brand-600, #16a34a)',
+        color: '#fff',
+        padding: '16px 24px',
+        borderRadius: 999,
+        fontWeight: 700,
+        boxShadow: '0 8px 24px rgba(22, 163, 74, 0.4)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        textDecoration: 'none',
+        zIndex: 1000,
+        transition: 'transform 0.2s, box-shadow 0.2s'
+      }}>
+        <span style={{ fontSize: 20 }}>+</span>
+        Start Selling
+      </Link>
       </>
     )
   }
