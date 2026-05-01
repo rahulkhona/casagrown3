@@ -118,12 +118,15 @@ serveWithCors(async (req, { corsHeaders }) => {
      });
   }
 
-  await sendTransactionEmail({ to, subject, htmlBody: finalHtml })
+  const result = await sendTransactionEmail({ to, subject, htmlBody: finalHtml })
 
-  console.log(`[send-market-email] Sent to ${to}: ${subject}`)
+  console.log(`[send-market-email] Sent to ${to}: ${subject} - Success: ${result.success}`)
 
   return new Response(
     JSON.stringify({ success: true }),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 })
+// cache bust
+// cache bust 2
+// cache bust 3
