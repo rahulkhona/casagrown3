@@ -131,134 +131,13 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify(prefetched_result), { headers: CORS });
     }
 
-    if (!AI_KEY) {
-      return new Response(JSON.stringify({ queued: true, message: "AI not configured, queued for email" }), {
-        status: 200, headers: CORS,
-      });
-    }
-
-    const plantsList = plants?.length ? plants.join(", ") : "None";
-    const treesList = trees?.length ? trees.join(", ") : "None";
-
-    const prompt = `You are an expert agricultural and economic estimator for CasaGrown, a neighborhood backyard produce marketplace.
-
-A home grower has provided the following details about their garden:
-- Zipcode: ${zipcode || "Unknown"}
-- Garden Space: ${size}
-- Vegetables/Plants Selected: ${plantsList}
-- Fruit Trees Selected: ${treesList}
-
-Task:
-1. The user has explicitly provided the specific quantities of each plant and tree they are growing (indicated by 'xN' in the input). Use these EXACT quantities to calculate their yield. Do not estimate different plant counts. Account for the local climate and typical amateur yields for this area, which are much lower than professional farms.
-2. Based on their provided plant/tree counts and local climate, estimate the EXCESS produce this garden might yield in a typical growing season that a family couldn't eat themselves.
-3. Estimate the total potential earnings in USD if they sold this excess to neighbors at fair local organic market prices for this specific zipcode. Keep this grounded in reality based on their specific plant quantities.
-4. Provide exactly 3 fun, relatable financial analogies for these earnings PER YEAR. Keep them short.
-5. Briefly explain the reasoning behind this estimate based on the local market value and the yields expected from their provided plant quantities. Keep it to 1-2 short sentences.
-
-Example Input context:
-Zipcode: 90210, Space: Small Backyard, Plants: Tomatoes (x2), Peppers (x1), Trees: Lemons (x1)
-Example Output:
-{
-  "excess_produce": "15 lbs of tomatoes, 10 lbs of peppers, and 30 lbs of lemons",
-  "estimated_annual_earnings": 250,
-  "analogies": ["1 car payment", "Your streaming subscriptions for the year", "A weekend getaway"],
-  "reasoning": "In 90210, local organic prices for these yields from 2 tomato plants, 1 pepper plant, and 1 dwarf lemon tree average $250."
-}
-
-Respond ONLY with the JSON object for the provided details (no markdown, no code fences):`;
-
-    let aiRes = await fetch(AI_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${AI_KEY}`,
-        "HTTP-Referer": "https://casagrown.com",
-        "X-Title": "CasaGrown Earnings Estimator",
-      },
-      body: JSON.stringify({
-        model: AI_MODEL,
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: 300,
-        temperature: 0.7,
-      }),
+    // Return queued true so the background queue can process it
+    return new Response(JSON.stringify({ queued: true }), {
+      status: 200, headers: CORS,
     });
-
-    if (aiRes.status === 429 || aiRes.status === 503) {
-      await new Promise((r) => setTimeout(r, 2000));
-      aiRes = await fetch(AI_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${AI_KEY}`,
-          "HTTP-Referer": "https://casagrown.com",
-          "X-Title": "CasaGrown Earnings Estimator",
-        },
-        body: JSON.stringify({
-          model: AI_MODEL,
-          messages: [{ role: "user", content: prompt }],
-          max_tokens: 300,
-          temperature: 0.7,
-        }),
-      });
-    }
-
-    if (!aiRes.ok) {
-      const errText = await aiRes.text();
-      console.error("Gemma API error:", aiRes.status, errText);
-      return new Response(JSON.stringify({ queued: true }), {
-        status: 200, headers: CORS,
-      });
-    }
-
-    const aiData = await aiRes.json();
-    const raw = aiData.choices?.[0]?.message?.content ?? "";
-    const jsonStr = raw
-      .replace(/\`\`\`json\n?/g, "").replace(/\`\`\`\n?/g, "")
-      .replace(/<thought>[\s\S]*?<\/thought>/g, "")
-      .trim();
-
-    let result;
-    try {
-      result = JSON.parse(jsonStr);
-    } catch {
-      console.warn("Failed to parse AI response:", raw);
-      return new Response(JSON.stringify({ queued: true }), {
-        status: 200, headers: CORS,
-      });
-    }
-
-    if (typeof result.estimated_annual_earnings !== "number") {
-      result.estimated_annual_earnings = parseInt(result.estimated_annual_earnings) || 200;
-    }
-
-    // Update the lead with the AI results if we successfully generated them
-    if (leadId && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
-      try {
-        const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-        await supabaseAdmin.from('crm_leads').update({
-          metadata: {
-            garden_size: size,
-            ai_estimate_result: result
-          }
-        }).eq('id', leadId);
-      } catch (dbErr) {
-        console.error("Failed to update lead with AI results:", dbErr);
-      }
-    }
-
-    return new Response(JSON.stringify({
-      excess_produce: result.excess_produce || "A healthy bounty of fresh produce",
-      estimated_annual_earnings: result.estimated_annual_earnings,
-      analogies: result.analogies || [
-        "A nice bonus for your backyard efforts!",
-        "Extra cash for seeds next season"
-      ],
-      reasoning: result.reasoning || "Based on typical seasonal yields and local organic market prices.",
-    }), { headers: CORS });
-
   } catch (err: any) {
     console.error("estimate-earnings error:", err);
-    return new Response(JSON.stringify({ error: err.message || "Internal error" }), {
+    return new Response(JSON.stringify({ queued: true }), {
       status: 200, headers: CORS,
     });
   }

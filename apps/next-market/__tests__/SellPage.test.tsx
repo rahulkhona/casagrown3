@@ -41,12 +41,12 @@ describe('SellPage — earnings estimator funnel', () => {
 
   it('renders the intro step by default', () => {
     render(<SellPage />)
-    expect(screen.getByText(/How Much Could Your Garden Earn/i)).toBeDefined()
+    expect(screen.getByText(/Estimate My Potential/i)).toBeDefined()
   })
 
   it('advances to zipcode step when CTA is clicked', async () => {
     render(<SellPage />)
-    const cta = screen.getAllByRole('button').find(b => b.textContent?.includes('Get My Free Estimate'))
+    const cta = screen.getAllByRole('button').find(b => b.textContent?.includes('Get My Estimate'))
     if (!cta) return // skip if step label differs
     fireEvent.click(cta)
     await waitFor(() =>

@@ -23,40 +23,48 @@ async function walkToLeadCapture(page: any) {
   await page.goto(`${BASE}/sell`)
   await page.waitForLoadState('domcontentloaded')
 
-  // Intro CTA
-  const introCta = page.getByRole('button', { name: /Get My Free Estimate|Start|Calculate/i }).first()
+  // Intro CTA — current text is "Get My Estimate →"
+  const introCta = page.getByRole('button', { name: /Get My Estimate|Get My Free Estimate|Start|Calculate|Estimate/i }).first()
   await introCta.waitFor({ state: 'visible', timeout: 10_000 })
   await introCta.click()
 
   // Zipcode step
-  const zipcodeInput = page.locator('input[placeholder*="zip"], input[type="text"]').first()
+  const zipcodeInput = page.locator('input[placeholder*="zip" i], input[placeholder*="90210" i]').first()
   await zipcodeInput.waitFor({ state: 'visible', timeout: 8_000 })
   await zipcodeInput.fill('94105')
-  await page.getByRole('button', { name: /Next|Continue/i }).first().click()
+  // Next button (enabled after 5 digits)
+  await page.getByRole('button', { name: /Next/i }).first().click()
 
-  // Garden size step — pick first option
-  const sizeOption = page.locator('button[class*="option"], button[class*="size"]').first()
-  if (await sizeOption.isVisible({ timeout: 5_000 }).catch(() => false)) {
-    await sizeOption.click()
-    await page.getByRole('button', { name: /Next|Continue/i }).first().click()
+  // Size step — uses radio inputs inside labels; click first label
+  const sizeLabel = page.locator('label.checkbox-wrap').first()
+  if (await sizeLabel.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    await sizeLabel.click()
+    await page.getByRole('button', { name: /Next/i }).first().click()
   }
 
-  // Plants step — pick Tomatoes
-  const tomatoBtn = page.getByRole('button', { name: /Tomato/i }).first()
-  if (await tomatoBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
-    await tomatoBtn.click()
-    await page.getByRole('button', { name: /Next|Continue/i }).first().click()
+  // Trees step (comes before plants) — click None or just Next
+  const noneLabel = page.getByText(/None/i).first()
+  if (await noneLabel.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    await noneLabel.click()
   }
-
-  // Trees step — skip (None / Next)
-  const treesNext = page.getByRole('button', { name: /None|Next|Continue|Skip/i }).first()
+  const treesNext = page.getByRole('button', { name: /Next/i }).first()
   if (await treesNext.isVisible({ timeout: 5_000 }).catch(() => false)) {
     await treesNext.click()
   }
 
-  // Calculating... wait for lead-capture form
-  await page.waitForSelector('input[type="text"][placeholder*="name" i], input[placeholder*="Name" i]', {
-    timeout: 8_000,
+  // Plants step — pick Tomatoes, then click "Estimate My Potential"
+  const tomatoLabel = page.locator('label.checkbox-wrap').filter({ hasText: /Tomato/i }).first()
+  if (await tomatoLabel.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    await tomatoLabel.click()
+  }
+  const estimateBtn = page.getByRole('button', { name: /Estimate My Potential/i }).first()
+  if (await estimateBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    await estimateBtn.click()
+  }
+
+  // Wait through calculating → lead-capture
+  await page.waitForSelector('input[placeholder*="Jane Doe" i], input[type="email"]', {
+    timeout: 10_000,
   }).catch(() => {})
 }
 
@@ -71,38 +79,33 @@ test.describe('Sell Funnel — public earnings estimator', () => {
     expect(body).toMatch(/earn|garden|estimate|sell/i)
   })
 
-  test('shows CasaGrown nav and Get My Free Estimate CTA', async ({ page }) => {
+  test('shows CasaGrown nav and Get My Estimate CTA', async ({ page }) => {
     await page.goto(`${BASE}/sell`)
     await page.waitForLoadState('domcontentloaded')
     const nav = page.locator('nav, [class*="nav"]').first()
     await expect(nav).toBeVisible({ timeout: 8_000 })
-    const cta = page.getByRole('button', { name: /Get My Free Estimate|Estimate|Calculate/i }).first()
+    const cta = page.getByRole('button', { name: /Get My Estimate|Get My Free Estimate|Estimate|Calculate/i }).first()
     await expect(cta).toBeVisible({ timeout: 8_000 })
   })
 
   test('advances through all questionnaire steps', async ({ page }) => {
     await walkToLeadCapture(page)
     // Should now be on lead-capture step — name/email fields visible
-    const nameOrEmail = page.locator('input[placeholder*="name" i], input[type="email"]').first()
+    const nameOrEmail = page.locator('input[placeholder*="Jane Doe" i], input[type="email"]').first()
     await expect(nameOrEmail).toBeVisible({ timeout: 10_000 })
   })
 
   test('lead capture form requires name and email', async ({ page }) => {
     await walkToLeadCapture(page)
-    // Try submitting with no data — button should be disabled or form should not submit
-    const submitBtn = page.getByRole('button', { name: /Send|Get My Report|Submit/i }).first()
+    // Submit button is "Send My Report →" — requires name + email + checkbox (all required)
+    const submitBtn = page.getByRole('button', { name: /Send My Report|Send|Get My Report|Submit/i }).first()
     if (await submitBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      const isDisabled = await submitBtn.isDisabled()
-      // Either disabled or form validation prevents submission
+      // Form has required fields — clicking with empty inputs should not advance
       const currentUrl = page.url()
-      if (!isDisabled) {
-        await submitBtn.click()
-        // Should stay on same step (validation prevents advance)
-        await page.waitForTimeout(1_000)
-        expect(page.url()).toBe(currentUrl)
-      } else {
-        expect(isDisabled).toBe(true)
-      }
+      await submitBtn.click()
+      await page.waitForTimeout(500)
+      // Native HTML5 validation prevents submission — URL stays the same
+      expect(page.url()).toBe(currentUrl)
     }
   })
 
@@ -110,8 +113,9 @@ test.describe('Sell Funnel — public earnings estimator', () => {
     await walkToLeadCapture(page)
 
     // Fill lead capture form
-    const nameInput = page.locator('input[placeholder*="name" i], input[placeholder*="Name"]').first()
-    const emailInput = page.locator('input[type="email"], input[placeholder*="email" i]').first()
+    const nameInput = page.locator('input[placeholder*="Jane Doe" i]').first()
+    const emailInput = page.locator('input[type="email"]').first()
+    const consentCheckbox = page.locator('input[type="checkbox"]').first()
 
     if (await nameInput.isVisible({ timeout: 5_000 }).catch(() => false)) {
       await nameInput.fill('Test User')
@@ -119,19 +123,16 @@ test.describe('Sell Funnel — public earnings estimator', () => {
     if (await emailInput.isVisible({ timeout: 5_000 }).catch(() => false)) {
       await emailInput.fill('e2e-sell-test@test.local')
     }
-
-    // Accept marketing consent if present
-    const checkbox = page.locator('input[type="checkbox"]').first()
-    if (await checkbox.isVisible({ timeout: 2_000 }).catch(() => false)) {
-      await checkbox.check()
+    if (await consentCheckbox.isVisible({ timeout: 2_000 }).catch(() => false)) {
+      await consentCheckbox.check()
     }
 
     // Submit
-    const submitBtn = page.getByRole('button', { name: /Send|Get My Report|Submit/i }).first()
+    const submitBtn = page.getByRole('button', { name: /Send My Report|Send|Get My Report|Submit/i }).first()
     if (await submitBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
       await submitBtn.click()
 
-      // Wait for either results or queued state
+      // Wait for queued state (edge fn now always returns queued in test env)
       await page.waitForSelector(
         'text=/Your Report is On Its Way|Estimated Annual Earnings|Your report/i',
         { timeout: 30_000 }
@@ -145,20 +146,17 @@ test.describe('Sell Funnel — public earnings estimator', () => {
   })
 
   test('queued state shows Create My Listing CTA linking to /create-listing', async ({ page }) => {
-    // Navigate directly to check the queued state markup exists in source
+    // Navigate directly to check the create-listing link exists in page source
     await page.goto(`${BASE}/sell`)
     const html = await page.content()
-    // The create-listing href should be present in the page source (even if conditionally rendered)
     expect(html).toMatch(/create-listing/)
   })
 
   test('Start Selling / Create Listing CTA links to /create-listing with params', async ({ page }) => {
     await page.goto(`${BASE}/sell`)
     await page.waitForLoadState('domcontentloaded')
-    // Verify the link exists in the page (queued + results both have it)
     const links = page.locator('a[href*="create-listing"]')
     const count = await links.count()
-    // At least one link should exist (may not be visible before queued/results step)
     expect(count).toBeGreaterThanOrEqual(0) // structural check only at intro step
   })
 })

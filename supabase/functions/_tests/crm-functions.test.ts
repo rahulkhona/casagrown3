@@ -342,7 +342,7 @@ Deno.test('estimate-earnings: existing lead is updated, not duplicated', async (
   const testEmail = 'deno_estimate_dedup@casagrown.local'
 
   // Pre-insert a lead
-  await fetch(`${SUPABASE_URL}/rest/v1/crm_leads`, {
+  const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/crm_leads`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -357,6 +357,7 @@ Deno.test('estimate-earnings: existing lead is updated, not duplicated', async (
       status: 'new',
     }),
   })
+  await insertRes.text()
 
   const res = await callFn('estimate-earnings', {
     zipcode: '94105',
@@ -381,10 +382,11 @@ Deno.test('estimate-earnings: existing lead is updated, not duplicated', async (
   }
 
   // Cleanup
-  await fetch(`${SUPABASE_URL}/rest/v1/crm_leads?email=eq.${encodeURIComponent(testEmail)}`, {
+  const cleanupRes = await fetch(`${SUPABASE_URL}/rest/v1/crm_leads?email=eq.${encodeURIComponent(testEmail)}`, {
     method: 'DELETE',
     headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
   })
+  await cleanupRes.text()
 })
 
 // ── process-earnings-estimate-request-queue ───────────────────────────────────
@@ -431,7 +433,7 @@ Deno.test('process-earnings-estimate-request-queue: skips leads that already hav
   const testEmail = 'deno_queue_skip@casagrown.local'
 
   // Insert a lead that already has an ai_estimate_result in metadata — should NOT be reprocessed
-  await fetch(`${SUPABASE_URL}/rest/v1/crm_leads`, {
+  const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/crm_leads`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -457,6 +459,7 @@ Deno.test('process-earnings-estimate-request-queue: skips leads that already hav
       },
     }),
   })
+  await insertRes.text()
 
   const res = await fetch(`${SUPABASE_URL}/functions/v1/process-earnings-estimate-request-queue`, {
     method: 'POST',
@@ -479,16 +482,17 @@ Deno.test('process-earnings-estimate-request-queue: skips leads that already hav
   }
 
   // Cleanup
-  await fetch(`${SUPABASE_URL}/rest/v1/crm_leads?email=eq.${encodeURIComponent(testEmail)}`, {
+  const cleanupRes = await fetch(`${SUPABASE_URL}/rest/v1/crm_leads?email=eq.${encodeURIComponent(testEmail)}`, {
     method: 'DELETE',
     headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
   })
+  await cleanupRes.text()
 })
 
 Deno.test('process-earnings-estimate-request-queue: skips leads marked ai_estimate_abandoned', async () => {
   const testEmail = 'deno_queue_abandoned@casagrown.local'
 
-  await fetch(`${SUPABASE_URL}/rest/v1/crm_leads`, {
+  const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/crm_leads`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -509,6 +513,7 @@ Deno.test('process-earnings-estimate-request-queue: skips leads marked ai_estima
       },
     }),
   })
+  await insertRes.text()
 
   const res = await fetch(`${SUPABASE_URL}/functions/v1/process-earnings-estimate-request-queue`, {
     method: 'POST',

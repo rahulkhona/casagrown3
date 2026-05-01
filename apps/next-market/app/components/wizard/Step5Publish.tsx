@@ -9,7 +9,7 @@ import { TERMS_SECTIONS, PRIVACY_SECTIONS } from '../../(main)/terms/page'
 import { useErrorToast } from '../ErrorToast'
 
 export default function Step5Publish() {
-  const { state, updateState, nextStep, prevStep, saveProductToDatabase } = useWizard()
+  const { state, updateState, nextStep, prevStep, saveProductToDatabase, checkQuarantine } = useWizard()
   const { showError } = useErrorToast()
   const [isPublishing, setIsPublishing] = useState(false)
   const [userId, setUserId] = useState<string | undefined>()
@@ -46,6 +46,10 @@ export default function Step5Publish() {
     checkPush()
     window.addEventListener('focus', checkPush)
     const interval = setInterval(checkPush, 1000)
+    
+    // Check quarantine on mount
+    checkQuarantine()
+    
     return () => {
       window.removeEventListener('focus', checkPush)
       clearInterval(interval)
@@ -125,6 +129,32 @@ export default function Step5Publish() {
           )}
         </div>
       </div>
+
+      {state.quarantineInfo && (
+        <div style={{
+          background: 'var(--amber-50, #fffbeb)', border: '1px solid var(--amber-300, #fcd34d)',
+          borderRadius: 24, padding: '16px 20px', marginBottom: 24, fontSize: 14,
+          color: 'var(--amber-800, #92400e)', display: 'flex', gap: 12, alignItems: 'flex-start',
+        }}>
+          <div style={{ fontSize: 24, lineHeight: 1 }}>⚠️</div>
+          <div style={{ flex: 1 }}>
+            <h4 style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 700, color: '#b45309' }}>Potential Agricultural Quarantine</h4>
+            <p style={{ margin: '0 0 8px', lineHeight: 1.5 }}>
+              Based on your location, selling <strong>{state.category}</strong> may be quarantined in <strong>{state.quarantineInfo.county_name}</strong> due
+              to <strong>{state.quarantineInfo.pest_name}</strong>.
+            </p>
+            {state.quarantineInfo.reason && (
+              <p style={{ margin: '0 0 8px', lineHeight: 1.5 }}>{state.quarantineInfo.reason}</p>
+            )}
+            {state.quarantineInfo.source_url && (
+              <a href={state.quarantineInfo.source_url} target="_blank" rel="noopener noreferrer" 
+                 style={{ color: '#b45309', fontWeight: 600, textDecoration: 'underline' }}>
+                Learn more at local Dept of Agriculture →
+              </a>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className={styles.formGroup}>
         <label className={styles.label}>Never Miss an Order!</label>

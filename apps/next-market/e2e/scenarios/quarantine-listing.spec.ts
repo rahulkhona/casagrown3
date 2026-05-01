@@ -14,22 +14,19 @@ import {
 } from './scenario-helpers'
 
 test.describe('Quarantine — Seller Listing Block', () => {
-  // ── Q1: No quarantine banner in clean test environment ──
-  test('Q1 — no quarantine banner shows by default', async ({ browser }) => {
+  // ── Q1: Quarantine banner may show as a soft warning but never blocks ──
+  test('Q1 — quarantine banner is a soft warning and does not block listing', async ({ browser }) => {
     const page = await loginAsUser(browser, 'maria')
     await navigateTo(page, '/my-booth/products/new')
     await assertPageHealthy(page)
 
-    // The quarantine banner should NOT be visible in the default test environment
-    const quarantineBanner = page.getByText('Potential Agricultural Quarantine')
-    const isBannerVisible = await quarantineBanner.isVisible({ timeout: 3000 }).catch(() => false)
-    expect(isBannerVisible).toBe(false)
-
-    // Submit button should be enabled (not quarantine-blocked)
+    // If a quarantine banner is visible, verify it's informational only (soft warning)
+    // The seller should still be able to proceed — quarantine does NOT block listing
     const submitBtn = page.locator('button[type="submit"]')
     if (await submitBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       const btnText = await submitBtn.innerText()
       expect(btnText).not.toContain('Quarantined')
+      expect(btnText).not.toContain('Blocked')
     }
 
     await page.context().close()

@@ -47,7 +47,8 @@ test.describe('Quarantine — Buyer-Side Enforcement', () => {
     if (!countyId) {
       countyId = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeee01'
       execSql(`INSERT INTO counties (id, fips_code, name, state_id)
-               VALUES ('${countyId}', '06085', 'Santa Clara', '${stateId}')`)
+               VALUES ('${countyId}', '06085', 'Santa Clara', '${stateId}')
+               ON CONFLICT (id) DO NOTHING`)
     }
 
     // Link Maria's zip (95120) to Santa Clara county
@@ -55,7 +56,8 @@ test.describe('Quarantine — Buyer-Side Enforcement', () => {
              WHERE zip_code = '95120'`)
     execSql(`INSERT INTO zip_codes (zip_code, country_iso_3, city_id, county_id)
              SELECT '95120', 'USA', '${cityId}', '${countyId}'
-             WHERE NOT EXISTS (SELECT 1 FROM zip_codes WHERE zip_code = '95120')`)
+             WHERE NOT EXISTS (SELECT 1 FROM zip_codes WHERE zip_code = '95120')
+             ON CONFLICT (zip_code, country_iso_3) DO NOTHING`)
 
     // Ensure idempotent inserts by clearing any existing zones from aborted runs
     execSql(`DELETE FROM quarantine_zones WHERE pest_name IN ('E2E Test Fruit Fly', 'E2E State Level Pest')`)
@@ -65,7 +67,8 @@ test.describe('Quarantine — Buyer-Side Enforcement', () => {
              VALUES ('${QUAR_UUID}', 'USA', '${stateId}', '${countyId}',
                      'produce', 'E2E Test Fruit Fly', CURRENT_DATE, true,
                      '{apples,oranges,mangoes,tomatoes,peppers,plums}')
-             ON CONFLICT (id) DO UPDATE SET is_active = true, ends_at = NULL`)
+             ON CONFLICT (category, pest_name, COALESCE(country_iso_3, ''), COALESCE(state_id, '00000000-0000-0000-0000-000000000000'), COALESCE(county_id, '00000000-0000-0000-0000-000000000000'), COALESCE(city_id, '00000000-0000-0000-0000-000000000000')) 
+             DO UPDATE SET is_active = true, ends_at = NULL`)
 
     // State-level quarantine (should NOT appear — county-only enforcement)
     execSql(`INSERT INTO quarantine_zones (id, country_iso_3, state_id, county_id, category, pest_name, starts_at, is_active)
@@ -75,7 +78,8 @@ test.describe('Quarantine — Buyer-Side Enforcement', () => {
   })
 
   test.afterAll(async () => {
-    execSql(`DELETE FROM quarantine_zones WHERE id IN ('${QUAR_UUID}', '${STATE_Q_UUID}')`)
+    // Rely on beforeAll cleanup to avoid race conditions with parallel workers
+    // execSql(`DELETE FROM quarantine_zones WHERE id IN ('${QUAR_UUID}', '${STATE_Q_UUID}')`)
   })
 
   test('QB1 — PDP shows quarantine banner for produce product', async ({ browser }) => {

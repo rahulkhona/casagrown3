@@ -5,6 +5,13 @@ import { createClient } from '../../../lib/supabase'
 import { useAuth } from '../../../lib/useAuth'
 import { useSearchParams } from 'next/navigation'
 
+export interface QuarantineInfo {
+  pest_name: string;
+  county_name: string;
+  source_url: string;
+  reason?: string;
+}
+
 export interface WizardState {
   // Step 1
   photos: string[];
@@ -46,6 +53,7 @@ export interface WizardState {
   isExistingUser: boolean | null;
   isPublished: boolean;
   publishedProductId: string | null;
+  quarantineInfo: QuarantineInfo | null;
 }
 
 const defaultState: WizardState = {
@@ -78,6 +86,7 @@ const defaultState: WizardState = {
   isExistingUser: null,
   isPublished: false,
   publishedProductId: null,
+  quarantineInfo: null,
 }
 
 interface WizardContextType {
@@ -89,6 +98,7 @@ interface WizardContextType {
   prevStep: () => void;
   resetWizard: () => void;
   saveProductToDatabase: (isDraft: boolean) => Promise<string | null>;
+  checkQuarantine: () => Promise<void>;
 }
 
 const WizardContext = createContext<WizardContextType | undefined>(undefined)
@@ -129,6 +139,54 @@ export function WizardProvider({ children }: { children: ReactNode }) {
   // Auth is handled globally via useAuth, no local sync needed
 
 
+
+  const checkQuarantine = async () => {
+    if (!state.category) {
+      updateState({ quarantineInfo: null });
+      return;
+    }
+    
+    // Parse zip from address
+    let zipCode = '';
+    const parts = state.address?.split(',') || [];
+    if (parts.length >= 3) {
+      const stateZip = parts[parts.length - 1].trim().split(' ');
+      if (stateZip.length >= 2) {
+        zipCode = stateZip[1].split('-')[0];
+      }
+    }
+    
+    const supabase = createClient();
+    let authUserId = user?.id;
+    if (!authUserId) {
+      const { data } = await supabase.auth.getUser();
+      authUserId = data?.user?.id;
+    }
+
+    if (!authUserId && !zipCode) {
+      updateState({ quarantineInfo: null });
+      return;
+    }
+
+    const { data } = await supabase.rpc('check_quarantine_for_seller', { 
+      p_seller_id: authUserId || '00000000-0000-0000-0000-000000000000', // Need UUID type for fallback
+      p_category: state.category,
+      p_override_zip: zipCode || null
+    });
+
+    if (data && data.length > 0) {
+      updateState({ 
+        quarantineInfo: { 
+          pest_name: data[0].pest_name, 
+          county_name: data[0].county_name, 
+          source_url: data[0].source_url,
+          reason: data[0].reason
+        } 
+      });
+    } else {
+      updateState({ quarantineInfo: null });
+    }
+  };
 
   const updateState = (updates: Partial<WizardState> | ((prev: WizardState) => Partial<WizardState>)) => {
     setState((prev) => {
@@ -383,7 +441,7 @@ export function WizardProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <WizardContext.Provider value={{ state, isAuthenticated, isAuthLoading, updateState, nextStep, prevStep, resetWizard, saveProductToDatabase }}>
+    <WizardContext.Provider value={{ state, isAuthenticated, isAuthLoading, updateState, nextStep, prevStep, resetWizard, saveProductToDatabase, checkQuarantine }}>
       {children}
     </WizardContext.Provider>
   )
