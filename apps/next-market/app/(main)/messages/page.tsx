@@ -18,8 +18,10 @@ export default function MessagesInboxPage() {
   useEffect(() => {
     if (authLoading) return
     if (!user) {
-      router.replace('/login')
-      return
+      const t = setTimeout(() => {
+        router.replace('/login')
+      }, 500)
+      return () => clearTimeout(t)
     }
 
     const fetchInbox = async () => {

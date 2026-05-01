@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { createClient } from '../../../lib/supabase'
 import { useAuth } from '../../../lib/useAuth'
+import { useSearchParams } from 'next/navigation'
 
 export interface WizardState {
   // Step 1
@@ -44,6 +45,7 @@ export interface WizardState {
   currentStep: number;
   isExistingUser: boolean | null;
   isPublished: boolean;
+  publishedProductId: string | null;
 }
 
 const defaultState: WizardState = {
@@ -75,6 +77,7 @@ const defaultState: WizardState = {
   currentStep: 1,
   isExistingUser: null,
   isPublished: false,
+  publishedProductId: null,
 }
 
 interface WizardContextType {
@@ -98,8 +101,34 @@ export function WizardProvider({ children }: { children: ReactNode }) {
   
   const isAuthenticated = !!user
   const isAuthLoading = loading
+  const searchParams = useSearchParams()
+
+  // Initialize from URL parameters
+  useEffect(() => {
+    const urlEmail = searchParams.get('email')
+    const urlName = searchParams.get('name')
+    const urlPhone = searchParams.get('phone')
+    
+    if (urlEmail || urlName || urlPhone) {
+      updateState(prev => ({
+        ...prev,
+        email: urlEmail || prev.email,
+        fullName: urlName || prev.fullName,
+        phoneNumber: urlPhone || prev.phoneNumber,
+      }))
+    }
+  }, [searchParams])
+
+  // Sync logged in user email if available
+  useEffect(() => {
+    if (user?.email && !state.email) {
+      updateState({ email: user.email })
+    }
+  }, [user])
 
   // Auth is handled globally via useAuth, no local sync needed
+
+
 
   const updateState = (updates: Partial<WizardState> | ((prev: WizardState) => Partial<WizardState>)) => {
     setState((prev) => {
@@ -179,7 +208,7 @@ export function WizardProvider({ children }: { children: ReactNode }) {
         const profileUpdate: any = {
           tos_accepted_at: state.agreedToTos ? new Date().toISOString() : undefined,
           full_name: state.fullName || undefined,
-          phone_number: state.phoneNumber ? (state.phoneNumber.startsWith('+') ? state.phoneNumber : `+1${state.phoneNumber.replace(/\\D/g, '')}`) : undefined,
+          phone_number: state.phoneNumber ? (state.phoneNumber.startsWith('+') ? state.phoneNumber : `+1${state.phoneNumber.replace(/\D/g, '')}`) : undefined,
           profile_completed_at: new Date().toISOString(),
         }
         
@@ -340,8 +369,7 @@ export function WizardProvider({ children }: { children: ReactNode }) {
       }
 
       if (!isDraft) {
-        updateState({ isPublished: true })
-
+        updateState({ isPublished: true, publishedProductId: insertedProduct.id })
       }
       
       // Refresh the global auth cache before finishing to prevent stale state redirects

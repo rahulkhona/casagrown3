@@ -4,13 +4,18 @@ import { useRouter } from 'next/navigation'
 import { useWizard } from './WizardContext'
 import styles from './wizard.module.css'
 import SocialShareModal from '../SocialShareModal'
+import { useBootstrap } from '../../../lib/useBootstrap'
 
 export default function Step6Success() {
   const { state } = useWizard()
+  const { data } = useBootstrap()
   const router = useRouter()
   const [showShareModal, setShowShareModal] = useState(true)
 
-  const productUrl = 'https://casagrown.com/p/preview'
+  const referralCode = data?.profile?.referral_code || ''
+  const productUrl = state.publishedProductId 
+    ? `https://casagrown.com/p/${state.publishedProductId}${referralCode ? `?ref=${referralCode}` : ''}`
+    : 'https://casagrown.com/p/preview'
   const shareMessage = `Hey neighbors! I'm selling ${state.name || 'homegrown produce'} on CasaGrown:`
 
   return (

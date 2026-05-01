@@ -315,6 +315,7 @@ export default function Step1Basics() {
         </div>
       )}
 
+
       <div className={styles.formGroup}>
         <label className={styles.label}>Product Name</label>
         <input 
@@ -425,41 +426,37 @@ export default function Step1Basics() {
         )}
       </div>
 
-      <hr style={{ border: 0, borderTop: '1px dashed #d1d5db', margin: '32px 0' }} />
+      <div className={styles.formGroup}>
+        <label className={styles.label}>Contact Email</label>
+        <span className={styles.labelDesc}>We'll save your progress here.</span>
+        <input 
+          type="email"
+          className={styles.input}
+          style={{ borderColor: '#16a34a', boxShadow: '0 0 0 3px #dcfce7', background: isAuthenticated ? '#f3f4f6' : 'white' }}
+          value={state.email}
+          onChange={(e) => updateState({ email: e.target.value })}
+          placeholder="yourname@email.com"
+          disabled={showInlineOtp || isAuthenticated}
+        />
+        {errors.email && <div className={styles.errorText}>{errors.email}</div>}
+      </div>
 
-      {!isAuthenticated && (
-        <>
-          <div className={styles.formGroup}>
-            <label className={styles.label}>Contact Email</label>
-            <span className={styles.labelDesc}>We'll save your progress here.</span>
-            <input 
-              type="email"
-              className={styles.input}
-              style={{ borderColor: '#16a34a', boxShadow: '0 0 0 3px #dcfce7' }}
-              value={state.email}
-              onChange={(e) => updateState({ email: e.target.value })}
-              placeholder="yourname@email.com"
-              disabled={showInlineOtp}
-            />
-            {errors.email && <div className={styles.errorText}>{errors.email}</div>}
-          </div>
-
-          {showInlineOtp && (
-            <div style={{ background: '#f0fdf4', padding: 20, borderRadius: 24, marginTop: 16, border: '1px solid #bbf7d0' }}>
-              <h4 style={{ marginBottom: 12, color: '#15803d', fontWeight: 600 }}>Welcome Back!</h4>
-              <p style={{ fontSize: 13, marginBottom: 16, color: '#166534' }}>We sent a 6-digit code to {state.email}.</p>
-              <input 
-                type="text" 
-                placeholder="1 2 3 4 5 6" 
-                value={otpCode}
-                onChange={(e) => setOtpCode(e.target.value)}
-                style={{ width: '100%', textAlign: 'center', letterSpacing: 8, fontSize: 20, fontWeight: 700, padding: 12, borderRadius: 12, border: '1px solid #16a34a' }} 
-              />
-              {otpError && <div className={styles.errorText} style={{ textAlign: 'center' }}>{otpError}</div>}
-            </div>
-          )}
-        </>
+      {!isAuthenticated && showInlineOtp && (
+        <div style={{ background: '#f0fdf4', padding: 20, borderRadius: 24, marginBottom: 24, border: '1px solid #bbf7d0' }}>
+          <h4 style={{ marginBottom: 12, color: '#15803d', fontWeight: 600 }}>Welcome Back!</h4>
+          <p style={{ fontSize: 13, marginBottom: 16, color: '#166534' }}>We sent a 6-digit code to {state.email}.</p>
+          <input 
+            type="text" 
+            placeholder="1 2 3 4 5 6" 
+            value={otpCode}
+            onChange={(e) => setOtpCode(e.target.value)}
+            style={{ width: '100%', textAlign: 'center', letterSpacing: 8, fontSize: 20, fontWeight: 700, padding: 12, borderRadius: 12, border: '1px solid #16a34a' }} 
+          />
+          {otpError && <div className={styles.errorText} style={{ textAlign: 'center' }}>{otpError}</div>}
+        </div>
       )}
+
+      <hr style={{ border: 0, borderTop: '1px dashed #d1d5db', margin: '32px 0' }} />
 
       <div className={styles.bottomBar}>
         <div className={styles.bottomBarInner}>

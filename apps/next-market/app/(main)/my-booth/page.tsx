@@ -402,7 +402,10 @@ export default function MyBoothPage() {
   // but this is a safety net for direct navigation)
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
-      router.replace('/login?redirect=/my-booth')
+      const t = setTimeout(() => {
+        router.replace('/login?redirect=/my-booth')
+      }, 500)
+      return () => clearTimeout(t)
     }
   }, [authLoading, isAuthenticated, router])
 

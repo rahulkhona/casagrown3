@@ -199,8 +199,15 @@ export default function Step2Fulfillment() {
     nextStep()
   }
 
+  const [isLocatingHome, setIsLocatingHome] = useState(false)
+  const [isLocatingPickup, setIsLocatingPickup] = useState(false)
+
   const handleUseCurrentLocationHome = async () => {
-    if (!navigator.geolocation) return
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser.")
+      return
+    }
+    setIsLocatingHome(true)
     navigator.geolocation.getCurrentPosition(async (pos) => {
       try {
         const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json&addressdetails=1`, { headers: { 'User-Agent': 'CasaGrown/1.0' } })
@@ -213,14 +220,23 @@ export default function Step2Fulfillment() {
           const zip = a.postcode || ''
           updateState({ address: [street, city, `${st} ${zip}`.trim()].filter(Boolean).join(', ') })
         }
+        setIsLocatingHome(false)
       } catch {
-        // handle silently
+        setIsLocatingHome(false)
+        alert("Could not fetch address for your location. Please enter it manually.")
       }
+    }, (err) => {
+      setIsLocatingHome(false)
+      alert("Could not access your location. Please check your browser permissions.")
     })
   }
 
   const handleUseCurrentLocationPickup = async () => {
-    if (!navigator.geolocation) return
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser.")
+      return
+    }
+    setIsLocatingPickup(true)
     navigator.geolocation.getCurrentPosition(async (pos) => {
       try {
         const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json&addressdetails=1`, { headers: { 'User-Agent': 'CasaGrown/1.0' } })
@@ -233,9 +249,14 @@ export default function Step2Fulfillment() {
           const zip = a.postcode || ''
           updateState({ pickupAddress: [street, city, `${st} ${zip}`.trim()].filter(Boolean).join(', ') })
         }
+        setIsLocatingPickup(false)
       } catch {
-        // handle silently
+        setIsLocatingPickup(false)
+        alert("Could not fetch address for your location. Please enter it manually.")
       }
+    }, (err) => {
+      setIsLocatingPickup(false)
+      alert("Could not access your location. Please check your browser permissions.")
     })
   }
 
@@ -265,7 +286,7 @@ export default function Step2Fulfillment() {
           style={{ marginTop: 8 }} 
           onClick={handleUseCurrentLocationHome}
         >
-          📍 Use current location
+          {isLocatingHome ? "⏳ Locating..." : "📍 Use current location"}
         </button>
       </div>
 
@@ -359,7 +380,7 @@ export default function Step2Fulfillment() {
                     style={{ marginTop: 6 }}
                     onClick={handleUseCurrentLocationPickup}
                   >
-                    📍 Use my current location
+                    {isLocatingPickup ? "⏳ Locating..." : "📍 Use my current location"}
                   </button>
                 </div>
                 <WindowSelector 

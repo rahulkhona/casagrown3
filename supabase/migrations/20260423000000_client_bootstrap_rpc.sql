@@ -30,7 +30,7 @@ BEGIN
 
   -- 3. Profile: all columns needed by useAuth + Navbar in one shot
   SELECT full_name, avatar_url, is_banned, ban_reason,
-         tos_accepted_at, profile_completed_at
+         tos_accepted_at, profile_completed_at, referral_code
   INTO v_profile
   FROM public.profiles
   WHERE id = p_user_id;
