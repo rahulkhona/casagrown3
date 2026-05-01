@@ -342,26 +342,30 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
     // Run external notifications in parallel with a timeout to prevent hanging
     const sendNotifications = async () => {
-      await sendPushNotification(supabase, {
+      const pushPromise = sendPushNotification(supabase, {
         userIds: [userId],
         title: "Redemption Queued ⏳",
         body: queuedMessage,
         url: "/earnings",
       });
 
-      const userEmail = await getUserEmail(supabase, userId);
-      if (userEmail) {
-        const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", userId).single();
-        const { subject, htmlBody } = buildPayoutEmail({
-          type: "gift_card",
-          status: "queued",
-          userName: profile?.full_name || "there",
-          brandName,
-          amount: faceValueCents / 100,
-          redemptionId: redemption.id,
-        });
-        await sendTransactionEmail({ to: userEmail, subject, htmlBody });
-      }
+      const emailPromise = async () => {
+        const userEmail = await getUserEmail(supabase, userId);
+        if (userEmail) {
+          const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", userId).single();
+          const { subject, htmlBody } = buildPayoutEmail({
+            type: "gift_card",
+            status: "queued",
+            userName: profile?.full_name || "there",
+            brandName,
+            amount: faceValueCents / 100,
+            redemptionId: redemption.id,
+          });
+          await sendTransactionEmail({ to: userEmail, subject, htmlBody });
+        }
+      };
+
+      await Promise.all([pushPromise, emailPromise()]);
     };
 
     try {
