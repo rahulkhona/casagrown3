@@ -7,6 +7,8 @@ const AI_MODEL = Deno.env.get("AI_MODEL") ?? "gemma-4-31b-it";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
+const RETRY_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
+
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
@@ -26,35 +28,89 @@ Deno.serve(async (req: Request) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   try {
-    // 1. Fetch up to 50 unprocessed leads
-    // We filter by form_version and lack of ai_estimate_result in metadata
+    // 1. Fetch up to 50 leads that:
+    //    - came from the earnings estimator funnel
+    //    - have not yet received an AI estimate (success or abandoned)
     const { data: leads, error: fetchErr } = await supabase
       .from('crm_leads')
-      .select('id, name, email, zipcode, produce_interests, metadata')
+      .select('id, name, email, zipcode, metadata')
       .eq('form_version', 'v1-earnings-estimator')
       .is('metadata->ai_estimate_result', null)
-      .not('email', 'is', null) // Only process ones with email
+      .is('metadata->ai_estimate_abandoned', null)
+      .not('email', 'is', null)
       .limit(50);
 
     if (fetchErr) throw fetchErr;
 
     if (!leads || leads.length === 0) {
-      return new Response(JSON.stringify({ processed: 0, message: "No queued leads found" }), { status: 200 });
+      return new Response(JSON.stringify({ processed: 0, abandoned: 0, message: "No queued leads found" }), { status: 200 });
     }
 
     let processedCount = 0;
+    let abandonedCount = 0;
+    const now = Date.now();
 
     // 2. Process each lead
     for (const lead of leads) {
       try {
+        // Track when we first attempted this lead
+        const firstQueuedAt: number = lead.metadata?.first_queued_at ?? now;
+        const isFirstAttempt = !lead.metadata?.first_queued_at;
+        const ageMs = now - firstQueuedAt;
+        const firstName = lead.name?.split(' ')[0] || "there";
+
+        // ── Give up after 24 hours ──────────────────────────────────────────
+        if (!isFirstAttempt && ageMs > RETRY_WINDOW_MS) {
+          console.warn(`Lead ${lead.id} has been queued for ${Math.round(ageMs / 3600000)}h — abandoning and sending fallback email`);
+
+          const fallbackHtml = `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #111827;">
+              <h2 style="color: #166534; text-align: center;">Your CasaGrown Report is Taking Longer Than Expected</h2>
+              <p>Hi ${firstName},</p>
+              <p>We ran into a temporary issue generating your personalized earnings estimate — we're sorry for the delay!</p>
+              <p>The great news is that you don't need a report to start earning from your garden. Neighbors in your area are already looking for fresh, locally-grown produce.</p>
+              <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
+                <div style="font-size: 18px; font-weight: 700; color: #166534; margin-bottom: 8px;">Create your free listing in 2 minutes</div>
+                <div style="font-size: 14px; color: #4b5563;">No report needed — just list what you're growing and start connecting with buyers.</div>
+              </div>
+              <div style="text-align: center; margin-top: 32px;">
+                <a href="https://casagrown.com/create-listing?email=${encodeURIComponent(lead.email)}&name=${encodeURIComponent(lead.name || '')}&zipcode=${encodeURIComponent(lead.zipcode || '')}"
+                   style="display: inline-block; background-color: #16a34a; color: white; padding: 14px 28px; border-radius: 999px; text-decoration: none; font-weight: bold; font-size: 16px;">
+                  Start Selling Today →
+                </a>
+              </div>
+            </div>
+          `;
+
+          await sendBroadcastEmail({
+            to: lead.email,
+            subject: "About your CasaGrown earnings estimate 🌿",
+            htmlBody: fallbackHtml,
+          });
+
+          // Mark as abandoned so this lead is never picked up again
+          await supabase.from('crm_leads').update({
+            metadata: { ...lead.metadata, ai_estimate_abandoned: new Date().toISOString() }
+          }).eq('id', lead.id);
+
+          abandonedCount++;
+          continue;
+        }
+
+        // ── Record first_queued_at on first attempt ─────────────────────────
+        if (isFirstAttempt) {
+          await supabase.from('crm_leads').update({
+            metadata: { ...lead.metadata, first_queued_at: firstQueuedAt }
+          }).eq('id', lead.id);
+        }
+
+        // ── Call Gemini (same prompt as estimate-earnings edge function) ─────
         const size = lead.metadata?.garden_size || "Medium";
-        // Use the structured plant/tree arrays stored at lead capture time (same as on-screen)
         const plants: string[] = lead.metadata?.plants || [];
         const trees: string[] = lead.metadata?.trees || [];
         const plantsList = plants.length ? plants.join(", ") : "None";
         const treesList = trees.length ? trees.join(", ") : "None";
 
-        // Identical prompt to estimate-earnings/index.ts — ensures email matches on-screen result
         const prompt = `You are an expert agricultural and economic estimator for CasaGrown, a neighborhood backyard produce marketplace.
 
 A home grower has provided the following details about their garden:
@@ -99,23 +155,27 @@ Respond ONLY with the JSON object for the provided details (no markdown, no code
         });
 
         if (!aiRes.ok) {
-          console.warn(`AI failed for lead ${lead.id}: ${aiRes.status}`);
-          continue; // Skip and try again next cron run
+          // AI is unavailable (rate limit, outage, etc.) — leave in queue, retry next cron run
+          console.warn(`AI failed for lead ${lead.id}: HTTP ${aiRes.status} — will retry (queued ${Math.round(ageMs / 60000)}min ago)`);
+          continue;
         }
 
         const aiData = await aiRes.json();
         const raw = aiData.choices?.[0]?.message?.content ?? "";
-        const jsonStr = raw.replace(/\`\`\`json\n?/g, "").replace(/\`\`\`\n?/g, "").replace(/<thought>[\s\S]*?<\/thought>/g, "").trim();
+        const jsonStr = raw
+          .replace(/```json\n?/g, "").replace(/```\n?/g, "")
+          .replace(/<thought>[\s\S]*?<\/thought>/g, "")
+          .trim();
 
         const result = JSON.parse(jsonStr);
 
-        // 3. Send Email
-        const htmlBody = `
+        // ── Send success email (matches on-screen results layout) ───────────
+        const successHtml = `
           <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #111827;">
             <h2 style="color: #166534; text-align: center;">Your CasaGrown Backyard Estimate is Ready!</h2>
-            <p>Hi ${lead.name.split(' ')[0]},</p>
+            <p>Hi ${firstName},</p>
             <p>Our AI has finished analyzing the market data for your <strong>${size}</strong> garden in <strong>${lead.zipcode}</strong>. Here is your potential:</p>
-            
+
             <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
               <div style="font-size: 14px; color: #166534; font-weight: bold; text-transform: uppercase;">Estimated Annual Earnings <span style="background: #dcfce7; padding: 2px 6px; border-radius: 8px; font-size: 10px;">AI ESTIMATED</span></div>
               <div style="font-size: 48px; font-weight: 800; color: #15803d; margin: 12px 0;">$${result.estimated_annual_earnings}</div>
@@ -132,7 +192,10 @@ Respond ONLY with the JSON object for the provided details (no markdown, no code
             </div>
 
             <div style="text-align: center; margin-top: 32px;">
-              <a href="https://casagrown.com/create-listing?email=${encodeURIComponent(lead.email)}&name=${encodeURIComponent(lead.name)}&zipcode=${encodeURIComponent(lead.zipcode)}" style="display: inline-block; background-color: #16a34a; color: white; padding: 14px 28px; border-radius: 999px; text-decoration: none; font-weight: bold; font-size: 16px;">Start Selling Today →</a>
+              <a href="https://casagrown.com/create-listing?email=${encodeURIComponent(lead.email)}&name=${encodeURIComponent(lead.name || '')}&zipcode=${encodeURIComponent(lead.zipcode || '')}"
+                 style="display: inline-block; background-color: #16a34a; color: white; padding: 14px 28px; border-radius: 999px; text-decoration: none; font-weight: bold; font-size: 16px;">
+                Start Selling Today →
+              </a>
             </div>
           </div>
         `;
@@ -140,28 +203,29 @@ Respond ONLY with the JSON object for the provided details (no markdown, no code
         await sendBroadcastEmail({
           to: lead.email,
           subject: "Your CasaGrown Earnings Estimate is Ready! 🌿",
-          htmlBody: htmlBody
+          htmlBody: successHtml,
         });
 
-        // 4. Update Database
+        // Mark as done so this lead is never picked up again
         await supabase.from('crm_leads').update({
-          metadata: {
-            ...lead.metadata,
-            ai_estimate_result: result
-          }
+          metadata: { ...lead.metadata, ai_estimate_result: result }
         }).eq('id', lead.id);
 
         processedCount++;
-        
+
         // Minor delay to prevent API flooding
         await new Promise(r => setTimeout(r, 500));
-        
+
       } catch (err) {
+        // JSON parse failure or unexpected error — leave in queue, retry next cron run
         console.error(`Failed processing lead ${lead.id}:`, err);
       }
     }
 
-    return new Response(JSON.stringify({ processed: processedCount }), { status: 200, headers: { "Content-Type": "application/json" } });
+    return new Response(
+      JSON.stringify({ processed: processedCount, abandoned: abandonedCount }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
 
   } catch (error: any) {
     console.error("Queue processing error:", error);
