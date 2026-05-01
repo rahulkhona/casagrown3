@@ -70,17 +70,22 @@ export default function NutritionLossLandingPage() {
       if (leadId) {
         setIsLoading(true);
         const supabase = createClient();
-        supabase.from('crm_leads').select('metadata, email, name').eq('id', leadId).single()
-          .then(({ data }) => {
+        const fetchReport = async () => {
+          try {
+            const { data } = await supabase.from('crm_leads').select('metadata, email, name').eq('id', leadId).single();
             if (data && data.metadata?.ai_nutrition_result) {
               setResults(data.metadata.ai_nutrition_result);
               setEmail(data.email || '');
               setName(data.name || '');
               setStep('results');
             }
-          })
-          .catch(err => console.error("Failed to load existing report:", err))
-          .finally(() => setIsLoading(false));
+          } catch (err) {
+            console.error("Failed to load existing report:", err);
+          } finally {
+            setIsLoading(false);
+          }
+        };
+        fetchReport();
       }
     }
   }, []);
