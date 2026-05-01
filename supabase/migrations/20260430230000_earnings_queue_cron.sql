@@ -1,31 +1,35 @@
 -- ============================================================================
 -- Migration: Schedule 15-minute background worker to process AI queued leads
 --
--- This hits the process-earnings-queue Edge Function to calculate the estimated
--- earnings for leads that timed out or failed to process synchronously,
--- and sends them the results via email.
+-- This hits the process-earnings-estimate-request-queue Edge Function to
+-- calculate the estimated earnings for leads that timed out or failed to
+-- process synchronously, and sends them the results via email.
 -- ============================================================================
 
 DO $outer$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
 
-    -- Unschedule old name if it exists (for idempotency)
+    -- Unschedule old names if they exist (for idempotency)
     BEGIN
       PERFORM cron.unschedule('process-earnings-queue-cron');
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+    BEGIN
+      PERFORM cron.unschedule('process-earnings-estimate-request-queue-cron');
     EXCEPTION WHEN OTHERS THEN NULL;
     END;
 
     -- Schedule to run every 15 minutes
     PERFORM cron.schedule(
-      'process-earnings-queue-cron',
+      'process-earnings-estimate-request-queue-cron',
       '*/15 * * * *',
       format(
         'SELECT net.http_post(url := %L, headers := %L::jsonb, body := %L::jsonb)',
         COALESCE(
           current_setting('app.settings.edge_functions_base_url', true),
           'http://host.docker.internal:54321/functions/v1'
-        ) || '/process-earnings-queue',
+        ) || '/process-earnings-estimate-request-queue',
         json_build_object(
           'Content-Type', 'application/json',
           'Authorization', 'Bearer ' || COALESCE(
@@ -37,7 +41,7 @@ BEGIN
       )
     );
 
-    RAISE NOTICE 'Scheduled process-earnings-queue-cron to run every 15 minutes';
+    RAISE NOTICE 'Scheduled process-earnings-estimate-request-queue-cron to run every 15 minutes';
 
   ELSE
     RAISE NOTICE 'pg_cron not available, skipping queue processor cron job';
