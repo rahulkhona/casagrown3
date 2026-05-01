@@ -82,6 +82,8 @@ Deno.serve(async (req: Request) => {
             metadata: { 
               ...existingLead.metadata,
               garden_size: size,
+              plants: plants || [],
+              trees: trees || [],
               referrer: payload.lead?.referrer || existingLead.metadata?.referrer,
               ...(skip_ai && prefetched_result ? { ai_estimate_result: prefetched_result } : {})
             }
@@ -109,6 +111,8 @@ Deno.serve(async (req: Request) => {
             status: 'new',
             metadata: { 
               garden_size: size,
+              plants: plants || [],
+              trees: trees || [],
               referrer: payload.lead?.referrer,
               ...(skip_ai && prefetched_result ? { ai_estimate_result: prefetched_result } : {})
             }
