@@ -50,33 +50,46 @@ export async function sendTransactionEmail(
     const messageStream = Deno.env.get("POSTMARK_MESSAGE_STREAM") ??
         "outbound";
 
-    // Determine SMTP config based on environment
     const isProduction = !!token;
 
-    const smtpConfig = isProduction
-        ? {
-            // Production: Postmark SMTP
-            hostname: "smtp.postmarkapp.com",
-            port: 465,
-            tls: true,
-            auth: {
-                username: token!,
-                password: token!,
-            },
-        }
-        : {
-            // Local dev: Mailpit SMTP (no auth, no TLS)
-            // Use host.docker.internal since edge functions run inside Docker
-            hostname: "host.docker.internal",
-            port: 54325,
-            tls: false,
-        };
-
     try {
+        if (isProduction) {
+            // Production: Postmark REST API (Bypasses brittle Edge SMTP/TLS issues)
+            const res = await fetch("https://api.postmarkapp.com/email", {
+                method: "POST",
+                headers: {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "X-Postmark-Server-Token": token!,
+                },
+                body: JSON.stringify({
+                    From: fromEmail,
+                    To: payload.to,
+                    Subject: payload.subject,
+                    HtmlBody: payload.htmlBody,
+                    ...(payload.textBody && { TextBody: payload.textBody }),
+                    MessageStream: messageStream,
+                    ...(payload.metadata && { Metadata: payload.metadata })
+                })
+            });
+
+            if (!res.ok) {
+                const errStr = await res.text();
+                throw new Error(`Postmark REST API error: ${res.status} ${errStr}`);
+            }
+
+            console.log(`📧 Email sent via Postmark REST to ${payload.to}: ${payload.subject}`);
+            return { success: true };
+        }
+
+        // Local dev: Mailpit SMTP (no auth, no TLS)
         const client = new SMTPClient({
-            connection: smtpConfig,
-            // Allow non-TLS connections for local Mailpit
-            ...(!isProduction && { debug: { allowUnsecure: true } }),
+            connection: {
+                hostname: "host.docker.internal",
+                port: 54325,
+                tls: false,
+            },
+            debug: { allowUnsecure: true },
         });
 
         // deno-lint-ignore no-explicit-any
@@ -89,25 +102,10 @@ export async function sendTransactionEmail(
             ...(payload.textBody && { text: payload.textBody }),
         };
 
-        // Only add Postmark headers in production
-        if (isProduction) {
-            sendOpts.headers = {
-                "X-PM-Message-Stream": messageStream,
-            };
-        }
-
         await client.send(sendOpts);
         await client.close();
 
-        if (isProduction) {
-            console.log(
-                `📧 Email sent via Postmark to ${payload.to}: ${payload.subject}`,
-            );
-        } else {
-            console.log(
-                `📧 Email sent to Mailpit for ${payload.to}: ${payload.subject} — check http://localhost:54324`,
-            );
-        }
+        console.log(`📧 Email sent to Mailpit for ${payload.to}: ${payload.subject} — check http://localhost:54324`);
         return { success: true };
     } catch (err) {
         console.error(`❌ Email send failed for ${payload.to}:`, err);
