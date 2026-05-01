@@ -14,6 +14,7 @@ export interface BootstrapProfile {
   ban_reason: string | null
   tos_accepted_at: string | null
   profile_completed_at: string | null
+  referral_code?: string | null
 }
 
 export interface BootstrapMarketConfig {
