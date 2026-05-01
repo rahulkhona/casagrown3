@@ -113,29 +113,18 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     }
   }
 
-  // Fallback: try Tremendous first, then Reloadly
+  // Fallback: try Reloadly
   if (!selectedProvider) {
-    const tremendousKey = env("TREMENDOUS_API_KEY");
-    if (tremendousKey) {
+    const reloadlyId = env("RELOADLY_CLIENT_ID");
+    if (reloadlyId) {
       selectedProvider = {
-        provider: "tremendous",
+        provider: "reloadly",
         productId: "",
         discountPercentage: 0,
-        feePerTransaction: 0,
+        feePerTransaction: 0.5,
         feePercentage: 0,
       };
-    } else {
-      const reloadlyId = env("RELOADLY_CLIENT_ID");
-      if (reloadlyId) {
-        selectedProvider = {
-          provider: "reloadly",
-          productId: "",
-          discountPercentage: 0,
-          feePerTransaction: 0.5,
-          feePercentage: 0,
-        };
-        netFeeCents = 50;
-      }
+      netFeeCents = 50;
     }
   }
 
@@ -186,8 +175,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     if (!isGracePeriod) {
       return jsonError(
         `Redemptions via ${instrumentName} are temporarily offline. Please try again later.`,
-        corsHeaders,
-        400,
+        corsHeaders
       );
     }
   }
@@ -213,7 +201,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   }
 
   const availableUsd = Number(balanceRow?.available_usd ?? 0);
-  if (availableUsd < usdAmount) {
+  if (Math.round(availableUsd * 100) < pointsCost) {
     return jsonError(
       `Insufficient balance. You have $${availableUsd.toFixed(2)} available.`,
       corsHeaders,
@@ -411,7 +399,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
     if (finalizeError) {
       console.error("[REDEEM] Critical Error finalizing Gift Card to Database:", finalizeError);
-      return jsonError("Gift Card procured but failed to save receipt safely.", corsHeaders, 500);
+      return jsonError("Gift Card procured but failed to save receipt safely.", corsHeaders);
     }
   } else {
     // Asynchronous fulfillment fallback for direct auto-purchases

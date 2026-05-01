@@ -41,12 +41,7 @@ export async function pickBestProvider(
         try {
             let fresh: ProviderOption | null = null;
 
-            if (cached.provider === "tremendous") {
-                fresh = await fetchTremendousProduct(
-                    env("TREMENDOUS_API_KEY") || "",
-                    cached.productId,
-                );
-            } else if (cached.provider === "reloadly") {
+            if (cached.provider === "reloadly") {
                 fresh = await fetchReloadlyProduct(
                     env("RELOADLY_CLIENT_ID") || "",
                     env("RELOADLY_CLIENT_SECRET") || "",

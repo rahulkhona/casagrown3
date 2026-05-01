@@ -1040,7 +1040,7 @@ export default function PayoutPage() {
 
               <button className="btn btn-primary btn-lg" style={{ width: '100%', marginTop: 16 }}
                 onClick={handleCashout}
-                disabled={!cashoutAmount || parseFloat(cashoutAmount) > maxUsd || parseFloat(cashoutAmount) < 0.01 || cashingOut || (!payoutStatus?.verified && (!customHandle || customHandle !== confirmCustomHandle))}
+                disabled={!cashoutAmount || Math.round(parseFloat(cashoutAmount) * 100) > Math.round(maxUsd * 100) || Math.round(parseFloat(cashoutAmount) * 100) < 1 || cashingOut || (!payoutStatus?.verified && (!customHandle || customHandle !== confirmCustomHandle))}
               >{cashingOut ? 'Processing...' : cashoutAmount ? `Send ${formatUsd(parseFloat(cashoutAmount))} to ${payoutStatus?.verified ? payoutStatus.handle : customHandle || '...'}` : 'Enter Amount'}</button>
             </div>
           )}

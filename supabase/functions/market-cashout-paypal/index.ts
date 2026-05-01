@@ -52,8 +52,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   if (!amountCents || isNaN(amountCents) || amountCents < 100) {
     return jsonError(
       "Invalid amount. Minimum cashout is $1.00.",
-      corsHeaders,
-      400,
+      corsHeaders
     );
   }
 
@@ -68,7 +67,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
   if (profileError) {
     console.error("Profile fetch error:", profileError);
-    return jsonError("Could not fetch user profile", corsHeaders, 400);
+    return jsonError("Could not fetch user profile", corsHeaders);
   }
 
   let finalPayoutId = profile?.payout_handle;
@@ -83,8 +82,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   if (!finalPayoutId) {
     return jsonError(
       "No PayPal email or Venmo phone number provided.",
-      corsHeaders,
-      400,
+      corsHeaders
     );
   }
 
@@ -116,8 +114,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     if (!isGracePeriod) {
       return jsonError(
         "Cashouts are temporarily offline. Please try again later.",
-        corsHeaders,
-        400,
+        corsHeaders
       );
     }
   }
@@ -138,15 +135,14 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     .maybeSingle();
 
   if (balanceError) {
-    return jsonError("Failed to verify balance.", corsHeaders, 400);
+    return jsonError("Failed to verify balance.", corsHeaders);
   }
 
   const availableUsd = Number(balanceRow?.available_usd ?? 0);
-  if (availableUsd < usdAmount) {
+  if (Math.round(availableUsd * 100) < amountCents) {
     return jsonError(
       `Insufficient balance. You have $${availableUsd.toFixed(2)} available but requested $${usdAmount.toFixed(2)}.`,
-      corsHeaders,
-      400,
+      corsHeaders
     );
   }
 

@@ -104,4 +104,6 @@ Provide your response as a JSON object with two properties:
    - "evidence_link": A real URL or reference to a study or USDA data supporting this (e.g., "https://www.ncbi.nlm.nih.gov/...").
 
 Respond ONLY with the JSON object. Do not use markdown blocks or code fences.`;
+    }
+  });
 });

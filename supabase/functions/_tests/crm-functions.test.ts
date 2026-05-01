@@ -306,7 +306,8 @@ Deno.test('estimate-earnings: valid garden inputs saves lead and returns AI resu
 
   // Should be either full AI result or queued signal
   const isQueued = body.queued === true
-  const isResult = typeof body.estimated_annual_earnings === 'number'
+  const aiResult = body.ai_estimate_result || body
+  const isResult = typeof aiResult.estimated_annual_earnings === 'number'
   assertEquals(
     isQueued || isResult,
     true,
@@ -314,10 +315,10 @@ Deno.test('estimate-earnings: valid garden inputs saves lead and returns AI resu
   )
 
   if (isResult) {
-    assertExists(body.excess_produce)
-    assertExists(body.analogies)
-    assertEquals(Array.isArray(body.analogies), true)
-    assertExists(body.reasoning)
+    assertExists(aiResult.excess_produce)
+    assertExists(aiResult.analogies)
+    assertEquals(Array.isArray(aiResult.analogies), true)
+    assertExists(aiResult.reasoning)
   }
 
   // Verify lead was persisted to crm_leads
