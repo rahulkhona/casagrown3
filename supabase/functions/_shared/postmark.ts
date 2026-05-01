@@ -57,7 +57,7 @@ export async function sendTransactionEmail(
         ? {
             // Production: Postmark SMTP
             hostname: "smtp.postmarkapp.com",
-            port: 587,
+            port: 465,
             tls: true,
             auth: {
                 username: token!,
@@ -161,7 +161,7 @@ export async function sendBroadcastEmail(
         ? {
             // Production: Dedicated Broadcast Cluster
             hostname: "smtp-broadcasts.postmarkapp.com",
-            port: 587,
+            port: 465,
             tls: true,
             auth: {
                 username: token!,

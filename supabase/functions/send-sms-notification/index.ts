@@ -22,8 +22,11 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
       adminId = auth;
     }
 
-    const body = await req.json().catch(() => null);
-    const { userId, message, linkUrl } = body || {};
+    const bodyPayload = await req.json().catch(() => null);
+    // Handle both direct API calls (userId/message) and Database Triggers (userIds/body)
+    const userId = bodyPayload?.userId || (bodyPayload?.userIds && bodyPayload.userIds[0]);
+    const message = bodyPayload?.message || bodyPayload?.body;
+    const linkUrl = bodyPayload?.linkUrl || bodyPayload?.url;
 
     if (!userId || !message) {
         return jsonError("userId and message are required", corsHeaders, 400);
