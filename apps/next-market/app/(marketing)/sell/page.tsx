@@ -27,6 +27,27 @@ export default function SellLandingPage() {
   const [marketingConsent, setMarketingConsent] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
+  const loadingMessages = [
+    "Analyzing climate data for your zipcode...",
+    "Calculating expected amateur yields for your specific plant varieties...",
+    "Checking local organic market prices in your area...",
+    "Estimating your annual backyard earnings...",
+    "Finalizing your personalized CasaGrown report..."
+  ]
+  const [loadingMsgIdx, setLoadingMsgIdx] = useState(0)
+
+  useEffect(() => {
+    let interval: any;
+    if (isLoading) {
+      interval = setInterval(() => {
+        setLoadingMsgIdx(prev => (prev + 1) % loadingMessages.length)
+      }, 4000)
+    } else {
+      setLoadingMsgIdx(0)
+    }
+    return () => clearInterval(interval)
+  }, [isLoading])
+
   // Tracking State
   const [trackingData, setTrackingData] = useState<{
     utm_source?: string;
@@ -49,6 +70,23 @@ export default function SellLandingPage() {
         referrer: document.referrer || undefined,
         current_url: window.location.href,
       });
+
+      const leadId = params.get('id');
+      if (leadId) {
+        setIsLoading(true);
+        const supabase = createClient();
+        supabase.from('crm_leads').select('metadata, email, name').eq('id', leadId).single()
+          .then(({ data }) => {
+            if (data && data.metadata?.ai_estimate_result) {
+              setResults(data.metadata.ai_estimate_result);
+              setEmail(data.email || '');
+              setName(data.name || '');
+              setStep('results');
+            }
+          })
+          .catch(err => console.error("Failed to load existing report:", err))
+          .finally(() => setIsLoading(false));
+      }
     }
   }, []);
 
@@ -123,8 +161,8 @@ export default function SellLandingPage() {
           return
         }
         
-        if (data) {
-          finalData = data
+        if (data && data.ai_estimate_result) {
+          finalData = data.ai_estimate_result
         }
       } catch (invokeErr) {
         console.error("Backend request failed:", invokeErr)
@@ -135,8 +173,12 @@ export default function SellLandingPage() {
         }
       }
       
-      setResults(finalData)
-      setStep('results')
+      if (finalData) {
+        setResults(finalData)
+        setStep('results')
+      } else {
+        setStep('queued')
+      }
     } catch (err) {
       console.error("Failed to generate report", err)
       setErrorMsg("We're currently experiencing high demand and couldn't generate your report right away. Please try again in a moment!")
@@ -468,19 +510,15 @@ export default function SellLandingPage() {
                   <button 
                     type="submit" 
                     className="btn-action" 
-                    style={{ marginTop: '16px', opacity: isLoading ? 0.7 : 1 }}
+                    style={{ opacity: isLoading ? 0.7 : 1, transition: 'all 0.3s' }} 
                     disabled={isLoading}
                   >
                     {isLoading ? (
-                      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                        <span className="spinner" style={{ 
-                          width: '20px', height: '20px', 
-                          border: '3px solid rgba(255,255,255,0.3)', 
-                          borderTop: '3px solid white', 
-                          borderRadius: '50%', 
-                          animation: 'spin 1s linear infinite' 
-                        }}></span>
-                        Generating Report...
+                      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+                        <span className="spinner" style={{ width: '20px', height: '20px', border: '3px solid rgba(255,255,255,0.3)', borderTop: '3px solid white', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></span>
+                        <span style={{ fontSize: '0.9rem', maxWidth: '250px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {loadingMessages[loadingMsgIdx]}
+                        </span>
                       </span>
                     ) : (
                       "Send My Report →"
