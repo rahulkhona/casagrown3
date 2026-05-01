@@ -313,7 +313,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     await supabase
       .from("redemptions")
       .update({
-        status: "failed",
+        status: "queued",
         failed_reason: finalReason,
       })
       .eq("id", redemption.id);
@@ -331,27 +331,38 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
       link_url: "/transaction-history",
     });
 
-    await sendPushNotification(supabase, {
-      userIds: [userId],
-      title: "Cashout Queued ⏳",
-      body: queuedMessage,
-      url: "/transaction-history",
-    });
-
-    // Email notification for queued cashout
-    const userEmail = await getUserEmail(supabase, userId);
-    if (userEmail) {
-      const isPhone = /^\+?[1-9]\d{1,14}$/.test(finalPayoutId);
-      const { subject, htmlBody } = buildPayoutEmail({
-        type: "cashout",
-        status: "queued",
-        userName: profile?.full_name || "there",
-        amount: usdAmount,
-        payoutTarget: finalPayoutId,
-        handleType: isPhone ? "venmo" : "paypal",
-        redemptionId: redemption.id,
+    // Run external notifications in parallel with a timeout to prevent hanging
+    const sendNotifications = async () => {
+      await sendPushNotification(supabase, {
+        userIds: [userId],
+        title: "Cashout Queued ⏳",
+        body: queuedMessage,
+        url: "/transaction-history",
       });
-      await sendTransactionEmail({ to: userEmail, subject, htmlBody });
+
+      const userEmail = await getUserEmail(supabase, userId);
+      if (userEmail) {
+        const isPhone = /^\+?[1-9]\d{1,14}$/.test(finalPayoutId);
+        const { subject, htmlBody } = buildPayoutEmail({
+          type: "cashout",
+          status: "queued",
+          userName: profile?.full_name || "there",
+          amount: usdAmount,
+          payoutTarget: finalPayoutId,
+          handleType: isPhone ? "venmo" : "paypal",
+          redemptionId: redemption.id,
+        });
+        await sendTransactionEmail({ to: userEmail, subject, htmlBody });
+      }
+    };
+
+    try {
+      await Promise.race([
+        sendNotifications(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Notification timeout")), 4000))
+      ]);
+    } catch (err) {
+      console.warn("[CASHOUT] Notifications timed out or failed:", err);
     }
 
     // Option to trip the breaker immediately if API failed

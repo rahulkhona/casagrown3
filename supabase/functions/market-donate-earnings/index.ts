@@ -239,7 +239,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     const finalReason = externalErrorMsg || "Queue is currently enabled for globalgiving";
     await supabase
       .from("redemptions")
-      .update({ status: "failed", failed_reason: finalReason })
+      .update({ status: "queued", failed_reason: finalReason })
       .eq("id", redemption.id);
 
     const queuedMessage = `Your donation of $${dollarAmount.toFixed(2)} to ${organizationName} will be processed at noon of the next business day.`;
@@ -250,24 +250,36 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
       link_url: "/transaction-history",
     });
 
-    await sendPushNotification(supabase, {
-      userIds: [userId],
-      title: "Donation Queued ⏳",
-      body: queuedMessage,
-      url: "/transaction-history",
-    });
-
-    const userEmailForNotify = await getUserEmail(supabase, userId);
-    if (userEmailForNotify) {
-      const { subject, htmlBody } = buildPayoutEmail({
-        type: "donation",
-        status: "queued",
-        userName: firstName || "there",
-        organizationName,
-        amount: dollarAmount,
-        redemptionId: redemption.id,
+    // Run external notifications in parallel with a timeout to prevent hanging
+    const sendNotifications = async () => {
+      await sendPushNotification(supabase, {
+        userIds: [userId],
+        title: "Donation Queued ⏳",
+        body: queuedMessage,
+        url: "/transaction-history",
       });
-      await sendTransactionEmail({ to: userEmailForNotify, subject, htmlBody });
+
+      const userEmailForNotify = await getUserEmail(supabase, userId);
+      if (userEmailForNotify) {
+        const { subject, htmlBody } = buildPayoutEmail({
+          type: "donation",
+          status: "queued",
+          userName: firstName || "there",
+          organizationName,
+          amount: dollarAmount,
+          redemptionId: redemption.id,
+        });
+        await sendTransactionEmail({ to: userEmailForNotify, subject, htmlBody });
+      }
+    };
+
+    try {
+      await Promise.race([
+        sendNotifications(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Notification timeout")), 4000))
+      ]);
+    } catch (err) {
+      console.warn("[DONATE] Notifications timed out or failed:", err);
     }
 
     return jsonOk({

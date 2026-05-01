@@ -326,7 +326,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
     await supabase
       .from("redemptions")
-      .update({ status: "failed", failed_reason: finalReason })
+      .update({ status: "queued", failed_reason: finalReason })
       .eq("id", redemption.id);
 
     const queuedMessage =
@@ -339,28 +339,37 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
       link_url: "/transaction-history",
     });
 
-    await sendPushNotification(supabase, {
-      userIds: [userId],
-      title: "Redemption Queued ⏳",
-      body: queuedMessage,
-      url: "/transaction-history",
-    });
-
-    // Return gracefully so the frontend assumes success-but-queued
-
-    // Email notification for queued gift card
-    const userEmail = await getUserEmail(supabase, userId);
-    if (userEmail) {
-      const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", userId).single();
-      const { subject, htmlBody } = buildPayoutEmail({
-        type: "gift_card",
-        status: "queued",
-        userName: profile?.full_name || "there",
-        brandName,
-        amount: faceValueCents / 100,
-        redemptionId: redemption.id,
+    // Run external notifications in parallel with a timeout to prevent hanging
+    const sendNotifications = async () => {
+      await sendPushNotification(supabase, {
+        userIds: [userId],
+        title: "Redemption Queued ⏳",
+        body: queuedMessage,
+        url: "/transaction-history",
       });
-      await sendTransactionEmail({ to: userEmail, subject, htmlBody });
+
+      const userEmail = await getUserEmail(supabase, userId);
+      if (userEmail) {
+        const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", userId).single();
+        const { subject, htmlBody } = buildPayoutEmail({
+          type: "gift_card",
+          status: "queued",
+          userName: profile?.full_name || "there",
+          brandName,
+          amount: faceValueCents / 100,
+          redemptionId: redemption.id,
+        });
+        await sendTransactionEmail({ to: userEmail, subject, htmlBody });
+      }
+    };
+
+    try {
+      await Promise.race([
+        sendNotifications(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Notification timeout")), 4000))
+      ]);
+    } catch (err) {
+      console.warn("[REDEEM] Notifications timed out or failed:", err);
     }
 
     // Option to trip the breaker immediately if API failed
