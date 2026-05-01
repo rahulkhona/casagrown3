@@ -89,7 +89,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     const failures: { id: string; provider: string; reason: string }[] = [];
 
     for (const redemption of queuedRedemptions) {
-        const { provider, metadata, user_id, point_cost } = redemption;
+        const { provider, user_id, point_cost } = redemption;
+        const metadata = redemption.metadata || {};
         const faceValueCents = metadata.face_value_cents || Math.round((point_cost / 100) * 100);
 
         try {
@@ -140,10 +141,10 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 });
 
 async function processGiftCard(supabase: any, env: any, redemption: Record<string, unknown>, provider: "tremendous" | "reloadly") {
-    const metadata = redemption.metadata as Record<string, unknown>;
+    const metadata = (redemption.metadata || {}) as Record<string, unknown>;
     const brand_name = metadata.brand_name as string;
     const product_id = metadata.product_id as string;
-    const face_value_cents = metadata.face_value_cents as number;
+    const face_value_cents = (metadata.face_value_cents as number) || Math.round(((redemption.point_cost as number) / 100) * 100);
 
     // Fetch recipient email for gift card delivery
     let recipientEmail = "";
@@ -199,8 +200,9 @@ async function processGiftCard(supabase: any, env: any, redemption: Record<strin
     }
 }
 
-async function processGlobalGiving(supabase: any, env: any, redemption: Record<string, unknown>, userId: string, pointsAmount: number, metadata: Record<string, unknown>) {
-    const organization = metadata.organization as string;
+async function processGlobalGiving(supabase: any, env: any, redemption: Record<string, unknown>, userId: string, pointsAmount: number, metadata: Record<string, unknown> | null) {
+    const safeMetadata = metadata || {};
+    const organization = safeMetadata.organization as string;
     const projectId = redemption.item_id as string;
     const dollarAmount = pointsAmount / 100;
     const donationCents = Math.round(dollarAmount * 100);
@@ -260,9 +262,10 @@ async function processGlobalGiving(supabase: any, env: any, redemption: Record<s
     await sendPushNotification(supabase, { userIds: [userId], title: "Donation Complete 💛", body: msg, url: "/transaction-history" });
 }
 
-async function processPayPalCashout(supabase: any, env: any, redemption: Record<string, unknown>, userId: string, pointsAmount: number, metadata: Record<string, unknown>) {
-    const usdAmount = metadata.usd_amount as number;
-    const payoutTarget = metadata.payout_target as string;
+async function processPayPalCashout(supabase: any, env: any, redemption: Record<string, unknown>, userId: string, pointsAmount: number, metadata: Record<string, unknown> | null) {
+    const safeMetadata = metadata || {};
+    const usdAmount = (safeMetadata.usd_amount as number) || (pointsAmount / 100);
+    const payoutTarget = safeMetadata.payout_target as string;
     const provider = redemption.provider as string || "paypal";
 
     const PAYPAL_CLIENT_ID = env("PAYPAL_CLIENT_ID");

@@ -97,7 +97,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
     // Process each redemption strict FIFO, checking available remaining balance for each
     for (const redemption of queuedRedemptions) {
-        const { provider, metadata, user_id, point_cost } = redemption;
+        const { provider, user_id, point_cost } = redemption;
+        const metadata = redemption.metadata || {};
 
         providersAttempted.add(provider);
 
@@ -234,10 +235,10 @@ async function processGiftCard(
     redemption: Record<string, unknown>,
     provider: "tremendous" | "reloadly",
 ) {
-    const metadata = redemption.metadata as Record<string, unknown>;
+    const metadata = (redemption.metadata || {}) as Record<string, unknown>;
     const brand_name = metadata.brand_name as string;
     const product_id = metadata.product_id as string;
-    const face_value_cents = metadata.face_value_cents as number;
+    const face_value_cents = (metadata.face_value_cents as number) || Math.round(((redemption.point_cost as number) / 100) * 100);
 
     let providerResult;
 
@@ -326,9 +327,10 @@ async function processGlobalGiving(
     redemption: Record<string, unknown>,
     userId: string,
     pointsAmount: number,
-    metadata: Record<string, unknown>,
+    metadata: Record<string, unknown> | null,
 ) {
-    const organization = metadata.organization as string;
+    const safeMetadata = metadata || {};
+    const organization = safeMetadata.organization as string;
     const projectId = redemption.item_id as string;
 
     const POINTS_PER_DOLLAR = 100;
@@ -431,10 +433,11 @@ async function processPayPalCashout(
     redemption: Record<string, unknown>,
     userId: string,
     pointsAmount: number,
-    metadata: Record<string, unknown>,
+    metadata: Record<string, unknown> | null,
 ) {
-    const usdAmount = metadata.usd_amount as number;
-    const payoutTarget = metadata.payout_target as string;
+    const safeMetadata = metadata || {};
+    const usdAmount = (safeMetadata.usd_amount as number) || (pointsAmount / 100);
+    const payoutTarget = safeMetadata.payout_target as string;
     const provider = redemption.provider as string || "paypal";
 
     const PAYPAL_CLIENT_ID = env("PAYPAL_CLIENT_ID");
