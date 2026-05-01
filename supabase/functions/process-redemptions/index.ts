@@ -148,7 +148,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
                 await processGiftCard(supabase, env, redemption, "reloadly");
                 reloadlyBalance -= estimatedCost;
-            } else if (provider === "paypal") {
+            } else if (provider === "paypal" || provider === "venmo") {
                 await processPayPalCashout(
                     supabase,
                     env,
@@ -435,6 +435,7 @@ async function processPayPalCashout(
 ) {
     const usdAmount = metadata.usd_amount as number;
     const payoutTarget = metadata.payout_target as string;
+    const provider = redemption.provider as string || "paypal";
 
     const PAYPAL_CLIENT_ID = env("PAYPAL_CLIENT_ID");
     const PAYPAL_SECRET = env("PAYPAL_SECRET");
@@ -516,8 +517,8 @@ async function processPayPalCashout(
         {
             p_payload: {
                 redemption_id: redemption.id,
-                redemption_type: "paypal",
-                provider_name: "paypal",
+                redemption_type: provider,
+                provider_name: provider,
                 external_order_id: txId,
                 actual_cost_cents: Math.round(usdAmount * 100),
             },
@@ -536,7 +537,7 @@ async function processPayPalCashout(
         p_event_type: "cashout_sent",
         p_direction: "outflow",
         p_amount_usd: usdAmount,
-        p_provider: "paypal",
+        p_provider: provider,
         p_reference_type: "redemption",
         p_reference_id: redemption.id,
         p_metadata: { payout_target: payoutTarget, batch_id: txId, source: "process-redemptions" },

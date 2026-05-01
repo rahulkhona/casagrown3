@@ -108,7 +108,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                 }
                 await processGiftCard(supabase, env, redemption, "reloadly");
                 reloadlyBalance -= estimatedCost;
-            } else if (provider === "paypal") {
+            } else if (provider === "paypal" || provider === "venmo") {
                 await processPayPalCashout(supabase, env, redemption, user_id, point_cost, metadata);
             } else {
                 throw new Error(`Unknown provider for retry: ${provider}`);
@@ -263,6 +263,7 @@ async function processGlobalGiving(supabase: any, env: any, redemption: Record<s
 async function processPayPalCashout(supabase: any, env: any, redemption: Record<string, unknown>, userId: string, pointsAmount: number, metadata: Record<string, unknown>) {
     const usdAmount = metadata.usd_amount as number;
     const payoutTarget = metadata.payout_target as string;
+    const provider = redemption.provider as string || "paypal";
 
     const PAYPAL_CLIENT_ID = env("PAYPAL_CLIENT_ID");
     const PAYPAL_SECRET = env("PAYPAL_SECRET");
@@ -295,13 +296,13 @@ async function processPayPalCashout(supabase: any, env: any, redemption: Record<
 
     const txId = payoutData.batch_header?.payout_batch_id || `paypal_manual_id_${Date.now()}`;
     const { error: finalizeError } = await supabase.rpc("finalize_redemption", {
-        p_payload: { redemption_id: redemption.id, redemption_type: "paypal", provider_name: "paypal", external_order_id: txId, actual_cost_cents: Math.round(usdAmount * 100) },
+        p_payload: { redemption_id: redemption.id, redemption_type: provider, provider_name: provider, external_order_id: txId, actual_cost_cents: Math.round(usdAmount * 100) },
     });
 
     if (finalizeError) console.error(`[MANUAL-RETRY] Finalize PayPal error:`, finalizeError);
 
     await supabase.rpc("append_bank_ledger_entry", {
-        p_event_type: "cashout_sent", p_direction: "outflow", p_amount_usd: usdAmount, p_provider: "paypal",
+        p_event_type: "cashout_sent", p_direction: "outflow", p_amount_usd: usdAmount, p_provider: provider,
         p_reference_type: "redemption", p_reference_id: redemption.id, p_metadata: { payout_target: payoutTarget, batch_id: txId, source: "admin-manual-process" },
     });
 
