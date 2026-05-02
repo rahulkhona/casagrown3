@@ -17,10 +17,6 @@ import {
 } from "../_shared/serve-with-cors.ts";
 import { sendPushNotification } from "../_shared/push-notify.ts";
 import {
-    fetchTremendousBalance,
-    orderFromTremendous,
-} from "../_shared/tremendous.ts";
-import {
     fetchReloadlyBalance,
     orderFromReloadly,
 } from "../_shared/reloadly.ts";
@@ -69,16 +65,11 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         return jsonOk({ success: true, processed: 0, message: "No eligible queued redemptions found in selection" }, corsHeaders);
     }
 
-    const needsTremendous = queuedRedemptions.some(r => r.provider === "tremendous");
     const needsReloadly = queuedRedemptions.some(r => r.provider === "reloadly");
 
-    let tremendousBalance = 0;
     let reloadlyBalance = 0;
 
     try {
-        if (needsTremendous && env("TREMENDOUS_API_KEY")) {
-            tremendousBalance = await fetchTremendousBalance(env("TREMENDOUS_API_KEY")!);
-        }
         if (needsReloadly && env("RELOADLY_CLIENT_ID") && env("RELOADLY_CLIENT_SECRET")) {
             reloadlyBalance = await fetchReloadlyBalance(
                 env("RELOADLY_CLIENT_ID")!,
@@ -91,7 +82,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     }
 
     console.log(
-        `[MANUAL-RETRY] Provider Balances -> Tremendous: $${(tremendousBalance / 100).toFixed(2)}, Reloadly: $${(reloadlyBalance / 100).toFixed(2)}`,
+        `[MANUAL-RETRY] Provider Balances -> Reloadly: $${(reloadlyBalance / 100).toFixed(2)}`,
     );
 
     let processedCount = 0;
@@ -105,12 +96,6 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         try {
             if (provider === "globalgiving") {
                 await processGlobalGiving(supabase, env, redemption, user_id, point_cost, metadata);
-            } else if (provider === "tremendous") {
-                if (faceValueCents > tremendousBalance && tremendousBalance > 0) {
-                    throw new Error(`Insufficient Tremendous corporate balance for redemption`);
-                }
-                await processGiftCard(supabase, env, redemption, "tremendous");
-                tremendousBalance -= faceValueCents;
             } else if (provider === "reloadly") {
                 const estimatedCost = faceValueCents + (metadata.net_fee_cents || 50);
                 if (estimatedCost > reloadlyBalance && reloadlyBalance > 0) {
@@ -149,7 +134,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     }, corsHeaders);
 });
 
-async function processGiftCard(supabase: any, env: any, redemption: Record<string, unknown>, provider: "tremendous" | "reloadly") {
+async function processGiftCard(supabase: any, env: any, redemption: Record<string, unknown>, provider: "reloadly") {
     const metadata = (redemption.metadata || {}) as Record<string, unknown>;
     const brand_name = metadata.brand_name as string;
     const product_id = metadata.product_id as string;
@@ -160,12 +145,7 @@ async function processGiftCard(supabase: any, env: any, redemption: Record<strin
     const { data: authUser } = await supabase.auth.admin.getUserById(redemption.user_id);
     recipientEmail = authUser?.user?.email || "";
 
-    let providerResult;
-    if (provider === "tremendous") {
-        providerResult = await orderFromTremendous(env("TREMENDOUS_API_KEY") || "", product_id, brand_name, face_value_cents, redemption.id as string, recipientEmail);
-    } else {
-        providerResult = await orderFromReloadly(env("RELOADLY_CLIENT_ID") || "", env("RELOADLY_CLIENT_SECRET") || "", product_id, brand_name, face_value_cents, env("RELOADLY_SANDBOX") !== "false", redemption.id as string, recipientEmail);
-    }
+    const providerResult = await orderFromReloadly(env("RELOADLY_CLIENT_ID") || "", env("RELOADLY_CLIENT_SECRET") || "", product_id, brand_name, face_value_cents, env("RELOADLY_SANDBOX") !== "false", redemption.id as string, recipientEmail);
 
     if (providerResult.cardUrl) {
         // Synchronous fulfillment succeeded
@@ -279,7 +259,7 @@ async function processPayPalCashout(supabase: any, env: any, redemption: Record<
 
     const PAYPAL_CLIENT_ID = env("PAYPAL_CLIENT_ID");
     const PAYPAL_SECRET = env("PAYPAL_SECRET");
-    const PAYPAL_BASE_URL = env("SUPABASE_URL")?.includes("casagrown") && !env("SUPABASE_URL")?.includes("localhost") ? "https://api-m.paypal.com" : "https://api-m.sandbox.paypal.com";
+    const PAYPAL_BASE_URL = env("PAYPAL_SANDBOX") !== "false" ? "https://api-m.sandbox.paypal.com" : "https://api-m.paypal.com";
 
     if (!PAYPAL_CLIENT_ID || !PAYPAL_SECRET) throw new Error("PayPal API keys missing");
 
