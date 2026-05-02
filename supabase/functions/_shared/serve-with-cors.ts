@@ -187,11 +187,19 @@ export async function requireAuth(
         );
     }
 
-    const token = authHeader.replace("Bearer ", "");
+    const token = authHeader.replace("Bearer ", "").trim();
     
-    // Check if it's a trusted server-to-server call using the Service Role Key
-    if (token === Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) {
-        return "service_role";
+    // Check if it's a trusted server-to-server call using a Service Role Key
+    try {
+        const payloadParts = token.split('.');
+        if (payloadParts.length === 3) {
+            const payload = JSON.parse(atob(payloadParts[1]));
+            if (payload.role === "service_role") {
+                return "service_role";
+            }
+        }
+    } catch {
+        // Ignore parse errors, fall through to getUser
     }
 
     const { data: { user }, error } = await supabase.auth.getUser(token);
