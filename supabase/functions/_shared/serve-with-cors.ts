@@ -193,13 +193,16 @@ export async function requireAuth(
     try {
         const payloadParts = token.split('.');
         if (payloadParts.length === 3 && payloadParts[1]) {
-            const payload = JSON.parse(atob(payloadParts[1]));
+            // Convert Base64URL to standard Base64 before decoding
+            const base64 = payloadParts[1].replace(/-/g, '+').replace(/_/g, '/');
+            const payload = JSON.parse(atob(base64));
             if (payload.role === "service_role") {
                 return "service_role";
             }
         }
-    } catch {
+    } catch (err) {
         // Ignore parse errors, fall through to getUser
+        console.warn("JWT Bypass Parse Error:", err);
     }
 
     const { data: { user }, error } = await supabase.auth.getUser(token);
