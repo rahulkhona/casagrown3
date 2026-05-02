@@ -120,13 +120,13 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
 
             // Log admin outflow securely
             await supabaseAdmin.rpc("append_bank_ledger_entry", {
-                p_event_type: "manual_fulfillment_sent", 
+                p_event_type: "cashout_sent", 
                 p_direction: "outflow", 
                 p_amount_usd: usdAmount, 
-                p_provider: f.fulfillment_source || "admin_manual",
+                p_provider: f.fulfillment_source?.toLowerCase() === 'venmo' ? 'venmo' : f.fulfillment_source?.toLowerCase() === 'paypal' ? 'paypal' : 'manual',
                 p_reference_type: "redemption", 
                 p_reference_id: f.redemption_id, 
-                p_metadata: { source: "admin-manual-process", reference_id: f.reference_id, proof_url: f.proof_url },
+                p_metadata: { source: "admin-manual-process", fulfillment_source: f.fulfillment_source, reference_id: f.reference_id, proof_url: f.proof_url },
             });
 
             // Build dynamic push notification text
