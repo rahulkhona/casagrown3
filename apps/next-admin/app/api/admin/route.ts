@@ -192,11 +192,34 @@ export async function POST(request: NextRequest) {
       if (!functionName) {
         return NextResponse.json({ error: 'functionName is required' }, { status: 400 })
       }
-      const { data: fnResult, error: fnError } = await serviceClient.functions.invoke(functionName, {
+
+      // Wrap invocation in a 55-second timeout so the admin UI never hangs indefinitely.
+      // Supabase Edge Functions have a 60s default timeout; we cut slightly short
+      // so the admin always gets a clean error instead of a browser timeout.
+      const invokePromise = serviceClient.functions.invoke(functionName, {
         body: fnBody || {},
       })
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Edge Function '${functionName}' did not respond within 55 seconds. It may still be running — check the Supabase Dashboard logs.`)), 55_000)
+      )
+
+      let fnResult: any
+      let fnError: any
+      try {
+        const result = await Promise.race([invokePromise, timeoutPromise])
+        fnResult = result.data
+        fnError = result.error
+      } catch (timeoutErr: any) {
+        return NextResponse.json({ error: timeoutErr.message }, { status: 504 })
+      }
+
       if (fnError) {
-        return NextResponse.json({ error: fnError.message }, { status: 400 })
+        // Surface as much detail as possible for debugging
+        const errMsg = typeof fnError === 'object' && fnError.context
+          ? `${fnError.message} — ${JSON.stringify(fnError.context)}`
+          : fnError.message || String(fnError)
+        console.error(`[Admin] Edge Function '${functionName}' error:`, fnError)
+        return NextResponse.json({ error: errMsg }, { status: 400 })
       }
       return NextResponse.json({ data: fnResult })
     }
