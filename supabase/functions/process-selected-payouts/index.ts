@@ -312,7 +312,8 @@ async function processPayPalCashout(supabase: any, env: any, redemption: Record<
 
     const payoutData = await payoutRes.json();
     if (!payoutRes.ok || payoutData.name === "INSUFFICIENT_FUNDS") {
-        throw new Error(payoutData.message || "PayPal rejected manual transfer.");
+        console.error(`[MANUAL-RETRY] PayPal payout rejected:`, JSON.stringify(payoutData));
+        throw new Error(`PayPal payout failed (${payoutRes.status}): ${payoutData.message || payoutData.name || JSON.stringify(payoutData)}`);
     }
     console.log(`[MANUAL-RETRY] PayPal payout successful!`);
 
