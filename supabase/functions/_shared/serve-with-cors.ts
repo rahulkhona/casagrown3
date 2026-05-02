@@ -192,7 +192,7 @@ export async function requireAuth(
     // Check if it's a trusted server-to-server call using a Service Role Key
     try {
         const payloadParts = token.split('.');
-        if (payloadParts.length === 3) {
+        if (payloadParts.length === 3 && payloadParts[1]) {
             const payload = JSON.parse(atob(payloadParts[1]));
             if (payload.role === "service_role") {
                 return "service_role";
