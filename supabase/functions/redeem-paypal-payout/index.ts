@@ -153,6 +153,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
       user_id: userId,
       item_id: null,
       point_cost: pointsToRedeem,
+      provider: "paypal",
       status: "pending",
       metadata: {
         type: "paypal_cashout",
