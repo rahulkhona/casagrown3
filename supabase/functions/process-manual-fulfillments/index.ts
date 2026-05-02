@@ -63,7 +63,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
         .from("redemptions")
         .select("*")
         .in("id", redemptionIds)
-        .or("status.eq.failed,status.eq.pending");
+        .or("status.eq.queued,status.eq.failed");
 
     if (fetchError) {
         return jsonError(`Failed to fetch redemptions: ${fetchError.message}`, corsHeaders);
