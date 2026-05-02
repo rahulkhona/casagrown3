@@ -23,12 +23,10 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   const PAYPAL_CLIENT_ID = env("PAYPAL_CLIENT_ID");
   const PAYPAL_SECRET = env("PAYPAL_SECRET");
 
-  // Use sandbox API in local/dev, live in production
-  const IS_PROD = env("SUPABASE_URL")?.includes("casagrown") &&
-    !env("SUPABASE_URL")?.includes("localhost");
-  const PAYPAL_BASE_URL = IS_PROD
-    ? "https://api-m.paypal.com"
-    : "https://api-m.sandbox.paypal.com";
+  // Use sandbox API unless explicitly disabled
+  const PAYPAL_BASE_URL = env("PAYPAL_SANDBOX") !== "false"
+    ? "https://api-m.sandbox.paypal.com"
+    : "https://api-m.paypal.com";
 
   if (!PAYPAL_CLIENT_ID || !PAYPAL_SECRET) {
     return jsonError("PayPal API keys are missing", corsHeaders);
