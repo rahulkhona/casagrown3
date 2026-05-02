@@ -101,8 +101,8 @@
   margin-bottom: 30px;
   z-index: 4;
 }
-.whyCardAmber {
-  background: linear-gradient(135deg, #F7C948 0%, #F1B51A 100%);
+.whyCardBerry {
+  background: linear-gradient(135deg, #E11D48 0%, #9F1239 100%);
   transform: rotate(4deg);
   margin-bottom: 0px;
   z-index: 3;
@@ -128,6 +128,25 @@
 .whyDesc {
   font-size: 13px; color: rgba(255,255,255,0.92); line-height: 1.6; margin: 0;
 }
+.whyLink, .whyLinkBtn {
+  display: inline-block;
+  margin-top: 16px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  text-decoration: none;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  transition: background 0.2s;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+.whyLink:hover, .whyLinkBtn:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
 
 @media (max-width: 900px) {
   .whyGrid {
@@ -139,7 +158,7 @@
     margin: -6px 0 !important;
   }
   .whyCardGreen  { transform: rotate(-3deg); z-index: 4; }
-  .whyCardAmber  { transform: rotate(2deg); z-index: 3; }
+  .whyCardBerry  { transform: rotate(2deg); z-index: 3; }
   .whyCardBlue2  { transform: rotate(-2deg); z-index: 2; }
   .whyCardPink   { transform: rotate(3deg); z-index: 1; }
 }
@@ -335,6 +354,86 @@
 .calBtn:hover { background: var(--green-50); transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
 .scheduleCta { }
 
+/* ---- Bottom Tools ---- */
+.bottomTools {
+  padding: 60px 24px;
+  background: var(--green-50);
+  border-top: 1px solid var(--border);
+}
+.toolsHeader {
+  text-align: center;
+  margin-bottom: 32px;
+}
+.toolsHeader h3 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--gray-800);
+  margin-bottom: 8px;
+}
+.toolsHeader p {
+  font-size: 16px;
+  color: var(--gray-600);
+}
+.toolsGrid {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  max-width: 900px;
+  margin: 0 auto;
+}
+.toolCard {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: #fff;
+  border-radius: var(--radius-xl);
+  padding: 24px;
+  text-decoration: none;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  transition: all 0.2s ease;
+}
+.toolCard:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.1);
+  border-color: var(--green-300);
+}
+.toolIcon {
+  font-size: 32px;
+  flex-shrink: 0;
+}
+.toolText {
+  flex: 1;
+}
+.toolText h4 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--gray-800);
+  margin-bottom: 4px;
+}
+.toolText p {
+  font-size: 13px;
+  color: var(--gray-500);
+  line-height: 1.4;
+  margin: 0;
+}
+.toolArrow {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--green-600);
+  transition: transform 0.2s;
+}
+.toolCard:hover .toolArrow {
+  transform: translateX(4px);
+}
+
+@media (max-width: 768px) {
+  .toolsGrid {
+    flex-direction: column;
+  }
+}
+
 /* ---- Footer ---- */
 .footer { background: var(--gray-900); color: #fff; padding: 40px 0 24px; }
 .footerInner { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; flex-wrap: wrap; gap: 24px; }
@@ -353,4 +452,91 @@
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
+}
+
+/* ---- Modals ---- */
+.modalOverlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: fadeIn 0.2s ease-out;
+}
+.modalContainer {
+  background: #fff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+  animation: slideUp 0.3s ease-out;
+  overflow: hidden;
+}
+.modalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  background: var(--green-50);
+  border-bottom: 1px solid var(--green-100);
+}
+.modalTitle {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--green-800);
+  margin: 0;
+}
+.modalClose {
+  background: none;
+  border: none;
+  font-size: 28px;
+  color: var(--green-600);
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  margin: -4px 0 0;
+  transition: color 0.2s;
+}
+.modalClose:hover {
+  color: var(--green-800);
+}
+.modalBody {
+  padding: 24px;
+}
+.modalBody p {
+  font-size: 15px;
+  color: var(--gray-700);
+  line-height: 1.6;
+  margin: 0 0 16px;
+}
+.modalBody p:last-child {
+  margin-bottom: 0;
+}
+.modalLink {
+  display: inline-block;
+  margin-top: 24px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--green-600);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+.modalLink:hover {
+  color: var(--green-800);
+  border-bottom-color: var(--green-800);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }

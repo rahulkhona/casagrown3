@@ -11,6 +11,13 @@ import styles from './page.module.css'
 export default function HomePage() {
   const router = useRouter()
   const [checking, setChecking] = useState(true)
+  const [activeModal, setActiveModal] = useState<'waste' | 'teens' | null>(null)
+
+  useEffect(() => {
+    if (activeModal) document.body.style.overflow = 'hidden'
+    else document.body.style.overflow = 'auto'
+    return () => { document.body.style.overflow = 'auto' }
+  }, [activeModal])
 
   // Check auth on mount — redirect fully-set-up users to community
   useEffect(() => {
@@ -96,24 +103,36 @@ export default function HomePage() {
               <p className={styles.whyDesc}>
                 Fruits in grocery stores often take weeks to months to reach the shelves. CasaGrown connects you with neighbors for produce picked fresh from the tree.
               </p>
+              <Link href="/check-nutrition-loss" className={styles.whyLink}>
+                Check grocery nutrition loss →
+              </Link>
             </div>
-            <div className={`${styles.whyCard} ${styles.whyCardAmber}`}>
-              <h3 className={styles.whyTitle}>Stop Food Waste</h3>
-              <p className={styles.whyDesc}>
-                Over 11.5 billion pounds of backyard produce goes to waste every year. Join us in saving it to feed 28 million people.
-              </p>
-            </div>
-            <div className={`${styles.whyCard} ${styles.whyCardBlue2}`}>
+            <div className={`${styles.whyCard} ${styles.whyCardBerry}`}>
               <h3 className={styles.whyTitle}>Beat Inflation</h3>
               <p className={styles.whyDesc}>
                 Earn extra cash from your garden selling homegrown abundance to neighbors, or save money by finding high-quality produce right next door.
               </p>
+              <Link href="/sell" className={styles.whyLink}>
+                Estimate your earning potential →
+              </Link>
+            </div>
+            <div className={`${styles.whyCard} ${styles.whyCardBlue2}`}>
+              <h3 className={styles.whyTitle}>Stop Food Waste</h3>
+              <p className={styles.whyDesc}>
+                Over 11.5 billion pounds of backyard produce goes to waste every year. Join us in saving it to feed 28 million people.
+              </p>
+              <button onClick={() => setActiveModal('waste')} className={styles.whyLinkBtn}>
+                Read the research →
+              </button>
             </div>
             <div className={`${styles.whyCard} ${styles.whyCardPink}`}>
               <h3 className={styles.whyTitle}>Teen Opportunity</h3>
               <p className={styles.whyDesc}>
                 Empower teens to learn business skills and earn pocket money by selling and delivering homegrown produce.
               </p>
+              <button onClick={() => setActiveModal('teens')} className={styles.whyLinkBtn}>
+                See the data →
+              </button>
             </div>
           </div>
         </div>
@@ -275,6 +294,35 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* ──── Bottom Funnel Tools ──── */}
+      <section className={styles.bottomTools}>
+        <div className="container">
+          <div className={styles.toolsHeader}>
+            <h3>Not ready to join the movement yet?</h3>
+            <p>Try our free calculators to see the impact you could make.</p>
+          </div>
+          <div className={styles.toolsGrid}>
+            <Link href="/check-nutrition-loss" className={styles.toolCard}>
+              <div className={styles.toolIcon}>🥦</div>
+              <div className={styles.toolText}>
+                <h4>Check Nutrition Loss</h4>
+                <p>Find out how many nutrients store-bought produce has already lost.</p>
+              </div>
+              <div className={styles.toolArrow}>→</div>
+            </Link>
+
+            <Link href="/sell" className={styles.toolCard}>
+              <div className={styles.toolIcon}>💸</div>
+              <div className={styles.toolText}>
+                <h4>Estimate Your Potential</h4>
+                <p>Got a garden? Calculate how much you could earn selling your harvest.</p>
+              </div>
+              <div className={styles.toolArrow}>→</div>
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* ──── Footer ──── */}
       <footer className={styles.footer}>
         <div className="container">
@@ -297,6 +345,37 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
+
+      {/* ──── Research Modals ──── */}
+      {activeModal && (
+        <div className={styles.modalOverlay} onClick={() => setActiveModal(null)}>
+          <div className={styles.modalContainer} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h3 className={styles.modalTitle}>
+                {activeModal === 'waste' ? 'The Hidden Food Waste Crisis' : 'Building Lifelong Resilience'}
+              </h3>
+              <button className={styles.modalClose} onClick={() => setActiveModal(null)}>×</button>
+            </div>
+            <div className={styles.modalBody}>
+              {activeModal === 'waste' ? (
+                <>
+                  <p>According to a landmark study by <strong>AmpleHarvest.org</strong>, national food waste metrics historically ignored residential growers. The study revealed an astonishing <strong>11.5 billion pounds</strong> of fresh produce is wasted annually in American backyards, patios, and community gardens.</p>
+                  <p>By selling or donating your excess harvest on CasaGrown, you directly combat this hidden crisis while keeping fresh, nutritious food in your local community.</p>
+                  <a href="https://ampleharvest.org/downloads/GardenerSurvey/Summary_Data_with_Graphs.pdf" target="_blank" rel="noopener noreferrer" className={styles.modalLink}>
+                    View the AmpleHarvest 11.5B lbs Data (PDF) ↗
+                  </a>
+                </>
+              ) : (
+                <>
+                  <p>Running a micro-business is one of the most effective ways for teenagers to develop real-world &quot;soft skills&quot; that traditional schooling often misses.</p>
+                  <p>By managing their own backyard produce sales on CasaGrown, teens gain hands-on experience with financial literacy, customer communication, and responsibility. These are fundamental entrepreneurial skills that build confidence and translate directly to long-term academic and professional success.</p>
+                  <p>It’s a low-risk, high-reward way to help the next generation learn the value of a dollar while contributing to their local community.</p>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
