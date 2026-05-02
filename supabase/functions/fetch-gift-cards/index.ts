@@ -14,7 +14,6 @@
 
 import { jsonOk, serveWithCors } from "../_shared/serve-with-cors.ts";
 import { UnifiedGiftCard } from "../_shared/gift-card-types.ts";
-import { fetchTremendousCatalog } from "../_shared/tremendous.ts";
 import { fetchReloadlyCatalog } from "../_shared/reloadly.ts";
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -93,45 +92,24 @@ export async function fetchAndCacheGiftCards(
 
     const brandMap = new Map<string, UnifiedGiftCard>();
 
-    const tremendousKey = env("TREMENDOUS_API_KEY") || "";
     const reloadlyClient = env("RELOADLY_CLIENT_ID") || "";
     const reloadlySecret = env("RELOADLY_CLIENT_SECRET") || "";
     const isSandbox = env("RELOADLY_SANDBOX") !== "false";
 
-    const fetchPromises: Promise<UnifiedGiftCard[]>[] = [];
-    let tremendousPromiseIndex = -1;
-    let reloadlyPromiseIndex = -1;
-
-    if (activeList.includes("tremendous") && tremendousKey) {
-        fetchPromises.push(fetchTremendousCatalog(tremendousKey));
-        tremendousPromiseIndex = fetchPromises.length - 1;
-    }
+    let reloadlyCards: UnifiedGiftCard[] | null = null;
+    let reloadlyError: any = null;
 
     if (activeList.includes("reloadly") && reloadlyClient && reloadlySecret) {
-        fetchPromises.push(
-            fetchReloadlyCatalog(reloadlyClient, reloadlySecret, isSandbox),
-        );
-        reloadlyPromiseIndex = fetchPromises.length - 1;
+        try {
+            reloadlyCards = await fetchReloadlyCatalog(reloadlyClient, reloadlySecret, isSandbox);
+        } catch (err) {
+            reloadlyError = err;
+        }
     }
 
-    const results = await Promise.allSettled(fetchPromises);
-
-    const tremendousCards = tremendousPromiseIndex >= 0
-        ? results[tremendousPromiseIndex]
-        : {
-            status: "rejected",
-            reason: "provider disabled",
-        } as PromiseRejectedResult;
-    const reloadlyCards = reloadlyPromiseIndex >= 0
-        ? results[reloadlyPromiseIndex]
-        : {
-            status: "rejected",
-            reason: "provider disabled",
-        } as PromiseRejectedResult;
-
-    // Process Tremendous first (preferred: free)
-    if (tremendousCards && tremendousCards.status === "fulfilled") {
-        for (const card of tremendousCards.value) {
+    // Process Reloadly — add new brands
+    if (reloadlyCards) {
+        for (const card of reloadlyCards) {
             const key = normalizeBrand(card.brandName);
             brandMap.set(key, {
                 ...card,
@@ -140,68 +118,12 @@ export async function fetchAndCacheGiftCards(
             });
         }
         console.log(
-            `[CATALOG] Tremendous: ${tremendousCards.value.length} products`,
-        );
-    } else {
-        console.error(
-            "[CATALOG] Tremendous fetch failed:",
-            tremendousCards && tremendousCards.status === "rejected"
-                ? tremendousCards.reason
-                : "unknown",
-        );
-    }
-
-    // Process Reloadly — merge into existing brands or add new ones
-    if (reloadlyCards && reloadlyCards.status === "fulfilled") {
-        for (const card of reloadlyCards.value) {
-            const key = normalizeBrand(card.brandName);
-            const existing = brandMap.get(key);
-
-            if (existing) {
-                // Brand already exists from Tremendous — add Reloadly as an option
-                existing.availableProviders.push(card.availableProviders[0]!);
-                // Merge denominations
-                if (card.denominationType === "fixed") {
-                    const existingDenoms = new Set(
-                        existing.fixedDenominations,
-                    );
-                    for (const d of card.fixedDenominations) {
-                        existingDenoms.add(d);
-                    }
-                    existing.fixedDenominations = [...existingDenoms].sort(
-                        (a, b) => a - b,
-                    );
-                }
-                existing.minDenomination = Math.min(
-                    existing.minDenomination,
-                    card.minDenomination,
-                );
-                existing.maxDenomination = Math.max(
-                    existing.maxDenomination,
-                    card.maxDenomination,
-                );
-                // Use Reloadly logo if Tremendous didn't have one
-                if (!existing.logoUrl && card.logoUrl) {
-                    existing.logoUrl = card.logoUrl;
-                }
-            } else {
-                // New brand only on Reloadly
-                brandMap.set(key, {
-                    ...card,
-                    brandKey: key,
-                    id: `brand-${key.replace(/\s/g, "-")}`,
-                });
-            }
-        }
-        console.log(
-            `[CATALOG] Reloadly: ${reloadlyCards.value.length} products`,
+            `[CATALOG] Reloadly: ${reloadlyCards.length} products`,
         );
     } else {
         console.error(
             "[CATALOG] Reloadly fetch failed:",
-            reloadlyCards && reloadlyCards.status === "rejected"
-                ? reloadlyCards.reason
-                : "unknown",
+            reloadlyError || "unknown",
         );
     }
 
