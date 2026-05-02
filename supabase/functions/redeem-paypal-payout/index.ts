@@ -298,14 +298,14 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     await supabase.from("notifications").insert({
       user_id: userId,
       content: queuedMessage,
-      link_url: "/transaction-history",
+      link_url: "/earnings",
     });
 
     await sendPushNotification(supabase, {
       userIds: [userId],
       title: "Cashout Queued ⏳",
       body: queuedMessage,
-      url: "/transaction-history",
+      url: "/earnings",
     });
 
     // Option to trip the breaker immediately if API failed
@@ -385,14 +385,14 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   await supabase.from("notifications").insert({
     user_id: userId,
     content: successMessage,
-    link_url: "/transaction-history",
+    link_url: "/earnings",
   });
 
   await sendPushNotification(supabase, {
     userIds: [userId],
     title: "Cashout Successful 💸",
     body: successMessage,
-    url: "/transaction-history",
+    url: "/earnings",
   });
 
   return jsonOk(

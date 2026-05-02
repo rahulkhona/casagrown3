@@ -136,14 +136,14 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
             await supabaseAdmin.from("market_notifications").insert({ 
                 user_id, 
                 content: msg, 
-                link_url: "/transaction-history" 
+                link_url: "/earnings" 
             });
             
             await sendPushNotification(supabaseAdmin, { 
                 userIds: [user_id as string], 
                 title: "Payout Complete 💸", 
                 body: msg, 
-                url: "/transaction-history" 
+                url: "/earnings" 
             });
 
             processedCount++;

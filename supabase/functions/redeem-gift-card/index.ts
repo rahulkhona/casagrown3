@@ -318,14 +318,14 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     await supabase.from("notifications").insert({
       user_id: userId,
       content: queuedMessage,
-      link_url: "/transaction-history",
+      link_url: "/earnings",
     });
 
     await sendPushNotification(supabase, {
       userIds: [userId],
       title: "Redemption Queued ⏳",
       body: queuedMessage,
-      url: "/transaction-history",
+      url: "/earnings",
     });
 
     // Return gracefully so the frontend assumes success-but-queued

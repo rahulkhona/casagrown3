@@ -182,8 +182,8 @@ async function processGiftCard(supabase: any, env: any, redemption: Record<strin
         });
 
         const msg = `Good news! Your $${(face_value_cents / 100).toFixed(2)} ${brand_name} Gift Card redemption is now complete and ready to use.`;
-        await supabase.from("market_notifications").insert({ user_id: redemption.user_id, content: msg, link_url: providerResult.cardUrl || "/transaction-history" });
-        await sendPushNotification(supabase, { userIds: [redemption.user_id as string], title: "Redemption Complete 🎉", body: msg, url: "/transaction-history" });
+        await supabase.from("market_notifications").insert({ user_id: redemption.user_id, content: msg, link_url: providerResult.cardUrl || "/earnings" });
+        await sendPushNotification(supabase, { userIds: [redemption.user_id as string], title: "Redemption Complete 🎉", body: msg, url: "/earnings" });
     } else {
         // Asynchronous fulfillment (wait for Webhook)
         await supabase.from("redemptions").update({
@@ -259,8 +259,8 @@ async function processGlobalGiving(supabase: any, env: any, redemption: Record<s
     });
 
     const msg = `Your queued donation of $${dollarAmount.toFixed(2)} to ${organization} has been successfully processed!`;
-    await supabase.from("market_notifications").insert({ user_id: userId, content: msg, link_url: "/transaction-history" });
-    await sendPushNotification(supabase, { userIds: [userId], title: "Donation Complete 💛", body: msg, url: "/transaction-history" });
+    await supabase.from("market_notifications").insert({ user_id: userId, content: msg, link_url: "/earnings" });
+    await sendPushNotification(supabase, { userIds: [userId], title: "Donation Complete 💛", body: msg, url: "/earnings" });
 }
 
 async function processPayPalCashout(supabase: any, env: any, redemption: Record<string, unknown>, userId: string, pointsAmount: number, metadata: Record<string, unknown> | null) {

@@ -306,14 +306,14 @@ async function processGiftCard(
     await supabase.from("notifications").insert({
         user_id: redemption.user_id,
         content: msg,
-        link_url: "/transaction-history",
+        link_url: "/earnings",
     });
 
     await sendPushNotification(supabase, {
         userIds: [redemption.user_id as string],
         title: "Redemption Complete 🎉",
         body: msg,
-        url: "/transaction-history",
+        url: "/earnings",
     });
 }
 
@@ -412,14 +412,14 @@ async function processGlobalGiving(
     await supabase.from("notifications").insert({
         user_id: userId,
         content: msg,
-        link_url: "/transaction-history",
+        link_url: "/earnings",
     });
 
     await sendPushNotification(supabase, {
         userIds: [userId],
         title: "Donation Complete 💛",
         body: msg,
-        url: "/transaction-history",
+        url: "/earnings",
     });
 }
 

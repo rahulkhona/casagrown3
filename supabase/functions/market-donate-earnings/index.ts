@@ -247,7 +247,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     await supabase.from("market_notifications").insert({
       user_id: userId,
       content: queuedMessage,
-      link_url: "/transaction-history",
+      link_url: "/earnings",
     });
 
     // Run external notifications in parallel with a timeout to prevent hanging
@@ -256,7 +256,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         userIds: [userId],
         title: "Donation Queued ⏳",
         body: queuedMessage,
-        url: "/transaction-history",
+        url: "/earnings",
       });
 
       const userEmailForNotify = await getUserEmail(supabase, userId);
@@ -332,14 +332,14 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     await supabase.from("market_notifications").insert({
       user_id: userId,
       content: successMessage,
-      link_url: "/transaction-history",
+      link_url: "/earnings",
     });
 
     await sendPushNotification(supabase, {
       userIds: [userId],
       title: "Donation Complete 💛",
       body: successMessage,
-      url: "/transaction-history",
+      url: "/earnings",
     });
 
     // Email notification for successful donation
@@ -369,14 +369,14 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     await supabase.from("market_notifications").insert({
       user_id: userId,
       content: queuedMessage,
-      link_url: "/transaction-history",
+      link_url: "/earnings",
     });
 
     await sendPushNotification(supabase, {
       userIds: [userId],
       title: "Donation Queued 💛",
       body: queuedMessage,
-      url: "/transaction-history",
+      url: "/earnings",
     });
 
     // Email notification for queued donation

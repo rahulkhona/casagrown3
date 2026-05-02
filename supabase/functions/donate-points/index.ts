@@ -230,14 +230,14 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     await supabase.from("notifications").insert({
       user_id: userId,
       content: successMessage,
-      link_url: "/transaction-history",
+      link_url: "/earnings",
     });
 
     await sendPushNotification(supabase, {
       userIds: [userId],
       title: "Donation Complete 💛",
       body: successMessage,
-      url: "/transaction-history",
+      url: "/earnings",
     });
   } else {
     // Queue state
@@ -250,14 +250,14 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     await supabase.from("notifications").insert({
       user_id: userId,
       content: queuedMessage,
-      link_url: "/transaction-history",
+      link_url: "/earnings",
     });
 
     await sendPushNotification(supabase, {
       userIds: [userId],
       title: "Donation Queued 💛",
       body: queuedMessage,
-      url: "/transaction-history",
+      url: "/earnings",
     });
   }
 
