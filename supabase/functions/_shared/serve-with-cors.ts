@@ -146,7 +146,7 @@ export function serveWithCors(
             return new Response(
                 JSON.stringify({ success: false, error: message, stack }),
                 {
-                    status: 200,
+                    status: options?.errorStatus || 400,
                     headers: {
                         ...corsHeaders,
                         "Content-Type": "application/json",
@@ -254,7 +254,7 @@ export function jsonOk(
 export function jsonError(
     message: string,
     corsHeaders: Record<string, string>,
-    status = 200,
+    status = 400,
 ): Response {
     return new Response(JSON.stringify({ success: false, error: message }), {
         status,
