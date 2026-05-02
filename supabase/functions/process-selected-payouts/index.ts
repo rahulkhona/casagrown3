@@ -54,7 +54,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         .from("redemptions")
         .select("*")
         .in("id", redemption_ids)
-        .or("status.eq.failed,status.eq.pending")
+        .or("status.eq.failed,status.eq.pending,status.eq.queued")
         .order("created_at", { ascending: true });
 
     if (fetchError) {
