@@ -40,14 +40,17 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { data: staff } = await supabaseAdmin
-        .from("staff_members")
-        .select("roles")
-        .eq("user_id", adminId)
-        .single();
-    
-    if (!staff || !staff.roles?.includes('admin')) {
-        return jsonError("Forbidden: Admin access required", corsHeaders, 403);
+    // Service role callers (from admin API route) are trusted
+    if (adminId !== "service_role") {
+        const { data: staff } = await supabaseAdmin
+            .from("staff_members")
+            .select("roles")
+            .eq("user_id", adminId)
+            .single();
+        
+        if (!staff || !staff.roles?.includes('admin')) {
+            return jsonError("Forbidden: Admin access required", corsHeaders, 403);
+        }
     }
 
     const { fulfillments } = body as { fulfillments: ManualFulfillmentPayload[] };
