@@ -194,6 +194,7 @@ export async function POST(request: NextRequest) {
       }
       const { data: fnResult, error: fnError } = await serviceClient.functions.invoke(functionName, {
         body: fnBody || {},
+        headers: { Authorization: `Bearer ${accessToken}` }
       })
       if (fnError) {
         return NextResponse.json({ error: fnError.message }, { status: 400 })

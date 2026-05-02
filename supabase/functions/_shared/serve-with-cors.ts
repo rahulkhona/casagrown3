@@ -144,9 +144,9 @@ export function serveWithCors(
             }
 
             return new Response(
-                JSON.stringify({ success: false, error: message }),
+                JSON.stringify({ success: false, error: message, stack }),
                 {
-                    status: options?.errorStatus ?? 500,
+                    status: 200,
                     headers: {
                         ...corsHeaders,
                         "Content-Type": "application/json",
