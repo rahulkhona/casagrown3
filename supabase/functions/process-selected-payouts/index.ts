@@ -263,12 +263,19 @@ async function processPayPalCashout(supabase: any, env: any, redemption: Record<
 
     if (!PAYPAL_CLIENT_ID || !PAYPAL_SECRET) throw new Error("PayPal API keys missing");
 
+    console.log(`[MANUAL-RETRY] Starting PayPal cashout for ${redemption.id} to ${payoutTarget}...`);
     const credentials = btoa(`${PAYPAL_CLIENT_ID}:${PAYPAL_SECRET}`);
+    
+    console.log(`[MANUAL-RETRY] Fetching PayPal token...`);
     const authRes = await fetch(`${PAYPAL_BASE_URL}/v1/oauth2/token`, {
         method: "POST", headers: { "Authorization": `Basic ${credentials}`, "Content-Type": "application/x-www-form-urlencoded" }, body: "grant_type=client_credentials",
+        signal: AbortSignal.timeout(5000)
     });
 
-    if (!authRes.ok) throw new Error("Failed PayPal auth");
+    if (!authRes.ok) {
+        const errStr = await authRes.text();
+        throw new Error(`Failed PayPal auth: ${authRes.status} ${errStr}`);
+    }
     const { access_token } = await authRes.json();
 
     const isPhone = /^\+?[1-9]\d{1,14}$/.test(payoutTarget);
@@ -279,12 +286,17 @@ async function processPayPalCashout(supabase: any, env: any, redemption: Record<
         items: [{ recipient_type: receiverType, amount: { value: usdAmount.toFixed(2), currency: "USD" }, note: "CasaGrown Market Payout", sender_item_id: `manual_item_${Date.now()}`, receiver: payoutTarget }],
     };
 
+    console.log(`[MANUAL-RETRY] Dispatching PayPal payout for ${usdAmount}...`);
     const payoutRes = await fetch(`${PAYPAL_BASE_URL}/v1/payments/payouts`, {
         method: "POST", headers: { "Authorization": `Bearer ${access_token}`, "Content-Type": "application/json" }, body: JSON.stringify(payoutPayload),
+        signal: AbortSignal.timeout(5000)
     });
 
     const payoutData = await payoutRes.json();
-    if (!payoutRes.ok || payoutData.name === "INSUFFICIENT_FUNDS") throw new Error(payoutData.message || "PayPal rejected manual transfer.");
+    if (!payoutRes.ok || payoutData.name === "INSUFFICIENT_FUNDS") {
+        throw new Error(payoutData.message || "PayPal rejected manual transfer.");
+    }
+    console.log(`[MANUAL-RETRY] PayPal payout successful!`);
 
     const txId = payoutData.batch_header?.payout_batch_id || `paypal_manual_id_${Date.now()}`;
     const { error: finalizeError } = await supabase.rpc("finalize_redemption", {
@@ -300,5 +312,13 @@ async function processPayPalCashout(supabase: any, env: any, redemption: Record<
 
     const msg = `Your queued cashout of $${usdAmount.toFixed(2)} to ${payoutTarget} has been successfully processed!`;
     await supabase.from("market_notifications").insert({ user_id: userId, content: msg, link_url: "/earnings" });
-    await sendPushNotification(supabase, { userIds: [userId], title: "Cashout Complete 💸", body: msg, url: "/earnings" });
+    
+    try {
+        await Promise.race([
+            sendPushNotification(supabase, { userIds: [userId], title: "Cashout Complete 💸", body: msg, url: "/earnings" }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("Push notification timeout")), 4000))
+        ]);
+    } catch (err) {
+        console.warn(`[MANUAL-RETRY] Push notification failed or timed out:`, err);
+    }
 }
