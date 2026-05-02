@@ -61,8 +61,8 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
 
     const redemptionIds = fulfillments.map(f => f.redemption_id);
 
-    // 2. Fetch targeted redemptions
-    const { data: queuedRedemptions, error: fetchError } = await supabase
+    // 2. Fetch targeted redemptions (use admin client for full RLS bypass)
+    const { data: queuedRedemptions, error: fetchError } = await supabaseAdmin
         .from("redemptions")
         .select("*")
         .in("id", redemptionIds)
@@ -103,14 +103,14 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
             // If it's a gift card or donation historically, pass the params so SQL puts them in the right tables if the admin forced those types
             // But usually we just let the SQL treat it as a generic cashout if type='manual'
             
-            const { error: finalizeError } = await supabase.rpc("finalize_redemption", {
+            const { error: finalizeError } = await supabaseAdmin.rpc("finalize_redemption", {
                 p_payload: finalizePayload,
             });
 
             if (finalizeError) throw finalizeError;
 
             // Log admin outflow securely
-            await supabase.rpc("append_bank_ledger_entry", {
+            await supabaseAdmin.rpc("append_bank_ledger_entry", {
                 p_event_type: "manual_fulfillment_sent", 
                 p_direction: "outflow", 
                 p_amount_usd: usdAmount, 
@@ -124,13 +124,13 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
             const methodDisplay = f.fulfillment_source || "manual transfer";
             const msg = `Your queued Casagrown payout of $${usdAmount.toFixed(2)} was successfully completed via ${methodDisplay}!`;
             
-            await supabase.from("market_notifications").insert({ 
+            await supabaseAdmin.from("market_notifications").insert({ 
                 user_id, 
                 content: msg, 
                 link_url: "/transaction-history" 
             });
             
-            await sendPushNotification(supabase, { 
+            await sendPushNotification(supabaseAdmin, { 
                 userIds: [user_id as string], 
                 title: "Payout Complete 💸", 
                 body: msg, 
