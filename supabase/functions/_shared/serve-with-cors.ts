@@ -188,6 +188,12 @@ export async function requireAuth(
     }
 
     const token = authHeader.replace("Bearer ", "");
+    
+    // Check if it's a trusted server-to-server call using the Service Role Key
+    if (token === Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) {
+        return "service_role";
+    }
+
     const { data: { user }, error } = await supabase.auth.getUser(token);
 
     if (error) {

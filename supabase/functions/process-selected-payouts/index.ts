@@ -31,13 +31,19 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     if (auth instanceof Response) return auth;
     const adminId = auth;
 
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("admin_role")
-        .eq("id", adminId)
-        .single();
+    let isAdmin = false;
+    if (adminId === "service_role") {
+        isAdmin = true; // Trusted caller
+    } else {
+        const { data: profile } = await supabase
+            .from("profiles")
+            .select("admin_role")
+            .eq("id", adminId)
+            .single();
+        if (profile?.admin_role) isAdmin = true;
+    }
     
-    if (!profile?.admin_role) {
+    if (!isAdmin) {
         return jsonError("Forbidden: Admin access required", corsHeaders, 403);
     }
 
