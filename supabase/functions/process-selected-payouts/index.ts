@@ -53,29 +53,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         return jsonError("Must provide array of redemption_ids", corsHeaders, 400);
     }
 
-    let tremendousBalance = 0;
-    let reloadlyBalance = 0;
-
-    try {
-        if (env("TREMENDOUS_API_KEY")) {
-            tremendousBalance = await fetchTremendousBalance(env("TREMENDOUS_API_KEY")!);
-        }
-        if (env("RELOADLY_CLIENT_ID") && env("RELOADLY_CLIENT_SECRET")) {
-            reloadlyBalance = await fetchReloadlyBalance(
-                env("RELOADLY_CLIENT_ID")!,
-                env("RELOADLY_CLIENT_SECRET")!,
-                env("RELOADLY_SANDBOX") !== "false",
-            );
-        }
-    } catch (balanceError) {
-        console.warn(`[MANUAL-RETRY] Failed verifying provider balances: ${balanceError}`);
-    }
-
-    console.log(
-        `[MANUAL-RETRY] Provider Balances -> Tremendous: $${(tremendousBalance / 100).toFixed(2)}, Reloadly: $${(reloadlyBalance / 100).toFixed(2)}`,
-    );
-
-    // 2. Fetch specific redemptions
+    // 1. Fetch specific redemptions FIRST
     const { data: queuedRedemptions, error: fetchError } = await supabase
         .from("redemptions")
         .select("*")
@@ -90,6 +68,31 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     if (!queuedRedemptions || queuedRedemptions.length === 0) {
         return jsonOk({ success: true, processed: 0, message: "No eligible queued redemptions found in selection" }, corsHeaders);
     }
+
+    const needsTremendous = queuedRedemptions.some(r => r.provider === "tremendous");
+    const needsReloadly = queuedRedemptions.some(r => r.provider === "reloadly");
+
+    let tremendousBalance = 0;
+    let reloadlyBalance = 0;
+
+    try {
+        if (needsTremendous && env("TREMENDOUS_API_KEY")) {
+            tremendousBalance = await fetchTremendousBalance(env("TREMENDOUS_API_KEY")!);
+        }
+        if (needsReloadly && env("RELOADLY_CLIENT_ID") && env("RELOADLY_CLIENT_SECRET")) {
+            reloadlyBalance = await fetchReloadlyBalance(
+                env("RELOADLY_CLIENT_ID")!,
+                env("RELOADLY_CLIENT_SECRET")!,
+                env("RELOADLY_SANDBOX") !== "false",
+            );
+        }
+    } catch (balanceError) {
+        console.warn(`[MANUAL-RETRY] Failed verifying provider balances: ${balanceError}`);
+    }
+
+    console.log(
+        `[MANUAL-RETRY] Provider Balances -> Tremendous: $${(tremendousBalance / 100).toFixed(2)}, Reloadly: $${(reloadlyBalance / 100).toFixed(2)}`,
+    );
 
     let processedCount = 0;
     const failures: { id: string; provider: string; reason: string }[] = [];
