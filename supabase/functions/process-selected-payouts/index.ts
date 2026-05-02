@@ -267,9 +267,13 @@ async function processPayPalCashout(supabase: any, env: any, redemption: Record<
     const credentials = btoa(`${PAYPAL_CLIENT_ID}:${PAYPAL_SECRET}`);
     
     console.log(`[MANUAL-RETRY] Fetching PayPal token...`);
+    const authController = new AbortController();
+    const authTimeout = setTimeout(() => authController.abort(), 15000);
     const authRes = await fetch(`${PAYPAL_BASE_URL}/v1/oauth2/token`, {
-        method: "POST", headers: { "Authorization": `Basic ${credentials}`, "Content-Type": "application/x-www-form-urlencoded" }, body: "grant_type=client_credentials"
+        method: "POST", headers: { "Authorization": `Basic ${credentials}`, "Content-Type": "application/x-www-form-urlencoded" }, body: "grant_type=client_credentials",
+        signal: authController.signal
     });
+    clearTimeout(authTimeout);
 
     if (!authRes.ok) {
         const errStr = await authRes.text();
@@ -286,9 +290,13 @@ async function processPayPalCashout(supabase: any, env: any, redemption: Record<
     };
 
     console.log(`[MANUAL-RETRY] Dispatching PayPal payout for ${usdAmount}...`);
+    const payoutController = new AbortController();
+    const payoutTimeout = setTimeout(() => payoutController.abort(), 15000);
     const payoutRes = await fetch(`${PAYPAL_BASE_URL}/v1/payments/payouts`, {
-        method: "POST", headers: { "Authorization": `Bearer ${access_token}`, "Content-Type": "application/json" }, body: JSON.stringify(payoutPayload)
+        method: "POST", headers: { "Authorization": `Bearer ${access_token}`, "Content-Type": "application/json" }, body: JSON.stringify(payoutPayload),
+        signal: payoutController.signal
     });
+    clearTimeout(payoutTimeout);
 
     const payoutData = await payoutRes.json();
     if (!payoutRes.ok || payoutData.name === "INSUFFICIENT_FUNDS") {
