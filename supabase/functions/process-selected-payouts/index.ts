@@ -89,9 +89,21 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     const failures: { id: string; provider: string; reason: string }[] = [];
 
     for (const redemption of queuedRedemptions) {
-        const { provider, user_id, point_cost } = redemption;
+        const { user_id, point_cost } = redemption;
         const metadata = redemption.metadata || {};
         const faceValueCents = metadata.face_value_cents || Math.round((point_cost / 100) * 100);
+
+        // Infer provider when the column is null (common for freshly queued redemptions)
+        let provider = redemption.provider as string | null;
+        if (!provider) {
+            if (metadata.payout_target) {
+                provider = metadata.provider || "paypal"; // Venmo payouts also go through PayPal API
+            } else if (metadata.brand_name || metadata.product_id) {
+                provider = "reloadly";
+            } else if (metadata.organization || metadata.project_id) {
+                provider = "globalgiving";
+            }
+        }
 
         try {
             if (provider === "globalgiving") {
@@ -106,7 +118,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             } else if (provider === "paypal" || provider === "venmo") {
                 await processPayPalCashout(supabase, env, redemption, user_id, point_cost, metadata);
             } else {
-                throw new Error(`Unknown provider for retry: ${provider}`);
+                throw new Error(`Unknown provider for retry: ${provider}. Metadata keys: ${Object.keys(metadata).join(', ')}`);
             }
 
             processedCount++;
