@@ -55,11 +55,14 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
 
     const { fulfillments } = body as { fulfillments: ManualFulfillmentPayload[] };
 
+    console.log(`[MANUAL-FULFILL] Received ${fulfillments?.length || 0} fulfillments`);
+
     if (!fulfillments || !Array.isArray(fulfillments) || fulfillments.length === 0) {
         return jsonError("Must provide array of fulfillments", corsHeaders, 400);
     }
 
     const redemptionIds = fulfillments.map(f => f.redemption_id);
+    console.log(`[MANUAL-FULFILL] Looking up IDs:`, redemptionIds);
 
     // 2. Fetch targeted redemptions (use admin client for full RLS bypass)
     const { data: queuedRedemptions, error: fetchError } = await supabaseAdmin
@@ -67,6 +70,11 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
         .select("*")
         .in("id", redemptionIds)
         .or("status.eq.queued,status.eq.failed");
+
+    console.log(`[MANUAL-FULFILL] Found ${queuedRedemptions?.length || 0} eligible redemptions, fetchError:`, fetchError);
+    if (queuedRedemptions?.length) {
+        queuedRedemptions.forEach(r => console.log(`[MANUAL-FULFILL] Redemption ${r.id} status=${r.status}`));
+    }
 
     if (fetchError) {
         return jsonError(`Failed to fetch redemptions: ${fetchError.message}`, corsHeaders);
@@ -107,6 +115,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
                 p_payload: finalizePayload,
             });
 
+            console.log(`[MANUAL-FULFILL] finalize_redemption for ${f.redemption_id}: error=`, finalizeError);
             if (finalizeError) throw finalizeError;
 
             // Log admin outflow securely
