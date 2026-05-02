@@ -61,10 +61,10 @@ Deno.test({
 })
 
 // ============================================================================
-// 3. Service role without user context also rejected (requires admin_role in profiles)
+// 3. Service role is a trusted caller, but rejects invalid body
 // ============================================================================
 Deno.test({
-  name: 'process-selected-payouts: service key without user context is rejected',
+  name: 'process-selected-payouts: service key with empty array is rejected',
   sanitizeResources: false, sanitizeOps: false,
   async fn() {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/process-selected-payouts`, {
@@ -73,17 +73,17 @@ Deno.test({
       body: JSON.stringify({ redemption_ids: [] }),
     })
 
-    // Service key without a user JWT doesn't have auth.uid(), so requireAuth rejects it
-    assertEquals(res.status >= 400, true, 'Service key without user context should be rejected')
+    // It is authorized, but the payload validation catches the empty array
+    assertEquals(res.status >= 400, true, 'Service key should still fail payload validation on empty array')
     await res.text()
   },
 })
 
 // ============================================================================
-// 4. Malformed redemption_ids array rejected without valid user
+// 4. Service role is authorized and returns 200 even for non-existent IDs
 // ============================================================================
 Deno.test({
-  name: 'process-selected-payouts: non-existent IDs with service key returns auth error',
+  name: 'process-selected-payouts: non-existent IDs with service key returns 200 ok (no-op)',
   sanitizeResources: false, sanitizeOps: false,
   async fn() {
     const fakeId = '00000000-0000-0000-0000-000000000099'
@@ -93,9 +93,10 @@ Deno.test({
       body: JSON.stringify({ redemption_ids: [fakeId] }),
     })
 
-    // Without a valid user JWT, auth check fires before payload processing
-    assertEquals(res.status >= 400, true, 'Service key without user context should fail auth')
-    await res.text()
+    // The service role is a trusted caller, so it processes the array. Finding 0 records returns 200 OK.
+    assertEquals(res.status, 200, 'Service key should be authorized and return 200 for missing records')
+    const data = await res.json()
+    assertEquals(data.processed, 0)
   },
 })
 

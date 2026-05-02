@@ -15,6 +15,7 @@
     "https://esm.sh/@supabase/realtime-js@^2.9.3?target=denonext": "https://esm.sh/@supabase/realtime-js@2.97.0?target=denonext",
     "https://esm.sh/@supabase/storage-js@^2.5.4?target=denonext": "https://esm.sh/@supabase/storage-js@2.97.0?target=denonext",
     "https://esm.sh/@supabase/supabase-js@2": "https://esm.sh/@supabase/supabase-js@2.95.3",
+    "https://esm.sh/@types/ws@~8.18.1/index.d.mts": "https://esm.sh/@types/ws@8.18.1/index.d.mts",
     "https://esm.sh/bufferutil@^4.0.1?target=denonext": "https://esm.sh/bufferutil@4.1.0?target=denonext",
     "https://esm.sh/iceberg-js@^0.8.1?target=denonext": "https://esm.sh/iceberg-js@0.8.1?target=denonext",
     "https://esm.sh/node-gyp-build@^4.3.0?target=denonext": "https://esm.sh/node-gyp-build@4.8.4?target=denonext",
