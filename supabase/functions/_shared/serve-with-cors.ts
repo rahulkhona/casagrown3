@@ -189,20 +189,32 @@ export async function requireAuth(
 
     const token = authHeader.replace("Bearer ", "").trim();
     
-    // Check if it's a trusted server-to-server call using a Service Role Key
+    // Check if it's a trusted server-to-server call using a Service Role Key.
+    // Supabase keys come in two formats:
+    //   1. JWT format (eyJ...) — decode and check payload.role
+    //   2. sb_secret_ format — direct string comparison against known env vars
+    
+    // Direct match against known service role keys (handles sb_secret_ format)
+    const knownServiceKeys = [
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+        Deno.env.get("SUPABASE_SECRET_KEY"),
+    ].filter(Boolean);
+    if (knownServiceKeys.includes(token)) {
+        return "service_role";
+    }
+
+    // JWT decode check (handles traditional eyJ... format)
     try {
         const payloadParts = token.split('.');
         if (payloadParts.length === 3 && payloadParts[1]) {
-            // Convert Base64URL to standard Base64 before decoding
             const base64 = payloadParts[1].replace(/-/g, '+').replace(/_/g, '/');
             const payload = JSON.parse(atob(base64));
             if (payload.role === "service_role") {
                 return "service_role";
             }
         }
-    } catch (err) {
-        // Ignore parse errors, fall through to getUser
-        console.warn("JWT Bypass Parse Error:", err);
+    } catch {
+        // Not a valid JWT, fall through to user auth
     }
 
     const { data: { user }, error } = await supabase.auth.getUser(token);
