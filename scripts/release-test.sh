@@ -150,11 +150,17 @@ section "Phase 2: Edge Functions"
 pkill -f "npx supabase functions serve" 2>/dev/null || true
 sleep 1
 
+# ── Force AI mock mode during test runs (prevents real Gemini API calls) ──
+FUNCTIONS_ENV="supabase/functions/.env"
+AI_MOCK_ORIGINAL=$(grep "^AI_MOCK=" "$FUNCTIONS_ENV" 2>/dev/null || echo "AI_MOCK=false")
+sed -i '' 's/^AI_MOCK=.*/AI_MOCK=true/' "$FUNCTIONS_ENV" 2>/dev/null || echo "AI_MOCK=true" >> "$FUNCTIONS_ENV"
+echo "  🔒 AI_MOCK forced to true for test run"
+
 echo "  Starting edge functions server..."
 if [ -f supabase/.env.local ]; then
   npx supabase functions serve --env-file supabase/.env.local &>/dev/null &
 else
-  npx supabase functions serve &>/dev/null &
+  npx supabase functions serve --env-file "$FUNCTIONS_ENV" &>/dev/null &
 fi
 EDGE_PID=$!
 sleep 5
@@ -492,6 +498,10 @@ fi
 # ─────────────────────────────────────────────────────────────────────────
 # Kill edge functions server
 kill "$EDGE_PID" 2>/dev/null || true
+
+# ── Restore AI_MOCK to original value ──
+sed -i '' "s/^AI_MOCK=.*/${AI_MOCK_ORIGINAL}/" "$FUNCTIONS_ENV" 2>/dev/null || true
+echo "  🔓 AI_MOCK restored to: ${AI_MOCK_ORIGINAL}"
 
 # ─────────────────────────────────────────────────────────────────────────
 # FINAL REPORT

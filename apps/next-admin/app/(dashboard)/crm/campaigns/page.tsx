@@ -3,10 +3,7 @@
 
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { createClient } from '@supabase/supabase-js'
-import dynamic from 'next/dynamic'
-import 'react-quill-new/dist/quill.snow.css'
-
-const ReactQuill = dynamic(() => import('../../../components/QuillEditor'), { ssr: false })
+import CampaignMessageEditor from '../../../../components/CampaignMessageEditor'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -36,11 +33,11 @@ type Campaign = {
   target_zips: string[]
   target_h3s: string[]
   created_at: string
-  created_at: string
   data_source_id?: string | null
   postmark_template_alias?: string | null
   test_emails: string[]
   audience_id?: string | null
+  sequence_id?: string | null
 }
 
 type Audience = { id: string; name: string; audience_rpc_name?: string }
@@ -54,37 +51,13 @@ const STATUS_COLORS: Record<string, string> = {
   paused: '#ef4444',
 }
 
-const formatHTML = (html: string) => {
-  let formatted = '';
-  let indent = 0;
-  let temp = html.replace(/>\s+</g, '><');
-  const tokens = temp.split(/(<[^>]+>)/g).filter(t => t.trim() !== '');
-  
-  for (let i = 0; i < tokens.length; i++) {
-    const token = tokens[i];
-    if (token.match(/^<\//)) {
-      indent = Math.max(0, indent - 1);
-      formatted += '\n' + '  '.repeat(indent) + token;
-    } else if (token.match(/^<[^\/]/) && !token.match(/\/>$/) && !token.match(/^<(img|hr|br|meta|link|input)/i)) {
-      if (i > 0) formatted += '\n' + '  '.repeat(indent);
-      formatted += token;
-      indent++;
-    } else {
-      if (token.startsWith('<')) {
-         formatted += '\n' + '  '.repeat(indent) + token;
-      } else {
-         formatted += token;
-      }
-    }
-  }
-  return formatted.trim();
-}
 
 export default function CrmCampaignsPage() {
   const quillRef = useRef<any>(null)
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [audiences, setAudiences] = useState<Audience[]>([])
   const [dataSources, setDataSources] = useState<DataSource[]>([])
+  const [sequences, setSequences] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -110,6 +83,7 @@ export default function CrmCampaignsPage() {
     content_html: '',
     content_text: '',
     audience_id: '',
+    sequence_id: '',
     scheduled_at: '',
     target_states: [] as string[],
     target_cities: [] as string[],
@@ -163,6 +137,7 @@ export default function CrmCampaignsPage() {
       content_html: data.content_html || '',
       content_text: data.content_text || '',
       audience_id: data.audience_id || '',
+      sequence_id: data.sequence_id || '',
       scheduled_at: data.scheduled_at ? new Date(data.scheduled_at).toISOString().slice(0, 16) : '',
       target_states: data.target_states || [],
       target_cities: data.target_cities || [],
@@ -191,88 +166,7 @@ export default function CrmCampaignsPage() {
   }
   
   const [templateMode, setTemplateMode] = useState(false)
-  const [htmlMode, setHtmlMode] = useState<'wysiwyg' | 'raw'>('wysiwyg')
   const [addGeo, setAddGeo] = useState({ states: '', cities: '', counties: '', zips: '' })
-  const [previewEmail, setPreviewEmail] = useState<{ html: string, text: string } | null>(null)
-  const [previewTab, setPreviewTab] = useState<'html' | 'text'>('html')
-
-  const [assetPickerOpen, setAssetPickerOpen] = useState(false)
-  const [assets, setAssets] = useState<{name: string, url: string}[]>([])
-  const [loadingAssets, setLoadingAssets] = useState(false)
-  const quillSelectionRef = useRef<{ index: number, length: number } | null>(null)
-
-  const [landingPages, setLandingPages] = useState<any[]>([])
-  const [promotions, setPromotions] = useState<any[]>([])
-  const [promoModalOpen, setPromoModalOpen] = useState(false)
-  const [linkSearch, setLinkSearch] = useState('')
-
-  const openAssetPicker = useCallback(async () => {
-    const quill = quillRef.current?.getEditor()
-    if (quill) {
-      const sel = quill.getSelection()
-      quillSelectionRef.current = sel ? { index: sel.index, length: sel.length } : { index: 0, length: 0 }
-    }
-    setAssetPickerOpen(true)
-    setLoadingAssets(true)
-    const { data, error } = await supabase.storage.from('media').list('crm', { limit: 100, sortBy: { column: 'created_at', order: 'desc' } })
-    if (data) {
-      const formatted = data.filter(f => f.name !== '.emptyFolderPlaceholder').map(f => ({
-        name: f.name,
-        url: supabase.storage.from('media').getPublicUrl(`crm/${f.name}`).data.publicUrl
-      }))
-      setAssets(formatted)
-    }
-    setLoadingAssets(false)
-  }, [])
-
-  const imageHandler = useCallback(() => {
-    openAssetPicker()
-  }, [openAssetPicker])
-
-  const insertPromoHandler = useCallback(() => {
-    const quill = quillRef.current?.getEditor()
-    if (quill) {
-      const sel = quill.getSelection()
-      if (sel && sel.length > 0) {
-        quillSelectionRef.current = { index: sel.index, length: sel.length }
-      } else if (sel) {
-        // If no text is selected, check if we are currently inside a link.
-        // If so, select the entire link so it gets replaced.
-        const [leaf, offset] = quill.getLeaf(sel.index)
-        if (leaf && leaf.parent && leaf.parent.domNode && leaf.parent.domNode.tagName === 'A') {
-          const linkIndex = quill.getIndex(leaf.parent)
-          const linkLength = leaf.parent.length()
-          quillSelectionRef.current = { index: linkIndex, length: linkLength }
-          quill.setSelection(linkIndex, linkLength)
-        } else {
-          quillSelectionRef.current = { index: sel.index, length: 0 }
-        }
-      } else {
-        quillSelectionRef.current = { index: 0, length: 0 }
-      }
-    }
-    setPromoModalOpen(true)
-  }, [])
-
-  const quillModules = useMemo(() => ({
-    toolbar: {
-      container: [
-        [{ 'header': [1, 2, 3, false] }],
-        [{ 'font': ['sans-serif', 'serif', 'monospace', 'arial', 'courier', 'garamond', 'tahoma', 'times', 'verdana'] }],
-        [{ 'size': ['10px', '12px', '14px', '16px', '18px', '20px', '24px', '32px'] }],
-        ['bold', 'italic', 'underline', 'strike'],
-        [{ 'color': [] }, { 'background': [] }],
-        [{ 'align': [] }],
-        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-        ['link', 'image', 'promo'],
-        ['clean']
-      ],
-      handlers: {
-        image: imageHandler,
-        promo: insertPromoHandler
-      }
-    }
-  }), [imageHandler, insertPromoHandler])
 
   // ZIP community lookup
   type ZipResult = {
@@ -288,18 +182,16 @@ export default function CrmCampaignsPage() {
   useEffect(() => {
     const fetchAll = async () => {
       setLoading(true)
-      const [{ data: camps }, { data: auds }, { data: sources }, { data: lps }, { data: promos }] = await Promise.all([
+      const [{ data: camps }, { data: auds }, { data: sources }, { data: seqs }] = await Promise.all([
         supabase.from('crm_campaigns').select('*').order('created_at', { ascending: false }),
         supabase.from('crm_audiences').select('id, name, audience_rpc_name').order('name'),
         supabase.from('crm_data_sources').select('id, name, rpc_name').order('name'),
-        supabase.from('crm_landing_pages').select('id, slug, title').eq('is_active', true),
-        supabase.from('crm_promotions').select('id, name, landing_page_id').order('created_at', { ascending: false })
+        supabase.from('crm_sequences').select('id, name').order('name'),
       ])
       setCampaigns((camps as Campaign[]) ?? [])
       setAudiences((auds as Audience[]) ?? [])
       setDataSources((sources as DataSource[]) ?? [])
-      setLandingPages(lps || [])
-      setPromotions(promos || [])
+      setSequences((seqs as any[]) ?? [])
       setLoading(false)
     }
     fetchAll()
@@ -386,6 +278,7 @@ export default function CrmCampaignsPage() {
       content_html: templateMode ? null : (form.content_html || null),
       content_text: form.content_text || null,
       audience_id: form.audience_id || null,
+      sequence_id: form.sequence_id || null,
       data_source_id: form.data_source_id || null,
       postmark_template_alias: templateMode ? (form.postmark_template_alias || null) : null,
       test_emails: form.test_emails ? form.test_emails.split(',').map((e: string) => e.trim()).filter(Boolean) : [],
@@ -486,179 +379,42 @@ export default function CrmCampaignsPage() {
               <label>Campaign Name *</label>
               <input placeholder="e.g. Spring Launch Email" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
             </div>
-            <div className="crm-field">
-              <label>Channel</label>
-              <select value={form.channel} onChange={e => setForm(f => ({ ...f, channel: e.target.value as 'email' | 'sms' }))}>
-                <option value="email">📧 Email</option>
-                <option value="sms">💬 SMS</option>
-              </select>
+            <div className="crm-field full-width" style={{ gridColumn: '1 / -1' }}>
+              <CampaignMessageEditor
+                form={form as any}
+                setForm={setForm as any}
+                templateMode={templateMode}
+                setTemplateMode={setTemplateMode}
+                dataSources={dataSources}
+                supabase={supabase}
+                toast={toast}
+                showChannelSelector={true}
+              />
             </div>
-            {form.channel === 'email' && (
-              <div className="crm-field full-width">
-                <label>Design Mode</label>
-                <select value={templateMode ? 'template' : 'custom'} onChange={e => setTemplateMode(e.target.value === 'template')}>
-                  <option value="custom">✍️ Custom HTML / Subject</option>
-                  <option value="template">🧩 Postmark Template API</option>
+
+            <div className="crm-field full-width" style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', background: '#f8fafc', padding: 16, borderRadius: 8 }}>
+              <div className="crm-field">
+                <label>Target Audience Snapshot</label>
+                <select value={form.audience_id} onChange={e => setForm(f => ({ ...f, audience_id: e.target.value }))} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}>
+                  <option value="">No Target Audience (Universe)</option>
+                  {audiences.map(a => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
                 </select>
+                <p style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: 4 }}>This campaign will snapshot the audience at send time.</p>
               </div>
-            )}
-            {form.channel === 'email' && !templateMode && (
-              <div className="crm-field full-width">
-                <label>Email Subject *</label>
-                <input placeholder="e.g. Fresh produce just dropped in your area 🌱" value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} />
-              </div>
-            )}
-            
-            {form.channel === 'email' && !templateMode && (
-              <div className="crm-field full-width">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4 }}>
-                  <label>Email Content (HTML)</label>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    {htmlMode === 'raw' && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => setPromoModalOpen(true)}
-                          style={{ padding: '4px 8px', fontSize: '0.8rem', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-                        >
-                          🔗 Copy a Link...
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setForm(f => ({ ...f, content_html: formatHTML(f.content_html) }))}
-                          style={{ padding: '4px 8px', fontSize: '0.8rem', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '4px', cursor: 'pointer' }}
-                        >
-                          ✨ Pretty Print
-                        </button>
-                      </>
-                    )}
-                    <select value={htmlMode} onChange={e => setHtmlMode(e.target.value as 'wysiwyg' | 'raw')} style={{ width: 'auto', padding: '4px 8px', fontSize: '0.8rem' }}>
-                      <option value="wysiwyg">Inline Editor (WYSIWYG)</option>
-                      <option value="raw">Raw HTML (Paste Template)</option>
-                    </select>
-                  </div>
-                </div>
-                {htmlMode === 'wysiwyg' ? (
-                  <div style={{ background: 'white', borderRadius: 8, overflow: 'hidden' }}>
-                    <ReactQuill 
-                      ref={quillRef}
-                      theme="snow" 
-                      modules={quillModules}
-                      value={form.content_html} 
-                      onChange={val => setForm(f => ({...f, content_html: val}))} 
-                      style={{ minHeight: '300px' }}
-                    />
-                  </div>
-                ) : (
-                  <textarea 
-                    placeholder="<html><body>...</body></html>" 
-                    value={form.content_html} 
-                    onChange={e => setForm(f => ({ ...f, content_html: e.target.value }))} 
-                    style={{ minHeight: '300px', fontFamily: 'monospace', fontSize: '0.85rem' }} 
-                  />
-                )}
-                <div className="crm-hint" style={{ marginTop: 8 }}>
-                  💡 To insert images, use the Image button in the toolbar and paste the public URL of any image from your Assets tab.
-                </div>
-              </div>
-            )}
 
-            {form.channel === 'email' && !templateMode && (
-              <div className="crm-field full-width">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4 }}>
-                  <label>Plain Text Fallback (Optional) <span className="crm-hint">— used if the user's client strips HTML</span></label>
-                  <button
-                    type="button"
-                    onClick={() => setPromoModalOpen(true)}
-                    style={{ padding: '4px 8px', fontSize: '0.8rem', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-                  >
-                    🔗 Get Short Links
-                  </button>
-                </div>
-                <textarea 
-                  placeholder="Hello, ..." 
-                  value={form.content_text} 
-                  onChange={e => setForm(f => ({ ...f, content_text: e.target.value }))} 
-                  style={{ minHeight: '150px', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }} 
-                />
-              </div>
-            )}
-
-            {form.channel === 'email' && !templateMode && (
-              <div className="crm-field full-width" style={{ marginTop: '4px' }}>
-                <button 
-                  type="button" 
-                  className="crm-btn-secondary" 
-                  onClick={() => {
-                    setPreviewEmail({ html: form.content_html, text: form.content_text })
-                    setPreviewTab('html')
-                  }}
-                  style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '6px' }}
-                >
-                  <span style={{ fontSize: '1.2rem' }}>👁️</span> Preview Email
-                </button>
-              </div>
-            )}
-
-            {form.channel === 'sms' && (
-              <div className="crm-field full-width">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4 }}>
-                  <label>SMS Text Content *</label>
-                  <button
-                    type="button"
-                    onClick={() => setPromoModalOpen(true)}
-                    style={{ padding: '4px 8px', fontSize: '0.8rem', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-                  >
-                    🔗 Get Short Links
-                  </button>
-                </div>
-                <textarea 
-                  placeholder="Hey, spring drop is live! 🍓 Reply STOP to unsub." 
-                  value={form.content_text} 
-                  onChange={e => setForm(f => ({ ...f, content_text: e.target.value }))} 
-                  style={{ minHeight: '100px' }} 
-                />
-              </div>
-            )}
-            {form.channel === 'email' && templateMode && (
-              <div className="crm-field full-width">
-                <label>Postmark Template Alias *</label>
-                <input placeholder="e.g. market-welcome-1" value={form.postmark_template_alias} onChange={e => setForm(f => ({ ...f, postmark_template_alias: e.target.value }))} />
-              </div>
-            )}
-            
-            <div className="crm-field full-width">
-              <label>Data Provider (Template Model Hydration)</label>
-              <select value={form.data_source_id} onChange={e => setForm(f => ({ ...f, data_source_id: e.target.value }))}>
-                <option value="">None (Static Payload Only)</option>
-                {dataSources.map(s => <option key={s.id} value={s.id}>{s.name} ({s.rpc_name})</option>)}
-              </select>
-            </div>
-            <div className="crm-field">
-              <label>Audience / Behavioral Filter</label>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <select value={form.audience_id || ""} onChange={e => setForm(f => ({ ...f, audience_id: e.target.value || "" }))} style={{ flex: 1 }}>
-                  <option value="">None (Use Test Emails only)</option>
-                  {audiences.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              <div className="crm-field">
+                <label>Trigger Follow-up Sequence</label>
+                <select value={form.sequence_id} onChange={e => setForm(f => ({ ...f, sequence_id: e.target.value }))} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}>
+                  <option value="">Do not enroll in a sequence</option>
+                  {sequences.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
                 </select>
-                {form.audience_id && (
-                  <button type="button" className="crm-btn-secondary" onClick={() => handlePreviewAudience(form.audience_id, form.channel)}>
-                    Preview Audience
-                  </button>
-                )}
+                <p style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: 4 }}>Any user sent this campaign will automatically enroll in this sequence.</p>
               </div>
             </div>
-            
-            {form.channel === 'email' && (
-              <div className="crm-field full-width">
-                <label>Adhoc Test Emails <span className="crm-hint">— Comma separated, for testing this template</span></label>
-                <input 
-                  placeholder="e.g. admin@casagrown.com, founder@casagrown.com" 
-                  value={form.test_emails} 
-                  onChange={e => setForm(f => ({ ...f, test_emails: e.target.value }))} 
-                />
-              </div>
-            )}
 
             {/* Geographic Targets */}
             <div className="crm-field zip-lookup-wrap full-width" style={{ marginTop: 8 }}>
@@ -873,170 +629,6 @@ export default function CrmCampaignsPage() {
         </table>
       </div>
 
-      {assetPickerOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content asset-picker-modal">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#1a2e1a' }}>Select Image</h3>
-              <button onClick={() => setAssetPickerOpen(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6b7280' }}>&times;</button>
-            </div>
-            
-            <div style={{ marginBottom: 16 }}>
-              <button className="crm-btn-primary" onClick={() => {
-                const input = document.createElement('input')
-                input.setAttribute('type', 'file')
-                input.setAttribute('accept', 'image/*')
-                input.click()
-
-                input.onchange = async () => {
-                  const file = input.files ? input.files[0] : null
-                  if (!file) return
-                  
-                  toast('Uploading image to assets...', 10000)
-                  setAssetPickerOpen(false)
-                  const ext = file.name.split('.').pop()
-                  const fileName = `crm/${Date.now()}-${file.name}`
-                  
-                  const { error } = await supabase.storage.from('media').upload(fileName, file)
-                  if (error) {
-                    toast(`Error: Upload failed - ${error.message}`)
-                    return
-                  }
-                  
-                  await supabase.from('crm_assets').insert({
-                    name: `Campaign Upload: ${file.name}`,
-                    type: 'image',
-                    storage_path: fileName
-                  })
-                  
-                  const { data: publicUrlData } = supabase.storage.from('media').getPublicUrl(fileName)
-                  
-                  const quill = quillRef.current?.getEditor()
-                  if (quill) {
-                    quill.insertEmbed(quillSelectionRef.current || 0, 'image', publicUrlData.publicUrl)
-                  }
-                  toast('Image inserted!')
-                }
-              }} style={{ width: '100%', padding: '12px' }}>+ Upload New Image from Computer</button>
-            </div>
-
-            <div style={{ height: '350px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, background: '#f9fafb' }}>
-              {loadingAssets ? (
-                <div className="crm-muted" style={{ textAlign: 'center', padding: 40 }}>Loading assets...</div>
-              ) : assets.length === 0 ? (
-                <div className="crm-muted" style={{ textAlign: 'center', padding: 40 }}>No images found in your Assets library.</div>
-              ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 12 }}>
-                  {assets.map(a => (
-                    <div key={a.name} 
-                         onClick={() => {
-                           const quill = quillRef.current?.getEditor()
-                           if (quill) {
-                             const idx = quillSelectionRef.current?.index || 0;
-                             quill.insertEmbed(idx, 'image', a.url)
-                           }
-                           setAssetPickerOpen(false)
-                         }}
-                         style={{ border: '1px solid #d1d5db', borderRadius: 8, overflow: 'hidden', cursor: 'pointer', background: 'white' }}
-                         className="asset-thumb-card"
-                    >
-                      <div style={{ height: 90, backgroundImage: `url(${a.url})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
-                      <div style={{ padding: '6px 8px', fontSize: '0.7rem', color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={a.name}>
-                        {a.name}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {promoModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '500px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Insert Link</h3>
-              <button className="toast-close" onClick={() => setPromoModalOpen(false)}>×</button>
-            </div>
-
-            <div style={{ marginBottom: 12 }}>
-              <input 
-                type="text" 
-                placeholder="Search promotions or landing pages..." 
-                value={linkSearch} 
-                onChange={e => setLinkSearch(e.target.value)}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6 }}
-                autoFocus
-              />
-            </div>
-
-            <div style={{ height: '350px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, background: '#f9fafb' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ fontWeight: 'bold', fontSize: '0.85rem', color: '#6b7280', textTransform: 'uppercase', marginTop: 8 }}>Active Promotions</div>
-                {promotions.filter(p => p.name.toLowerCase().includes(linkSearch.toLowerCase())).map(p => {
-                  const lp = landingPages.find(l => l.id === p.landing_page_id);
-                  if (!lp) return null;
-                  const url = `${process.env.NEXT_PUBLIC_MARKET_URL || 'https://casagrown.com'}/p/${lp.slug}?promo=${p.id}`;
-                  return (
-                    <button key={p.id} type="button" onClick={() => {
-                      if (htmlMode === 'wysiwyg') {
-                        const quill = quillRef.current?.getEditor();
-                        if (quill) {
-                          const sel = quillSelectionRef.current || { index: 0, length: 0 };
-                          if (sel.length > 0) {
-                            quill.formatText(sel.index, sel.length, 'link', url);
-                          } else {
-                            quill.insertText(sel.index, p.name, 'link', url);
-                          }
-                        }
-                      } else {
-                        navigator.clipboard.writeText(url);
-                        toast('Link copied to clipboard!');
-                      }
-                      setPromoModalOpen(false);
-                      setLinkSearch('');
-                    }} style={{ textAlign: 'left', padding: '10px 12px', background: 'white', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer' }}>
-                      <div style={{ fontWeight: 600, color: '#111827' }}>🎁 {p.name}</div>
-                      <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: 4 }}>{url}</div>
-                    </button>
-                  )
-                })}
-
-                <div style={{ fontWeight: 'bold', fontSize: '0.85rem', color: '#6b7280', textTransform: 'uppercase', marginTop: 16 }}>Landing Pages</div>
-                {landingPages.filter(lp => lp.title.toLowerCase().includes(linkSearch.toLowerCase()) || lp.slug.toLowerCase().includes(linkSearch.toLowerCase())).map(lp => {
-                  const url = `${process.env.NEXT_PUBLIC_MARKET_URL || 'https://casagrown.com'}/p/${lp.slug}`;
-                  return (
-                    <button key={lp.id} type="button" onClick={() => {
-                      if (htmlMode === 'wysiwyg') {
-                        const quill = quillRef.current?.getEditor();
-                        if (quill) {
-                          const sel = quillSelectionRef.current || { index: 0, length: 0 };
-                          if (sel.length > 0) {
-                            quill.formatText(sel.index, sel.length, 'link', url);
-                          } else {
-                            quill.insertText(sel.index, lp.title, 'link', url);
-                          }
-                        }
-                      } else {
-                        navigator.clipboard.writeText(url);
-                        toast('Link copied to clipboard!');
-                      }
-                      setPromoModalOpen(false);
-                      setLinkSearch('');
-                    }} style={{ textAlign: 'left', padding: '10px 12px', background: 'white', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer' }}>
-                      <div style={{ fontWeight: 600, color: '#111827' }}>📄 {lp.title}</div>
-                      <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: 4 }}>{url}</div>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {deletingId && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: '400px', textAlign: 'center', padding: '32px 24px' }}>
@@ -1104,46 +696,6 @@ export default function CrmCampaignsPage() {
                     ))}
                   </tbody>
                 </table>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {previewEmail && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '800px', height: '85vh', display: 'flex', flexDirection: 'column', padding: '0', background: '#f3f4f6' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', background: 'white', borderBottom: '1px solid #e5e7eb', borderTopLeftRadius: '16px', borderTopRightRadius: '16px' }}>
-              <h3 style={{ margin: 0, fontSize: '1.15rem', color: '#111827' }}>Email Preview</h3>
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                <div style={{ display: 'flex', background: '#f3f4f6', padding: '4px', borderRadius: '8px' }}>
-                  <button 
-                    type="button"
-                    style={{ background: previewTab === 'html' ? 'white' : 'transparent', border: 'none', padding: '6px 16px', borderRadius: '6px', fontWeight: previewTab === 'html' ? 600 : 400, boxShadow: previewTab === 'html' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none', cursor: 'pointer', color: '#374151' }} 
-                    onClick={() => setPreviewTab('html')}
-                  >HTML View</button>
-                  <button 
-                    type="button"
-                    style={{ background: previewTab === 'text' ? 'white' : 'transparent', border: 'none', padding: '6px 16px', borderRadius: '6px', fontWeight: previewTab === 'text' ? 600 : 400, boxShadow: previewTab === 'text' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none', cursor: 'pointer', color: '#374151' }} 
-                    onClick={() => setPreviewTab('text')}
-                  >Plain Text</button>
-                </div>
-                <button type="button" className="crm-btn-secondary" style={{ padding: '6px 14px' }} onClick={() => setPreviewEmail(null)}>✕ Close</button>
-              </div>
-            </div>
-            <div style={{ flex: 1, overflow: 'auto', padding: '24px' }}>
-              {previewTab === 'html' ? (
-                <div style={{ background: 'white', maxWidth: '600px', margin: '0 auto', height: '100%', minHeight: '600px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)', borderRadius: '8px', overflow: 'hidden', display: 'flex' }}>
-                  <iframe 
-                    srcDoc={previewEmail.html || ''}
-                    style={{ width: '100%', height: '100%', border: 'none', flex: 1 }}
-                    title="Email Preview"
-                  />
-                </div>
-              ) : (
-                <div style={{ background: 'white', maxWidth: '600px', margin: '0 auto', padding: '32px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)', borderRadius: '8px', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#333', fontSize: '0.9rem', lineHeight: '1.6', position: 'relative', isolation: 'isolate' }}>
-                  {previewEmail.text || 'No plain text fallback provided.'}
-                </div>
               )}
             </div>
           </div>

@@ -89,6 +89,7 @@ const MENU_GROUPS: MenuGroup[] = [
       { label: 'Data Sources', path: '/crm/data-sources' },
       { label: 'Leads', path: '/crm/leads' },
       { label: 'Email / SMS Campaigns', path: '/crm/campaigns' },
+      { label: 'Drip Sequences', path: '/crm/sequences' },
       { label: 'Audiences', path: '/crm/audiences' },
       { label: 'Audience Functions', path: '/crm/audience-functions' },
       { label: 'Assets', path: '/crm/assets' },

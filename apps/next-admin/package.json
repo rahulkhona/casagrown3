@@ -15,6 +15,7 @@
     "@hello-pangea/dnd": "^18.0.1",
     "@tamagui/config": "^2.0.0-rc.0",
     "@tamagui/next-theme": "^2.0.0-rc.0",
+    "@xyflow/react": "^12.10.2",
     "mustache": "^4.2.0",
     "next": "16.1.1",
     "raf": "^3.4.1",
@@ -22,6 +23,7 @@
     "react-dom": "19.0.0",
     "react-native": "0.79.2",
     "react-native-web": "^0.21.2",
+    "react-querybuilder": "^8.15.0",
     "react-quill-new": "^3.8.3",
     "tamagui": "^2.0.0-rc.0",
     "vercel": "latest"

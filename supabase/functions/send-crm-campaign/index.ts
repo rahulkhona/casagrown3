@@ -16,7 +16,7 @@ import Mustache from "https://esm.sh/mustache@4.2.0";
 import { sendBroadcastEmailBatch, sendBroadcastTemplateBatch } from "../_shared/postmark.ts";
 import { sendSms } from "../_shared/twilio.ts";
 import { corsHeaders } from "../_shared/cors.ts";
-import { buildTemplateModel } from "./utils.ts";
+import { buildTemplateModel } from "../_shared/template-interpolation.ts";
 
 const SITE_URL = Deno.env.get("SITE_URL") ?? "https://casagrown.com";
 const BATCH_SIZE = 500;
@@ -186,6 +186,11 @@ Deno.serve(async (req: Request) => {
       for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
         const batch = recipients.slice(i, i + BATCH_SIZE);
 
+        // Bulk fetch metadata for interpolation
+        const recipientIds = batch.map(r => r.id);
+        const { data: userMetadataList } = await supabase.from('crm_user_metadata').select('*').in('recipient_id', recipientIds);
+        const metadataMap = new Map(userMetadataList?.map(m => [m.recipient_id, m]) || []);
+
         if (campaign.channel === "email") {
           let result;
           const sendRecords: any[] = [];
@@ -199,7 +204,7 @@ Deno.serve(async (req: Request) => {
                 templateAlias: campaign.postmark_template_alias!,
                 templateModel: {
                   recipient_id: r.id,
-                  ...buildTemplateModel(r.name, dynamicModel)
+                  ...buildTemplateModel(r, metadataMap.get(r.id) || {}, dynamicModel)
                 },
                 metadata: { send_id: sendId },
                 _sendId: sendId // temporary for local mapping
@@ -224,7 +229,7 @@ Deno.serve(async (req: Request) => {
               batch.map(async (r) => {
                 const rawBody = campaign.content_html ?? "";
                 const rawText = campaign.content_text ?? "";
-                const model = buildTemplateModel(r.name, dynamicModel);
+                const model = buildTemplateModel(r, metadataMap.get(r.id) || {}, dynamicModel);
                 
                 const renderedHtml = Mustache.render(rawBody, model);
                 const renderedText = rawText ? Mustache.render(rawText, model) : "";
@@ -287,7 +292,7 @@ Deno.serve(async (req: Request) => {
           // SMS: send one by one (Twilio doesn't have batch API)
           for (const r of batch) {
             const rawText = campaign.content_text ?? "";
-            const model = buildTemplateModel(r.name, dynamicModel);
+            const model = buildTemplateModel(r, metadataMap.get(r.id) || {}, dynamicModel);
             const renderedText = Mustache.render(rawText, model);
 
             const smsBody = await rewriteLinksText(

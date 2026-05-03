@@ -60,10 +60,16 @@ const ALLOWED_TABLES = new Set([
   // Tax
   'category_tax_rules',
   'tax_reporting_thresholds',
-  // Campaigns
+  // Campaigns & CRM
   'incentive_campaigns',
   'campaign_rewards',
   'campaign_zones',
+  'crm_sequences',
+  'crm_sequence_enrollments',
+  'crm_audiences',
+  'crm_data_sources',
+  'crm_promotions',
+  'crm_landing_pages',
   // Staff
   'staff_members',
   // Beta testers
