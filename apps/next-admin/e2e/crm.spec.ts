@@ -142,9 +142,14 @@ test.describe('CRM — Campaigns page', () => {
     
     // Fill Name
     await page.fill('input[placeholder="e.g. Spring Launch Email"]', campaignName)
-    
-    // Fill Subject
-    await page.fill('input[placeholder*="Fresh produce"]', 'Welcome to CasaGrown')
+
+    // Ensure email channel is selected (default, but be explicit)
+    await page.locator('select').nth(0).selectOption('email')
+
+    // Wait for CampaignMessageEditor to render the subject field
+    const subjectInput = page.locator('input[placeholder*="Fresh produce"]')
+    await expect(subjectInput).toBeVisible({ timeout: 10000 })
+    await subjectInput.fill('Welcome to CasaGrown')
 
     // Click Save Campaign
     await page.click('button:has-text("Save Campaign")')
