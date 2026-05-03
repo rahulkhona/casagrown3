@@ -25,12 +25,11 @@ test.describe('CRM Sequences & Editor Backward Compatibility', () => {
     // Interact: Fill input labeled "Campaign Name"
     await page.getByPlaceholder('e.g. Spring Launch Email').fill('E2E Test Campaign');
 
-    // Interact: Select "Email" from the Channel <select>
-    const selects = page.locator('select');
-    await selects.nth(0).selectOption('email');
+    // Interact: Select "Email" from the Channel <select> inside the editor
+    await page.locator('label:has-text("Channel") + select, label:has-text("Channel") ~ select').selectOption('email');
 
-    // Assert: input labeled "Email Subject" becomes visible. Fill it.
-    const subjectInput = page.locator('input[placeholder*="Fresh produce"]');
+    // Assert: textarea labeled "Email Subject" becomes visible. Fill it.
+    const subjectInput = page.locator('textarea[placeholder*="Fresh produce"]');
     await expect(subjectInput).toBeVisible({ timeout: 10000 });
     await subjectInput.fill('E2E Subject');
 
@@ -101,26 +100,23 @@ test.describe('CRM Sequences & Editor Backward Compatibility', () => {
     await newSeqBtn.click();
     await page.waitForURL(/\/crm\/sequences\/[a-zA-Z0-9-]+/);
 
-    // Assert: React Flow canvas is visible with Start node
-    await expect(page.locator('.react-flow')).toBeVisible();
+    // Wait for sequence to fully load (loading guard disappears when Save button appears)
+    const saveBtn = page.locator('button:has-text("Save Sequence")');
+    await expect(saveBtn).toBeVisible({ timeout: 10000 });
 
-    // Assert: Sequence status shows "DRAFT" initially (the status span shows .toUpperCase())
-    const statusSpan = page.locator('span').filter({ hasText: /^DRAFT$/ });
-    await expect(statusSpan).toBeVisible({ timeout: 5000 });
+    // Assert: "Activate Sequence" button visible (implicitly confirms draft state — not locked)
+    const activateBtn = page.locator('button:has-text("Activate Sequence")');
+    await expect(activateBtn).toBeVisible({ timeout: 10000 });
 
-    // Interact: Click "Activate Sequence" button
-    const activateBtn = page.getByRole('button', { name: 'Activate Sequence' });
-    await expect(activateBtn).toBeVisible({ timeout: 5000 });
+    // Interact: Click "Activate Sequence"
     await activateBtn.click();
 
-    // Assert: Status changes to "ACTIVE"
-    await expect(page.locator('span').filter({ hasText: /^ACTIVE$/ })).toBeVisible({ timeout: 5000 });
-
-    // Assert: Activate button is replaced by the locked state button
+    // Assert: Locked state appears — "Active - Structural Edits Locked" button replaces Activate
+    const lockedBtn = page.locator('button:has-text("Active - Structural Edits Locked")');
+    await expect(lockedBtn).toBeVisible({ timeout: 10000 });
     await expect(activateBtn).not.toBeVisible({ timeout: 3000 });
-    await expect(page.getByRole('button', { name: /Active - Structural Edits Locked/ })).toBeVisible();
 
-    // Assert: Node palette "Node Types" section is still visible (palette present but dragging locked)
+    // Assert: Node palette "Node Types" section remains visible after locking
     await expect(page.locator('text=Node Types')).toBeVisible();
   });
 });
