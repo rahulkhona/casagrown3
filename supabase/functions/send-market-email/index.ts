@@ -59,7 +59,9 @@ serveWithCors(async (req, { corsHeaders }) => {
     if (text?.includes('funds received')) title = "Funds Processing";
     if (text?.includes('earnings cleared')) title = "Earnings Cleared";
     if (text?.includes('1099-K')) title = "Important Tax Notice";
-    if (text?.includes('Withdrawal complete')) title = "Redemption Complete";
+    if (text?.includes('Withdrawal complete') || text?.includes('Payout completed') ||
+        text?.includes('Redemption complete') || text?.includes('Redemption Complete')) title = "Payout Completed";
+    if (text?.includes('Payout failed') || text?.includes('Withdrawal failed')) title = "Payout Failed";
 
     // Completion & sale
     if (text?.includes('Sale completed')) title = "Sale Completed";

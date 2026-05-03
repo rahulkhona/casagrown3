@@ -111,8 +111,8 @@ function getDateRange(range: DateRange, customStart?: string, customEnd?: string
 
 export default function EarningsPage() {
   const { isAuthenticated, loading: authLoading, user } = useAuth()
-  const restriction = useMarketRestriction()
   const userId = user?.id
+  const restriction = useMarketRestriction()
   const { showPrompt, modalProps } = useNotificationPrompt(userId)
   const [tab, setTab] = useState<Tab>('activity')
   const [dateRange, setDateRange] = useState<DateRange>('month')
@@ -681,7 +681,7 @@ export default function EarningsPage() {
                         </div>
                         <div className={styles.txRight}>
                           <span className={`${styles.txAmount} ${isCredit ? styles.txAmountCredit : styles.txAmountDebit}`}>
-                            {isCredit ? '+' : '-'}{formatUsd(tx.amount)}
+                            {isCredit ? '+' : (['cashout', 'gift_card', 'charity'].includes(tx.tx_type) ? '' : '-')}{formatUsd(tx.amount)}
                           </span>
                           <div className={styles.txStatus}>{tx.status}</div>
                         </div>
@@ -795,6 +795,17 @@ export default function EarningsPage() {
                           {tx.tx_type === 'gift_card' && (
                             <>
                               {tx.metadata.item_name && <div className={styles.metaItem}><span className={styles.metaLabel}>Card:</span> {tx.metadata.item_name}</div>}
+                              {tx.metadata.fulfillment_source && <div className={styles.metaItem}><span className={styles.metaLabel}>Method:</span> {tx.metadata.fulfillment_source}</div>}
+                              {tx.metadata.proof_url && (
+                                <div className={styles.metaItem}>
+                                  <span className={styles.metaLabel}>Proof:</span> 
+                                  {tx.metadata.proof_url.startsWith('http') ? (
+                                    <a href={tx.metadata.proof_url} target="_blank" rel="noopener" className={styles.metaLink}>📄 View Proof</a>
+                                  ) : (
+                                    <span style={{ fontSize: 13 }}>{tx.metadata.proof_url}</span>
+                                  )}
+                                </div>
+                              )}
                               {tx.metadata.gift_card_url && (
                                 <div className={styles.metaActions}>
                                   <a href={tx.metadata.gift_card_url} target="_blank" rel="noopener" className={styles.metaLink}>🎁 Use Gift Card</a>
@@ -840,18 +851,40 @@ export default function EarningsPage() {
                           {tx.tx_type === 'charity' && (
                             <>
                               {tx.metadata.item_name && <div className={styles.metaItem}><span className={styles.metaLabel}>Organization:</span> {tx.metadata.item_name}</div>}
+                              {tx.metadata.fulfillment_source && <div className={styles.metaItem}><span className={styles.metaLabel}>Method:</span> {tx.metadata.fulfillment_source}</div>}
                               {tx.metadata.gg_receipt_number && <div className={styles.metaItem}><span className={styles.metaLabel}>Receipt #:</span> {tx.metadata.gg_receipt_number}</div>}
                               {tx.metadata.tax_deductible_amount && <div className={styles.metaItem}><span className={styles.metaLabel}>Tax Deductible:</span> {formatUsd(tx.metadata.tax_deductible_amount)}</div>}
                               {tx.metadata.charity_receipt_url
                                 ? <div className={styles.metaItem}><a href={tx.metadata.charity_receipt_url} target="_blank" rel="noopener" className={styles.metaLink}>📄 View Receipt</a></div>
                                 : tx.metadata.gg_receipt_number && <div className={styles.metaItem} style={{ color: 'var(--gray-400)', fontStyle: 'italic' }}>📧 Tax receipt emailed by GlobalGiving</div>
                               }
+                              {tx.metadata.proof_url && (
+                                <div className={styles.metaItem}>
+                                  <span className={styles.metaLabel}>Proof:</span> 
+                                  {tx.metadata.proof_url.startsWith('http') ? (
+                                    <a href={tx.metadata.proof_url} target="_blank" rel="noopener" className={styles.metaLink}>📄 View Proof</a>
+                                  ) : (
+                                    <span style={{ fontSize: 13 }}>{tx.metadata.proof_url}</span>
+                                  )}
+                                </div>
+                              )}
                             </>
                           )}
                           {tx.tx_type === 'cashout' && (
                             <>
                               {tx.metadata.cashout_txn_id && <div className={styles.metaItem}><span className={styles.metaLabel}>Txn ID:</span> {tx.metadata.cashout_txn_id}</div>}
-                              {tx.metadata.payout_method && <div className={styles.metaItem}><span className={styles.metaLabel}>Method:</span> {tx.metadata.payout_method}</div>}
+                              {tx.metadata.batch_id && <div className={styles.metaItem}><span className={styles.metaLabel}>Batch ID:</span> {tx.metadata.batch_id}</div>}
+                              {(tx.metadata.payout_method || tx.metadata.fulfillment_source) && <div className={styles.metaItem}><span className={styles.metaLabel}>Method:</span> {tx.metadata.payout_method || tx.metadata.fulfillment_source}</div>}
+                              {tx.metadata.proof_url && (
+                                <div className={styles.metaItem}>
+                                  <span className={styles.metaLabel}>Proof:</span> 
+                                  {tx.metadata.proof_url.startsWith('http') ? (
+                                    <a href={tx.metadata.proof_url} target="_blank" rel="noopener" className={styles.metaLink}>📄 View Proof</a>
+                                  ) : (
+                                    <span style={{ fontSize: 13 }}>{tx.metadata.proof_url}</span>
+                                  )}
+                                </div>
+                              )}
                             </>
                           )}
                           {tx.tx_type === 'payout_refund' && tx.metadata?.reason && (
