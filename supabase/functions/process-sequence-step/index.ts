@@ -118,13 +118,26 @@ serve(async (req) => {
         if (mRes.data) metaRes.data = mRes.data;
         if (pRes.data) profileRes.data = pRes.data;
         if (epRes.data) enrolledPromoRes.data = epRes.data;
+      } else if (enrollment.recipient_type === 'member') {
+        // Market members — fetch directly from profiles, no CRM metadata
+        const { data } = await supabase
+          .from('profiles')
+          .select('id, full_name, email, phone_number, tos_accepted_at')
+          .eq('id', enrollment.recipient_id)
+          .single();
+        if (data) {
+          profileRes.data = { full_name: data.full_name, email: data.email, phone_number: data.phone_number };
+          metaRes.data = {};
+        }
       } else {
+        // Default: lead recipient
         const { data } = await supabase.from('crm_leads').select('*').eq('id', enrollment.recipient_id).single();
         if (data) {
           profileRes.data = { full_name: data.name, email: data.email, phone_number: data.phone };
           metaRes.data = data.metadata || {};
         }
       }
+
 
       if (nodeLogicType === 'input') {
         const edge = def.edges.find((e: any) => e.source === node.id);
