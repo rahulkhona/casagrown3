@@ -122,7 +122,7 @@ Deno.serve(async (req: Request) => {
 
       if (isTest && campaign.test_emails && campaign.test_emails.length > 0) {
          recipients = campaign.test_emails.map((email: string) => ({
-             id: 'test-user-id',
+             id: crypto.randomUUID(),
              recipient_type: 'user',
              email: email.trim(),
              phone: null,
