@@ -274,14 +274,33 @@ export default function CampaignMessageEditor({
 
       {form.channel === 'email' && !templateMode && (
         <div className="crm-field full-width" style={{ marginTop: 16 }}>
-          <label>Email Subject *</label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+            <label>Email Subject *</label>
+            <span style={{
+              fontSize: '0.78rem',
+              fontWeight: 500,
+              color: (form.subject || '').length > 80 ? '#dc2626' : (form.subject || '').length > 60 ? '#d97706' : '#6b7280'
+            }}>
+              {(form.subject || '').length}/80 chars
+            </span>
+          </div>
           <textarea 
             rows={2}
-            style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', fontFamily: 'inherit', fontSize: '1rem', resize: 'vertical', minHeight: '60px' }}
+            style={{
+              width: '100%', padding: '10px', borderRadius: '6px',
+              border: `1px solid ${(form.subject || '').length > 80 ? '#fca5a5' : '#d1d5db'}`,
+              fontFamily: 'inherit', fontSize: '1rem', resize: 'vertical', minHeight: '60px',
+              outline: (form.subject || '').length > 80 ? '2px solid #fca5a5' : undefined
+            }}
             placeholder="e.g. Fresh produce just dropped in your area 🌱" 
             value={form.subject || ''} 
             onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} 
           />
+          {(form.subject || '').length > 80 && (
+            <div style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: 3 }}>
+              ⚠️ Subject exceeds 80 characters — many clients will truncate it.
+            </div>
+          )}
         </div>
       )}
 
@@ -405,35 +424,65 @@ export default function CampaignMessageEditor({
         </div>
       )}
 
-      {form.channel === 'sms' && (
-        <div className="crm-field full-width" style={{ marginTop: showChannelSelector ? 16 : 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4 }}>
-            <label>SMS Text Content *</label>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <button
-                type="button"
-                onClick={() => setPromoModalDest('clipboard')}
-                style={{ padding: '4px 8px', fontSize: '0.8rem', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-              >
-                🔗 Get Short Links
-              </button>
-              <button
-                type="button"
-                onClick={() => setAiModalOpen(true)}
-                style={{ padding: '4px 8px', fontSize: '0.8rem', background: 'linear-gradient(to right, #8b5cf6, #3b82f6)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-              >
-                ✨ Ask AI
-              </button>
+      {form.channel === 'sms' && (() => {
+        const text = form.content_text || ''
+        // GSM-7 character set detection (common chars that fit in 1 byte)
+        const isGSM7 = /^[\x00-\x7F\u00C0-\u00FF]*$/.test(text) && !/[\u0100-\uFFFF]/.test(text)
+        const singleLimit = isGSM7 ? 160 : 70
+        const multiLimit = isGSM7 ? 153 : 67
+        const segments = text.length === 0 ? 1 : text.length <= singleLimit ? 1 : Math.ceil(text.length / multiLimit)
+        const charsInLastSeg = text.length <= singleLimit
+          ? singleLimit - text.length
+          : multiLimit - (text.length % multiLimit || multiLimit)
+        const isOver = text.length > 0 && segments > 3
+        const counterColor = isOver ? '#dc2626' : segments > 1 ? '#d97706' : '#6b7280'
+        return (
+          <div className="crm-field full-width" style={{ marginTop: showChannelSelector ? 16 : 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4 }}>
+              <label>SMS Text Content *</label>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.78rem', fontWeight: 500, color: counterColor }}>
+                  {text.length} chars · {segments} segment{segments !== 1 ? 's' : ''} · {charsInLastSeg} left
+                  {!isGSM7 && <span title="Unicode (emoji/special chars) — reduced limit"> 🌐</span>}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPromoModalDest('clipboard')}
+                  style={{ padding: '4px 8px', fontSize: '0.8rem', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                >
+                  🔗 Get Short Links
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAiModalOpen(true)}
+                  style={{ padding: '4px 8px', fontSize: '0.8rem', background: 'linear-gradient(to right, #8b5cf6, #3b82f6)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                >
+                  ✨ Ask AI
+                </button>
+              </div>
             </div>
+            <textarea 
+              placeholder="Hey, spring drop is live! 🍓 Reply STOP to unsub." 
+              value={form.content_text || ''} 
+              onChange={e => setForm(f => ({ ...f, content_text: e.target.value }))} 
+              style={{
+                width: '100%', minHeight: '100px', padding: '10px',
+                borderRadius: '6px',
+                border: `1px solid ${isOver ? '#fca5a5' : segments > 1 ? '#fde68a' : '#d1d5db'}`,
+                resize: 'vertical'
+              }} 
+            />
+            {segments > 1 && (
+              <div style={{ fontSize: '0.75rem', color: counterColor, marginTop: 3 }}>
+                {isOver
+                  ? `⚠️ ${segments} segments — consider shortening. Carriers may split or drop long SMS.`
+                  : `ℹ️ ${segments} segments (${isGSM7 ? `GSM-7, ${multiLimit} chars/seg` : `Unicode, ${multiLimit} chars/seg`})`
+                }
+              </div>
+            )}
           </div>
-          <textarea 
-            placeholder="Hey, spring drop is live! 🍓 Reply STOP to unsub." 
-            value={form.content_text || ''} 
-            onChange={e => setForm(f => ({ ...f, content_text: e.target.value }))} 
-            style={{ width: '100%', minHeight: '100px', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', resize: 'vertical' }} 
-          />
-        </div>
-      )}
+        )
+      })()}
 
       {form.channel === 'email' && templateMode && (
         <div className="crm-field full-width" style={{ marginTop: 16 }}>
