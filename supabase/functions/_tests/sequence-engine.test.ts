@@ -99,7 +99,9 @@ dbTest("Sequence Engine: Enroll and Linear Execution (SMS Stubbing)", async () =
   assertEquals(enrollment.current_node_id, "node-1");
 
   const processRes = await processStep();
-  assertEquals(processRes.status, 200);
+  const processData1 = await processRes.json();
+  console.log("processData1:", processData1);
+  assertEquals(processRes.status, 200, JSON.stringify(processData1));
 
   const { data: enrollmentAfter } = await supabase.from("crm_sequence_enrollments")
     .select("*").eq("id", enrollment.id).single();
@@ -279,6 +281,7 @@ dbTest("process-sequence-step: Advances past wait node when evaluation time has 
 
   // Run processor — should advance from wait → sms node
   const processRes = await processStep();
+  const _pd1 = await processRes.json();
   assertEquals(processRes.status, 200);
 
   const { data: after } = await supabase.from("crm_sequence_enrollments")
@@ -360,6 +363,7 @@ dbTest("process-sequence-step: Condition node routes to correct branch (true/fal
 
   // Run processor
   const processRes = await processStep();
+  const _pd2 = await processRes.json();
   assertEquals(processRes.status, 200);
 
   // Lead A (converted) → should be on node-sms-true
@@ -391,13 +395,17 @@ dbTest("process-sequence-step: action_email node creates campaign_sends row and 
     edges: [{ id: "e1", source: "node-email", target: "node-done" }],
   });
 
-  await enroll(seq.id, [{ recipient_type: "lead", recipient_id: lead.id }]);
+  const enrollRes = await enroll(seq.id, [{ recipient_type: "lead", recipient_id: lead.id }]);
+  const enrollData = await enrollRes.json();
+  assertEquals(enrollRes.status, 200, JSON.stringify(enrollData));
+  assertEquals(enrollData.enrolled, 1);
 
   const { data: enrollment } = await supabase.from("crm_sequence_enrollments")
     .select("id").eq("sequence_id", seq.id).eq("recipient_id", lead.id).single();
 
   // Run processor — should fire the email node
   const processRes = await processStep();
+  const _pd3 = await processRes.json();
   assertEquals(processRes.status, 200);
 
   // Enrollment should have advanced to node-done
@@ -408,7 +416,7 @@ dbTest("process-sequence-step: action_email node creates campaign_sends row and 
   // crm_campaign_sends row should exist for this sequence + lead
   const { data: sends } = await supabase.from("crm_campaign_sends")
     .select("*").eq("sequence_id", seq.id).eq("recipient_id", lead.id);
-  assert(sends && sends.length >= 1, "Should have a campaign_sends row for the email action");
+  assert(sends && sends.length >= 1, `Should have a campaign_sends row for the email action. Got: ${JSON.stringify(sends)}`);
   assertEquals(sends![0].node_id, "node-email");
 
   await cleanup({ table: "crm_sequences", id: seq.id }, { table: "crm_leads", id: lead.id });

@@ -1,4 +1,4 @@
-import { test, expect, assert } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 
 test.describe('CRM Sequences & Editor Backward Compatibility', () => {
   // Wait for the app to load before each test
@@ -137,15 +137,16 @@ test.describe('CRM Sequences & Editor Backward Compatibility', () => {
     const hasEmptyState = await page.locator('text=/no sequences|get started|create your first/i').count() > 0;
     const hasRows = await page.locator('tr, .sequence-row').count() > 0;
 
-    assert(hasTable || hasEmptyState || hasRows,
-      'Page should show either a sequences table or empty state message');
+    expect(hasTable || hasEmptyState || hasRows,
+      'Page should show either a sequences table or empty state message').toBeTruthy();
 
     // If sequences exist, assert status badges are present (DRAFT or ACTIVE)
     if (hasRows) {
       const badges = page.locator('.crm-badge, span').filter({ hasText: /draft|active|archived/i });
       const count = await badges.count();
       // At least some rows should have status badges
-      assert(count >= 0, 'Status badges should be renderable'); // soft check — may be empty DB
+      // Status badge count >= 0 always — soft check that the page is rendered
+      expect(count >= 0).toBeTruthy();
     }
   });
 
