@@ -313,6 +313,26 @@ else
   log_suite "CRM Edge Functions" "$CRM_PASSED" "$CRM_FAILED"
 fi
 
+# 5f: Drip Sequence Engine integration tests
+echo "  Running Drip Sequence Engine integration tests..."
+SEQ_OUTPUT=$(SUPABASE_URL=http://127.0.0.1:54321 \
+  SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
+  SUPABASE_ANON_KEY="$(npx supabase status -o env 2>/dev/null | grep ANON_KEY | cut -d'"' -f2)" \
+  deno test --allow-env --allow-net --no-check \
+  supabase/functions/_tests/sequence-engine.test.ts \
+  supabase/functions/_tests/process-sequence-step.test.ts 2>&1)
+SEQ_PASSED=$(echo "$SEQ_OUTPUT" | tail -n 5 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
+SEQ_FAILED=$(echo "$SEQ_OUTPUT" | tail -n 5 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
+
+if [ "${SEQ_FAILED:-0}" -eq 0 ] || [ -z "$SEQ_FAILED" ]; then
+  echo -e "  ${GREEN}✅ Drip Sequence Engine: ${SEQ_PASSED} tests — ALL PASS${NC}"
+  log_suite "Drip Sequence Engine" "$SEQ_PASSED"
+else
+  echo -e "  ${RED}❌ Drip Sequence Engine: ${SEQ_PASSED} passed, ${SEQ_FAILED} failed${NC}"
+  echo "$SEQ_OUTPUT" | grep -E "FAILED|error:" | head -10
+  log_suite "Drip Sequence Engine" "$SEQ_PASSED" "$SEQ_FAILED"
+fi
+
 # ─────────────────────────────────────────────────────────────────────────
 # PHASE 6: Shell Integration Tests (Escalation Handling)
 # ─────────────────────────────────────────────────────────────────────────

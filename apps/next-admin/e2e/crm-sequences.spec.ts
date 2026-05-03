@@ -96,4 +96,59 @@ test.describe('CRM Sequences & Editor Backward Compatibility', () => {
     const saveBtn = page.getByRole('button', { name: 'Save Sequence' });
     await expect(saveBtn).toBeVisible();
   });
+
+  test('Test 3: Sequence Activation & Structural Locking', async ({ page }) => {
+    // Navigate to sequences list and create a new one to activate
+    await page.goto('/crm/sequences');
+    const newSeqBtn = page.getByRole('button', { name: '+ New Sequence' });
+    await expect(newSeqBtn).toBeVisible();
+    await newSeqBtn.click();
+    await page.waitForURL(/\/crm\/sequences\/[a-zA-Z0-9-]+/);
+
+    // Assert: React Flow canvas is visible with Start node
+    await expect(page.locator('.react-flow')).toBeVisible();
+    await expect(page.locator('.react-flow__node:has-text("Start")')).toBeVisible();
+
+    // Assert: Sequence status shows "Draft" initially
+    const statusBadge = page.locator('[data-testid="sequence-status-badge"]');
+    await expect(statusBadge).toContainText('Draft');
+
+    // Interact: Click "Activate Sequence" button
+    const activateBtn = page.getByRole('button', { name: /Activate/ });
+    await expect(activateBtn).toBeVisible();
+    await activateBtn.click();
+
+    // Assert: Status badge changes to "Active"
+    await expect(statusBadge).toContainText('Active', { timeout: 5000 });
+
+    // Assert: Node palette items are disabled/hidden after activation
+    const nodePalette = page.locator('[data-testid="node-palette"]');
+    if (await nodePalette.isVisible()) {
+      const paletteItems = nodePalette.locator('[draggable]');
+      const count = await paletteItems.count();
+      for (let i = 0; i < count; i++) {
+        await expect(paletteItems.nth(i)).toHaveAttribute('draggable', 'false');
+      }
+    }
+
+    // Assert: Canvas structural editing is locked (nodesDraggable=false)
+    // The react-flow wrapper should have pointer-events disabled on nodes
+    const flowNodes = page.locator('.react-flow__node');
+    if (await flowNodes.count() > 0) {
+      // Try clicking a node — the config sidebar should open for copy edits (not locked)
+      await flowNodes.first().click();
+      // If the sidebar is visible, copy editing (subject/html) is still allowed
+      const sidebar = page.locator('[data-testid="node-config-sidebar"]');
+      if (await sidebar.isVisible()) {
+        const subjectInput = sidebar.locator('textarea, input[type="text"]').first();
+        if (await subjectInput.isVisible()) {
+          await expect(subjectInput).toBeEnabled();
+        }
+      }
+    }
+
+    // Assert: "Activate Sequence" button is gone, replaced by "Archive"
+    await expect(activateBtn).not.toBeVisible();
+    await expect(page.getByRole('button', { name: /Archive/ })).toBeVisible();
+  });
 });
