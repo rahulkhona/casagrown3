@@ -31,7 +31,7 @@ export async function fetchStateFeeds(health: HealthLogger): Promise<RawQuaranti
   const allRecords: RawQuarantineRecord[] = [];
 
   for (const config of configs) {
-    const sourceName = `${config.state_code}_ARCGIS`;
+    const sourceName = config.source_name ?? `${config.state_code}_ARCGIS`;
     health.startSource(sourceName);
     const startTime = Date.now();
 
@@ -77,9 +77,10 @@ async function fetchStateFeed(
 
   while (hasMore) {
     const url = new URL(`${config.endpoint_url}/query`);
+    // presence_only: all features in the layer are active quarantines — no status filter needed
     url.searchParams.set(
       'where',
-      `${config.field_map.status}='${config.active_status_value}'`,
+      config.presence_only ? '1=1' : `${config.field_map.status}='${config.active_status_value}'`,
     );
     url.searchParams.set('outFields', '*');
     url.searchParams.set('resultOffset', String(offset));
@@ -163,8 +164,11 @@ async function validateEndpoint(
     }
 
     const fieldNames = fields.map((f) => f.name.toUpperCase());
+    // Only validate non-empty expected fields (presence_only configs have empty status fields)
     const expectedFields = Object.values(config.field_map).filter(Boolean) as string[];
-    health.validateArcGISFields(sourceName, fieldNames, expectedFields.map((f) => f.toUpperCase()));
+    if (expectedFields.length > 0) {
+      health.validateArcGISFields(sourceName, fieldNames, expectedFields.map((f) => f.toUpperCase()));
+    }
 
     return true;
   } catch (err) {
@@ -187,9 +191,25 @@ function parseStateFeature(
   sourceName: string,
   health: HealthLogger,
 ): RawQuarantineRecord | null {
-  const noteVal = String(attr[config.field_map.notes_field] || '');
-  if (!noteVal) {
-    health.recordWarning(sourceName, `Record missing notes field "${config.field_map.notes_field}" — skipping.`);
+  // pest_name_override: pest is implied by the service name (single-pest layers)
+  const pestName = config.pest_name_override
+    ? config.pest_name_override
+    : String(attr[config.field_map.notes_field] || '');
+
+  if (!pestName) {
+    health.recordWarning(sourceName, `Record missing pest name — skipping.`);
+    return null;
+  }
+
+  // county_field: direct county name field bypasses PROJECT_NA parsing
+  const countyName = config.field_map.county_field
+    ? String(attr[config.field_map.county_field] || '')
+    : extractCountyFromProject(
+        config.field_map.project_name ? String(attr[config.field_map.project_name] || '') : ''
+      );
+
+  if (!countyName) {
+    health.recordWarning(sourceName, `Record for "${pestName}" has no county — skipping.`);
     return null;
   }
 
@@ -203,11 +223,11 @@ function parseStateFeature(
     : null;
 
   return {
-    notes: projectName ? `${projectName} - ${noteVal}` : `${config.state_name} quarantine — ${noteVal}`,
-    pest_name: noteVal,
+    notes: `${config.state_name} quarantine — ${pestName} (${countyName} County)`,
+    pest_name: pestName,
     state_code: config.state_code,
     state_name: config.state_name,
-    county_name: extractCountyFromProject(projectName),
+    county_name: countyName,
     starts_at: startsAt,
     ends_at: endsAt,
     source_url: config.endpoint_url,

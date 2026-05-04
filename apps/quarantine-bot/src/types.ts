@@ -64,6 +64,12 @@ export interface StateFeedConfig {
   state_code: string;
   state_name: string;
   endpoint_url: string;
+  /** Optional override for the source name used in health logs and data_source column (default: {state_code}_ARCGIS) */
+  source_name?: string;
+  /** When true, all features in the layer are treated as active quarantines (no status filter). */
+  presence_only?: boolean;
+  /** When set, overrides the pest_name with a fixed value (for single-pest service layers). */
+  pest_name_override?: string;
   /** Maps source field names → our expected fields */
   field_map: {
     notes_field: string;
@@ -71,7 +77,9 @@ export interface StateFeedConfig {
     active_date: string;
     completed_date?: string;
     project_name?: string;
+    /** Direct county name field — bypasses PROJECT_NA parsing when set. */
+    county_field?: string;
   };
-  /** Expected status value for "active" */
+  /** Expected status value for "active" — ignored when presence_only is true */
   active_status_value: string;
 }
