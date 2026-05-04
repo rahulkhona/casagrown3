@@ -912,7 +912,7 @@ function BrowseMarketPageInner() {
                   ? `${realCount} booth${realCount !== 1 ? 's' : ''} near you + ${demoCount} demo`
                   : `${booths.length} booth${booths.length !== 1 ? 's' : ''} near you`}
             </p>
-            {realCount < 2 && (
+            {realCount < 2 && !showPioneerBanner && (
               <div style={{
                 position: 'relative', overflow: 'hidden', padding: 20, borderRadius: 20,
                 background: 'linear-gradient(145deg, #ffffff, #f0fdf4)',
