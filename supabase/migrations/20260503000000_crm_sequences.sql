@@ -1,5 +1,5 @@
 CREATE TABLE crm_sequences (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   status TEXT DEFAULT 'draft',
   trigger_event TEXT,
@@ -10,7 +10,7 @@ CREATE TABLE crm_sequences (
 );
 
 CREATE TABLE crm_sequence_enrollments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   sequence_id UUID REFERENCES crm_sequences(id) ON DELETE CASCADE,
   recipient_type TEXT NOT NULL,
   recipient_id UUID NOT NULL,
