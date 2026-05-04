@@ -163,7 +163,7 @@ If the question isn't truly about gardening or produce recipes, respond with jus
                 { role: 'user', parts: [{ text: systemPrompt + '\n\n' + userPrompt }] },
               ],
               generationConfig: {
-                maxOutputTokens: 1000,
+                maxOutputTokens: 2048,
                 temperature: 0.7,
               },
             }),
@@ -188,6 +188,22 @@ If the question isn't truly about gardening or produce recipes, respond with jus
           continue
         }
 
+        // Truncate to fit DB CHECK constraint (char_length <= 5000)
+        const MAX_CONTENT_LENGTH = 4950
+        let finalReply = reply
+        if (finalReply.length > MAX_CONTENT_LENGTH) {
+          const truncated = finalReply.substring(0, MAX_CONTENT_LENGTH)
+          const lastSentenceEnd = Math.max(
+            truncated.lastIndexOf('. '),
+            truncated.lastIndexOf('! '),
+            truncated.lastIndexOf('? '),
+            truncated.lastIndexOf('\n')
+          )
+          finalReply = lastSentenceEnd > MAX_CONTENT_LENGTH * 0.5
+            ? truncated.substring(0, lastSentenceEnd + 1) + '\n\n...'
+            : truncated + '...'
+        }
+
         // Insert reply as a threaded response
         const { error: insertErr } = await supabase
           .from('community_chat_messages')
@@ -195,7 +211,7 @@ If the question isn't truly about gardening or produce recipes, respond with jus
             community_h3_index: msg.community_h3_index,
             author_id: CASABOT_ID,
             parent_id: msg.id,
-            content: reply,
+            content: finalReply,
             is_system: true,
           })
 

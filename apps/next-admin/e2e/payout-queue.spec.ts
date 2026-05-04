@@ -363,7 +363,42 @@ test.describe('CSV Export & Import Workflow', () => {
 })
 
 test.describe('Reject & Refund Workflow', () => {
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page, request }) => {
+    // Re-seed: ensure the test redemption is in 'queued' status before each run.
+    // Previous test runs or other pipeline steps may have consumed/rejected it.
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321'
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
+    const headers = {
+      'Authorization': `Bearer ${serviceKey}`,
+      'apikey': serviceKey,
+      'Content-Type': 'application/json',
+      'Prefer': 'resolution=merge-duplicates',
+    }
+
+    // Upsert the merchandize item
+    await request.post(`${supabaseUrl}/rest/v1/redemption_merchandize`, {
+      headers,
+      data: {
+        id: '07753e6c-c695-4af3-9028-f95555dee7e0',
+        name: 'Admin Test Payout Item',
+        point_cost: 1500,
+        type: 'donation',
+        reach_type: 'global',
+      },
+    })
+
+    // Upsert the redemption back to 'queued'
+    await request.post(`${supabaseUrl}/rest/v1/redemptions`, {
+      headers,
+      data: {
+        id: '00000000-0000-0000-0000-000000000001',
+        user_id: 'a1111111-1111-1111-1111-111111111111',
+        item_id: '07753e6c-c695-4af3-9028-f95555dee7e0',
+        point_cost: 1500,
+        status: 'queued',
+      },
+    })
+
     await page.goto('/payouts', { waitUntil: 'domcontentloaded' })
     await page.waitForTimeout(2000)
   })

@@ -275,6 +275,7 @@ function parseFeature(
     data_source: SOURCE_NAME,
     confidence: 'HIGH',
   };
+}
 
 /**
  * Extract county name from CDFA PROJECT_NA field.

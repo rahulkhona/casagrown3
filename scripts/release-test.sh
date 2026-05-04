@@ -349,6 +349,70 @@ else
   log_suite "CRM Promotions RPCs" "$PROMO_PASSED" "$PROMO_FAILED"
 fi
 
+# 5h: Credit Application tests (apply_credits_to_order pipeline)
+echo "  Running Credit Application tests..."
+CREDIT_OUTPUT=$(cd supabase && deno test --allow-env --allow-net --allow-run --no-check \
+  functions/_tests/credit-application.test.ts 2>&1)
+CREDIT_PASSED=$(echo "$CREDIT_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
+CREDIT_FAILED=$(echo "$CREDIT_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
+
+if [ "${CREDIT_FAILED:-0}" -eq 0 ] || [ -z "$CREDIT_FAILED" ]; then
+  echo -e "  ${GREEN}✅ Credit Application: ${CREDIT_PASSED} tests — ALL PASS${NC}"
+  log_suite "Credit Application" "$CREDIT_PASSED"
+else
+  echo -e "  ${RED}❌ Credit Application: ${CREDIT_PASSED} passed, ${CREDIT_FAILED} failed${NC}"
+  echo "$CREDIT_OUTPUT" | grep "FAILED" | head -10
+  log_suite "Credit Application" "$CREDIT_PASSED" "$CREDIT_FAILED"
+fi
+
+# 5i: Product CRUD tests (create, update, toggle, inventory)
+echo "  Running Product CRUD tests..."
+PRODUCT_OUTPUT=$(cd supabase && deno test --allow-env --allow-net --allow-run --no-check \
+  functions/_tests/product-crud.test.ts 2>&1)
+PRODUCT_PASSED=$(echo "$PRODUCT_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
+PRODUCT_FAILED=$(echo "$PRODUCT_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
+
+if [ "${PRODUCT_FAILED:-0}" -eq 0 ] || [ -z "$PRODUCT_FAILED" ]; then
+  echo -e "  ${GREEN}✅ Product CRUD: ${PRODUCT_PASSED} tests — ALL PASS${NC}"
+  log_suite "Product CRUD" "$PRODUCT_PASSED"
+else
+  echo -e "  ${RED}❌ Product CRUD: ${PRODUCT_PASSED} passed, ${PRODUCT_FAILED} failed${NC}"
+  echo "$PRODUCT_OUTPUT" | grep "FAILED" | head -10
+  log_suite "Product CRUD" "$PRODUCT_PASSED" "$PRODUCT_FAILED"
+fi
+
+# 5j: Delegation System tests (helper join, revoke, edge function)
+echo "  Running Delegation System tests..."
+DELEG_OUTPUT=$(cd supabase && deno test --allow-env --allow-net --allow-run --no-check \
+  functions/_tests/delegation-system.test.ts 2>&1)
+DELEG_PASSED=$(echo "$DELEG_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
+DELEG_FAILED=$(echo "$DELEG_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
+
+if [ "${DELEG_FAILED:-0}" -eq 0 ] || [ -z "$DELEG_FAILED" ]; then
+  echo -e "  ${GREEN}✅ Delegation System: ${DELEG_PASSED} tests — ALL PASS${NC}"
+  log_suite "Delegation System" "$DELEG_PASSED"
+else
+  echo -e "  ${RED}❌ Delegation System: ${DELEG_PASSED} passed, ${DELEG_FAILED} failed${NC}"
+  echo "$DELEG_OUTPUT" | grep "FAILED" | head -10
+  log_suite "Delegation System" "$DELEG_PASSED" "$DELEG_FAILED"
+fi
+
+# 5k: Profile Setup Pipeline tests (USPS, community, profile binding)
+echo "  Running Profile Setup Pipeline tests..."
+PROFILE_OUTPUT=$(cd supabase && deno test --allow-env --allow-net --allow-run --no-check \
+  functions/_tests/profile-setup.test.ts 2>&1)
+PROFILE_PASSED=$(echo "$PROFILE_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
+PROFILE_FAILED=$(echo "$PROFILE_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
+
+if [ "${PROFILE_FAILED:-0}" -eq 0 ] || [ -z "$PROFILE_FAILED" ]; then
+  echo -e "  ${GREEN}✅ Profile Setup Pipeline: ${PROFILE_PASSED} tests — ALL PASS${NC}"
+  log_suite "Profile Setup Pipeline" "$PROFILE_PASSED"
+else
+  echo -e "  ${RED}❌ Profile Setup Pipeline: ${PROFILE_PASSED} passed, ${PROFILE_FAILED} failed${NC}"
+  echo "$PROFILE_OUTPUT" | grep "FAILED" | head -10
+  log_suite "Profile Setup Pipeline" "$PROFILE_PASSED" "$PROFILE_FAILED"
+fi
+
 # ─────────────────────────────────────────────────────────────────────────
 # PHASE 6: Shell Integration Tests (Escalation Handling)
 # ─────────────────────────────────────────────────────────────────────────
@@ -390,6 +454,8 @@ else
     mkdir -p scripts/output
 
     if ! lsof -nP -iTCP:$port -sTCP:LISTEN &>/dev/null; then
+      # Clean stale .next cache to prevent ChunkLoadError from outdated webpack/turbopack hashes
+      rm -rf "$app_dir/.next"
       echo "    Compiling production build (see $build_log)..."
       if ! (cd "$app_dir" && npm run build > "../../$build_log" 2>&1); then
         echo -e "${RED}    ❌ Build failed for $app_name! Check $build_log${NC}"
