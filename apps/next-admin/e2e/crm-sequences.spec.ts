@@ -119,8 +119,8 @@ test.describe('CRM Sequences & Editor Backward Compatibility', () => {
     await expect(lockedBtn).toBeVisible({ timeout: 10000 });
     await expect(activateBtn).not.toBeVisible({ timeout: 3000 });
 
-    // Assert: Node palette "Node Types" section remains visible after locking
-    await expect(page.locator('text=Node Types')).toBeVisible();
+    // Assert: Builder is still fully rendered after locking (Save button remains, palette is intentionally hidden)
+    await expect(saveBtn).toBeVisible({ timeout: 5000 });
   });
 
   test('Test 4: Sequences List Page — Loads and Shows Status Badges', async ({ page }) => {
