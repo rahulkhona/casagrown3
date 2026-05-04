@@ -150,7 +150,8 @@ async function main(): Promise<void> {
     run_ended_at: runEnd.toISOString(),
     status: status,
     schema_drift_detected: health.hasSchemaDrift(),
-    total_records: health.getTotalRecords()
+    total_records: health.getTotalRecords(),
+    error_log: health.getErrorLog(),
   });
 
   // ── 7. Automatic Administrative Alerts ────────────────────────

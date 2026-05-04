@@ -390,25 +390,59 @@ export default function QuarantineZonesPage() {
       ) : null}
 
       {/* Bot Health Dynamic Alert Banner */}
-      {botHealth && botHealth.status !== 'OK' ? (
-        <YStack backgroundColor={botHealth.status === 'FAILED' ? "#fef2f2" : "#fff7ed"} padding="$4" borderRadius="$3" 
-                borderWidth={1} borderColor={botHealth.status === 'FAILED' ? "#ef4444" : "#f97316"}
-                elevation={"$1"} shadowColor={botHealth.status === 'FAILED' ? "#ef4444" : "#f97316"} shadowOpacity={0.2} shadowRadius={8}>
-          <XStack alignItems="center" gap="$2">
-            <AlertTriangle size={24} color={botHealth.status === 'FAILED' ? "#dc2626" : "#d97706"} />
-            <Text color={botHealth.status === 'FAILED' ? "#dc2626" : "#ea580c"} fontWeight="800" fontSize="$5" letterSpacing={0.5}>
-              {botHealth.status === 'FAILED' 
-                ? "🚨 CRITICAL: Quarantine Bot Sync Failed" 
-                : "⚠️ WARNING: Quarantine Bot Schema Drift Detected"}
-            </Text>
-          </XStack>
-          <Text color={botHealth.status === 'FAILED' ? "#991b1b" : "#9a3412"} marginTop="$2" fontSize="$3">
-            {botHealth.status === 'FAILED'
-              ? "The automated APHIS/CDFA sync process failed entirely."
-              : "The automated sync detected new unmapped fields in the API. Syncs are continuing but you should verify accuracy."}
-          </Text>
-        </YStack>
-      ) : null}
+      {botHealth && botHealth.status !== 'OK' ? (() => {
+        const isFailed = botHealth.status === 'FAILED'
+        const errorLog: Record<string, any> = botHealth.error_log || {}
+        const failedSources = Object.entries(errorLog).filter(([, s]: any) => s.status !== 'OK')
+        return (
+          <YStack backgroundColor={isFailed ? "#fef2f2" : "#fff7ed"} padding="$4" borderRadius="$3"
+                  borderWidth={1} borderColor={isFailed ? "#ef4444" : "#f97316"}
+                  elevation={"$1"} shadowColor={isFailed ? "#ef4444" : "#f97316"} shadowOpacity={0.2} shadowRadius={8} gap="$3">
+            <XStack alignItems="center" gap="$2">
+              <AlertTriangle size={24} color={isFailed ? "#dc2626" : "#d97706"} />
+              <YStack flex={1}>
+                <Text color={isFailed ? "#dc2626" : "#ea580c"} fontWeight="800" fontSize="$5" letterSpacing={0.5}>
+                  {isFailed ? "🚨 CRITICAL: Quarantine Bot Sync Failed" : "⚠️ WARNING: Quarantine Bot Schema Drift Detected"}
+                </Text>
+                <Text color={isFailed ? "#991b1b" : "#92400e"} fontSize="$2">
+                  Last run: {new Date(botHealth.run_ended_at).toLocaleString()}
+                </Text>
+              </YStack>
+            </XStack>
+
+            {failedSources.length > 0 ? (
+              <YStack gap="$2" paddingTop="$2" borderTopWidth={1} borderColor={isFailed ? "#fecaca" : "#fed7aa"}>
+                <Text color={isFailed ? "#991b1b" : "#92400e"} fontWeight="700" fontSize="$3">
+                  Affected Sources:
+                </Text>
+                {failedSources.map(([sourceName, source]: any) => (
+                  <YStack key={sourceName} backgroundColor={isFailed ? "#fee2e2" : "#ffedd5"}
+                          padding="$3" borderRadius="$2" gap="$1">
+                    <XStack alignItems="center" gap="$2">
+                      <XStack backgroundColor={source.status === 'FAILED' ? "#ef4444" : "#f97316"}
+                              paddingHorizontal="$2" paddingVertical="$1" borderRadius="$2">
+                        <Text color="white" fontWeight="700" fontSize="$1">{source.status}</Text>
+                      </XStack>
+                      <Text fontWeight="700" fontSize="$3" color={isFailed ? "#991b1b" : "#9a3412"}>{sourceName}</Text>
+                      <Text fontSize="$2" color="#6b7280">{source.records_fetched} records</Text>
+                    </XStack>
+                    {[...source.errors, ...source.warnings, ...(source.schema_issues || []).map((i: any) => i.message)].map((msg: string, idx: number) => (
+                      <Text key={idx} fontSize="$2" color={isFailed ? "#7f1d1d" : "#78350f"} paddingLeft="$4">
+                        • {msg}
+                      </Text>
+                    ))}
+                  </YStack>
+                ))}
+              </YStack>
+            ) : (
+              <Text color={isFailed ? "#991b1b" : "#9a3412"} fontSize="$3">
+                {isFailed ? "The automated APHIS/CDFA sync process failed entirely." : "The automated sync detected schema changes. Syncs are continuing but verify accuracy."}
+              </Text>
+            )}
+          </YStack>
+        )
+      })() : null}
+
 
       {isAdding ? (
         <Card borderWidth={1} borderColor={"#fed7aa"} padding="$4" backgroundColor="white" elevation="$1">

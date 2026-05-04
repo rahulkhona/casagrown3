@@ -82,6 +82,30 @@ const CA_COUNTIES = [
   'Ventura', 'Yolo', 'Yuba',
 ];
 
+// City/abbreviation aliases that map to their CA county
+const COUNTY_ALIASES: Record<string, string> = {
+  'LA': 'Los Angeles',
+  'L.A.': 'Los Angeles',
+  'LA City': 'Los Angeles',
+  'Malibu': 'Los Angeles',
+  'Long Beach': 'Los Angeles',
+  'Pasadena': 'Los Angeles',
+  'Anaheim': 'Orange',
+  'San Jose': 'Santa Clara',
+  'Oakland': 'Alameda',
+  'Fresno City': 'Fresno',
+  'Bakersfield': 'Kern',
+  'Riverside City': 'Riverside',
+  'Stockton': 'San Joaquin',
+};
+
+// Known multi-county or regional labels that are valid statewide/regional records.
+// These are stored without a county and should NOT trigger a warning.
+const KNOWN_MULTI_COUNTY_PATTERNS = [
+  'Bay Area', 'Southern California', 'Northern California', 'Central Valley',
+  'Greater LA', 'Regulated', 'Statewide', 'Countywide',
+];
+
 /**
  * Fetch all active quarantine records from the CDFA ArcGIS FeatureServer.
  */
@@ -217,9 +241,9 @@ function parseFeature(
   }
 
   const projectName = String(attr.PROJECT_NA || '');
-  const countyName = extractCountyName(projectName);
+  const { countyName, isKnownRegion } = extractCountyName(projectName);
 
-  if (!countyName) {
+  if (!countyName && !isKnownRegion) {
     health.recordWarning(
       SOURCE_NAME,
       `Record FID=${attr.FID} — could not extract county from PROJECT_NA="${projectName}".`,
@@ -251,25 +275,30 @@ function parseFeature(
     data_source: SOURCE_NAME,
     confidence: 'HIGH',
   };
-}
 
 /**
  * Extract county name from CDFA PROJECT_NA field.
  * Format is typically: "YYYY Pest - County - City" or "YYYY Pest - County/County - City"
+ * Returns the county name and whether the location is a known multi-county region.
  */
-function extractCountyName(projectName: string): string {
-  if (!projectName) return '';
+function extractCountyName(projectName: string): { countyName: string; isKnownRegion: boolean } {
+  if (!projectName) return { countyName: '', isKnownRegion: false };
 
-  // Try splitting on " - " and checking segments against known CA counties
   const parts = projectName.split(/\s*-\s*/);
 
   for (const part of parts) {
     const trimmed = part.trim();
+
+    // Check alias map first (city names, abbreviations)
+    for (const [alias, county] of Object.entries(COUNTY_ALIASES)) {
+      if (trimmed.toLowerCase() === alias.toLowerCase()) return { countyName: county, isKnownRegion: false };
+    }
+
     // Check for exact county match
     const match = CA_COUNTIES.find(
       (c) => trimmed.toLowerCase().includes(c.toLowerCase()),
     );
-    if (match) return match;
+    if (match) return { countyName: match, isKnownRegion: false };
 
     // Check for multi-county format "County/County"
     const subParts = trimmed.split('/');
@@ -277,13 +306,17 @@ function extractCountyName(projectName: string): string {
       const subMatch = CA_COUNTIES.find(
         (c) => sub.trim().toLowerCase() === c.toLowerCase(),
       );
-      if (subMatch) return subMatch;
+      if (subMatch) return { countyName: subMatch, isKnownRegion: false };
     }
   }
 
-  return '';
-}
+  // Check if it matches a known multi-county regional label — not an error
+  const isKnownRegion = KNOWN_MULTI_COUNTY_PATTERNS.some(
+    (p) => projectName.toLowerCase().includes(p.toLowerCase()),
+  );
 
+  return { countyName: '', isKnownRegion };
+}
 /**
  * Parse an ArcGIS epoch-millisecond date field to a JS Date.
  */

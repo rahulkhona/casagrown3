@@ -41,7 +41,9 @@ const PEST_CONFIGS: AphisPestConfig[] = [
       content: 'main, article, .field--name-body, #block-aphis-content',
       fallbacks: ['.main-content', '#content', 'body'],
     },
-    expected_min_states: 5,
+    // USDA lifted the federal EAB quarantine in 2022 for most states.
+    // Only a handful of states (e.g. Michigan) still have active programs.
+    expected_min_states: 1,
   },
   {
     pest_name: 'Asian Longhorned Beetle',

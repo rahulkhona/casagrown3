@@ -249,4 +249,33 @@ export class HealthLogger {
     const allSources = Array.from(this.sources.values());
     return allSources.some(s => s.schema_issues.some(issue => issue.severity === 'ERROR' || issue.severity === 'WARNING'));
   }
+
+  /**
+   * Returns a compact error log of all non-OK sources for DB persistence.
+   * Only includes sources with errors, warnings, or schema issues (ERROR/WARNING severity).
+   * Omits INFO-level schema issues to keep the log focused on actionable problems.
+   */
+  getErrorLog(): Record<string, unknown> | null {
+    const log: Record<string, unknown> = {};
+    for (const [name, source] of this.sources.entries()) {
+      const actionableIssues = source.schema_issues.filter(
+        (i) => i.severity === 'ERROR' || i.severity === 'WARNING',
+      );
+      if (source.status !== 'OK' || source.errors.length > 0 || source.warnings.length > 0 || actionableIssues.length > 0) {
+        log[name] = {
+          status: source.status,
+          records_fetched: source.records_fetched,
+          errors: source.errors,
+          warnings: source.warnings,
+          schema_issues: actionableIssues.map((i) => ({
+            severity: i.severity,
+            field: i.field,
+            message: i.message,
+            ...(i.expected ? { expected: i.expected, actual: i.actual } : {}),
+          })),
+        };
+      }
+    }
+    return Object.keys(log).length > 0 ? log : null;
+  }
 }
