@@ -108,6 +108,9 @@ test.describe('CRM Sequences & Editor Backward Compatibility', () => {
     const activateBtn = page.locator('button:has-text("Activate Sequence")');
     await expect(activateBtn).toBeVisible({ timeout: 10000 });
 
+    // Handle the native confirm() dialog that appears on activation
+    page.once('dialog', dialog => dialog.accept());
+
     // Interact: Click "Activate Sequence"
     await activateBtn.click();
 
