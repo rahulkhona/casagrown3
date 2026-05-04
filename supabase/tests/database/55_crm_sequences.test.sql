@@ -14,7 +14,7 @@ SELECT has_column('crm_campaign_sends', 'sequence_id', 'crm_campaign_sends shoul
 SELECT has_column('crm_campaign_sends', 'node_id', 'crm_campaign_sends should have node_id');
 
 -- 3. Check Constraints (Defaults, Nullability)
-SELECT col_default_is('crm_sequences', 'status', '''draft''', 'Status default is draft');
+SELECT col_default_is('crm_sequences', 'status', 'draft', 'Status default is draft');
 SELECT col_not_null('crm_sequences', 'definition', 'Definition must not be null');
 
 -- 4. Check Unique Enrollment Constraint
