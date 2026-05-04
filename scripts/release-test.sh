@@ -333,6 +333,22 @@ else
   log_suite "Drip Sequence Engine" "$SEQ_PASSED" "$SEQ_FAILED"
 fi
 
+# 5g: CRM Promotions RPC tests (enrollment + blueprint incentives)
+echo "  Running CRM Promotions RPC tests..."
+PROMO_OUTPUT=$(cd supabase && deno test --allow-env --allow-net --allow-run --no-check \
+  functions/_tests/crm-promotions-rpcs.test.ts 2>&1)
+PROMO_PASSED=$(echo "$PROMO_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
+PROMO_FAILED=$(echo "$PROMO_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
+
+if [ "${PROMO_FAILED:-0}" -eq 0 ] || [ -z "$PROMO_FAILED" ]; then
+  echo -e "  ${GREEN}✅ CRM Promotions RPCs: ${PROMO_PASSED} tests — ALL PASS${NC}"
+  log_suite "CRM Promotions RPCs" "$PROMO_PASSED"
+else
+  echo -e "  ${RED}❌ CRM Promotions RPCs: ${PROMO_PASSED} passed, ${PROMO_FAILED} failed${NC}"
+  echo "$PROMO_OUTPUT" | grep "FAILED" | head -10
+  log_suite "CRM Promotions RPCs" "$PROMO_PASSED" "$PROMO_FAILED"
+fi
+
 # ─────────────────────────────────────────────────────────────────────────
 # PHASE 6: Shell Integration Tests (Escalation Handling)
 # ─────────────────────────────────────────────────────────────────────────
