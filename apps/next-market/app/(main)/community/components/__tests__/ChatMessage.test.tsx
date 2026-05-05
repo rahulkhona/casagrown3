@@ -269,4 +269,42 @@ describe('ChatMessage', () => {
     const inputs = container.querySelectorAll('input[placeholder="Reply..."]')
     expect(inputs.length).toBe(0)
   })
+
+  // ── Optimistic Media (REGRESSION) ────────────────────────────
+
+  it('REGRESSION: renders media immediately in optimistic message (not empty)', () => {
+    // This test prevents the bug where optimistic messages had media: []
+    // causing uploaded photos to only appear after page revisit.
+    const optimisticMedia = [
+      { storage_path: 'user1/photo.jpg', media_type: 'image', url: 'https://mock/user1/photo.jpg' },
+    ]
+    const optimisticMsg = {
+      ...baseMessage,
+      id: 'temp-12345',
+      media: optimisticMedia,
+    }
+    const { container } = render(
+      React.createElement(ChatMessage, { ...defaultProps, message: optimisticMsg })
+    )
+    const imgs = container.querySelectorAll('img[alt="Attached media"]')
+    expect(imgs.length).toBe(1)
+    expect((imgs[0] as HTMLImageElement).src).toContain('photo.jpg')
+  })
+
+  it('REGRESSION: multiple media items all render in optimistic message', () => {
+    const optimisticMedia = [
+      { storage_path: 'user1/photo1.jpg', media_type: 'image', url: 'https://mock/user1/photo1.jpg' },
+      { storage_path: 'user1/photo2.jpg', media_type: 'image', url: 'https://mock/user1/photo2.jpg' },
+    ]
+    const optimisticMsg = {
+      ...baseMessage,
+      id: 'temp-67890',
+      media: optimisticMedia,
+    }
+    const { container } = render(
+      React.createElement(ChatMessage, { ...defaultProps, message: optimisticMsg })
+    )
+    const imgs = container.querySelectorAll('img[alt="Attached media"]')
+    expect(imgs.length).toBe(2)
+  })
 })
