@@ -456,6 +456,15 @@ export default function ClientPage({
     try {
       // Optimistic rendering so we don't need to re-fetch and resize the whole feed
       const tempId = `temp-${Date.now()}`
+      // Hydrate media URLs for instant display
+      const supabaseForMedia = createClient()
+      const optimisticMedia = (media || []).map(m => {
+        if (m.storage_path && !m.url) {
+          const { data } = supabaseForMedia.storage.from('community-chat-media').getPublicUrl(m.storage_path)
+          return { ...m, url: data.publicUrl }
+        }
+        return m
+      })
       const optimisticMsg: CommunityChatMessage = {
         id: tempId,
         content,
@@ -465,7 +474,7 @@ export default function ClientPage({
         author_avatar_url: typeof (user as any)?.user_metadata?.avatar_url === 'string' ? (user as any).user_metadata.avatar_url : null,
         community_h3_index: profileH3,
         parent_id: replyingTo?.id || null,
-        media: [],
+        media: optimisticMedia,
         product_listing_id: null,
         is_system: false,
         is_pinned: false,
