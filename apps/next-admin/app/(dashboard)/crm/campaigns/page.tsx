@@ -59,6 +59,8 @@ export default function CrmCampaignsPage() {
   const [audiences, setAudiences] = useState<Audience[]>([])
   const [dataSources, setDataSources] = useState<DataSource[]>([])
   const [sequences, setSequences] = useState<any[]>([])
+  const [landingPages, setLandingPages] = useState<{ id: string; slug: string; title: string }[]>([])
+  const [promotions, setPromotions] = useState<{ id: string; name: string; landing_page_id: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -183,16 +185,20 @@ export default function CrmCampaignsPage() {
   useEffect(() => {
     const fetchAll = async () => {
       setLoading(true)
-      const [{ data: camps }, { data: auds }, { data: sources }, { data: seqs }] = await Promise.all([
+      const [{ data: camps }, { data: auds }, { data: sources }, { data: seqs }, { data: lps }, { data: promos }] = await Promise.all([
         supabase.from('crm_campaigns').select('*').order('created_at', { ascending: false }),
         supabase.from('crm_audiences').select('id, name, audience_rpc_name').order('name'),
         supabase.from('crm_data_sources').select('id, name, rpc_name').order('name'),
         supabase.from('crm_sequences').select('id, name').order('name'),
+        supabase.from('crm_landing_pages').select('id, slug, title').eq('is_active', true).order('title'),
+        supabase.from('crm_promotions').select('id, name, landing_page_id').order('created_at', { ascending: false }),
       ])
       setCampaigns((camps as Campaign[]) ?? [])
       setAudiences((auds as Audience[]) ?? [])
       setDataSources((sources as DataSource[]) ?? [])
       setSequences((seqs as any[]) ?? [])
+      setLandingPages((lps as any[]) ?? [])
+      setPromotions((promos as any[]) ?? [])
       setLoading(false)
     }
     fetchAll()
@@ -530,15 +536,6 @@ export default function CrmCampaignsPage() {
               <input type="datetime-local" value={form.scheduled_at} onChange={e => setForm(f => ({ ...f, scheduled_at: e.target.value }))} />
             </div>
 
-            {/* Tracking URL Builder — compact mode, pre-filled from campaign context */}
-            <div className="crm-field full-width" style={{ gridColumn: '1 / -1' }}>
-              <TrackingUrlBuilder
-                compact
-                defaultMedium={form.channel === 'email' ? 'email' : 'sms'}
-                defaultCampaign={form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}
-                campaignId={editingId || undefined}
-              />
-            </div>
           </div>
           <div className="crm-form-actions" style={{ marginTop: 24 }}>
             <button className="crm-btn-primary" onClick={handleSave} disabled={saving || !form.name}>

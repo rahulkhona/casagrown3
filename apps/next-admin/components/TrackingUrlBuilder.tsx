@@ -11,6 +11,11 @@ export interface TrackingParams {
   utm_term: string
 }
 
+interface DestinationOption {
+  value: string
+  label: string
+}
+
 interface TrackingUrlBuilderProps {
   /** Pre-fill the base URL (e.g. from the selected landing page) */
   defaultBaseUrl?: string
@@ -22,9 +27,14 @@ interface TrackingUrlBuilderProps {
   campaignId?: string
   /** Compact mode: collapses into an accordion, suitable for sidebars */
   compact?: boolean
+  /** Custom destination URLs — overrides the default BASE_URLS list. Hides Custom URL toggle. */
+  destinations?: DestinationOption[]
 }
 
 const UTM_SOURCES = [
+  { value: 'email', label: 'Email Campaign' },
+  { value: 'sms', label: 'SMS Campaign' },
+  { value: 'drip', label: 'Drip / Sequence' },
   { value: 'facebook', label: 'Facebook' },
   { value: 'instagram', label: 'Instagram' },
   { value: 'tiktok', label: 'TikTok' },
@@ -78,9 +88,11 @@ export default function TrackingUrlBuilder({
   defaultCampaign = '',
   campaignId,
   compact = false,
+  destinations,
 }: TrackingUrlBuilderProps) {
+  const urlOptions = destinations && destinations.length > 0 ? destinations : BASE_URLS
   const [isOpen, setIsOpen] = useState(!compact)
-  const [baseUrl, setBaseUrl] = useState(defaultBaseUrl || BASE_URLS[0].value)
+  const [baseUrl, setBaseUrl] = useState(defaultBaseUrl || urlOptions[0]?.value || '')
   const [customBase, setCustomBase] = useState('')
   const [useCustom, setUseCustom] = useState(false)
   const [params, setParams] = useState<TrackingParams>({
@@ -147,33 +159,38 @@ export default function TrackingUrlBuilder({
 
   const content = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* BASE URL ROW */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'end' }}>
-        <div>
-          <label style={labelStyle}>Destination Page</label>
-          {useCustom ? (
-            <input
-              value={customBase}
-              onChange={e => setCustomBase(e.target.value)}
-              placeholder="https://casagrown.com/sell"
-              style={inputStyle}
-            />
-          ) : (
-            <select value={baseUrl} onChange={e => setBaseUrl(e.target.value)} style={inputStyle}>
-              {BASE_URLS.map(u => (
-                <option key={u.value} value={u.value}>{u.label}</option>
-              ))}
-            </select>
+      {/* BASE URL ROW — hidden when parent pre-selects the URL */}
+      {!defaultBaseUrl && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'end' }}>
+          <div>
+            <label style={labelStyle}>Destination Page</label>
+            {useCustom ? (
+              <input
+                value={customBase}
+                onChange={e => setCustomBase(e.target.value)}
+                placeholder="https://casagrown.com/sell"
+                style={inputStyle}
+              />
+            ) : (
+              <select value={baseUrl} onChange={e => setBaseUrl(e.target.value)} style={inputStyle}>
+                {urlOptions.map(u => (
+                  <option key={u.value} value={u.value}>{u.label}</option>
+                ))}
+              </select>
+            )}
+          </div>
+          {/* Hide Custom URL toggle when destinations are provided from parent */}
+          {!destinations && (
+            <button
+              type="button"
+              onClick={() => setUseCustom(v => !v)}
+              style={{ ...pill, background: useCustom ? '#e0e7ff' : '#f3f4f6', color: useCustom ? '#4338ca' : '#6b7280', padding: '6px 10px', fontSize: '0.75rem', whiteSpace: 'nowrap', alignSelf: 'flex-end', marginBottom: 1 }}
+            >
+              {useCustom ? '← Preset' : 'Custom URL'}
+            </button>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => setUseCustom(v => !v)}
-          style={{ ...pill, background: useCustom ? '#e0e7ff' : '#f3f4f6', color: useCustom ? '#4338ca' : '#6b7280', padding: '6px 10px', fontSize: '0.75rem', whiteSpace: 'nowrap', alignSelf: 'flex-end', marginBottom: 1 }}
-        >
-          {useCustom ? '← Preset' : 'Custom URL'}
-        </button>
-      </div>
+      )}
 
       {/* UTM PARAMS GRID */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>

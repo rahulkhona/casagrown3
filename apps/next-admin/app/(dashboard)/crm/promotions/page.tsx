@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import dynamic from 'next/dynamic'
+import TrackingUrlBuilder from '../../../../components/TrackingUrlBuilder'
 import 'react-quill-new/dist/quill.snow.css'
 
 const ReactQuill = dynamic(() => import('../../../components/QuillEditor'), { ssr: false })
@@ -60,6 +61,7 @@ export default function CrmPromotionsBuilderPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [uploadingImage, setUploadingImage] = useState(false)
   const [uploadingCreditImage, setUploadingCreditImage] = useState(false)
+  const [promoLinks, setPromoLinks] = useState<any[]>([])
 
   const emptyForm = {
     name: '',
@@ -233,6 +235,7 @@ export default function CrmPromotionsBuilderPage() {
         credit_image_url: cred?.image_url || ''
       })
       
+      setPromoLinks([])  // reset tracked links list for this promotion
       setEditingId(id)
       setCreating(true)
     } else {
@@ -264,91 +267,125 @@ export default function CrmPromotionsBuilderPage() {
       let finalLandingPageId = form.landing_page_id
       
       if (form.landing_page_id === 'NEW_SLUG') {
-        const { data: lpData, error: lpErr } = await supabase.from('crm_landing_pages').insert({
-          title: form.new_title,
-          slug: form.new_slug,
-          is_active: true
-        }).select().single()
-        
-        if (lpErr || !lpData) throw new Error(lpErr?.message || 'Failed to register new landing page')
+        const lpRes = await fetch('/api/crm/landing-pages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: form.new_title,
+            slug: form.new_slug,
+            is_active: true
+          }),
+        })
+        const lpData = await lpRes.json()
+        if (!lpRes.ok || !lpData.id) throw new Error(lpData.error || 'Failed to register new landing page')
         finalLandingPageId = lpData.id
       }
       
       if (editingId) {
-        // Update Promotion
-        const { error: promoErr } = await supabase.from('crm_promotions').update({
-          name: form.name,
-          description_html: form.description_html,
-          enrollment_deadline: deadline.toISOString(),
-          max_enrollees: parseInt(form.max_enrollees || '1000'),
-          landing_page_id: finalLandingPageId,
-          audience_id: form.audience_id || null,
-          allow_existing_users: form.allow_existing_users
-        }).eq('id', editingId)
-        if (promoErr) throw new Error("Promotion update failed: " + promoErr.message)
+        // Update Promotion via API
+        const updateRes = await fetch('/api/crm/promotions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'upsert_promotion',
+            id: editingId,
+            name: form.name,
+            description_html: form.description_html,
+            enrollment_deadline: deadline.toISOString(),
+            max_enrollees: parseInt(form.max_enrollees || '1000'),
+            landing_page_id: finalLandingPageId,
+            audience_id: form.audience_id || null,
+            allow_existing_users: form.allow_existing_users
+          }),
+        })
+        const updateData = await updateRes.json()
+        if (!updateRes.ok) throw new Error("Promotion update failed: " + updateData.error)
       } else {
-        // Insert Promotion
-        const { data: promoData, error: promoErr } = await supabase.from('crm_promotions').insert({
-          name: form.name,
-          description_html: form.description_html,
-          enrollment_deadline: deadline.toISOString(),
-          max_enrollees: parseInt(form.max_enrollees || '1000'),
-          landing_page_id: finalLandingPageId,
-          audience_id: form.audience_id || null,
-          allow_existing_users: form.allow_existing_users
-        }).select().single()
-        if (promoErr || !promoData) throw new Error(promoErr?.message || 'Failed to create promotion')
-        promoId = promoData.id
+        // Insert Promotion via API
+        const insertRes = await fetch('/api/crm/promotions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'upsert_promotion',
+            name: form.name,
+            description_html: form.description_html,
+            enrollment_deadline: deadline.toISOString(),
+            max_enrollees: parseInt(form.max_enrollees || '1000'),
+            landing_page_id: finalLandingPageId,
+            audience_id: form.audience_id || null,
+            allow_existing_users: form.allow_existing_users
+          }),
+        })
+        const insertData = await insertRes.json()
+        if (!insertRes.ok || !insertData.id) throw new Error(insertData.error || 'Failed to create promotion')
+        promoId = insertData.id
       }
 
-      // Generate Short Link
+      // Generate Short Link via API
       if (finalLandingPageId) {
         const slug = form.landing_page_id === 'NEW_SLUG' ? form.new_slug : landingPages.find(lp => lp.id === finalLandingPageId)?.slug
         if (slug) {
           const destUrl = `${marketUrl}/p/${slug}?promo=${promoId}`
           const destUrlSuffix = `/p/${slug}?promo=${promoId}`
-          const { data: existingSL } = await supabase.from('crm_short_links')
-             .select('token')
-             .ilike('destination_url', `%${destUrlSuffix}`)
-             .is('campaign_id', null)
-             .maybeSingle()
-          if (!existingSL) {
-            const token = 'P-' + Math.random().toString(36).substring(2, 8).toUpperCase()
-            const { error: insErr } = await supabase.from('crm_short_links').insert({ token, destination_url: destUrl })
-            if (insErr) throw new Error("Short link generation failed: " + insErr.message)
-          }
+          await fetch('/api/crm/promotions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'ensure_short_link',
+              destination_url: destUrl,
+              suffix_match: destUrlSuffix,
+            }),
+          })
         }
       }
 
-      // Giveaway UPSERT or DELETE
+      // Giveaway UPSERT or DELETE via API
       if (form.include_giveaway) {
-        await supabase.from('crm_promo_giveaways').upsert({
-          promotion_id: promoId,
-          title: form.giveaway_title,
-          description: form.giveaway_desc,
-          photos: [form.giveaway_image_url || '/tote-bag-hero.png'],
-          start_date: new Date().toISOString(),
-          end_date: deadline.toISOString()
-        }, { onConflict: 'promotion_id' })
+        await fetch('/api/crm/promotions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'upsert_giveaway',
+            promotion_id: promoId,
+            title: form.giveaway_title,
+            description: form.giveaway_desc,
+            photos: [form.giveaway_image_url || '/tote-bag-hero.png'],
+            start_date: new Date().toISOString(),
+            end_date: deadline.toISOString()
+          }),
+        })
       } else if (editingId) {
-        await supabase.from('crm_promo_giveaways').delete().eq('promotion_id', promoId)
+        await fetch('/api/crm/promotions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'delete_giveaway', promotion_id: promoId }),
+        })
       }
 
-      // Credits UPSERT or DELETE
+      // Credits UPSERT or DELETE via API
       if (form.include_credits) {
-        await supabase.from('crm_recurring_user_incentives_blueprint').upsert({
-          promotion_id: promoId,
-          amount_usd: parseFloat(form.credit_amount),
-          credit_type: form.credit_type,
-          cap_type: form.cap_type,
-          cap_value: parseFloat(form.cap_value),
-          frequency: form.credit_frequency,
-          occurrences: parseInt(form.credit_occurrences),
-          start_date: new Date(form.credit_start_date).toISOString(),
-          image_url: form.credit_image_url || null
-        }, { onConflict: 'promotion_id' })
+        await fetch('/api/crm/promotions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'upsert_credits',
+            promotion_id: promoId,
+            amount_usd: parseFloat(form.credit_amount),
+            credit_type: form.credit_type,
+            cap_type: form.cap_type,
+            cap_value: parseFloat(form.cap_value),
+            frequency: form.credit_frequency,
+            occurrences: parseInt(form.credit_occurrences),
+            start_date: new Date(form.credit_start_date).toISOString(),
+            image_url: form.credit_image_url || null
+          }),
+        })
       } else if (editingId) {
-        await supabase.from('crm_recurring_user_incentives_blueprint').delete().eq('promotion_id', promoId)
+        await fetch('/api/crm/promotions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'delete_credits', promotion_id: promoId }),
+        })
       }
 
       // Removed legacy auto-generation of crm_campaigns and crm_landing_pages
@@ -465,6 +502,7 @@ export default function CrmPromotionsBuilderPage() {
                 </div>
               </div>
             )}
+
             <div className="crm-field full-width">
               <label>Promotion Description <span className="crm-hint">— this is the main text shown on the landing page</span></label>
               <div style={{ background: 'white', borderRadius: 8, overflow: 'hidden' }}>

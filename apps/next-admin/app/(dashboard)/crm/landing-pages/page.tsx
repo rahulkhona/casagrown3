@@ -37,6 +37,8 @@ export default function CrmLandingPagesPage() {
   const [message, setMessage]   = useState('')
   const [form, setForm]         = useState(defaultForm)
 
+  const [selectedPage, setSelectedPage] = useState<LandingPage | null>(null)
+
   const fetchPages = async () => {
     setLoading(true)
     const { data } = await supabase
@@ -91,6 +93,7 @@ export default function CrmLandingPagesPage() {
     if (!confirm('WARNING: Deleting this canonical landing page registry will break the URL /p/... and visitors will see a 404 error! \n\nAny active promotions tied to this page will be safely preserved in the database, but they will become "homeless" until you assign them a new URL in the Promo Builder. \n\nAre you sure you want to proceed?')) return
     await supabase.from('crm_landing_pages').delete().eq('id', id)
     setPages(prev => prev.filter(p => p.id !== id))
+    if (selectedPage?.id === id) setSelectedPage(null)
     toast('Landing page removed')
   }
 
@@ -100,7 +103,7 @@ export default function CrmLandingPagesPage() {
         <div>
           <h1 className="crm-title">Landing Pages</h1>
           <p className="crm-subtitle">
-            Register landing pages here to catalog their availability. Analytics and conversion pipelines are managed in the Metrics app.
+            Register landing pages here to catalog their availability. Click a page to create a tracked URL.
           </p>
         </div>
         {!creating && (
@@ -200,7 +203,16 @@ export default function CrmLandingPagesPage() {
                 </td>
               </tr>
             ) : pages.map(page => (
-              <tr key={page.id} data-testid={`lp-row-${page.id}`}>
+              <tr
+                key={page.id}
+                data-testid={`lp-row-${page.id}`}
+                onClick={() => setSelectedPage(selectedPage?.id === page.id ? null : page)}
+                style={{
+                  cursor: 'pointer',
+                  background: selectedPage?.id === page.id ? '#f0fdf4' : undefined,
+                  transition: 'background 0.15s',
+                }}
+              >
                 <td>
                   <div className="crm-name">{page.title}</div>
                   {page.description && <div className="crm-muted">{page.description}</div>}
@@ -208,7 +220,7 @@ export default function CrmLandingPagesPage() {
                 <td>
                   <code className="slug-code">/p/{page.slug}</code>
                   <div>
-                    <a href={`${marketUrl}/p/${page.slug}`} target="_blank" rel="noreferrer" className="page-url">
+                    <a href={`${marketUrl}/p/${page.slug}`} target="_blank" rel="noreferrer" className="page-url" onClick={e => e.stopPropagation()}>
                       {marketUrl.replace('https://', '')}/p/{page.slug}
                     </a>
                   </div>
@@ -216,7 +228,7 @@ export default function CrmLandingPagesPage() {
                 <td>
                   <button
                     className={`crm-status-pill ${page.is_active ? 'active' : 'inactive'}`}
-                    onClick={() => toggleActive(page)}
+                    onClick={(e) => { e.stopPropagation(); toggleActive(page) }}
                     title="Click to toggle"
                   >
                     {page.is_active ? 'Active' : 'Inactive'}
@@ -226,7 +238,7 @@ export default function CrmLandingPagesPage() {
                 <td>
                   <button
                     className="crm-btn-danger-icon"
-                    onClick={() => deletePage(page.id)}
+                    onClick={(e) => { e.stopPropagation(); deletePage(page.id) }}
                     title="Remove registration"
                   >🗑</button>
                 </td>
@@ -236,8 +248,26 @@ export default function CrmLandingPagesPage() {
         </table>
       </div>
 
-      {/* Tracking URL Builder — full mode for building UTM links to any landing page */}
-      <TrackingUrlBuilder />
+      {/* Tracking URL Builder — appears when a landing page row is selected */}
+      {selectedPage && (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>Creating tracked URL for:</span>
+            <strong style={{ color: '#166534' }}>{selectedPage.title}</strong>
+            <code style={{ background: '#f3f4f6', padding: '2px 8px', borderRadius: 4, fontSize: '0.8rem' }}>
+              /p/{selectedPage.slug}
+            </code>
+            <button
+              onClick={() => setSelectedPage(null)}
+              style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 16 }}
+            >✕</button>
+          </div>
+          <TrackingUrlBuilder
+            key={selectedPage.id}
+            defaultBaseUrl={`${marketUrl}/p/${selectedPage.slug}`}
+          />
+        </div>
+      )}
 
       <style jsx>{`
         .crm-page { }

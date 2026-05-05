@@ -86,6 +86,11 @@ export default function CampaignMessageEditor({
   const [promotions, setPromotions] = useState<any[]>([])
   const [promoModalDest, setPromoModalDest] = useState<'quill' | 'clipboard' | null>(null)
   const [linkSearch, setLinkSearch] = useState('')
+  const [linkSelectedUrl, setLinkSelectedUrl] = useState<string | null>(null)
+  const [linkSelectedLabel, setLinkSelectedLabel] = useState('')
+  const [linkUtmFields, setLinkUtmFields] = useState({ utm_source: '', utm_medium: '', utm_campaign: '', utm_content: '', utm_term: '' })
+  const [linkShortening, setLinkShortening] = useState(false)
+  const [linkLabel, setLinkLabel] = useState('')
 
   // AI Draft Modal State
   const [aiModalOpen, setAiModalOpen] = useState(false)
@@ -93,6 +98,13 @@ export default function CampaignMessageEditor({
   const [aiTone, setAiTone] = useState('Friendly and Urgent')
   const [isGeneratingAi, setIsGeneratingAi] = useState(false)
   const [aiDraft, setAiDraft] = useState('')
+
+  // Track Link Modal State
+  const [trackModalOpen, setTrackModalOpen] = useState(false)
+  const [trackLinkUrl, setTrackLinkUrl] = useState('')
+  const [trackLinkRange, setTrackLinkRange] = useState<{ index: number; length: number } | null>(null)
+  const [trackUtm, setTrackUtm] = useState({ utm_source: '', utm_medium: '', utm_campaign: '', utm_content: '', utm_term: '' })
+  const [trackCreatingShort, setTrackCreatingShort] = useState(false)
 
   const SUPPORTED_VARS = [
     { value: '', label: '➕ Add Variable' },
@@ -121,7 +133,7 @@ export default function CampaignMessageEditor({
   useEffect(() => {
     // Fetch landing pages and promos for the link picker
     const fetchLinkData = async () => {
-      const [{ data: lps }, { data: promos }, { data: shortLinks }] = await Promise.all([
+      const [{ data: shortLinks }, { data: lps }, { data: promos }] = await Promise.all([
         supabase.from('crm_short_links').select('token, destination_url').is('campaign_id', null),
         supabase.from('crm_landing_pages').select('id, slug, title').eq('is_active', true),
         supabase.from('crm_promotions').select('id, name, landing_page_id').order('created_at', { ascending: false })
@@ -144,12 +156,84 @@ export default function CampaignMessageEditor({
     fetchLinkData()
   }, [supabase])
 
-  const openAssetPicker = useCallback(async () => {
-    const quill = quillRef.current?.getEditor()
-    if (quill) {
-      const sel = quill.getSelection()
-      quillSelectionRef.current = sel ? { index: sel.index, length: sel.length } : { index: 0, length: 0 }
+  // Intercept clicks on links in the Quill editor → open Track modal instead of Quill's tooltip
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      let quill: any
+      try { quill = quillRef.current?.getEditor() } catch { return }
+      if (!quill) return
+    const root = quill.root
+    const handleLinkClick = (e: MouseEvent) => {
+      const anchor = (e.target as HTMLElement).closest('a')
+      if (!anchor) return
+      e.preventDefault()
+      e.stopPropagation()
+      const href = anchor.getAttribute('href')
+      if (!href) return
+
+      // Find the blot range for this link
+      const blot = quill.constructor.find(anchor)
+      if (blot) {
+        const idx = quill.getIndex(blot)
+        const len = blot.length()
+        setTrackLinkRange({ index: idx, length: len })
+      }
+
+      // Resolve short URLs
+      let resolvedUrl = href
+      const shortMatch = href.match(/\/r\/([a-zA-Z0-9_-]+)$/)
+      if (shortMatch) {
+        supabase.from('crm_short_links')
+          .select('destination_url')
+          .eq('token', shortMatch[1])
+          .maybeSingle()
+          .then(({ data: sl }) => {
+            if (sl?.destination_url) resolvedUrl = sl.destination_url
+            setTrackLinkUrl(resolvedUrl)
+            try {
+              const url = new URL(resolvedUrl)
+              setTrackUtm({
+                utm_source: url.searchParams.get('utm_source') || '',
+                utm_medium: url.searchParams.get('utm_medium') || '',
+                utm_campaign: url.searchParams.get('utm_campaign') || '',
+                utm_content: url.searchParams.get('utm_content') || '',
+                utm_term: url.searchParams.get('utm_term') || '',
+              })
+            } catch {
+              setTrackUtm({ utm_source: '', utm_medium: '', utm_campaign: '', utm_content: '', utm_term: '' })
+            }
+            setTrackModalOpen(true)
+          })
+      } else {
+        setTrackLinkUrl(resolvedUrl)
+        try {
+          const url = new URL(resolvedUrl)
+          setTrackUtm({
+            utm_source: url.searchParams.get('utm_source') || '',
+            utm_medium: url.searchParams.get('utm_medium') || '',
+            utm_campaign: url.searchParams.get('utm_campaign') || '',
+            utm_content: url.searchParams.get('utm_content') || '',
+            utm_term: url.searchParams.get('utm_term') || '',
+          })
+        } catch {
+          setTrackUtm({ utm_source: '', utm_medium: '', utm_campaign: '', utm_content: '', utm_term: '' })
+        }
+        setTrackModalOpen(true)
+      }
     }
+    root.addEventListener('click', handleLinkClick)
+    }, 500)
+    return () => clearTimeout(timer)
+  })
+
+  const openAssetPicker = useCallback(async () => {
+    try {
+      const quill = quillRef.current?.getEditor()
+      if (quill) {
+        const sel = quill.getSelection()
+        quillSelectionRef.current = sel ? { index: sel.index, length: sel.length } : { index: 0, length: 0 }
+      }
+    } catch {}
     setAssetPickerOpen(true)
     setLoadingAssets(true)
     const { data } = await supabase.storage.from('media').list('crm', { limit: 100, sortBy: { column: 'created_at', order: 'desc' } })
@@ -190,6 +274,115 @@ export default function CampaignMessageEditor({
     setPromoModalDest('quill')
   }, [])
 
+  const trackLinkHandler = useCallback(async () => {
+    const quill = quillRef.current?.getEditor()
+    if (!quill) return
+    const sel = quill.getSelection()
+    if (!sel) { toast('Place your cursor on a link first.'); return }
+
+    // Check if cursor is on a link
+    let linkUrl = ''
+    const format = quill.getFormat(sel.index)
+    if (!format.link) {
+      const formatBefore = sel.index > 0 ? quill.getFormat(sel.index - 1) : {}
+      if (!formatBefore.link) {
+        toast('Place your cursor on a link first.')
+        return
+      }
+      linkUrl = formatBefore.link
+      const [leaf] = quill.getLeaf(sel.index - 1)
+      if (leaf?.parent?.domNode?.tagName === 'A') {
+        const linkIdx = quill.getIndex(leaf.parent)
+        const linkLen = leaf.parent.length()
+        setTrackLinkRange({ index: linkIdx, length: linkLen })
+      }
+    } else {
+      linkUrl = format.link
+      const [leaf] = quill.getLeaf(sel.index)
+      if (leaf?.parent?.domNode?.tagName === 'A') {
+        const linkIdx = quill.getIndex(leaf.parent)
+        const linkLen = leaf.parent.length()
+        setTrackLinkRange({ index: linkIdx, length: linkLen })
+      } else {
+        setTrackLinkRange({ index: sel.index, length: sel.length || 1 })
+      }
+    }
+
+    // Resolve short URLs: if it's a /r/ link, look up the destination
+    let resolvedUrl = linkUrl
+    const shortMatch = linkUrl.match(/\/r\/([a-zA-Z0-9_-]+)$/)
+    if (shortMatch) {
+      const token = shortMatch[1]
+      const { data: sl } = await supabase.from('crm_short_links')
+        .select('destination_url')
+        .eq('token', token)
+        .maybeSingle()
+      if (sl?.destination_url) {
+        resolvedUrl = sl.destination_url
+        toast('Resolved short link to original URL')
+      }
+    }
+
+    setTrackLinkUrl(resolvedUrl)
+
+    // Parse existing UTM params
+    try {
+      const url = new URL(resolvedUrl)
+      setTrackUtm({
+        utm_source: url.searchParams.get('utm_source') || '',
+        utm_medium: url.searchParams.get('utm_medium') || '',
+        utm_campaign: url.searchParams.get('utm_campaign') || '',
+        utm_content: url.searchParams.get('utm_content') || '',
+        utm_term: url.searchParams.get('utm_term') || '',
+      })
+    } catch {
+      setTrackUtm({ utm_source: '', utm_medium: '', utm_campaign: '', utm_content: '', utm_term: '' })
+    }
+    setTrackModalOpen(true)
+  }, [toast, supabase])
+
+  const applyTracking = useCallback(async (createShort: boolean) => {
+    if (!trackLinkUrl || !trackLinkRange) return
+    try {
+      const url = new URL(trackLinkUrl)
+      // Strip existing UTM params
+      ;['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'].forEach(k => url.searchParams.delete(k))
+      // Add new ones
+      if (trackUtm.utm_source) url.searchParams.set('utm_source', trackUtm.utm_source)
+      if (trackUtm.utm_medium) url.searchParams.set('utm_medium', trackUtm.utm_medium)
+      if (trackUtm.utm_campaign) url.searchParams.set('utm_campaign', trackUtm.utm_campaign)
+      if (trackUtm.utm_content) url.searchParams.set('utm_content', trackUtm.utm_content)
+      if (trackUtm.utm_term) url.searchParams.set('utm_term', trackUtm.utm_term)
+
+      let finalUrl = url.toString()
+
+      if (createShort) {
+        setTrackCreatingShort(true)
+        const res = await fetch('/api/crm/short-links', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ destination_url: finalUrl, label: `${trackUtm.utm_source || 'campaign'} — ${trackUtm.utm_campaign || 'link'}` }),
+        })
+        const data = await res.json()
+        if (res.ok && data.short_url) {
+          finalUrl = data.short_url
+        }
+        setTrackCreatingShort(false)
+      }
+
+      // Update link in editor
+      const quill = quillRef.current?.getEditor()
+      if (quill) {
+        quill.formatText(trackLinkRange.index, trackLinkRange.length, 'link', finalUrl)
+      }
+      toast(createShort ? 'Link tracked & shortened!' : 'Tracking params added!')
+      setTrackModalOpen(false)
+    } catch (e: any) {
+      toast(`Error: ${e.message}`)
+      setTrackCreatingShort(false)
+    }
+  }, [trackLinkUrl, trackLinkRange, trackUtm, toast])
+
   const quillModules = useMemo(() => ({
     toolbar: {
       container: [
@@ -200,12 +393,12 @@ export default function CampaignMessageEditor({
         [{ 'color': [] }, { 'background': [] }],
         [{ 'align': [] }],
         [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-        ['link', 'image', 'promo'],
+        ['link', 'image'],
         ['clean']
       ],
       handlers: {
-        image: imageHandler,
-        promo: insertPromoHandler
+        link: insertPromoHandler,
+        image: imageHandler
       }
     }
   }), [imageHandler, insertPromoHandler])
@@ -334,9 +527,6 @@ export default function CampaignMessageEditor({
               <select onChange={appendVar} style={{ padding: '4px 8px', fontSize: '0.8rem', borderRadius: '4px', border: '1px solid #d1d5db' }}>
                 {SUPPORTED_VARS.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
               </select>
-              <select onChange={appendVar} style={{ padding: '4px 8px', fontSize: '0.8rem', borderRadius: '4px', border: '1px solid #d1d5db' }}>
-                {SUPPORTED_VARS.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
-              </select>
               <button
                 type="button"
                 onClick={() => setAiModalOpen(true)}
@@ -388,7 +578,7 @@ export default function CampaignMessageEditor({
                 onClick={() => setPromoModalDest('clipboard')}
                 style={{ padding: '4px 8px', fontSize: '0.8rem', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
               >
-                🔗 Get Short Links
+                🔗 Copy a Link...
               </button>
               <button
                 type="button"
@@ -450,7 +640,7 @@ export default function CampaignMessageEditor({
                   onClick={() => setPromoModalDest('clipboard')}
                   style={{ padding: '4px 8px', fontSize: '0.8rem', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
                 >
-                  🔗 Get Short Links
+                  🔗 Copy a Link...
                 </button>
                 <button
                   type="button"
@@ -517,15 +707,15 @@ export default function CampaignMessageEditor({
       {/* MODALS */}
 
       {assetPickerOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content asset-picker-modal">
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', width: '620px', maxWidth: '90vw', maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#1a2e1a' }}>Select Image</h3>
+              <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#1a2e1a' }}>📸 Select Image</h3>
               <button onClick={() => setAssetPickerOpen(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6b7280' }}>&times;</button>
             </div>
             
-            <div style={{ marginBottom: 16 }}>
-              <button className="crm-btn-primary" onClick={() => {
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <button onClick={() => {
                 const input = document.createElement('input')
                 input.setAttribute('type', 'file')
                 input.setAttribute('accept', 'image/*')
@@ -553,34 +743,55 @@ export default function CampaignMessageEditor({
                   
                   const { data: publicUrlData } = supabase.storage.from('media').getPublicUrl(fileName)
                   
-                  const quill = quillRef.current?.getEditor()
-                  if (quill) {
-                    quill.insertEmbed(quillSelectionRef.current?.index || 0, 'image', publicUrlData.publicUrl)
+                  if (htmlMode === 'wysiwyg') {
+                    try {
+                      const quill = quillRef.current?.getEditor()
+                      if (quill) {
+                        quill.insertEmbed(quillSelectionRef.current?.index || 0, 'image', publicUrlData.publicUrl)
+                      }
+                    } catch {}
+                  } else {
+                    navigator.clipboard.writeText(publicUrlData.publicUrl)
                   }
-                  toast('Image inserted!')
+                  toast(htmlMode === 'wysiwyg' ? 'Image inserted!' : 'Image URL copied to clipboard!')
                 }
-              }} style={{ width: '100%', padding: '12px' }}>+ Upload New Image from Computer</button>
+              }} style={{ flex: 1, padding: '10px 16px', fontSize: '0.9rem', fontWeight: 600, background: '#166534', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer' }}>+ Upload from Computer</button>
             </div>
+
+            <input 
+              type="text" 
+              placeholder="Search images..." 
+              value={linkSearch} 
+              onChange={e => setLinkSearch(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6, marginBottom: 12 }}
+            />
 
             <div style={{ height: '350px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, background: '#f9fafb' }}>
               {loadingAssets ? (
-                <div className="crm-muted" style={{ textAlign: 'center', padding: 40 }}>Loading assets...</div>
-              ) : assets.length === 0 ? (
-                <div className="crm-muted" style={{ textAlign: 'center', padding: 40 }}>No images found in your Assets library.</div>
+                <div style={{ textAlign: 'center', padding: 40, color: '#6b7280' }}>Loading assets...</div>
+              ) : assets.filter(a => a.name.toLowerCase().includes(linkSearch.toLowerCase())).length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 40, color: '#6b7280' }}>No images found. Upload one above!</div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 12 }}>
-                  {assets.map(a => (
+                  {assets.filter(a => a.name.toLowerCase().includes(linkSearch.toLowerCase())).map(a => (
                     <div key={a.name} 
                          onClick={() => {
-                           const quill = quillRef.current?.getEditor()
-                           if (quill) {
-                             const idx = quillSelectionRef.current?.index || 0;
-                             quill.insertEmbed(idx, 'image', a.url)
+                           if (htmlMode === 'wysiwyg') {
+                             try {
+                               const quill = quillRef.current?.getEditor()
+                               if (quill) {
+                                 const idx = quillSelectionRef.current?.index || 0;
+                                 quill.insertEmbed(idx, 'image', a.url)
+                               }
+                             } catch {}
+                           } else {
+                             navigator.clipboard.writeText(a.url)
+                             toast('Image URL copied to clipboard!')
                            }
                            setAssetPickerOpen(false)
+                           setLinkSearch('')
                          }}
                          style={{ border: '1px solid #d1d5db', borderRadius: 8, overflow: 'hidden', cursor: 'pointer', background: 'white' }}
-                         className="asset-thumb-card"
                     >
                       <div style={{ height: 90, backgroundImage: `url(${a.url})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
                       <div style={{ padding: '6px 8px', fontSize: '0.7rem', color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={a.name}>
@@ -595,91 +806,218 @@ export default function CampaignMessageEditor({
         </div>
       )}
 
-      {promoModalDest !== null && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '500px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Insert Link</h3>
-              <button className="toast-close" onClick={() => setPromoModalDest(null)}>×</button>
-            </div>
+      {promoModalDest !== null && (() => {
+        const baseUrl = process.env.NEXT_PUBLIC_MARKET_URL || 'https://casagrown.com'
 
-            <div style={{ marginBottom: 12 }}>
-              <input 
-                type="text" 
-                placeholder="Search promotions or landing pages..." 
-                value={linkSearch} 
-                onChange={e => setLinkSearch(e.target.value)}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6 }}
-                autoFocus
-              />
-            </div>
+        // Helper: select a URL and parse existing UTM params into the form
+        const selectUrl = (url: string, label: string) => {
+          setLinkSelectedUrl(url)
+          setLinkSelectedLabel(label)
+          try {
+            const u = new URL(url)
+            setLinkUtmFields({
+              utm_source: u.searchParams.get('utm_source') || '',
+              utm_medium: u.searchParams.get('utm_medium') || '',
+              utm_campaign: u.searchParams.get('utm_campaign') || '',
+              utm_content: u.searchParams.get('utm_content') || '',
+              utm_term: u.searchParams.get('utm_term') || '',
+            })
+          } catch {
+            setLinkUtmFields({ utm_source: '', utm_medium: '', utm_campaign: '', utm_content: '', utm_term: '' })
+          }
+        }
 
-            <div style={{ height: '350px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, background: '#f9fafb' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ fontWeight: 'bold', fontSize: '0.85rem', color: '#6b7280', textTransform: 'uppercase', marginTop: 8 }}>Active Promotions</div>
-                {promotions.filter(p => p.name.toLowerCase().includes(linkSearch.toLowerCase())).map(p => {
-                  const lp = landingPages.find(l => l.id === p.landing_page_id);
-                  if (!lp) return null;
-                  const baseUrl = process.env.NEXT_PUBLIC_MARKET_URL || 'https://casagrown.com';
-                  const url = p.short_token ? `${baseUrl}/r/${p.short_token}` : `${baseUrl}/p/${lp.slug}?promo=${p.id}`;
-                  return (
-                    <button key={p.id} type="button" onClick={() => {
-                      if (promoModalDest === 'quill') {
-                        const quill = quillRef.current?.getEditor();
-                        if (quill) {
-                          const sel = quillSelectionRef.current || { index: 0, length: 0 };
-                          if (sel.length > 0) {
-                            quill.formatText(sel.index, sel.length, 'link', url);
-                          } else {
-                            quill.insertText(sel.index, p.name, 'link', url);
-                          }
-                        }
-                      } else {
-                        navigator.clipboard.writeText(url);
-                        toast('Link copied to clipboard!');
-                      }
-                      setPromoModalDest(null);
-                      setLinkSearch('');
-                    }} style={{ textAlign: 'left', padding: '10px 12px', background: 'white', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer' }}>
-                      <div style={{ fontWeight: 600, color: '#111827' }}>🎁 {p.name}</div>
-                      <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: 4 }}>{url}</div>
-                    </button>
-                  )
-                })}
+        const insertLink = async (url: string, label: string, shorten: boolean) => {
+          let finalUrl = url
+          try {
+            const u = new URL(url)
+            if (linkUtmFields.utm_source) u.searchParams.set('utm_source', linkUtmFields.utm_source)
+            if (linkUtmFields.utm_medium) u.searchParams.set('utm_medium', linkUtmFields.utm_medium)
+            if (linkUtmFields.utm_campaign) u.searchParams.set('utm_campaign', linkUtmFields.utm_campaign)
+            if (linkUtmFields.utm_content) u.searchParams.set('utm_content', linkUtmFields.utm_content)
+            if (linkUtmFields.utm_term) u.searchParams.set('utm_term', linkUtmFields.utm_term)
+            finalUrl = u.toString()
+          } catch {}
 
-                <div style={{ fontWeight: 'bold', fontSize: '0.85rem', color: '#6b7280', textTransform: 'uppercase', marginTop: 16 }}>Landing Pages</div>
-                {landingPages.filter(lp => lp.title.toLowerCase().includes(linkSearch.toLowerCase()) || lp.slug.toLowerCase().includes(linkSearch.toLowerCase())).map(lp => {
-                  const baseUrl = process.env.NEXT_PUBLIC_MARKET_URL || 'https://casagrown.com';
-                  const url = `${baseUrl}/p/${lp.slug}`;
-                  return (
-                    <button key={lp.id} type="button" onClick={() => {
-                      if (promoModalDest === 'quill') {
-                        const quill = quillRef.current?.getEditor();
-                        if (quill) {
-                          const sel = quillSelectionRef.current || { index: 0, length: 0 };
-                          if (sel.length > 0) {
-                            quill.formatText(sel.index, sel.length, 'link', url);
-                          } else {
-                            quill.insertText(sel.index, lp.title, 'link', url);
-                          }
-                        }
-                      } else {
-                        navigator.clipboard.writeText(url);
-                        toast('Link copied to clipboard!');
-                      }
-                      setPromoModalDest(null);
-                      setLinkSearch('');
-                    }} style={{ textAlign: 'left', padding: '10px 12px', background: 'white', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer' }}>
-                      <div style={{ fontWeight: 600, color: '#111827' }}>📄 {lp.title}</div>
-                      <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: 4 }}>{url}</div>
-                    </button>
-                  )
-                })}
+          if (shorten) {
+            setLinkShortening(true)
+            try {
+              const res = await fetch('/api/crm/short-links', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ destination_url: finalUrl, label: linkLabel || `${linkUtmFields.utm_source || 'link'} — ${linkUtmFields.utm_campaign || label}` }),
+              })
+              const data = await res.json()
+              if (res.ok && data.short_url) finalUrl = data.short_url
+            } catch {}
+            setLinkShortening(false)
+          }
+
+          if (promoModalDest === 'quill') {
+            const quill = quillRef.current?.getEditor()
+            if (quill) {
+              const sel = quillSelectionRef.current || { index: 0, length: 0 }
+              if (sel.length > 0) {
+                quill.formatText(sel.index, sel.length, 'link', finalUrl)
+              } else {
+                quill.insertText(sel.index, label, 'link', finalUrl)
+              }
+            }
+          } else {
+            navigator.clipboard.writeText(finalUrl)
+            toast('Link copied to clipboard!')
+          }
+          setPromoModalDest(null)
+          setLinkSearch('')
+          setLinkSelectedUrl(null)
+          setLinkUtmFields({ utm_source: '', utm_medium: '', utm_campaign: '', utm_content: '', utm_term: '' })
+          setLinkLabel('')
+        }
+
+        return (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', width: '560px', maxWidth: '90vw', maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h3 style={{ margin: 0, fontSize: '1.1rem' }}>
+                  {linkSelectedUrl ? '📊 Add Tracking' : '🔗 Insert Tracked Link'}
+                </h3>
+                <button className="toast-close" onClick={() => { setPromoModalDest(null); setLinkSearch(''); setLinkSelectedUrl(null); setLinkUtmFields({ utm_source: '', utm_medium: '', utm_campaign: '', utm_content: '', utm_term: '' }); setLinkLabel('') }}>×</button>
               </div>
+
+              {!linkSelectedUrl ? (
+                <>
+                  <div style={{ marginBottom: 12 }}>
+                    <input 
+                      type="text" 
+                      placeholder="Search promotions or landing pages..." 
+                      value={linkSearch} 
+                      onChange={e => setLinkSearch(e.target.value)}
+                      style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6 }}
+                      autoFocus
+                    />
+                  </div>
+
+                  <div style={{ height: '320px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 8, padding: 12, background: '#f9fafb' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {promotions.filter(p => (p.name || '').toLowerCase().includes(linkSearch.toLowerCase()) && landingPages.some(l => l.id === p.landing_page_id)).length > 0 && (
+                        <div style={{ fontWeight: 'bold', fontSize: '0.8rem', color: '#6b7280', textTransform: 'uppercase', marginBottom: 4 }}>Promotions</div>
+                      )}
+                      {promotions.filter(p => (p.name || '').toLowerCase().includes(linkSearch.toLowerCase()) && landingPages.some(l => l.id === p.landing_page_id)).map(p => {
+                        const lp = landingPages.find(l => l.id === p.landing_page_id)!
+                        const url = `${baseUrl}/p/${lp.slug}?promo=${p.id}`
+                        return (
+                          <button key={p.id} type="button" onClick={() => selectUrl(url, p.name || lp.title || 'Promotion')}
+                            style={{ textAlign: 'left', padding: '10px 12px', background: 'white', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer' }}>
+                            <div style={{ fontWeight: 600, color: '#111827' }}>🎯 {p.name || 'Unnamed Promo'}</div>
+                            <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: 3 }}>/p/{lp.slug}?promo=…</div>
+                          </button>
+                        )
+                      })}
+
+                      {landingPages.filter(lp => (lp.title || '').toLowerCase().includes(linkSearch.toLowerCase()) || (lp.slug || '').toLowerCase().includes(linkSearch.toLowerCase())).length > 0 && (
+                        <div style={{ fontWeight: 'bold', fontSize: '0.8rem', color: '#6b7280', textTransform: 'uppercase', marginTop: 8, marginBottom: 4 }}>Landing Pages</div>
+                      )}
+                      {landingPages.filter(lp => (lp.title || '').toLowerCase().includes(linkSearch.toLowerCase()) || (lp.slug || '').toLowerCase().includes(linkSearch.toLowerCase())).map(lp => {
+                        const url = `${baseUrl}/p/${lp.slug}`
+                        return (
+                          <button key={lp.id} type="button" onClick={() => selectUrl(url, lp.title || lp.slug)}
+                            style={{ textAlign: 'left', padding: '10px 12px', background: 'white', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer' }}>
+                            <div style={{ fontWeight: 600, color: '#111827' }}>📄 {lp.title || lp.slug}</div>
+                            <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: 3 }}>/p/{lp.slug}</div>
+                          </button>
+                        )
+                      })}
+
+                      <div style={{ fontWeight: 'bold', fontSize: '0.8rem', color: '#6b7280', textTransform: 'uppercase', marginTop: 8, marginBottom: 4 }}>Marketing Pages</div>
+                      {[
+                        { url: `${baseUrl}/sell`, label: 'Seller Calculator', slug: '/sell' },
+                        { url: `${baseUrl}/check-nutrition-loss`, label: 'Nutrition Loss Checker', slug: '/check-nutrition-loss' },
+                        { url: `${baseUrl}/join`, label: 'Buyer Sign Up', slug: '/join' },
+                      ].filter(p => p.label.toLowerCase().includes(linkSearch.toLowerCase()) || p.slug.includes(linkSearch.toLowerCase())).map(p => (
+                        <button key={p.slug} type="button" onClick={() => selectUrl(p.url, p.label)}
+                          style={{ textAlign: 'left', padding: '10px 12px', background: 'white', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer' }}>
+                          <div style={{ fontWeight: 600, color: '#111827' }}>📄 {p.label}</div>
+                          <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: 3 }}>{p.slug}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <button type="button" onClick={() => setLinkSelectedUrl(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: '0.82rem', marginBottom: 12, padding: 0 }}>
+                    ← Back to URL list
+                  </button>
+
+                  <div style={{ padding: '10px 12px', background: '#dcfce7', borderRadius: 6, fontFamily: 'monospace', fontSize: '0.82rem', color: '#166534', wordBreak: 'break-all', marginBottom: 16, border: '1px solid #bbf7d0' }}>
+                    {linkSelectedUrl}
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                    <div className="crm-field">
+                      <label>Source</label>
+                      <select value={linkUtmFields.utm_source} onChange={e => setLinkUtmFields(u => ({ ...u, utm_source: e.target.value }))} style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid #d1d5db', width: '100%' }}>
+                        <option value="">None (skip tracking)</option>
+                        <option value="email">Email Campaign</option>
+                        <option value="sms">SMS Campaign</option>
+                        <option value="drip">Drip / Sequence</option>
+                        <option value="facebook">Facebook</option>
+                        <option value="instagram">Instagram</option>
+                        <option value="tiktok">TikTok</option>
+                        <option value="google">Google Ads</option>
+                        <option value="nextdoor">Nextdoor</option>
+                        <option value="newsletter">Newsletter</option>
+                        <option value="qr_code">QR Code / Print</option>
+                        <option value="organic">Organic / Other</option>
+                      </select>
+                    </div>
+                    <div className="crm-field">
+                      <label>Medium</label>
+                      <select value={linkUtmFields.utm_medium} onChange={e => setLinkUtmFields(u => ({ ...u, utm_medium: e.target.value }))} style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid #d1d5db', width: '100%' }}>
+                        <option value="">-- Select --</option>
+                        <option value="email">Email</option>
+                        <option value="sms">SMS</option>
+                        <option value="social">Social</option>
+                        <option value="cpc">CPC (Paid)</option>
+                        <option value="referral">Referral</option>
+                        <option value="print">Print</option>
+                      </select>
+                    </div>
+                    <div className="crm-field">
+                      <label>Campaign Name</label>
+                      <input placeholder="e.g. summer-kickoff" value={linkUtmFields.utm_campaign} onChange={e => setLinkUtmFields(u => ({ ...u, utm_campaign: e.target.value }))} style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid #d1d5db', width: '100%' }} />
+                    </div>
+                    <div className="crm-field">
+                      <label>Content / Placement</label>
+                      <input placeholder="e.g. backyard-gardeners-fb-group" value={linkUtmFields.utm_content} onChange={e => setLinkUtmFields(u => ({ ...u, utm_content: e.target.value }))} style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid #d1d5db', width: '100%' }} />
+                    </div>
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Keyword / Group Tag <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: '0.8rem' }}>(utm_term — optional)</span></label>
+                      <input placeholder="e.g. sell-backyard-produce" value={linkUtmFields.utm_term} onChange={e => setLinkUtmFields(u => ({ ...u, utm_term: e.target.value }))} style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid #d1d5db', width: '100%' }} />
+                      <p style={{ fontSize: '0.75rem', color: '#9ca3af', margin: '4px 0 0' }}>For Google Ads keywords or secondary social tags.</p>
+                    </div>
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Short Link Label <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: '0.8rem' }}>(optional, for admin reference)</span></label>
+                      <input placeholder="e.g. Facebook May Campaign" value={linkLabel} onChange={e => setLinkLabel(e.target.value)} style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid #d1d5db', width: '100%' }} />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
+                    <button type="button" onClick={() => insertLink(linkSelectedUrl, linkSelectedLabel, false)}
+                      style={{ padding: '10px 20px', borderRadius: 8, border: '1px solid #d1d5db', background: '#f9fafb', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem', color: '#374151' }}>
+                      {linkUtmFields.utm_source ? 'Insert with UTM' : 'Insert Link'}
+                    </button>
+                    <button type="button" onClick={() => insertLink(linkSelectedUrl, linkSelectedLabel, true)} disabled={linkShortening}
+                      style={{ padding: '10px 20px', borderRadius: 8, border: 'none', background: '#166534', color: 'white', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem', opacity: linkShortening ? 0.6 : 1 }}>
+                      {linkShortening ? 'Creating...' : 'Insert & Shorten'}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {previewEmail && (
         <div className="modal-overlay">
@@ -792,7 +1130,11 @@ export default function CampaignMessageEditor({
           </div>
         </div>
       )}
+
+      {/* Toolbar button labels */}
+      <style>{`
+        .ql-snow .ql-tooltip { display: none !important; }
+      `}</style>
     </div>
   )
 }
-

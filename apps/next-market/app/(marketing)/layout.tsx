@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { MarketingReferralCapture } from './MarketingReferralCapture'
 
 export const metadata: Metadata = {
   title: 'CasaGrown — Fresh Produce from Your Neighbors',
@@ -11,5 +12,10 @@ export const metadata: Metadata = {
 }
 
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
-  return children
+  return (
+    <>
+      <MarketingReferralCapture />
+      {children}
+    </>
+  )
 }

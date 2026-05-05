@@ -285,24 +285,75 @@ test.describe('CRM — Campaigns page', () => {
     const audienceSelect = page.locator('select').nth(1)
     await expect(audienceSelect).toBeVisible()
 
-    // Select Email channel to reveal WYSIWYG/Raw HTML toggles
-    await page.locator('select').nth(0).selectOption('email')
+    // Select Email channel (find Channel label, then the select next to it)
+    await page.locator('label:has-text("Channel") + select, label:has-text("Channel") ~ select').selectOption('email')
     
     // Select Custom HTML Mode
     const modeSelect = page.locator('select').filter({ hasText: /Custom HTML/ })
     if (await modeSelect.count() > 0) {
       await modeSelect.selectOption('custom')
       
-      const toggleWysiwyg = page.locator('button:has-text("Inline WYSIWYG")')
-      const toggleRaw = page.locator('button:has-text("Raw HTML")')
-      
-      if (await toggleWysiwyg.count() > 0) {
-        await toggleRaw.click()
-        await expect(page.locator('textarea[placeholder*="<h1>Hello"]')).toBeVisible()
+      // HTML mode toggle is now a select dropdown, not buttons
+      const htmlModeToggle = page.locator('select').filter({ hasText: /Inline Editor/ })
+      if (await htmlModeToggle.count() > 0) {
+        // Switch to Raw HTML
+        await htmlModeToggle.selectOption('raw')
+        await expect(page.locator('textarea[placeholder*="<html>"]')).toBeVisible()
         
-        await toggleWysiwyg.click()
+        // Switch back to WYSIWYG
+        await htmlModeToggle.selectOption('wysiwyg')
         await expect(page.locator('.ql-container')).toBeVisible()
       }
+    }
+  })
+
+  test('Link picker modal opens from WYSIWYG toolbar link button', async ({ page }) => {
+    const newBtn = page.locator('button:has-text("New Campaign")')
+    await newBtn.click()
+    
+    // Select Email channel
+    await page.locator('label:has-text("Channel") + select, label:has-text("Channel") ~ select').selectOption('email')
+    
+    // Select Custom HTML Mode
+    const modeSelect = page.locator('select').filter({ hasText: /Custom HTML/ })
+    if (await modeSelect.count() > 0) {
+      await modeSelect.selectOption('custom')
+
+      // Ensure WYSIWYG mode
+      const htmlModeToggle = page.locator('select').filter({ hasText: /Inline Editor/ })
+      if (await htmlModeToggle.count() > 0) {
+        await htmlModeToggle.selectOption('wysiwyg')
+      }
+      
+      // Click the link button in the Quill toolbar
+      const linkBtn = page.locator('.ql-link')
+      await expect(linkBtn).toBeVisible({ timeout: 5000 })
+      await linkBtn.click()
+      
+      // Verify the unified link picker modal opens (fixed position overlay)
+      await expect(page.getByText('Insert Tracked Link')).toBeVisible({ timeout: 5000 })
+      await expect(page.getByPlaceholder('Search promotions or landing pages...')).toBeVisible()
+    }
+  })
+
+  test('Copy a Link button opens link picker for plain text', async ({ page }) => {
+    const newBtn = page.locator('button:has-text("New Campaign")')
+    await newBtn.click()
+    
+    // Select Email channel
+    await page.locator('label:has-text("Channel") + select, label:has-text("Channel") ~ select').selectOption('email')
+    
+    const modeSelect = page.locator('select').filter({ hasText: /Custom HTML/ })
+    if (await modeSelect.count() > 0) {
+      await modeSelect.selectOption('custom')
+
+      // The "Copy a Link..." button should be visible below the editor
+      const copyLinkBtn = page.locator('button:has-text("Copy a Link...")')
+      await expect(copyLinkBtn).toBeVisible({ timeout: 5000 })
+      await copyLinkBtn.click()
+
+      // Verify the link picker modal opens
+      await expect(page.getByText('Insert Tracked Link')).toBeVisible({ timeout: 5000 })
     }
   })
 
@@ -367,5 +418,77 @@ test.describe('CRM — Campaigns page', () => {
       await modal.locator('button:has-text("Cancel")').click()
       await expect(modal).not.toBeVisible()
     }
+  })
+
+  test('Image picker modal opens from WYSIWYG toolbar image button', async ({ page }) => {
+    const newBtn = page.locator('button:has-text("New Campaign")')
+    await newBtn.click()
+
+    // Select Email + Custom HTML
+    await page.locator('label:has-text("Channel") + select, label:has-text("Channel") ~ select').selectOption('email')
+    const modeSelect = page.locator('select').filter({ hasText: /Custom HTML/ })
+    if (await modeSelect.count() > 0) {
+      await modeSelect.selectOption('custom')
+    }
+
+    // Ensure WYSIWYG mode
+    const htmlModeToggle = page.locator('select').filter({ hasText: /Inline Editor/ })
+    if (await htmlModeToggle.count() > 0) {
+      await htmlModeToggle.selectOption('wysiwyg')
+    }
+
+    // Click the image button in the Quill toolbar
+    const imgBtn = page.locator('.ql-image')
+    await expect(imgBtn).toBeVisible({ timeout: 5000 })
+    await imgBtn.click()
+
+    // Verify the image picker modal opens with fixed overlay
+    await expect(page.getByText('Select Image')).toBeVisible({ timeout: 5000 })
+    await expect(page.locator('button:has-text("Upload from Computer")')).toBeVisible()
+    await expect(page.getByPlaceholder('Search images...')).toBeVisible()
+  })
+
+  test('Image picker upload button triggers file chooser', async ({ page }) => {
+    const newBtn = page.locator('button:has-text("New Campaign")')
+    await newBtn.click()
+
+    await page.locator('label:has-text("Channel") + select, label:has-text("Channel") ~ select').selectOption('email')
+    const modeSelect = page.locator('select').filter({ hasText: /Custom HTML/ })
+    if (await modeSelect.count() > 0) {
+      await modeSelect.selectOption('custom')
+    }
+
+    const imgBtn = page.locator('.ql-image')
+    await expect(imgBtn).toBeVisible({ timeout: 5000 })
+    await imgBtn.click()
+    await expect(page.getByText('Select Image')).toBeVisible({ timeout: 5000 })
+
+    // Verify upload button triggers a file chooser
+    const [fileChooser] = await Promise.all([
+      page.waitForEvent('filechooser', { timeout: 5000 }),
+      page.locator('button:has-text("Upload from Computer")').click()
+    ])
+    expect(fileChooser).toBeTruthy()
+    expect(fileChooser.isMultiple()).toBe(false)
+  })
+
+  test('Image picker modal closes with X button', async ({ page }) => {
+    const newBtn = page.locator('button:has-text("New Campaign")')
+    await newBtn.click()
+
+    await page.locator('label:has-text("Channel") + select, label:has-text("Channel") ~ select').selectOption('email')
+    const modeSelect = page.locator('select').filter({ hasText: /Custom HTML/ })
+    if (await modeSelect.count() > 0) {
+      await modeSelect.selectOption('custom')
+    }
+
+    const imgBtn = page.locator('.ql-image')
+    await expect(imgBtn).toBeVisible({ timeout: 5000 })
+    await imgBtn.click()
+    await expect(page.getByText('Select Image')).toBeVisible({ timeout: 5000 })
+
+    // Close modal
+    await page.locator('button:has-text("×")').click()
+    await expect(page.getByText('Select Image')).not.toBeVisible()
   })
 })
