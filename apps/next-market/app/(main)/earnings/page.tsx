@@ -85,6 +85,8 @@ const TX_ICONS: Record<string, { icon: string; cls: string }> = {
   balance_held:      { icon: '🔒', cls: styles.iconCharge },
   balance_released:  { icon: '🔓', cls: styles.iconCredit },
   card_hold:         { icon: '💳', cls: styles.iconCharge },
+  payout_sent:       { icon: '💸', cls: styles.iconCashout },
+  credit_received:   { icon: '🎁', cls: styles.iconCredit },
 }
 
 function getDateRange(range: DateRange, customStart?: string, customEnd?: string) {
@@ -681,7 +683,7 @@ export default function EarningsPage() {
                         </div>
                         <div className={styles.txRight}>
                           <span className={`${styles.txAmount} ${isCredit ? styles.txAmountCredit : styles.txAmountDebit}`}>
-                            {isCredit ? '+' : (['cashout', 'gift_card', 'charity'].includes(tx.tx_type) ? '' : '-')}{formatUsd(tx.amount)}
+                            {isCredit ? '+' : (['cashout', 'gift_card', 'charity', 'payout_sent'].includes(tx.tx_type) ? '' : '-')}{formatUsd(tx.amount)}
                           </span>
                           <div className={styles.txStatus}>{tx.status}</div>
                         </div>
