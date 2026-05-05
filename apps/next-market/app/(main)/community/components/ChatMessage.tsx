@@ -237,11 +237,6 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
             onClick={handleBubbleTap}
             data-testid="message-bubble"
           >
-            <div className={styles.messageText}>
-              <SimpleMarkdown text={message.content} />
-              {message.edited_at && <span style={{ fontSize: '0.65rem', color: 'rgba(0,0,0,0.4)', marginLeft: 6 }}>(edited)</span>}
-            </div>
-            
             {message.media && message.media.length > 0 && (
               <div className={styles.mediaGrid}>
                 {message.media.map((m, i) => (
@@ -249,6 +244,11 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
                 ))}
               </div>
             )}
+
+            <div className={styles.messageText}>
+              <SimpleMarkdown text={message.content} />
+              {message.edited_at && <span style={{ fontSize: '0.65rem', color: 'rgba(0,0,0,0.4)', marginLeft: 6 }}>(edited)</span>}
+            </div>
           </div>
         )}
 
