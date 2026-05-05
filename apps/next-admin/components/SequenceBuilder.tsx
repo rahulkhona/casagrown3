@@ -17,6 +17,7 @@ import {
 import '@xyflow/react/dist/style.css'
 import { createClient } from '@supabase/supabase-js'
 import CampaignMessageEditor, { CampaignFormState } from './CampaignMessageEditor'
+import TrackingUrlBuilder from './TrackingUrlBuilder'
 import { useRouter } from 'next/navigation'
 import { adminApi } from '../lib/adminApi'
 import { QueryBuilder, Field, RuleGroupType } from 'react-querybuilder'
@@ -875,6 +876,13 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                 showChannelSelector={false}
                 showTestAndDataFields={false}
                 showDesignModeSelector={false}
+              />
+
+              {/* Tracking URL Builder — compact mode inside the drip step editor */}
+              <TrackingUrlBuilder
+                compact
+                defaultMedium={editorForm.channel === 'email' ? 'email' : 'sms'}
+                defaultCampaign={sequence?.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || ''}
               />
             </div>
             <div style={{ padding: '16px 24px', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end', background: '#f9fafb' }}>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import TrackingUrlBuilder from '../../../../components/TrackingUrlBuilder'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -234,6 +235,9 @@ export default function CrmLandingPagesPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Tracking URL Builder — full mode for building UTM links to any landing page */}
+      <TrackingUrlBuilder />
 
       <style jsx>{`
         .crm-page { }

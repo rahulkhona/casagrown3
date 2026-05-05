@@ -4,6 +4,7 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import CampaignMessageEditor from '../../../../components/CampaignMessageEditor'
+import TrackingUrlBuilder from '../../../../components/TrackingUrlBuilder'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -527,6 +528,16 @@ export default function CrmCampaignsPage() {
             <div className="crm-field">
               <label>Schedule Send (optional)</label>
               <input type="datetime-local" value={form.scheduled_at} onChange={e => setForm(f => ({ ...f, scheduled_at: e.target.value }))} />
+            </div>
+
+            {/* Tracking URL Builder — compact mode, pre-filled from campaign context */}
+            <div className="crm-field full-width" style={{ gridColumn: '1 / -1' }}>
+              <TrackingUrlBuilder
+                compact
+                defaultMedium={form.channel === 'email' ? 'email' : 'sms'}
+                defaultCampaign={form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}
+                campaignId={editingId || undefined}
+              />
             </div>
           </div>
           <div className="crm-form-actions" style={{ marginTop: 24 }}>
