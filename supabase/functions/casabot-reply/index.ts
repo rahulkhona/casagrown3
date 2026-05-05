@@ -160,7 +160,7 @@ Be enthusiastic but concise. Include 1 or 2 appropriate emojis.`
               { role: 'user', parts: geminiParts },
             ],
             generationConfig: {
-              maxOutputTokens: 2048,
+              maxOutputTokens: 4096,
               temperature: 0.7,
             },
           }),

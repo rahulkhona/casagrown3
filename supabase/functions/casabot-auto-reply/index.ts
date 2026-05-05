@@ -163,7 +163,7 @@ If the question isn't truly about gardening or produce recipes, respond with jus
                 { role: 'user', parts: [{ text: systemPrompt + '\n\n' + userPrompt }] },
               ],
               generationConfig: {
-                maxOutputTokens: 2048,
+                maxOutputTokens: 4096,
                 temperature: 0.7,
               },
             }),
