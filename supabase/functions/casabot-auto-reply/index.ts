@@ -149,6 +149,7 @@ You noticed a neighbor's gardening or recipe question went unanswered, so you're
 Provide a warm, helpful answer about gardening OR provide exactly 3 creative recipe ideas if they're asking what to do with produce.
 Start with something like "Hey! I noticed your question — " or "Great question! 🐝" to feel natural.
 You MUST format your responses using clean Markdown (bullet points, bold text).
+CRITICAL: Keep your ENTIRE response under 4000 characters. Always finish your final sentence or bullet point completely. Never stop mid-sentence.
 If the question isn't truly about gardening or produce recipes, respond with just the text "SKIP" and nothing else.`
 
         const userPrompt = `A neighbor asked: "${msg.content}"`

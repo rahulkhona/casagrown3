@@ -33,6 +33,7 @@ You have three primary directives:
    - Use **bold text** for headers or important terms.
    - Separate distinct thoughts with clear paragraph breaks.
 
+CRITICAL: Keep your ENTIRE response under 4000 characters. Always finish your final sentence or bullet point completely. Never stop mid-sentence.
 Be enthusiastic but concise. Include 1 or 2 appropriate emojis.`
 
     const userPrompt = `${author_name || 'A neighbor'} asks: "${content}"`
