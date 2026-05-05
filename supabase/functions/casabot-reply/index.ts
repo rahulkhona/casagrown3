@@ -95,8 +95,14 @@ Be enthusiastic but concise. Include 1 or 2 appropriate emojis.`
 
         if (arrayBuffer) {
           try {
-            // Deno runtime supports Base64 encoding via btoa
-            const base64Data = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+            // Deno runtime: chunk-encode to avoid call stack overflow on large images
+            const bytes = new Uint8Array(arrayBuffer)
+            let binary = ''
+            const chunkSize = 8192
+            for (let i = 0; i < bytes.length; i += chunkSize) {
+              binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
+            }
+            const base64Data = btoa(binary)
             
             geminiParts.push({
               inlineData: {
