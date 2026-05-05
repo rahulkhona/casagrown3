@@ -54,6 +54,8 @@ export default function InviteBanner({ h3Index, userId }: InviteBannerProps) {
           shareUrl={inviteUrl}
           shareMessage={getCommunityInviteMessage()}
           entityName="Community Invite"
+          shareContext="community_invite"
+          userId={userId}
         />
       )}
     </div>

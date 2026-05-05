@@ -14,6 +14,7 @@ import { createClient } from '../../lib/supabase'
 import { useAuth } from '../../lib/useAuth'
 import { resetTour } from './GuidedTour'
 import { useErrorToast } from './ErrorToast'
+import SocialShareModal from './SocialShareModal'
 
 interface MarketClosedBoxProps {
   nextOpenDate: Date | null
@@ -58,6 +59,7 @@ export default function MarketClosedBox({ nextOpenDate, todaySchedule }: MarketC
 
   // Reminder state (from original)
   const [showReminder, setShowReminder] = useState(false)
+  const [showInviteModal, setShowInviteModal] = useState(false)
   const [notifPermission, setNotifPermission] = useState<NotificationPermission | 'unsupported'>('default')
   const [reminderSet, setReminderSet] = useState(false)
   const [reminderTime, setReminderTime] = useState('30')
@@ -247,16 +249,7 @@ export default function MarketClosedBox({ nextOpenDate, todaySchedule }: MarketC
             </Link>
 
             {/* Action 3: Invite neighbors */}
-            <button style={{ ...actionCardStyle, cursor: 'pointer' }} className="mc-card" onClick={async () => {
-              const url = `${window.location.origin}/`
-              const text = 'Join me and CasaGrown in stopping this food waste! 🌱'
-              if (navigator.share) {
-                try { await navigator.share({ title: 'Join CasaGrown Market', text, url }) } catch { /* user cancelled */ }
-              } else {
-                navigator.clipboard?.writeText(`${text}\n${url}`)
-                showSuccess('Invite link copied to clipboard!')
-              }
-            }}>
+            <button style={{ ...actionCardStyle, cursor: 'pointer' }} className="mc-card" onClick={() => setShowInviteModal(true)}>
               <div style={{ ...actionIconStyle, background: 'var(--amber-100, #fef3c7)' }} className="mc-icon">📣</div>
               <div className="mc-body">
                 <h3 style={actionTitleStyle}>Invite Your Neighbors</h3>
@@ -445,8 +438,22 @@ export default function MarketClosedBox({ nextOpenDate, todaySchedule }: MarketC
               💡 Netting saves you money — if you buy $5 and sell $20, only $15 net is processed!
             </p>
           </div>
-        </div>
       </div>
+    </div>
+
+      {showInviteModal && (
+        <SocialShareModal
+          isOpen={showInviteModal}
+          onClose={() => setShowInviteModal(false)}
+          title="Invite Neighbors"
+          subtitle="Share CasaGrown with your neighborhood."
+          entityName="CasaGrown Market"
+          shareUrl={typeof window !== 'undefined' ? `${window.location.origin}/` : ''}
+          shareMessage="Join me and CasaGrown in stopping this food waste! 🌱"
+          shareContext="market_closed_invite"
+          userId={user?.id}
+        />
+      )}
     </div>
   )
 }

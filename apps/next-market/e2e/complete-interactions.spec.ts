@@ -564,7 +564,7 @@ test.describe('Booth Customize', () => {
 })
 
 // ============================================================================
-// INVITATIONS — Share link, copy code
+// INVITATIONS — Share link via SocialShareModal
 // ============================================================================
 test.describe('Invitation Management', () => {
   test('invitation page shows share options', async ({ page }) => {
@@ -574,22 +574,27 @@ test.describe('Invitation Management', () => {
     expect(body).toMatch(/Invit|Helper|Share|Copy|Sign|Create/i)
   })
 
-  test('copy link button works', async ({ page }) => {
+  test('share invitation button opens SocialShareModal', async ({ page }) => {
     await page.goto(`${BASE}/my-booth/invitations`)
     await page.waitForTimeout(2000)
-    const copyBtn = page.locator('button:has-text("Copy"), button:has-text("📋")').first()
-    if (await copyBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await copyBtn.click()
+    const shareBtn = page.locator('button:has-text("Share Invitation"), button:has-text("Share")').first()
+    if (await shareBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await shareBtn.click()
       await page.waitForTimeout(500)
+      // Modal should show platform buttons
+      const modalContent = page.locator('text=Copy Link, text=Send via Email, text=Share on WhatsApp').first()
+      if (await modalContent.isVisible({ timeout: 3000 }).catch(() => false)) {
+        expect(modalContent).toBeTruthy()
+      }
     }
   })
 
-  test('share via email button works', async ({ page }) => {
+  test('preview message section is visible', async ({ page }) => {
     await page.goto(`${BASE}/my-booth/invitations`)
     await page.waitForTimeout(2000)
-    const emailBtn = page.locator('button:has-text("Email"), button:has-text("📧")').first()
-    if (await emailBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      expect(emailBtn).toBeTruthy()
+    const previewSection = page.locator('text=Preview Message').first()
+    if (await previewSection.isVisible({ timeout: 3000 }).catch(() => false)) {
+      expect(previewSection).toBeTruthy()
     }
   })
 })

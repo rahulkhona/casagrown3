@@ -327,6 +327,7 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
         title="Share Message"
         subtitle="Invite your neighbors to the conversation."
         entityName="CasaGrown Message"
+        shareContext="chat_message_share"
         shareUrl={`${typeof window !== 'undefined' ? window.location.origin : ''}/community?message_id=${message.id}`}
         shareMessage={richShareInfo
           ? `${getRandomGreeting()} Check out what I found on CasaGrown Market:\n\n${richShareInfo}\n\n👇 Click here to view and purchase:\n${typeof window !== 'undefined' ? window.location.origin : ''}/community?message_id=${message.id}`

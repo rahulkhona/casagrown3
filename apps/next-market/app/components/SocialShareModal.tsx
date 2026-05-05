@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
+import { createTrackedShareLink, type ShareContext, type SharePlatform } from '../../lib/createTrackedShareLink'
 
 interface SocialShareModalProps {
   isOpen: boolean
@@ -10,6 +11,10 @@ interface SocialShareModalProps {
   entityName: string
   shareUrl: string
   shareMessage: string
+  shareContext?: ShareContext
+  userId?: string
+  /** If provided, only these platform buttons are shown. Omit for all platforms. */
+  platforms?: SharePlatform[]
 }
 
 // ── Platform SVG Icons ──
@@ -43,6 +48,13 @@ const ShareMoreIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
     <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+  </svg>
+)
+
+const EmailIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="4" width="20" height="16" rx="2"/>
+    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
   </svg>
 )
 
@@ -181,11 +193,15 @@ export default function SocialShareModal({
   subtitle,
   entityName,
   shareUrl,
-  shareMessage
+  shareMessage,
+  shareContext,
+  userId,
+  platforms,
 }: SocialShareModalProps) {
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [pasteReminder, setPasteReminder] = useState<'Facebook' | 'Nextdoor' | null>(null)
   const [shouldRemind, setShouldRemind] = useState(true)
+  const [loadingPlatform, setLoadingPlatform] = useState<string | null>(null)
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -197,8 +213,29 @@ export default function SocialShareModal({
 
   if (!isOpen) return null
 
-  const getPayload = () => {
-    return shareMessage.includes(shareUrl) ? shareMessage : `${shareMessage}\n\n${shareUrl}`
+  /** Check if a platform should be shown */
+  const show = (p: SharePlatform) => !platforms || platforms.includes(p)
+
+  /** Get a tracked short link for the given platform, or fall back to raw URL */
+  const getTrackedUrl = async (platform: SharePlatform): Promise<string> => {
+    if (!shareContext) return shareUrl
+    try {
+      setLoadingPlatform(platform)
+      return await createTrackedShareLink(shareUrl, shareContext, platform, userId)
+    } catch {
+      return shareUrl
+    } finally {
+      setLoadingPlatform(null)
+    }
+  }
+
+  /** Build the share payload text, replacing the raw URL with the tracked one */
+  const getPayload = (trackedUrl: string) => {
+    // If shareMessage already includes the raw URL, replace it with tracked
+    if (shareMessage.includes(shareUrl)) {
+      return shareMessage.replace(shareUrl, trackedUrl)
+    }
+    return `${shareMessage}\n\n${trackedUrl}`
   }
 
   const showToast = (msg: string) => {
@@ -206,18 +243,29 @@ export default function SocialShareModal({
     setTimeout(() => setToastMessage(null), 2500)
   }
 
-  const handleShareSMS = () => {
-    const text = encodeURIComponent(getPayload())
+  const handleShareSMS = async () => {
+    const tracked = await getTrackedUrl('sms')
+    const text = encodeURIComponent(getPayload(tracked))
     window.location.href = `sms:?body=${text}`
   }
 
-  const handleShareWhatsApp = () => {
-    const text = encodeURIComponent(getPayload())
+  const handleShareWhatsApp = async () => {
+    const tracked = await getTrackedUrl('whatsapp')
+    const text = encodeURIComponent(getPayload(tracked))
     window.open(`https://wa.me/?text=${text}`, '_blank')
   }
 
-  const handleShareNextdoor = () => {
-    navigator.clipboard.writeText(getPayload()).catch(()=>{})
+  const handleShareEmail = async () => {
+    const tracked = await getTrackedUrl('email')
+    const subject = encodeURIComponent(entityName || title)
+    const body = encodeURIComponent(getPayload(tracked))
+    window.location.href = `mailto:?subject=${subject}&body=${body}`
+  }
+
+  const handleShareNextdoor = async () => {
+    const tracked = await getTrackedUrl('nextdoor')
+    const payload = getPayload(tracked)
+    navigator.clipboard.writeText(payload).catch(()=>{})
     if (shouldRemind) {
       setPasteReminder('Nextdoor')
     } else {
@@ -226,9 +274,11 @@ export default function SocialShareModal({
     }
   }
 
-  const handleShareFacebook = () => {
-    const url = encodeURIComponent(shareUrl)
-    navigator.clipboard.writeText(getPayload()).catch(()=>{})
+  const handleShareFacebook = async () => {
+    const tracked = await getTrackedUrl('facebook')
+    const payload = getPayload(tracked)
+    const url = encodeURIComponent(tracked)
+    navigator.clipboard.writeText(payload).catch(()=>{})
     if (shouldRemind) {
       setPasteReminder('Facebook')
     } else {
@@ -243,6 +293,7 @@ export default function SocialShareModal({
     if (platform === 'Nextdoor') {
       window.open('https://nextdoor.com/news_feed/', '_blank')
     } else if (platform === 'Facebook') {
+      // Use the original shareUrl for Facebook sharer since tracked link was already used in copied text
       const url = encodeURIComponent(shareUrl)
       window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank')
     }
@@ -250,7 +301,8 @@ export default function SocialShareModal({
 
   const handleCopyLink = async () => {
     try {
-      await navigator.clipboard.writeText(shareUrl)
+      const tracked = await getTrackedUrl('copy')
+      await navigator.clipboard.writeText(tracked)
       showToast('📋 Link Copied!')
     } catch {}
   }
@@ -258,7 +310,8 @@ export default function SocialShareModal({
   const handleShareNative = async () => {
     if (navigator.share) {
       try {
-        await navigator.share({ title: entityName, text: shareMessage, url: shareUrl })
+        const tracked = await getTrackedUrl('native')
+        await navigator.share({ title: entityName, text: shareMessage, url: tracked })
       } catch {}
     }
   }
@@ -327,78 +380,116 @@ export default function SocialShareModal({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
           
           {/* SMS / iMessage */}
-          <button
-            onClick={handleShareSMS}
-            style={{
-              ...btnBase,
-              background: 'linear-gradient(135deg, #34C759, #30B350)',
-              color: '#fff',
-            }}
-          >
-            <span style={{ fontSize: 20 }}>💬</span> Text a Neighbor
-          </button>
+          {show('sms') && (
+            <button
+              onClick={handleShareSMS}
+              disabled={loadingPlatform === 'sms'}
+              style={{
+                ...btnBase,
+                background: 'linear-gradient(135deg, #34C759, #30B350)',
+                color: '#fff',
+                opacity: loadingPlatform === 'sms' ? 0.7 : 1,
+              }}
+            >
+              <span style={{ fontSize: 20 }}>💬</span> {loadingPlatform === 'sms' ? 'Preparing...' : 'Text a Neighbor'}
+            </button>
+          )}
 
           {/* WhatsApp */}
-          <button
-            onClick={handleShareWhatsApp}
-            style={{
-              ...btnBase,
-              background: '#25D366',
-              color: '#fff',
-            }}
-          >
-            <WhatsAppIcon /> Share on WhatsApp
-          </button>
+          {show('whatsapp') && (
+            <button
+              onClick={handleShareWhatsApp}
+              disabled={loadingPlatform === 'whatsapp'}
+              style={{
+                ...btnBase,
+                background: '#25D366',
+                color: '#fff',
+                opacity: loadingPlatform === 'whatsapp' ? 0.7 : 1,
+              }}
+            >
+              <WhatsAppIcon /> {loadingPlatform === 'whatsapp' ? 'Preparing...' : 'Share on WhatsApp'}
+            </button>
+          )}
+
+          {/* Email */}
+          {show('email') && (
+            <button
+              onClick={handleShareEmail}
+              disabled={loadingPlatform === 'email'}
+              style={{
+                ...btnBase,
+                background: '#6366F1',
+                color: '#fff',
+                opacity: loadingPlatform === 'email' ? 0.7 : 1,
+              }}
+            >
+              <EmailIcon /> {loadingPlatform === 'email' ? 'Preparing...' : 'Send via Email'}
+            </button>
+          )}
 
           {/* Nextdoor */}
-          <button
-            onClick={handleShareNextdoor}
-            style={{
-              ...btnBase,
-              background: '#00B246',
-              color: '#fff',
-            }}
-          >
-            <NextdoorIcon /> Share on Nextdoor
-          </button>
+          {show('nextdoor') && (
+            <button
+              onClick={handleShareNextdoor}
+              disabled={loadingPlatform === 'nextdoor'}
+              style={{
+                ...btnBase,
+                background: '#00B246',
+                color: '#fff',
+                opacity: loadingPlatform === 'nextdoor' ? 0.7 : 1,
+              }}
+            >
+              <NextdoorIcon /> {loadingPlatform === 'nextdoor' ? 'Preparing...' : 'Share on Nextdoor'}
+            </button>
+          )}
 
           {/* Facebook */}
-          <button
-            onClick={handleShareFacebook}
-            style={{
-              ...btnBase,
-              background: '#1877F2',
-              color: '#fff',
-            }}
-          >
-            <FacebookIcon /> Share on Facebook
-          </button>
+          {show('facebook') && (
+            <button
+              onClick={handleShareFacebook}
+              disabled={loadingPlatform === 'facebook'}
+              style={{
+                ...btnBase,
+                background: '#1877F2',
+                color: '#fff',
+                opacity: loadingPlatform === 'facebook' ? 0.7 : 1,
+              }}
+            >
+              <FacebookIcon /> {loadingPlatform === 'facebook' ? 'Preparing...' : 'Share on Facebook'}
+            </button>
+          )}
 
           {/* Copy Link */}
-          <button 
-            onClick={handleCopyLink}
-            style={{
-              ...btnBase,
-              background: '#f9fafb',
-              color: '#374151',
-              border: '1px solid #e5e7eb',
-            }}
-          >
-            <LinkIcon /> {toastMessage && toastMessage.includes('Link') ? 'Link Copied!' : 'Copy Link'}
-          </button>
-
-          {/* Native Share */}
-          {typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
+          {show('copy') && (
             <button 
-              onClick={handleShareNative}
+              onClick={handleCopyLink}
+              disabled={loadingPlatform === 'copy'}
               style={{
                 ...btnBase,
                 background: '#f9fafb',
                 color: '#374151',
                 border: '1px solid #e5e7eb',
+                opacity: loadingPlatform === 'copy' ? 0.7 : 1,
               }}
             >
-              <ShareMoreIcon /> More Options
+              <LinkIcon /> {loadingPlatform === 'copy' ? 'Preparing...' : toastMessage && toastMessage.includes('Link') ? 'Link Copied!' : 'Copy Link'}
+            </button>
+          )}
+
+          {/* Native Share */}
+          {show('native') && typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
+            <button 
+              onClick={handleShareNative}
+              disabled={loadingPlatform === 'native'}
+              style={{
+                ...btnBase,
+                background: '#f9fafb',
+                color: '#374151',
+                border: '1px solid #e5e7eb',
+                opacity: loadingPlatform === 'native' ? 0.7 : 1,
+              }}
+            >
+              <ShareMoreIcon /> {loadingPlatform === 'native' ? 'Preparing...' : 'More Options'}
             </button>
           )}
         </div>

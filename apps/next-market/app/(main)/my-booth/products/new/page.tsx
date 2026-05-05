@@ -2075,6 +2075,7 @@ function NewProductPageInner() {
             entityName={addedProductName || 'Product'}
             shareUrl={getProductUrl() || ''}
             shareMessage={getShareMessage()}
+            shareContext="new_product_share"
           />
         )}
       </div>

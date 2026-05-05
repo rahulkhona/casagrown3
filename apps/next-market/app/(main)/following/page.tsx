@@ -197,6 +197,8 @@ export default function FollowingPage() {
           title="Join me on CasaGrown!"
           entityName="CasaGrown"
           shareMessage="Check out this local neighborhood platform for sharing and buying backyard produce."
+          shareContext="following_invite"
+          userId={user?.id}
         />
       )}
     </div>

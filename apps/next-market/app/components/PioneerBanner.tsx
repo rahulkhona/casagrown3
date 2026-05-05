@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useAuth } from '../../lib/useAuth'
 import { useErrorToast } from './ErrorToast'
+import SocialShareModal from './SocialShareModal'
 
 interface PioneerBannerProps {
   memberCount: number
@@ -13,6 +14,7 @@ interface PioneerBannerProps {
 
 export default function PioneerBanner({ memberCount, communityH3, onDismiss }: PioneerBannerProps) {
   const [visible, setVisible] = useState(false)
+  const [showShareModal, setShowShareModal] = useState(false)
   const { user } = useAuth()
   const { showSuccess } = useErrorToast()
 
@@ -34,15 +36,8 @@ export default function PioneerBanner({ memberCount, communityH3, onDismiss }: P
     setTimeout(onDismiss, 300)
   }
 
-  const handleInvite = async () => {
-    const url = `${window.location.origin}/`
-    const text = 'I just joined CasaGrown — a marketplace for homegrown produce right in our neighborhood! 🌱🏡 Come grow with us!'
-    if (navigator.share) {
-      try { await navigator.share({ title: 'Join CasaGrown', text, url }) } catch {}
-    } else {
-      navigator.clipboard?.writeText(`${text}\n${url}`)
-      showSuccess('Invite link copied!')
-    }
+  const handleInvite = () => {
+    setShowShareModal(true)
   }
 
   if (memberCount > 20) return null
@@ -148,6 +143,20 @@ export default function PioneerBanner({ memberCount, communityH3, onDismiss }: P
           </div>
         </div>
       </div>
+
+      {showShareModal && (
+        <SocialShareModal
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          title="Invite Neighbors"
+          subtitle="Help grow your local CasaGrown community!"
+          entityName="CasaGrown"
+          shareUrl={typeof window !== 'undefined' ? `${window.location.origin}/` : ''}
+          shareMessage="I just joined CasaGrown — a marketplace for homegrown produce right in our neighborhood! 🌱🏡 Come grow with us!"
+          shareContext="pioneer_invite"
+          userId={user?.id}
+        />
+      )}
     </>
   )
 }

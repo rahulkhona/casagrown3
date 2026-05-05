@@ -1282,7 +1282,8 @@ function BrowseMarketPageInner() {
             shareUrl={typeof window !== 'undefined' ? `${window.location.origin}/` : ''}
             shareMessage={getGlobalMarketShareMessage()}
             entityName="Market Invite"
-
+            shareContext="market_invite"
+            userId={user?.id}
           />
         )}
     </div>

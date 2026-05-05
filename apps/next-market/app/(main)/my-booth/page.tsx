@@ -125,6 +125,7 @@ export default function MyBoothPage() {
 
   // Share modal (shown after save)
   const [showBoothShareModal, setShowBoothShareModal] = useState(false)
+  const [showHelperShareModal, setShowHelperShareModal] = useState(false)
   const [boothShareCopied, setBoothShareCopied] = useState(false)
   const [boothShareMsg, setBoothShareMsg] = useState('')
   const [savedBoothId, setSavedBoothId] = useState<string | null>(null)
@@ -1237,30 +1238,7 @@ export default function MyBoothPage() {
           </button>
           <button
             className="btn btn-secondary"
-            onClick={async () => {
-              const joinUrl = typeof window !== 'undefined' ? `${window.location.origin}/join-booth/${encodeURIComponent(helperPasscode)}` : ''
-              const boothLabel = name?.trim() ? `my produce stand "${name}"` : 'my CasaGrown produce stand'
-              const text = [
-                `Hey! 👋`,
-                '',
-                `I need some help managing my excess produce on CasaGrown and was wondering if you'd be able to help me out?`,
-                '',
-                `It's pretty straightforward — just keep an eye on orders, hand things off to buyers when they come by, and maybe reply to a message or two.`,
-                '',
-                `👇 If you can, click the link below to securely join ${boothLabel}:`,
-                joinUrl,
-                '',
-                `Passcode: ${helperPasscode}`,
-                '',
-                `Let me know! 🌱`,
-              ].join('\n')
-              if (navigator.share) {
-                try { await navigator.share({ title: `Help with ${boothLabel} on CasaGrown`, text, url: joinUrl }) } catch { /* user cancelled */ }
-              } else {
-                navigator.clipboard?.writeText(text)
-                dispatch({ type: 'ADD_TOAST', payload: { message: 'Copied! 📋', type: 'success' } })
-              }
-            }}
+            onClick={() => setShowHelperShareModal(true)}
           >
             <PersonPlusIcon size={14} /> Share
           </button>
@@ -1365,6 +1343,8 @@ export default function MyBoothPage() {
           entityName={name}
           shareUrl={getBoothShareUrl() || ''}
           shareMessage={boothShareMsg}
+          shareContext="booth_share"
+          userId={user?.id}
         />
       )}
 
@@ -1385,6 +1365,35 @@ export default function MyBoothPage() {
               (offersDelivery || offersPickup) ? `${offersDelivery && offersPickup ? '🚗 Delivery or 📍 Pickup' : offersDelivery ? '🚗 Delivery' : '📍 Pickup'} near ${pickupAddress ? pickupAddress.split(',').slice(-2).join(',').trim() : 'you'}` : '📍 Available nearby'
             ) + `${typeof window !== 'undefined' ? window.location.origin : ''}/market/booth/${savedBoothId || user?.id || 'id'}/product/${productShareId}`
           })()}
+          shareContext="product_share"
+          userId={user?.id}
+        />
+      )}
+
+      {/* ── Helper Invite Share Modal ── */}
+      {showHelperShareModal && (
+        <SocialShareModal
+          isOpen={showHelperShareModal}
+          onClose={() => setShowHelperShareModal(false)}
+          title="Invite a Helper"
+          subtitle="Share this link with someone you trust to help manage your produce stand."
+          entityName={name?.trim() ? `Help with ${name}` : 'Help with my produce stand'}
+          shareUrl={typeof window !== 'undefined' ? `${window.location.origin}/join-booth/${encodeURIComponent(helperPasscode)}` : ''}
+          shareMessage={(() => {
+            const boothLabel = name?.trim() ? `my produce stand "${name}"` : 'my CasaGrown produce stand'
+            return [
+              `Hey! 👋`,
+              '',
+              `I need some help managing my excess produce on CasaGrown and was wondering if you'd be able to help me out?`,
+              '',
+              `It's pretty straightforward — just keep an eye on orders, hand things off to buyers when they come by, and maybe reply to a message or two.`,
+              '',
+              `👇 If you can, click the link below to securely join ${boothLabel}:`,
+            ].join('\n')
+          })()}
+          shareContext="helper_invite"
+          userId={user?.id}
+          platforms={['email', 'whatsapp', 'copy']}
         />
       )}
 

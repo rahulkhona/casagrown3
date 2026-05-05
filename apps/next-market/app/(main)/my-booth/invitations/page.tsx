@@ -4,13 +4,14 @@ import { useState } from 'react'
 import { useMarket } from '../../../../lib/store'
 import { trackClick } from '../../../../lib/analytics'
 import styles from './page.module.css'
-import { ShareIcon } from '../../../components/icons'
+import SocialShareModal from '../../../components/SocialShareModal'
 
 export default function InvitationsPage() {
   const { state, dispatch } = useMarket()
   const myBooth = state.booths.find(b => b.ownerId === state.user?.id)
   const coupons = state.coupons.filter(c => c.boothId === myBooth?.id)
   const [selectedCoupon, setSelectedCoupon] = useState(coupons[0]?.code || '')
+  const [showShareModal, setShowShareModal] = useState(false)
 
   if (!myBooth) return <div className="container" style={{ padding: 80, textAlign: 'center' }}><h2>Create a booth first</h2></div>
 
@@ -28,33 +29,6 @@ Fresh produce straight from my backyard. ${couponText ? couponText + '\n\n' : ''
 ${inviteUrl}
 
 Fresh. Local. Trusted.`
-
-  const copyLink = () => {
-    navigator.clipboard?.writeText(inviteUrl)
-    trackClick('copy_invitation_link')
-    dispatch({ type: 'ADD_TOAST', payload: { message: 'Link copied! 📋', type: 'success' } })
-  }
-
-  const copyMessage = () => {
-    navigator.clipboard?.writeText(shareMessage)
-    trackClick('copy_invitation_message')
-    dispatch({ type: 'ADD_TOAST', payload: { message: 'Share message copied! 📋', type: 'success' } })
-  }
-
-  const shareVia = (channel: 'sms' | 'whatsapp' | 'email') => {
-    trackClick('share_invitation', { channel })
-    const encodedMsg = encodeURIComponent(shareMessage)
-    const subject = encodeURIComponent(`Check out ${myBooth.name} on CasaGrown Market!`)
-    let url = ''
-    switch (channel) {
-      case 'sms': url = `sms:?body=${encodedMsg}`; break
-      case 'whatsapp': url = `https://wa.me/?text=${encodedMsg}`; break
-      case 'email': url = `mailto:?subject=${subject}&body=${encodedMsg}`; break
-    }
-    window.open(url, '_blank')
-    dispatch({ type: 'ADD_TOAST', payload: { message: `Opening ${channel}... 🚀`, type: 'info' } })
-  }
-
 
   return (
     <div className="container-sm">
@@ -100,39 +74,17 @@ Fresh. Local. Trusted.`
         </div>
       )}
 
-      {/* Sharing Options */}
-      <div className={styles.sectionHeader}>
-        <h3>Share via</h3>
-      </div>
-      <div className={styles.shareGrid}>
-        <button className={`${styles.shareBtn} ${styles.shareNative}`} onClick={async () => {
-          if (navigator.share) {
-            try {
-              await navigator.share({ title: `${myBooth.name} on CasaGrown Market`, text: shareMessage, url: inviteUrl })
-              dispatch({ type: 'ADD_TOAST', payload: { message: 'Shared! 🎉', type: 'success' } })
-            } catch { /* user cancelled */ }
-          } else {
-            copyMessage()
-          }
-        }}>
-          <span className={styles.shareIcon}><ShareIcon size={20} /></span>
-          <span>Share</span>
-          <span className={styles.shareSub}>Opens your device&apos;s share menu</span>
-        </button>
-        <button className={`${styles.shareBtn} ${styles.shareCopy}`} onClick={copyMessage}>
-          <span className={styles.shareIcon}>📋</span>
-          <span>Copy Message</span>
-          <span className={styles.shareSub}>Copy the full invite text</span>
-        </button>
-        <button className={`${styles.shareBtn} ${styles.shareCopy}`} onClick={copyLink}>
-          <span className={styles.shareIcon}>🔗</span>
-          <span>Copy Link</span>
-          <span className={styles.shareSub}>Just the booth URL</span>
-        </button>
-        <button className={`${styles.shareBtn} ${styles.shareEmail}`} onClick={() => shareVia('email')}>
-          <span className={styles.shareIcon}>✉️</span>
-          <span>Email</span>
-          <span className={styles.shareSub}>Opens your email client</span>
+      {/* Share Button — opens SocialShareModal */}
+      <div style={{ marginTop: 24 }}>
+        <button
+          className="btn btn-primary"
+          style={{ width: '100%', padding: '14px 20px', fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+          onClick={() => {
+            trackClick('open_invitation_share_modal')
+            setShowShareModal(true)
+          }}
+        >
+          📣 Share Invitation
         </button>
       </div>
 
@@ -159,6 +111,21 @@ Fresh. Local. Trusted.`
       </div>
 
       <div style={{ height: 40 }} />
+
+      {showShareModal && (
+        <SocialShareModal
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          title={`Share ${myBooth.name}`}
+          subtitle="Invite friends and family to visit your produce stand."
+          entityName={myBooth.name}
+          shareUrl={inviteUrl}
+          shareMessage={shareMessage}
+          shareContext="booth_invitation"
+          userId={state.user?.id}
+          platforms={['email', 'whatsapp', 'copy']}
+        />
+      )}
     </div>
   )
 }

@@ -53,6 +53,7 @@ export default function Step6Success() {
         entityName={state.name || 'Product'}
         shareUrl={productUrl}
         shareMessage={shareMessage}
+        shareContext="onboarding_share"
       />
     </div>
   )

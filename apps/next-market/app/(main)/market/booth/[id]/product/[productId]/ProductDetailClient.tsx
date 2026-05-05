@@ -1054,6 +1054,8 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
           ) +
           (product?.inventory ? `\n\nOnly ${product.inventory} available!` : '')
         }
+        shareContext="product_share"
+        userId={user?.id}
       />
     </div>
   )

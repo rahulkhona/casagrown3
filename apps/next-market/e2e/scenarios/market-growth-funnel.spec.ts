@@ -57,7 +57,7 @@ test.describe('Market Growth Funnel Interactions', () => {
       return
     }
 
-    // 2. Dismiss PioneerBanner if visible (its 📣 Invite Neighbors uses navigator.share, not the modal)
+    // 2. Dismiss PioneerBanner if visible (its 📣 Invite Neighbors now opens SocialShareModal)
     //    The dismiss button sits behind the navbar (zIndex overlap), so use force: true
     const dismissBtn = page.locator('button[aria-label="Dismiss"]')
     if (await dismissBtn.isVisible({ timeout: 2000 }).catch(() => false)) {

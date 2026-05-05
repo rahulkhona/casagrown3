@@ -709,12 +709,12 @@ test.describe('Invitations', () => {
     expect(body).toMatch(/Invit|Helper|Share|Copy|Code/i)
   })
 
-  test('copy link button is clickable', async ({ page }) => {
+  test('share invitation button is clickable', async ({ page }) => {
     await page.goto('/my-booth/invitations')
     await page.waitForTimeout(2000)
-    const copyBtn = page.locator('button:has-text("Copy")').first()
-    if (await copyBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await copyBtn.click()
+    const shareBtn = page.locator('button:has-text("Share Invitation"), button:has-text("Share")').first()
+    if (await shareBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await shareBtn.click()
       await page.waitForTimeout(500)
     }
   })

@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useMarket, type Booth } from '../../../../lib/store'
 import { createClient } from '../../../../lib/supabase'
 import { PersonPlusIcon } from '../../../components/icons'
+import SocialShareModal from '../../../components/SocialShareModal'
 import styles from './page.module.css'
 
 // =============================================================================
@@ -118,6 +119,7 @@ export default function BoothSetupPage() {
   const [inviteLink, setInviteLink] = useState('')
   const [inviteExpiresAt, setInviteExpiresAt] = useState('')
   const [inviteCopied, setInviteCopied] = useState(false)
+  const [showHelperShareModal, setShowHelperShareModal] = useState(false)
 
   // Validation
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -153,14 +155,8 @@ export default function BoothSetupPage() {
     } catch { /* fallback handled by share */ }
   }
 
-  const shareInvite = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: `Join my produce stand on CasaGrown`, text: `Join my produce stand as a helper on CasaGrown Market!\n\nPasscode: ${passcode}\nExpires: ${inviteExpiresAt}\n\n👇 Click the link below to securely join my produce stand:\n`, url: inviteLink })
-      } catch { /* cancelled */ }
-    } else {
-      copyInviteInfo()
-    }
+  const shareInvite = () => {
+    setShowHelperShareModal(true)
   }
 
   // --- Geolocation ---
@@ -607,6 +603,20 @@ export default function BoothSetupPage() {
           </button>
         </section>
       </div>
+
+      {showHelperShareModal && (
+        <SocialShareModal
+          isOpen={showHelperShareModal}
+          onClose={() => setShowHelperShareModal(false)}
+          title="Invite a Helper"
+          subtitle="Share this link with someone you trust to help manage your produce stand."
+          entityName={boothName?.trim() ? `Help with ${boothName}` : 'Help with my produce stand'}
+          shareUrl={inviteLink}
+          shareMessage={`Join my produce stand as a helper on CasaGrown Market!\n\nPasscode: ${passcode}\nExpires: ${inviteExpiresAt}\n\n👇 Click the link below to securely join my produce stand:`}
+          shareContext="helper_invite"
+          platforms={['email', 'whatsapp', 'copy']}
+        />
+      )}
     </div>
   )
 }

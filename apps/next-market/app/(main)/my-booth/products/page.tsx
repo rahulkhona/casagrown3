@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useMarket, formatUsd, type Product } from '../../../../lib/store'
-import { ShareIcon } from '../../../components/icons'
 import styles from './page.module.css'
+import SocialShareModal from '../../../components/SocialShareModal'
 
 export default function ProductsListPage() {
   const { state, dispatch } = useMarket()
@@ -49,28 +49,10 @@ export default function ProductsListPage() {
     return msg
   }
 
-  const handleInviteCopy = () => {
-    navigator.clipboard?.writeText(getInviteMessage())
-    setInviteProduct(null)
-  }
+  const [showShareModal, setShowShareModal] = useState(false)
 
   const handleInviteShare = () => {
-    const productUrl = inviteProduct ? `${window.location.origin}/market/booth/${myBooth.id}/product/${inviteProduct.id}` : `${window.location.origin}/market`
-    const marketDate = inviteProduct?.marketDate || ''
-    const productName = inviteProduct?.name || 'fresh produce'
-    const cta = marketDate
-      ? `Fresh ${productName} will be available at my produce stand on ${marketDate}! 🌿`
-      : `Fresh ${productName} is available at my produce stand on CasaGrown! 🌿`
-    if (navigator.share) {
-      navigator.share({
-        title: `${inviteProduct?.name} at ${myBooth.name}`,
-        text: cta,
-        url: productUrl,
-      }).catch(() => {})
-    } else {
-      handleInviteCopy()
-    }
-    setInviteProduct(null)
+    setShowShareModal(true)
   }
 
   const toggleVisibility = (product: Product) => {
@@ -220,11 +202,8 @@ export default function ProductsListPage() {
 
             {/* Actions */}
             <div className={styles.modalActions}>
-              <button className={styles.modalActionBtn} onClick={handleInviteCopy}>
-                📋 Copy Invite
-              </button>
               <button className={styles.modalActionBtn} onClick={handleInviteShare}>
-                <ShareIcon size={14} /> Share
+                📣 Share Invitation
               </button>
             </div>
             <button className={styles.modalClose} onClick={() => setInviteProduct(null)}>
@@ -232,6 +211,20 @@ export default function ProductsListPage() {
             </button>
           </div>
         </>
+      )}
+
+      {showShareModal && inviteProduct && (
+        <SocialShareModal
+          isOpen={showShareModal}
+          onClose={() => { setShowShareModal(false); setInviteProduct(null) }}
+          title={`Share ${inviteProduct.name}`}
+          subtitle="Invite your neighbors to check out this product!"
+          entityName={inviteProduct.name}
+          shareUrl={typeof window !== 'undefined' ? `${window.location.origin}/market/booth/${myBooth.id}/product/${inviteProduct.id}` : ''}
+          shareMessage={getInviteMessage()}
+          shareContext="product_share"
+          userId={state.user?.id}
+        />
       )}
     </div>
   )
