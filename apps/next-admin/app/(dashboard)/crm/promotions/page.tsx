@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import dynamic from 'next/dynamic'
 import TrackingUrlBuilder from '../../../../components/TrackingUrlBuilder'
@@ -50,6 +50,18 @@ type Audience = {
   estimated_count: number
 }
 
+type Enrollee = {
+  user_id: string
+  enrolled_at: string
+  full_name: string
+  email: string
+  phone_number: string | null
+  street_address: string | null
+  city: string | null
+  state_code: string | null
+  zip_code: string | null
+}
+
 export default function CrmPromotionsBuilderPage() {
   const [promotions, setPromotions] = useState<Promotion[]>([])
   const [landingPages, setLandingPages] = useState<LandingPage[]>([])
@@ -62,6 +74,10 @@ export default function CrmPromotionsBuilderPage() {
   const [uploadingImage, setUploadingImage] = useState(false)
   const [uploadingCreditImage, setUploadingCreditImage] = useState(false)
   const [promoLinks, setPromoLinks] = useState<any[]>([])
+  const [enrollees, setEnrollees] = useState<Enrollee[]>([])
+  const [enrolleesPromoName, setEnrolleesPromoName] = useState('')
+  const [showEnrollees, setShowEnrollees] = useState(false)
+  const [loadingEnrollees, setLoadingEnrollees] = useState(false)
 
   const emptyForm = {
     name: '',
@@ -406,6 +422,57 @@ export default function CrmPromotionsBuilderPage() {
     }
   }
 
+  const fetchEnrollees = useCallback(async (promoId: string, promoName: string) => {
+    setLoadingEnrollees(true)
+    setEnrolleesPromoName(promoName)
+    setShowEnrollees(true)
+    const { data, error } = await supabase
+      .from('crm_promo_enrollments')
+      .select('user_id, enrolled_at, profiles!inner(full_name, email, phone_number, street_address, city, state_code, zip_code)')
+      .eq('promotion_id', promoId)
+      .order('enrolled_at', { ascending: false })
+    if (!error && data) {
+      setEnrollees(data.map((row: any) => ({
+        user_id: row.user_id,
+        enrolled_at: row.enrolled_at,
+        full_name: row.profiles?.full_name || '',
+        email: row.profiles?.email || '',
+        phone_number: row.profiles?.phone_number || null,
+        street_address: row.profiles?.street_address || null,
+        city: row.profiles?.city || null,
+        state_code: row.profiles?.state_code || null,
+        zip_code: row.profiles?.zip_code || null,
+      })))
+    } else {
+      setEnrollees([])
+      toast(`Error loading enrollees: ${error?.message || 'unknown'}`)
+    }
+    setLoadingEnrollees(false)
+  }, [])
+
+  const exportEnrolleesCSV = () => {
+    const headers = ['Name', 'Email', 'Phone', 'Address', 'City', 'State', 'Zip', 'Enrolled At']
+    const rows = enrollees.map(e => [
+      e.full_name,
+      e.email,
+      e.phone_number || '',
+      e.street_address || '',
+      e.city || '',
+      e.state_code || '',
+      e.zip_code || '',
+      new Date(e.enrolled_at).toLocaleString()
+    ])
+    const csv = [headers, ...rows].map(r => r.map(c => `"${(c || '').replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `enrollees-${enrolleesPromoName.replace(/\s+/g, '-').toLowerCase()}-${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast('CSV downloaded!')
+  }
+
   const deletePromo = async (id: string) => {
     if (!confirm('WARNING: Deleting this promotion will instantly cancel any ongoing recurring credits for enrolled users, and permanently delete the physical giveaway offer! \n\n(The Canonical Landing Page will NOT be deleted). \n\nThis action cannot be undone. Are you absolutely sure?')) return
     await supabase.from('crm_promotions').delete().eq('id', id)
@@ -717,6 +784,7 @@ export default function CrmPromotionsBuilderPage() {
                 </td>
                 <td className="crm-muted">{new Date(p.created_at).toLocaleDateString()}</td>
                 <td>
+                  <button className="crm-btn-edit-icon" onClick={() => fetchEnrollees(p.id, p.name)} title="View Enrolled Users" style={{ fontSize: '1rem' }}>👥</button>
                   <button className="crm-btn-edit-icon" onClick={() => handleEdit(p.id)} title="Edit Promotion Bundle">✏️</button>
                   <button className="crm-btn-danger-icon" onClick={() => deletePromo(p.id)} title="Delete Promotion Bundle">🗑</button>
                 </td>
@@ -725,6 +793,62 @@ export default function CrmPromotionsBuilderPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Enrollees Modal */}
+      {showEnrollees && (
+        <div className="enrollees-overlay" onClick={() => setShowEnrollees(false)}>
+          <div className="enrollees-modal" onClick={e => e.stopPropagation()}>
+            <div className="enrollees-header">
+              <div>
+                <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, color: '#1a2e1a' }}>Enrolled Users — {enrolleesPromoName}</h2>
+                <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#6b7280' }}>{enrollees.length} user{enrollees.length !== 1 ? 's' : ''} enrolled</p>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {enrollees.length > 0 && (
+                  <button className="crm-btn-primary" onClick={exportEnrolleesCSV} style={{ fontSize: '0.85rem', padding: '8px 16px' }}>
+                    📥 Export CSV
+                  </button>
+                )}
+                <button className="crm-btn-secondary" onClick={() => setShowEnrollees(false)} style={{ fontSize: '0.85rem', padding: '8px 16px' }}>Close</button>
+              </div>
+            </div>
+            {loadingEnrollees ? (
+              <div className="crm-empty">Loading enrollees…</div>
+            ) : enrollees.length === 0 ? (
+              <div className="crm-empty">No users have enrolled in this promotion yet.</div>
+            ) : (
+              <div className="enrollees-table-wrap">
+                <table className="crm-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Phone</th>
+                      <th>Address</th>
+                      <th>Enrolled</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {enrollees.map((e, i) => (
+                      <tr key={e.user_id}>
+                        <td className="crm-muted">{i + 1}</td>
+                        <td><span className="crm-name">{e.full_name || '—'}</span></td>
+                        <td style={{ fontSize: '0.85rem' }}>{e.email}</td>
+                        <td style={{ fontSize: '0.85rem' }}>{e.phone_number || '—'}</td>
+                        <td style={{ fontSize: '0.82rem', color: '#6b7280', maxWidth: 220 }}>
+                          {[e.street_address, e.city, e.state_code, e.zip_code].filter(Boolean).join(', ') || '—'}
+                        </td>
+                        <td className="crm-muted">{new Date(e.enrolled_at).toLocaleDateString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         .crm-page { }
@@ -769,6 +893,11 @@ export default function CrmPromotionsBuilderPage() {
         .crm-btn-danger-icon:hover { opacity: 1; color: #dc2626; }
         .crm-btn-edit-icon:hover { opacity: 1; color: #2563eb; }
         .crm-empty { text-align: center; color: #9ca3af; padding: 48px; line-height: 2; }
+
+        .enrollees-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 24px; backdrop-filter: blur(4px); }
+        .enrollees-modal { background: white; border-radius: 16px; width: 100%; max-width: 900px; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); overflow: hidden; }
+        .enrollees-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid #e5e7eb; flex-shrink: 0; }
+        .enrollees-table-wrap { overflow-y: auto; flex: 1; }
         
         :global(.ql-container) { resize: vertical; overflow-y: auto; min-height: 150px; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }
         :global(.ql-toolbar) { border-top-left-radius: 8px; border-top-right-radius: 8px; }
