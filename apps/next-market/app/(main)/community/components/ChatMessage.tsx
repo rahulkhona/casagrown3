@@ -282,6 +282,16 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
                 ↩
               </button>
             )}
+            <button 
+              className={styles.tapActionBtn} 
+              onClick={() => { 
+                navigator.clipboard.writeText(message.content)
+                setShowActions(false) 
+              }} 
+              title="Copy"
+            >
+              📋
+            </button>
             <button className={styles.tapActionBtn} onClick={handleShare} title="Share">
               <ShareIcon size={14} />
             </button>
