@@ -86,6 +86,9 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
 
   const handleBubbleTap = () => {
     if (isEditing) return
+    // Don't toggle action bar if user is selecting text
+    const selection = window.getSelection()
+    if (selection && selection.toString().trim().length > 0) return
     const next = !showActions
     setShowActions(next)
   }
