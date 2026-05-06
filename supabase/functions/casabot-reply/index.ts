@@ -148,7 +148,7 @@ Be enthusiastic but concise. Include 1 or 2 appropriate emojis.`
       })
     }
 
-    const primaryModel = Deno.env.get('AI_MODEL') ?? 'gemma-4-27b-it'
+    const primaryModel = Deno.env.get('AI_MODEL') ?? 'gemma-4-31b-it'
     const models = [
       { name: primaryModel, version: 'v1beta' },
       { name: 'gemini-2.5-flash', version: 'v1beta' },

@@ -154,7 +154,7 @@ If the question isn't truly about gardening or produce recipes, respond with jus
 
         const userPrompt = `A neighbor asked: "${msg.content}"`
 
-        const primaryModel = Deno.env.get('AI_MODEL') ?? 'gemma-4-27b-it'
+        const primaryModel = Deno.env.get('AI_MODEL') ?? 'gemma-4-31b-it'
         const models = [
           { name: primaryModel, version: 'v1beta' },
           { name: 'gemini-2.5-flash', version: 'v1beta' },
