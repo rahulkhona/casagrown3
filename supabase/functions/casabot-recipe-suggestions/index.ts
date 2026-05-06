@@ -91,6 +91,7 @@ Nothing else.`
     }
 
     const models = [
+      { name: 'gemma-4-27b-it', version: 'v1beta' },
       { name: 'gemini-2.5-flash', version: 'v1beta' },
       { name: 'gemini-2.5-flash-lite', version: 'v1beta' },
     ]
