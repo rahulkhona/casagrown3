@@ -615,7 +615,7 @@ export default function MyBoothPage() {
     const url = getBoothShareUrl(boothId)
 
     if (platform === 'facebook' || platform === 'nextdoor') {
-      return `🌱 Fresh, homegrown produce is now available in our neighborhood!\n\n${sellerName}'s produce stand "${name}" is live on CasaGrown Market.${productNames ? ` Currently offering ${productNames} and more.` : ''}${nextDay ? `\n\n📅 Next market day: ${nextDay}` : ''}\n\n👇 Check it out:\n${url}`
+      return `🌱 I just set up my produce stand "${name}" on CasaGrown Market!${productNames ? ` I'm growing ${productNames} and more.` : ''} If anyone's looking for fresh, locally-grown produce, come check it out!${nextDay ? `\n\n📅 Next market day: ${nextDay}` : ''}\n\n👇 View my stand and shop:\n${url}`
     }
 
     return `${getRandomGreeting()} 🌱 I'm ${sellerName} and I just set up my produce stand "${name}" on CasaGrown Market!\n\n${productNames ? `I'm growing ${productNames} and more — ` : ''}come check out what's fresh from my backyard.${nextDay ? `\n\n📅 Next market day: ${nextDay}` : ''}\n\n👇 Click the link below to view my produce stand and shop:\n${url}\n\nFresh produce, straight from your neighbor! 🏡`

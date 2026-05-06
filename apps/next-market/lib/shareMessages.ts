@@ -23,10 +23,10 @@ function pick<T>(arr: T[]): T {
 export function getGlobalMarketShareMessage(platform?: SharePlatformType): string {
   if (isCommunityPost(platform)) {
     const variations = [
-      "🌱 Fresh, locally-grown produce from your neighbors' gardens is now available in our neighborhood through CasaGrown! Incredibly fresh, hyper-local, and helps reduce food waste.",
-      "🌿 Did you know neighbors near us are growing and selling fresh produce? CasaGrown makes it easy to buy directly from local gardens. Worth checking out!",
-      "🍅 If you love fresh food and supporting local growers, check out CasaGrown — a neighborhood marketplace for homegrown produce. I've been really impressed with the quality!",
-      "🥬 Our neighborhood has a local produce marketplace called CasaGrown where neighbors sell their garden-fresh fruits, veggies, and more. Great way to eat fresh and support local!",
+      "🌱 I've been buying fresh produce from neighbors' gardens through CasaGrown and it's been amazing! Incredibly fresh, hyper-local, and helps reduce food waste in our community.",
+      "🌿 I recently discovered CasaGrown — it's a local marketplace where neighbors sell their fresh homegrown produce. I've been loving it and wanted to share with the community!",
+      "🍅 Anyone else into fresh, local food? I've been using CasaGrown to buy directly from nearby gardens and the quality is so much better than the store. Highly recommend!",
+      "🥬 I found this great neighborhood marketplace called CasaGrown where I can buy garden-fresh fruits, veggies, and more from local growers. If you love fresh food, check it out!",
     ]
     return `${pick(variations)}\n\n👇 Explore what's growing near you:\n`
   }
@@ -43,10 +43,10 @@ export function getGlobalMarketShareMessage(platform?: SharePlatformType): strin
 export function getProductShareMessage(productName: string, priceText: string, deliveryText: string, platform?: SharePlatformType): string {
   if (isCommunityPost(platform)) {
     const variations = [
-      `🌱 Fresh ${productName} available from a local grower in our neighborhood on CasaGrown!`,
-      `🍎 Anyone looking for fresh ${productName}? Just spotted this on CasaGrown — grown right in our neighborhood!`,
-      `🌿 Local ${productName} alert! A neighbor is selling fresh, homegrown ${productName} on CasaGrown.`,
-      `🥬 If you love fresh produce, there's ${productName} available from a nearby garden on CasaGrown!`,
+      `🌱 I just found fresh ${productName} on CasaGrown Market — grown right in our neighborhood! If anyone's looking for some, check it out.`,
+      `🍎 Just spotted some amazing ${productName} on CasaGrown from a local grower. I love finding fresh produce this close to home!`,
+      `🌿 Found some fresh ${productName} on CasaGrown and wanted to share in case anyone else is interested. Love supporting our local growers!`,
+      `🥬 If anyone needs fresh ${productName}, I saw some on CasaGrown from a neighbor's garden. Super fresh and locally grown!`,
     ]
     return `${pick(variations)}\n\n${priceText}\n${deliveryText}\n\n👇 View details and order:\n`
   }
@@ -63,10 +63,10 @@ export function getProductShareMessage(productName: string, priceText: string, d
 export function getBoothProductShareMessage(productName: string, nextMarketLabel?: string, platform?: SharePlatformType): string {
   if (isCommunityPost(platform)) {
     const variations = [
-      `🌱 Fresh ${productName} just listed on my CasaGrown produce stand! Grown locally, available for delivery or pickup.`,
-      `🌿 My garden is producing! I just added ${productName} to my CasaGrown produce stand — homegrown and available this ${nextMarketLabel || 'weekend'}.`,
-      `🍅 Fresh from my garden to your table — ${productName} is now available on my CasaGrown stand! Come check out what I'm growing.`,
-      `🥬 Growing more than I can eat! I've got fresh ${productName} available on CasaGrown if any neighbors are interested.`,
+      `🌱 I just listed fresh ${productName} on my CasaGrown produce stand! Grown in my garden, available for delivery or pickup.`,
+      `🌿 My garden is producing more than I can use! I just added ${productName} to my CasaGrown stand — available this ${nextMarketLabel || 'weekend'}.`,
+      `🍅 Fresh from my garden — I've got ${productName} available on my CasaGrown stand if any neighbors are interested!`,
+      `🥬 I'm growing more than I can eat! I've got fresh ${productName} on CasaGrown if anyone wants some.`,
     ]
     return `${pick(variations)}\n\n👇 View and order for this ${nextMarketLabel || 'weekend'}:\n`
   }
@@ -83,9 +83,9 @@ export function getBoothProductShareMessage(productName: string, nextMarketLabel
 export function getCommunityInviteMessage(platform?: SharePlatformType): string {
   if (isCommunityPost(platform)) {
     const variations = [
-      "🐝 There's a neighborhood community chat on CasaGrown where locals discuss gardening, share tips, and talk about fresh produce. Great way to connect with fellow growers!",
-      "🌱 If you're into gardening or fresh local food, check out CasaGrown Community — a neighborhood chat where we share tips, recipes, and what's growing.",
-      "🌿 Our neighborhood has a community on CasaGrown for talking about local gardening, recipes, and fresh food. Come join the conversation!"
+      "🐝 I've been hanging out on CasaGrown Community — it's a neighborhood chat for local gardening, tips, and fresh produce talk. Really enjoying it!",
+      "🌱 If you're into gardening or fresh local food, I've been using CasaGrown Community. It's a great neighborhood chat for sharing tips, recipes, and what's growing.",
+      "🌿 I joined CasaGrown Community recently and it's been a great way to connect with other local growers and food lovers. Come join the conversation!"
     ]
     return `${pick(variations)}\n\n👇 Join the neighborhood chat:\n`
   }
@@ -101,9 +101,9 @@ export function getCommunityInviteMessage(platform?: SharePlatformType): string 
 export function getCommunityMessageForwardMessage(truncatedMessage: string, platform?: SharePlatformType): string {
   if (isCommunityPost(platform)) {
     const variations = [
-      "Interesting conversation happening on CasaGrown Community:",
-      "Check out this post from our neighborhood on CasaGrown Community:",
-      "Our neighbors are talking about this on CasaGrown Community:"
+      "I saw this interesting conversation on CasaGrown Community:",
+      "Check out this post I found on CasaGrown Community:",
+      "Came across this on CasaGrown Community and wanted to share:"
     ]
     return `${pick(variations)}\n\n💬 "${truncatedMessage.replace(/\n\nTap to view and purchase →/g, '')}"\n\n👇 View the full conversation:\n`
   }
