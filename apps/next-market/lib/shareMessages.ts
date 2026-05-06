@@ -83,17 +83,17 @@ export function getBoothProductShareMessage(productName: string, nextMarketLabel
 export function getCommunityInviteMessage(platform?: SharePlatformType): string {
   if (isCommunityPost(platform)) {
     const variations = [
-      "🐝 I've been hanging out on CasaGrown Community — it's a neighborhood chat for local gardening, tips, and fresh produce talk. Really enjoying it!",
-      "🌱 If you're into gardening or fresh local food, I've been using CasaGrown Community. It's a great neighborhood chat for sharing tips, recipes, and what's growing.",
-      "🌿 I joined CasaGrown Community recently and it's been a great way to connect with other local growers and food lovers. Come join the conversation!"
+      "🌱 I've been hanging out on CasaGrown Community and it's become my go-to for all things gardening! Neighbors share tips on growing, pest control, seasonal planting, recipes, and more. Plus there's CasaBot — an AI gardening assistant that can answer questions about soil, composting, what to plant this season, and how to deal with pests. Really helpful if you're a beginner or just want quick advice!",
+      "🐝 If you're into gardening, cooking with fresh food, or just curious about what's growing locally — check out CasaGrown Community! It's a neighborhood chat where we share gardening tips, harvest photos, recipes, and help each other out. They also have CasaBot, an AI assistant that gives personalized gardening advice on everything from pest identification to planting schedules.",
+      "🌿 I joined CasaGrown Community and I'm really enjoying it! It's a neighborhood space for gardening tips, fresh food talk, seasonal planting advice, and local produce recommendations. One of my favorite features is CasaBot — it's an AI gardening assistant you can ask about anything from composting to dealing with aphids. Great for beginners and experienced growers alike!",
     ]
     return `${pick(variations)}\n\n👇 Join the neighborhood chat:\n`
   }
 
   const variations = [
-    "Come hang out on the CasaGrown Community to talk local gardening and food! 🐝",
-    "Join the conversation on CasaGrown Community! It's a great place to learn and chat. 🌱",
-    "We're talking local gardening and produce on CasaGrown Community. Jump in and join us!"
+    "I've been using CasaGrown Community and it's awesome! It's a neighborhood chat where people share gardening tips, pest solutions, recipes, and seasonal planting advice. They also have CasaBot — an AI gardening assistant that can help with anything from soil questions to identifying plant problems. You should check it out! 🐝",
+    "Come join CasaGrown Community! We talk about gardening, fresh produce, pest control, composting, and local food. Plus there's CasaBot — an AI assistant that gives gardening advice and suggestions on the spot. Really helpful for getting quick answers! 🌱",
+    "I found this great neighborhood community on CasaGrown for gardening and fresh food talk! Neighbors share tips, seasonal advice, and recipes. And there's CasaBot — an AI gardening assistant that can answer your plant questions, suggest what to grow, and help with pest issues. 🌿"
   ]
   return `${getRandomGreeting()} ${pick(variations)}\n\n👇 Click the link below to join the neighborhood chat:\n`
 }
