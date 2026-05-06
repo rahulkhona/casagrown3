@@ -149,9 +149,8 @@ Be enthusiastic but concise. Include 1 or 2 appropriate emojis.`
     }
 
     const models = [
-      { name: 'gemini-3-flash-preview', version: 'v1beta' },
-      { name: 'gemini-2.5-flash-lite', version: 'v1beta' },
       { name: 'gemini-2.5-flash', version: 'v1beta' },
+      { name: 'gemini-2.5-flash-lite', version: 'v1beta' },
     ]
     let geminiData: any = null
     let lastError = ''

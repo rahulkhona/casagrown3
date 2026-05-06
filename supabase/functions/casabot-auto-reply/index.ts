@@ -154,29 +154,45 @@ If the question isn't truly about gardening or produce recipes, respond with jus
 
         const userPrompt = `A neighbor asked: "${msg.content}"`
 
-        const geminiRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${geminiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [
-                { role: 'user', parts: [{ text: systemPrompt + '\n\n' + userPrompt }] },
-              ],
-              generationConfig: {
-                maxOutputTokens: 4096,
-                temperature: 0.7,
-              },
-            }),
-          }
-        )
+        const models = [
+          { name: 'gemini-2.5-flash', version: 'v1beta' },
+          { name: 'gemini-2.5-flash-lite', version: 'v1beta' },
+        ]
+        let geminiData: any = null
 
-        if (!geminiRes.ok) {
-          console.warn(`[CasaBot Auto] Gemini failed for ${msg.id}:`, geminiRes.status)
+        for (const model of models) {
+          const geminiRes = await fetch(
+            `https://generativelanguage.googleapis.com/${model.version}/models/${model.name}:generateContent?key=${geminiKey}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [
+                  { role: 'user', parts: [{ text: systemPrompt + '\n\n' + userPrompt }] },
+                ],
+                generationConfig: {
+                  maxOutputTokens: 4096,
+                  temperature: 0.7,
+                },
+              }),
+            }
+          )
+
+          if (geminiRes.ok) {
+            geminiData = await geminiRes.json()
+            console.log(`[CasaBot Auto] ${model.name} succeeded for ${msg.id}`)
+            break
+          } else {
+            console.warn(`[CasaBot Auto] ${model.name} failed (${geminiRes.status}), trying next...`)
+            await new Promise(r => setTimeout(r, 500))
+          }
+        }
+
+        if (!geminiData) {
+          console.warn(`[CasaBot Auto] All models failed for ${msg.id}`)
           continue
         }
 
-        const geminiData = await geminiRes.json()
         const parts = geminiData?.candidates?.[0]?.content?.parts || []
         const reply = parts
           .filter((p: any) => p.text && !p.thought)

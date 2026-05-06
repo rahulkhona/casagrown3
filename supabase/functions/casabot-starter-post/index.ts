@@ -61,32 +61,48 @@ Keep it casual, short (1-3 sentences max), and ask an open-ended question about 
 You can occasionally use an emoji, but keep it natural. 
 Do not use a greeting or intro like "Hey neighbors!" -- just jump straight into the interesting question or prompt.`
 
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${geminiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            { role: 'user', parts: [{ text: systemPrompt }] },
-          ],
-          generationConfig: {
-            maxOutputTokens: 250,
-            temperature: 0.9,
-          },
-        }),
-      }
-    )
+    const models = [
+      { name: 'gemini-2.5-flash', version: 'v1beta' },
+      { name: 'gemini-2.5-flash-lite', version: 'v1beta' },
+    ]
+    let geminiData: any = null
 
-    if (!geminiRes.ok) {
-      console.warn(`[CasaBot Starter] Gemini API failed:`, geminiRes.status)
-      return new Response(JSON.stringify({ error: 'Gemini API failed' }), {
+    for (const model of models) {
+      const geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/${model.version}/models/${model.name}:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              { role: 'user', parts: [{ text: systemPrompt }] },
+            ],
+            generationConfig: {
+              maxOutputTokens: 250,
+              temperature: 0.9,
+            },
+          }),
+        }
+      )
+
+      if (geminiRes.ok) {
+        geminiData = await geminiRes.json()
+        console.log(`[CasaBot Starter] ${model.name} succeeded`)
+        break
+      } else {
+        console.warn(`[CasaBot Starter] ${model.name} failed (${geminiRes.status}), trying next...`)
+        await new Promise(r => setTimeout(r, 500))
+      }
+    }
+
+    if (!geminiData) {
+      console.warn(`[CasaBot Starter] All Gemini models failed`)
+      return new Response(JSON.stringify({ error: 'All Gemini models failed' }), {
         status: 502,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    const geminiData = await geminiRes.json()
     const parts = geminiData?.candidates?.[0]?.content?.parts || []
     const reply = parts
       .filter((p: any) => p.text && !p.thought)
