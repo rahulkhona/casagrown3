@@ -85,6 +85,29 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
             .maybeSingle()
           if (fRow) setFollowing(true)
         }
+      } else {
+        // Fallback: check sessionStorage for demo booth data
+        try {
+          const cached = sessionStorage.getItem(`demo_booth_${id}`)
+          if (cached) {
+            const demoBooth = JSON.parse(cached)
+            setBooth(demoBooth)
+            // Load demo products from sessionStorage
+            const demoProducts: any[] = []
+            for (let i = 0; i < sessionStorage.length; i++) {
+              const key = sessionStorage.key(i)
+              if (key?.startsWith('demo_product_')) {
+                try {
+                  const p = JSON.parse(sessionStorage.getItem(key)!)
+                  if (p.booth_id === id || p.seller_id === demoBooth.owner_id) {
+                    demoProducts.push(p)
+                  }
+                } catch {}
+              }
+            }
+            setProducts(demoProducts)
+          }
+        } catch {}
       }
       setLoading(false)
     }
