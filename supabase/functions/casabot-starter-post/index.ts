@@ -61,10 +61,10 @@ Keep it casual, short (1-3 sentences max), and ask an open-ended question about 
 You can occasionally use an emoji, but keep it natural. 
 Do not use a greeting or intro like "Hey neighbors!" -- just jump straight into the interesting question or prompt.`
 
+    const primaryModel = Deno.env.get('AI_MODEL') ?? 'gemma-4-27b-it'
     const models = [
-      { name: 'gemma-4-27b-it', version: 'v1beta' },
+      { name: primaryModel, version: 'v1beta' },
       { name: 'gemini-2.5-flash', version: 'v1beta' },
-      { name: 'gemini-2.5-flash-lite', version: 'v1beta' },
     ]
     let geminiData: any = null
 

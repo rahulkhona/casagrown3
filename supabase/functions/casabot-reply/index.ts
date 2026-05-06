@@ -148,10 +148,10 @@ Be enthusiastic but concise. Include 1 or 2 appropriate emojis.`
       })
     }
 
+    const primaryModel = Deno.env.get('AI_MODEL') ?? 'gemma-4-27b-it'
     const models = [
-      { name: 'gemma-4-27b-it', version: 'v1beta' },
+      { name: primaryModel, version: 'v1beta' },
       { name: 'gemini-2.5-flash', version: 'v1beta' },
-      { name: 'gemini-2.5-flash-lite', version: 'v1beta' },
     ]
     let geminiData: any = null
     let lastError = ''
