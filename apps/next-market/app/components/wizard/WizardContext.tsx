@@ -263,6 +263,17 @@ export function WizardProvider({ children }: { children: ReactNode }) {
           }
         }
 
+        // Fallback: extract zip from anywhere in the address via regex
+        if (!zipCode && state.address) {
+          const zipMatch = state.address.match(/\b(\d{5}(?:-\d{4})?)\b/)
+          if (zipMatch) zipCode = zipMatch[1]
+        }
+        // Fallback: extract state code via regex (e.g. ", CA " or " CA ")
+        if (!stateCode && state.address) {
+          const stMatch = state.address.match(/\b([A-Z]{2})\b/)
+          if (stMatch) stateCode = stMatch[1]
+        }
+
         const profileUpdate: any = {
           tos_accepted_at: state.agreedToTos ? new Date().toISOString() : undefined,
           full_name: state.fullName || undefined,
