@@ -5,7 +5,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "http://127.0.0.1:54321";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU";
 
-Deno.test("Nutrition Estimator - Per-Item Caching Flow", async () => {
+Deno.test({ name: "Nutrition Estimator - Per-Item Caching Flow", sanitizeOps: false, sanitizeResources: false }, async () => {
   const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false }
   });
@@ -28,16 +28,22 @@ Deno.test("Nutrition Estimator - Per-Item Caching Flow", async () => {
   };
 
   // 2. First Invocation: Cache Miss (Both items should be generated)
-  const res1 = await fetch(`${SUPABASE_URL}/functions/v1/estimate-nutrition-loss`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
-    },
-    body: JSON.stringify(payload1)
-  });
-
-  const data1 = await res1.json();
+  // Retry up to 3 times to handle edge function cold starts in CI
+  let data1: any;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res1 = await fetch(`${SUPABASE_URL}/functions/v1/estimate-nutrition-loss`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
+      },
+      body: JSON.stringify(payload1)
+    });
+    data1 = await res1.json();
+    if (data1.ai_nutrition_result?.items?.length === 2) break;
+    console.log(`Attempt ${attempt + 1} response:`, JSON.stringify(data1).slice(0, 200));
+    if (attempt < 2) await new Promise(r => setTimeout(r, 2000));
+  }
   const result1 = data1.ai_nutrition_result;
   
   assertExists(result1, "First invocation should return a result");

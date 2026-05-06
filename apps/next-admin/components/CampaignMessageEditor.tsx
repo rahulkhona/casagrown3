@@ -106,6 +106,21 @@ export default function CampaignMessageEditor({
   const [trackUtm, setTrackUtm] = useState({ utm_source: '', utm_medium: '', utm_campaign: '', utm_content: '', utm_term: '' })
   const [trackCreatingShort, setTrackCreatingShort] = useState(false)
 
+  // Image Sizing Popover State
+  const [imgPopover, setImgPopover] = useState<{
+    node: HTMLImageElement | null
+    top: number
+    left: number
+    width: string
+    alt: string
+    align: 'left' | 'center' | 'right' | ''
+  } | null>(null)
+
+  // Table Popover State
+  const [tablePopoverOpen, setTablePopoverOpen] = useState(false)
+  const [tableHover, setTableHover] = useState<{ rows: number; cols: number }>({ rows: 0, cols: 0 })
+  const [tableEditBar, setTableEditBar] = useState<{ top: number; left: number } | null>(null)
+
   const SUPPORTED_VARS = [
     { value: '', label: '➕ Add Variable' },
     { value: 'first_name', label: 'First Name' },
@@ -383,6 +398,193 @@ export default function CampaignMessageEditor({
     }
   }, [trackLinkUrl, trackLinkRange, trackUtm, toast])
 
+  // ── Image click handler: show sizing popover when clicking images in editor ──
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      let quill: any
+      try { quill = quillRef.current?.getEditor() } catch { return }
+      if (!quill) return
+      const root = quill.root as HTMLElement
+
+      const handleImageClick = (e: MouseEvent) => {
+        const target = e.target as HTMLElement
+        if (target.tagName === 'IMG') {
+          e.preventDefault()
+          e.stopPropagation()
+          const img = target as HTMLImageElement
+          const rect = img.getBoundingClientRect()
+          const editorRect = root.closest('.ql-container')?.getBoundingClientRect() || root.getBoundingClientRect()
+          const currentWidth = img.style.width || img.getAttribute('width') || ''
+          const currentWrap = img.style.float === 'left' ? 'wrap-left'
+            : img.style.float === 'right' ? 'wrap-right'
+            : img.style.display === 'block' && img.style.marginLeft === 'auto' ? 'center'
+            : 'break'
+          setImgPopover({
+            node: img,
+            top: rect.bottom - editorRect.top + 8,
+            left: Math.max(0, rect.left - editorRect.left),
+            width: currentWidth.replace('px', '').replace('%', ''),
+            alt: img.getAttribute('alt') || '',
+            align: currentWrap as any
+          })
+          setTableEditBar(null)
+          return
+        }
+        // Close image popover on click outside
+        if (imgPopover && !target.closest('[data-img-popover]')) {
+          setImgPopover(null)
+        }
+      }
+
+      // Table cell click handler
+      const handleTableClick = (e: MouseEvent) => {
+        const target = e.target as HTMLElement
+        const cell = target.closest('td, th')
+        if (cell) {
+          const table = cell.closest('table')
+          if (table) {
+            const rect = table.getBoundingClientRect()
+            const editorRect = root.closest('.ql-container')?.getBoundingClientRect() || root.getBoundingClientRect()
+            setTableEditBar({
+              top: rect.top - editorRect.top - 40,
+              left: Math.max(0, rect.left - editorRect.left)
+            })
+            setImgPopover(null)
+            return
+          }
+        }
+        if (!target.closest('[data-table-toolbar]')) {
+          setTableEditBar(null)
+        }
+      }
+
+      root.addEventListener('click', handleImageClick)
+      root.addEventListener('click', handleTableClick)
+      return () => {
+        root.removeEventListener('click', handleImageClick)
+        root.removeEventListener('click', handleTableClick)
+      }
+    }, 600)
+    return () => clearTimeout(timer)
+  })
+
+  // ── Table insert handler ──
+  const tableInsertHandler = useCallback(() => {
+    setTablePopoverOpen(prev => !prev)
+    setTableHover({ rows: 0, cols: 0 })
+  }, [])
+
+  const insertTable = useCallback((rows: number, cols: number) => {
+    try {
+      const quill = quillRef.current?.getEditor()
+      if (!quill) return
+      const tableModule = quill.getModule('table')
+      if (tableModule && typeof tableModule.insertTable === 'function') {
+        // Ensure the editor has focus and a valid selection —
+        // the native table module requires getSelection() to return non-null
+        quill.focus()
+        if (!quill.getSelection()) {
+          quill.setSelection(quill.getLength() - 1, 0)
+        }
+        tableModule.insertTable(rows, cols)
+        toast(`${rows}×${cols} table inserted!`)
+      } else {
+        console.error('[Table Insert] Table module not available')
+        toast('Table module not loaded — try refreshing')
+      }
+    } catch (err: any) {
+      console.error('[Table Insert]', err)
+      toast('Table insert failed')
+    }
+    setTablePopoverOpen(false)
+  }, [toast])
+
+  // ── Image sizing helpers ──
+  const applyImageSize = useCallback((widthValue: string, unit: 'px' | '%' = 'px') => {
+    if (!imgPopover?.node) return
+    const img = imgPopover.node
+    const w = unit === '%' ? `${widthValue}%` : `${widthValue}px`
+    img.style.width = w
+    img.style.height = 'auto'
+    img.setAttribute('width', w)
+    setImgPopover(prev => prev ? { ...prev, width: widthValue } : null)
+  }, [imgPopover])
+
+  const applyImageAlign = useCallback((align: 'wrap-left' | 'wrap-right' | 'center' | 'break' | '') => {
+    if (!imgPopover?.node) return
+    const img = imgPopover.node
+    // Reset all layout styles
+    img.style.float = ''
+    img.style.display = ''
+    img.style.marginLeft = ''
+    img.style.marginRight = ''
+    img.style.marginBottom = ''
+    img.style.clear = ''
+    if (align === 'wrap-left') {
+      img.style.float = 'left'
+      img.style.marginRight = '16px'
+      img.style.marginBottom = '12px'
+    } else if (align === 'wrap-right') {
+      img.style.float = 'right'
+      img.style.marginLeft = '16px'
+      img.style.marginBottom = '12px'
+    } else if (align === 'center') {
+      img.style.display = 'block'
+      img.style.marginLeft = 'auto'
+      img.style.marginRight = 'auto'
+      img.style.float = 'none'
+      img.style.marginBottom = '12px'
+    } else {
+      // 'break' — image on its own line, no float
+      img.style.display = 'block'
+      img.style.float = 'none'
+      img.style.clear = 'both'
+      img.style.marginBottom = '12px'
+    }
+    setImgPopover(prev => prev ? { ...prev, align } : null)
+  }, [imgPopover])
+
+  const applyImageAlt = useCallback((alt: string) => {
+    if (!imgPopover?.node) return
+    imgPopover.node.setAttribute('alt', alt)
+    setImgPopover(prev => prev ? { ...prev, alt } : null)
+  }, [imgPopover])
+
+  const removeImage = useCallback(() => {
+    if (!imgPopover?.node) return
+    try {
+      const quill = quillRef.current?.getEditor()
+      if (quill) {
+        const blot = (quill.constructor as any).find(imgPopover.node)
+        if (blot) {
+          const idx = quill.getIndex(blot)
+          quill.deleteText(idx, 1)
+        } else {
+          imgPopover.node.remove()
+        }
+      } else {
+        imgPopover.node.remove()
+      }
+    } catch { imgPopover.node.remove() }
+    setImgPopover(null)
+    toast('Image removed')
+  }, [imgPopover, toast])
+
+  // ── Table edit helpers ──
+  const tableAction = useCallback((action: 'insertRowAbove' | 'insertRowBelow' | 'insertColumnLeft' | 'insertColumnRight' | 'deleteRow' | 'deleteColumn' | 'deleteTable') => {
+    try {
+      const quill = quillRef.current?.getEditor()
+      if (!quill) return
+      const tableModule = quill.getModule('table')
+      if (tableModule && typeof tableModule[action] === 'function') {
+        tableModule[action]()
+        if (action === 'deleteTable') setTableEditBar(null)
+      }
+    } catch (err) {
+      console.error('[Table Action]', err)
+    }
+  }, [])
+
   const quillModules = useMemo(() => ({
     toolbar: {
       container: [
@@ -393,15 +595,17 @@ export default function CampaignMessageEditor({
         [{ 'color': [] }, { 'background': [] }],
         [{ 'align': [] }],
         [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-        ['link', 'image'],
+        ['link', 'image', 'table'],
         ['clean']
       ],
       handlers: {
         link: insertPromoHandler,
-        image: imageHandler
+        image: imageHandler,
+        table: tableInsertHandler
       }
-    }
-  }), [imageHandler, insertPromoHandler])
+    },
+    table: true
+  }), [imageHandler, insertPromoHandler, tableInsertHandler])
 
   const handleGenerateAi = async () => {
     if (!aiPrompt) return;
@@ -537,13 +741,72 @@ export default function CampaignMessageEditor({
             </div>
           </div>
           {htmlMode === 'wysiwyg' ? (
-            <div style={{ background: 'white', borderRadius: 8, overflow: 'hidden' }}>
+            <div style={{ background: 'white', borderRadius: 8, overflow: 'visible', position: 'relative' }}>
               <style>{`
                 .crm-message-editor .ql-container {
                   resize: vertical;
                   overflow-y: auto;
                   min-height: 260px;
                 }
+                .crm-message-editor .ql-editor img {
+                  cursor: pointer;
+                  max-width: 100%;
+                  transition: outline 0.15s ease;
+                }
+                .crm-message-editor .ql-editor img:hover {
+                  outline: 2px solid #3b82f6;
+                  outline-offset: 2px;
+                }
+                .crm-message-editor .ql-editor table {
+                  border-collapse: collapse;
+                  width: 100%;
+                  max-width: 600px;
+                  margin: 12px 0;
+                }
+                .crm-message-editor .ql-editor td,
+                .crm-message-editor .ql-editor th {
+                  border: 1px solid #d1d5db;
+                  padding: 8px 12px;
+                  min-width: 40px;
+                }
+                .crm-message-editor .ql-snow .ql-toolbar button.ql-table::after {
+                  content: '⊞';
+                  font-size: 16px;
+                }
+                .img-popover-btn {
+                  padding: 4px 10px;
+                  border: 1px solid #d1d5db;
+                  background: white;
+                  border-radius: 4px;
+                  cursor: pointer;
+                  font-size: 0.78rem;
+                  font-weight: 500;
+                  color: #374151;
+                  transition: all 0.15s;
+                }
+                .img-popover-btn:hover { background: #f3f4f6; }
+                .img-popover-btn.active { background: #dbeafe; border-color: #3b82f6; color: #1d4ed8; }
+                .table-grid-cell {
+                  width: 24px;
+                  height: 24px;
+                  border: 1px solid #d1d5db;
+                  border-radius: 2px;
+                  cursor: pointer;
+                  transition: all 0.1s;
+                }
+                .table-edit-btn {
+                  padding: 3px 8px;
+                  border: none;
+                  background: transparent;
+                  cursor: pointer;
+                  font-size: 0.75rem;
+                  color: white;
+                  border-radius: 3px;
+                  white-space: nowrap;
+                  transition: background 0.15s;
+                }
+                .table-edit-btn:hover { background: rgba(255,255,255,0.2); }
+                .table-edit-btn.danger:hover { background: #dc2626; }
               `}</style>
               <ReactQuill 
                 ref={quillRef}
@@ -553,6 +816,202 @@ export default function CampaignMessageEditor({
                 onChange={(val: string) => setForm(f => ({...f, content_html: val}))} 
                 style={{ minHeight: '300px' }}
               />
+
+              {/* ── Image Sizing Popover ── */}
+              {imgPopover && (
+                <div
+                  data-img-popover="true"
+                  data-testid="img-sizing-popover"
+                  style={{
+                    position: 'absolute',
+                    top: imgPopover.top,
+                    left: imgPopover.left,
+                    zIndex: 100,
+                    background: 'white',
+                    border: '1px solid #d1d5db',
+                    borderRadius: 8,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    padding: '12px 14px',
+                    minWidth: 320,
+                    maxWidth: 400,
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <span style={{ fontWeight: 600, fontSize: '0.85rem', color: '#111827' }}>📐 Image Size</span>
+                    <button onClick={() => setImgPopover(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', color: '#6b7280' }}>×</button>
+                  </div>
+
+                  {/* Preset sizes */}
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+                    <button className="img-popover-btn" data-testid="img-size-small" onClick={() => applyImageSize('200')}>Small (200px)</button>
+                    <button className="img-popover-btn" data-testid="img-size-medium" onClick={() => applyImageSize('400')}>Medium (400px)</button>
+                    <button className="img-popover-btn" data-testid="img-size-full" onClick={() => applyImageSize('100', '%')}>Full Width</button>
+                    <button className="img-popover-btn" data-testid="img-size-original" onClick={() => {
+                      if (imgPopover.node) {
+                        imgPopover.node.style.width = ''
+                        imgPopover.node.style.height = ''
+                        imgPopover.node.removeAttribute('width')
+                        setImgPopover(prev => prev ? { ...prev, width: '' } : null)
+                      }
+                    }}>Original</button>
+                  </div>
+
+                  {/* Custom width */}
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 10 }}>
+                    <label style={{ fontSize: '0.78rem', color: '#6b7280', minWidth: 50 }}>Width:</label>
+                    <input
+                      data-testid="img-custom-width"
+                      type="number"
+                      value={imgPopover.width}
+                      onChange={e => setImgPopover(prev => prev ? { ...prev, width: e.target.value } : null)}
+                      onBlur={e => { if (e.target.value) applyImageSize(e.target.value) }}
+                      onKeyDown={e => { if (e.key === 'Enter' && (e.target as HTMLInputElement).value) applyImageSize((e.target as HTMLInputElement).value) }}
+                      style={{ width: 80, padding: '4px 8px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: '0.82rem' }}
+                      placeholder="px"
+                    />
+                    <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>px</span>
+                  </div>
+
+                  {/* Text Wrap */}
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
+                    <label style={{ fontSize: '0.78rem', color: '#6b7280', minWidth: 50 }}>Wrap:</label>
+                    <button
+                      className={`img-popover-btn ${imgPopover.align === 'wrap-left' ? 'active' : ''}`}
+                      data-testid="img-wrap-left"
+                      onClick={() => applyImageAlign('wrap-left')}
+                      title="Image left, text wraps right"
+                    >
+                      ◧ Wrap Left
+                    </button>
+                    <button
+                      className={`img-popover-btn ${imgPopover.align === 'wrap-right' ? 'active' : ''}`}
+                      data-testid="img-wrap-right"
+                      onClick={() => applyImageAlign('wrap-right')}
+                      title="Image right, text wraps left"
+                    >
+                      ◨ Wrap Right
+                    </button>
+                    <button
+                      className={`img-popover-btn ${imgPopover.align === 'center' ? 'active' : ''}`}
+                      data-testid="img-align-center"
+                      onClick={() => applyImageAlign('center')}
+                      title="Image centered, text above and below"
+                    >
+                      ▬ Center
+                    </button>
+                    <button
+                      className={`img-popover-btn ${imgPopover.align === 'break' ? 'active' : ''}`}
+                      data-testid="img-wrap-break"
+                      onClick={() => applyImageAlign('break')}
+                      title="Image on its own line, text below"
+                    >
+                      ☰ Break
+                    </button>
+                  </div>
+
+                  {/* Alt text */}
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 10 }}>
+                    <label style={{ fontSize: '0.78rem', color: '#6b7280', minWidth: 50 }}>Alt:</label>
+                    <input
+                      data-testid="img-alt-text"
+                      type="text"
+                      value={imgPopover.alt}
+                      onChange={e => applyImageAlt(e.target.value)}
+                      style={{ flex: 1, padding: '4px 8px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: '0.82rem' }}
+                      placeholder="Image description (for accessibility)"
+                    />
+                  </div>
+
+                  {/* Remove */}
+                  <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 8 }}>
+                    <button
+                      data-testid="img-remove"
+                      onClick={removeImage}
+                      style={{ padding: '4px 10px', border: 'none', background: '#fee2e2', color: '#dc2626', borderRadius: 4, cursor: 'pointer', fontSize: '0.78rem', fontWeight: 500 }}
+                    >
+                      🗑 Remove Image
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Table Grid Popover ── */}
+              {tablePopoverOpen && (
+                <div
+                  data-testid="table-grid-popover"
+                  style={{
+                    position: 'absolute',
+                    top: -8,
+                    right: 10,
+                    zIndex: 100,
+                    background: 'white',
+                    border: '1px solid #d1d5db',
+                    borderRadius: 8,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    padding: '12px 14px',
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <span style={{ fontWeight: 600, fontSize: '0.85rem', color: '#111827' }}>⊞ Insert Table</span>
+                    <button onClick={() => setTablePopoverOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', color: '#6b7280' }}>×</button>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 24px)', gap: 2, marginBottom: 8 }}>
+                    {Array.from({ length: 6 }).map((_, r) =>
+                      Array.from({ length: 6 }).map((_, c) => (
+                        <div
+                          key={`${r}-${c}`}
+                          className="table-grid-cell"
+                          data-testid={`table-cell-${r+1}-${c+1}`}
+                          style={{
+                            background: r < tableHover.rows && c < tableHover.cols ? '#3b82f6' : '#f3f4f6',
+                          }}
+                          onMouseEnter={() => setTableHover({ rows: r + 1, cols: c + 1 })}
+                          onClick={() => insertTable(r + 1, c + 1)}
+                        />
+                      ))
+                    )}
+                  </div>
+                  <div style={{ textAlign: 'center', fontSize: '0.78rem', color: '#6b7280', fontWeight: 500 }}>
+                    {tableHover.rows > 0 ? `${tableHover.rows} × ${tableHover.cols}` : 'Hover to select size'}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Table Edit Toolbar ── */}
+              {tableEditBar && (
+                <div
+                  data-table-toolbar="true"
+                  data-testid="table-edit-toolbar"
+                  style={{
+                    position: 'absolute',
+                    top: Math.max(0, tableEditBar.top),
+                    left: tableEditBar.left,
+                    zIndex: 100,
+                    background: '#1f2937',
+                    borderRadius: 6,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+                    padding: '4px 6px',
+                    display: 'flex',
+                    gap: 2,
+                    alignItems: 'center',
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button className="table-edit-btn" data-testid="table-add-row-above" onClick={() => tableAction('insertRowAbove')} title="Add row above">↑ Row</button>
+                  <button className="table-edit-btn" data-testid="table-add-row-below" onClick={() => tableAction('insertRowBelow')} title="Add row below">↓ Row</button>
+                  <span style={{ width: 1, height: 16, background: '#4b5563', margin: '0 2px' }} />
+                  <button className="table-edit-btn" data-testid="table-add-col-left" onClick={() => tableAction('insertColumnLeft')} title="Add column left">← Col</button>
+                  <button className="table-edit-btn" data-testid="table-add-col-right" onClick={() => tableAction('insertColumnRight')} title="Add column right">→ Col</button>
+                  <span style={{ width: 1, height: 16, background: '#4b5563', margin: '0 2px' }} />
+                  <button className="table-edit-btn" data-testid="table-del-row" onClick={() => tableAction('deleteRow')} title="Delete row">⊖ Row</button>
+                  <button className="table-edit-btn" data-testid="table-del-col" onClick={() => tableAction('deleteColumn')} title="Delete column">⊖ Col</button>
+                  <span style={{ width: 1, height: 16, background: '#4b5563', margin: '0 2px' }} />
+                  <button className="table-edit-btn danger" data-testid="table-delete" onClick={() => tableAction('deleteTable')} title="Delete table">🗑</button>
+                  <button className="table-edit-btn" onClick={() => setTableEditBar(null)} title="Close">×</button>
+                </div>
+              )}
             </div>
           ) : (
             <textarea 
@@ -563,7 +1022,7 @@ export default function CampaignMessageEditor({
             />
           )}
           <div className="crm-hint" style={{ marginTop: 8 }}>
-            💡 To insert images, use the Image button in the toolbar and paste the public URL of any image from your Assets tab.
+            💡 Click an image to resize/align it. Use ⊞ for tables. Use 🔗 for tracked links.
           </div>
         </div>
       )}

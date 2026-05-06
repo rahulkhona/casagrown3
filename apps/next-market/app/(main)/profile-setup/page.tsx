@@ -150,8 +150,14 @@ function ProfileSetupPageInner() {
         try {
           const res = await fetch(
             `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json&addressdetails=1`,
-            { headers: { 'Accept-Language': 'en' } }
+            { headers: { 'Accept-Language': 'en', 'User-Agent': 'CasaGrown-Market/1.0 (https://casagrown.com)' } }
           )
+          if (!res.ok) {
+            console.warn('Nominatim reverse geocode failed:', res.status, res.statusText)
+            setError('Could not look up address — please enter it manually')
+            setGeolocating(false)
+            return
+          }
           const data = await res.json()
           const addr = data.address || {}
           const houseNumber = addr.house_number || ''
@@ -162,8 +168,9 @@ function ProfileSetupPageInner() {
           setZip(addr.postcode?.split('-')[0] || '')
           setCachedLat(pos.coords.latitude)
           setCachedLng(pos.coords.longitude)
-        } catch {
-          setError('Could not look up address from location')
+        } catch (err) {
+          console.warn('Nominatim reverse geocode error:', err)
+          setError('Could not look up address — please enter it manually')
         }
         setGeolocating(false)
       },
@@ -298,7 +305,13 @@ function ProfileSetupPageInner() {
       if (updateErr) { setError(updateErr.message); setSaving(false); return }
 
       if (redirectTo) {
-        router.push(redirectTo.includes('?') ? `${redirectTo}&autoBuy=true` : `${redirectTo}?autoBuy=true`)
+        // Only append autoBuy for product purchase flows (e.g. /booth/), not community
+        const needsAutoBuy = redirectTo.includes('/booth/') || redirectTo.includes('/product/')
+        if (needsAutoBuy) {
+          router.push(redirectTo.includes('?') ? `${redirectTo}&autoBuy=true` : `${redirectTo}?autoBuy=true`)
+        } else {
+          router.push(redirectTo)
+        }
       } else {
         router.push('/community')
       }
@@ -505,7 +518,7 @@ function ProfileSetupPageInner() {
           </p>
 
           <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={saving}>
-            {saving ? 'Saving...' : 'Continue to Market →'}
+            {saving ? 'Saving...' : 'Continue →'}
           </button>
         </form>
       </div>

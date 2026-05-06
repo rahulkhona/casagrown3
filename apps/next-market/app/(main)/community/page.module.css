@@ -299,6 +299,8 @@
   display: flex;
   gap: 0.625rem;
   max-width: 96%;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .isOwnMessage {
@@ -484,6 +486,8 @@
   color: var(--text-primary);
   white-space: pre-wrap;
   word-break: break-word;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .messageFooter {
@@ -1828,7 +1832,8 @@
   background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 50%, #fefce8 100%);
   border: 2px solid var(--green-200, #bbf7d0);
   box-shadow: 0 4px 20px rgba(22, 163, 74, 0.12);
-  overflow: hidden;
+  overflow-y: auto;
+  max-height: 60vh;
   animation: welcomeSlideIn 0.4s ease-out;
 }
 
@@ -2059,4 +2064,41 @@
   background: var(--green-700);
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
+}
+
+/* ─── Guest Login Prompt Modal ──────────────────────────────── */
+.guestLoginOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.guestLoginModal {
+  background: #fff;
+  border-radius: var(--radius-2xl);
+  padding: 1.5rem;
+  max-width: 320px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-shadow: var(--shadow-xl);
+  animation: scaleIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
 }

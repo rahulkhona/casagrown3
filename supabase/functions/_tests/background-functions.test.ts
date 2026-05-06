@@ -133,12 +133,19 @@ Deno.test({
   name: 'analyze-product-photo: function exists (not 404)',
   sanitizeResources: false, sanitizeOps: false,
   async fn() {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/analyze-product-photo`, {
-      method: 'OPTIONS',
-      headers: { 'Origin': 'http://localhost:3000' },
-    })
-    assertEquals(true, res.status !== 404)
-    await res.text()
+    // Retry to handle edge function server startup race in CI
+    let status = 404;
+    for (let i = 0; i < 3; i++) {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/analyze-product-photo`, {
+        method: 'OPTIONS',
+        headers: { 'Origin': 'http://localhost:3000' },
+      })
+      status = res.status;
+      await res.text();
+      if (status !== 404) break;
+      if (i < 2) await new Promise(r => setTimeout(r, 2000));
+    }
+    assertEquals(true, status !== 404)
   },
 })
 

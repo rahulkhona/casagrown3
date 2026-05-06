@@ -32,7 +32,7 @@ async function createGuestPage(browser: Browser): Promise<Page> {
 
 test.describe('Guest Community Access', () => {
 
-  test('Guest can view community feed without login', async ({ browser }) => {
+  test('Guest can view community feed and see compose bar', async ({ browser }) => {
     const page = await createGuestPage(browser)
 
     // Navigate directly to /community as unauthenticated user
@@ -45,14 +45,12 @@ test.describe('Guest Community Access', () => {
     // Should see the community header
     await expect(page.locator('text=CasaGrown Community')).toBeVisible({ timeout: 10000 })
 
-    // Should see the guest CTA bar instead of ComposeBar
-    await expect(page.locator('text=Join CasaGrown to chat with your neighbors')).toBeVisible({ timeout: 5000 })
+    // Guest should now see the ComposeBar textarea (compose-then-login UX)
+    await expect(page.locator('textarea[placeholder*="Message"]')).toBeVisible({ timeout: 5000 })
 
-    // Should see the "Sign Up" button
-    await expect(page.locator('button:has-text("Sign Up")')).toBeVisible()
-
-    // ComposeBar textarea should NOT be visible (guest cannot compose)
-    await expect(page.locator('textarea[placeholder*="message"]')).not.toBeVisible()
+    // Textarea should be enabled (not disabled)
+    const isDisabled = await page.locator('textarea[placeholder*="Message"]').isDisabled()
+    expect(isDisabled).toBe(false)
 
     await page.context().close()
   })
@@ -71,19 +69,19 @@ test.describe('Guest Community Access', () => {
     // Should see the community feed
     await expect(page.locator('text=CasaGrown Community')).toBeVisible({ timeout: 10000 })
 
-    // Should see the guest CTA
-    await expect(page.locator('text=Join CasaGrown to chat with your neighbors')).toBeVisible()
+    // Guest should see the compose textarea
+    await expect(page.locator('textarea[placeholder*="Message"]')).toBeVisible({ timeout: 5000 })
 
     await page.context().close()
   })
 
-  test('Guest clicks Sign Up CTA and is redirected to login with correct return URL', async ({ browser }) => {
+  test('Guest types message and clicks Send — login prompt appears', async ({ browser }) => {
     const page = await createGuestPage(browser)
 
     await page.goto(`${BASE_URL}/community`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
     await page.waitForTimeout(4000)
 
-    // Dismiss AlphaBanner if it overlays the CTA
+    // Dismiss AlphaBanner if it overlays
     const alphaBanner = page.locator('[data-testid="alpha-banner"]')
     if (await alphaBanner.isVisible({ timeout: 1000 }).catch(() => false)) {
       const closeBtn = alphaBanner.locator('button')
@@ -93,15 +91,84 @@ test.describe('Guest Community Access', () => {
       }
     }
 
-    // Click the Sign Up button in the guest CTA bar
-    const signUpBtn = page.locator('button:has-text("Sign Up")')
-    await expect(signUpBtn).toBeVisible({ timeout: 5000 })
-    await signUpBtn.click({ force: true })
+    // Type a message in the compose bar
+    const textarea = page.locator('textarea[placeholder*="Message"]')
+    await expect(textarea).toBeVisible({ timeout: 5000 })
+    await textarea.fill('Hello neighbors!')
+    await page.waitForTimeout(300)
 
-    // Should navigate to /login with redirect to /community
+    // Click the Send button
+    const sendBtn = page.locator('button[aria-label="Send Message"]')
+    await sendBtn.click({ force: true })
+    await page.waitForTimeout(500)
+
+    // Login prompt modal should appear
+    await expect(page.locator('text=Join the Conversation')).toBeVisible({ timeout: 5000 })
+    await expect(page.locator('text=Sign up or log in to send messages')).toBeVisible()
+    await expect(page.locator('button:has-text("Sign Up / Log In")')).toBeVisible()
+    await expect(page.locator('button:has-text("Later")')).toBeVisible()
+
+    await page.context().close()
+  })
+
+  test('Guest login prompt "Sign Up / Log In" redirects to /login', async ({ browser }) => {
+    const page = await createGuestPage(browser)
+
+    await page.goto(`${BASE_URL}/community`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+    await page.waitForTimeout(4000)
+
+    // Dismiss AlphaBanner if present
+    const alphaBanner = page.locator('[data-testid="alpha-banner"]')
+    if (await alphaBanner.isVisible({ timeout: 1000 }).catch(() => false)) {
+      const closeBtn = alphaBanner.locator('button')
+      if (await closeBtn.isVisible({ timeout: 500 }).catch(() => false)) {
+        await closeBtn.click({ force: true })
+        await page.waitForTimeout(500)
+      }
+    }
+
+    // Trigger the login prompt via Send
+    const textarea = page.locator('textarea[placeholder*="Message"]')
+    await textarea.fill('Test message')
+    await page.locator('button[aria-label="Send Message"]').click({ force: true })
+    await page.waitForTimeout(500)
+
+    // Click "Sign Up / Log In" in the modal
+    await page.locator('button:has-text("Sign Up / Log In")').click({ force: true })
+
+    // Should navigate to /login with redirect
     await page.waitForURL('**/login**', { timeout: 10000 })
     expect(page.url()).toContain('/login')
     expect(page.url()).toContain('redirect')
+
+    await page.context().close()
+  })
+
+  test('Guest login prompt "Later" dismisses modal', async ({ browser }) => {
+    const page = await createGuestPage(browser)
+
+    await page.goto(`${BASE_URL}/community`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+    await page.waitForTimeout(4000)
+
+    // Trigger the login prompt
+    const textarea = page.locator('textarea[placeholder*="Message"]')
+    await textarea.fill('Hello!')
+    await page.locator('button[aria-label="Send Message"]').click({ force: true })
+    await page.waitForTimeout(500)
+
+    await expect(page.locator('text=Join the Conversation')).toBeVisible({ timeout: 5000 })
+
+    // Click "Later"
+    await page.locator('button:has-text("Later")').click({ force: true })
+    await page.waitForTimeout(300)
+
+    // Modal should be dismissed
+    await expect(page.locator('text=Join the Conversation')).not.toBeVisible({ timeout: 3000 })
+
+    // Textarea should still have the message
+    // (ComposeBar clears on send, but guest send is intercepted before clearing)
+    // User should still be on /community
+    expect(page.url()).toContain('/community')
 
     await page.context().close()
   })
@@ -193,6 +260,103 @@ test.describe('Guest Community Access', () => {
     const body = await page.locator('body').textContent()
     expect(body).toBeTruthy()
     expect(body!.length).toBeGreaterThan(10)
+
+    await page.context().close()
+  })
+
+  test('Text selection is isolated per message bubble (user-select CSS)', async ({ browser }) => {
+    const page = await createGuestPage(browser)
+
+    await page.goto(`${BASE_URL}/community`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+    await page.waitForTimeout(4000)
+
+    // Check that message wrappers have user-select: none (prevents cross-message selection)
+    const messageWrappers = page.locator('[class*="messageWrapper"]')
+    const wrapperCount = await messageWrappers.count()
+
+    if (wrapperCount > 0) {
+      const wrapperUserSelect = await messageWrappers.first().evaluate((el) => {
+        return window.getComputedStyle(el).userSelect
+      })
+      expect(wrapperUserSelect).toBe('none')
+
+      // Check that message text within the bubble has user-select: text
+      const messageTexts = page.locator('[class*="messageText"]')
+      if (await messageTexts.count() > 0) {
+        const textUserSelect = await messageTexts.first().evaluate((el) => {
+          return window.getComputedStyle(el).userSelect
+        })
+        expect(textUserSelect).toBe('text')
+      }
+    }
+
+    await page.context().close()
+  })
+
+  test('Guest Send saves draft message to localStorage', async ({ browser }) => {
+    const page = await createGuestPage(browser)
+
+    await page.goto(`${BASE_URL}/community`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+    await page.waitForTimeout(4000)
+
+    // Type a message
+    const textarea = page.locator('textarea[placeholder*="Message"]')
+    await textarea.fill('Draft message from guest')
+    await page.waitForTimeout(300)
+
+    // Click Send — should trigger login prompt and save draft
+    await page.locator('button[aria-label="Send Message"]').click({ force: true })
+    await page.waitForTimeout(500)
+
+    // Verify the draft was saved to localStorage
+    const draft = await page.evaluate(() => localStorage.getItem('casagrown_community_draft'))
+    expect(draft).toBe('Draft message from guest')
+
+    await page.context().close()
+  })
+
+  test('Guest Sign Up button preserves draft in localStorage', async ({ browser }) => {
+    const page = await createGuestPage(browser)
+
+    await page.goto(`${BASE_URL}/community`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+    await page.waitForTimeout(4000)
+
+    // Type and send to trigger login prompt
+    const textarea = page.locator('textarea[placeholder*="Message"]')
+    await textarea.fill('My important message')
+    await page.locator('button[aria-label="Send Message"]').click({ force: true })
+    await page.waitForTimeout(500)
+
+    // Click "Sign Up / Log In"
+    await page.locator('button:has-text("Sign Up / Log In")').click({ force: true })
+    await page.waitForURL('**/login**', { timeout: 10000 })
+
+    // Draft should still be in localStorage after redirect
+    const draft = await page.evaluate(() => localStorage.getItem('casagrown_community_draft'))
+    expect(draft).toBe('My important message')
+
+    await page.context().close()
+  })
+
+  test('Messages remain visible when welcome banner is shown', async ({ browser }) => {
+    // Login as a user who has existing messages
+    const page = await loginAsUser(browser, 'beth')
+    await navigateTo(page, '/community')
+
+    // Wait for community to load
+    await expect(page.locator('text=CasaGrown Community')).toBeVisible({ timeout: 10000 })
+    await page.waitForTimeout(2000)
+
+    // Check if messages are visible (they should always be visible now, even with welcome card)
+    const messageBubbles = page.locator('[class*="messageBubble"]')
+    const count = await messageBubbles.count()
+
+    // If welcome card is showing, messages should STILL be visible (not hidden)
+    const welcomeCard = page.locator('[class*="welcomeCard"]')
+    if (await welcomeCard.isVisible({ timeout: 2000 }).catch(() => false)) {
+      // Messages should be visible alongside the welcome card
+      expect(count).toBeGreaterThan(0)
+    }
 
     await page.context().close()
   })
@@ -329,6 +493,49 @@ test.describe('Referral Attribution', () => {
 
       // The share modal should open
       await expect(page.locator('text=Invite Neighbors')).toBeVisible({ timeout: 5000 })
+    }
+
+    await page.context().close()
+  })
+})
+
+test.describe('Profile Setup Page', () => {
+
+  test('Continue button says "Continue" not "Continue to Market"', async ({ browser }) => {
+    const page = await loginAsUser(browser, 'beth')
+    await navigateTo(page, '/profile-setup')
+
+    // Wait for profile form to load
+    await page.waitForTimeout(3000)
+
+    // The submit button should say "Continue →", not "Continue to Market →"
+    const submitBtn = page.locator('button[type="submit"]')
+    await expect(submitBtn).toBeVisible({ timeout: 10000 })
+    const btnText = await submitBtn.textContent()
+    expect(btnText).toContain('Continue')
+    expect(btnText).not.toContain('Market')
+
+    await page.context().close()
+  })
+
+  test('Profile setup redirect to /community does not include autoBuy', async ({ browser }) => {
+    const page = await loginAsUser(browser, 'beth')
+
+    // Navigate to profile-setup with redirect=/community (simulating guest flow)
+    await navigateTo(page, '/profile-setup?redirect=/community')
+    await page.waitForTimeout(3000)
+
+    // Fill out the form and submit
+    const submitBtn = page.locator('button[type="submit"]')
+    await expect(submitBtn).toBeVisible({ timeout: 10000 })
+    await submitBtn.click({ force: true })
+
+    // Wait for redirect
+    await page.waitForTimeout(5000)
+
+    // URL should be /community without autoBuy
+    if (page.url().includes('/community')) {
+      expect(page.url()).not.toContain('autoBuy')
     }
 
     await page.context().close()

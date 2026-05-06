@@ -251,7 +251,7 @@ export default function ComposeBar({ onSend, userId, h3Index, prefillText, onPre
           value={content}
           onChange={handleInput}
           onKeyDown={handleKeyDown}
-          disabled={isSending || !userId}
+          disabled={isSending}
           rows={1}
         />
         
@@ -266,7 +266,7 @@ export default function ComposeBar({ onSend, userId, h3Index, prefillText, onPre
         <button 
           type="submit" 
           className={styles.sendBtn}
-          disabled={(!content.trim() && mediaFiles.length === 0) || isSending || !userId}
+          disabled={(!content.trim() && mediaFiles.length === 0) || isSending}
           aria-label="Send Message"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>

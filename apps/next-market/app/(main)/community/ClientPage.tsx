@@ -58,9 +58,12 @@ export default function ClientPage({
   const [profileH3, setProfileH3] = useState<string | null>(initialProfileH3)
   const [errorState, setErrorState] = useState<{ message: string; cta?: string; action?: () => void } | null>(null)
   
-  // Welcome card logic
+  // Welcome card logic — defer if there's a pending draft from guest compose flow
+  const draftRef = useRef<string | null>(
+    typeof window !== 'undefined' ? localStorage.getItem('casagrown_community_draft') : null
+  )
   const [showWelcome, setShowWelcome] = useState<boolean>(
-    initialProfileH3 !== null && !initialBuzzWelcomedAt
+    initialProfileH3 !== null && !initialBuzzWelcomedAt && !draftRef.current
   )
   const [profileName, setProfileName] = useState(initialProfileName)
   const { showError, showInfo } = useErrorToast()
@@ -85,6 +88,8 @@ export default function ClientPage({
   const [isAtBottom, setIsAtBottom] = useState(true)
   const [replyingTo, setReplyingTo] = useState<CommunityChatMessage | null>(null)
   const [composePrefill, setComposePrefill] = useState<string | undefined>(undefined)
+  const [showGuestLoginPrompt, setShowGuestLoginPrompt] = useState(false)
+  const [guestDraftMessage, setGuestDraftMessage] = useState('')
   
   // Pagination State
   const [isLoadingOlder, setIsLoadingOlder] = useState(false)
@@ -128,6 +133,29 @@ export default function ClientPage({
       setErrorState({ message: 'You need to set your neighborhood location before you can join the Community!', cta: 'Update Profile', action: () => router.push('/profile-setup') })
     }
   }, [loading, isAuthenticated, user, router, initialProfileH3, isGuest])
+
+  // Auto-send draft message from guest compose-then-login flow
+  // Watches profileH3 + user so it fires once both are ready after auth
+  useEffect(() => {
+    if (!isAuthenticated || isGuest || loading) return
+    if (!draftRef.current) return
+    if (!profileH3 || !user) return
+
+    const draft = draftRef.current
+    draftRef.current = null
+    try { localStorage.removeItem('casagrown_community_draft') } catch {}
+
+    // Auto-send the draft — user already clicked Send before login
+    handleSendMessage(draft).then(() => {
+      // Message sent — now show welcome banner (messages stay visible since we removed the hide)
+      if (!initialBuzzWelcomedAt) {
+        setShowWelcome(true)
+      }
+    }).catch(() => {
+      // If send fails, prefill compose bar so they can retry manually
+      setComposePrefill(draft)
+    })
+  }, [isAuthenticated, isGuest, loading, profileH3, user]) // eslint-disable-line react-hooks/exhaustive-deps
   
   // 2. Initial scroll to bottom
   const loadMessages = useCallback(async () => {
@@ -634,7 +662,7 @@ export default function ClientPage({
             <div className={styles.loading}>Loading chat...</div>
           ) : (
             <div className={styles.messageList}>
-              {hasMoreOlder && messages.length > 0 && !showWelcome && (
+              {hasMoreOlder && messages.length > 0 && (
                 <div ref={topAnchorRef} style={{ height: 20, flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
                   {isLoadingOlder ? <span style={{ fontSize: 12, color: '#888' }}>Loading older...</span> : null}
                 </div>
@@ -647,7 +675,7 @@ export default function ClientPage({
                   <p>Start a conversation with your neighbors.</p>
                 </div>
               )}
-              {!showWelcome && messages.map(msg => (
+              {messages.map(msg => (
                 <div key={msg.id} style={{ overflowAnchor: 'auto' }}>
                   {firstUnreadId === msg.id && (
                     <div id={`unread-marker-${msg.id}`} className={styles.unreadDivider}>
@@ -743,16 +771,49 @@ export default function ClientPage({
         />
       )}
 
-      {/* Compose Input — suggestions above, compose bar below, OR guest CTA */}
+      {/* Compose Input — guests can type but are prompted to login on send */}
       {isGuest ? (
-        <div className={styles.guestComposeCta}>
-          <span className={styles.guestComposeText}>🌱 Join CasaGrown to chat with your neighbors</span>
-          <button 
-            className={styles.guestComposeBtn}
-            onClick={() => router.push('/login?redirect=/community')}
-          >
-            Sign Up
-          </button>
+        <div className={styles.composeWrapper} ref={composeRef}>
+          <ComposeBar
+            onSend={async (msg) => {
+              setGuestDraftMessage(msg)
+              try { localStorage.setItem('casagrown_community_draft', msg) } catch {}
+              setShowGuestLoginPrompt(true)
+            }}
+            userId="guest"
+            h3Index={profileH3 || undefined}
+            prefillText={composePrefill}
+            onPrefillConsumed={() => setComposePrefill(undefined)}
+          />
+          {showGuestLoginPrompt && (
+            <div className={styles.guestLoginOverlay} onClick={() => setShowGuestLoginPrompt(false)}>
+              <div className={styles.guestLoginModal} onClick={e => e.stopPropagation()}>
+                <span style={{ fontSize: '2rem' }}>🌱</span>
+                <h3 style={{ margin: '0.5rem 0 0.25rem', color: 'var(--gray-900)' }}>Join the Conversation</h3>
+                <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--gray-500)', lineHeight: 1.4 }}>
+                  Sign up or log in to send messages, react, and connect with your neighbors.
+                </p>
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', width: '100%' }}>
+                  <button
+                    className={styles.guestComposeBtn}
+                    style={{ flex: 1 }}
+                    onClick={() => {
+                      try { localStorage.setItem('casagrown_community_draft', guestDraftMessage) } catch {}
+                      router.push('/login?redirect=/community')
+                    }}
+                  >
+                    Sign Up / Log In
+                  </button>
+                  <button
+                    style={{ flex: 0, padding: '0.5rem 1rem', background: 'var(--gray-100)', border: 'none', borderRadius: 'var(--radius-full)', cursor: 'pointer', fontSize: '0.875rem', color: 'var(--gray-600)' }}
+                    onClick={() => setShowGuestLoginPrompt(false)}
+                  >
+                    Later
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div className={styles.composeWrapper} ref={composeRef}>

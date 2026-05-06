@@ -31,7 +31,8 @@ test.describe('Toast Notifications for Success and Error Handling', () => {
     })
 
     // Navigate to community and try sending a message
-    await page.goto(`${BASE}/community`)
+    await page.goto(`${BASE}/community`, { waitUntil: 'domcontentloaded', timeout: 30_000 })
+    await page.waitForTimeout(3000)
     
     // Make sure we have a community loaded
     const messageInput = page.getByPlaceholder(/Message your neighbors/i)
