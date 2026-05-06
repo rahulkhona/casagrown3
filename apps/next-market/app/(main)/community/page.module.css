@@ -299,6 +299,8 @@
   display: flex;
   gap: 0.625rem;
   max-width: 96%;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .isOwnMessage {
