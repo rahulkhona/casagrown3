@@ -52,7 +52,7 @@ export default function InviteBanner({ h3Index, userId }: InviteBannerProps) {
           title="Invite Neighbors"
           subtitle="Share the community with your neighborhood."
           shareUrl={inviteUrl}
-          shareMessage={getCommunityInviteMessage()}
+          shareMessage={(p) => getCommunityInviteMessage(p)}
           entityName="Community Invite"
           shareContext="community_invite"
           userId={userId}

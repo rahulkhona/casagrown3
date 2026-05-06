@@ -1280,7 +1280,7 @@ function BrowseMarketPageInner() {
             title="Invite Neighbors"
             subtitle="Share CasaGrown with your neighborhood."
             shareUrl={typeof window !== 'undefined' ? `${window.location.origin}/` : ''}
-            shareMessage={getGlobalMarketShareMessage()}
+            shareMessage={(p) => getGlobalMarketShareMessage(p)}
             entityName="Market Invite"
             shareContext="market_invite"
             userId={user?.id}

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { createTrackedShareLink, type ShareContext, type SharePlatform } from '../../lib/createTrackedShareLink'
+import type { SharePlatformType } from '../../lib/shareMessages'
 
 interface SocialShareModalProps {
   isOpen: boolean
@@ -10,7 +11,7 @@ interface SocialShareModalProps {
   subtitle?: string
   entityName: string
   shareUrl: string
-  shareMessage: string
+  shareMessage: string | ((platform: SharePlatformType) => string)
   shareContext?: ShareContext
   userId?: string
   /** If provided, only these platform buttons are shown. Omit for all platforms. */
@@ -229,13 +230,19 @@ export default function SocialShareModal({
     }
   }
 
+  /** Resolve the share message for a given platform */
+  const resolveMessage = (platform: SharePlatformType): string => {
+    return typeof shareMessage === 'function' ? shareMessage(platform) : shareMessage
+  }
+
   /** Build the share payload text, replacing the raw URL with the tracked one */
-  const getPayload = (trackedUrl: string) => {
-    // If shareMessage already includes the raw URL, replace it with tracked
-    if (shareMessage.includes(shareUrl)) {
-      return shareMessage.replace(shareUrl, trackedUrl)
+  const getPayload = (trackedUrl: string, platform: SharePlatformType) => {
+    const msg = resolveMessage(platform)
+    // If message already includes the raw URL, replace it with tracked
+    if (msg.includes(shareUrl)) {
+      return msg.replace(shareUrl, trackedUrl)
     }
-    return `${shareMessage}\n\n${trackedUrl}`
+    return `${msg}\n\n${trackedUrl}`
   }
 
   const showToast = (msg: string) => {
@@ -245,26 +252,26 @@ export default function SocialShareModal({
 
   const handleShareSMS = async () => {
     const tracked = await getTrackedUrl('sms')
-    const text = encodeURIComponent(getPayload(tracked))
+    const text = encodeURIComponent(getPayload(tracked, 'sms'))
     window.location.href = `sms:?body=${text}`
   }
 
   const handleShareWhatsApp = async () => {
     const tracked = await getTrackedUrl('whatsapp')
-    const text = encodeURIComponent(getPayload(tracked))
+    const text = encodeURIComponent(getPayload(tracked, 'whatsapp'))
     window.open(`https://wa.me/?text=${text}`, '_blank')
   }
 
   const handleShareEmail = async () => {
     const tracked = await getTrackedUrl('email')
     const subject = encodeURIComponent(entityName || title)
-    const body = encodeURIComponent(getPayload(tracked))
+    const body = encodeURIComponent(getPayload(tracked, 'email'))
     window.location.href = `mailto:?subject=${subject}&body=${body}`
   }
 
   const handleShareNextdoor = async () => {
     const tracked = await getTrackedUrl('nextdoor')
-    const payload = getPayload(tracked)
+    const payload = getPayload(tracked, 'nextdoor')
     navigator.clipboard.writeText(payload).catch(()=>{})
     if (shouldRemind) {
       setPasteReminder('Nextdoor')
@@ -276,7 +283,7 @@ export default function SocialShareModal({
 
   const handleShareFacebook = async () => {
     const tracked = await getTrackedUrl('facebook')
-    const payload = getPayload(tracked)
+    const payload = getPayload(tracked, 'facebook')
     const url = encodeURIComponent(tracked)
     navigator.clipboard.writeText(payload).catch(()=>{})
     if (shouldRemind) {
@@ -311,7 +318,7 @@ export default function SocialShareModal({
     if (navigator.share) {
       try {
         const tracked = await getTrackedUrl('native')
-        await navigator.share({ title: entityName, text: shareMessage, url: tracked })
+        await navigator.share({ title: entityName, text: resolveMessage('native'), url: tracked })
       } catch {}
     }
   }

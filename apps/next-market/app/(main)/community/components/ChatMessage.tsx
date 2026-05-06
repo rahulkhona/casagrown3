@@ -342,10 +342,13 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
         entityName="CasaGrown Message"
         shareContext="chat_message_share"
         shareUrl={`${typeof window !== 'undefined' ? window.location.origin : ''}/community?message_id=${message.id}`}
-        shareMessage={richShareInfo
-          ? `${getRandomGreeting()} Check out what I found on CasaGrown Market:\n\n${richShareInfo}\n\n👇 Click here to view and purchase:\n${typeof window !== 'undefined' ? window.location.origin : ''}/community?message_id=${message.id}`
-          : getCommunityMessageForwardMessage(message.content.length > 200 ? message.content.slice(0, 200) + '…' : message.content) + `${typeof window !== 'undefined' ? window.location.origin : ''}/community?message_id=${message.id}`
-        }
+        shareMessage={(p) => {
+          const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/community?message_id=${message.id}`
+          if (richShareInfo) {
+            return `${getRandomGreeting()} Check out what I found on CasaGrown Market:\n\n${richShareInfo}\n\n👇 Click here to view and purchase:\n${url}`
+          }
+          return getCommunityMessageForwardMessage(message.content.length > 200 ? message.content.slice(0, 200) + '…' : message.content, p) + url
+        }}
       />
     </div>
   )

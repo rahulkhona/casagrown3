@@ -1045,15 +1045,12 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
         subtitle={`Invite your neighbors to check out this fresh produce!`}
         entityName={product ? product.name : 'Product'}
         shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
-        shareMessage={
-          (product?.seller_id === user?.id ? 'my fresh' : 'this fresh') + ' produce on CasaGrown!\n\n' +
-          getProductShareMessage(
-            product?.name || 'produce',
-            product?.price_usd === 0 ? 'Free' : `${formatUsd(product?.price_usd || 0)} / ${product?.unit}`,
-            booth && (booth.offers_delivery || booth.offers_pickup) ? `${booth.offers_delivery && booth.offers_pickup ? '🚗 Delivery or 📍 Pickup' : booth.offers_delivery ? '🚗 Delivery' : '📍 Pickup'} near ${booth.pickup_display_address || anonymizeAddress(booth.pickup_address) || 'you'}` : '📍 Available nearby'
-          ) +
-          (product?.inventory ? `\n\nOnly ${product.inventory} available!` : '')
-        }
+        shareMessage={(p) => {
+          const priceText = product?.price_usd === 0 ? 'Free' : `${formatUsd(product?.price_usd || 0)} / ${product?.unit}`
+          const deliveryText = booth && (booth.offers_delivery || booth.offers_pickup) ? `${booth.offers_delivery && booth.offers_pickup ? '🚗 Delivery or 📍 Pickup' : booth.offers_delivery ? '🚗 Delivery' : '📍 Pickup'} near ${booth.pickup_display_address || anonymizeAddress(booth.pickup_address) || 'you'}` : '📍 Available nearby'
+          return getProductShareMessage(product?.name || 'produce', priceText, deliveryText, p) +
+            (product?.inventory ? `\n\nOnly ${product.inventory} available!` : '')
+        }}
         shareContext="product_share"
         userId={user?.id}
       />

@@ -608,11 +608,17 @@ export default function MyBoothPage() {
     const bid = boothId ?? savedBoothId
     return typeof window !== 'undefined' ? `${window.location.origin}/market${bid ? '/booth/' + bid : ''}` : '/market'
   }
-  const getBoothShareText = (boothId?: string | null) => {
+  const getBoothShareText = (boothId?: string | null, platform?: string) => {
     const sellerName = profileName?.split(' ')[0] || 'your neighbor'
     const productNames = myProducts.slice(0, 3).map(p => p.name).join(', ')
     const nextDay = nextMarket ? nextMarket.date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) : ''
-    return `${getRandomGreeting()} 🌱 I'm ${sellerName} and I just set up my produce stand "${name}" on CasaGrown Market!\n\n${productNames ? `I'm growing ${productNames} and more — ` : ''}come check out what's fresh from my backyard.${nextDay ? `\n\n📅 Next market day: ${nextDay}` : ''}\n\n👇 Click the link below to view my produce stand and shop:\n${getBoothShareUrl(boothId)}\n\nFresh produce, straight from your neighbor! 🏡`
+    const url = getBoothShareUrl(boothId)
+
+    if (platform === 'facebook' || platform === 'nextdoor') {
+      return `🌱 Fresh, homegrown produce is now available in our neighborhood!\n\n${sellerName}'s produce stand "${name}" is live on CasaGrown Market.${productNames ? ` Currently offering ${productNames} and more.` : ''}${nextDay ? `\n\n📅 Next market day: ${nextDay}` : ''}\n\n👇 Check it out:\n${url}`
+    }
+
+    return `${getRandomGreeting()} 🌱 I'm ${sellerName} and I just set up my produce stand "${name}" on CasaGrown Market!\n\n${productNames ? `I'm growing ${productNames} and more — ` : ''}come check out what's fresh from my backyard.${nextDay ? `\n\n📅 Next market day: ${nextDay}` : ''}\n\n👇 Click the link below to view my produce stand and shop:\n${url}\n\nFresh produce, straight from your neighbor! 🏡`
   }
 
   // Build product slot data
@@ -1342,7 +1348,7 @@ export default function MyBoothPage() {
           subtitle={`Invite your neighbors to check out your produce stand.`}
           entityName={name}
           shareUrl={getBoothShareUrl() || ''}
-          shareMessage={boothShareMsg}
+          shareMessage={(p) => getBoothShareText(null, p)}
           shareContext="booth_share"
           userId={user?.id}
         />
@@ -1357,14 +1363,15 @@ export default function MyBoothPage() {
           subtitle={`Spread the word to your neighbors!`}
           entityName={myProducts.find(p => p.id === productShareId)!.name}
           shareUrl={`${typeof window !== 'undefined' ? window.location.origin : ''}/market/booth/${savedBoothId || user?.id || 'id'}/product/${productShareId}`}
-          shareMessage={(() => {
-            const prod = myProducts.find(p => p.id === productShareId)!
+          shareMessage={(p) => {
+            const prod = myProducts.find(pr => pr.id === productShareId)!
             return getProductShareMessage(
               prod.name,
               prod.priceUsd === 0 ? 'Free' : `${formatUsd(prod.priceUsd)} / ${prod.unit}`,
-              (offersDelivery || offersPickup) ? `${offersDelivery && offersPickup ? '🚗 Delivery or 📍 Pickup' : offersDelivery ? '🚗 Delivery' : '📍 Pickup'} near ${pickupAddress ? pickupAddress.split(',').slice(-2).join(',').trim() : 'you'}` : '📍 Available nearby'
+              (offersDelivery || offersPickup) ? `${offersDelivery && offersPickup ? '🚗 Delivery or 📍 Pickup' : offersDelivery ? '🚗 Delivery' : '📍 Pickup'} near ${pickupAddress ? pickupAddress.split(',').slice(-2).join(',').trim() : 'you'}` : '📍 Available nearby',
+              p
             ) + `${typeof window !== 'undefined' ? window.location.origin : ''}/market/booth/${savedBoothId || user?.id || 'id'}/product/${productShareId}`
-          })()}
+          }}
           shareContext="product_share"
           userId={user?.id}
         />
