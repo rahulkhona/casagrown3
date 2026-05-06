@@ -299,8 +299,6 @@
   display: flex;
   gap: 0.625rem;
   max-width: 96%;
-  user-select: none;
-  -webkit-user-select: none;
 }
 
 .isOwnMessage {
@@ -321,6 +319,8 @@
   flex-shrink: 0;
   overflow: hidden;
   margin-top: 2px;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .avatar img {
@@ -421,6 +421,8 @@
   display: flex;
   align-items: baseline;
   gap: 0.5rem;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .authorName {
