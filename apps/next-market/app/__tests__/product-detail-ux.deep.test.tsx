@@ -93,11 +93,10 @@ describe('ProductDetailClient — UX Contract', () => {
     expect(detailSrc).toContain('{distanceCheckerForm}')
   })
 
-  it('share payload includes user-specific intro, price, and available quantity', () => {
-    expect(detailSrc).toContain("'my fresh' : 'this fresh'")
+  it('share payload uses getProductShareMessage', () => {
+    expect(detailSrc).toContain("getProductShareMessage")
     expect(detailSrc).toContain("product?.price_usd")
     expect(detailSrc).toContain("product.inventory")
-    expect(detailSrc).toContain("available")
   })
 
   it('calls anonymizeAddress for pickup location', () => {

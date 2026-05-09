@@ -40,7 +40,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const { user, isAuthenticated, profileComplete } = useAuth()
-  const { isOpen: marketIsOpen, nextOpenDate, loading: marketLoading } = useMarketStatus()
+  const { isOpen: marketIsOpen, isScheduleOpen, nextOpenDate, loading: marketLoading } = useMarketStatus()
   const autoBuy = searchParams.get('autoBuy') === 'true'
   const [product, setProduct] = useState<any>(null)
   const [booth, setBooth] = useState<any>(null)
@@ -571,6 +571,29 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
               >
                 <ShareIcon size={16} /> Share Product
               </button>
+            </div>
+          )}
+
+          {/* Market Closed Banner */}
+          {!isScheduleOpen && (
+            <div style={{
+              background: 'linear-gradient(135deg, #fefce8 0%, #fef9c3 100%)',
+              border: '1px solid #fbbf24',
+              borderRadius: 'var(--radius-md, 12px)',
+              padding: '16px 20px',
+              marginTop: 16,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 20 }}>🕐</span>
+                <strong style={{ color: '#92400e', fontSize: 15 }}>
+                  Market is currently closed
+                </strong>
+              </div>
+              {nextOpenStr && (
+                <p style={{ margin: '8px 0 0', fontSize: 13, color: '#a16207' }}>
+                  Next market open: <strong>{nextOpenStr}</strong>
+                </p>
+              )}
             </div>
           )}
 

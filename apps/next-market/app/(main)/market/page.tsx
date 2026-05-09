@@ -20,7 +20,7 @@ import { getGlobalMarketShareMessage } from '../../../lib/shareMessages'
 import styles from './page.module.css'
 
 // ── Compact countdown timer for closed market ──
-function CountdownTimer({ targetDate }: { targetDate: Date }) {
+function CountdownTimer({ targetDate, theme = 'light' }: { targetDate: Date, theme?: 'light' | 'dark' }) {
   const [, setTick] = useState(0)
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 1000)
@@ -34,28 +34,33 @@ function CountdownTimer({ targetDate }: { targetDate: Date }) {
   const s = Math.floor((diff / 1000) % 60)
   const pad = (n: number) => String(n).padStart(2, '0')
 
+  const isDark = theme === 'dark'
+  const numColor = isDark ? '#4ade80' : '#16a34a' // neon green vs green
+  const labelColor = isDark ? '#94a3b8' : '#9ca3af'
+  const colonColor = isDark ? '#64748b' : '#d1d5db'
+
   return (
     <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
       {d > 0 && (
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: '#16a34a', lineHeight: 1 }}>{d}</div>
-          <div style={{ fontSize: 8, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase' }}>day{d !== 1 ? 's' : ''}</div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: numColor, lineHeight: 1 }}>{d}</div>
+          <div style={{ fontSize: 8, color: labelColor, fontWeight: 600, textTransform: 'uppercase' }}>day{d !== 1 ? 's' : ''}</div>
         </div>
       )}
-      {d > 0 && <span style={{ color: '#d1d5db', fontSize: 12, fontWeight: 700 }}>:</span>}
+      {d > 0 && <span style={{ color: colonColor, fontSize: 12, fontWeight: 700 }}>:</span>}
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: '#16a34a', lineHeight: 1 }}>{pad(h)}</div>
-        <div style={{ fontSize: 8, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase' }}>hrs</div>
+        <div style={{ fontSize: 14, fontWeight: 800, color: numColor, lineHeight: 1 }}>{pad(h)}</div>
+        <div style={{ fontSize: 8, color: labelColor, fontWeight: 600, textTransform: 'uppercase' }}>hrs</div>
       </div>
-      <span style={{ color: '#d1d5db', fontSize: 12, fontWeight: 700 }}>:</span>
+      <span style={{ color: colonColor, fontSize: 12, fontWeight: 700 }}>:</span>
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: '#16a34a', lineHeight: 1 }}>{pad(m)}</div>
-        <div style={{ fontSize: 8, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase' }}>min</div>
+        <div style={{ fontSize: 14, fontWeight: 800, color: numColor, lineHeight: 1 }}>{pad(m)}</div>
+        <div style={{ fontSize: 8, color: labelColor, fontWeight: 600, textTransform: 'uppercase' }}>min</div>
       </div>
-      <span style={{ color: '#d1d5db', fontSize: 12, fontWeight: 700 }}>:</span>
+      <span style={{ color: colonColor, fontSize: 12, fontWeight: 700 }}>:</span>
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: '#16a34a', lineHeight: 1 }}>{pad(s)}</div>
-        <div style={{ fontSize: 8, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase' }}>sec</div>
+        <div style={{ fontSize: 14, fontWeight: 800, color: numColor, lineHeight: 1 }}>{pad(s)}</div>
+        <div style={{ fontSize: 8, color: labelColor, fontWeight: 600, textTransform: 'uppercase' }}>sec</div>
       </div>
     </div>
   )
@@ -185,7 +190,7 @@ function BrowseMarketPageInner() {
   const [userH3, setUserH3] = useState<string | null>(null)
 
   // Market hours status
-  const { isOpen: marketIsOpen, todaySchedule, nextOpenDate, loading: marketLoading } = useMarketStatus()
+  const { isOpen: marketIsOpen, isScheduleOpen, isGrandOpening, todaySchedule, nextOpenDate, loading: marketLoading } = useMarketStatus()
 
   // Sync state to URL and localStorage
   const syncUrl = useCallback(() => {
@@ -762,72 +767,186 @@ function BrowseMarketPageInner() {
     <>
       {renderPioneerBanner()}
       <div className="container">
-        {/* Compact closed market message + actions + demo header */}
-        {!marketIsOpen && (
-        <div style={{
-          textAlign: 'center', padding: '16px 0 12px',
-        }}>
-          {/* Closed status pill with countdown */}
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 10,
-            background: 'var(--gray-50, #f9fafb)', border: '1px solid var(--gray-200, #e5e7eb)',
-            borderRadius: 14, padding: '10px 20px', marginBottom: 12,
-          }}>
-            <span style={{ fontSize: 20 }}>🌙</span>
-            <div style={{ textAlign: 'left' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--gray-800, #1f2937)' }}>
-                Market is closed
+        {!isScheduleOpen && isGrandOpening && (
+          <div style={{ padding: '16px 0 24px' }}>
+            <div style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
+              background: 'linear-gradient(135deg, #a16207 0%, #ca8a04 100%)', 
+              border: '1px solid #facc15',
+              borderRadius: 24, padding: '32px 24px', marginBottom: 24,
+              boxShadow: '0 8px 32px rgba(161, 98, 7, 0.4)',
+              textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 48, marginBottom: -8, animation: 'bounce 2s infinite' }}>🎉</div>
+              <div>
+                <h2 style={{ fontSize: 24, fontWeight: 800, color: '#fefce8', margin: '0 0 12px', letterSpacing: '-0.02em' }}>
+                  CasaGrown Grand Opening!
+                </h2>
+                <p style={{ fontSize: 15, color: '#fef08a', margin: '0 auto', maxWidth: 600, lineHeight: 1.5 }}>
+                  The wait is almost over! We are officially opening our doors on {nextOpenDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })} at {todaySchedule?.open_time || '8:00 AM'}.
+                  Get ready for the freshest produce straight from your neighbors' backyards!
+                  <br /><br />
+                  While you wait, head over to the Community to share gardening tips, ask questions, and connect with your neighbors!
+                </p>
               </div>
-              <div style={{ fontSize: 11, color: 'var(--gray-500, #6b7280)' }}>
-                {nextOpenDate ? `Opens ${nextOpenDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })} at ${todaySchedule?.open_time || '8:00 AM'}` : 'Check back soon!'}
+              
+              {nextOpenDate && (
+                <div style={{ margin: '8px 0', transform: 'scale(1.15)', transformOrigin: 'center' }}>
+                  <CountdownTimer targetDate={nextOpenDate} theme="dark" />
+                </div>
+              )}
+
+              {/* Action buttons row */}
+              <div style={{
+                display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap',
+                marginTop: 8, width: '100%',
+              }}>
+                <button onClick={() => router.push('/community')} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '10px 18px', borderRadius: 999,
+                  background: '#fefce8', color: '#a16207',
+                  fontSize: 14, fontWeight: 800, border: 'none', cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(254, 252, 232, 0.4)', transition: 'transform 0.1s ease',
+                }} onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)' }} onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}>
+                  👥 Visit Community
+                </button>
+                <button onClick={() => setShowGlobalShareModal(true)} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '10px 18px', borderRadius: 999,
+                  background: 'rgba(255,255,255,0.15)', color: '#fefce8', border: '1px solid rgba(255,255,255,0.3)',
+                  fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                  backdropFilter: 'blur(4px)'
+                }}>
+                  📣 Invite Neighbors
+                </button>
+                <button onClick={() => {
+                  if (!user) { router.push('/login'); return }
+                  if ('Notification' in window && Notification.permission !== 'granted') {
+                    Notification.requestPermission().then(p => {
+                      if (p === 'granted') showSuccess('🔔 You\'ll be notified when the market opens!')
+                      else showInfo('Please enable notifications in your browser settings.')
+                    })
+                  } else {
+                    showSuccess('🔔 You\'ll be notified when the market opens!')
+                  }
+                }} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '10px 18px', borderRadius: 999,
+                  background: 'rgba(255,255,255,0.15)', color: '#fefce8', border: '1px solid rgba(255,255,255,0.3)',
+                  fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                  backdropFilter: 'blur(4px)'
+                }}>
+                  🔔 Set Reminder
+                </button>
+                <button onClick={() => resetTour()} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '10px 18px', borderRadius: 999,
+                  background: 'rgba(255,255,255,0.15)', color: '#fefce8', border: '1px solid rgba(255,255,255,0.3)',
+                  fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                  backdropFilter: 'blur(4px)'
+                }}>
+                  🔄 Guided Tour
+                </button>
               </div>
             </div>
-            {nextOpenDate && <CountdownTimer targetDate={nextOpenDate} />}
           </div>
+        )}
 
-          {/* Action buttons row */}
+        {!isScheduleOpen && !isGrandOpening && nextOpenDate && (
+        <div style={{ padding: '16px 0 24px' }}>
+          {/* Large Closed Market Banner */}
           <div style={{
-            display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap',
-            marginBottom: 16,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
+            background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)', 
+            border: '1px solid #3730a3',
+            borderRadius: 24, padding: '32px 24px', marginBottom: 24,
+            boxShadow: '0 8px 32px rgba(30, 27, 75, 0.4)',
+            textAlign: 'center',
           }}>
-            <button onClick={() => setShowGlobalShareModal(true)} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 5,
-              padding: '8px 14px', borderRadius: 999,
-              background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff',
-              fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(22,163,74,0.25)',
-            }}>
-              📣 Invite Neighbors
-            </button>
-            <button onClick={() => {
-              if (!user) { router.push('/login'); return }
-              // Request notification permission for market open reminder
-              if ('Notification' in window && Notification.permission !== 'granted') {
-                Notification.requestPermission().then(p => {
-                  if (p === 'granted') showSuccess('🔔 You\'ll be notified when the market opens!')
-                  else showInfo('Please enable notifications in your browser settings.')
-                })
-              } else {
-                showSuccess('🔔 You\'ll be notified when the market opens!')
-              }
-            }} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 5,
-              padding: '8px 14px', borderRadius: 999,
-              background: '#fffbeb', color: '#92400e', border: '1px solid #fde68a',
-              fontSize: 12, fontWeight: 600, cursor: 'pointer',
-            }}>
-              🔔 Set Reminder
-            </button>
-            <button onClick={() => resetTour()} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 5,
-              padding: '8px 14px', borderRadius: 999,
-              background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0',
-              fontSize: 12, fontWeight: 600, cursor: 'pointer',
-            }}>
-              🔄 Guided Tour
-            </button>
-          </div>
+            <div style={{ fontSize: 48, marginBottom: -8, animation: 'pulse 2s infinite' }}>🌙</div>
+            <div>
+              <h2 style={{ fontSize: 24, fontWeight: 800, color: '#e0e7ff', margin: '0 0 12px', letterSpacing: '-0.02em' }}>
+                {nextOpenDate 
+                  ? `Next Market Day is ${nextOpenDate.toLocaleDateString('en-US', { weekday: 'long' })}` 
+                  : 'Market Days Bring the Most Variety'}
+              </h2>
+              <p style={{ fontSize: 15, color: '#c7d2fe', margin: '0 auto', maxWidth: 600, lineHeight: 1.5 }}>
+                You can still browse and purchase from individual growers anytime! However, Market days result in more variety and more chances of finding what you want.
+                <br /><br />
+                While you wait for the market to open, head over to the Community to share gardening tips, ask questions, and connect with your neighbors!
+                {nextOpenDate && (
+                  <>
+                    <br /><br />
+                    Do visit us on our next Market day on {nextOpenDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })} at {todaySchedule?.open_time || '8:00 AM'}.
+                  </>
+                )}
+              </p>
+            </div>
+            
+            {nextOpenDate && (
+              <div style={{ margin: '8px 0', transform: 'scale(1.15)', transformOrigin: 'center' }}>
+                <CountdownTimer targetDate={nextOpenDate} theme="dark" />
+              </div>
+            )}
 
+            {/* Action buttons row */}
+            <div style={{
+              display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap',
+              marginTop: 8, width: '100%',
+            }}>
+              <button onClick={() => router.push('/community')} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '10px 18px', borderRadius: 999,
+                background: '#4f46e5', color: '#fff', border: '1px solid #6366f1',
+                fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(79, 70, 229, 0.3)',
+              }}>
+                👥 Visit Community
+              </button>
+              <button onClick={() => setShowGlobalShareModal(true)} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '10px 18px', borderRadius: 999,
+                background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff',
+                fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(22,163,74,0.3)', transition: 'transform 0.1s ease',
+              }} onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)' }} onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}>
+                📣 Invite Neighbors
+              </button>
+              <button onClick={() => {
+                if (!user) { router.push('/login'); return }
+                if ('Notification' in window && Notification.permission !== 'granted') {
+                  Notification.requestPermission().then(p => {
+                    if (p === 'granted') showSuccess('🔔 You\'ll be notified when the market opens!')
+                    else showInfo('Please enable notifications in your browser settings.')
+                  })
+                } else {
+                  showSuccess('🔔 You\'ll be notified when the market opens!')
+                }
+              }} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '10px 18px', borderRadius: 999,
+                background: 'rgba(255,255,255,0.1)', color: '#e0e7ff', border: '1px solid rgba(255,255,255,0.2)',
+                fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                backdropFilter: 'blur(4px)'
+              }}>
+                🔔 Set Reminder
+              </button>
+              <button onClick={() => resetTour()} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '10px 18px', borderRadius: 999,
+                background: 'rgba(255,255,255,0.1)', color: '#e0e7ff', border: '1px solid rgba(255,255,255,0.2)',
+                fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                backdropFilter: 'blur(4px)'
+              }}>
+                🔄 Guided Tour
+              </button>
+            </div>
+          </div>
           {/* Demo products header */}
           {demoBooths.length > 0 && (
             <>
@@ -847,16 +966,13 @@ function BrowseMarketPageInner() {
         </div>
       )}
 
-      {/* Address bar + change (only when market is open) */}
-      {marketIsOpen && (
+      {/* Address bar + change (always visible) */}
       <div className={styles.addressBar}>
         <span className={styles.addressLabel}>📍 {address || 'Your location'}</span>
         <button className="btn btn-xs btn-ghost" onClick={handleChangeAddress}>Change</button>
       </div>
-      )}
 
-      {/* Search + Filters (only when market is open) */}
-      {marketIsOpen && (
+      {/* Search + Filters (always visible) */}
       <div className={styles.searchSection}>
         <input
           className="input"
@@ -897,10 +1013,9 @@ function BrowseMarketPageInner() {
           </div>
         </div>
       </div>
-      )}
 
-      {/* Status (only when market is open) */}
-      {marketIsOpen && !loading && booths.length > 0 && (() => {
+      {/* Status (always visible) */}
+      {!loading && booths.length > 0 && (() => {
         const realCount = booths.filter(b => !b.is_demo).length
         const demoCount = booths.filter(b => b.is_demo).length
         return (

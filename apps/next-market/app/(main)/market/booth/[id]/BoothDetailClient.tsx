@@ -21,7 +21,7 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
   const router = useRouter()
   const pathname = usePathname()
   const { user, isAuthenticated, profileComplete } = useAuth()
-  const { isOpen: marketIsOpen, nextOpenDate, loading: marketLoading } = useMarketStatus()
+  const { isOpen: marketIsOpen, isScheduleOpen, nextOpenDate, loading: marketLoading } = useMarketStatus()
   const [booth, setBooth] = useState<any>(null)
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -170,8 +170,8 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
   }, [booth?.id, products.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // With window-based fulfillment, buying is always available as long as product has inventory
-  // and valid fulfillment windows. No market schedule gating.
-  const isClosed = false
+  // and valid fulfillment windows. The banner uses isScheduleOpen for marketing purposes.
+  const isClosed = !isScheduleOpen
 
   // Toggle product reminder
   const toggleProductReminder = async (productId: string, e: React.MouseEvent) => {

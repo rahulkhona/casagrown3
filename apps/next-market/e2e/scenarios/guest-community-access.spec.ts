@@ -364,7 +364,7 @@ test.describe('Guest Community Access', () => {
 
 test.describe('Landing Page → Community Flow', () => {
 
-  test('"Join the Movement" CTA navigates to /community (not /login)', async ({ browser }) => {
+  test('"Join the Movement" CTA navigates to /market (not /login)', async ({ browser }) => {
     const page = await createGuestPage(browser)
 
     // Navigate to the landing page
@@ -375,9 +375,9 @@ test.describe('Landing Page → Community Flow', () => {
     const joinBtn = page.locator('#hero-join-btn')
     await expect(joinBtn).toBeVisible({ timeout: 10000 })
 
-    // Verify it links to /community
+    // Verify it links to /market
     const href = await joinBtn.getAttribute('href')
-    expect(href).toBe('/community')
+    expect(href).toBe('/market')
 
     // Dismiss AlphaBanner if it overlays the CTA
     const alphaBanner = page.locator('[data-testid="alpha-banner"]')
@@ -393,11 +393,11 @@ test.describe('Landing Page → Community Flow', () => {
     await joinBtn.click({ force: true })
     await page.waitForTimeout(4000)
 
-    // Should be on /community
-    expect(page.url()).toContain('/community')
+    // Should be on /market
+    expect(page.url()).toContain('/market')
 
-    // Should see community content (not login page)
-    await expect(page.locator('text=CasaGrown Community')).toBeVisible({ timeout: 10000 })
+    // Should see market content (Search bar is always visible regardless of schedule state)
+    await expect(page.locator('input[placeholder*="Search"]')).toBeVisible({ timeout: 10000 })
 
     await page.context().close()
   })

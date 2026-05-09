@@ -37,12 +37,14 @@ interface MarketSettings {
 
 interface MarketStatus {
   isOpen: boolean
+  isScheduleOpen: boolean
   neverCloses: boolean
   productsNeverExpire: boolean
   enableCart: boolean
   todaySchedule: { open_time: string; close_time: string } | null
   nextOpenDate: Date | null
   loading: boolean
+  isGrandOpening: boolean
 }
 
 /** Check if a product's market_date is in the past (expired) */
@@ -106,6 +108,8 @@ export function useMarketStatus(): MarketStatus {
   const [todaySchedule, setTodaySchedule] = useState<{ open_time: string; close_time: string } | null>(null)
   const [nextOpenDate, setNextOpenDate] = useState<Date | null>(null)
   const [isOpen, setIsOpen] = useState(true) // default open to avoid flash
+  const [isScheduleOpen, setIsScheduleOpen] = useState(true) // default open to avoid flash
+  const [isGrandOpening, setIsGrandOpening] = useState(false)
 
   useEffect(() => {
     const check = async () => {
@@ -122,12 +126,6 @@ export function useMarketStatus(): MarketStatus {
         enable_cart: settingsData?.enable_cart ?? false,
       }
       setSettings(s)
-
-      if (s.market_never_closes) {
-        setIsOpen(true)
-        setLoading(false)
-        return
-      }
 
       // Fetch ALL schedule days to compute next open
       const { data: allSchedules } = await supabase
@@ -151,12 +149,29 @@ export function useMarketStatus(): MarketStatus {
       const currentTime = `${hh}:${mm}`
 
       const open = today ? (currentTime >= today.open_time && currentTime < today.close_time) : false
-      setIsOpen(open)
+      setIsScheduleOpen(open)
+      setIsOpen(s.market_never_closes || open)
 
-      // If closed, compute the next open time
+      // Check Grand Opening Override
+      const goDateStr = process.env.NEXT_PUBLIC_GRAND_OPENING_DATE
+      if (goDateStr) {
+        const goDate = new Date(goDateStr)
+        if (goDate > now) {
+          setIsScheduleOpen(false)
+          setIsOpen(s.market_never_closes || false)
+          setNextOpenDate(goDate)
+          setIsGrandOpening(true)
+          setLoading(false)
+          return
+        }
+      }
+
+      // If schedule is closed, compute the next open time for the UI banner
       if (!open) {
         setNextOpenDate(computeNextOpen(now, schedules))
       }
+
+      setIsGrandOpening(false)
 
       setLoading(false)
     }
@@ -166,11 +181,13 @@ export function useMarketStatus(): MarketStatus {
 
   return {
     isOpen,
+    isScheduleOpen,
     neverCloses: settings.market_never_closes,
     productsNeverExpire: settings.products_never_expire,
     enableCart: settings.enable_cart,
     todaySchedule,
     nextOpenDate,
     loading,
+    isGrandOpening,
   }
 }

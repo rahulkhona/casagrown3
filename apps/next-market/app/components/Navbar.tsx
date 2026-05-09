@@ -309,10 +309,10 @@ export function Navbar() {
   // Primary nav tabs (always visible on desktop)
   // locked = requires profile completion
   const primaryNav = [
-    { href: '/community', label: 'Community', icon: '👥', locked: false, tour: 'nav-buzz' },
+    { href: '/market', label: 'Market', icon: '🛍️', locked: false, tour: 'nav-market' },
     { href: '/orders', label: 'Orders', icon: '📦', locked: true, tour: 'nav-orders' },
     { href: '/messages', label: 'Messages', icon: '💬', locked: true, tour: 'nav-messages' },
-    { href: '/market', label: 'Market', icon: '🛍️', locked: false, tour: 'nav-market' },
+    { href: '/community', label: 'Community', icon: '👥', locked: false, tour: 'nav-buzz' },
   ]
 
   // Extended menu items (hamburger only — items NOT in BottomNav/header)

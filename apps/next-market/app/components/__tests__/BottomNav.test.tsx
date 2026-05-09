@@ -100,14 +100,14 @@ describe('BottomNav', () => {
     expect(hrefs).toContain('/messages')
   })
 
-  it('tab order is Community → Orders → Messages → Market', () => {
+  it('tab order is Market → Orders → Messages → Community', () => {
     const { container } = render(React.createElement(BottomNav))
     const links = container.querySelectorAll('a')
     const hrefs = Array.from(links).map(l => l.getAttribute('href'))
-    expect(hrefs[0]).toBe('/community')
+    expect(hrefs[0]).toBe('/market')
     expect(hrefs[1]).toBe('/orders')
     expect(hrefs[2]).toBe('/messages')
-    expect(hrefs[3]).toBe('/market')
+    expect(hrefs[3]).toBe('/community')
   })
 
   it('has NO market status dot (market is always on)', () => {

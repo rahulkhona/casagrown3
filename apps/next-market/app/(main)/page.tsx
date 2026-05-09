@@ -37,8 +37,8 @@ export default function HomePage() {
         .single()
 
       if (profile?.full_name && profile?.street_address && !needsTosAcceptance(profile?.tos_accepted_at)) {
-        // Fully set-up users go straight to community
-        router.replace('/community')
+        // Fully set-up users go straight to market
+        router.replace('/market')
         return
       }
       // Not fully set up — just show the landing page (don't force ToS here)
@@ -82,7 +82,7 @@ export default function HomePage() {
               Join a hyper-local community working together to reduce waste and expand access to fresh food.
             </p>
 
-            <Link href="/community" className={styles.joinBtn} id="hero-join-btn">
+            <Link href="/market" className={styles.joinBtn} id="hero-join-btn">
               Join the Movement!&nbsp;&nbsp;→
             </Link>
           </div>
@@ -288,7 +288,7 @@ export default function HomePage() {
         <div className="container-sm" style={{ textAlign: 'center' }}>
           <h2 className={styles.sectionTitle}>Ready to Get Started?</h2>
           <p className={styles.sectionSubtitle}>Join your neighborhood&apos;s market — it&apos;s free!</p>
-          <Link href="/community" className="btn btn-primary btn-lg" style={{ marginTop: 24 }}>
+          <Link href="/market" className="btn btn-primary btn-lg" style={{ marginTop: 24 }}>
             🌱 Join the Movement →
           </Link>
         </div>
@@ -335,7 +335,7 @@ export default function HomePage() {
               <p className={styles.footerTagline}>Fresh. Local. Trusted.</p>
             </div>
             <div className={styles.footerLinks}>
-              <Link href="/community">Join the Movement</Link>
+              <Link href="/market">Join the Movement</Link>
               <Link href="/terms">Terms of Use</Link>
               <Link href="/terms?tab=privacy">Privacy Policy</Link>
             </div>

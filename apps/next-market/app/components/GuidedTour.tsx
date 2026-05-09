@@ -16,9 +16,9 @@ interface TourStep {
 
 const STEPS: TourStep[] = [
   {
-    target: 'nav-buzz',
-    title: '👥 Community',
-    description: 'Your neighborhood hub. Share gardening tips, photos, ask questions, and connect with fellow growers.',
+    target: 'nav-market',
+    title: '🛍️ Market',
+    description: 'Browse and buy fresh produce from your neighbors. Enter your address to find sellers near you.',
     position: 'top',
   },
   {
@@ -34,9 +34,9 @@ const STEPS: TourStep[] = [
     position: 'top',
   },
   {
-    target: 'nav-market',
-    title: '🛍️ Market',
-    description: 'Browse and buy fresh produce from your neighbors. Enter your address to find sellers near you.',
+    target: 'nav-buzz',
+    title: '👥 Community',
+    description: 'Your neighborhood hub. Share gardening tips, photos, ask questions, and connect with fellow growers.',
     position: 'top',
   },
   {

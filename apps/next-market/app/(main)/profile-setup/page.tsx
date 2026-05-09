@@ -313,7 +313,7 @@ function ProfileSetupPageInner() {
           router.push(redirectTo)
         }
       } else {
-        router.push('/community')
+        router.push('/market')
       }
     } catch (err: any) {
       console.error('Profile save failed:', err)
