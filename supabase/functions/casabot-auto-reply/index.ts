@@ -59,6 +59,7 @@ serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
+
     // Step 1: Find recent top-level messages (not from CasaBot, not system, 5-30 min old)
     const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
     const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString()

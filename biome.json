@@ -82,7 +82,9 @@
           "level": "error",
           "options": {
             "paths": {
-              "solito/router": "Use 'solito/navigation' instead. 'solito/router' wraps Next.js Pages Router which is incompatible with App Router."
+              "solito/router": "Use 'solito/navigation' instead. 'solito/router' wraps Next.js Pages Router which is incompatible with App Router.",
+              "@casagrown/next-community": "The next-community app is completely deprecated. Do not import or reference any code from it.",
+              "@casagrown/expo-community": "The expo-community app is completely deprecated. Do not import or reference any code from it."
             }
           }
         }

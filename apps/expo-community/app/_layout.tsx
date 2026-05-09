@@ -6,6 +6,7 @@ import { SplashScreen, Stack, useRouter, useSegments } from 'expo-router'
 import { Provider } from '@casagrown/app/provider'
 import { useOTAUpdates } from '@casagrown/app/hooks/useOTAUpdates'
 import { useAuth, AuthProvider } from '@casagrown/app/features/auth/auth-hook'
+import { supabase } from '@casagrown/app/features/auth/auth-hook'
 
 export const unstable_settings = {
   // Start at index.tsx which acts as auth guard and redirects appropriately
@@ -15,6 +16,9 @@ export const unstable_settings = {
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 // SplashScreen.preventAutoHideAsync()
 
+/**
+ * @deprecated The Community native app is completely deprecated. Do not use or reference.
+ */
 export default function App() {
   // Check for OTA updates on foreground resume and periodically
   useOTAUpdates()
@@ -28,6 +32,15 @@ export default function App() {
       console.log('SplashScreen safety timeout triggered')
       SplashScreen.hideAsync()
     }, 5000)
+
+    // Log obsolete UI usage
+    supabase.rpc('log_obsolete_ui_usage', {
+      p_object_type: 'ui',
+      p_object_name: 'expo-community',
+      p_details: { platform: Platform.OS }
+    }).then(({ error }) => {
+      if (error) console.error('Failed to log obsolete usage:', error)
+    })
 
     if (interLoaded || interError) {
       if (interError) console.error('Font loading error:', interError)

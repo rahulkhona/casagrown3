@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { NextTamaguiProvider } from '@casagrown/app/provider/NextTamaguiProvider'
 import { AuthProvider } from '@casagrown/app/features/auth/auth-hook'
 import { AuthGuard } from './auth-guard'
+import { ObsoleteTracker } from './ObsoleteTracker'
 
 // @ts-ignore – __DEV__ polyfill
 if (typeof globalThis.__DEV__ === 'undefined') {
@@ -9,12 +10,18 @@ if (typeof globalThis.__DEV__ === 'undefined') {
   globalThis.__DEV__ = process.env.NODE_ENV !== 'production'
 }
 
+/**
+ * @deprecated The Community web app is completely deprecated. Do not use or reference.
+ */
 export const metadata: Metadata = {
   title: 'CasaGrown - Fresh from Neighbors\' Backyard',
   description: 'Buy and sell fresh, locally-grown produce from your neighbors\' backyards.',
   icons: '/favicon.ico',
 }
 
+/**
+ * @deprecated The Community web app is completely deprecated. Do not use or reference.
+ */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
@@ -47,6 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         ` }} />
       </head>
       <body suppressHydrationWarning>
+        <ObsoleteTracker />
         <AuthProvider>
           <NextTamaguiProvider>
             <AuthGuard>{children}</AuthGuard>
@@ -56,4 +64,3 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     </html>
   )
 }
-

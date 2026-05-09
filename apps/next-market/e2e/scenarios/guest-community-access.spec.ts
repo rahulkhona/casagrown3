@@ -396,8 +396,8 @@ test.describe('Landing Page → Community Flow', () => {
     // Should be on /market
     expect(page.url()).toContain('/market')
 
-    // Should see market content (Search bar is always visible regardless of schedule state)
-    await expect(page.locator('input[placeholder*="Search"]')).toBeVisible({ timeout: 10000 })
+    // Guests without an address see the location prompt instead of the search bar
+    await expect(page.locator('text=Where should we look?')).toBeVisible({ timeout: 10000 })
 
     await page.context().close()
   })

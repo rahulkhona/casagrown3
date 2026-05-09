@@ -27,6 +27,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
         await req
             .json();
 
+
     if (!messageId || !conversationId) {
         console.warn("⚠️ notify-on-message: missing required fields");
         return jsonOk({ skipped: true, reason: "missing fields" }, corsHeaders);

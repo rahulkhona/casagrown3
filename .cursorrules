@@ -1,0 +1,11 @@
+# CasaGrown - AI Assistant Rules
+
+## Deprecated Community Architecture
+The legacy community platform has been fully deprecated and sunset.
+
+**DO NOT IMPORT, MODIFY, OR USE:**
+- Apps: `apps/next-community/*`, `apps/expo-community/*`
+- Tables: `posts`, `want_to_sell_details`, `community_chat_conversations`, `community_chat_messages`, `community_chat_badges`
+- Edge Functions: `casabot-auto-reply`, `notify-on-message`
+
+Any new features, logic, or AI generation must use the `market_products` and `market_orders` infrastructure located in `apps/next-market` and `apps/expo-market`.
