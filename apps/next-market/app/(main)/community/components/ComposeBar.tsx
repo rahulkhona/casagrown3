@@ -247,7 +247,7 @@ export default function ComposeBar({ onSend, userId, h3Index, prefillText, onPre
         <textarea
           ref={inputRef}
           className={styles.composeInput}
-          placeholder="Message your neighbors... try @CasaBot for garden tips!"
+          placeholder="Message your neighbors... try @GrowBot for garden tips!"
           value={content}
           onChange={handleInput}
           onKeyDown={handleKeyDown}

@@ -731,3 +731,8 @@ entrypoint = "./functions/process-sequence-step/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/generate-campaign-content/index.ts"
+
+[functions.growbot]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/growbot/index.ts"

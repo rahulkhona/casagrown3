@@ -21,6 +21,7 @@ export type ShareContext =
   | 'market_closed_invite'
   | 'helper_invite'
   | 'booth_invitation'
+  | 'buy_request'
 
 export type SharePlatform = 'sms' | 'whatsapp' | 'nextdoor' | 'facebook' | 'copy' | 'email' | 'native'
 

@@ -116,12 +116,13 @@ describe('ChatMessage', () => {
     expect(link).toBeFalsy()
   })
 
-  it('does NOT render link to DM if message is from CasaBot', () => {
+  it('renders link to DM if message is from GrowBot', () => {
     const { container } = render(
       React.createElement(ChatMessage, { ...defaultProps, message: botMessage })
     )
     const link = container.querySelector('a')
-    expect(link).toBeFalsy()
+    expect(link).toBeTruthy()
+    expect(link?.getAttribute('href') || '').toContain('/messages/new?userId=a0000000-0000-0000-0000-00000ca5ab07')
   })
 
   // ── Bot/System Message Styling ───────────────────────────────
@@ -137,7 +138,7 @@ describe('ChatMessage', () => {
     const { container } = render(
       React.createElement(ChatMessage, { ...defaultProps, message: botMessage })
     )
-    expect(container.textContent).toContain('CasaBot')
+    expect(container.textContent).toContain('GrowBot')
   })
 
   it('renders BOT badge for system messages', () => {

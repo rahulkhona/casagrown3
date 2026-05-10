@@ -22,7 +22,7 @@ describe('SuggestionChips', () => {
     expect(container).toBeTruthy()
   })
 
-  it('renders 4 suggestion chips (1 CasaBot + 3 random) for all users', () => {
+  it('renders 4 suggestion chips (1 GrowBot + 3 random) for all users', () => {
     const { container } = render(React.createElement(SuggestionChips, defaultProps))
     const chips = container.querySelectorAll('.suggestionChip')
     expect(chips.length).toBe(4)
@@ -36,16 +36,16 @@ describe('SuggestionChips', () => {
     expect(chips.length).toBe(4)
   })
 
-  it('calls onPrefill when CasaBot chip is clicked', () => {
+  it('calls onPrefill when GrowBot chip is clicked', () => {
     const onPrefill = vi.fn()
     const { container } = render(
       React.createElement(SuggestionChips, { ...defaultProps, onPrefill })
     )
-    const casabotChip = container.querySelector('.casabotChip')
-    if (casabotChip) {
-      fireEvent.click(casabotChip)
+    const growbotChip = container.querySelector('.growbotChip')
+    if (growbotChip) {
+      fireEvent.click(growbotChip)
       expect(onPrefill).toHaveBeenCalledTimes(1)
-      expect(onPrefill).toHaveBeenCalledWith('@CasaBot ')
+      expect(onPrefill).toHaveBeenCalledWith('@GrowBot ')
     }
   })
 
@@ -54,9 +54,9 @@ describe('SuggestionChips', () => {
     const { container } = render(
       React.createElement(SuggestionChips, { ...defaultProps, onSelect })
     )
-    // The random chips are not .casabotChip
+    // The random chips are not .growbotChip
     const chips = Array.from(container.querySelectorAll('.suggestionChip'))
-    const randomChip = chips.find(c => !c.classList.contains('casabotChip'))
+    const randomChip = chips.find(c => !c.classList.contains('growbotChip'))
     if (randomChip) {
       fireEvent.click(randomChip)
       expect(onSelect).toHaveBeenCalledTimes(1)

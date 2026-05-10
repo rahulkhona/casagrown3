@@ -11,47 +11,168 @@ interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   text: string
-  uiActions?: any[]
+  actions?: any[]
   media?: { url: string; type: string }[]
   timestamp: string
 }
 
-const STORAGE_KEY = 'growbot_chat_history'
+interface Topic {
+  id: string
+  title: string
+  messages: ChatMessage[]
+  lastUpdated: string
+}
+
+const TOPICS_KEY = 'growbot_topics'
+const ACTIVE_TOPIC_KEY = 'growbot_active_topic'
 const GROWBOT_AVATAR = '/growbot-avatar-v3.png'
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
-function loadHistory(): ChatMessage[] {
+function loadTopics(): Topic[] {
   if (typeof window === 'undefined') return []
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
+    const stored = localStorage.getItem(TOPICS_KEY)
     return stored ? JSON.parse(stored) : []
   } catch { return [] }
 }
 
-function saveHistory(messages: ChatMessage[]) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(messages.slice(-50))) } catch {}
+function saveTopics(topics: Topic[]) {
+  try { localStorage.setItem(TOPICS_KEY, JSON.stringify(topics.slice(0, 20))) } catch {}
+}
+
+function getActiveTopic(): Topic | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const activeId = localStorage.getItem(ACTIVE_TOPIC_KEY)
+    if (!activeId) return null
+    const topics = loadTopics()
+    return topics.find(t => t.id === activeId) || null
+  } catch { return null }
+}
+
+function deriveTitle(messages: ChatMessage[]): string {
+  const firstUserMsg = messages.find(m => m.role === 'user')
+  if (!firstUserMsg?.text) return 'New Topic'
+  return firstUserMsg.text.slice(0, 40) + (firstUserMsg.text.length > 40 ? '…' : '')
+}
+
+function renderMarkdown(text: string): React.ReactNode {
+  const lines = text.split('\n')
+  const elements: React.ReactNode[] = []
+  let listItems: string[] = []
+
+  const flushList = () => {
+    if (listItems.length > 0) {
+      elements.push(
+        <ul key={`ul-${elements.length}`} style={{ margin: '6px 0', paddingLeft: 20 }}>
+          {listItems.map((item, i) => (
+            <li key={i} style={{ marginBottom: 2 }}>{formatInline(item)}</li>
+          ))}
+        </ul>
+      )
+      listItems = []
+    }
+  }
+
+  const formatInline = (str: string): React.ReactNode => {
+    // Bold + italic
+    const parts = str.split(/(\*\*\*.*?\*\*\*|\*\*.*?\*\*|\*.*?\*)/g)
+    return parts.map((part, i) => {
+      if (part.startsWith('***') && part.endsWith('***'))
+        return <strong key={i}><em>{part.slice(3, -3)}</em></strong>
+      if (part.startsWith('**') && part.endsWith('**'))
+        return <strong key={i}>{part.slice(2, -2)}</strong>
+      if (part.startsWith('*') && part.endsWith('*'))
+        return <em key={i}>{part.slice(1, -1)}</em>
+      return part
+    })
+  }
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (trimmed.startsWith('* ') || trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
+      listItems.push(trimmed.slice(2))
+    } else {
+      flushList()
+      if (trimmed === '') {
+        elements.push(<br key={`br-${elements.length}`} />)
+      } else {
+        elements.push(<p key={`p-${elements.length}`} style={{ margin: '4px 0' }}>{formatInline(trimmed)}</p>)
+      }
+    }
+  }
+  flushList()
+  return <>{elements}</>
 }
 
 // ─── Main Component ──────────────────────────────────────────────────
 
 export default function GrowBotChatPage() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [isThinking, setIsThinking] = useState(false)
   const [mediaFiles, setMediaFiles] = useState<File[]>([])
   const [mediaPreviews, setMediaPreviews] = useState<string[]>([])
+  const [activeTopicId, setActiveTopicId] = useState<string | null>(null)
+  const [showTopics, setShowTopics] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const initRef = useRef(false)
+  const lastUserIdRef = useRef<string | null | undefined>(undefined)
 
-  // Load history on mount
+  // Save current messages to topic storage
+  const saveCurrentTopic = useCallback((msgs: ChatMessage[], topicId?: string) => {
+    const id = topicId || activeTopicId
+    if (!id) return
+    const topics = loadTopics()
+    const idx = topics.findIndex(t => t.id === id)
+    const topic: Topic = {
+      id,
+      title: deriveTitle(msgs),
+      messages: msgs.slice(-50),
+      lastUpdated: new Date().toISOString(),
+    }
+    if (idx >= 0) {
+      topics[idx] = topic
+    } else {
+      topics.unshift(topic)
+    }
+    saveTopics(topics)
+  }, [activeTopicId])
+
+  // Load active topic on mount
   useEffect(() => {
-    const h = loadHistory()
-    setMessages(h)
+    const active = getActiveTopic()
+    if (active) {
+      setActiveTopicId(active.id)
+      setMessages(active.messages)
+    }
   }, [])
+
+  // Detect auth state changes — only clear history on LOGOUT
+  useEffect(() => {
+    if (authLoading) return
+    const currentUserId = user?.id || null
+    if (lastUserIdRef.current === undefined) {
+      lastUserIdRef.current = currentUserId
+      return
+    }
+    if (lastUserIdRef.current !== currentUserId) {
+      const wasLogout = lastUserIdRef.current && !currentUserId
+      lastUserIdRef.current = currentUserId
+      if (wasLogout) {
+        setMessages([])
+        setActiveTopicId(null)
+        localStorage.removeItem(TOPICS_KEY)
+        localStorage.removeItem(ACTIVE_TOPIC_KEY)
+        initRef.current = false
+        setTimeout(() => sendToGrowBot('__INIT_WELCOME__', []), 200)
+      }
+    }
+  }, [user?.id, authLoading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -60,26 +181,46 @@ export default function GrowBotChatPage() {
     }
   }, [messages, isThinking])
 
-  // Trigger welcome on first visit (no history)
+  // Trigger welcome on first visit (no active topic)
   useEffect(() => {
-    if (initRef.current) return
-    const h = loadHistory()
-    if (h.length === 0) {
+    if (authLoading || initRef.current) return
+    const active = getActiveTopic()
+    if (!active || active.messages.length === 0) {
       initRef.current = true
-      sendToGrowBot('__INIT_WELCOME__', [])
+      // Create a new topic for the welcome
+      const newId = `topic-${Date.now()}`
+      setActiveTopicId(newId)
+      localStorage.setItem(ACTIVE_TOPIC_KEY, newId)
+      sendToGrowBot('__INIT_WELCOME__', [], undefined, newId)
     } else {
       initRef.current = true
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [authLoading]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const sendToGrowBot = useCallback(async (messageText: string, currentMessages: ChatMessage[], imageBase64?: string) => {
+  const sendToGrowBot = useCallback(async (messageText: string, currentMessages: ChatMessage[], imageBase64?: string, topicIdOverride?: string) => {
     setIsThinking(true)
 
     // Build history for the edge function
-    const history = currentMessages.map(m => ({
-      role: m.role,
-      text: m.text,
-    }))
+    const history = currentMessages.map(m => {
+      let text = m.text || '';
+      // Include tool results in history so the LLM knows what was already called
+      if (m.role === 'assistant' && m.actions && m.actions.length > 0) {
+        const toolSummaries = m.actions.map((a: any) => {
+          const name = a.type || 'unknown';
+          const resultCount = a.data?.result_count;
+          const status = a.data?.status;
+          if (name === 'ShoppingResultsCard') {
+            return `[TOOL CALLED: Shopping search — ${resultCount != null ? resultCount + ' results found' : 'completed'}]`;
+          }
+          if (name === 'BroadcastBuyRequestCard') {
+            return `[TOOL CALLED: Buy request posted to community — status: ${status || 'completed'}]`;
+          }
+          return `[TOOL CALLED: ${name}]`;
+        }).join(' ');
+        text += '\n' + toolSummaries;
+      }
+      return { role: m.role, text };
+    })
 
     try {
       const supabase = createClient()
@@ -98,13 +239,13 @@ export default function GrowBotChatPage() {
         id: `bot-${Date.now()}`,
         role: 'assistant',
         text: data.text || '',
-        uiActions: data.uiActions || [],
+        actions: data.actions || [],
         timestamp: new Date().toISOString(),
       }
 
       setMessages(prev => {
         const updated = [...prev, botMessage]
-        saveHistory(updated)
+        saveCurrentTopic(updated, topicIdOverride)
         return updated
       })
     } catch (err: any) {
@@ -117,13 +258,13 @@ export default function GrowBotChatPage() {
       }
       setMessages(prev => {
         const updated = [...prev, errorMessage]
-        saveHistory(updated)
+        saveCurrentTopic(updated, topicIdOverride)
         return updated
       })
     } finally {
       setIsThinking(false)
     }
-  }, [user?.id])
+  }, [user?.id, saveCurrentTopic])
 
   const handleSend = async () => {
     const text = input.trim()
@@ -151,7 +292,7 @@ export default function GrowBotChatPage() {
 
     const updatedMessages = [...messages, userMessage]
     setMessages(updatedMessages)
-    saveHistory(updatedMessages)
+    saveCurrentTopic(updatedMessages)
     setInput('')
     setMediaFiles([])
     setMediaPreviews([])
@@ -169,12 +310,43 @@ export default function GrowBotChatPage() {
     setTimeout(() => inputRef.current?.focus(), 50)
   }
 
-  const handleNewChat = () => {
-    setMessages([])
-    localStorage.removeItem(STORAGE_KEY)
-    initRef.current = false
-    setTimeout(() => sendToGrowBot('__INIT_WELCOME__', []), 100)
+  // Silent system-level trigger — sends to LLM without a visible user message
+  const handleSystemMessage = (msg: string) => {
+    sendToGrowBot(msg, messages)
   }
+
+  const handleNewTopic = () => {
+    // Save current topic first
+    if (activeTopicId && messages.length > 0) {
+      saveCurrentTopic(messages)
+    }
+    const newId = `topic-${Date.now()}`
+    setActiveTopicId(newId)
+    localStorage.setItem(ACTIVE_TOPIC_KEY, newId)
+    setMessages([])
+    initRef.current = false
+    setTimeout(() => sendToGrowBot('__INIT_WELCOME__', [], undefined, newId), 100)
+  }
+
+  const handleSwitchTopic = (topicId: string) => {
+    // Save current first
+    if (activeTopicId && messages.length > 0) {
+      saveCurrentTopic(messages)
+    }
+    const topics = loadTopics()
+    const topic = topics.find(t => t.id === topicId)
+    if (topic) {
+      setActiveTopicId(topic.id)
+      localStorage.setItem(ACTIVE_TOPIC_KEY, topic.id)
+      setMessages(topic.messages)
+      initRef.current = true
+    }
+    setShowTopics(false)
+  }
+
+  const [attachMenu, setAttachMenu] = useState(false)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const [locating, setLocating] = useState(false)
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
@@ -184,12 +356,47 @@ export default function GrowBotChatPage() {
       setMediaPreviews([URL.createObjectURL(file)])
     }
     if (fileInputRef.current) fileInputRef.current.value = ''
+    if (cameraInputRef.current) cameraInputRef.current.value = ''
+    setAttachMenu(false)
   }
 
   const removeMedia = () => {
     mediaPreviews.forEach(url => URL.revokeObjectURL(url))
     setMediaFiles([])
     setMediaPreviews([])
+  }
+
+  const handleShareLocation = () => {
+    setAttachMenu(false)
+    if (!navigator.geolocation) {
+      alert('Location is not supported by your browser.')
+      return
+    }
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords
+        setLocating(false)
+        const locationText = `📍 My current location is: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`
+        // Add as a user message and send to GrowBot
+        const userMessage: ChatMessage = {
+          id: `user-${Date.now()}`,
+          role: 'user',
+          text: locationText,
+          timestamp: new Date().toISOString(),
+        }
+        const updatedMessages = [...messages, userMessage]
+        setMessages(updatedMessages)
+        saveCurrentTopic(updatedMessages)
+        sendToGrowBot(locationText, messages)
+      },
+      (err) => {
+        setLocating(false)
+        alert('Unable to get your location. Please check your browser permissions.')
+        console.error('Geolocation error:', err)
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -209,8 +416,9 @@ export default function GrowBotChatPage() {
 
   return (
     <div style={{
-      display: 'flex', flexDirection: 'column', height: '100dvh',
+      display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 144px)',
       background: 'linear-gradient(180deg, #f0fdf4 0%, #ffffff 30%)',
+      maxWidth: '100vw', overflow: 'hidden',
     }}>
       {/* Header */}
       <div style={{
@@ -236,15 +444,68 @@ export default function GrowBotChatPage() {
           </div>
         </div>
         <button
-          onClick={handleNewChat}
+          onClick={() => setShowTopics(!showTopics)}
+          style={{
+            background: 'none', border: '1px solid #e5e7eb', borderRadius: 20,
+            padding: '6px 12px', fontSize: 13, color: '#6b7280', cursor: 'pointer',
+          }}
+          aria-label="Show topics"
+        >
+          ☰
+        </button>
+        <button
+          onClick={handleNewTopic}
           style={{
             background: 'none', border: '1px solid #e5e7eb', borderRadius: 20,
             padding: '6px 14px', fontSize: 13, color: '#6b7280', cursor: 'pointer',
           }}
         >
-          New Chat
+          + New Topic
         </button>
       </div>
+
+      {/* Topic Drawer */}
+      {showTopics && (
+        <div style={{
+          position: 'absolute', top: 65, right: 0, left: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.12)', zIndex: 20,
+        }} onClick={() => setShowTopics(false)}>
+          <div
+            style={{
+              background: '#f0fdf4', width: '80%', maxWidth: 300, height: '100%',
+              borderRight: '2px solid #bbf7d0', padding: '16px 0',
+              overflowY: 'auto',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ padding: '0 16px 12px', fontWeight: 700, color: '#14532d', fontSize: 15, borderBottom: '1px solid #bbf7d0' }}>
+              Past Topics
+            </div>
+            {loadTopics().length === 0 && (
+              <div style={{ padding: '24px 16px', color: '#6b7280', fontSize: 13, textAlign: 'center' }}>No past topics yet</div>
+            )}
+            {loadTopics().map(topic => (
+              <button
+                key={topic.id}
+                onClick={() => handleSwitchTopic(topic.id)}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left',
+                  padding: '12px 16px', border: 'none', cursor: 'pointer',
+                  background: topic.id === activeTopicId ? '#dcfce7' : 'transparent',
+                  borderBottom: '1px solid #dcfce7',
+                }}
+              >
+                <div style={{ fontWeight: 600, color: '#111827', fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {topic.title}
+                </div>
+                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
+                  {new Date(topic.lastUpdated).toLocaleDateString()} · {topic.messages.length} msgs
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Message Area */}
       <div
@@ -288,18 +549,17 @@ export default function GrowBotChatPage() {
                   color: msg.role === 'user' ? 'white' : '#111827',
                   fontSize: 14, lineHeight: 1.5,
                   boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
-                  whiteSpace: 'pre-wrap',
                   wordBreak: 'break-word',
                 }}>
-                  {msg.text}
+                  {msg.role === 'assistant' ? renderMarkdown(msg.text) : msg.text}
                 </div>
               )}
 
               {/* Tool cards */}
-              {msg.uiActions && msg.uiActions.length > 0 && (
+              {msg.actions && msg.actions.length > 0 && (
                 <div>
-                  {msg.uiActions.map((action: any, i: number) => (
-                    <DynamicUICardRenderer key={i} action={action} onActionClick={handleActionClick} />
+                  {msg.actions.map((action: any, i: number) => (
+                    <DynamicUICardRenderer key={i} action={action} onActionClick={handleActionClick} onSystemMessage={handleSystemMessage} />
                   ))}
                 </div>
               )}
@@ -363,31 +623,76 @@ export default function GrowBotChatPage() {
 
       {/* Compose Bar */}
       <div style={{
-        display: 'flex', alignItems: 'flex-end', gap: 8, padding: '10px 12px',
+        display: 'flex', alignItems: 'flex-end', gap: 6, padding: '10px 12px',
         borderTop: '1px solid #e5e7eb', background: 'white',
         paddingBottom: 'max(10px, env(safe-area-inset-bottom))',
       }}>
-        {/* Photo button */}
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          style={{
-            background: 'none', border: 'none', cursor: 'pointer', padding: 6,
-            color: '#6b7280', display: 'flex', alignItems: 'center',
-          }}
-          aria-label="Attach photo"
-        >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-            <circle cx="12" cy="13" r="4"/>
-          </svg>
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleFileSelect}
-          style={{ display: 'none' }}
-        />
+        {/* Hidden file inputs */}
+        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileSelect} style={{ display: 'none' }} />
+        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
+
+        {/* Attach button with popup menu */}
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => setAttachMenu(prev => !prev)}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer', padding: 6,
+              color: attachMenu ? '#166534' : '#6b7280', display: 'flex', alignItems: 'center',
+              transition: 'color 0.15s',
+            }}
+            aria-label="Attach"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="16"/>
+              <line x1="8" y1="12" x2="16" y2="12"/>
+            </svg>
+          </button>
+
+          {attachMenu && (
+            <>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 49 }} onClick={() => setAttachMenu(false)} />
+              <div style={{
+                position: 'absolute', bottom: '100%', left: 0, marginBottom: 8,
+                background: 'white', borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                border: '1px solid #e5e7eb', overflow: 'hidden', zIndex: 50, minWidth: 180,
+              }}>
+                <button
+                  onClick={() => { setAttachMenu(false); cameraInputRef.current?.click() }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                    padding: '12px 16px', background: 'none', border: 'none',
+                    cursor: 'pointer', fontSize: 14, color: '#374151',
+                  }}
+                >
+                  📸 Take Photo
+                </button>
+                <div style={{ height: 1, background: '#f3f4f6' }} />
+                <button
+                  onClick={() => { setAttachMenu(false); fileInputRef.current?.click() }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                    padding: '12px 16px', background: 'none', border: 'none',
+                    cursor: 'pointer', fontSize: 14, color: '#374151',
+                  }}
+                >
+                  🖼️ Photo Library
+                </button>
+                <div style={{ height: 1, background: '#f3f4f6' }} />
+                <button
+                  onClick={handleShareLocation}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                    padding: '12px 16px', background: 'none', border: 'none',
+                    cursor: 'pointer', fontSize: 14, color: '#374151',
+                  }}
+                >
+                  📍 Share Location
+                </button>
+              </div>
+            </>
+          )}
+        </div>
 
         {/* Text input */}
         <textarea
@@ -396,7 +701,7 @@ export default function GrowBotChatPage() {
           onChange={handleInput}
           onKeyDown={handleKeyDown}
           placeholder="Ask GrowBot anything..."
-          disabled={isThinking}
+          disabled={isThinking || locating}
           rows={1}
           style={{
             flex: 1, padding: '10px 14px', border: '1px solid #e5e7eb',

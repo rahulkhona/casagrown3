@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react'
 import { ShoppingBag, Wrench, Leaf, BookOpen, Send, Sparkles, KeyRound } from 'lucide-react'
 import { createClient } from '../../../lib/supabase'
+import SocialShareModal from '../SocialShareModal'
 
 // ─── Shared Components ───────────────────────────────────────────────
 
@@ -81,6 +82,7 @@ export function DiagnosisCard({ data, onActionClick }: { data: any, onActionClic
 }
 
 export function PlantGuideCard({ data, onActionClick }: { data: any, onActionClick?: (action: string) => void }) {
+  const [showCompanions, setShowCompanions] = useState(false);
   return (
     <div style={{ border: '1px solid #bbf7d0', borderRadius: 12, padding: 16, background: '#f0fdf4', marginTop: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -92,12 +94,23 @@ export function PlantGuideCard({ data, onActionClick }: { data: any, onActionCli
         <div style={{ color: '#4b5563', fontSize: 13 }}>{data.care_instructions}</div>
         {data.companion_plants && data.companion_plants.length > 0 && (
           <>
-            <div style={{ fontWeight: 700, color: '#374151', marginTop: 10, marginBottom: 4 }}>Companion Plants:</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {data.companion_plants.map((p: string, i: number) => (
-                <span key={i} style={{ background: '#dcfce7', color: '#166534', padding: '2px 10px', borderRadius: 12, fontSize: 12 }}>{p}</span>
-              ))}
-            </div>
+            <button
+              onClick={() => setShowCompanions(!showCompanions)}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                fontWeight: 700, color: '#16a34a', fontSize: 13, marginTop: 10,
+                display: 'flex', alignItems: 'center', gap: 4,
+              }}
+            >
+              {showCompanions ? '▾' : '▸'} Companion Plants ({data.companion_plants.length})
+            </button>
+            {showCompanions && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                {data.companion_plants.map((p: string, i: number) => (
+                  <span key={i} style={{ background: '#dcfce7', color: '#166534', padding: '2px 10px', borderRadius: 12, fontSize: 12 }}>{p}</span>
+                ))}
+              </div>
+            )}
           </>
         )}
       </div>
@@ -129,53 +142,199 @@ export function RecipeCard({ data, onActionClick }: { data: any, onActionClick?:
 }
 
 export function BroadcastBuyRequestCard({ data, onActionClick }: { data: any, onActionClick?: (action: string) => void }) {
+  const [showShare, setShowShare] = React.useState(false);
+  const itemName = data.produce_name || data.plant_name || 'items';
+  const isPosted = data.status === 'posted' || data.community_message_id;
+  const shareUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/community`;
+  const shareMessageGenerator = (platform: string) => {
+    const casual = `I'm looking for ${itemName} from a neighbor. Know anyone who grows them? Check out CasaGrown!`;
+    const community = `🔍 Looking for ${itemName} in my area. If you grow them or know someone who does, let me know on CasaGrown!`;
+    return ['facebook', 'nextdoor'].includes(platform) ? community : casual;
+  };
+
   return (
-    <div style={{ border: '1px solid #bfdbfe', borderRadius: 12, padding: 16, background: '#eff6ff', marginTop: 12 }}>
+    <div style={{ border: '1px solid #bbf7d0', borderRadius: 12, padding: 16, background: '#f0fdf4', marginTop: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <Send size={18} color="#2563eb" />
-        <span style={{ fontWeight: 700, color: '#1e3a8a', fontSize: 15 }}>Buy Request Broadcasted</span>
+        <Send size={18} color="#16a34a" />
+        <span style={{ fontWeight: 700, color: '#14532d', fontSize: 15 }}>
+          {isPosted ? '✅ Buy Request Posted!' : 'Post a Buy Request'}
+        </span>
       </div>
       <div style={{ background: 'white', borderRadius: 8, padding: 12 }}>
         <div style={{ color: '#4b5563', fontSize: 13 }}>
-          Your request for <strong>{data.plant_name}</strong> has been broadcasted to neighbors who might have it.
+          {isPosted
+            ? <>Your request for <strong>{itemName}</strong> has been posted to the community. Neighbors who have it can respond directly.</>
+            : <>Let your neighbors know you're looking for <strong>{itemName}</strong>.</>
+          }
         </div>
-        <div style={{ color: '#9ca3af', fontSize: 12, marginTop: 4 }}>Urgency: {data.urgency || 'Normal'}</div>
+        {isPosted && (
+          <div style={{ color: '#9ca3af', fontSize: 12, marginTop: 4 }}>
+            🔔 You'll also be notified when someone lists a match
+          </div>
+        )}
       </div>
-      <ActionChips actions={data.suggested_next_actions} onActionClick={onActionClick} />
+      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+        <a
+          href="/community"
+          style={{
+            flex: 1, padding: '8px 12px', border: 'none', borderRadius: 8,
+            background: '#16a34a', color: 'white', fontSize: 13, fontWeight: 600,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            textDecoration: 'none',
+          }}
+        >
+          👀 View in Community
+        </a>
+        <button
+          onClick={() => setShowShare(true)}
+          style={{
+            flex: 1, padding: '8px 12px', border: '1px solid #bbf7d0', borderRadius: 8,
+            background: 'white', color: '#16a34a', fontSize: 13, fontWeight: 600,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          }}
+        >
+          🔗 Share with friends
+        </button>
+      </div>
+      {showShare && (
+        <SocialShareModal
+          isOpen={showShare}
+          onClose={() => setShowShare(false)}
+          title={`Help me find ${itemName}!`}
+          subtitle="Share with friends who might grow this or know someone who does."
+          entityName={`Looking for ${itemName}`}
+          shareUrl={shareUrl}
+          shareMessage={shareMessageGenerator}
+          shareContext={'buy_request'}
+        />
+      )}
     </div>
   );
 }
 
 export function ShoppingResultsCard({ data, onActionClick }: { data: any, onActionClick?: (action: string) => void }) {
+  const grouped = data.backend_results;
+  const isGrouped = grouped && typeof grouped === 'object' && !Array.isArray(grouped) && !grouped.error;
+  const resultCount = data.result_count || 0;
+  const searchItems = Array.isArray(data.search_items) ? data.search_items.join(', ') : data.search_intent || '';
+  const sourceEntries: [string, any[]][] = isGrouped ? Object.entries(grouped) as [string, any[]][] : [];
+
+  const [expanded, setExpanded] = React.useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = {};
+    sourceEntries.forEach(([label], i) => { init[label] = i === 0; });
+    return init;
+  });
+
+  const toggle = (label: string) => setExpanded(prev => ({ ...prev, [label]: !prev[label] }));
+
   return (
     <div style={{ border: '1px solid #bbf7d0', borderRadius: 12, padding: 16, background: '#f0fdf4', marginTop: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <ShoppingBag size={18} color="#16a34a" />
-        <span style={{ fontWeight: 700, color: '#14532d', fontSize: 15 }}>Local Market Search</span>
-      </div>
-      <div style={{ background: 'white', borderRadius: 8, padding: 12 }}>
-        <div style={{ fontWeight: 700, color: '#374151', marginBottom: 4 }}>Searching for:</div>
-        <div style={{ color: '#4b5563', fontSize: 13, marginBottom: 8 }}>{data.search_intent}</div>
-        
-        {data.stores && (
-          <>
-            <div style={{ fontWeight: 700, color: '#374151', marginBottom: 4 }}>Results:</div>
-            <div style={{ color: '#4b5563', fontSize: 13 }}>{data.stores}</div>
-          </>
+        <span style={{ fontWeight: 700, color: '#14532d', fontSize: 15 }}>Shopping Results</span>
+        {resultCount > 0 && (
+          <span style={{ marginLeft: 'auto', fontSize: 12, color: '#16a34a', background: '#dcfce7', padding: '2px 8px', borderRadius: 10 }}>
+            {resultCount} found
+          </span>
         )}
-        {data.backend_results && !data.stores && (
-          <>
-            <div style={{ fontWeight: 700, color: '#374151', marginBottom: 4 }}>Results:</div>
-            <div style={{ color: '#4b5563', fontSize: 13 }}>
-              {typeof data.backend_results === 'string' ? data.backend_results : JSON.stringify(data.backend_results)}
+      </div>
+
+      {searchItems && (
+        <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 10 }}>
+          Searching for: <strong>{searchItems}</strong>
+        </div>
+      )}
+
+      {isGrouped && sourceEntries.length > 0 ? (
+        sourceEntries.map(([sourceLabel, items]) => {
+          const isOpen = expanded[sourceLabel];
+          const isCasaGrown = items[0]?.source === 'casagrown';
+          return (
+            <div key={sourceLabel} style={{ marginBottom: 6 }}>
+              <button
+                onClick={() => toggle(sourceLabel)}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  background: isOpen ? '#dcfce7' : 'white', border: '1px solid #d1fae5',
+                  borderRadius: 8, cursor: 'pointer', padding: '8px 12px',
+                  fontWeight: 600, color: '#374151', fontSize: 13, textAlign: 'left',
+                }}
+              >
+                <span>{sourceLabel}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 11, color: '#6b7280', background: '#f3f4f6', padding: '1px 6px', borderRadius: 8 }}>{items.length}</span>
+                  <span style={{ fontSize: 10, color: '#9ca3af', transition: 'transform 0.2s', transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)' }}>{'▾'}</span>
+                </span>
+              </button>
+              {isOpen && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+                  {items.map((item: any, i: number) => (
+                    <div key={i} style={{
+                      background: 'white', borderRadius: 8, padding: '8px 12px',
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    }}>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontWeight: 600, color: '#111827', fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {item.name}
+                        </div>
+                        <div style={{ fontSize: 12, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {[item.seller, item.location, item.distance].filter(Boolean).join(' \u00b7 ')}
+                        </div>
+                      </div>
+                      {item.price && (
+                        <span style={{ fontWeight: 700, color: '#166534', fontSize: 14, whiteSpace: 'nowrap', marginLeft: 8 }}>
+                          {item.price}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                  {isCasaGrown && searchItems && (
+                    <a
+                      href={'/market?q=' + encodeURIComponent(searchItems)}
+                      style={{
+                        display: 'block', textAlign: 'center', padding: '8px 12px', marginTop: 2,
+                        background: '#166534', color: 'white', borderRadius: 8, fontSize: 13,
+                        fontWeight: 600, textDecoration: 'none',
+                      }}
+                    >
+                      Browse all on CasaGrown
+                    </a>
+                  )}
+                  {!isCasaGrown && items[0]?.url && (
+                    <a
+                      href={items[0].url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'block', textAlign: 'center', padding: '8px 12px', marginTop: 2,
+                        background: 'white', color: '#166534', borderRadius: 8, fontSize: 13,
+                        fontWeight: 600, textDecoration: 'none', border: '1px solid #d1fae5',
+                      }}
+                    >
+                      View on map ↗
+                    </a>
+                  )}
+                </div>
+              )}
             </div>
-          </>
-        )}
-      </div>
+          );
+        })
+      ) : (
+        <div style={{ background: 'white', borderRadius: 8, padding: 12 }}>
+          <div style={{ color: '#4b5563', fontSize: 13 }}>
+            {typeof grouped === 'string' ? grouped :
+             grouped?.error ? grouped.error :
+             resultCount === 0 ? 'No results found. Try sharing your location so I can find options nearby.' :
+             JSON.stringify(grouped)}
+          </div>
+        </div>
+      )}
       <ActionChips actions={data.suggested_next_actions} onActionClick={onActionClick} />
     </div>
   );
 }
+
+
 
 export function GrowSuggestionCard({ data, onActionClick }: { data: any, onActionClick?: (action: string) => void }) {
   // suggestions may be a string or an array from the AI
@@ -300,32 +459,35 @@ export function DynamicToolCard({ action, onActionClick }: { action: any, onActi
 
 // ─── Authentication Card (inline email + OTP in chat) ────────────────
 
-export function AuthenticationCard({ data, onActionClick }: { data: any, onActionClick?: (action: string) => void }) {
+export function AuthenticationCard({ data, onActionClick, onSystemMessage }: { data: any, onActionClick?: (action: string) => void, onSystemMessage?: (msg: string) => void }) {
   const [step, setStep] = useState<'email' | 'otp' | 'done'>('email');
   const [email, setEmail] = useState(data?.email || '');
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [resendCooldown, setResendCooldown] = useState(0);
+  const [cooldown, setCooldown] = useState(0);
 
   useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const timer = setInterval(() => setResendCooldown(p => p - 1), 1000);
-    return () => clearInterval(timer);
-  }, [resendCooldown]);
+    if (cooldown > 0) {
+      const timer = setTimeout(() => setCooldown(c => c - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [cooldown]);
 
   const handleSendOtp = async () => {
-    if (!email.trim()) return;
     setLoading(true);
     setError('');
     try {
       const supabase = createClient();
-      const { error: otpError } = await supabase.auth.signInWithOtp({ email: email.toLowerCase() });
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email: email.toLowerCase(),
+        options: { shouldCreateUser: true },
+      });
       if (otpError) {
         setError(otpError.message);
       } else {
         setStep('otp');
-        setResendCooldown(60);
+        setCooldown(60);
       }
     } catch (err: any) {
       setError(err.message || 'Failed to send code');
@@ -335,7 +497,6 @@ export function AuthenticationCard({ data, onActionClick }: { data: any, onActio
   };
 
   const handleVerifyOtp = async () => {
-    if (otp.length < 6) return;
     setLoading(true);
     setError('');
     try {
@@ -349,8 +510,10 @@ export function AuthenticationCard({ data, onActionClick }: { data: any, onActio
         setError(verifyError.message);
       } else if (verifyData.user) {
         setStep('done');
-        // Reload the page to pick up authenticated state
-        setTimeout(() => window.location.reload(), 1500);
+        // Silently trigger next LLM turn without a visible user message
+        if (onSystemMessage) {
+          setTimeout(() => onSystemMessage('__AUTH_COMPLETE__'), 1000);
+        }
       }
     } catch (err: any) {
       setError(err.message || 'Verification failed');
@@ -366,7 +529,7 @@ export function AuthenticationCard({ data, onActionClick }: { data: any, onActio
           <span style={{ fontSize: 20 }}>✅</span>
           <span style={{ fontWeight: 700, color: '#14532d', fontSize: 15 }}>Signed in successfully!</span>
         </div>
-        <div style={{ color: '#4b5563', fontSize: 13, marginTop: 8 }}>Refreshing your session...</div>
+        <div style={{ color: '#4b5563', fontSize: 13, marginTop: 8 }}>You can continue chatting — I now have access to your personalized profile.</div>
       </div>
     );
   }
@@ -431,10 +594,10 @@ export function AuthenticationCard({ data, onActionClick }: { data: any, onActio
             <span style={{ color: '#d1d5db' }}>|</span>
             <button
               onClick={handleSendOtp}
-              disabled={resendCooldown > 0 || loading}
-              style={{ background: 'none', border: 'none', color: resendCooldown > 0 ? '#9ca3af' : '#6366f1', cursor: resendCooldown > 0 ? 'default' : 'pointer', textDecoration: resendCooldown > 0 ? 'none' : 'underline', padding: 0, fontSize: 12 }}
+              disabled={cooldown > 0 || loading}
+              style={{ background: 'none', border: 'none', color: cooldown > 0 ? '#9ca3af' : '#6366f1', cursor: cooldown > 0 ? 'default' : 'pointer', textDecoration: cooldown > 0 ? 'none' : 'underline', padding: 0, fontSize: 12 }}
             >
-              {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}
+              {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend code'}
             </button>
           </div>
           <label style={{ display: 'block', fontWeight: 600, color: '#374151', fontSize: 13, marginBottom: 6 }}>Enter Code</label>
@@ -471,9 +634,9 @@ export function AuthenticationCard({ data, onActionClick }: { data: any, onActio
 // ─── Main Router ─────────────────────────────────────────────────────
 
 /** Internal/silent tools that should not render a visible card */
-const SILENT_TOOLS = new Set(['UserMemoryCard']);
+const SILENT_TOOLS = new Set(['UserMemoryCard', 'PlantGuideCard']);
 
-export default function DynamicUICardRenderer({ action, onActionClick }: { action: any, onActionClick?: (a: string) => void }) {
+export default function DynamicUICardRenderer({ action, onActionClick, onSystemMessage }: { action: any, onActionClick?: (a: string) => void, onSystemMessage?: (msg: string) => void }) {
   // Silent tools: executed by the backend but invisible to the user
   if (SILENT_TOOLS.has(action.type)) {
     return null;
@@ -481,14 +644,14 @@ export default function DynamicUICardRenderer({ action, onActionClick }: { actio
 
   // Known cards with rich, custom UX
   switch (action.type) {
-    case 'AuthenticationCard':      return <AuthenticationCard data={action.data} onActionClick={onActionClick} />;
+    case 'AuthenticationCard':      return <AuthenticationCard data={action.data} onActionClick={onActionClick} onSystemMessage={onSystemMessage} />;
     case 'SellerWizardCard':        return <SellerWizardCard data={action.data} onActionClick={onActionClick} />;
     case 'DiagnosisCard':           return <DiagnosisCard data={action.data} onActionClick={onActionClick} />;
     case 'PlantGuideCard':          return <PlantGuideCard data={action.data} onActionClick={onActionClick} />;
     case 'RecipeCard':              return <RecipeCard data={action.data} onActionClick={onActionClick} />;
     case 'BroadcastBuyRequestCard': return <BroadcastBuyRequestCard data={action.data} onActionClick={onActionClick} />;
     case 'GrowSuggestionCard':      return <GrowSuggestionCard data={action.data} onActionClick={onActionClick} />;
-    case 'ShoppingResultsCard':     return <ShoppingResultsCard data={action.data} onActionClick={onActionClick} />;
+    case 'ShoppingResultsCard':     return (action.data?.result_count > 0) ? <ShoppingResultsCard data={action.data} onActionClick={onActionClick} /> : null;
 
     // All new tools added via Admin → render dynamically
     default:
