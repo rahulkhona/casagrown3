@@ -1,6 +1,7 @@
 'use client'
-import React from 'react'
-import { ShoppingBag, Wrench, Leaf, BookOpen, Send, Sparkles } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { ShoppingBag, Wrench, Leaf, BookOpen, Send, Sparkles, KeyRound } from 'lucide-react'
+import { createClient } from '../../../lib/supabase'
 
 // ─── Shared Components ───────────────────────────────────────────────
 
@@ -297,6 +298,176 @@ export function DynamicToolCard({ action, onActionClick }: { action: any, onActi
   );
 }
 
+// ─── Authentication Card (inline email + OTP in chat) ────────────────
+
+export function AuthenticationCard({ data, onActionClick }: { data: any, onActionClick?: (action: string) => void }) {
+  const [step, setStep] = useState<'email' | 'otp' | 'done'>('email');
+  const [email, setEmail] = useState(data?.email || '');
+  const [otp, setOtp] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => setResendCooldown(p => p - 1), 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
+  const handleSendOtp = async () => {
+    if (!email.trim()) return;
+    setLoading(true);
+    setError('');
+    try {
+      const supabase = createClient();
+      const { error: otpError } = await supabase.auth.signInWithOtp({ email: email.toLowerCase() });
+      if (otpError) {
+        setError(otpError.message);
+      } else {
+        setStep('otp');
+        setResendCooldown(60);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to send code');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (otp.length < 6) return;
+    setLoading(true);
+    setError('');
+    try {
+      const supabase = createClient();
+      const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
+        email: email.toLowerCase(),
+        token: otp,
+        type: 'email',
+      });
+      if (verifyError) {
+        setError(verifyError.message);
+      } else if (verifyData.user) {
+        setStep('done');
+        // Reload the page to pick up authenticated state
+        setTimeout(() => window.location.reload(), 1500);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Verification failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (step === 'done') {
+    return (
+      <div style={{ border: '1px solid #bbf7d0', borderRadius: 12, padding: 16, background: '#f0fdf4', marginTop: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 20 }}>✅</span>
+          <span style={{ fontWeight: 700, color: '#14532d', fontSize: 15 }}>Signed in successfully!</span>
+        </div>
+        <div style={{ color: '#4b5563', fontSize: 13, marginTop: 8 }}>Refreshing your session...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ border: '1px solid #c7d2fe', borderRadius: 12, padding: 16, background: '#eef2ff', marginTop: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <KeyRound size={18} color="#6366f1" />
+        <span style={{ fontWeight: 700, color: '#312e81', fontSize: 15 }}>
+          {step === 'email' ? 'Sign In to Continue' : 'Enter Verification Code'}
+        </span>
+      </div>
+
+      {error && (
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 12px', marginBottom: 12, color: '#dc2626', fontSize: 13 }}>
+          {error}
+        </div>
+      )}
+
+      {step === 'email' ? (
+        <div style={{ background: 'white', borderRadius: 8, padding: 12 }}>
+          <label style={{ display: 'block', fontWeight: 600, color: '#374151', fontSize: 13, marginBottom: 6 }}>Email Address</label>
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            style={{
+              width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8,
+              fontSize: 14, outline: 'none', boxSizing: 'border-box',
+            }}
+            onKeyDown={e => e.key === 'Enter' && handleSendOtp()}
+            autoFocus
+          />
+          <button
+            onClick={handleSendOtp}
+            disabled={loading || !email.trim()}
+            style={{
+              width: '100%', marginTop: 10, padding: '10px 0', background: loading ? '#9ca3af' : '#6366f1',
+              color: 'white', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 14, cursor: loading ? 'wait' : 'pointer',
+            }}
+          >
+            {loading ? 'Sending code...' : 'Send Login Code →'}
+          </button>
+          <div style={{ color: '#9ca3af', fontSize: 12, marginTop: 8, textAlign: 'center' }}>
+            We'll send a one-time code to your email. No password needed.
+          </div>
+        </div>
+      ) : (
+        <div style={{ background: 'white', borderRadius: 8, padding: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+            <span style={{ fontSize: 16 }}>✉️</span>
+            <span style={{ color: '#4b5563', fontSize: 13 }}>Code sent to <strong>{email}</strong></span>
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10, fontSize: 12 }}>
+            <button
+              onClick={() => { setStep('email'); setError(''); }}
+              style={{ background: 'none', border: 'none', color: '#6366f1', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontSize: 12 }}
+            >
+              Change email
+            </button>
+            <span style={{ color: '#d1d5db' }}>|</span>
+            <button
+              onClick={handleSendOtp}
+              disabled={resendCooldown > 0 || loading}
+              style={{ background: 'none', border: 'none', color: resendCooldown > 0 ? '#9ca3af' : '#6366f1', cursor: resendCooldown > 0 ? 'default' : 'pointer', textDecoration: resendCooldown > 0 ? 'none' : 'underline', padding: 0, fontSize: 12 }}
+            >
+              {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}
+            </button>
+          </div>
+          <label style={{ display: 'block', fontWeight: 600, color: '#374151', fontSize: 13, marginBottom: 6 }}>Enter Code</label>
+          <input
+            type="text"
+            value={otp}
+            onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            placeholder="123456"
+            maxLength={6}
+            style={{
+              width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8,
+              fontSize: 18, letterSpacing: '0.3em', textAlign: 'center', outline: 'none', boxSizing: 'border-box',
+            }}
+            onKeyDown={e => e.key === 'Enter' && handleVerifyOtp()}
+            autoFocus
+          />
+          <button
+            onClick={handleVerifyOtp}
+            disabled={loading || otp.length < 6}
+            style={{
+              width: '100%', marginTop: 10, padding: '10px 0',
+              background: loading || otp.length < 6 ? '#9ca3af' : '#16a34a',
+              color: 'white', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 14, cursor: loading ? 'wait' : 'pointer',
+            }}
+          >
+            {loading ? 'Verifying...' : 'Verify & Sign In'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Router ─────────────────────────────────────────────────────
 
 /** Internal/silent tools that should not render a visible card */
@@ -308,8 +479,9 @@ export default function DynamicUICardRenderer({ action, onActionClick }: { actio
     return null;
   }
 
-  // Known legacy cards with rich, custom UX
+  // Known cards with rich, custom UX
   switch (action.type) {
+    case 'AuthenticationCard':      return <AuthenticationCard data={action.data} onActionClick={onActionClick} />;
     case 'SellerWizardCard':        return <SellerWizardCard data={action.data} onActionClick={onActionClick} />;
     case 'DiagnosisCard':           return <DiagnosisCard data={action.data} onActionClick={onActionClick} />;
     case 'PlantGuideCard':          return <PlantGuideCard data={action.data} onActionClick={onActionClick} />;
