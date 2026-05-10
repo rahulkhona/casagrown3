@@ -118,7 +118,47 @@ CRITICAL GLOBAL RULES:\n`;
     }
 
     if (message === '__INIT_WELCOME__') {
-      dynamicInstruction += `\nSPECIAL INSTRUCTION: The user just opened the chat. Introduce yourself as GrowBot, briefly mention your core capabilities (e.g., plant diagnosis, recipe generation, market connections), and if you have user context, acknowledge it (e.g. mention their location if available). Then ask an engaging question to learn about their gardening goals, and explicitly state "You can change the subject at any time!" Do NOT generate any UI cards for this welcome message.\n`;
+      // Gather user state for the welcome
+      let isLoggedIn = !!userId;
+      let isFirstTimeGrowBotUser = true;
+      let isProfileComplete = false;
+      let hasName = false;
+      let hasLocation = false;
+
+      if (userId) {
+        const { data: profile } = await supabase.from('profiles')
+          .select('has_visited_growbot, full_name, display_name, address_text')
+          .eq('id', userId)
+          .single();
+        
+        isFirstTimeGrowBotUser = !profile?.has_visited_growbot;
+        hasName = !!(profile?.full_name || profile?.display_name);
+        hasLocation = !!profile?.address_text;
+        isProfileComplete = hasName && hasLocation;
+
+        // Mark as visited
+        if (isFirstTimeGrowBotUser) {
+          await supabase.from('profiles')
+            .update({ has_visited_growbot: true })
+            .eq('id', userId);
+        }
+      }
+
+      // Inject user state so the LLM can adapt the welcome
+      dynamicInstruction += `\nWELCOME SESSION — User State:
+- Logged in: ${isLoggedIn}
+- First time using GrowBot: ${isFirstTimeGrowBotUser}
+- Profile complete: ${isProfileComplete}
+- Has name on file: ${hasName}
+- Has location on file: ${hasLocation}
+
+Follow the WELCOME RULE from global rules. Adapt based on the user state above:
+- If NOT logged in: tell the user you'll need their email to look up or create their account.
+- If logged in but profile is incomplete: mention you might ask for their name and location to personalize.
+- If profile is complete: greet by name if known.
+- Always mention you'd like to know what plants/trees they grow.
+- Do NOT call any tools for the welcome message.\n`;
+
       message = "Hello, I just opened the chat.";
     }
 
