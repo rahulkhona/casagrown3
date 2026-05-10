@@ -105,61 +105,69 @@ serve(async (req: Request) => {
     const tools = functionDeclarations.length > 0 ? [{ functionDeclarations }] : undefined;
 
     let dynamicInstruction = `You are GrowBot, a hyper-local Home & Garden Assistant for CasaGrown marketplace.
-Your goal is to help users with their gardening, plant care, and community market needs.
-You have access to a suite of tools. Use them when appropriate to fetch real-time data or perform actions on behalf of the user.
-If you call a tool, wait for the results, and then provide a conversational response summarizing the findings.
-DO NOT use markdown JSON blocks, just reply conversationally.
 
-CRITICAL GLOBAL RULES:\n`;
+RULES (follow strictly):\n`;
     globalRules.forEach(rule => dynamicInstruction += `- ${rule}\n`);
 
     if (userFacts) {
       dynamicInstruction += `\nUSER MEMORY CONTEXT:\n${userFacts}\n`;
     }
 
-    if (message === '__INIT_WELCOME__') {
+    if (message === '__INIT_WELCOME__' || message === '__AUTH_COMPLETE__') {
       // Gather user state for the welcome
       let isLoggedIn = !!userId;
       let isFirstTimeGrowBotUser = true;
       let isProfileComplete = false;
       let hasName = false;
       let hasLocation = false;
+      let userName = '';
 
       if (userId) {
         const { data: profile } = await supabase.from('profiles')
-          .select('has_visited_growbot, full_name, display_name, address_text')
+          .select('has_visited_growbot, full_name, street_address, city, zip_code')
           .eq('id', userId)
           .single();
         
-        isFirstTimeGrowBotUser = !profile?.has_visited_growbot;
-        hasName = !!(profile?.full_name || profile?.display_name);
-        hasLocation = !!profile?.address_text;
-        isProfileComplete = hasName && hasLocation;
+        if (profile) {
+          isFirstTimeGrowBotUser = !profile.has_visited_growbot;
+          userName = profile.full_name || '';
+          hasName = !!userName;
+          hasLocation = !!(profile.street_address || profile.city || profile.zip_code);
+          isProfileComplete = hasName && hasLocation;
 
-        // Mark as visited
-        if (isFirstTimeGrowBotUser) {
-          await supabase.from('profiles')
-            .update({ has_visited_growbot: true })
-            .eq('id', userId);
+          if (isFirstTimeGrowBotUser) {
+            await supabase.from('profiles')
+              .update({ has_visited_growbot: true })
+              .eq('id', userId);
+          }
         }
       }
 
-      // Inject user state so the LLM can adapt the welcome
-      dynamicInstruction += `\nWELCOME SESSION — User State:
-- Logged in: ${isLoggedIn}
-- First time using GrowBot: ${isFirstTimeGrowBotUser}
-- Profile complete: ${isProfileComplete}
-- Has name on file: ${hasName}
-- Has location on file: ${hasLocation}
+      console.log(`[Welcome] userId=${userId}, loggedIn=${isLoggedIn}, name=${userName}, profileComplete=${isProfileComplete}`);
 
-Follow the WELCOME RULE from global rules. Adapt based on the user state above:
-- If NOT logged in: tell the user you'll need their email to look up or create their account.
-- If logged in but profile is incomplete: mention you might ask for their name and location to personalize.
-- If profile is complete: greet by name if known.
-- Always mention you'd like to know what plants/trees they grow.
-- Do NOT call any tools for the welcome message.\n`;
+      // Fast-path: generate welcome server-side, skip LLM entirely
+      let welcomeText = '';
 
-      message = "Hello, I just opened the chat.";
+      if (message === '__AUTH_COMPLETE__') {
+        welcomeText = hasName
+          ? `Welcome back, ${userName}! You're all set. 🌱 What can I help you with?`
+          : `Great, you're signed in! To personalize things — what's your name?`;
+      } else if (isLoggedIn && isProfileComplete) {
+        welcomeText = `Hey${hasName ? ` ${userName}` : ''}! 🌱 I can identify plants, diagnose issues, help you buy or sell local produce, and more.\n\nWhat can I help you with today?`;
+      } else if (isLoggedIn) {
+        // Logged in but missing profile info — introduce + ask for what's missing
+        const missing: string[] = [];
+        if (!hasName) missing.push('your name');
+        if (!hasLocation) missing.push('your neighborhood or area');
+        welcomeText = `Hey there! I'm GrowBot — I can identify plants, diagnose issues, help you buy or sell local produce, and more. 🌱\n\nQuick question to personalize your experience — what's ${missing.join(' and ')}?`;
+      } else {
+        welcomeText = `Hey! I'm GrowBot, your Home & Garden assistant. 🌱\n\nI can identify plants, diagnose issues, help you buy or sell local produce, and more. Ask me anything!\n\nIf you'd like personalized advice, I'll help you sign in when the time comes.`;
+      }
+
+      return new Response(
+        JSON.stringify({ text: welcomeText, actions: [] }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const openAiMessages: any[] = [];
@@ -171,7 +179,18 @@ Follow the WELCOME RULE from global rules. Adapt based on the user state above:
       });
     });
 
-    const userContent = `[SYSTEM INSTRUCTIONS]\n${dynamicInstruction}\n\n[USER MESSAGE]\n${message || "Hello"}`;
+    const userContent = message || "Hello";
+    const userParts: any[] = [{ text: userContent }];
+    
+    // Include image data for multimodal requests (plant diagnosis, identification)
+    if (image && typeof image === 'string' && image.startsWith('data:')) {
+      const [meta, base64Data] = image.split(',');
+      const mimeType = meta.match(/data:(.*?);/)?.[1] || 'image/jpeg';
+      userParts.push({
+        inlineData: { mimeType, data: base64Data }
+      });
+    }
+    
     openAiMessages.push({ role: "user", content: userContent });
 
     const IS_MOCKED = Deno.env.get('AI_MOCK') === 'true';
@@ -191,7 +210,7 @@ Follow the WELCOME RULE from global rules. Adapt based on the user state above:
 
       return new Response(JSON.stringify({
          text: mockReply,
-         uiActions: []
+         actions: []
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
@@ -199,20 +218,20 @@ Follow the WELCOME RULE from global rules. Adapt based on the user state above:
     const primaryModel = Deno.env.get("AI_MODEL") || "gemma-4-31b-it";
     const models = [
       { name: primaryModel, version: "v1beta" },
-      { name: "gemini-2.5-flash", version: "v1beta" },
+      { name: "gemma-4-26b-a4b-it", version: "v1beta" },
     ];
 
     let turnCount = 0;
     const MAX_TURNS = 5;
     let finalMessageText = "";
-    const uiActions: any[] = [];
+    const actions: any[] = [];
     
     const contents = openAiMessages.map((m: any) => ({
        role: m.role === "assistant" ? "model" : "user",
        parts: [{ text: m.content || "" }],
     }));
     contents.pop();
-    contents.push({ role: "user", parts: [{ text: userContent }] });
+    contents.push({ role: "user", parts: userParts });
     
     let lastError = "";
 
@@ -222,16 +241,34 @@ Follow the WELCOME RULE from global rules. Adapt based on the user state above:
       let callSuccess = false;
       
       for (const model of models) {
+        const requestBody: any = {
+              contents: contents,
+              tools: tools,
+              tool_config: tools ? { function_calling_config: { mode: "AUTO" } } : undefined,
+              generationConfig: { temperature: 0.2, maxOutputTokens: 1024 },
+            };
+        // gemini-* and gemma-4-* models support system_instruction natively
+        const supportsSystemInstruction = model.name.startsWith('gemini') || model.name.startsWith('gemma-4');
+        if (supportsSystemInstruction) {
+          requestBody.system_instruction = { parts: [{ text: dynamicInstruction }] };
+        } else {
+          // Inject as first user message for models without system_instruction support
+          requestBody.contents = [
+            { role: "user", parts: [{ text: `[SYSTEM INSTRUCTIONS]\n${dynamicInstruction}` }] },
+            { role: "model", parts: [{ text: "Understood. I will follow these instructions." }] },
+            ...requestBody.contents,
+          ];
+        }
+        // Only gemini-2.5+ models support thinkingConfig
+        if (model.name.includes('gemini-2.5')) {
+          requestBody.generationConfig.thinkingConfig = { thinkingBudget: 0 };
+        }
         const geminiRes = await fetch(
           `https://generativelanguage.googleapis.com/${model.version}/models/${model.name}:generateContent?key=${AI_KEY}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: contents,
-              tools: tools,
-              generationConfig: { temperature: 0.2 },
-            }),
+            body: JSON.stringify(requestBody),
           }
         );
 
@@ -241,7 +278,7 @@ Follow the WELCOME RULE from global rules. Adapt based on the user state above:
           break;
         } else {
           lastError = await geminiRes.text();
-          console.warn(`GrowBot: ${model.name} failed (${geminiRes.status}), trying next...`);
+          console.warn(`GrowBot: ${model.name} failed (${geminiRes.status}):`, lastError.slice(0, 500));
           await new Promise(r => setTimeout(r, 500));
         }
       }
@@ -256,44 +293,83 @@ Follow the WELCOME RULE from global rules. Adapt based on the user state above:
       if (!responseCandidate) break;
 
       const responseParts = responseCandidate.content?.parts || [];
+      console.log(`[GrowBot] Raw response parts:`, JSON.stringify(responseParts.map((p: any) => Object.keys(p))));
       contents.push({
         role: "model",
         parts: responseParts
       });
 
       const functionCalls = responseParts.filter((p: any) => p.functionCall);
-      const textParts = responseParts.filter((p: any) => p.text).map((p: any) => p.text);
+      // Filter out 'thought' parts (model reasoning) — only include user-facing text
+      const textParts = responseParts.filter((p: any) => p.text && !p.thought).map((p: any) => p.text);
 
       if (textParts.length > 0) {
         finalMessageText += textParts.join('\\n');
       }
 
+      console.log(`[GrowBot] Turn ${turnCount}: ${functionCalls.length} tool calls, ${textParts.length} text parts`);
       if (functionCalls.length > 0) {
+        console.log(`[GrowBot] Tools called: ${functionCalls.map((c: any) => c.functionCall.name).join(', ')}`);
         const functionResponses: any[] = [];
         
         for (const call of functionCalls) {
           const fnName = call.functionCall.name;
           const fnArgs = call.functionCall.args || {};
           
-          const actionPayload = { type: fnName, data: { ...fnArgs, user_id: userId } };
-          uiActions.push(actionPayload);
+          // Position controls rendering order relative to text: 'after' = text first, card second (default)
+          const position = 'after';
+          
+          const actionPayload = { type: fnName, position, data: { ...fnArgs, user_id: userId } };
+          actions.push(actionPayload);
           
           const skillDef = skills.find((s: any) => s.name === fnName);
           let resultData: any = { error: "Function completed locally (no backend RPC linked)." };
           
-          if (skillDef && skillDef.backend_function) {
+          // Shopping uses the dedicated multi-source edge function
+          if (fnName === 'ShoppingResultsCard') {
+            try {
+              // Resolve user zip for location-based search
+              let userZip = '';
+              if (userId) {
+                const { data: prof } = await supabase.from('profiles').select('zip_code').eq('id', userId).single();
+                userZip = prof?.zip_code || '';
+              }
+              
+              const searchPayload = {
+                search_items: fnArgs.search_items || [fnArgs.search_intent || ''],
+                category: fnArgs.category || 'general',
+                prefer_local: fnArgs.prefer_local !== false,
+                user_id: userId,
+                zip_code: userZip,
+              };
+              
+              const shopResp = await fetch(`${supabaseUrl}/functions/v1/shopping-search`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceRoleKey}` },
+                body: JSON.stringify(searchPayload),
+              });
+              
+              if (shopResp.ok) {
+                const shopData = await shopResp.json();
+                resultData = shopData;
+                actionPayload.data.backend_results = shopData.backend_results || shopData;
+                actionPayload.data.result_count = shopData.result_count;
+                actionPayload.data.sources_checked = shopData.sources_checked;
+              } else {
+                resultData = { error: `Shopping search failed: ${shopResp.status}` };
+              }
+            } catch (e: any) {
+              resultData = { error: e.message };
+            }
+          } else if (skillDef && skillDef.backend_function) {
             try {
               const { data: rpcResult, error: rpcError } = await supabase.rpc(skillDef.backend_function, { payload: actionPayload.data });
               if (rpcError) {
                 resultData = { error: rpcError.message };
               } else {
                 resultData = rpcResult;
-                actionPayload.data.backend_results = rpcResult.backend_results || rpcResult;
-                
-                // Backwards compatibility for UI rendering
-                if (fnName === 'ShoppingResultsCard' && rpcResult.backend_results) {
-                   actionPayload.data.stores = rpcResult.backend_results;
-                }
+                // Merge backend result into card data so fields like status, community_message_id are accessible
+                actionPayload.data = { ...actionPayload.data, ...rpcResult };
               }
             } catch (e: any) {
               resultData = { error: e.message };
@@ -345,13 +421,13 @@ Follow the WELCOME RULE from global rules. Adapt based on the user state above:
          conversation_id: conversationId,
          sender_id: 'a0000000-0000-0000-0000-00000ca5ab07',
          content: finalMessageText || 'No response',
-         ui_actions: uiActions || []
+         ui_actions: actions || []
        });
     }
 
     return new Response(JSON.stringify({
       text: finalMessageText,
-      uiActions: uiActions
+      actions: actions
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (error: any) {

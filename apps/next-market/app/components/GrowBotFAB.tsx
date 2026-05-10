@@ -2,7 +2,6 @@
 
 import React from 'react'
 import Link from 'next/link'
-import { useAuth } from '../../lib/useAuth'
 
 export default function GrowBotFAB() {
   const destination = "/growbot"

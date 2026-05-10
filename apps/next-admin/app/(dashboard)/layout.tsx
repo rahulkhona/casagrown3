@@ -61,6 +61,14 @@ const MENU_GROUPS: MenuGroup[] = [
     ]
   },
   {
+    title: 'GROWBOT AI',
+    icon: Store,
+    items: [
+      { label: 'Skills', path: '/growbot/skills' },
+      { label: 'Rules', path: '/growbot/rules' },
+    ]
+  },
+  {
     title: 'FINANCIAL',
     icon: DollarSign,
     items: [

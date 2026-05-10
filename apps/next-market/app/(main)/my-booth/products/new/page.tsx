@@ -587,7 +587,7 @@ function NewProductPageInner() {
       }
     } catch(e) {
       console.error('Failed to generate recipes', e)
-      alert("CasaBot is resting right now. Try again later!")
+      alert("GrowBot is resting right now. Try again later!")
     } finally {
       setIsGeneratingRecipes(false)
     }
@@ -1434,7 +1434,7 @@ function NewProductPageInner() {
                     disabled={isGeneratingRecipes}
                     style={{ background: 'linear-gradient(135deg, #f0fdf4, #fffbeb)', border: '1px solid #86efac', borderRadius: 8, padding: '4px 12px', fontSize: 13, color: '#166534', cursor: isGeneratingRecipes ? 'wait' : 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}
                   >
-                    🐝 {isGeneratingRecipes ? 'Thinking...' : 'Ask CasaBot for Recipes ✨'}
+                    <img src="/growbot-avatar-v3.png" alt="GrowBot" style={{ width: 14, height: 14, borderRadius: '50%' }} /> {isGeneratingRecipes ? 'Thinking...' : 'Ask GrowBot for Recipes ✨'}
                   </button>
                   
                   {generatedRecipesList.length > 0 && (
