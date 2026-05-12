@@ -51,8 +51,8 @@ const baseMessage = {
 const botMessage = {
   ...baseMessage,
   id: 'bot-1',
-  author_id: '00000000-0000-0000-0000-000000000000',
-  author_name: 'CasaGrown',
+  author_id: 'a0000000-0000-0000-0000-00000ca5ab07',
+  author_name: 'GrowBot',
   is_system: true,
   content: '🐝 What is the best thing you have grown this year?',
 }
