@@ -126,6 +126,14 @@ export default function GrowBotChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const initRef = useRef(false)
   const lastUserIdRef = useRef<string | null | undefined>(undefined)
+  // Stable ID for this browser session — used for guest token tracking
+  const guestSessionIdRef = useRef<string>('')
+  useEffect(() => {
+    const GUEST_KEY = 'growbot_guest_sid'
+    let sid = window.sessionStorage.getItem(GUEST_KEY)
+    if (!sid) { sid = crypto.randomUUID(); window.sessionStorage.setItem(GUEST_KEY, sid) }
+    guestSessionIdRef.current = sid
+  }, [])
 
   // Save current messages to topic storage
   const saveCurrentTopic = useCallback((msgs: ChatMessage[], topicId?: string) => {
@@ -260,6 +268,7 @@ export default function GrowBotChatPage() {
           image: imageBase64 || null,
           history,
           userId: user?.id || null,
+          guestSessionId: user?.id ? null : guestSessionIdRef.current,
         },
       })
 

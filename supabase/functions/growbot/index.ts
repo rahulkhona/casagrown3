@@ -12,7 +12,7 @@ serve(async (req: Request) => {
   }
 
   try {
-    let { message, image, history = [], userId, conversationId } = await req.json();
+    let { message, image, history = [], userId, conversationId, guestSessionId } = await req.json();
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
@@ -228,6 +228,9 @@ RULES (follow strictly):\n`;
     let turnCount = 0;
     const MAX_TURNS = 5;
     let finalMessageText = "";
+    let totalPromptTokens = 0;
+    let totalResponseTokens = 0;
+    let agenticTurns = 0;
     const actions: any[] = [];
     
     const contents = openAiMessages.map((m: any) => ({
@@ -278,6 +281,13 @@ RULES (follow strictly):\n`;
 
         if (geminiRes.ok) {
           geminiData = await geminiRes.json();
+          // Accumulate token usage across agentic turns
+          const usage = geminiData.usageMetadata;
+          if (usage) {
+            totalPromptTokens   += usage.promptTokenCount    || 0;
+            totalResponseTokens += usage.candidatesTokenCount || 0;
+          }
+          agenticTurns++;
           callSuccess = true;
           break;
         } else {
@@ -399,6 +409,20 @@ RULES (follow strictly):\n`;
          content: finalMessageText || 'No response',
          ui_actions: actions || []
        });
+    }
+
+    // Record token usage per exchange (fire-and-forget, non-blocking)
+    if (message !== '__INIT_WELCOME__' && (totalPromptTokens > 0 || totalResponseTokens > 0)) {
+      supabase.from('growbot_token_usage').insert({
+        user_id:          userId  || null,
+        guest_session_id: userId  ? null : (guestSessionId || null),
+        prompt_tokens:    totalPromptTokens,
+        response_tokens:  totalResponseTokens,
+        total_tokens:     totalPromptTokens + totalResponseTokens,
+        agentic_turns:    agenticTurns,
+      }).then(({ error }) => {
+        if (error) console.warn('Token usage insert failed:', error.message);
+      });
     }
 
     return new Response(JSON.stringify({
