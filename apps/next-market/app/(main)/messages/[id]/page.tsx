@@ -208,7 +208,7 @@ export default function MessageThreadPage() {
         return
       }
 
-      const role = convData.participant_a === user.id ? 'participant_a' : 'participant_b'
+      const role = convData.participant_a === user!.id ? 'participant_a' : 'participant_b'
       let other = role === 'participant_a' ? convData.profile_b : convData.profile_a
       
       // Force override legacy DB profile for GrowBot
@@ -234,7 +234,7 @@ export default function MessageThreadPage() {
       const { data: blockCheck } = await supabase
         .from('market_blocks')
         .select('id, blocker_id')
-        .or(`and(blocker_id.eq.${user.id},blocked_id.eq.${other.id}),and(blocker_id.eq.${other.id},blocked_id.eq.${user.id})`)
+        .or(`and(blocker_id.eq.${user!.id},blocked_id.eq.${other.id}),and(blocker_id.eq.${other.id},blocked_id.eq.${user!.id})`)
       
       if (isMounted && blockCheck && blockCheck.length > 0) {
         setIsBlocked(true)

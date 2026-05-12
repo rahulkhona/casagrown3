@@ -116,13 +116,13 @@ describe('ChatMessage', () => {
     expect(link).toBeFalsy()
   })
 
-  it('renders link to DM if message is from GrowBot', () => {
+  it('renders link to GrowBot page if message is from GrowBot', () => {
     const { container } = render(
       React.createElement(ChatMessage, { ...defaultProps, message: botMessage })
     )
     const link = container.querySelector('a')
     expect(link).toBeTruthy()
-    expect(link?.getAttribute('href') || '').toContain('/messages/new?userId=a0000000-0000-0000-0000-00000ca5ab07')
+    expect(link?.getAttribute('href') || '').toContain('/growbot')
   })
 
   // ── Bot/System Message Styling ───────────────────────────────

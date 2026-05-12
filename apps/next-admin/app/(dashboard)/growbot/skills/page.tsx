@@ -3,7 +3,7 @@
 import React, { useState } from 'react'
 import { YStack, XStack, Text, Button, Card } from 'tamagui'
 import { colors } from '@casagrown/app/design-tokens'
-import { Plus, Trash2, Tag, Edit2, Eye, EyeOff } from '@tamagui/lucide-icons'
+import { Plus, Trash2, Tag, SquarePen, Eye, EyeOff } from '@tamagui/lucide-icons'
 import { AdminDataGrid, ColumnDef } from '../../../../../../packages/app/features/admin/components/AdminDataGrid'
 import { AdminDataForm, FormFieldDef } from '../../../../../../packages/app/features/admin/components/AdminDataForm'
 import { useAdminQuery } from '../../../../../../packages/app/features/admin/hooks/useAdminQuery'
@@ -72,7 +72,7 @@ export default function SkillsPage() {
           <Button 
             size="$2" 
             chromeless 
-            icon={<Edit2 size={16} color={colors.blue[600]} />} 
+            icon={<SquarePen size={16} color={colors.blue[600]} />} 
             onPress={() => {
               setErrorMessage('')
               setIsAdding(false)
@@ -269,7 +269,7 @@ export default function SkillsPage() {
         <Card borderWidth={1} borderColor={colors.blue[200]} padding="$4" backgroundColor="white" elevation="$1">
           <YStack gap="$4">
             <XStack alignItems="center" gap="$2">
-              <Edit2 size={20} color={colors.blue[600]} />
+              <SquarePen size={20} color={colors.blue[600]} />
               <Text fontSize="$5" fontWeight="600" color={colors.gray[800]}>Edit Tool: {editingSkill.name}</Text>
             </XStack>
             <AdminDataForm 

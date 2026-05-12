@@ -34,39 +34,40 @@ export function ActionChips({ actions, onActionClick }: { actions?: string[], on
 
 // ─── Legacy Hardcoded Cards (kept for rich UX on known types) ────────
 
-export function SellerWizardCard({ data, onActionClick }: { data: any, onActionClick?: (action: string) => void }) {
-  const handlePostClick = () => {
-    const params = new URLSearchParams({ title: data.title || '', price: data.price || '', description: data.description || '' });
-    window.location.href = `/my-booth/products/new?${params.toString()}`;
-  };
+export function SellerWizardCard({ data }: { data: any, onActionClick?: (action: string) => void }) {
+  const params = new URLSearchParams();
+  if (data.title) params.set('title', data.title);
+  const listingUrl = `/my-booth/products/new?${params.toString()}`;
+
   return (
-    <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 16, background: 'white', marginTop: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <ShoppingBag size={18} color="#16a34a" />
-        <span style={{ fontWeight: 700, color: '#14532d', fontSize: 15 }}>Listing Draft</span>
+    <div style={{ border: '1px solid #bbf7d0', borderRadius: 12, padding: 16, background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)', marginTop: 12 }}>
+      <div style={{ fontSize: 14, color: '#374151', marginBottom: 10 }}>
+        Use the listing wizard to add photos, set your price, and publish:
       </div>
-      <div style={{ background: '#f9fafb', borderRadius: 8, padding: 12, marginBottom: 12 }}>
-        <div style={{ fontWeight: 700, color: '#111827', fontSize: 15 }}>{data.title || 'Untitled Item'}</div>
-        <div style={{ color: '#16a34a', fontWeight: 700, fontSize: 15 }}>${data.price || '0.00'}</div>
-        <div style={{ color: '#6b7280', marginTop: 6, fontSize: 13 }}>{data.description || 'No description provided.'}</div>
-      </div>
-      <button
-        onClick={handlePostClick}
-        style={{ width: '100%', padding: '10px 0', background: '#16a34a', color: 'white', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 14, cursor: 'pointer' }}
+      <a
+        href={listingUrl}
+        style={{
+          display: 'block', textAlign: 'center', padding: '10px 0',
+          background: '#16a34a', color: 'white', border: 'none', borderRadius: 8,
+          fontWeight: 600, fontSize: 14, textDecoration: 'none',
+          boxShadow: '0 2px 6px rgba(22,163,74,0.25)',
+        }}
       >
-        Continue to Post
-      </button>
-      <ActionChips actions={data.suggested_next_actions} onActionClick={onActionClick} />
+        🏷️ Create Listing{data.title ? ` — ${data.title}` : ''} →
+      </a>
     </div>
   );
 }
 
 export function DiagnosisCard({ data, onActionClick }: { data: any, onActionClick?: (action: string) => void }) {
+  const [showShare, setShowShare] = React.useState(false)
+  const shareText = `🌱 Plant Diagnosis from GrowBot:\n${data.diagnosis ? `Diagnosis: ${data.diagnosis}\n` : ''}${data.urgency ? `Urgency: ${data.urgency}\n` : ''}${data.remedy_plan ? `\nRemedy: ${data.remedy_plan}` : ''}`
   return (
     <div style={{ border: '1px solid #fecaca', borderRadius: 12, padding: 16, background: '#fff5f5', marginTop: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <Wrench size={18} color="#dc2626" />
         <span style={{ fontWeight: 700, color: '#7f1d1d', fontSize: 15 }}>Plant Diagnosis</span>
+        <button onClick={() => setShowShare(true)} style={{ marginLeft: 'auto', background: 'none', border: '1px solid #fecaca', borderRadius: 20, padding: '3px 10px', fontSize: 12, color: '#dc2626', cursor: 'pointer' }}>📤 Share</button>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <div style={{ color: '#7f1d1d' }}><strong>Diagnosis:</strong> {data.diagnosis}</div>
@@ -77,6 +78,12 @@ export function DiagnosisCard({ data, onActionClick }: { data: any, onActionClic
         </div>
       </div>
       <ActionChips actions={data.suggested_next_actions} onActionClick={onActionClick} />
+      {showShare && (
+        <SocialShareModal isOpen={true} onClose={() => setShowShare(false)}
+          title="Plant Diagnosis from GrowBot" subtitle="Share this diagnosis with a fellow gardener"
+          entityName="Plant Diagnosis" shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
+          shareMessage={shareText} />
+      )}
     </div>
   );
 }
@@ -121,16 +128,19 @@ export function PlantGuideCard({ data, onActionClick }: { data: any, onActionCli
 
 export function RecipeCard({ data, onActionClick }: { data: any, onActionClick?: (action: string) => void }) {
   const title = data.dish_name || data.recipe_name || 'Recipe';
+  const [showShare, setShowShare] = React.useState(false)
+  const shareText = `🌱 GrowBot Recipe: ${title}\n${data.ingredients?.length ? `\nIngredients: ${data.ingredients.join(', ')}` : ''}${data.instructions ? `\n\n${data.instructions.slice(0, 300)}` : ''}`
   return (
     <div style={{ border: '1px solid #fed7aa', borderRadius: 12, padding: 16, background: '#fff7ed', marginTop: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <BookOpen size={18} color="#ea580c" />
         <span style={{ fontWeight: 700, color: '#7c2d12', fontSize: 15 }}>{title}</span>
         {(data.prep_time || data.serving_size) && (
-          <span style={{ marginLeft: 'auto', fontSize: 12, color: '#ea580c', background: '#ffedd5', padding: '2px 8px', borderRadius: 10 }}>
+          <span style={{ fontSize: 12, color: '#ea580c', background: '#ffedd5', padding: '2px 8px', borderRadius: 10 }}>
             {[data.prep_time, data.serving_size].filter(Boolean).join(' · ')}
           </span>
         )}
+        <button onClick={() => setShowShare(true)} style={{ marginLeft: 'auto', background: 'none', border: '1px solid #fed7aa', borderRadius: 20, padding: '3px 10px', fontSize: 12, color: '#ea580c', cursor: 'pointer' }}>📤 Share</button>
       </div>
       <div style={{ background: 'white', borderRadius: 8, padding: 12 }}>
         <div style={{ fontWeight: 700, color: '#374151', marginBottom: 4 }}>Ingredients:</div>
@@ -143,6 +153,12 @@ export function RecipeCard({ data, onActionClick }: { data: any, onActionClick?:
         <div style={{ color: '#4b5563', fontSize: 13, whiteSpace: 'pre-wrap' }}>{data.instructions}</div>
       </div>
       <ActionChips actions={data.suggested_next_actions} onActionClick={onActionClick} />
+      {showShare && (
+        <SocialShareModal isOpen={true} onClose={() => setShowShare(false)}
+          title={`Recipe: ${title}`} subtitle="Share this garden-to-table recipe with a friend"
+          entityName={title} shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
+          shareMessage={shareText} />
+      )}
     </div>
   );
 }
@@ -343,11 +359,14 @@ export function ShoppingResultsCard({ data, onActionClick }: { data: any, onActi
 // ─── v1 New Cards ────────────────────────────────────────────────────
 
 export function PlantIdentificationCard({ data, onActionClick }: { data: any, onActionClick?: (action: string) => void }) {
+  const [showShare, setShowShare] = React.useState(false)
+  const shareText = `🌱 Plant ID from GrowBot: ${data.common_name}${data.scientific_name ? ` (${data.scientific_name})` : ''}${data.description ? `\n\n${data.description}` : ''}${data.care_instructions ? `\n\nCare tips: ${data.care_instructions}` : ''}`
   return (
     <div style={{ border: '1px solid #bbf7d0', borderRadius: 12, padding: 16, background: '#f0fdf4', marginTop: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <Leaf size={18} color="#16a34a" />
         <span style={{ fontWeight: 700, color: '#14532d', fontSize: 15 }}>Plant Identification</span>
+        <button onClick={() => setShowShare(true)} style={{ marginLeft: 'auto', background: 'none', border: '1px solid #bbf7d0', borderRadius: 20, padding: '3px 10px', fontSize: 12, color: '#166534', cursor: 'pointer' }}>📤 Share</button>
       </div>
       <div style={{ background: 'white', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div>
@@ -373,6 +392,12 @@ export function PlantIdentificationCard({ data, onActionClick }: { data: any, on
         )}
       </div>
       <ActionChips actions={data.suggested_next_actions} onActionClick={onActionClick} />
+      {showShare && (
+        <SocialShareModal isOpen={true} onClose={() => setShowShare(false)}
+          title={`Plant ID: ${data.common_name}`} subtitle="Share this plant identification with a gardening friend"
+          entityName={data.common_name} shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
+          shareMessage={shareText} />
+      )}
     </div>
   );
 }

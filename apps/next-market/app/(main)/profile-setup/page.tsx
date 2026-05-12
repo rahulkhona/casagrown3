@@ -20,6 +20,7 @@ function ProfileSetupPageInner() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
+  const [userEmail, setUserEmail] = useState('')
   const [fullName, setFullName] = useState('')
   const [streetAddress, setStreetAddress] = useState('')
   const [city, setCity] = useState('')
@@ -54,6 +55,7 @@ function ProfileSetupPageInner() {
       const user = session?.user
       if (!user) { router.replace('/login'); return }
       setUserId(user.id)
+      setUserEmail(user.email || '')
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -401,6 +403,15 @@ function ProfileSetupPageInner() {
                 if (urlData?.publicUrl) setAvatarUrl(urlData.publicUrl)
               }}
             />
+          )}
+
+          {/* Email (read-only from auth) */}
+          {userEmail && (
+            <div className="form-group">
+              <label className="label" htmlFor="email">Email</label>
+              <input id="email" type="email" className="input" value={userEmail} readOnly
+                style={{ background: '#f9fafb', color: '#6b7280', cursor: 'default' }} />
+            </div>
           )}
 
           {/* Full Name */}

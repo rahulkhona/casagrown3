@@ -50,7 +50,7 @@ export default function MessagesInboxPage() {
         
         const formatted = data.map(conv => {
           const isA = conv.participant_a === user.id
-          const otherProfile = isA ? conv.profile_b : conv.profile_a
+          const otherProfile = (isA ? conv.profile_b : conv.profile_a) as any
           const unreadCount = isA ? conv.unread_count_a : conv.unread_count_b
           
           let messages = conv.market_chat_messages || []

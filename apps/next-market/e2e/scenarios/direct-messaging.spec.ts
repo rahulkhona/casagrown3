@@ -87,8 +87,8 @@ test.describe('Direct Messaging & Block Flows', () => {
         await page.waitForTimeout(500)
       }
 
-      // Compose message using the specific DM input
-      const msgInput = page.locator('input[placeholder="Message..."]')
+      // Compose message using the DM textarea
+      const msgInput = page.getByPlaceholder('Message...')
       await expect(msgInput).toBeVisible({ timeout: 5000 })
       await msgInput.fill('Hello from Playwright automated tests!')
       

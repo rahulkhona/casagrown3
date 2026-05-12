@@ -135,7 +135,7 @@ function LoginPageInner() {
 
       if (isGrowBotRedirect) {
         // PROGRESSIVE PROFILING: Bypass ToS and Profile Setup for GrowBot
-        router.push(redirectTo)
+        router.push(redirectTo!)
       } else if (needsTosAcceptance(profile?.tos_accepted_at)) {
         const termsUrl = template ? `/terms?template=${template}` : `/terms${redirectParam ? `?${redirectParam}` : ''}`
         router.push(termsUrl)

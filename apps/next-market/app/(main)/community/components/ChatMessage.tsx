@@ -145,11 +145,11 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
             <div style={{ display: 'inline-flex', alignItems: 'center' }}>
               {(!isBot || message.author_name === 'GrowBot' || message.author_id === 'a0000000-0000-0000-0000-00000ca5ab07') && (
                 <a 
-                  href={`/messages/new?userId=${isBot ? 'a0000000-0000-0000-0000-00000ca5ab07' : message.author_id}&name=${encodeURIComponent(isBot ? 'GrowBot' : message.author_name || 'Neighbor')}`}
+                  href={isBot ? '/growbot' : `/messages/new?userId=${message.author_id}&name=${encodeURIComponent(message.author_name || 'Neighbor')}`}
                   style={{ fontSize: '0.75rem', background: '#dcfce3', border: '1px solid #86efac', padding: '2px 8px', borderRadius: '12px', marginLeft: 6, color: '#166534', textDecoration: 'none', fontWeight: 500 }}
-                  title="Send a Direct Message"
+                  title={isBot ? 'Chat with GrowBot' : 'Send a Direct Message'}
                 >
-                  💬 DM
+                  {isBot ? '🤖 Chat' : '💬 DM'}
                 </a>
               )}
               {!isBot && <ChatFollowButton currentUserId={currentUserId} targetUserId={message.author_id} />}
@@ -438,7 +438,31 @@ function ChatFollowButton({ targetUserId, currentUserId, isSmall }: { targetUser
 // ── Simple Markdown Parser ──
 function SimpleMarkdown({ text }: { text: string }) {
   if (!text) return null
-  if (!text.includes('- ') && !text.includes('*') && !text.includes('#')) {
+
+  // Parse inline elements: **bold** and URLs
+  const parseInline = (str: string) => {
+    // Split on bold markers and URLs
+    const urlRegex = /(https?:\/\/[^\s]+)/g
+    const boldRegex = /(\*\*.*?\*\*)/g
+    // Combined split: bold OR URLs
+    const combinedRegex = /(\*\*.*?\*\*|https?:\/\/[^\s]+)/g
+    const parts = str.split(combinedRegex)
+    return parts.map((p, j) => {
+      if (p.startsWith('**') && p.endsWith('**')) {
+        return <strong key={j}>{p.slice(2, -2)}</strong>
+      }
+      if (/^https?:\/\//.test(p)) {
+        return (
+          <a key={j} href={p} target="_blank" rel="noopener noreferrer"
+            style={{ color: '#166534', textDecoration: 'underline', wordBreak: 'break-all' }}
+          >{p}</a>
+        )
+      }
+      return p
+    })
+  }
+
+  if (!text.includes('- ') && !text.includes('*') && !text.includes('#') && !text.includes('http')) {
     return <>{text}</>
   }
   
@@ -456,17 +480,7 @@ function SimpleMarkdown({ text }: { text: string }) {
           cleanLine = line.trim().replace(/^\* /, '')
         }
 
-        const parts = cleanLine.split(/(\*\*.*?\*\*)/g)
-        const parsedLine = (
-          <>
-            {parts.map((p, j) => {
-              if (p.startsWith('**') && p.endsWith('**')) {
-                return <strong key={j}>{p.slice(2, -2)}</strong>
-              }
-              return p
-            })}
-          </>
-        )
+        const parsedLine = <>{parseInline(cleanLine)}</>
 
         if (isBullet) {
           return <li key={i} style={{ marginLeft: 20 }}>{parsedLine}</li>

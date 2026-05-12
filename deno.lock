@@ -897,7 +897,7 @@
             "npm:@casagrown/app@*",
             "npm:@hello-pangea/dnd@^18.0.1",
             "npm:@tamagui/config@^2.0.0-rc.0",
-            "npm:@tamagui/lucide-icons@*",
+            "npm:@tamagui/lucide-icons@^2.0.0-rc.0",
             "npm:@tamagui/next-plugin@^2.0.0-rc.0",
             "npm:@tamagui/next-theme@^2.0.0-rc.0",
             "npm:@types/mustache@^4.2.5",

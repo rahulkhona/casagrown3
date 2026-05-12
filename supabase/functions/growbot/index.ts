@@ -110,6 +110,12 @@ Your v1 capabilities: (1) gather user profile details, (2) identify plants, (3) 
 
 For buying requests → MarketRedirectCard. For community posts → CommunityRedirectCard. For anything outside your scope → ExternalSearchCard.
 
+SELLING: When the user wants to sell, list, or post ANY item, IMMEDIATELY call SellerWizardCard with whatever item name they mentioned. Do NOT ask for price, description, or any other details — the listing form collects those. Just call the tool right away.
+
+FOLLOW-UP CHIPS: At the end of every plain text answer (when you do NOT call a tool), always append exactly this block on a new line:
+NEXT_ACTIONS: ["<short action 1>", "<short action 2>", "<short action 3>"]
+Keep each suggestion under 6 words. They should be specific, natural follow-ups to your answer. Do NOT add this block when you call a tool — the tool card handles it.
+
 RULES (follow strictly):\n`;
     globalRules.forEach(rule => dynamicInstruction += `- ${rule}\n`);
 
@@ -149,23 +155,36 @@ RULES (follow strictly):\n`;
 
       console.log(`[Welcome] userId=${userId}, loggedIn=${isLoggedIn}, name=${userName}, profileComplete=${isProfileComplete}`);
 
-      // Fast-path: generate welcome server-side, skip LLM entirely
+      // Check if user has garden data
+      let hasGarden = false;
+      if (userId) {
+        const { data: garden } = await supabase.from('user_garden').select('produce_name').eq('user_id', userId).limit(1);
+        hasGarden = !!(garden && garden.length > 0);
+      }
+
+      // Static multi-variant welcome — progressively collects info, no LLM cost
       let welcomeText = '';
 
       if (message === '__AUTH_COMPLETE__') {
+        // Just signed in
         welcomeText = hasName
           ? `Welcome back, ${userName}! You're all set. 🌱 What can I help you with?`
-          : `Great, you're signed in! To personalize things — what's your name?`;
-      } else if (isLoggedIn && isProfileComplete) {
-        welcomeText = `Hey${hasName ? ` ${userName}` : ''}! 🌱 I can identify plants, diagnose problems, suggest recipes from your garden, and help you list items for sale on CasaGrown.\n\nWhat can I help you with today?`;
-      } else if (isLoggedIn) {
-        // Logged in but missing profile info — introduce + ask for what's missing
+          : `Great, you're signed in! To personalize things — what's your name and what area are you in (city or zip)?`;
+      } else if (isLoggedIn && isProfileComplete && hasGarden) {
+        // Fully set up returning user
+        welcomeText = `Hey ${userName}! 🌱 Welcome back to GrowBot.\n\nI can identify plants, diagnose problems, suggest recipes from your garden, and help you list items for sale on CasaGrown.\n\nWhat can I help you with today?`;
+      } else if (isLoggedIn && isProfileComplete && !hasGarden) {
+        // Has profile but no garden — ask about plants
+        welcomeText = `Hey ${userName}! 🌱 Welcome to GrowBot.\n\nI'd love to learn about your garden so I can give you personalized advice and connect you with neighbors who grow similar things.\n\n**What plants, herbs, or trees are you currently growing?** 🌿\n\nYou can also ask me to identify a plant, diagnose a problem, or find recipes!`;
+      } else if (isLoggedIn && !isProfileComplete) {
+        // Logged in but missing profile info
         const missing: string[] = [];
         if (!hasName) missing.push('your name');
-        if (!hasLocation) missing.push('your neighborhood or zip code');
-        welcomeText = `Hey there! I'm GrowBot 🌱\n\nI can identify plants, diagnose problems, suggest recipes from your garden, and help you list items for sale on CasaGrown.\n\nTo personalize your experience — what's ${missing.join(' and ')}?`;
+        if (!hasLocation) missing.push('your city or zip code');
+        welcomeText = `Hey there! I'm GrowBot 🌱, your personal Home & Garden assistant.\n\nI can identify plants, diagnose problems, suggest recipes, and help you list items on CasaGrown Market.\n\nTo give you the best advice, could you share ${missing.join(' and ')}? I'd also love to know **what plants you're growing** — it helps me personalize tips and connect you with nearby growers! 🌿`;
       } else {
-        welcomeText = `Hey! I'm GrowBot, your Home & Garden assistant. 🌱\n\nI can identify plants, diagnose problems, suggest recipes, and help you list items for sale on CasaGrown. Ask me anything!\n\nIf you'd like personalized tips, I'll help you sign in when the time comes.`;
+        // Guest — no account yet. Progressive profiling: ask about garden first.
+        welcomeText = `Hey there! I'm GrowBot 🌱, your Home & Garden assistant on CasaGrown.\n\nI can identify plants 📸, diagnose problems 🔍, suggest recipes 🍳, and connect you with your local gardening community.\n\nTo get started, **tell me about your garden — what are you growing?** Even if you're just getting started, I'd love to help!\n\nAlso, what's your name and general area (city or zip)? It helps me give advice tailored to your climate and connect you with neighbors. 🏡`;
       }
 
       return new Response(
@@ -201,37 +220,49 @@ RULES (follow strictly):\n`;
 
     if (IS_MOCKED) {
       console.log('[LOCAL] Skipping Gemini — AI_MOCK is true');
-      const mockReply = "🌱 [Local dev] GrowBot AI is skipped because AI_MOCK is true. Set it to false in supabase/functions/.env to run the real AI locally.";
-      
-      if (conversationId) {
-         await supabase.from('market_chat_messages').insert({
-           conversation_id: conversationId,
-           sender_id: 'a0000000-0000-0000-0000-00000ca5ab07',
-           content: mockReply,
-           ui_actions: []
-         });
-      }
+      // Return SSE-format mock so tests can verify the streaming protocol
+      const isSellIntent = /\bsell\b/i.test(message);
+      const mockText = isSellIntent
+        ? "Great! Use the listing wizard to get started."
+        : "🌱 [Mock] GrowBot AI is mocked. Here is some gardening advice for testing purposes.";
+      const mockActions = isSellIntent
+        ? [{ type: 'SellerWizardCard', data: { title: message.replace(/.*sell\s*/i, '').trim() || 'Item' } }]
+        : [];
+      const mockNextActions = isSellIntent ? [] : ['Tomato care tips', 'What to plant now'];
 
-      return new Response(JSON.stringify({
-         text: mockReply,
-         actions: []
-      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const encoder = new TextEncoder();
+      const body = new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode(`event: delta\ndata: ${JSON.stringify({ text: mockText })}\n\n`));
+          controller.enqueue(encoder.encode(`event: done\ndata: ${JSON.stringify({
+            text: mockText,
+            actions: mockActions,
+            nextActions: mockNextActions,
+            usage: { promptTokens: 10, responseTokens: 20 }
+          })}\n\n`));
+          controller.close();
+        }
+      });
+      return new Response(body, {
+        headers: { ...corsHeaders, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' }
+      });
     }
 
     const AI_KEY = Deno.env.get("GEMINI_API_KEY") || "";
     const primaryModel = Deno.env.get("AI_MODEL") || "gemma-4-31b-it";
     const models = [
       { name: primaryModel, version: "v1beta" },
-      { name: "gemma-4-26b-a4b-it", version: "v1beta" },
+      { name: "gemini-2.5-flash", version: "v1beta" },
     ];
 
     let turnCount = 0;
-    const MAX_TURNS = 5;
+    const MAX_TURNS = 3;
     let finalMessageText = "";
     let totalPromptTokens = 0;
     let totalResponseTokens = 0;
     let agenticTurns = 0;
     const actions: any[] = [];
+    const calledTools = new Set<string>();
     
     const contents = openAiMessages.map((m: any) => ({
        role: m.role === "assistant" ? "model" : "user",
@@ -242,193 +273,336 @@ RULES (follow strictly):\n`;
     
     let lastError = "";
 
-    while (turnCount < MAX_TURNS) {
-      turnCount++;
-      let geminiData: any = null;
-      let callSuccess = false;
-      
-      for (const model of models) {
-        const requestBody: any = {
-              contents: contents,
-              tools: tools,
-              tool_config: tools ? { function_calling_config: { mode: "AUTO" } } : undefined,
-              generationConfig: { temperature: 0.2, maxOutputTokens: 1024 },
-            };
-        // gemini-* and gemma-4-* models support system_instruction natively
-        const supportsSystemInstruction = model.name.startsWith('gemini') || model.name.startsWith('gemma-4');
-        if (supportsSystemInstruction) {
-          requestBody.system_instruction = { parts: [{ text: dynamicInstruction }] };
-        } else {
-          // Inject as first user message for models without system_instruction support
-          requestBody.contents = [
-            { role: "user", parts: [{ text: `[SYSTEM INSTRUCTIONS]\n${dynamicInstruction}` }] },
-            { role: "model", parts: [{ text: "Understood. I will follow these instructions." }] },
-            ...requestBody.contents,
-          ];
-        }
-        // Only gemini-2.5+ models support thinkingConfig
-        if (model.name.includes('gemini-2.5')) {
-          requestBody.generationConfig.thinkingConfig = { thinkingBudget: 0 };
-        }
-        const geminiRes = await fetch(
-          `https://generativelanguage.googleapis.com/${model.version}/models/${model.name}:generateContent?key=${AI_KEY}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(requestBody),
-          }
-        );
+    // SSE streaming response
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        const send = (event: string, data: any) => {
+          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        };
 
-        if (geminiRes.ok) {
-          geminiData = await geminiRes.json();
-          // Accumulate token usage across agentic turns
-          const usage = geminiData.usageMetadata;
-          if (usage) {
-            totalPromptTokens   += usage.promptTokenCount    || 0;
-            totalResponseTokens += usage.candidatesTokenCount || 0;
-          }
-          agenticTurns++;
-          callSuccess = true;
-          break;
-        } else {
-          lastError = await geminiRes.text();
-          console.warn(`GrowBot: ${model.name} failed (${geminiRes.status}):`, lastError.slice(0, 500));
-          await new Promise(r => setTimeout(r, 500));
-        }
-      }
-
-      if (!callSuccess || !geminiData) {
-        console.error('All Gemini models failed:', lastError);
-        finalMessageText = "I am currently experiencing incredibly high traffic from other neighbors! Please try asking again in a few moments.";
-        break;
-      }
-
-      const responseCandidate = geminiData.candidates?.[0];
-      if (!responseCandidate) break;
-
-      const responseParts = responseCandidate.content?.parts || [];
-      console.log(`[GrowBot] Raw response parts:`, JSON.stringify(responseParts.map((p: any) => Object.keys(p))));
-      contents.push({
-        role: "model",
-        parts: responseParts
-      });
-
-      const functionCalls = responseParts.filter((p: any) => p.functionCall);
-      // Filter out 'thought' parts (model reasoning) — only include user-facing text
-      const textParts = responseParts.filter((p: any) => p.text && !p.thought).map((p: any) => p.text);
-
-      if (textParts.length > 0) {
-        finalMessageText += textParts.join('\\n');
-      }
-
-      console.log(`[GrowBot] Turn ${turnCount}: ${functionCalls.length} tool calls, ${textParts.length} text parts`);
-      if (functionCalls.length > 0) {
-        console.log(`[GrowBot] Tools called: ${functionCalls.map((c: any) => c.functionCall.name).join(', ')}`);
-        const functionResponses: any[] = [];
-        
-        for (const call of functionCalls) {
-          const fnName = call.functionCall.name;
-          const fnArgs = call.functionCall.args || {};
-          
-          // Position controls rendering order relative to text: 'after' = text first, card second (default)
-          const position = 'after';
-          
-          const actionPayload = { type: fnName, position, data: { ...fnArgs, user_id: userId } };
-          actions.push(actionPayload);
-          
-          const skillDef = skills.find((s: any) => s.name === fnName);
-          let resultData: any = { error: "Function completed locally (no backend RPC linked)." };
-          
-          // MarketRedirectCard — build the redirect URL server-side
-          if (fnName === 'MarketRedirectCard') {
-            const q = encodeURIComponent(fnArgs.search_query || '');
-            actionPayload.data.redirect_url = `/market${q ? `?q=${q}` : ''}`;
-            resultData = { success: true };
-          } else if (fnName === 'CommunityRedirectCard') {
-            actionPayload.data.redirect_url = '/community';
-            resultData = { success: true };
-          } else if (skillDef && skillDef.backend_function) {
-            try {
-              const { data: rpcResult, error: rpcError } = await supabase.rpc(skillDef.backend_function, { payload: actionPayload.data });
-              if (rpcError) {
-                resultData = { error: rpcError.message };
+        try {
+          while (turnCount < MAX_TURNS) {
+            turnCount++;
+            let geminiData: any = null;
+            let callSuccess = false;
+            let streamedText = "";
+            
+            for (const model of models) {
+              try {
+              const requestBody: any = {
+                contents: contents,
+                tools: tools,
+                tool_config: tools ? { function_calling_config: { mode: "AUTO" } } : undefined,
+                generationConfig: { temperature: 0.2, maxOutputTokens: 2048 },
+              };
+              const supportsSystemInstruction = model.name.startsWith('gemini') || model.name.startsWith('gemma-4');
+              if (supportsSystemInstruction) {
+                requestBody.system_instruction = { parts: [{ text: dynamicInstruction }] };
               } else {
-                resultData = rpcResult;
-                // Merge backend result into card data so fields like status, community_message_id are accessible
-                actionPayload.data = { ...actionPayload.data, ...rpcResult };
+                requestBody.contents = [
+                  { role: "user", parts: [{ text: `[SYSTEM INSTRUCTIONS]\n${dynamicInstruction}` }] },
+                  { role: "model", parts: [{ text: "Understood. I will follow these instructions." }] },
+                  ...requestBody.contents,
+                ];
               }
-            } catch (e: any) {
-              resultData = { error: e.message };
-            }
-          }
-          
-          // Special handling for UserMemoryCard persistence
-          if (fnName === 'UserMemoryCard') {
-            const d = fnArgs;
-            const factLines: string[] = [];
-            if (d.extracted_name) factLines.push(`User's name is ${d.extracted_name}.`);
-            if (d.neighborhood_or_address) factLines.push(`User lives at/near: ${d.neighborhood_or_address}.`);
-            if (d.has_home_garden === true) factLines.push('User has a home garden.');
-            if (d.has_home_garden === false) factLines.push('User does not have a home garden.');
-            if (Array.isArray(d.growing_crops) && d.growing_crops.length) factLines.push(`User grows: ${d.growing_crops.join(', ')}.`);
-            if (typeof d.growing_crops === 'string' && d.growing_crops) factLines.push(`User grows: ${d.growing_crops}.`);
-            if (Array.isArray(d.buying_interests) && d.buying_interests.length) factLines.push(`User buys: ${d.buying_interests.join(', ')}.`);
-            if (Array.isArray(d.profession_or_skills) && d.profession_or_skills.length) factLines.push(`User's skills/profession: ${d.profession_or_skills.join(', ')}.`);
+              if (model.name.includes('gemini-2.5')) {
+                requestBody.generationConfig.thinkingConfig = { thinkingBudget: 0 };
+              }
 
-            if (factLines.length > 0) {
-              const factInserts = factLines.map(fact => ({ user_id: userId, fact, embedding: Array(768).fill(0) }));
-              const { error: factErr } = await supabase.from('growbot_user_facts').upsert(factInserts, { onConflict: 'user_id,fact' });
-              if (factErr) console.warn('UserMemory insert failed:', factErr.message);
+              // Use streamGenerateContent with SSE format
+              const geminiRes = await fetch(
+                `https://generativelanguage.googleapis.com/${model.version}/models/${model.name}:streamGenerateContent?alt=sse&key=${AI_KEY}`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(requestBody),
+                }
+              );
+
+              if (geminiRes.ok) {
+                // Read SSE stream from Gemini, collect full response + stream text to client
+                const reader = geminiRes.body!.getReader();
+                const decoder = new TextDecoder();
+                let buffer = "";
+                const allParts: any[] = [];
+
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  buffer += decoder.decode(value, { stream: true });
+                  
+                  // Parse SSE lines
+                  const lines = buffer.split('\n');
+                  buffer = lines.pop() || ""; // Keep incomplete line in buffer
+                  
+                  for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue;
+                    const jsonStr = line.slice(6).trim();
+                    if (!jsonStr || jsonStr === '[DONE]') continue;
+                    
+                    try {
+                      const chunk = JSON.parse(jsonStr);
+                      const parts = chunk.candidates?.[0]?.content?.parts || [];
+                      
+                      for (const part of parts) {
+                        allParts.push(part);
+                        // Only stream non-thought text (thought=true is internal reasoning)
+                        if (part.text && part.thought !== true) {
+                          streamedText += part.text;
+                          send('delta', { text: part.text });
+                        }
+                      }
+
+                      // Accumulate token usage
+                      const usage = chunk.usageMetadata;
+                      if (usage) {
+                        totalPromptTokens = usage.promptTokenCount || totalPromptTokens;
+                        totalResponseTokens = usage.candidatesTokenCount || totalResponseTokens;
+                      }
+                    } catch { /* skip malformed chunks */ }
+                  }
+                }
+
+                // Build geminiData-compatible structure from collected parts
+                geminiData = { candidates: [{ content: { parts: allParts } }] };
+                agenticTurns++;
+                callSuccess = true;
+                break;
+              } else {
+                lastError = await geminiRes.text();
+                if (geminiRes.status === 429) {
+                  const retryAfter = geminiRes.headers.get('retry-after') || '60';
+                  console.warn(`GrowBot: Quota exceeded (429), retry after ${retryAfter}s`);
+                  finalMessageText = `🌱 I'm getting a lot of questions right now! Give me about ${retryAfter} seconds and try again.`;
+                  break; // break the model loop, don't try other models
+                }
+                console.warn(`GrowBot: ${model.name} failed (${geminiRes.status}):`, lastError.slice(0, 500));
+                await new Promise(r => setTimeout(r, 500));
+              }
+              } catch (networkErr: any) {
+                lastError = networkErr.message || String(networkErr);
+                console.warn(`GrowBot: ${model.name} network error:`, lastError.slice(0, 300));
+                await new Promise(r => setTimeout(r, 500));
+              }
             }
-            resultData = { success: true, facts_saved: factLines.length };
+
+            if (!callSuccess && !finalMessageText && !geminiData) {
+              console.error('All Gemini models failed:', lastError);
+              finalMessageText = "Oops! I had a hiccup connecting to my brain. 🧠 Please try again — it usually works on the second try!";
+              break;
+            }
+
+            const responseCandidate = geminiData.candidates?.[0];
+            if (!responseCandidate) break;
+
+            const responseParts = responseCandidate.content?.parts || [];
+            console.log(`[GrowBot] Raw response parts:`, JSON.stringify(responseParts.map((p: any) => Object.keys(p))));
+            contents.push({ role: "model", parts: responseParts });
+
+            const functionCalls = responseParts.filter((p: any) => p.functionCall);
+            let textParts = responseParts.filter((p: any) => p.text && p.thought !== true).map((p: any) => p.text);
+            
+            // gemini-2.5-flash puts all text into thought parts even with thinkingBudget:0
+            // Fall back to thought text when no non-thought text exists
+            if (textParts.length === 0 && functionCalls.length === 0) {
+              const thoughtTexts = responseParts.filter((p: any) => p.text && p.thought === true).map((p: any) => p.text);
+              if (thoughtTexts.length > 0) {
+                // Use the last few thought parts which usually contain the actual response
+                textParts = thoughtTexts;
+                console.log(`[GrowBot] Using ${thoughtTexts.length} thought parts as text (flash thinking fallback)`);
+              }
+            }
+            console.log(`[GrowBot] Parts breakdown: ${responseParts.length} total, ${responseParts.filter((p:any) => p.thought === true).length} thought, ${textParts.length} text, ${functionCalls.length} tool calls`);
+
+            if (textParts.length > 0) {
+              finalMessageText = textParts.join('');
+            }
+
+            console.log(`[GrowBot] Turn ${turnCount}: ${functionCalls.length} tool calls, ${textParts.length} text parts`);
+            if (functionCalls.length > 0) {
+              console.log(`[GrowBot] Tools called: ${functionCalls.map((c: any) => c.functionCall.name).join(', ')}`);
+
+              // Deduplicate: skip tools already called in a previous turn
+              const newCalls = functionCalls.filter((c: any) => !calledTools.has(c.functionCall.name));
+              if (newCalls.length === 0) {
+                console.log('[GrowBot] All tools already called, breaking loop');
+                break;
+              }
+
+              // Signal client that we're processing tools
+              send('status', { message: '🔧 Working on it...' });
+              
+              const functionResponses: any[] = [];
+        
+              for (const call of newCalls) {
+                const fnName = call.functionCall.name;
+                const fnArgs = call.functionCall.args || {};
+                calledTools.add(fnName);
+                
+                const position = 'after';
+                const actionPayload = { type: fnName, position, data: { ...fnArgs, user_id: userId } };
+                actions.push(actionPayload);
+                
+                const skillDef = skills.find((s: any) => s.name === fnName);
+                let resultData: any = { error: "Function completed locally (no backend RPC linked)." };
+                
+                if (fnName === 'MarketRedirectCard') {
+                  const q = encodeURIComponent(fnArgs.search_query || '');
+                  actionPayload.data.redirect_url = `/market${q ? `?q=${q}` : ''}`;
+                  resultData = { success: true };
+                } else if (fnName === 'CommunityRedirectCard') {
+                  actionPayload.data.redirect_url = '/community';
+                  resultData = { success: true };
+                } else if (skillDef && skillDef.backend_function) {
+                  try {
+                    const { data: rpcResult, error: rpcError } = await supabase.rpc(skillDef.backend_function, { payload: actionPayload.data });
+                    if (rpcError) {
+                      resultData = { error: rpcError.message };
+                    } else {
+                      resultData = rpcResult;
+                      actionPayload.data = { ...actionPayload.data, ...rpcResult };
+                    }
+                  } catch (e: any) {
+                    resultData = { error: e.message };
+                  }
+                }
+                
+                // Special handling for UserMemoryCard persistence
+                if (fnName === 'UserMemoryCard') {
+                  const d = fnArgs;
+                  const factLines: string[] = [];
+                  if (d.extracted_name) factLines.push(`User's name is ${d.extracted_name}.`);
+                  if (d.neighborhood_or_address) factLines.push(`User lives at/near: ${d.neighborhood_or_address}.`);
+                  if (d.has_home_garden === true) factLines.push('User has a home garden.');
+                  if (d.has_home_garden === false) factLines.push('User does not have a home garden.');
+                  if (Array.isArray(d.growing_crops) && d.growing_crops.length) factLines.push(`User grows: ${d.growing_crops.join(', ')}.`);
+                  if (typeof d.growing_crops === 'string' && d.growing_crops) factLines.push(`User grows: ${d.growing_crops}.`);
+                  if (Array.isArray(d.buying_interests) && d.buying_interests.length) factLines.push(`User buys: ${d.buying_interests.join(', ')}.`);
+                  if (Array.isArray(d.profession_or_skills) && d.profession_or_skills.length) factLines.push(`User's skills/profession: ${d.profession_or_skills.join(', ')}.`);
+
+                  if (factLines.length > 0) {
+                    if (userId) {
+                      const factInserts = factLines.map(fact => ({ user_id: userId, fact, embedding: Array(768).fill(0) }));
+                      const { error: factErr } = await supabase.from('growbot_user_facts').upsert(factInserts, { onConflict: 'user_id,fact' });
+                      if (factErr) console.warn('UserMemory insert failed:', factErr.message);
+                    } else if (guestSessionId) {
+                      const factInserts = factLines.map(fact => ({ guest_session_id: guestSessionId, fact, embedding: Array(768).fill(0) }));
+                      const { error: factErr } = await supabase.from('growbot_user_facts').insert(factInserts);
+                      if (factErr) console.warn('Guest UserMemory insert failed:', factErr.message);
+                    }
+                  }
+
+                  const notifyPref = d.notify_on_demand === true || d.notify_on_demand === false ? d.notify_on_demand : null;
+                  const crops: string[] = Array.isArray(d.growing_crops) ? d.growing_crops
+                    : (typeof d.growing_crops === 'string' && d.growing_crops) ? d.growing_crops.split(',').map((s: string) => s.trim()).filter(Boolean)
+                    : [];
+                  if (crops.length > 0 && userId) {
+                    const gardenInserts = crops.map(name => ({ user_id: userId, produce_name: name.toLowerCase().trim(), is_custom: true }));
+                    const { error: gardenErr } = await supabase.from('user_garden')
+                      .upsert(gardenInserts, { onConflict: 'user_id,produce_name', ignoreDuplicates: true });
+                    if (gardenErr) console.warn('Garden upsert failed:', gardenErr.message);
+
+                    if (notifyPref === true || notifyPref === null) {
+                      const growerInserts = crops.map(name => ({ user_id: userId, produce_name: name.toLowerCase().trim(), notify_on_search: notifyPref !== false }));
+                      const { error: growerErr } = await supabase.from('grower_produces')
+                        .upsert(growerInserts, { onConflict: 'user_id,produce_name', ignoreDuplicates: true });
+                      if (growerErr) console.warn('Grower produces upsert failed:', growerErr.message);
+                    }
+                  } else if (notifyPref !== null && userId) {
+                    await supabase.from('grower_produces').update({ notify_on_search: notifyPref }).eq('user_id', userId);
+                  }
+
+                  if (notifyPref !== null) {
+                    const notifyFact = notifyPref ? 'User wants to be notified when neighbors look for what they grow.' : 'User does NOT want demand notifications.';
+                    if (userId) {
+                      await supabase.from('growbot_user_facts').upsert([{ user_id: userId, fact: notifyFact, embedding: Array(768).fill(0) }], { onConflict: 'user_id,fact' });
+                    } else if (guestSessionId) {
+                      await supabase.from('growbot_user_facts').insert([{ guest_session_id: guestSessionId, fact: notifyFact, embedding: Array(768).fill(0) }]);
+                    }
+                  }
+
+                  resultData = { success: true, facts_saved: factLines.length, crops_saved: crops.length };
+                }
+                
+                functionResponses.push({
+                  functionResponse: { name: fnName, response: { ...resultData, note: 'Card already rendered to user. Do NOT call this tool again.' } }
+                });
+              }
+
+              // Also add responses for skipped duplicate calls
+              for (const call of functionCalls.filter((c: any) => calledTools.has(c.functionCall.name) && !newCalls.includes(c))) {
+                functionResponses.push({
+                  functionResponse: { name: call.functionCall.name, response: { already_rendered: true, note: 'This card was already shown to the user. Proceed with your text response.' } }
+                });
+              }
+              
+              contents.push({ role: "user", parts: functionResponses });
+              
+            } else {
+              // No function calls, the model has finished
+              break;
+            }
           }
-          
-          functionResponses.push({
-            functionResponse: {
-              name: fnName,
-              response: resultData
-            }
+
+          // Parse NEXT_ACTIONS block out of the final text response
+          const nextActionsMatch = finalMessageText.match(/NEXT_ACTIONS:\s*(\[.*?\])/s);
+          let nextActions: string[] = [];
+          if (nextActionsMatch) {
+            try {
+              nextActions = JSON.parse(nextActionsMatch[1]);
+            } catch { /* ignore malformed */ }
+            finalMessageText = finalMessageText.replace(/\nNEXT_ACTIONS:\s*\[.*?\]/s, '').trimEnd();
+          }
+
+          // Save to DB
+          if (conversationId) {
+            await supabase.from('market_chat_messages').insert({
+              conversation_id: conversationId,
+              sender_id: 'a0000000-0000-0000-0000-00000ca5ab07',
+              content: finalMessageText || 'No response',
+              ui_actions: actions || []
+            });
+          }
+
+          // Record token usage
+          if (message !== '__INIT_WELCOME__' && (totalPromptTokens > 0 || totalResponseTokens > 0)) {
+            supabase.from('growbot_token_usage').insert({
+              user_id: userId || null,
+              guest_session_id: userId ? null : (guestSessionId || null),
+              prompt_tokens: totalPromptTokens,
+              response_tokens: totalResponseTokens,
+              total_tokens: totalPromptTokens + totalResponseTokens,
+              agentic_turns: agenticTurns,
+            }).then(({ error }) => {
+              if (error) console.warn('Token usage insert failed:', error.message);
+            });
+          }
+
+          // Send final done event with complete data (client replaces interim text)
+          send('done', {
+            text: finalMessageText,
+            actions: actions,
+            nextActions: nextActions,
           });
+
+        } catch (err: any) {
+          console.error('Streaming error:', err);
+          send('error', { message: err.message });
+        } finally {
+          controller.close();
         }
-        
-        contents.push({
-          role: "user",
-          parts: functionResponses
-        });
-        
-      } else {
-        // No function calls, the model has finished
-        break;
       }
-    }
+    });
 
-    if (conversationId) {
-       await supabase.from('market_chat_messages').insert({
-         conversation_id: conversationId,
-         sender_id: 'a0000000-0000-0000-0000-00000ca5ab07',
-         content: finalMessageText || 'No response',
-         ui_actions: actions || []
-       });
-    }
-
-    // Record token usage per exchange (fire-and-forget, non-blocking)
-    if (message !== '__INIT_WELCOME__' && (totalPromptTokens > 0 || totalResponseTokens > 0)) {
-      supabase.from('growbot_token_usage').insert({
-        user_id:          userId  || null,
-        guest_session_id: userId  ? null : (guestSessionId || null),
-        prompt_tokens:    totalPromptTokens,
-        response_tokens:  totalResponseTokens,
-        total_tokens:     totalPromptTokens + totalResponseTokens,
-        agentic_turns:    agenticTurns,
-      }).then(({ error }) => {
-        if (error) console.warn('Token usage insert failed:', error.message);
-      });
-    }
-
-    return new Response(JSON.stringify({
-      text: finalMessageText,
-      actions: actions
-    }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    return new Response(stream, {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      }
+    });
 
   } catch (error: any) {
     console.error('GrowBot Edge Function Error:', error);

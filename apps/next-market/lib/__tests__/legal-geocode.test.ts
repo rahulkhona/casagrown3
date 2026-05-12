@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // Unmock so we test the real implementations (setup.ts mocks these for rendering tests)
 vi.unmock('../../lib/legal')
@@ -54,6 +54,10 @@ describe('geocode.ts - geocodeAddress', () => {
     const store: Record<string, string> = {}
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(key => store[key] ?? null)
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation((key, val) => { store[key] = val })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('returns null for failed fetch', async () => {

@@ -5,7 +5,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 
 -- Add ui_actions to market_chat_messages
 ALTER TABLE public.market_chat_messages
-ADD COLUMN ui_actions JSONB DEFAULT '[]'::jsonb;
+ADD COLUMN IF NOT EXISTS ui_actions JSONB DEFAULT '[]'::jsonb;
 
 -- Create growbot_skills table
 CREATE TABLE public.growbot_skills (
