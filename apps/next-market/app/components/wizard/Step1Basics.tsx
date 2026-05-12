@@ -376,7 +376,7 @@ export default function Step1Basics() {
             }}
             title={((state.name || '').trim().length <= 2) ? "Enter a product name first" : "Generate recipes"}
           >
-            🐝 {isGeneratingRecipes ? 'Thinking...' : 'Ask CasaBot for Recipes ✨'}
+            <img src="/growbot-avatar-v3.png" alt="GrowBot" style={{ width: 14, height: 14, borderRadius: '50%' }} /> {isGeneratingRecipes ? 'Thinking...' : 'Ask GrowBot for Recipes ✨'}
           </button>
         </div>
         {generatedRecipesList.length > 0 && (

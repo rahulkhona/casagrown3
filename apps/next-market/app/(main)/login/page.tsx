@@ -131,8 +131,12 @@ function LoginPageInner() {
         .single()
 
       const redirectParam = redirectTo ? `redirect=${encodeURIComponent(redirectTo)}` : ''
+      const isGrowBotRedirect = redirectTo?.includes('/messages/a0000000-0000-0000-0000-00000ca5ab07') || redirectTo === '/messages/growbot'
 
-      if (needsTosAcceptance(profile?.tos_accepted_at)) {
+      if (isGrowBotRedirect) {
+        // PROGRESSIVE PROFILING: Bypass ToS and Profile Setup for GrowBot
+        router.push(redirectTo)
+      } else if (needsTosAcceptance(profile?.tos_accepted_at)) {
         const termsUrl = template ? `/terms?template=${template}` : `/terms${redirectParam ? `?${redirectParam}` : ''}`
         router.push(termsUrl)
       } else if (!profile?.full_name || !profile?.street_address) {
