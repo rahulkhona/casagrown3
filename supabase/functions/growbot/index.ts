@@ -104,7 +104,11 @@ serve(async (req: Request) => {
 
     const tools = functionDeclarations.length > 0 ? [{ functionDeclarations }] : undefined;
 
-    let dynamicInstruction = `You are GrowBot, a hyper-local Home & Garden Assistant for CasaGrown marketplace.
+    let dynamicInstruction = `You are GrowBot, a Home & Garden Assistant for CasaGrown marketplace.
+
+Your v1 capabilities: (1) gather user profile details, (2) identify plants, (3) diagnose plant problems, (4) suggest recipes using what the user grows, (5) help users list items for sale on CasaGrown Market.
+
+For buying requests → MarketRedirectCard. For community posts → CommunityRedirectCard. For anything outside your scope → ExternalSearchCard.
 
 RULES (follow strictly):\n`;
     globalRules.forEach(rule => dynamicInstruction += `- ${rule}\n`);
@@ -153,15 +157,15 @@ RULES (follow strictly):\n`;
           ? `Welcome back, ${userName}! You're all set. 🌱 What can I help you with?`
           : `Great, you're signed in! To personalize things — what's your name?`;
       } else if (isLoggedIn && isProfileComplete) {
-        welcomeText = `Hey${hasName ? ` ${userName}` : ''}! 🌱 I can identify plants, diagnose issues, help you buy or sell local produce, and more.\n\nWhat can I help you with today?`;
+        welcomeText = `Hey${hasName ? ` ${userName}` : ''}! 🌱 I can identify plants, diagnose problems, suggest recipes from your garden, and help you list items for sale on CasaGrown.\n\nWhat can I help you with today?`;
       } else if (isLoggedIn) {
         // Logged in but missing profile info — introduce + ask for what's missing
         const missing: string[] = [];
         if (!hasName) missing.push('your name');
-        if (!hasLocation) missing.push('your neighborhood or area');
-        welcomeText = `Hey there! I'm GrowBot — I can identify plants, diagnose issues, help you buy or sell local produce, and more. 🌱\n\nQuick question to personalize your experience — what's ${missing.join(' and ')}?`;
+        if (!hasLocation) missing.push('your neighborhood or zip code');
+        welcomeText = `Hey there! I'm GrowBot 🌱\n\nI can identify plants, diagnose problems, suggest recipes from your garden, and help you list items for sale on CasaGrown.\n\nTo personalize your experience — what's ${missing.join(' and ')}?`;
       } else {
-        welcomeText = `Hey! I'm GrowBot, your Home & Garden assistant. 🌱\n\nI can identify plants, diagnose issues, help you buy or sell local produce, and more. Ask me anything!\n\nIf you'd like personalized advice, I'll help you sign in when the time comes.`;
+        welcomeText = `Hey! I'm GrowBot, your Home & Garden assistant. 🌱\n\nI can identify plants, diagnose problems, suggest recipes, and help you list items for sale on CasaGrown. Ask me anything!\n\nIf you'd like personalized tips, I'll help you sign in when the time comes.`;
       }
 
       return new Response(
@@ -325,42 +329,14 @@ RULES (follow strictly):\n`;
           const skillDef = skills.find((s: any) => s.name === fnName);
           let resultData: any = { error: "Function completed locally (no backend RPC linked)." };
           
-          // Shopping uses the dedicated multi-source edge function
-          if (fnName === 'ShoppingResultsCard') {
-            try {
-              // Resolve user zip for location-based search
-              let userZip = '';
-              if (userId) {
-                const { data: prof } = await supabase.from('profiles').select('zip_code').eq('id', userId).single();
-                userZip = prof?.zip_code || '';
-              }
-              
-              const searchPayload = {
-                search_items: fnArgs.search_items || [fnArgs.search_intent || ''],
-                category: fnArgs.category || 'general',
-                prefer_local: fnArgs.prefer_local !== false,
-                user_id: userId,
-                zip_code: userZip,
-              };
-              
-              const shopResp = await fetch(`${supabaseUrl}/functions/v1/shopping-search`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceRoleKey}` },
-                body: JSON.stringify(searchPayload),
-              });
-              
-              if (shopResp.ok) {
-                const shopData = await shopResp.json();
-                resultData = shopData;
-                actionPayload.data.backend_results = shopData.backend_results || shopData;
-                actionPayload.data.result_count = shopData.result_count;
-                actionPayload.data.sources_checked = shopData.sources_checked;
-              } else {
-                resultData = { error: `Shopping search failed: ${shopResp.status}` };
-              }
-            } catch (e: any) {
-              resultData = { error: e.message };
-            }
+          // MarketRedirectCard — build the redirect URL server-side
+          if (fnName === 'MarketRedirectCard') {
+            const q = encodeURIComponent(fnArgs.search_query || '');
+            actionPayload.data.redirect_url = `/market${q ? `?q=${q}` : ''}`;
+            resultData = { success: true };
+          } else if (fnName === 'CommunityRedirectCard') {
+            actionPayload.data.redirect_url = '/community';
+            resultData = { success: true };
           } else if (skillDef && skillDef.backend_function) {
             try {
               const { data: rpcResult, error: rpcError } = await supabase.rpc(skillDef.backend_function, { payload: actionPayload.data });

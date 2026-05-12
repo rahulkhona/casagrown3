@@ -1,6 +1,6 @@
 'use client'
 import React, { useState, useEffect } from 'react'
-import { ShoppingBag, Wrench, Leaf, BookOpen, Send, Sparkles, KeyRound } from 'lucide-react'
+import { ShoppingBag, Wrench, Leaf, BookOpen, Send, Sparkles, KeyRound, ExternalLink, Search, MapPin } from 'lucide-react'
 import { createClient } from '../../../lib/supabase'
 import SocialShareModal from '../SocialShareModal'
 
@@ -120,11 +120,17 @@ export function PlantGuideCard({ data, onActionClick }: { data: any, onActionCli
 }
 
 export function RecipeCard({ data, onActionClick }: { data: any, onActionClick?: (action: string) => void }) {
+  const title = data.dish_name || data.recipe_name || 'Recipe';
   return (
     <div style={{ border: '1px solid #fed7aa', borderRadius: 12, padding: 16, background: '#fff7ed', marginTop: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <BookOpen size={18} color="#ea580c" />
-        <span style={{ fontWeight: 700, color: '#7c2d12', fontSize: 15 }}>{data.recipe_name}</span>
+        <span style={{ fontWeight: 700, color: '#7c2d12', fontSize: 15 }}>{title}</span>
+        {(data.prep_time || data.serving_size) && (
+          <span style={{ marginLeft: 'auto', fontSize: 12, color: '#ea580c', background: '#ffedd5', padding: '2px 8px', borderRadius: 10 }}>
+            {[data.prep_time, data.serving_size].filter(Boolean).join(' · ')}
+          </span>
+        )}
       </div>
       <div style={{ background: 'white', borderRadius: 8, padding: 12 }}>
         <div style={{ fontWeight: 700, color: '#374151', marginBottom: 4 }}>Ingredients:</div>
@@ -334,8 +340,169 @@ export function ShoppingResultsCard({ data, onActionClick }: { data: any, onActi
   );
 }
 
+// ─── v1 New Cards ────────────────────────────────────────────────────
 
+export function PlantIdentificationCard({ data, onActionClick }: { data: any, onActionClick?: (action: string) => void }) {
+  return (
+    <div style={{ border: '1px solid #bbf7d0', borderRadius: 12, padding: 16, background: '#f0fdf4', marginTop: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <Leaf size={18} color="#16a34a" />
+        <span style={{ fontWeight: 700, color: '#14532d', fontSize: 15 }}>Plant Identification</span>
+      </div>
+      <div style={{ background: 'white', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div>
+          <div style={{ fontWeight: 700, color: '#111827', fontSize: 16 }}>{data.common_name}</div>
+          {data.scientific_name && (
+            <div style={{ color: '#6b7280', fontSize: 12, fontStyle: 'italic' }}>{data.scientific_name}</div>
+          )}
+        </div>
+        {data.description && (
+          <div style={{ color: '#4b5563', fontSize: 13 }}>{data.description}</div>
+        )}
+        {data.care_instructions && (
+          <div>
+            <div style={{ fontWeight: 700, color: '#374151', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Care Tips</div>
+            <div style={{ color: '#4b5563', fontSize: 13 }}>{data.care_instructions}</div>
+          </div>
+        )}
+        {data.edibility && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f9fafb', borderRadius: 6, padding: '6px 10px' }}>
+            <span style={{ fontSize: 14 }}>{data.edibility.toLowerCase().includes('edible') ? '🍽️' : data.edibility.toLowerCase().includes('toxic') ? '⚠️' : '🌿'}</span>
+            <span style={{ color: '#374151', fontSize: 13 }}>{data.edibility}</span>
+          </div>
+        )}
+      </div>
+      <ActionChips actions={data.suggested_next_actions} onActionClick={onActionClick} />
+    </div>
+  );
+}
 
+export function MarketRedirectCard({ data, onActionClick }: { data: any, onActionClick?: (action: string) => void }) {
+  const url = data.redirect_url || `/market${data.search_query ? `?q=${encodeURIComponent(data.search_query)}` : ''}`;
+  return (
+    <div style={{ border: '1px solid #bbf7d0', borderRadius: 12, padding: 16, background: '#f0fdf4', marginTop: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <ShoppingBag size={18} color="#16a34a" />
+        <span style={{ fontWeight: 700, color: '#14532d', fontSize: 15 }}>Check CasaGrown Market</span>
+      </div>
+      <div style={{ background: 'white', borderRadius: 8, padding: 12, marginBottom: 10 }}>
+        {data.message && <div style={{ color: '#4b5563', fontSize: 13, marginBottom: 8 }}>{data.message}</div>}
+        {data.search_query && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#6b7280', fontSize: 12 }}>
+            <Search size={12} />
+            <span>Searching for: <strong>{data.search_query}</strong></span>
+          </div>
+        )}
+      </div>
+      <a
+        href={url}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          width: '100%', padding: '10px 0', background: '#16a34a', color: 'white',
+          border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 14,
+          cursor: 'pointer', textDecoration: 'none', boxSizing: 'border-box',
+        }}
+      >
+        <ShoppingBag size={15} />
+        Browse CasaGrown Market
+      </a>
+      <ActionChips actions={data.suggested_next_actions} onActionClick={onActionClick} />
+    </div>
+  );
+}
+
+export function CommunityRedirectCard({ data, onActionClick }: { data: any, onActionClick?: (action: string) => void }) {
+  const [copied, setCopied] = React.useState(false);
+  const handleCopy = () => {
+    if (data.suggested_post) {
+      navigator.clipboard.writeText(data.suggested_post);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+  return (
+    <div style={{ border: '1px solid #c7d2fe', borderRadius: 12, padding: 16, background: '#eef2ff', marginTop: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <Send size={18} color="#6366f1" />
+        <span style={{ fontWeight: 700, color: '#312e81', fontSize: 15 }}>Post to CasaGrown Community</span>
+      </div>
+      {data.message && (
+        <div style={{ color: '#4b5563', fontSize: 13, marginBottom: 8 }}>{data.message}</div>
+      )}
+      {data.suggested_post && (
+        <div style={{ background: 'white', borderRadius: 8, padding: 12, marginBottom: 10, border: '1px solid #e0e7ff' }}>
+          <div style={{ color: '#374151', fontSize: 13, fontStyle: 'italic', marginBottom: 8 }}>"{data.suggested_post}"</div>
+          <button
+            onClick={handleCopy}
+            style={{
+              background: 'none', border: '1px solid #c7d2fe', borderRadius: 6,
+              color: '#6366f1', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '4px 10px',
+            }}
+          >
+            {copied ? '✅ Copied!' : '📋 Copy post'}
+          </button>
+        </div>
+      )}
+      <a
+        href="/community"
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          width: '100%', padding: '10px 0', background: '#6366f1', color: 'white',
+          border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 14,
+          cursor: 'pointer', textDecoration: 'none', boxSizing: 'border-box',
+        }}
+      >
+        <Send size={15} />
+        Go to Community Board
+      </a>
+      <ActionChips actions={data.suggested_next_actions} onActionClick={onActionClick} />
+    </div>
+  );
+}
+
+export function ExternalSearchCard({ data, onActionClick }: { data: any, onActionClick?: (action: string) => void }) {
+  const q = encodeURIComponent(data.search_query || '');
+  const engines = [
+    { name: 'Google', url: `https://www.google.com/search?q=${q}`, color: '#4285f4' },
+    { name: 'DuckDuckGo', url: `https://duckduckgo.com/?q=${q}`, color: '#de5833' },
+  ];
+  return (
+    <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 16, background: '#f9fafb', marginTop: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <ExternalLink size={18} color="#6b7280" />
+        <span style={{ fontWeight: 700, color: '#374151', fontSize: 15 }}>Search Online</span>
+      </div>
+      {data.message && (
+        <div style={{ color: '#4b5563', fontSize: 13, marginBottom: 10 }}>{data.message}</div>
+      )}
+      {data.search_query && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#6b7280', fontSize: 12, marginBottom: 10 }}>
+          <Search size={12} />
+          <span>Query: <strong>{data.search_query}</strong></span>
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 8 }}>
+        {engines.map(e => (
+          <a
+            key={e.name}
+            href={e.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              flex: 1, padding: '9px 0', borderRadius: 8, fontWeight: 600,
+              fontSize: 13, color: 'white', background: e.color,
+              textDecoration: 'none', textAlign: 'center',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+            }}
+          >
+            <ExternalLink size={13} /> {e.name}
+          </a>
+        ))}
+      </div>
+      <ActionChips actions={data.suggested_next_actions} onActionClick={onActionClick} />
+    </div>
+  );
+}
 export function GrowSuggestionCard({ data, onActionClick }: { data: any, onActionClick?: (action: string) => void }) {
   // suggestions may be a string or an array from the AI
   const suggestionList: string[] = Array.isArray(data.suggestions)
@@ -644,14 +811,18 @@ export default function DynamicUICardRenderer({ action, onActionClick, onSystemM
 
   // Known cards with rich, custom UX
   switch (action.type) {
-    case 'AuthenticationCard':      return <AuthenticationCard data={action.data} onActionClick={onActionClick} onSystemMessage={onSystemMessage} />;
-    case 'SellerWizardCard':        return <SellerWizardCard data={action.data} onActionClick={onActionClick} />;
-    case 'DiagnosisCard':           return <DiagnosisCard data={action.data} onActionClick={onActionClick} />;
-    case 'PlantGuideCard':          return <PlantGuideCard data={action.data} onActionClick={onActionClick} />;
-    case 'RecipeCard':              return <RecipeCard data={action.data} onActionClick={onActionClick} />;
-    case 'BroadcastBuyRequestCard': return <BroadcastBuyRequestCard data={action.data} onActionClick={onActionClick} />;
-    case 'GrowSuggestionCard':      return <GrowSuggestionCard data={action.data} onActionClick={onActionClick} />;
-    case 'ShoppingResultsCard':     return (action.data?.result_count > 0) ? <ShoppingResultsCard data={action.data} onActionClick={onActionClick} /> : null;
+    case 'AuthenticationCard':       return <AuthenticationCard data={action.data} onActionClick={onActionClick} onSystemMessage={onSystemMessage} />;
+    case 'SellerWizardCard':         return <SellerWizardCard data={action.data} onActionClick={onActionClick} />;
+    case 'DiagnosisCard':            return <DiagnosisCard data={action.data} onActionClick={onActionClick} />;
+    case 'PlantIdentificationCard':  return <PlantIdentificationCard data={action.data} onActionClick={onActionClick} />;
+    case 'RecipeCard':               return <RecipeCard data={action.data} onActionClick={onActionClick} />;
+    case 'MarketRedirectCard':       return <MarketRedirectCard data={action.data} onActionClick={onActionClick} />;
+    case 'CommunityRedirectCard':    return <CommunityRedirectCard data={action.data} onActionClick={onActionClick} />;
+    case 'ExternalSearchCard':       return <ExternalSearchCard data={action.data} onActionClick={onActionClick} />;
+    case 'BroadcastBuyRequestCard':  return <BroadcastBuyRequestCard data={action.data} onActionClick={onActionClick} />;
+    case 'GrowSuggestionCard':       return <GrowSuggestionCard data={action.data} onActionClick={onActionClick} />;
+    case 'PlantGuideCard':           return <PlantGuideCard data={action.data} onActionClick={onActionClick} />;
+    // ShoppingResultsCard retired in v1 — falls through to DynamicToolCard if somehow called
 
     // All new tools added via Admin → render dynamically
     default:
