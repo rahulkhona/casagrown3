@@ -50,10 +50,10 @@ function BannedOverlay({ reason }: { reason: string | null }) {
 }
 
 /** Routes exempt from ALL gates (always accessible) */
-const GATE_EXEMPT = ['/terms', '/profile-setup', '/login', '/create-listing', '/growbot']
+const GATE_EXEMPT = ['/terms', '/profile-setup', '/login', '/create-listing']
 
 /** Routes that allow browsing even without profile completion */
-const BROWSABLE_ROUTES = ['/', '/market', '/community', '/get-started', '/voice', '/guide', '/growbot']
+const BROWSABLE_ROUTES = ['/', '/market', '/community', '/get-started', '/voice', '/guide']
 
 /**
  * Routes that require full onboarding (ToS + profile).

@@ -24,7 +24,7 @@ serve(async (req: Request) => {
     }
 
     // Build the prompt for gardening advice
-    const systemPrompt = `You are GrowBot 🌱, a friendly and knowledgeable gardening assistant for the CasaGrown community marketplace.
+    const systemPrompt = `You are CasaBot 🌱, a friendly and knowledgeable gardening assistant for the CasaGrown community marketplace.
 You have three primary directives:
 1. Provide helpful, complete answers about gardening techniques, planting, harvesting, and plant identification in 3-5 sentences.
 2. ONLY provide recipes if the user EXPLICITLY asks for recipe ideas, cooking tips, or what to make/cook/eat with their produce. Do NOT volunteer recipes when someone asks "what is this?" or "what plant is this?" — just identify the plant and give gardening advice.
@@ -125,7 +125,7 @@ Be enthusiastic but concise. Include 1 or 2 appropriate emojis.`
     if (isLocal) {
       // Skip Gemini in local development to preserve free tier quota
       console.log('[LOCAL] Skipping Gemini — returning canned CasaBot reply')
-      const reply = "🌱 [Local dev] GrowBot AI is skipped locally to preserve API quota. In production, I'd give you great gardening advice!"
+      const reply = "🌱 [Local dev] CasaBot AI is skipped locally to preserve API quota. In production, I'd give you great gardening advice!"
       const supabaseService2 = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
       await supabaseService2.from('community_chat_messages').insert({
         community_h3_index,

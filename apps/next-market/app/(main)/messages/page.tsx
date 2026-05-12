@@ -14,7 +14,6 @@ export default function MessagesInboxPage() {
   const [loading, setLoading] = useState(true)
   const [searchModalOpen, setSearchModalOpen] = useState(false)
   const [filterQuery, setFilterQuery] = useState('')
-  const [growBotPreview, setGrowBotPreview] = useState('Ask me anything about gardening! 🌱')
 
   useEffect(() => {
     if (authLoading) return
@@ -46,8 +45,6 @@ export default function MessagesInboxPage() {
         .limit(1, { foreignTable: 'market_chat_messages' })
 
       if (data) {
-        let gbPreview = 'Ask me anything about gardening! 🌱'
-        
         const formatted = data.map(conv => {
           const isA = conv.participant_a === user.id
           const otherProfile = isA ? conv.profile_b : conv.profile_a
@@ -66,10 +63,6 @@ export default function MessagesInboxPage() {
               }
           }
 
-          if (otherProfile?.id === 'a0000000-0000-0000-0000-00000ca5ab07' && previewText !== 'No messages yet') {
-             gbPreview = previewText
-          }
-
           return {
             id: conv.id,
             otherUser: otherProfile,
@@ -78,7 +71,6 @@ export default function MessagesInboxPage() {
             preview: previewText
           }
         })
-        setGrowBotPreview(gbPreview)
         setConversations(formatted)
       }
       setLoading(false)
@@ -127,42 +119,15 @@ export default function MessagesInboxPage() {
         </div>
       )}
 
-      <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-        {/* Pinned GrowBot */}
-        <li style={{ borderBottom: '4px solid #f3f4f6' }}>
-          <Link href="/growbot" style={{ display: 'flex', padding: '16px', textDecoration: 'none', color: 'inherit', alignItems: 'center', background: '#fdfce8', transition: 'background 0.2s' }}>
-            <div style={{ width: 48, height: 48, borderRadius: '50%', backgroundColor: '#fef08a', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, marginRight: 16 }}>
-              <img src="/growbot-avatar-v3.png" alt="GrowBot" style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scale(1.2)' }} />
-            </div>
-            <div style={{ flexGrow: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-                <span style={{ fontWeight: '700', color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  GrowBot <span style={{fontSize: 10, background: '#166534', color: 'white', padding: '2px 6px', borderRadius: 8}}>AI</span>
-                </span>
-                <span style={{ fontSize: '0.75rem', color: '#ca8a04', flexShrink: 0, marginLeft: 8, fontWeight: 600 }}>
-                  📌 Pinned
-                </span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <p style={{ fontSize: '0.875rem', color: '#4b5563', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: '500', flexGrow: 1 }}>
-                  {growBotPreview}
-                </p>
-              </div>
-            </div>
-          </Link>
-        </li>
-
-        {conversations.length === 0 ? (
-          <div style={{ padding: '4rem 2rem', textAlign: 'center', color: '#6b7280' }}>
-            <div style={{ fontSize: '3rem', marginBottom: 16 }}>📬</div>
-            <h2 style={{ color: '#374151', fontSize: '1.25rem', marginBottom: 8 }}>No other conversations</h2>
-            <p style={{ fontSize: '0.875rem' }}>Start a private chat from a Farmer's Booth or the Community feed!</p>
-          </div>
-        ) : (
-          conversations
-            .filter(c => c.otherUser?.id !== 'a0000000-0000-0000-0000-00000ca5ab07')
-            .filter(c => !filterQuery.trim() || c.otherUser?.full_name?.toLowerCase().includes(filterQuery.toLowerCase()))
-            .map(conv => (
+      {conversations.length === 0 ? (
+        <div style={{ padding: '4rem 2rem', textAlign: 'center', color: '#6b7280' }}>
+          <div style={{ fontSize: '3rem', marginBottom: 16 }}>📬</div>
+          <h2 style={{ color: '#374151', fontSize: '1.25rem', marginBottom: 8 }}>Your inbox is empty</h2>
+          <p style={{ fontSize: '0.875rem' }}>Start a private conversation from a Farmer's Booth or the Community feed!</p>
+        </div>
+      ) : (
+        <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+          {conversations.filter(c => !filterQuery.trim() || c.otherUser?.full_name?.toLowerCase().includes(filterQuery.toLowerCase())).map(conv => (
             <li key={conv.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
               <Link href={`/messages/${conv.id}`} style={{ display: 'flex', padding: '16px', textDecoration: 'none', color: 'inherit', alignItems: 'center', background: conv.unreadCount > 0 ? '#ecfdf5' : 'white', transition: 'background 0.2s' }}>
                 <div style={{ width: 48, height: 48, borderRadius: '50%', backgroundColor: '#e5e7eb', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#9ca3af', marginRight: 16 }}>
@@ -194,9 +159,9 @@ export default function MessagesInboxPage() {
                 </div>
               </Link>
             </li>
-          ))
-        )}
-      </ul>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }

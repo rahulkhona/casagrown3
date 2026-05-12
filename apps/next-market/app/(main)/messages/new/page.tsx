@@ -39,7 +39,7 @@ function NewMessageTrafficCopInner() {
     }
 
     if (targetUserId === '00000000-0000-0000-0000-000000000000') {
-      setError("System Bot does not currently accept Direct Messages.")
+      setError("CasaBot does not currently accept Direct Messages.")
       return
     }
 

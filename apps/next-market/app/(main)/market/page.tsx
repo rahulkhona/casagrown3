@@ -18,7 +18,6 @@ import { useErrorToast } from '../../components/ErrorToast'
 import SocialShareModal from '../../components/SocialShareModal'
 import { getGlobalMarketShareMessage } from '../../../lib/shareMessages'
 import AddressInput from '../../components/AddressInput'
-import GrowBotFAB from '../../components/GrowBotFAB'
 import styles from './page.module.css'
 
 // ── Compact countdown timer for closed market ──
@@ -1563,8 +1562,6 @@ function BrowseMarketPageInner() {
         >
           {marketIsOpen ? '🌱 Sell Something' : '🌱 List for Next Market'}
         </Link>
-        
-        <GrowBotFAB />
         
         {/* Global Share Modal */}
         {showGlobalShareModal && (

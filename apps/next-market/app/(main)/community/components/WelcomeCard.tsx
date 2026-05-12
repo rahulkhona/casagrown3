@@ -159,11 +159,9 @@ export default function WelcomeCard({ userId, userName, profileH3, onComplete, o
 
   return (
     <div className={styles.welcomeCard}>
-      {/* GrowBot avatar */}
+      {/* CasaBot avatar */}
       <div className={styles.welcomeHeader}>
-        <div className={styles.welcomeAvatar} style={{ overflow: 'hidden' }}>
-          <img src="/growbot-avatar-v3.png" alt="GrowBot" style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scale(1.2)' }} />
-        </div>
+        <div className={styles.welcomeAvatar}>🐝</div>
         <div>
           <strong className={styles.welcomeName}>CasaGrown</strong>
           <span className={styles.welcomeBadge}>Welcome</span>
@@ -182,7 +180,7 @@ export default function WelcomeCard({ userId, userName, profileH3, onComplete, o
             <li>🌱 Sell excess produce &amp; gardening items to your neighbors</li>
             <li>🛒 Buy fresh produce &amp; gardening items from neighbors nearby</li>
             <li>🥗 Eat fresh, eat local — and save money while doing it</li>
-            <li>🤖 Get gardening tips from your community &amp; GrowBot AI</li>
+            <li>🤖 Get gardening tips from your community &amp; CasaBot AI</li>
           </ul>
           <button
             className={styles.welcomeBtn}

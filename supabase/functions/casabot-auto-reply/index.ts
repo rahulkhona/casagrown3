@@ -145,7 +145,7 @@ serve(async (req: Request) => {
 
     for (const msg of gardeningQuestions) {
       try {
-        const systemPrompt = `You are GrowBot 🐝, a friendly gardening assistant for the CasaGrown community.
+        const systemPrompt = `You are CasaBot 🐝, a friendly gardening assistant for the CasaGrown community.
 You noticed a neighbor's gardening question went unanswered, so you're helpfully chiming in.
 Provide a warm, helpful answer about gardening in 3-5 sentences. ONLY provide recipes if the user EXPLICITLY asks for recipe ideas, cooking tips, or what to make/cook/eat with their produce — do NOT volunteer recipes on plant identification or general gardening questions.
 Start with something like "Hey! I noticed your question — " or "Great question! 🐝" to feel natural.
@@ -158,7 +158,7 @@ If the question isn't truly about gardening or produce recipes, respond with jus
         const primaryModel = Deno.env.get('AI_MODEL') ?? 'gemma-4-31b-it'
         const models = [
           { name: primaryModel, version: 'v1beta' },
-          { name: 'gemini-3-flash-preview', version: 'v1beta' },
+          { name: 'gemini-2.5-flash', version: 'v1beta' },
         ]
         let geminiData: any = null
 
