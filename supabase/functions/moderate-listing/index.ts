@@ -200,9 +200,10 @@ NOTE: $0 (free) listings are VALID — CasaGrown encourages free sharing and giv
       reason: "",
     };
 
-    if (IS_LOCAL) {
-      // Skip Gemini in local development to preserve free tier quota
-      console.log(`⏭️ [LOCAL] Skipping Gemini moderation for "${name}" — auto-approving`);
+    const SKIP_AI = Deno.env.get("SKIP_AI") === "true";
+    if (SKIP_AI) {
+      // Skip Gemini only during automated E2E tests — auto-approve
+      console.log(`⏭️ [SKIP_AI] Skipping Gemini moderation for "${name}" — auto-approving`);
     } else if (AI_KEY) {
       // Build message content — text + optional image
       const content: any[] = [];

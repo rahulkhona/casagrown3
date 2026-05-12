@@ -36,9 +36,10 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // In local dev, return a reasonable mock to save API tokens
-    if (IS_LOCAL) {
-      console.log(`[LOCAL] suggest-product-price mock for "${name}"`);
+    // Skip AI only when SKIP_AI=true (automated E2E tests)
+    const SKIP_AI = Deno.env.get("SKIP_AI") === "true";
+    if (SKIP_AI) {
+      console.log(`[SKIP_AI] suggest-product-price mock for "${name}"`);
       return new Response(JSON.stringify({
         price_usd: 4.50,
         unit: "each",

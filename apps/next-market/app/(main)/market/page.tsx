@@ -17,6 +17,7 @@ import { LoadingSpinner } from '../../components/LoadingSpinner'
 import { useErrorToast } from '../../components/ErrorToast'
 import SocialShareModal from '../../components/SocialShareModal'
 import { getGlobalMarketShareMessage } from '../../../lib/shareMessages'
+import AddressInput from '../../components/AddressInput'
 import styles from './page.module.css'
 
 // ── Compact countdown timer for closed market ──
@@ -289,6 +290,34 @@ function BrowseMarketPageInner() {
           })
       })
   }, [user])
+
+  // Pre-load demo booths for guest users who haven't entered an address yet.
+  // Demo booths are synthetic — they don't depend on real coordinates.
+  const demoFetchedRef = useRef(false)
+  useEffect(() => {
+    if (addressResolved || demoFetchedRef.current || profileLoading) return
+    if (lat && lng) return // user already has coordinates
+    demoFetchedRef.current = true
+
+    // Use a default location (San Jose, CA) just to satisfy the RPC signature.
+    // Only demo booths will be returned since there are no real booths at this coordinate.
+    supabase.rpc('nearby_booths', {
+      user_lat: 37.3382, user_lng: -121.8863,
+      max_miles: 25,
+      fulfillment_filter: 'all',
+      product_search: null,
+      min_price: null, max_price: null,
+      category_filter: null,
+      buyer_state_code: null,
+      exclude_demos: false,
+      p_limit: 12, p_offset: 0,
+    }).then(({ data }) => {
+      if (data && Array.isArray(data)) {
+        const demos = data.filter((b: BoothResult) => b.is_demo)
+        if (demos.length > 0) setBooths(demos)
+      }
+    })
+  }, [profileLoading, addressResolved, lat, lng]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Search booths
   const searchBooths = useCallback(async (silent = false) => {
@@ -620,7 +649,7 @@ function BrowseMarketPageInner() {
   }
 
   const handleChangeAddress = () => {
-    setAddressResolved(false); setBooths([])
+    setAddressResolved(false); setBooths([]); demoFetchedRef.current = false
   }
 
   // Load existing product reminders
@@ -701,22 +730,114 @@ function BrowseMarketPageInner() {
       <>
         {renderPioneerBanner()}
         <div className="container">
+          {/* Market Days soft banner — consistent with STATE 3 */}
+          {!isScheduleOpen && !isGrandOpening && nextOpenDate && (
+            <div style={{ padding: '16px 0 24px' }}>
+              <div style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
+                background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)', 
+                border: '1px solid #3730a3',
+                borderRadius: 24, padding: '32px 24px', marginBottom: 24,
+                boxShadow: '0 8px 32px rgba(30, 27, 75, 0.4)',
+                textAlign: 'center',
+              }}>
+                <div style={{ fontSize: 48, marginBottom: -8, animation: 'pulse 2s infinite' }}>🌙</div>
+                <div>
+                  <h2 style={{ fontSize: 24, fontWeight: 800, color: '#e0e7ff', margin: '0 0 12px', letterSpacing: '-0.02em' }}>
+                    {nextOpenDate 
+                      ? `Next Market Day is ${nextOpenDate.toLocaleDateString('en-US', { weekday: 'long' })}` 
+                      : 'Market Days Bring the Most Variety'}
+                  </h2>
+                  <p style={{ fontSize: 15, color: '#c7d2fe', margin: '0 auto', maxWidth: 600, lineHeight: 1.5 }}>
+                    You can still browse and purchase from individual growers anytime! However, Market days result in more variety and more chances of finding what you want.
+                    <br /><br />
+                    While you wait for the market to open, head over to the Community to share gardening tips, ask questions, and connect with your neighbors!
+                    {nextOpenDate && (
+                      <>
+                        <br /><br />
+                        Do visit us on our next Market day on {nextOpenDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })} at {todaySchedule?.open_time || '8:00 AM'}.
+                      </>
+                    )}
+                  </p>
+                </div>
+                
+                {nextOpenDate && (
+                  <div style={{ margin: '8px 0', transform: 'scale(1.15)', transformOrigin: 'center' }}>
+                    <CountdownTimer targetDate={nextOpenDate} theme="dark" />
+                  </div>
+                )}
+
+                {/* Action buttons row */}
+                <div style={{
+                  display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap',
+                  marginTop: 8, width: '100%',
+                }}>
+                  <button onClick={() => router.push('/community')} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '10px 18px', borderRadius: 999,
+                    background: '#4f46e5', color: '#fff', border: '1px solid #6366f1',
+                    fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(79, 70, 229, 0.3)',
+                  }}>
+                    👥 Visit Community
+                  </button>
+                  <button onClick={() => setShowGlobalShareModal(true)} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '10px 18px', borderRadius: 999,
+                    background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff',
+                    fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(22,163,74,0.3)', transition: 'transform 0.1s ease',
+                  }} onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)' }} onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}>
+                    📣 Invite Neighbors
+                  </button>
+                  <button onClick={() => {
+                    if (!user) { router.push('/login'); return }
+                    if ('Notification' in window && Notification.permission !== 'granted') {
+                      Notification.requestPermission().then(p => {
+                        if (p === 'granted') showSuccess('🔔 You\'ll be notified when the market opens!')
+                        else showInfo('Please enable notifications in your browser settings.')
+                      })
+                    } else {
+                      showSuccess('🔔 You\'ll be notified when the market opens!')
+                    }
+                  }} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '10px 18px', borderRadius: 999,
+                    background: 'rgba(255,255,255,0.1)', color: '#e0e7ff', border: '1px solid rgba(255,255,255,0.2)',
+                    fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    backdropFilter: 'blur(4px)'
+                  }}>
+                    🔔 Set Reminder
+                  </button>
+                  <button onClick={() => resetTour()} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '10px 18px', borderRadius: 999,
+                    background: 'rgba(255,255,255,0.1)', color: '#e0e7ff', border: '1px solid rgba(255,255,255,0.2)',
+                    fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    backdropFilter: 'blur(4px)'
+                  }}>
+                    🔄 Guided Tour
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className={styles.addressPrompt}>
           <h2 className={styles.promptTitle}>Where should we look?</h2>
           <p className={styles.promptText}>Tell us where you are and we'll show you fresh produce available for delivery or pickup nearby.</p>
 
           <div className={styles.addressForm}>
-            <div className={styles.addressRow}>
-              <input
-                className="input"
-                placeholder="e.g. 123 Main St, San Jose, CA"
-                value={address}
-                onChange={e => setAddress(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleAddressSubmit()}
-                autoFocus
-              />
+            <AddressInput
+              value={address}
+              onChange={val => setAddress(val)}
+              placeholderStreet="e.g. 123 Main St"
+            />
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
               <button className="btn btn-primary" onClick={handleAddressSubmit}
-                disabled={locationLoading || !address.trim()}>
+                disabled={locationLoading || !address.trim()} style={{ flex: 1 }}>
                 {locationLoading ? 'Finding...' : 'Find Produce'}
               </button>
             </div>
@@ -734,28 +855,83 @@ function BrowseMarketPageInner() {
           )}
         </div>
       </div>
+
+      {/* Demo booths for guest users — give them something to browse */}
+      {booths.filter(b => b.is_demo).length > 0 && (
+        <div className="container" style={{ paddingTop: 16 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--gray-800, #1f2937)', marginBottom: 4, letterSpacing: '-0.02em' }}>
+            🛒 Explore the Market
+          </h3>
+          <p style={{ fontSize: 12, color: 'var(--gray-500, #6b7280)', lineHeight: 1.4, margin: '0 0 12px' }}>
+            Browse demo listings to see how the market works
+          </p>
+          <div className={styles.boothGrid}>
+            {booths.filter(b => b.is_demo).map(booth => {
+              const theme = themeColors[booth.decorative_theme] || themeColors.minimal
+              const products = booth.matched_products || []
+              return (
+                <div key={booth.booth_id} className="card">
+                  <Link href={`/market/booth/${booth.booth_id}`} className={styles.cardHeaderLink}>
+                    <div className={styles.cardHeader} style={{
+                      background: booth.header_image_url ? `url(${booth.header_image_url}) center/cover` : theme.gradient,
+                      borderBottom: `3px solid ${theme.border}`,
+                    }}>
+                      {booth.header_image_url && <div className={styles.headerOverlay} />}
+                      <div className={styles.headerContent}>
+                        <h3 className={styles.cardTitle} style={{ color: booth.header_image_url ? '#fff' : theme.border }}>{booth.booth_name}</h3>
+                        <div className={styles.cardMeta}>
+                          <span className="badge" style={{ fontSize: 10, background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac' }}>🌿 Demo</span>
+                          <span style={{ color: 'var(--gray-400)' }}>·</span>
+                          <span>{booth.product_count} items</span>
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                  <div className={styles.cardBody}>
+                    {booth.description && <p className={styles.cardDesc}>{booth.description} Demo listing — viewing only.</p>}
+                    {products.length > 0 && (
+                      <div className={styles.productList}>
+                        {products.slice(0, 4).map((p: any) => (
+                          <Link key={p.id} href={`/market/booth/${booth.booth_id}/product/${p.id}`} className={styles.productCard}>
+                            <div className={styles.productThumb}>
+                              {p.photo ? <img src={p.photo} alt={p.name} /> : <span>{categoryIcons[p.category] || '📦'}</span>}
+                            </div>
+                            <div className={styles.productInfo}>
+                              <span className={styles.productName}>{p.name}</span>
+                              <div className={styles.productMeta}>
+                                <span className={styles.productPrice}>{p.price_usd === 0 ? <span style={{ color: '#16a34a', fontWeight: 'bold' }}>Free</span> : formatUsd(p.price_usd)}</span>
+                              </div>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
       
-      {/* Start Selling FAB for unauthenticated / address-prompt state */}
-      <Link href="/create-listing" style={{
-        position: 'fixed',
-        bottom: 24,
-        right: 24,
-        background: 'var(--brand-600, #16a34a)',
-        color: '#fff',
-        padding: '16px 24px',
-        borderRadius: 999,
-        fontWeight: 700,
-        boxShadow: '0 8px 24px rgba(22, 163, 74, 0.4)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        textDecoration: 'none',
-        zIndex: 1000,
-        transition: 'transform 0.2s, box-shadow 0.2s'
-      }}>
-        <span style={{ fontSize: 20 }}>+</span>
-        Start Selling
-      </Link>
+      {/* Sell FAB — consistent with STATE 3 */}
+      <Link
+          href="/create-listing"
+          id="sell-fab"
+          style={{
+            position: 'fixed', bottom: 80, right: 24,
+            background: 'linear-gradient(135deg, #16a34a, #15803d)',
+            color: '#fff', borderRadius: 28, padding: '14px 24px',
+            fontSize: 15, fontWeight: 600, textDecoration: 'none',
+            display: 'flex', alignItems: 'center', gap: 8,
+            boxShadow: '0 6px 20px rgba(22, 163, 74, 0.4)',
+            zIndex: 100, transition: 'transform 0.2s, box-shadow 0.2s',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}
+        >
+          {marketIsOpen ? '🌱 Sell Something' : '🌱 List for Next Market'}
+        </Link>
       </>
     )
   }

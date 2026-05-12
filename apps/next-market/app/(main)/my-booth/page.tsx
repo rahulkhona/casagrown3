@@ -19,6 +19,7 @@ import CameraCapture from '../../../components/CameraCapture'
 import ImageCropper from '../../../components/ImageCropper'
 import { useErrorToast } from '../../components/ErrorToast'
 import { ShareIcon, PersonPlusIcon } from '../../components/icons'
+import AddressInput from '../../components/AddressInput'
 
 
 import { geocodeAddress, toPostgisPoint } from '../../../lib/geocode'
@@ -1001,11 +1002,10 @@ export default function MyBoothPage() {
         {offersPickup && (
           <div className="form-group" style={{ marginTop: 16 }}>
             <label className="label" htmlFor="pickup-address">📍 Pickup Location</label>
-            <input
-              id="pickup-address" className="input"
+            <AddressInput
               value={pickupAddress}
-              onChange={e => { setPickupAddress(e.target.value); setSaved(false) }}
-              placeholder="e.g. 123 Oak Street, San Jose, CA 95125"
+              onChange={val => { setPickupAddress(val); setSaved(false) }}
+              placeholderStreet="e.g. 123 Oak Street"
             />
             <button
               type="button"

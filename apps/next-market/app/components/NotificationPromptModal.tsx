@@ -35,6 +35,7 @@ export function NotificationPromptModal({
   onEnable,
   onDismiss,
   onPermanentDismiss,
+  onOpenSettings,
 }: NotificationModalProps) {
   const [isMounted, setIsMounted] = useState(false)
   useEffect(() => { setIsMounted(true) }, [])
@@ -48,7 +49,7 @@ export function NotificationPromptModal({
         onClick={e => e.stopPropagation()}
       >
         {variant === 'first-time' && <FirstTimePrompt onEnable={onEnable} onDismiss={onDismiss} onPermanentDismiss={onPermanentDismiss} />}
-        {variant === 'denied' && <DeniedPrompt onDismiss={onDismiss} onPermanentDismiss={onPermanentDismiss} />}
+        {variant === 'denied' && <DeniedPrompt onDismiss={onDismiss} onPermanentDismiss={onPermanentDismiss} onOpenSettings={onOpenSettings} />}
         {variant === 'ios-safari' && <PWAGuide browser="safari" onDismiss={onDismiss} onPermanentDismiss={onPermanentDismiss} />}
         {variant === 'ios-chrome' && <PWAGuide browser="chrome" onDismiss={onDismiss} onPermanentDismiss={onPermanentDismiss} />}
       </div>
@@ -84,42 +85,50 @@ function FirstTimePrompt({ onEnable, onDismiss, onPermanentDismiss }: {
 // Variant 2: Denied
 // =============================================================================
 
-function DeniedPrompt({ onDismiss, onPermanentDismiss }: {
-  onDismiss: () => void; onPermanentDismiss: () => void
+function DeniedPrompt({ onDismiss, onPermanentDismiss, onOpenSettings }: {
+  onDismiss: () => void; onPermanentDismiss: () => void; onOpenSettings?: () => void
 }) {
   return (
     <>
       <div className={styles.iconCircle} style={{ background: '#fef3c7' }}>⚠️</div>
       <h2 className={styles.title}>Notifications Blocked</h2>
       <p className={styles.body}>
-        You previously blocked notifications. To get order and message alerts, please re-enable them in your browser settings:
+        You previously blocked notifications. To get order and message alerts, please re-enable them in your device settings.
       </p>
-      <div className={styles.stepsList}>
-        <div className={styles.stepItem}>
-          <span className={styles.stepNum}>1</span>
-          <div className={styles.stepContent}>
-            <p className={styles.stepTitle}>Open Browser Settings</p>
-            <p className={styles.stepDesc}>Click the 🔒 lock icon in the address bar</p>
+      
+      {onOpenSettings ? (
+        <button className={`${styles.enableBtn} ${styles.amber}`} onClick={onOpenSettings} style={{ marginTop: 16 }}>
+          ⚙️ Open Settings
+        </button>
+      ) : (
+        <div className={styles.stepsList}>
+          <div className={styles.stepItem}>
+            <span className={styles.stepNum}>1</span>
+            <div className={styles.stepContent}>
+              <p className={styles.stepTitle}>Open Browser Settings</p>
+              <p className={styles.stepDesc}>Click the 🔒 lock icon in the address bar</p>
+            </div>
           </div>
-        </div>
-        <div className={styles.stepItem}>
-          <span className={styles.stepNum}>2</span>
-          <div className={styles.stepContent}>
-            <p className={styles.stepTitle}>Find Notifications</p>
-            <p className={styles.stepDesc}>Look for &quot;Notifications&quot; in the site permissions</p>
+          <div className={styles.stepItem}>
+            <span className={styles.stepNum}>2</span>
+            <div className={styles.stepContent}>
+              <p className={styles.stepTitle}>Find Notifications</p>
+              <p className={styles.stepDesc}>Look for &quot;Notifications&quot; in the site permissions</p>
+            </div>
           </div>
-        </div>
-        <div className={styles.stepItem}>
-          <span className={styles.stepNum}>3</span>
-          <div className={styles.stepContent}>
-            <p className={styles.stepTitle}>Allow Notifications</p>
-            <p className={styles.stepDesc}>Change the setting from &quot;Block&quot; to &quot;Allow&quot;</p>
+          <div className={styles.stepItem}>
+            <span className={styles.stepNum}>3</span>
+            <div className={styles.stepContent}>
+              <p className={styles.stepTitle}>Allow Notifications</p>
+              <p className={styles.stepDesc}>Change the setting from &quot;Block&quot; to &quot;Allow&quot;</p>
+            </div>
           </div>
+          <button className={`${styles.enableBtn} ${styles.amber}`} onClick={onDismiss}>
+            Got It
+          </button>
         </div>
-      </div>
-      <button className={`${styles.enableBtn} ${styles.amber}`} onClick={onDismiss}>
-        Got It
-      </button>
+      )}
+      
       <button className={styles.dismissLink} onClick={onDismiss}>Maybe later</button>
       <button className={styles.permanentDismiss} onClick={onPermanentDismiss}>Don&#39;t ask again</button>
     </>

@@ -94,8 +94,12 @@ vi.mock('../../../lib/analytics', () => ({ trackClick: vi.fn(), trackError: vi.f
 vi.mock('../../lib/geocode', () => ({ geocodeAddress: vi.fn().mockResolvedValue(null), toPostgisPoint: vi.fn() }))
 vi.mock('../../lib/legal', () => ({ needsTosAcceptance: () => false, TOS_EFFECTIVE_DATE: new Date(), getJurisdictionConfig: () => null, isBlockedJurisdiction: () => false }))
 vi.mock('../../../lib/legal', () => ({ needsTosAcceptance: () => false, TOS_EFFECTIVE_DATE: new Date(), getJurisdictionConfig: () => null, isBlockedJurisdiction: () => false }))
-vi.mock('../../lib/useNotificationPrompt', () => ({ useNotificationPrompt: () => ({ showPrompt: vi.fn(), modalProps: {} }) }))
-vi.mock('../../../lib/useNotificationPrompt', () => ({ useNotificationPrompt: () => ({ showPrompt: vi.fn(), modalProps: {} }) }))
+const notifMock = { useNotificationPrompt: () => ({ showPrompt: vi.fn(), modalProps: {} }), isNotificationsEnabled: vi.fn(() => false), isIOSBrowser: vi.fn(() => false), getPermissionStatus: vi.fn(() => 'default'), detectPlatform: vi.fn(() => 'desktop-web') }
+vi.mock('../../lib/useNotificationPrompt', () => notifMock)
+vi.mock('../../../lib/useNotificationPrompt', () => notifMock)
+const nativeBridgeMock = { NativeBridge: { isNative: false, requestPushPermission: vi.fn() } }
+vi.mock('../../lib/nativeBridge', () => nativeBridgeMock)
+vi.mock('../../../lib/nativeBridge', () => nativeBridgeMock)
 vi.mock('../../lib/feedback-service', () => ({ default: {} }))
 vi.mock('../../../lib/feedback-service', () => ({ default: {} }))
 

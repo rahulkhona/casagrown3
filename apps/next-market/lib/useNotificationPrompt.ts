@@ -122,6 +122,29 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 // =============================================================================
 
 async function enableWebPush(userId: string): Promise<boolean> {
+  const { NativeBridge } = await import('./nativeBridge')
+  if (NativeBridge.isNative) {
+    return new Promise((resolve) => {
+      window.receiveNativeToken = async (tokenStr: string) => {
+        if (tokenStr === 'DENIED') {
+          resolve(false);
+          return;
+        }
+        try {
+          const supabase = createClient();
+          await supabase.functions.invoke('register-push-token', {
+            body: { token: tokenStr, platform: 'expo', endpoint: null },
+          });
+          resolve(true);
+        } catch (err) {
+          console.error('[Notifications] Expo Push registration failed:', err);
+          resolve(false);
+        }
+      };
+      NativeBridge.requestPushPermissions();
+    });
+  }
+
   if (typeof Notification === 'undefined' || !('serviceWorker' in navigator)) return false
 
   const permission = await Notification.requestPermission()
@@ -143,7 +166,6 @@ async function enableWebPush(userId: string): Promise<boolean> {
         if (oldSubscription) {
           await oldSubscription.unsubscribe()
         }
-        // Retry subscription with new key
         subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY).buffer as ArrayBuffer,
@@ -180,6 +202,7 @@ export interface NotificationModalProps {
   onEnable: () => void
   onDismiss: () => void
   onPermanentDismiss: () => void
+  onOpenSettings?: () => void
 }
 
 export function useNotificationPrompt(userId?: string) {
@@ -190,23 +213,39 @@ export function useNotificationPrompt(userId?: string) {
   const onEnable = useCallback(async () => {
     if (!userId) return
     setVisible(false)
-    await enableWebPush(userId)
+    const success = await enableWebPush(userId)
+    if (!success) {
+      const { NativeBridge } = await import('./nativeBridge')
+      if (NativeBridge.isNative) {
+        setVariant('denied')
+        setVisible(true)
+      }
+    }
   }, [userId])
+
+  const onOpenSettings = useCallback(async () => {
+    const { NativeBridge } = await import('./nativeBridge')
+    if (NativeBridge.isNative) {
+      NativeBridge.openAppSettings()
+      setVisible(false)
+    }
+  }, [])
 
   const showPrompt = useCallback(async (force?: boolean) => {
     if (checkingRef.current) return
     checkingRef.current = true
     try {
-      // If permission is already granted, silently re-register subscription on
-      // first call per session. This recovers stale/missing subscriptions (e.g.
-      // after VAPID key rotation, browser reinstall, or device change) without
-      // ever showing the user a prompt again.
-      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        if (!promptedThisSession && userId) {
-          promptedThisSession = true
-          void enableWebPush(userId)
+      const { NativeBridge } = await import('./nativeBridge')
+      if (NativeBridge.isNative) {
+        // We do not silently re-register on native; the native wrapper handles persistence.
+      } else {
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          if (!promptedThisSession && userId) {
+            promptedThisSession = true
+            void enableWebPush(userId)
+          }
+          return
         }
-        return
       }
 
       if (!force) {
@@ -215,9 +254,15 @@ export function useNotificationPrompt(userId?: string) {
       }
 
       promptedThisSession = true
-      const variant = getPromptVariant()
-      if (variant === 'none') return
-      setVariant(variant)
+      
+      let finalVariant = 'first-time' as PromptVariant
+      if (!NativeBridge.isNative) {
+        const pv = getPromptVariant()
+        if (pv === 'none') return
+        finalVariant = pv
+      }
+
+      setVariant(finalVariant)
       setVisible(true)
     } finally {
       checkingRef.current = false
@@ -238,6 +283,6 @@ export function useNotificationPrompt(userId?: string) {
 
   return {
     showPrompt,
-    modalProps: { visible, variant, onEnable, onDismiss, onPermanentDismiss } as NotificationModalProps,
+    modalProps: { visible, variant, onEnable, onDismiss, onPermanentDismiss, onOpenSettings } as NotificationModalProps,
   }
 }

@@ -1,0 +1,126 @@
+{
+  "expo": {
+    "name": "CasaGrown Market",
+    "slug": "casagrown-market",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "scheme": "casagrown-market",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#f0fdf4"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.casagrown.market",
+      "associatedDomains": [
+        "applinks:casagrown.com"
+      ],
+      "infoPlist": {
+        "NSCameraUsageDescription": "CasaGrown needs camera access to photograph your produce for listings.",
+        "NSPhotoLibraryUsageDescription": "CasaGrown needs photo library access to add images to your listings.",
+        "NSPhotoLibraryAddUsageDescription": "CasaGrown needs permission to save delivery proof photos to your photo library.",
+        "NSLocationWhenInUseUsageDescription": "CasaGrown uses your location to show nearby produce and set your community."
+      },
+      "entitlements": {
+        "com.apple.developer.in-app-payments": [
+          "merchant.com.casagrown.market"
+        ]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#f0fdf4"
+      },
+      "package": "com.casagrown.market",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "casagrown.com",
+              "pathPrefix": "/market"
+            },
+            {
+              "scheme": "https",
+              "host": "casagrown.com",
+              "pathPrefix": "/p/"
+            },
+            {
+              "scheme": "https",
+              "host": "casagrown.com",
+              "pathPrefix": "/r/"
+            },
+            {
+              "scheme": "https",
+              "host": "casagrown.com",
+              "pathPrefix": "/orders"
+            },
+            {
+              "scheme": "https",
+              "host": "casagrown.com",
+              "pathPrefix": "/create-listing"
+            },
+            {
+              "scheme": "https",
+              "host": "casagrown.com",
+              "pathPrefix": "/join-booth"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ],
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "POST_NOTIFICATIONS"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "CasaGrown needs photo access to add images to your listings."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "CasaGrown uses your location to show nearby produce."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#22c55e"
+        }
+      ],
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.casagrown.market",
+          "enableGooglePay": true
+        }
+      ],
+      "@react-native-community/datetimepicker"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

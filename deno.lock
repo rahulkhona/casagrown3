@@ -846,12 +846,58 @@
           ]
         }
       },
+      "apps/expo-market": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@babel/core@^7.24.6",
+            "npm:@expo-google-fonts/inter@~0.2.3",
+            "npm:@expo/metro-config@~54.0.12",
+            "npm:@react-native-async-storage/async-storage@^2.2.0",
+            "npm:@react-native-community/datetimepicker@8.4.4",
+            "npm:@stripe/stripe-react-native@0.50.3",
+            "npm:@supabase/supabase-js@^2.49.4",
+            "npm:@testing-library/react-native@^13.3.3",
+            "npm:@types/jest@29",
+            "npm:@types/react@19.1",
+            "npm:expo-constants@~18.0.13",
+            "npm:expo-file-system@~19.0.22",
+            "npm:expo-font@~14.0.10",
+            "npm:expo-image-manipulator@^14.0.8",
+            "npm:expo-image-picker@^17.0.10",
+            "npm:expo-linking@~8.0.11",
+            "npm:expo-location@^19.0.8",
+            "npm:expo-notifications@~0.32.17",
+            "npm:expo-router@~6.0.21",
+            "npm:expo-secure-store@~15.0.8",
+            "npm:expo-splash-screen@~31.0.13",
+            "npm:expo-status-bar@~3.0.9",
+            "npm:expo@54",
+            "npm:jest-expo@^55.0.17",
+            "npm:jest@29",
+            "npm:react-dom@19.1.0",
+            "npm:react-native-gesture-handler@2.28",
+            "npm:react-native-reanimated@4.1.7",
+            "npm:react-native-safe-area-context@5.6",
+            "npm:react-native-screens@4.16",
+            "npm:react-native-svg@15.12.1",
+            "npm:react-native-url-polyfill@3",
+            "npm:react-native-web@0.20",
+            "npm:react-native-webview@13.15.0",
+            "npm:react-native-worklets-core@^1.6.3",
+            "npm:react-native-worklets@0.5.1",
+            "npm:react-native@0.81.5",
+            "npm:react@19.1.0",
+            "npm:typescript@~5.9.2"
+          ]
+        }
+      },
       "apps/next-admin": {
         "packageJson": {
           "dependencies": [
             "npm:@casagrown/app@*",
             "npm:@hello-pangea/dnd@^18.0.1",
             "npm:@tamagui/config@^2.0.0-rc.0",
+            "npm:@tamagui/lucide-icons@*",
             "npm:@tamagui/next-plugin@^2.0.0-rc.0",
             "npm:@tamagui/next-theme@^2.0.0-rc.0",
             "npm:@types/mustache@^4.2.5",

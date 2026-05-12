@@ -171,10 +171,12 @@ test.describe('Image Sizing in WYSIWYG Editor', () => {
 
     const altInput = page.locator('[data-testid="img-alt-text"]')
     await altInput.fill('Fresh garden produce from CasaGrown')
-    await page.waitForTimeout(300)
+    await altInput.press('Tab')
+    await page.waitForTimeout(500)
 
+    // Poll for the alt attribute to propagate (Quill updates DOM asynchronously)
+    await expect(img).toHaveAttribute('alt', 'Fresh garden produce from CasaGrown', { timeout: 5000 })
     const alt = await img.getAttribute('alt')
-    expect(alt).toBe('Fresh garden produce from CasaGrown')
     console.log('[IMG-06] ✅ Alt text set:', alt)
   })
 

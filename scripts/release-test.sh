@@ -226,6 +226,27 @@ run_vitest "Metrics" "apps/next-metrics"
 run_vitest "Quarantine Bot" "apps/quarantine-bot"
 
 # ─────────────────────────────────────────────────────────────────────────
+# PHASE 4b: Jest Unit Tests (Native Apps)
+# ─────────────────────────────────────────────────────────────────────────
+section "Phase 4b: Jest Unit Tests (Native Apps)"
+
+echo "  Running expo-market Jest tests..."
+EXPO_OUTPUT=$(cd apps/expo-market && npx jest --ci --no-colors 2>&1)
+EXPO_EXIT=$?
+
+EXPO_PASSED=$(echo "$EXPO_OUTPUT" | grep "Tests:" | tail -1 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
+EXPO_FAILED=$(echo "$EXPO_OUTPUT" | grep "Tests:" | tail -1 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
+
+if [ "$EXPO_EXIT" -eq 0 ]; then
+  echo -e "  ${GREEN}✅ expo-market Jest: ${EXPO_PASSED} tests — ALL PASS${NC}"
+  log_suite "expo-market Jest" "$EXPO_PASSED"
+else
+  echo -e "  ${RED}❌ expo-market Jest: ${EXPO_PASSED} passed, ${EXPO_FAILED} failed${NC}"
+  echo "$EXPO_OUTPUT" | grep "FAIL\|●" | head -10 | sed 's/^/    /'
+  log_suite "expo-market Jest" "$EXPO_PASSED" "$EXPO_FAILED"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────
 # PHASE 5: Deno Integration Tests
 # ─────────────────────────────────────────────────────────────────────────
 section "Phase 5: Deno Integration Tests"

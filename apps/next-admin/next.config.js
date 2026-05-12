@@ -1,7 +1,11 @@
-const { withTamagui } = require('@tamagui/next-plugin')
+// Define __DEV__ globally for Turbopack (which doesn't use webpack plugins)
+if (typeof globalThis.__DEV__ === 'undefined') {
+  globalThis.__DEV__ = process.env.NODE_ENV !== 'production'
+}
 
 /** @type {import('next').NextConfig} */
-const config = {
+module.exports = {
+  devIndicators: false,
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -27,6 +31,10 @@ const config = {
       'react-native-svg': '@tamagui/react-native-svg',
       'react-native-safe-area-context': './shims/react-native-safe-area-context.js',
       '@stripe/stripe-react-native': './shims/stripe-react-native.js',
+      // Force single copies of Tamagui internals to prevent config duplication
+      // between the app code and @tamagui/lucide-icons
+      '@tamagui/core': '@tamagui/core',
+      '@tamagui/web': '@tamagui/web',
     },
     resolveExtensions: [
       '.web.tsx',
@@ -41,10 +49,3 @@ const config = {
     ],
   },
 }
-
-module.exports = withTamagui({
-  config: '../../packages/config/src/tamagui.config.ts',
-  components: ['tamagui', '@casagrown/ui'],
-  outputCSS: process.env.NODE_ENV === 'production',
-  doesNotCompileTwice: true,
-})(config)

@@ -1,0 +1,26 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": [
+          "casagrown.com.casagrown.market"
+        ],
+        "components": [
+          { "/": "/market/*" },
+          { "/": "/p/*" },
+          { "/": "/r/*" },
+          { "/": "/orders/*" },
+          { "/": "/create-listing" },
+          { "/": "/join-booth/*" },
+          { "/": "/sell" }
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": [
+      "casagrown.com.casagrown.market"
+    ]
+  }
+}

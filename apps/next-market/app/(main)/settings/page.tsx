@@ -176,17 +176,19 @@ export default function SettingsPage() {
       </div>
 
       {/* PWA Install */}
-      <div className="card" style={{ padding: 20, marginBottom: 12 }}>
-        <strong style={{ fontSize: 15 }}>📱 Install App</strong>
-        <p style={{ fontSize: 13, color: 'var(--gray-500)', marginTop: 2, marginBottom: 12 }}>
-          Add CasaGrown Market to your home screen for the best experience.
-        </p>
-        <div style={{ fontSize: 13, color: 'var(--gray-600)', background: 'var(--gray-50)', padding: 14, borderRadius: 'var(--radius-lg)', lineHeight: 1.7 }}>
-          <strong>iOS:</strong> Tap the Share button → &quot;Add to Home Screen&quot;<br />
-          <strong>Android:</strong> Tap the ⋮ menu → &quot;Install app&quot;<br />
-          <strong>Desktop:</strong> Click the install icon in the address bar
+      {typeof window !== 'undefined' && !window.IS_NATIVE_APP && (
+        <div className="card" style={{ padding: 20, marginBottom: 12 }}>
+          <strong style={{ fontSize: 15 }}>📱 Install App</strong>
+          <p style={{ fontSize: 13, color: 'var(--gray-500)', marginTop: 2, marginBottom: 12 }}>
+            Add CasaGrown Market to your home screen for the best experience.
+          </p>
+          <div style={{ fontSize: 13, color: 'var(--gray-600)', background: 'var(--gray-50)', padding: 14, borderRadius: 'var(--radius-lg)', lineHeight: 1.7 }}>
+            <strong>iOS:</strong> Tap the Share button → &quot;Add to Home Screen&quot;<br />
+            <strong>Android:</strong> Tap the ⋮ menu → &quot;Install app&quot;<br />
+            <strong>Desktop:</strong> Click the install icon in the address bar
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Account */}
       <div className="card" style={{ padding: 20, marginBottom: 12 }}>

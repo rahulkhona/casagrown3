@@ -97,7 +97,10 @@ test.describe('Guest Seller Wizard - Step 2 (Fulfillment)', () => {
     await expect(page.locator('h2:has-text("How will buyers get it?")')).toBeVisible({ timeout: 15000 })
 
     // Fill Address and select a window
-    await page.locator('input[placeholder="123 Main St, City, ST"]').fill('100 Main St, San Francisco, CA')
+    await page.getByPlaceholder('Street Address').first().fill('100 Main St')
+    await page.getByPlaceholder('City').first().fill('San Francisco')
+    await page.getByPlaceholder('ST').first().fill('CA')
+    await page.getByPlaceholder('ZIP').first().fill('94105')
     await page.getByText(/^Today/i).first().click()
     
     // Toggle off pickup so we don't need a pickup window
@@ -125,7 +128,10 @@ test.describe('Guest Seller Wizard - Step 3 (Pricing)', () => {
 
     // Wait for Step 2
     await expect(page.locator('h2:has-text("How will buyers get it?")')).toBeVisible({ timeout: 15000 })
-    await page.locator('input[placeholder="123 Main St, City, ST"]').fill('100 Main St, San Francisco, CA')
+    await page.getByPlaceholder('Street Address').first().fill('100 Main St')
+    await page.getByPlaceholder('City').first().fill('San Francisco')
+    await page.getByPlaceholder('ST').first().fill('CA')
+    await page.getByPlaceholder('ZIP').first().fill('94105')
     await page.getByText(/^Today/i).first().click()
     await page.getByText('Pickup Available').click()
     await page.getByRole('button', { name: 'Next →' }).click()

@@ -197,7 +197,13 @@ const supabaseMock = { createClient: () => mockSupabase }
 const geocodeMock = { geocodeAddress: vi.fn().mockResolvedValue({ lat: 37.7749, lng: -122.4194 }), toPostgisPoint: vi.fn() }
 const legalMock = { needsTosAcceptance: () => false, TOS_EFFECTIVE_DATE: new Date('2026-01-01'), getJurisdictionConfig: () => null, isBlockedJurisdiction: () => false }
 const analyticsMock = { trackEvent: vi.fn(), trackPageView: vi.fn(), setAnalyticsUser: vi.fn() }
-const notifMock = { useNotificationPrompt: () => ({ showPrompt: vi.fn(), modalProps: {} }) }
+const notifMock = {
+  useNotificationPrompt: () => ({ showPrompt: vi.fn(), modalProps: {} }),
+  isNotificationsEnabled: vi.fn(() => false),
+  isIOSBrowser: vi.fn(() => false),
+  getPermissionStatus: vi.fn(() => 'default'),
+  detectPlatform: vi.fn(() => 'desktop-web'),
+}
 
 // Mock at all depths
 vi.mock('../../lib/supabase', () => supabaseMock)
@@ -259,6 +265,12 @@ vi.mock('../../../components/NotificationPromptModal', () => ({ NotificationProm
 vi.mock('../../components/NotificationBanner', () => ({ NotificationBanner: () => null }))
 vi.mock('../../../components/NotificationBanner', () => ({ NotificationBanner: () => null }))
 vi.mock('../../../../components/OrderChat', () => ({ default: () => null }))
+// Mock nativeBridge at all depths (dynamically imported by NotificationBanner)
+const nativeBridgeMock = { NativeBridge: { isNative: false, requestPushPermission: vi.fn() } }
+vi.mock('../../lib/nativeBridge', () => nativeBridgeMock)
+vi.mock('../../../lib/nativeBridge', () => nativeBridgeMock)
+vi.mock('../../../../lib/nativeBridge', () => nativeBridgeMock)
+vi.mock('../../../../../lib/nativeBridge', () => nativeBridgeMock)
 
 beforeEach(() => { vi.clearAllMocks() })
 afterEach(() => { cleanup() })

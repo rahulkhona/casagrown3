@@ -28,15 +28,22 @@ export function NotificationBanner({ context, onEnableClick }: NotificationBanne
 
   useEffect(() => {
     // Only run on client
-    const enabled = isNotificationsEnabled()
-    const ios = isIOSBrowser()
-    const permission = getPermissionStatus()
+    import('../../lib/nativeBridge').then(({ NativeBridge }) => {
+      if (NativeBridge.isNative) {
+        setShouldShow(false)
+        return
+      }
 
-    // Show if not granted and not unsupported (except iOS browser which needs PWA)
-    if (!enabled && (permission !== 'unsupported' || ios)) {
-      setShouldShow(true)
-    }
-    setIsIOS(ios)
+      const enabled = isNotificationsEnabled()
+      const ios = isIOSBrowser()
+      const permission = getPermissionStatus()
+
+      // Show if not granted and not unsupported (except iOS browser which needs PWA)
+      if (!enabled && (permission !== 'unsupported' || ios)) {
+        setShouldShow(true)
+      }
+      setIsIOS(ios)
+    })
   }, [])
 
   if (!shouldShow || dismissed) return null

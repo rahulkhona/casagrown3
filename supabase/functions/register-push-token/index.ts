@@ -31,8 +31,8 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
 
     // Validate
     if (!token) throw new Error("token is required");
-    if (!platform || !["web", "ios", "android"].includes(platform)) {
-        throw new Error("platform must be 'web', 'ios', or 'android'");
+    if (!platform || !["web", "ios", "android", "expo"].includes(platform)) {
+        throw new Error("platform must be 'web', 'ios', 'android', or 'expo'");
     }
 
     // Upsert subscription (update timestamp if already exists)

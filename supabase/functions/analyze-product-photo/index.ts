@@ -15,6 +15,8 @@ const IS_LOCAL = (Deno.env.get("SUPABASE_URL") ?? "").includes("localhost") ||
   (Deno.env.get("SUPABASE_URL") ?? "").includes("127.0.0.1") ||
   (Deno.env.get("SUPABASE_URL") ?? "").includes("kong:8000");
 
+const SKIP_AI = Deno.env.get("SKIP_AI") === "true";
+
 const VALID_CATEGORIES = [
   "produce", "flowers", "flower_arrangements",
   "garden_equipment", "pots", "soil",
@@ -37,13 +39,13 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Skip Gemini API in local development to preserve free tier quota
-    if (IS_LOCAL) {
-      console.log("[LOCAL] Skipping Gemini — returning mock product analysis");
+    // Skip Gemini API only when SKIP_AI=true (automated E2E tests)
+    if (SKIP_AI) {
+      console.log("[SKIP_AI] Returning mock product analysis for automated tests");
       return new Response(JSON.stringify({
         name: "Local Test Product",
         category: "produce",
-        description: "AI analysis skipped in local development. Please fill in manually.",
+        description: "AI analysis skipped (SKIP_AI=true). Please fill in manually.",
         suggested_unit: "each",
       }), {
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },

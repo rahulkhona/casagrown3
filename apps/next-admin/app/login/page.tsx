@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { YStack, XStack, Text, Button, Input, Card, Spinner, Image } from 'tamagui'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { colors } from '@casagrown/app/design-tokens'
-import { ArrowLeft, Mail } from '@tamagui/lucide-icons'
+import { ArrowLeft, Mail } from 'lucide-react'
 import { useAuth } from '@casagrown/app/features/auth/auth-hook'
 import ClientOnly from '../ClientOnly'
 

@@ -14,6 +14,11 @@
   border-right: 1px solid var(--border);
 }
 
+/* In native WebView, dvh can be unreliable — use env() safe area */
+:global(.native-app) .container {
+  height: calc(100dvh - 64px - env(safe-area-inset-bottom, 56px));
+}
+
 /* ─── Community Name Header ──────────────────────────────────── */
 .communityHeader {
   display: flex;

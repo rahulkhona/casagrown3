@@ -372,6 +372,8 @@ PAYPAL_SECRET = "env(PAYPAL_SECRET)"
 PAYPAL_ENABLED = "env(PAYPAL_ENABLED)"
 TREMENDOUS_WEBHOOK_SECRET = "env(TREMENDOUS_WEBHOOK_SECRET)"
 PAYPAL_WEBHOOK_ID = "env(PAYPAL_WEBHOOK_ID)"
+# Skip AI calls during automated E2E tests (set to "false" or remove to enable AI locally)
+SKIP_AI = "env(SKIP_AI)"
 
 [analytics]
 enabled = true

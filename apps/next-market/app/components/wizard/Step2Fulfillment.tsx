@@ -1,6 +1,7 @@
 'use client'
 import React, { useState } from 'react'
 import { useWizard } from './WizardContext'
+import AddressInput from '../AddressInput'
 import styles from './wizard.module.css'
 
 const PRODUCT_TIME_WINDOWS = [
@@ -172,7 +173,15 @@ export default function Step2Fulfillment() {
 
   const validateAndNext = () => {
     const newErrors: Record<string, string> = {}
-    if (!state.address) newErrors.address = 'Home/Farm address is required'
+    if (!state.address) {
+      newErrors.address = 'Home/Farm address is required'
+    } else if (!/\b\d{5}\b/.test(state.address)) {
+      newErrors.address = 'Address must include a 5-digit ZIP code'
+    }
+
+    if (state.offersPickup && state.pickupAddress && !/\b\d{5}\b/.test(state.pickupAddress)) {
+      newErrors.pickupAddress = 'Alternate pickup address must include a 5-digit ZIP code'
+    }
     
     if (!state.offersDelivery && !state.offersPickup) {
       newErrors.fulfillment = 'Select at least delivery or pickup'
@@ -273,11 +282,9 @@ export default function Step2Fulfillment() {
         <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 8px' }}>
           This is your primary location. It is used to calculate delivery distances and local taxes.
         </p>
-        <input 
-          className={styles.input} 
+        <AddressInput 
           value={state.address || ''} 
-          onChange={(e) => updateState({ address: e.target.value })}
-          placeholder="123 Main St, City, ST"
+          onChange={(val) => updateState({ address: val })}
         />
         {errors.address && <div className={styles.errorText}>{errors.address}</div>}
         <button 
@@ -367,11 +374,10 @@ export default function Step2Fulfillment() {
                 <div style={{ marginTop: 16 }}>
                   <label className={styles.label}>📍 Alternate Pickup Address <span className={styles.optional}>(optional)</span></label>
                   <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 8px' }}>Leave blank to use your Home / Farm address.</p>
-                  <input
-                    className={styles.input}
+                  <AddressInput
                     value={state.pickupAddress || ''}
-                    onChange={e => updateState({ pickupAddress: e.target.value })}
-                    placeholder="e.g. Corner Store Parking Lot"
+                    onChange={val => updateState({ pickupAddress: val })}
+                    placeholderStreet="e.g. Corner Store Parking Lot"
                   />
                   {errors.pickupAddress && <span className={styles.errorText} style={{ display: 'block' }}>{errors.pickupAddress}</span>}
                   <button
