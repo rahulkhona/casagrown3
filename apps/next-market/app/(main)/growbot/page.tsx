@@ -23,33 +23,37 @@ interface Topic {
   lastUpdated: string
 }
 
-const TOPICS_KEY = 'growbot_topics'
-const ACTIVE_TOPIC_KEY = 'growbot_active_topic'
 const GROWBOT_AVATAR = '/growbot-avatar-v3.png'
 
-// ─── Helpers ──────────────────────────────────────────────────────────
+// Storage helpers: guests use sessionStorage (tab-scoped), logged-in users use
+// localStorage keyed by user ID — prevents shared-device topic leakage.
 
-function loadTopics(): Topic[] {
-  if (typeof window === 'undefined') return []
+function getStorage(userId?: string | null): Storage {
+  if (typeof window === 'undefined') return { getItem: () => null, setItem: () => {}, removeItem: () => {} } as any
+  return userId ? window.localStorage : window.sessionStorage
+}
+function topicsKey(userId?: string | null) { return userId ? `growbot_topics_${userId}` : 'growbot_topics' }
+function activeKey(userId?: string | null)  { return userId ? `growbot_active_${userId}` : 'growbot_active_topic' }
+
+function loadTopics(userId?: string | null): Topic[] {
   try {
-    const stored = localStorage.getItem(TOPICS_KEY)
+    const stored = getStorage(userId).getItem(topicsKey(userId))
     return stored ? JSON.parse(stored) : []
   } catch { return [] }
 }
 
-function saveTopics(topics: Topic[]) {
-  try { localStorage.setItem(TOPICS_KEY, JSON.stringify(topics.slice(0, 20))) } catch {}
+function saveTopics(topics: Topic[], userId?: string | null) {
+  try { getStorage(userId).setItem(topicsKey(userId), JSON.stringify(topics.slice(0, 20))) } catch {}
 }
 
-function getActiveTopic(): Topic | null {
-  if (typeof window === 'undefined') return null
+function getActiveTopic(userId?: string | null): Topic | null {
   try {
-    const activeId = localStorage.getItem(ACTIVE_TOPIC_KEY)
+    const activeId = getStorage(userId).getItem(activeKey(userId))
     if (!activeId) return null
-    const topics = loadTopics()
-    return topics.find(t => t.id === activeId) || null
+    return loadTopics(userId).find(t => t.id === activeId) || null
   } catch { return null }
 }
+
 
 function deriveTitle(messages: ChatMessage[]): string {
   const firstUserMsg = messages.find(m => m.role === 'user')
@@ -127,7 +131,8 @@ export default function GrowBotChatPage() {
   const saveCurrentTopic = useCallback((msgs: ChatMessage[], topicId?: string) => {
     const id = topicId || activeTopicId
     if (!id) return
-    const topics = loadTopics()
+    const uid = user?.id || null
+    const topics = loadTopics(uid)
     const idx = topics.findIndex(t => t.id === id)
     const topic: Topic = {
       id,
@@ -140,19 +145,20 @@ export default function GrowBotChatPage() {
     } else {
       topics.unshift(topic)
     }
-    saveTopics(topics)
-  }, [activeTopicId])
+    saveTopics(topics, uid)
+  }, [activeTopicId, user?.id])
 
   // Load active topic on mount
   useEffect(() => {
-    const active = getActiveTopic()
+    if (authLoading) return
+    const active = getActiveTopic(user?.id)
     if (active) {
       setActiveTopicId(active.id)
       setMessages(active.messages)
     }
-  }, [])
+  }, [authLoading, user?.id])
 
-  // Detect auth state changes — only clear history on LOGOUT
+  // Detect auth state changes — migrate guest topics on LOGIN, clear on LOGOUT
   useEffect(() => {
     if (authLoading) return
     const currentUserId = user?.id || null
@@ -161,13 +167,37 @@ export default function GrowBotChatPage() {
       return
     }
     if (lastUserIdRef.current !== currentUserId) {
-      const wasLogout = lastUserIdRef.current && !currentUserId
+      const wasLogin  = !lastUserIdRef.current && !!currentUserId
+      const wasLogout = !!lastUserIdRef.current && !currentUserId
       lastUserIdRef.current = currentUserId
+
+      if (wasLogin && currentUserId) {
+        // Migrate guest sessionStorage topics → user localStorage
+        const guestTopics = loadTopics(null)
+        if (guestTopics.length > 0) {
+          const existingUserTopics = loadTopics(currentUserId)
+          // Prepend guest topics (most recent first), dedup by id
+          const merged = [...guestTopics, ...existingUserTopics].filter(
+            (t, i, arr) => arr.findIndex(x => x.id === t.id) === i
+          )
+          saveTopics(merged, currentUserId)
+          // Restore active topic for this user
+          const guestActiveId = window.sessionStorage.getItem(activeKey(null))
+          if (guestActiveId) {
+            window.localStorage.setItem(activeKey(currentUserId), guestActiveId)
+            setActiveTopicId(guestActiveId)
+          }
+          // Clear guest session storage
+          window.sessionStorage.removeItem(topicsKey(null))
+          window.sessionStorage.removeItem(activeKey(null))
+        }
+        // Re-init to load user's topics (including migrated ones)
+        initRef.current = false
+      }
+
       if (wasLogout) {
         setMessages([])
         setActiveTopicId(null)
-        localStorage.removeItem(TOPICS_KEY)
-        localStorage.removeItem(ACTIVE_TOPIC_KEY)
         initRef.current = false
         setTimeout(() => sendToGrowBot('__INIT_WELCOME__', []), 200)
       }
@@ -184,18 +214,18 @@ export default function GrowBotChatPage() {
   // Trigger welcome on first visit (no active topic)
   useEffect(() => {
     if (authLoading || initRef.current) return
-    const active = getActiveTopic()
+    const uid = user?.id || null
+    const active = getActiveTopic(uid)
     if (!active || active.messages.length === 0) {
       initRef.current = true
-      // Create a new topic for the welcome
       const newId = `topic-${Date.now()}`
       setActiveTopicId(newId)
-      localStorage.setItem(ACTIVE_TOPIC_KEY, newId)
+      getStorage(uid).setItem(activeKey(uid), newId)
       sendToGrowBot('__INIT_WELCOME__', [], undefined, newId)
     } else {
       initRef.current = true
     }
-  }, [authLoading]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [authLoading, user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendToGrowBot = useCallback(async (messageText: string, currentMessages: ChatMessage[], imageBase64?: string, topicIdOverride?: string) => {
     setIsThinking(true)
@@ -316,28 +346,28 @@ export default function GrowBotChatPage() {
   }
 
   const handleNewTopic = () => {
-    // Save current topic first
     if (activeTopicId && messages.length > 0) {
       saveCurrentTopic(messages)
     }
+    const uid = user?.id || null
     const newId = `topic-${Date.now()}`
     setActiveTopicId(newId)
-    localStorage.setItem(ACTIVE_TOPIC_KEY, newId)
+    getStorage(uid).setItem(activeKey(uid), newId)
     setMessages([])
     initRef.current = false
     setTimeout(() => sendToGrowBot('__INIT_WELCOME__', [], undefined, newId), 100)
   }
 
   const handleSwitchTopic = (topicId: string) => {
-    // Save current first
     if (activeTopicId && messages.length > 0) {
       saveCurrentTopic(messages)
     }
-    const topics = loadTopics()
+    const uid = user?.id || null
+    const topics = loadTopics(uid)
     const topic = topics.find(t => t.id === topicId)
     if (topic) {
       setActiveTopicId(topic.id)
-      localStorage.setItem(ACTIVE_TOPIC_KEY, topic.id)
+      getStorage(uid).setItem(activeKey(uid), topic.id)
       setMessages(topic.messages)
       initRef.current = true
     }
@@ -481,10 +511,10 @@ export default function GrowBotChatPage() {
             <div style={{ padding: '0 16px 12px', fontWeight: 700, color: '#14532d', fontSize: 15, borderBottom: '1px solid #bbf7d0' }}>
               Past Topics
             </div>
-            {loadTopics().length === 0 && (
+            {loadTopics(user?.id).length === 0 && (
               <div style={{ padding: '24px 16px', color: '#6b7280', fontSize: 13, textAlign: 'center' }}>No past topics yet</div>
             )}
-            {loadTopics().map(topic => (
+            {loadTopics(user?.id).map(topic => (
               <button
                 key={topic.id}
                 onClick={() => handleSwitchTopic(topic.id)}
