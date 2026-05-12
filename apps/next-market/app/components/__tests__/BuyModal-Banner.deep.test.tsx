@@ -70,6 +70,11 @@ vi.mock('@stripe/stripe-js', () => ({
   loadStripe: vi.fn().mockResolvedValue(null),
 }))
 
+// Mock NativeBridge
+vi.mock('../../../lib/nativeBridge', () => ({
+  NativeBridge: { isNative: false }
+}))
+
 beforeEach(() => { vi.clearAllMocks() })
 afterEach(() => { cleanup() })
 
