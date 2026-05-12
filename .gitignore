@@ -92,3 +92,8 @@ schema.sql
 clear_verification.sql
 *.sh.bak
 .gemini/
+
+# Root-level scratch test scripts (never commit — keys may be hardcoded)
+/test-*.js
+/test-*.ts
+/test-*.mjs
