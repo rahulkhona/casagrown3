@@ -7521,18 +7521,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@tamagui/helpers-icon@npm:1.144.4":
-  version: 1.144.4
-  resolution: "@tamagui/helpers-icon@npm:1.144.4"
-  dependencies:
-    "@tamagui/core": "npm:1.144.4"
-  peerDependencies:
-    react: "*"
-    react-native-svg: ">=12"
-  checksum: 10/05af64012b5543e4eb0fd0f3f75e58b6a6812d4cda3a405a693698a6e29eaa9fc7677747de77bd84b3974a4ba48e935cfd96b46088363341d98a2f99a4da46f9
-  languageName: node
-  linkType: hard
-
 "@tamagui/helpers-icon@npm:2.0.0-rc.0-1769885482630":
   version: 2.0.0-rc.0-1769885482630
   resolution: "@tamagui/helpers-icon@npm:2.0.0-rc.0-1769885482630"
@@ -7674,19 +7662,6 @@ __metadata:
   peerDependencies:
     react: ">=19"
   checksum: 10/d1eed0e0a4abf495dc027aa830f140185b6d514a6cefc50cdf8e5fc8c0176e10546ac0178a48c209c102ad17264c4414bcbfef9cdca3ec61545ae9da962a1896
-  languageName: node
-  linkType: hard
-
-"@tamagui/lucide-icons@npm:*":
-  version: 1.144.4
-  resolution: "@tamagui/lucide-icons@npm:1.144.4"
-  dependencies:
-    "@tamagui/core": "npm:1.144.4"
-    "@tamagui/helpers-icon": "npm:1.144.4"
-  peerDependencies:
-    react: "*"
-    react-native-svg: ">=12"
-  checksum: 10/d57927bb011280284dcbc1ebab5a9b72e0d33d5fc066b2e67422ba3ac1ba0e6120dd69b33b2148935c767a98cf0e5a99b5d8d5138fa3edff1dfebb7b8fb6796a
   languageName: node
   linkType: hard
 
@@ -18720,7 +18695,7 @@ __metadata:
     "@casagrown/app": "npm:*"
     "@hello-pangea/dnd": "npm:^18.0.1"
     "@tamagui/config": "npm:^2.0.0-rc.0"
-    "@tamagui/lucide-icons": "npm:*"
+    "@tamagui/lucide-icons": "npm:^2.0.0-rc.0"
     "@tamagui/next-plugin": "npm:^2.0.0-rc.0"
     "@tamagui/next-theme": "npm:^2.0.0-rc.0"
     "@types/mustache": "npm:^4.2.5"

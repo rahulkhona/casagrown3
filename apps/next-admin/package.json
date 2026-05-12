@@ -14,7 +14,7 @@
     "@casagrown/app": "*",
     "@hello-pangea/dnd": "^18.0.1",
     "@tamagui/config": "^2.0.0-rc.0",
-    "@tamagui/lucide-icons": "*",
+    "@tamagui/lucide-icons": "^2.0.0-rc.0",
     "@tamagui/next-theme": "^2.0.0-rc.0",
     "@xyflow/react": "^12.10.2",
     "mustache": "^4.2.0",
