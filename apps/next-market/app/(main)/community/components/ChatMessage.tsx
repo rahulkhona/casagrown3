@@ -45,7 +45,7 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
 
   const isOwnMessage = currentUserId === message.author_id
   const isBot = message.is_system || 
-                message.author_name === 'CasaBot' || 
+                message.author_name === 'GrowBot' || 
                 message.author_id === '00000000-0000-0000-0000-000000000000' || 
                 message.author_id === 'a0000000-0000-0000-0000-00000ca5ab07'
 
@@ -125,7 +125,7 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
     <div id={`msg-${message.id}`} className={`${styles.messageWrapper} ${isOwnMessage ? styles.isOwnMessage : ''} ${isBot ? styles.isBotMessage : ''}`}>
       <div className={`${styles.avatar} ${isBot ? styles.botAvatar : ''}`}>
         {isBot ? (
-          <span>🐝</span>
+          <img src="/growbot-avatar-v3.png" alt="GrowBot" style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scale(1.2)' }} />
         ) : message.author_avatar_url ? (
           <img src={message.author_avatar_url} alt={message.author_name || 'User'} />
         ) : (
@@ -136,21 +136,23 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
       <div className={styles.messageContent}>
         <div className={styles.messageHeader}>
           <span className={styles.authorName}>
-            {isBot ? 'CasaBot' : (message.author_name || 'Neighbor')}
+            {isBot ? 'GrowBot' : (message.author_name || 'Neighbor')}
           </span>
           {isBot && <span className={styles.botBadge}>BOT</span>}
           
           {/* NEW: Inline Message Action */}
-          {!isOwnMessage && !isBot && !isGuest && (
+          {!isOwnMessage && !isGuest && (
             <div style={{ display: 'inline-flex', alignItems: 'center' }}>
-              <a 
-                href={`/messages/new?userId=${message.author_id}&name=${encodeURIComponent(message.author_name || 'Neighbor')}`}
-                style={{ fontSize: '0.75rem', background: '#dcfce3', border: '1px solid #86efac', padding: '2px 8px', borderRadius: '12px', marginLeft: 6, color: '#166534', textDecoration: 'none', fontWeight: 500 }}
-                title="Send a Direct Message"
-              >
-                💬 DM
-              </a>
-              <ChatFollowButton currentUserId={currentUserId} targetUserId={message.author_id} />
+              {(!isBot || message.author_name === 'GrowBot' || message.author_id === 'a0000000-0000-0000-0000-00000ca5ab07') && (
+                <a 
+                  href={isBot ? '/growbot' : `/messages/new?userId=${message.author_id}&name=${encodeURIComponent(message.author_name || 'Neighbor')}`}
+                  style={{ fontSize: '0.75rem', background: '#dcfce3', border: '1px solid #86efac', padding: '2px 8px', borderRadius: '12px', marginLeft: 6, color: '#166534', textDecoration: 'none', fontWeight: 500 }}
+                  title={isBot ? 'Chat with GrowBot' : 'Send a Direct Message'}
+                >
+                  {isBot ? '🤖 Chat' : '💬 DM'}
+                </a>
+              )}
+              {!isBot && <ChatFollowButton currentUserId={currentUserId} targetUserId={message.author_id} />}
             </div>
           )}
 
@@ -436,7 +438,31 @@ function ChatFollowButton({ targetUserId, currentUserId, isSmall }: { targetUser
 // ── Simple Markdown Parser ──
 function SimpleMarkdown({ text }: { text: string }) {
   if (!text) return null
-  if (!text.includes('- ') && !text.includes('*') && !text.includes('#')) {
+
+  // Parse inline elements: **bold** and URLs
+  const parseInline = (str: string) => {
+    // Split on bold markers and URLs
+    const urlRegex = /(https?:\/\/[^\s]+)/g
+    const boldRegex = /(\*\*.*?\*\*)/g
+    // Combined split: bold OR URLs
+    const combinedRegex = /(\*\*.*?\*\*|https?:\/\/[^\s]+)/g
+    const parts = str.split(combinedRegex)
+    return parts.map((p, j) => {
+      if (p.startsWith('**') && p.endsWith('**')) {
+        return <strong key={j}>{p.slice(2, -2)}</strong>
+      }
+      if (/^https?:\/\//.test(p)) {
+        return (
+          <a key={j} href={p} target="_blank" rel="noopener noreferrer"
+            style={{ color: '#166534', textDecoration: 'underline', wordBreak: 'break-all' }}
+          >{p}</a>
+        )
+      }
+      return p
+    })
+  }
+
+  if (!text.includes('- ') && !text.includes('*') && !text.includes('#') && !text.includes('http')) {
     return <>{text}</>
   }
   
@@ -454,17 +480,7 @@ function SimpleMarkdown({ text }: { text: string }) {
           cleanLine = line.trim().replace(/^\* /, '')
         }
 
-        const parts = cleanLine.split(/(\*\*.*?\*\*)/g)
-        const parsedLine = (
-          <>
-            {parts.map((p, j) => {
-              if (p.startsWith('**') && p.endsWith('**')) {
-                return <strong key={j}>{p.slice(2, -2)}</strong>
-              }
-              return p
-            })}
-          </>
-        )
+        const parsedLine = <>{parseInline(cleanLine)}</>
 
         if (isBullet) {
           return <li key={i} style={{ marginLeft: 20 }}>{parsedLine}</li>

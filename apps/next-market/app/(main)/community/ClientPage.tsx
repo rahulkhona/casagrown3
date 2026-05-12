@@ -547,10 +547,10 @@ export default function ClientPage({
       // If message mentions @CasaBot OR is a reply to a CasaBot message, trigger AI response
       const CASABOT_ID = 'a0000000-0000-0000-0000-00000ca5ab07'
       const isCasaBotTrigger = 
-        content.toLowerCase().includes('@casabot') ||
+        content.toLowerCase().includes('@growbot') ||
         (replyingTo && (
           replyingTo.author_id === CASABOT_ID ||
-          replyingTo.author_name === 'CasaBot' ||
+          replyingTo.author_name === 'GrowBot' ||
           replyingTo.is_system
         ))
 

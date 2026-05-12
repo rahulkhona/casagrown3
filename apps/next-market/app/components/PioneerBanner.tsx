@@ -95,7 +95,7 @@ export default function PioneerBanner({ memberCount, communityH3, onDismiss }: P
             A vibrant community means more neighbors trading fresh produce, sharing 
             garden know-how, and discovering what grows best nearby. Help us grow your 
             community by inviting your neighbors! Meanwhile, visit <strong>Community</strong> to 
-            connect and ask <strong>CasaBot</strong> for gardening tips and advice.
+            connect and ask <strong>GrowBot</strong> for gardening tips and advice.
           </p>
 
           {/* Action buttons - well spaced */}

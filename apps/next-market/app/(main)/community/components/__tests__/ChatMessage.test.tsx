@@ -51,8 +51,8 @@ const baseMessage = {
 const botMessage = {
   ...baseMessage,
   id: 'bot-1',
-  author_id: '00000000-0000-0000-0000-000000000000',
-  author_name: 'CasaGrown',
+  author_id: 'a0000000-0000-0000-0000-00000ca5ab07',
+  author_name: 'GrowBot',
   is_system: true,
   content: '🐝 What is the best thing you have grown this year?',
 }
@@ -116,12 +116,13 @@ describe('ChatMessage', () => {
     expect(link).toBeFalsy()
   })
 
-  it('does NOT render link to DM if message is from CasaBot', () => {
+  it('renders link to GrowBot page if message is from GrowBot', () => {
     const { container } = render(
       React.createElement(ChatMessage, { ...defaultProps, message: botMessage })
     )
     const link = container.querySelector('a')
-    expect(link).toBeFalsy()
+    expect(link).toBeTruthy()
+    expect(link?.getAttribute('href') || '').toContain('/growbot')
   })
 
   // ── Bot/System Message Styling ───────────────────────────────
@@ -137,7 +138,7 @@ describe('ChatMessage', () => {
     const { container } = render(
       React.createElement(ChatMessage, { ...defaultProps, message: botMessage })
     )
-    expect(container.textContent).toContain('CasaBot')
+    expect(container.textContent).toContain('GrowBot')
   })
 
   it('renders BOT badge for system messages', () => {

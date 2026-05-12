@@ -152,7 +152,7 @@ export async function handleLeadIngestion(req: Request, config: IngestionConfig)
             });
         }
 
-        if (AI_KEY) {
+        if (AI_KEY && Deno.env.get('AI_MOCK') !== 'true') {
           const prompt = config.getAiPrompt(payload);
           
           const fetchPromise = fetch(AI_URL, {
@@ -205,6 +205,42 @@ export async function handleLeadIngestion(req: Request, config: IngestionConfig)
               status: 200, headers: CORS,
             });
           }
+        } else if (Deno.env.get('AI_MOCK') === 'true') {
+          // AI_MOCK mode: generate synthetic nutrition data from the produce list.
+          // Only activates for nutrition-style functions with produce data.
+          // Other functions (e.g. estimate-earnings) fall through to { queued: true }.
+          const produceList: string[] = payload.__missing_produce || payload.produce || [];
+          if (produceList.length > 0) {
+            const mockItems = produceList.map((p: string) => ({
+              name: p.toLowerCase().trim().replace(/ies$/, 'y').replace(/(?<!s)s$/, ''),
+              time_to_shelf: "3-7 Days",
+              nutrient_loss_pct: "25%-40%",
+              impacted_nutrients: "Vitamin C, Folate",
+              evidence_link: "https://mock.test/study"
+            }));
+            const parsedResult = {
+              summary: "Mock: Store-bought produce loses nutrients between harvest and shelf.",
+              items: mockItems,
+            };
+            const result = config.mergeAiResult ? config.mergeAiResult(payload, parsedResult) : parsedResult;
+
+            const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+            if (config.saveCacheResults) {
+              try {
+                await config.saveCacheResults(supabaseAdmin, payload, parsedResult);
+              } catch (cacheSaveErr) {
+                console.error("Mock: Failed to save to cache:", cacheSaveErr);
+              }
+            }
+            await supabaseAdmin.from('crm_leads').update({
+              metadata: { ...finalLeadMetadata, [config.resultKey]: result }
+            }).eq('id', leadId);
+
+            return new Response(JSON.stringify({ [config.resultKey]: result }), {
+              status: 200, headers: CORS,
+            });
+          }
+          // Non-produce functions: fall through to { queued: true }
         }
       } catch (aiErr) {
         console.log("Inline AI failed or timed out, falling back to queue.", aiErr);

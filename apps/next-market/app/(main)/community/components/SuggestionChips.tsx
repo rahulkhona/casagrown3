@@ -4,7 +4,7 @@ import styles from '../page.module.css'
 
 interface SuggestionChipsProps {
   onSelect: (text: string) => void
-  /** Prefill compose box instead of sending — used for @CasaBot chip */
+  /** Prefill compose box instead of sending — used for @GrowBot chip */
   onPrefill: (text: string) => void
   /** Number of user-authored (non-system) messages in chat */
   userMessageCount: number
@@ -153,7 +153,7 @@ export default function SuggestionChips({ onSelect, onPrefill, userMessageCount,
   }, [])
 
   // Show random chips when user hasn't sent many messages
-  // but always show the CasaBot chip + action chips
+  // but always show the GrowBot chip + action chips
   return (
     <div className={styles.suggestionsWrapper}>
       {/* Row 1: Conversation starters */}
@@ -172,11 +172,11 @@ export default function SuggestionChips({ onSelect, onPrefill, userMessageCount,
       {/* Row 2: Action chips (closer to compose box) */}
       <div className={styles.actionChipsRow}>
         <button
-          className={`${styles.suggestionChip} ${styles.casabotChip}`}
-          onClick={() => onPrefill('@CasaBot ')}
-          title="Ask CasaBot for gardening advice"
+          className={`${styles.suggestionChip} ${styles.growbotChip}`}
+          onClick={() => onPrefill('@GrowBot ')}
+          title="Ask GrowBot for gardening advice"
         >
-          🐝 Ask CasaBot
+          <img src="/growbot-avatar-v3.png" alt="" style={{ width: 14, height: 14, marginRight: 4, borderRadius: '50%' }} /> Ask GrowBot
         </button>
 
         {onSellClick && (

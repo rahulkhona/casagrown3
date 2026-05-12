@@ -897,6 +897,21 @@
   border-color: var(--green-400);
 }
 
+.growbotChip {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px;
+  background: linear-gradient(135deg, #f0fdf4, #dcfce7) !important;
+  border-color: #16a34a !important;
+  color: #166534 !important;
+  font-weight: 600;
+}
+
+.growbotChip:hover {
+  background: linear-gradient(135deg, #dcfce7, #bbf7d0) !important;
+  border-color: #15803d !important;
+}
+
 .sellChip {
   background: linear-gradient(135deg, #fffbeb, #fef3c7);
   border-color: #f59e0b !important;

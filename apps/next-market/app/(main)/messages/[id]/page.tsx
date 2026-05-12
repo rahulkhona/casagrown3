@@ -10,6 +10,7 @@ import CameraCapture from '../../../../components/CameraCapture'
 import ImageCropper from '../../../../components/ImageCropper'
 import { BlockModal } from '../../../components/BlockModal'
 import { ShareIcon } from '../../../components/icons'
+import DynamicUICardRenderer from '../../../components/casabot/DynamicUICards'
 function formatTime(dateStr: string) {
   const d = new Date(dateStr)
   return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
@@ -56,7 +57,19 @@ function parseTextWithLinks(text: string) {
         </a>
       )
     }
-    return part;
+    
+    // Parse Markdown bold (**text**)
+    const boldParts = part.split(/(\*\*.*?\*\*)/g);
+    return (
+      <span key={i}>
+        {boldParts.map((bPart, j) => {
+          if (bPart.startsWith('**') && bPart.endsWith('**')) {
+            return <strong key={j}>{bPart.slice(2, -2)}</strong>;
+          }
+          return <span key={j}>{bPart}</span>;
+        })}
+      </span>
+    );
   });
 }
 
@@ -65,6 +78,17 @@ export default function MessageThreadPage() {
   const router = useRouter()
   const params = useParams()
   const id = params.id as string
+  
+  const handleActionClick = (actionText: string) => {
+    setInputText(actionText);
+    setTimeout(() => {
+      // Create synthetic event
+      const form = document.querySelector('.chat-form');
+      if (form) {
+        form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+      }
+    }, 50);
+  };
   
   const [messages, setMessages] = useState<any[]>([])
   const [conversation, setConversation] = useState<any>(null)
@@ -86,7 +110,7 @@ export default function MessageThreadPage() {
   const [uploadingMedia, setUploadingMedia] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [showAttachMenu, setShowAttachMenu] = useState(false)
   const [showCamera, setShowCamera] = useState(false)
@@ -147,7 +171,7 @@ export default function MessageThreadPage() {
 
   useEffect(() => {
     if (authLoading) return
-    if (!user) {
+    if (!user && id !== 'growbot') {
       router.replace('/login')
       return
     }
@@ -156,6 +180,22 @@ export default function MessageThreadPage() {
     const supabase = createClient()
 
     const fetchThread = async () => {
+      if (id === 'growbot') {
+        if (isMounted) {
+          setConversation(null)
+          setMyRole('participant_a')
+          setOtherUser({
+            id: 'a0000000-0000-0000-0000-00000ca5ab07',
+            full_name: 'GrowBot',
+            avatar_url: '/growbot-avatar-v3.png'
+          })
+          setIsOtherOnline(true)
+          setMessages([])
+          setLoading(false)
+        }
+        return
+      }
+
       // Fetch conversation metadata
       const { data: convData, error: convError } = await supabase
         .from('market_conversations')
@@ -168,13 +208,25 @@ export default function MessageThreadPage() {
         return
       }
 
-      const role = convData.participant_a === user.id ? 'participant_a' : 'participant_b'
-      const other = role === 'participant_a' ? convData.profile_b : convData.profile_a
+      const role = convData.participant_a === user!.id ? 'participant_a' : 'participant_b'
+      let other = role === 'participant_a' ? convData.profile_b : convData.profile_a
       
+      // Force override legacy DB profile for GrowBot
+      if (other?.id === 'a0000000-0000-0000-0000-00000ca5ab07') {
+        other = {
+          ...other,
+          full_name: 'GrowBot',
+          avatar_url: '/growbot-avatar-v3.png'
+        }
+      }
+
       if (isMounted) {
         setConversation(convData)
         setMyRole(role)
         setOtherUser(other)
+        if (other?.id === 'a0000000-0000-0000-0000-00000ca5ab07') {
+          setIsOtherOnline(true)
+        }
         clearUnreadCount(supabase, role)
       }
 
@@ -182,7 +234,7 @@ export default function MessageThreadPage() {
       const { data: blockCheck } = await supabase
         .from('market_blocks')
         .select('id, blocker_id')
-        .or(`and(blocker_id.eq.${user.id},blocked_id.eq.${other.id}),and(blocker_id.eq.${other.id},blocked_id.eq.${user.id})`)
+        .or(`and(blocker_id.eq.${user!.id},blocked_id.eq.${other.id}),and(blocker_id.eq.${other.id},blocked_id.eq.${user!.id})`)
       
       if (isMounted && blockCheck && blockCheck.length > 0) {
         setIsBlocked(true)
@@ -209,6 +261,36 @@ export default function MessageThreadPage() {
     fetchThread()
 
   }, [user, authLoading, id, router])
+
+  // --- 🤖 Edge Function: GrowBot Dynamic Welcome ---
+  useEffect(() => {
+    if (!loading && messages.length === 0 && otherUser?.id === 'a0000000-0000-0000-0000-00000ca5ab07') {
+      const triggerWelcome = async () => {
+        setIsOtherTyping(true);
+        const supabase = createClient();
+        const { data } = await supabase.functions.invoke('growbot', {
+          body: { 
+            message: '__INIT_WELCOME__', 
+            conversationId: id === 'growbot' ? null : id,
+            userId: user?.id || null 
+          }
+        });
+        setIsOtherTyping(false);
+        if (data && data.text) {
+          setMessages([{
+            id: 'growbot-welcome',
+            conversation_id: id,
+            sender_id: 'a0000000-0000-0000-0000-00000ca5ab07',
+            content: data.text,
+            created_at: new Date().toISOString(),
+            media: null,
+            ui_actions: data.actions || []
+          }]);
+        }
+      }
+      triggerWelcome();
+    }
+  }, [loading, messages.length, otherUser?.id, id, user?.id])
 
   // --- 📡 WebSockets: Postgres Sync, Presence & Typing Broadcast ---
   useEffect(() => {
@@ -250,7 +332,7 @@ export default function MessageThreadPage() {
       // 2. Online Header Status (Presence)
       newChannel.on('presence', { event: 'sync' }, () => {
         const state = newChannel.presenceState()
-        setIsOtherOnline(Object.keys(state).includes(otherUser.id))
+        setIsOtherOnline(Object.keys(state).includes(otherUser.id) || otherUser.id === 'a0000000-0000-0000-0000-00000ca5ab07')
       })
       
       // 3. Typing Bubble (Broadcast)
@@ -344,7 +426,14 @@ export default function MessageThreadPage() {
 
   const handleSend = async (e?: React.FormEvent) => {
     e?.preventDefault()
-    if ((!inputText.trim() && mediaFiles.length === 0) || sending || isBlocked || !user) return
+
+    // PROGRESSIVE PROFILING: Intercept guest users and route to login
+    if (!user) {
+      router.push('/login?redirect=/messages/a0000000-0000-0000-0000-00000ca5ab07')
+      return
+    }
+
+    if ((!inputText.trim() && mediaFiles.length === 0) || sending || isBlocked) return
 
     // Anti-harassment: Inline moderation check if there's text
     if (inputText.trim()) {
@@ -396,7 +485,9 @@ export default function MessageThreadPage() {
       return
     }
 
+    const capturedMessage = inputText.trim();
     setInputText('')
+    if (inputRef.current) { inputRef.current.style.height = 'auto'; }
     if (channelRef.current && user) {
        channelRef.current.send({ type: 'broadcast', event: 'typing', payload: { user_id: user.id, isTyping: false } })
     }
@@ -407,10 +498,66 @@ export default function MessageThreadPage() {
     setSending(false)
     
     // Optimistic refresh
-    const { data: fetchNew } = await supabase.from('market_chat_messages').select('*, offer_product:market_products(id, name, price_usd, photos, unit, seller_id)').eq('conversation_id', id).order('created_at', { ascending: true })
+    const { data: fetchNew } = await supabase.from('market_chat_messages').select('*, offer_product:market_products(id, name, price_usd, photos, unit, seller_id), market_chat_reactions(user_id, emoji)').eq('conversation_id', id).order('created_at', { ascending: true })
     if (fetchNew) {
       setMessages(fetchNew)
       setTimeout(scrollToBottom, 150)
+    }
+
+    // GROWBOT AI INTEGRATION
+    if (otherUser?.id === 'a0000000-0000-0000-0000-00000ca5ab07') {
+       setIsOtherTyping(true);
+       setTimeout(scrollToBottom, 50);
+       const userMessage = capturedMessage;
+       const history = (fetchNew || messages).map(m => ({
+         role: m.sender_id === user.id ? 'user' : 'model',
+         text: m.content
+       }));
+
+       // setTimeout(0) breaks React 18 batching so the typing indicator
+       // renders BEFORE the await begins, not after it resolves.
+       setTimeout(async () => {
+         try {
+           // Fire the edge function — don't await it, poll DB for the reply instead
+           supabase.functions.invoke('growbot', {
+             body: {
+                message: userMessage,
+                userId: user.id,
+                history: history,
+                image: null,
+                conversationId: id
+             }
+           }).then(async () => {
+             // Final refresh after function confirms completion
+             const { data } = await supabase.from('market_chat_messages')
+               .select('*, offer_product:market_products(id, name, price_usd, photos, unit, seller_id), market_chat_reactions(user_id, emoji)')
+               .eq('conversation_id', id).order('created_at', { ascending: true });
+             if (data) { setMessages(data); setTimeout(scrollToBottom, 150); }
+           }).catch((e: any) => console.error('GrowBot invoke error', e))
+           .finally(() => setIsOtherTyping(false));
+
+           // Poll DB every 2s for up to 60s while typing indicator is shown
+           let pollCount = 0;
+           const poll = setInterval(async () => {
+             pollCount++;
+             const { data } = await supabase.from('market_chat_messages')
+               .select('*, offer_product:market_products(id, name, price_usd, photos, unit, seller_id), market_chat_reactions(user_id, emoji)')
+               .eq('conversation_id', id).order('created_at', { ascending: true });
+             if (data && data.length > (history.length + 1)) {
+               // New message arrived
+               setMessages(data);
+               setIsOtherTyping(false);
+               setTimeout(scrollToBottom, 150);
+               clearInterval(poll);
+             }
+             if (pollCount >= 30) clearInterval(poll); // 60s max
+           }, 2000);
+         } catch(e) {
+           console.error('GrowBot error', e);
+           setIsOtherTyping(false);
+         }
+       }, 0);
+
     }
   }
 
@@ -536,7 +683,7 @@ export default function MessageThreadPage() {
         </button>
         <div style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: '#e5e7eb', overflow: 'hidden', marginRight: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {otherUser?.avatar_url ? (
-            <img src={otherUser.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <img src={otherUser.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', transform: otherUser.id === 'a0000000-0000-0000-0000-00000ca5ab07' ? 'scale(1.2)' : 'none' }} />
           ) : (
             <span style={{ fontWeight: 'bold', color: '#9ca3af' }}>{otherUser?.full_name?.charAt(0).toUpperCase() || '?'}</span>
           )}
@@ -552,14 +699,16 @@ export default function MessageThreadPage() {
           </div>
           
           {/* Explicit Block/Unblock Button Logic */}
-          {isBlocked ? (
-            <button onClick={handleUnblockUser} disabled={loading || authLoading || unblockLoading} style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#16a34a', fontSize: '0.8rem', fontWeight: 600, padding: '4px 10px', borderRadius: 20, cursor: 'pointer', marginLeft: 12 }}>
-               🔓 Unblock
-            </button>
-          ) : (
-            <button onClick={() => setShowBlockModal(true)} disabled={loading || authLoading} style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#ef4444', fontSize: '0.8rem', fontWeight: 600, padding: '4px 10px', borderRadius: 20, cursor: 'pointer', marginLeft: 12 }}>
-               🚫 Block
-            </button>
+          {otherUser?.id !== 'a0000000-0000-0000-0000-00000ca5ab07' && (
+            isBlocked ? (
+              <button onClick={handleUnblockUser} disabled={loading || authLoading || unblockLoading} style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#16a34a', fontSize: '0.8rem', fontWeight: 600, padding: '4px 10px', borderRadius: 20, cursor: 'pointer', marginLeft: 12 }}>
+                 🔓 Unblock
+              </button>
+            ) : (
+              <button onClick={() => setShowBlockModal(true)} disabled={loading || authLoading} style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#ef4444', fontSize: '0.8rem', fontWeight: 600, padding: '4px 10px', borderRadius: 20, cursor: 'pointer', marginLeft: 12 }}>
+                 🚫 Block
+              </button>
+            )
           )}
         </div>
       </header>
@@ -570,8 +719,10 @@ export default function MessageThreadPage() {
         {/* Forces messages to bottom-align if there are only a few */ }
         <div style={{ flexGrow: 1, minHeight: 20 }} />
         
-        {messages.map((msg, idx) => {
-          const isMe = msg.sender_id === user?.id
+        {(() => {
+          let displayMsgs = [...messages]
+          return displayMsgs.map((msg, idx) => {
+            const isMe = msg.sender_id === user?.id
           const showAvatar = !isMe && (idx === messages.length - 1 || messages[idx + 1]?.sender_id !== msg.sender_id)
           
           const msgDate = new Date(msg.created_at).toDateString()
@@ -598,7 +749,7 @@ export default function MessageThreadPage() {
               {!isMe && (
                 <div style={{ width: 28, height: 28, marginRight: 8, alignSelf: 'flex-end', opacity: showAvatar ? 1 : 0 }}>
                   {otherUser?.avatar_url ? (
-                     <img src={otherUser.avatar_url} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                     <img src={otherUser.avatar_url} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', transform: otherUser.id === 'a0000000-0000-0000-0000-00000ca5ab07' ? 'scale(1.2)' : 'none' }} />
                   ) : (
                      <div style={{ width: '100%', height: '100%', borderRadius: '50%', backgroundColor: '#e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#9ca3af', fontWeight: 'bold' }}>{otherUser?.full_name?.charAt(0).toUpperCase()}</div>
                   )}
@@ -685,6 +836,15 @@ export default function MessageThreadPage() {
                   </div>
                 )}
                 
+                {/* CasaBot UI Actions (if any) */}
+                {msg.ui_actions && msg.ui_actions.length > 0 && (
+                  <div style={{ padding: '0 10px 10px 10px', width: '100%' }}>
+                    {msg.ui_actions.map((action: any, i: number) => (
+                      <DynamicUICardRenderer key={i} action={action} onActionClick={handleActionClick} />
+                    ))}
+                  </div>
+                )}
+                
                 {/* 3. Offer Product Card */}
                 {msg.offer_product && (
                   <div style={{ margin: '0 10px 10px', background: 'white', borderRadius: 12, padding: 12, color: '#1f2937', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
@@ -727,7 +887,7 @@ export default function MessageThreadPage() {
             </div>
             </div>
           )
-        })}
+        })})()}
         {/* Typing indicator fallback area */}
         {isOtherTyping && (
           <div style={{ padding: '0 10px 16px', display: 'flex', alignItems: 'center', gap: 8, alignSelf: 'flex-start', marginLeft: 36 }}>
@@ -783,7 +943,7 @@ export default function MessageThreadPage() {
       {/* Compose Footer */}
       <footer style={{ background: 'white', padding: '12px 16px', borderTop: (mediaPreviews.length > 0 || replyingToMessage) ? 'none' : '1px solid #e5e7eb', zIndex: 10, position: 'relative' }}>
         {/* Action Chips Row — above compose, Buzz-consistent */}
-        {!isBlocked && (
+        {!isBlocked && otherUser?.id !== 'a0000000-0000-0000-0000-00000ca5ab07' && (
           <div style={{ display: 'flex', gap: 6, marginBottom: 8, overflowX: 'auto', scrollbarWidth: 'none' }}>
             <button type="button" onClick={loadMyProducts} disabled={uploadingMedia || sending}
               style={{
@@ -890,21 +1050,31 @@ export default function MessageThreadPage() {
               )}
             </div>
             
-            <input
+            <textarea
               ref={inputRef}
-              type="text"
+              rows={1}
               value={inputText}
               onChange={(e) => handleTypingEmitter(e.target.value)}
+              onInput={(e) => {
+                const el = e.currentTarget;
+                el.style.height = 'auto';
+                el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+              }}
               placeholder="Message..."
               disabled={isBlocked || uploadingMedia || sending}
               style={{
                 flexGrow: 1,
-                padding: '12px 16px',
+                padding: '10px 16px',
                 borderRadius: 24,
                 border: '1px solid #d1d5db',
                 background: isBlocked ? '#f3f4f6' : 'white',
                 fontSize: '1rem',
                 outline: 'none',
+                resize: 'none',
+                overflowY: 'hidden',
+                lineHeight: '1.4',
+                maxHeight: 120,
+                fontFamily: 'inherit',
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -913,6 +1083,7 @@ export default function MessageThreadPage() {
                 }
               }}
             />
+
             <button 
               type="submit"
               disabled={sending || (!inputText.trim() && mediaFiles.length === 0)}

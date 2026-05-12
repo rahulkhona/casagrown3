@@ -152,8 +152,18 @@ sleep 1
 
 # ── Force AI mock mode during test runs (prevents real Gemini API calls) ──
 FUNCTIONS_ENV="supabase/functions/.env"
+LOCAL_ENV="supabase/.env.local"
 AI_MOCK_ORIGINAL=$(grep "^AI_MOCK=" "$FUNCTIONS_ENV" 2>/dev/null || echo "AI_MOCK=false")
 sed -i '' 's/^AI_MOCK=.*/AI_MOCK=true/' "$FUNCTIONS_ENV" 2>/dev/null || echo "AI_MOCK=true" >> "$FUNCTIONS_ENV"
+# Also set in .env.local if it exists (edge server prefers this file)
+if [ -f "$LOCAL_ENV" ]; then
+  AI_MOCK_LOCAL_ORIGINAL=$(grep "^AI_MOCK=" "$LOCAL_ENV" 2>/dev/null || echo "")
+  if grep -q "^AI_MOCK=" "$LOCAL_ENV" 2>/dev/null; then
+    sed -i '' 's/^AI_MOCK=.*/AI_MOCK=true/' "$LOCAL_ENV"
+  else
+    echo "AI_MOCK=true" >> "$LOCAL_ENV"
+  fi
+fi
 echo "  🔒 AI_MOCK forced to true for test run"
 
 echo "  Starting edge functions server..."
@@ -253,7 +263,7 @@ section "Phase 5: Deno Integration Tests"
 
 # 5a: Main integration tests
 echo "  Running Deno integration tests (_tests/)..."
-DENO_OUTPUT=$(cd supabase && deno test --allow-env --allow-net --allow-run --no-check functions/_tests/ 2>&1)
+DENO_OUTPUT=$(cd supabase && deno test --allow-env --allow-net --allow-run --no-check "--ignore=functions/_tests/growbot.test.ts" functions/_tests/ 2>&1)
 DENO_PASSED=$(echo "$DENO_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
 DENO_FAILED=$(echo "$DENO_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
 
@@ -432,6 +442,22 @@ else
   echo -e "  ${RED}❌ Profile Setup Pipeline: ${PROFILE_PASSED} passed, ${PROFILE_FAILED} failed${NC}"
   echo "$PROFILE_OUTPUT" | grep "FAILED" | head -10
   log_suite "Profile Setup Pipeline" "$PROFILE_PASSED" "$PROFILE_FAILED"
+fi
+
+# 5l: GrowBot edge function tests
+echo "  Running GrowBot edge function tests..."
+GROWBOT_OUTPUT=$(cd supabase && deno test --allow-env --allow-net --allow-run --no-check \
+  functions/_tests/growbot.test.ts 2>&1)
+GROWBOT_PASSED=$(echo "$GROWBOT_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
+GROWBOT_FAILED=$(echo "$GROWBOT_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
+
+if [ "${GROWBOT_FAILED:-0}" -eq 0 ] || [ -z "$GROWBOT_FAILED" ]; then
+  echo -e "  ${GREEN}✅ GrowBot Edge: ${GROWBOT_PASSED} tests — ALL PASS${NC}"
+  log_suite "GrowBot Edge" "$GROWBOT_PASSED"
+else
+  echo -e "  ${RED}❌ GrowBot Edge: ${GROWBOT_PASSED} passed, ${GROWBOT_FAILED} failed${NC}"
+  echo "$GROWBOT_OUTPUT" | grep "FAILED" | head -10
+  log_suite "GrowBot Edge" "$GROWBOT_PASSED" "$GROWBOT_FAILED"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -624,6 +650,15 @@ kill "$EDGE_PID" 2>/dev/null || true
 
 # ── Restore AI_MOCK to original value ──
 sed -i '' "s/^AI_MOCK=.*/${AI_MOCK_ORIGINAL}/" "$FUNCTIONS_ENV" 2>/dev/null || true
+# Restore .env.local
+if [ -f "$LOCAL_ENV" ]; then
+  if [ -n "$AI_MOCK_LOCAL_ORIGINAL" ]; then
+    sed -i '' "s/^AI_MOCK=.*/${AI_MOCK_LOCAL_ORIGINAL}/" "$LOCAL_ENV" 2>/dev/null || true
+  else
+    # AI_MOCK was appended — remove it
+    sed -i '' '/^AI_MOCK=/d' "$LOCAL_ENV" 2>/dev/null || true
+  fi
+fi
 echo "  🔓 AI_MOCK restored to: ${AI_MOCK_ORIGINAL}"
 
 # ─────────────────────────────────────────────────────────────────────────
