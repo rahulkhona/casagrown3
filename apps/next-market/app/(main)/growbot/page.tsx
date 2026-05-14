@@ -19,6 +19,7 @@ interface ChatMessage {
   timestamp: string
   shareId?: string     // set after user shares this message
   feedback?: 'up' | 'down'  // in-chat thumbs up/down
+  isError?: boolean
 }
 
 interface Topic {
@@ -494,8 +495,9 @@ export default function GrowBotChatPage() {
       const errorMessage: ChatMessage = {
         id: `error-${Date.now()}`,
         role: 'assistant',
-        text: 'Sorry, I had trouble processing that. Please try again.',
+        text: 'System is currently busy or rate-limited. Please try again in a moment.',
         timestamp: new Date().toISOString(),
+        isError: true
       }
       setMessages(prev => {
         const updated = [...prev, errorMessage]
@@ -1156,13 +1158,41 @@ export default function GrowBotChatPage() {
                 <div style={{
                   padding: '10px 14px',
                   borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                  background: msg.role === 'user' ? '#166534' : 'white',
-                  color: msg.role === 'user' ? 'white' : '#111827',
+                  background: msg.role === 'user' ? '#166534' : msg.isError ? '#fef2f2' : 'white',
+                  color: msg.role === 'user' ? 'white' : msg.isError ? '#991b1b' : '#111827',
+                  border: msg.isError ? '1px solid #fecaca' : 'none',
                   fontSize: 14, lineHeight: 1.5,
                   boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
                   wordBreak: 'break-word',
                 }}>
                   {msg.role === 'assistant' ? renderMarkdown(msg.text) : msg.text}
+                  {msg.isError && (
+                    <div style={{ marginTop: 10 }}>
+                      <button
+                        onClick={() => {
+                          const msgIdx = messages.findIndex(m => m.id === msg.id);
+                          const userMsgIdx = [...messages].slice(0, msgIdx).reverse().findIndex(m => m.role === 'user');
+                          if (userMsgIdx !== -1) {
+                            const actualUserIdx = msgIdx - 1 - userMsgIdx;
+                            const lastUserMsg = messages[actualUserIdx];
+                            const updatedHistory = messages.slice(0, msgIdx).filter(m => m.id !== msg.id);
+                            
+                            // Remove the error message locally
+                            setMessages(updatedHistory);
+                            saveCurrentTopic(updatedHistory);
+                            
+                            // Resend the text using the history prior to the user message
+                            // so we don't duplicate the user message in history
+                            const historyBeforeUserMsg = updatedHistory.slice(0, actualUserIdx);
+                            sendToGrowBot(lastUserMsg.text, historyBeforeUserMsg);
+                          }
+                        }}
+                        style={{ padding: '6px 16px', background: '#dc2626', color: 'white', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
+                      >
+                        ↻ Retry Message
+                      </button>
+                    </div>
+                  )}
                   {msg.id === streamingMsgId && (
                     <span style={{ animation: 'blink-cursor 1s step-end infinite', color: '#16a34a', fontWeight: 700 }}>▍</span>
                   )}

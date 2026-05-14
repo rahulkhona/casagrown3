@@ -139,7 +139,14 @@ export default function CampaignMessageEditor({
     if (form.channel === 'sms') {
       setForm(f => ({ ...f, content_text: (f.content_text || '') + ' {{' + v + '}}' }));
     } else {
-      setForm(f => ({ ...f, content_html: (f.content_html || '') + ' {{' + v + '}}' }));
+      const quill = quillRef.current?.getEditor();
+      if (quill && htmlMode === 'wysiwyg') {
+        const idx = quillSelectionRef.current?.index ?? quill.getLength();
+        quill.insertText(idx, `{{${v}}}`);
+        quill.setSelection(idx + `{{${v}}}`.length, 0);
+      } else {
+        setForm(f => ({ ...f, content_html: (f.content_html || '') + ' {{' + v + '}}' }));
+      }
     }
     e.target.value = '';
     toast('Variable appended!');
@@ -246,7 +253,9 @@ export default function CampaignMessageEditor({
       const quill = quillRef.current?.getEditor()
       if (quill) {
         const sel = quill.getSelection()
-        quillSelectionRef.current = sel ? { index: sel.index, length: sel.length } : { index: 0, length: 0 }
+        if (sel) {
+          quillSelectionRef.current = { index: sel.index, length: sel.length }
+        }
       }
     } catch {}
     setAssetPickerOpen(true)
@@ -814,6 +823,11 @@ export default function CampaignMessageEditor({
                 modules={quillModules}
                 value={form.content_html || ''} 
                 onChange={(val: string) => setForm(f => ({...f, content_html: val}))} 
+                onChangeSelection={(selection: any) => {
+                  if (selection) {
+                    quillSelectionRef.current = { index: selection.index, length: selection.length }
+                  }
+                }}
                 style={{ minHeight: '300px' }}
               />
 
@@ -1206,7 +1220,9 @@ export default function CampaignMessageEditor({
                     try {
                       const quill = quillRef.current?.getEditor()
                       if (quill) {
-                        quill.insertEmbed(quillSelectionRef.current?.index || 0, 'image', publicUrlData.publicUrl)
+                        const idx = quillSelectionRef.current?.index ?? quill.getLength()
+                        quill.insertEmbed(idx, 'image', publicUrlData.publicUrl)
+                        quill.setSelection(idx + 1)
                       }
                     } catch {}
                   } else {
@@ -1239,8 +1255,9 @@ export default function CampaignMessageEditor({
                              try {
                                const quill = quillRef.current?.getEditor()
                                if (quill) {
-                                 const idx = quillSelectionRef.current?.index || 0;
+                                 const idx = quillSelectionRef.current?.index ?? quill.getLength();
                                  quill.insertEmbed(idx, 'image', a.url)
+                                 quill.setSelection(idx + 1)
                                }
                              } catch {}
                            } else {

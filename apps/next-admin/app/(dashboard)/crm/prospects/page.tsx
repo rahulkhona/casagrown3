@@ -2,8 +2,8 @@
 
 import React, { useState } from 'react'
 import { YStack, XStack, Text, Input, Button, Spinner } from 'tamagui'
-import { Search, MapPin, ExternalLink, Mail, Phone, Leaf } from '@tamagui/lucide-icons'
 import { createClient } from '../../../../lib/supabase'
+import { geocodeAddress } from '../../../../lib/geocode'
 
 async function addFarmToLeads(farm: any): Promise<void> {
   const supabase = createClient()
@@ -236,28 +236,48 @@ function MarketManagerCard({ market }: { market: any }) {
 }
 
 
-export default function USDAFarmerProspectsPage() {
+export default function ExternalLeadsPage() {
+  const [source, setSource] = useState<'usda' | 'ofn'>('usda')
   const [zipcode, setZipcode] = useState('')
   const [radius, setRadius] = useState('25')
   const [loading, setLoading] = useState(false)
   const [onfarmProspects, setOnfarmProspects] = useState<any[]>([])
   const [csaProspects, setCsaProspects] = useState<any[]>([])
   const [marketProspects, setMarketProspects] = useState<any[]>([])
+  const [ofnProspects, setOfnProspects] = useState<any[]>([])
   const [error, setError] = useState('')
 
   const handleSearch = async () => {
     if (!zipcode.trim()) return
     setLoading(true)
     setError('')
+    setOfnProspects([])
+    setOnfarmProspects([])
+    setCsaProspects([])
+    setMarketProspects([])
+
     try {
       const supabase = createClient()
-      const { data, error: funcError } = await supabase.functions.invoke('usda-farmers-markets', {
-        body: { zipcode, radius: parseInt(radius) || 25 }
-      })
-      if (funcError) throw new Error(funcError.message)
-      setOnfarmProspects(data?.onfarm || [])
-      setCsaProspects(data?.csas || [])
-      setMarketProspects(data?.data || [])
+      const radNum = parseInt(radius) || 25
+      
+      if (source === 'usda') {
+        const { data, error: funcError } = await supabase.functions.invoke('usda-farmers-markets', {
+          body: { zipcode, radius: radNum }
+        })
+        if (funcError) throw new Error(funcError.message)
+        setOnfarmProspects(data?.onfarm || [])
+        setCsaProspects(data?.csas || [])
+        setMarketProspects(data?.data || [])
+      } else {
+        // Geocode locally before passing to OFN edge function
+        const geo = await geocodeAddress(zipcode)
+        if (!geo) throw new Error('Could not find location for that zip code.')
+        const { data, error: funcError } = await supabase.functions.invoke('crm-ofn-prospects', {
+          body: { lat: geo.lat, lng: geo.lng, radius: radNum, zipcode }
+        })
+        if (funcError) throw new Error(funcError.message)
+        setOfnProspects(data?.data || [])
+      }
     } catch (e: any) {
       setError(e.message || 'Failed to search prospects')
     } finally {
@@ -265,14 +285,19 @@ export default function USDAFarmerProspectsPage() {
     }
   }
 
-  const allProspects = [...onfarmProspects, ...csaProspects]
+  const allUsdaProspects = [...onfarmProspects, ...csaProspects]
 
   return (
     <YStack flex={1} gap="$4">
       <YStack>
-        <Text fontSize="$6" fontWeight="bold">Local Farm Prospects</Text>
-        <Text color="$gray10">Find USDA-registered on-farm markets and CSAs to onboard to CasaGrown.</Text>
+        <Text fontSize="$6" fontWeight="bold">External Network Prospects</Text>
+        <Text color="$gray10">Find registered farms, markets, and CSAs to onboard to CasaGrown.</Text>
       </YStack>
+
+      <XStack gap="$2" marginBottom="$2">
+        <Button size="$3" theme={source === 'usda' ? 'active' : 'alt1'} onPress={() => setSource('usda')}>USDA Directory</Button>
+        <Button size="$3" theme={source === 'ofn' ? 'active' : 'alt1'} onPress={() => setSource('ofn')}>Open Food Network</Button>
+      </XStack>
 
       {/* Search form — plain div avoids Card web issues */}
       <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: '16px 20px', background: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
@@ -315,13 +340,29 @@ export default function USDAFarmerProspectsPage() {
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 32 }}>
-        {allProspects.length === 0 && marketProspects.length === 0 && !loading && !error && (
+        {allUsdaProspects.length === 0 && marketProspects.length === 0 && ofnProspects.length === 0 && !loading && !error && (
           <Text color="$gray9" textAlign="center" marginTop="$8">
             Enter a zipcode to find nearby local farms and CSAs.
           </Text>
         )}
-        {allProspects.map((farm, i) => (
-          <FarmCard key={i} farm={farm} />
+        
+        {source === 'usda' && allUsdaProspects.map((farm, i) => (
+          <FarmCard key={`usda-${i}`} farm={farm} />
+        ))}
+        
+        {source === 'ofn' && ofnProspects.map((farm, i) => (
+          <FarmCard key={`ofn-${i}`} farm={{
+            listing_name: farm.name,
+            contact_email: farm.contact_email,
+            contact_phone: farm.contact_phone,
+            media_website: farm.website,
+            listing_desc: farm.description,
+            location_city: farm.city,
+            location_state: farm.state,
+            location_zipcode: farm.zipcode,
+            _directory: 'openfoodnetwork',
+            distance: farm.distance_miles
+          }} />
         ))}
 
         {/* Farmers Markets section */}

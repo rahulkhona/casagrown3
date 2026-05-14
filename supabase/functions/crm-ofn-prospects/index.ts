@@ -1,5 +1,10 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
+
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || ''
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -7,70 +12,68 @@ serve(async (req) => {
   }
 
   try {
-    const { zipcode } = await req.json()
+    const { lat, lng, radius = 25, zipcode } = await req.json()
 
-    if (!zipcode) {
+    if (!lat || !lng) {
       return new Response(
-        JSON.stringify({ error: 'zipcode is required' }),
+        JSON.stringify({ error: 'lat and lng are required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    const apiKey = Deno.env.get('OFN_API_KEY')
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    }
-    
-    if (apiKey) {
-      headers['Authorization'] = `Bearer ${apiKey}`
-    } else {
-      console.warn('OFN_API_KEY is not set. Using unauthenticated public endpoints subject to rate limits.')
+    // Convert radius from miles to meters
+    const radiusMeters = radius * 1609.34
+
+    // Query ofn_enterprises within the radius using PostGIS
+    // Since we don't have a specific RPC for this yet, we can use PostgREST with rpc or fallback to querying all and filtering if we can't do st_dwithin easily via the JS client without RPC.
+    // Wait, the easiest way is to use an RPC. Let's assume we can create one or we just do a raw SQL if Deno allows it? Deno Supabase client doesn't do raw SQL. 
+    // Wait! Let's just create an RPC function `get_nearby_ofn_enterprises` OR filter in memory if the cache is small enough.
+    // Actually, we can just do a bounding box filter using `lat` and `lng` and `radius` if we don't want an RPC.
+    // 1 degree latitude = ~69 miles.
+    const latDelta = radius / 69
+    const lngDelta = radius / (69 * Math.cos(lat * Math.PI / 180))
+
+    const { data: prospects, error } = await supabase
+      .from('ofn_enterprises')
+      .select('*')
+      .gte('lat', lat - latDelta)
+      .lte('lat', lat + latDelta)
+      .gte('lng', lng - lngDelta)
+      .lte('lng', lng + lngDelta)
+
+    if (error) throw error
+
+    // Refine distance calculation in memory
+    const refinedProspects = []
+    for (const p of prospects || []) {
+      if (!p.lat || !p.lng) continue
+      
+      const R = 3958.8 // Earth radius in miles
+      const dLat = (p.lat - lat) * Math.PI / 180
+      const dLng = (p.lng - lng) * Math.PI / 180
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat * Math.PI / 180) * Math.cos(p.lat * Math.PI / 180) *
+                Math.sin(dLng/2) * Math.sin(dLng/2)
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+      const distance = R * c
+
+      if (distance <= radius) {
+        refinedProspects.push({
+          ...p,
+          distance_miles: distance
+        })
+      }
     }
 
-    const enterprisesUrl = `https://openfoodnetwork.net/api/dfc/enterprises`
-    try {
-      const response = await fetch(enterprisesUrl, { headers })
-      
-      if (!response.ok) {
-         const errorText = await response.text()
-         console.warn(`OFN API Error: ${response.status} ${errorText}. Falling back to mock data.`)
-      } else {
-         const rawData = await response.json()
-      }
-    } catch (e: any) {
-      console.warn(`OFN API Fetch Failed: ${e.message}. Falling back to mock data.`)
-    }
-    
-    // In production, you would geocode the zipcode and calculate distances
-    // For now, we mock the parsing and filtering of the DFC response
-    const prospects = [
-      {
-        id: `prospect-${Date.now()}`,
-        farm_name: "Sunrise Valley Farms",
-        description: "A commercial organic farm offering seasonal vegetables.",
-        email: "contact@sunrisevalley.example.com",
-        phone: "(555) 123-4567",
-        distance: "12 miles",
-        source: 'openfoodnetwork'
-      },
-      {
-        id: `prospect-${Date.now() + 1}`,
-        farm_name: "Green Pastures Co-op",
-        description: "Local food hub aggregating pasture-raised meat.",
-        email: "hello@greenpastures.example.com",
-        phone: "(555) 987-6543",
-        distance: "18 miles",
-        source: 'openfoodnetwork'
-      }
-    ]
+    // Sort by distance
+    refinedProspects.sort((a, b) => a.distance_miles - b.distance_miles)
 
     return new Response(
-      JSON.stringify({ data: prospects }),
+      JSON.stringify({ data: refinedProspects }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
-  } catch (error) {
+  } catch (error: any) {
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

@@ -176,6 +176,7 @@ function BrowseMarketPageInner() {
   // External Fallback Results
   const [usdaMarkets, setUsdaMarkets] = useState<any[]>([])
   const [localFarms, setLocalFarms] = useState<any[]>([])
+  const [ofnProducts, setOfnProducts] = useState<any[]>([])
   const [loadingExternal, setLoadingExternal] = useState(false)
 
   // Pagination state for infinite scroll
@@ -488,6 +489,8 @@ function BrowseMarketPageInner() {
         const effectiveZip = zipCode || (address.match(/\b(\d{5})\b/) || [])[1] || ''
         if (effectiveZip) {
           setLoadingExternal(true)
+          
+          // 1. Run USDA
           supabase.functions.invoke('usda-farmers-markets', {
             body: { zipcode: effectiveZip, radius: maxMiles }
           }).then(({ data: usdaData }) => {
@@ -502,6 +505,25 @@ function BrowseMarketPageInner() {
             console.warn('USDA search error:', e)
             setLoadingExternal(false)
           })
+
+          // 2. Run OFN Fallback if query exists and native results are sparse
+          const nativeCount = Array.isArray(data) ? data.reduce((acc: number, b: any) => acc + (b.matched_products?.length || 0), 0) : 0
+          if (search.trim() && nativeCount < 4) {
+            supabase.functions.invoke('ofn-product-search', {
+              body: { query: search.trim(), zipcode: effectiveZip, lat, lng, radius: maxMiles }
+            }).then(({ data: ofnData }) => {
+              if (ofnData?.data && Array.isArray(ofnData.data)) {
+                setOfnProducts(ofnData.data)
+              } else {
+                setOfnProducts([])
+              }
+            }).catch(e => {
+              console.warn('OFN search error:', e)
+              setOfnProducts([])
+            })
+          } else {
+            setOfnProducts([])
+          }
         }
       }
     }
@@ -1523,6 +1545,46 @@ function BrowseMarketPageInner() {
       {/* USDA fallback — empty-shelf guard: show when real CasaGrown results are sparse */}
       {!loading && booths.filter(b => !b.is_demo).length < 3 && (
         <>
+          {/* OFN Products Fallback */}
+          {!loadingExternal && ofnProducts.length > 0 && (() => {
+            const rc = booths.filter(b => !b.is_demo).length
+            return (
+              <div style={{ marginTop: rc > 0 ? 48 : 24, paddingTop: rc > 0 ? 32 : 0, borderTop: rc > 0 ? '2px dashed #e5e7eb' : 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, background: 'linear-gradient(135deg, #fffbeb, #fef3c7)', border: '1px solid #fcd34d', borderRadius: 16, padding: '16px 20px', marginBottom: 24 }}>
+                  <span style={{ fontSize: 28, flexShrink: 0 }}>⚠️</span>
+                  <div>
+                    <p style={{ margin: 0, fontWeight: 700, fontSize: 15, color: '#b45309' }}>
+                      External Network Notice
+                    </p>
+                    <p style={{ margin: '4px 0 0', fontSize: 13, color: '#92400e', lineHeight: 1.5 }}>
+                      The items below are hosted on the Open Food Network. Transactions take place outside of CasaGrown and are not covered by our platform guarantees. Prices and availability are approximate.
+                    </p>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                  <h3 style={{ fontSize: 20, fontWeight: 800, color: '#1f2937', margin: 0, letterSpacing: '-0.02em' }}>🌐 Explore the Open Food Network</h3>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginBottom: 32 }}>
+                  {ofnProducts.map((p, i) => (
+                    <a key={i} href={p.external_shop_url} target="_blank" rel="noreferrer" style={{ display: 'block', textDecoration: 'none', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+                      <div style={{ height: 140, background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                        {p.image_url ? <img src={p.image_url} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 40 }}>{categoryIcons[p.category] || '📦'}</span>}
+                      </div>
+                      <div style={{ padding: 12 }}>
+                        <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</p>
+                        <p style={{ margin: '0 0 8px', fontSize: 12, color: '#6b7280', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.enterprise_name}</p>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: '#16a34a' }}>~{p.price_usd ? formatUsd(p.price_usd) : 'See Pricing'}</span>
+                          <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600 }}>External</span>
+                        </div>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
+
           {/* Local Farms (On-Farm Markets + CSAs) */}
           {!loadingExternal && localFarms.length > 0 && (() => {
             const rc = booths.filter(b => !b.is_demo).length
