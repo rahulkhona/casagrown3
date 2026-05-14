@@ -30,7 +30,7 @@
     "web:prod:market": "yarn build:packages && yarn workspace next-market build",
     "web:prod:metrics": "yarn build:packages && yarn workspace next-metrics build",
     "web:prod:serve": "yarn workspace next-community serve",
-    "postinstall": "patch-package && yarn check-tamagui",
+    "postinstall": "[ \"$EAS_BUILD\" = 'true' ] || [ \"$CI\" = '1' ] || (patch-package && yarn check-tamagui)",
     "build:packages": "yarn workspace @casagrown/config build && yarn workspace @casagrown/ui build",
     "build": "yarn build:packages",
     "upgrade:tamagui": "yarn up '*tamagui*'@latest '@tamagui/*'@latest",
