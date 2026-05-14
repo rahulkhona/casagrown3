@@ -11,6 +11,7 @@ interface GeoResult {
   lng: number
   display: string
   stateCode?: string
+  zipCode?: string
 }
 
 const STATE_CODES: Record<string, string> = {
@@ -49,7 +50,7 @@ export async function geocodeAddress(address: string): Promise<GeoResult | null>
   // Check cache first
   if (typeof window !== 'undefined') {
     const cached = getCache()[cacheKey]
-    if (cached) return { lat: cached.lat, lng: cached.lng, display: cached.display }
+    if (cached) return { lat: cached.lat, lng: cached.lng, display: cached.display, stateCode: cached.stateCode, zipCode: cached.zipCode }
   }
 
   try {
@@ -63,12 +64,14 @@ export async function geocodeAddress(address: string): Promise<GeoResult | null>
 
     const stateName = data[0]?.address?.state || ''
     const stateCode = STATE_CODES[stateName] || stateName // fallback to raw
+    const zipCode = data[0]?.address?.postcode || ''
 
     const result: GeoResult = {
       lat: parseFloat(data[0].lat),
       lng: parseFloat(data[0].lon),
       display: data[0].display_name || address,
       stateCode: stateCode || undefined,
+      zipCode: zipCode || undefined,
     }
 
     if (typeof window !== 'undefined') {

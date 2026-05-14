@@ -284,6 +284,45 @@ test.describe('Link Picker — Campaigns form', () => {
     await expect(page.locator('button:has-text("Insert & Shorten")')).toBeVisible()
   })
 
+  test('Marketing Pages section includes /growbot and /create-listing presets', async ({ page }) => {
+    await page.click('#create-campaign-btn', { force: true })
+    await expect(page.locator('h2', { hasText: 'Create Campaign' })).toBeVisible({ timeout: 10000 })
+
+    await page.locator('label:has-text("Channel") + select, label:has-text("Channel") ~ select').selectOption('email')
+    const modeSelect = page.locator('select').filter({ hasText: /Custom HTML/ })
+    if (await modeSelect.count() > 0) {
+      await modeSelect.selectOption('custom')
+    }
+
+    // Open link picker
+    await page.locator('.ql-link').click()
+    await expect(page.getByText('Insert Tracked Link')).toBeVisible({ timeout: 5000 })
+
+    // Both new presets should be visible in Marketing Pages
+    await expect(page.locator('button', { hasText: /GrowBot AI Chat/ })).toBeVisible({ timeout: 3000 })
+    await expect(page.locator('button', { hasText: /Create a Listing/ })).toBeVisible({ timeout: 3000 })
+  })
+
+  test('Marketing Pages /growbot preset navigates to UTM step with correct URL', async ({ page }) => {
+    await page.click('#create-campaign-btn', { force: true })
+    await expect(page.locator('h2', { hasText: 'Create Campaign' })).toBeVisible({ timeout: 10000 })
+
+    await page.locator('label:has-text("Channel") + select, label:has-text("Channel") ~ select').selectOption('email')
+    const modeSelect = page.locator('select').filter({ hasText: /Custom HTML/ })
+    if (await modeSelect.count() > 0) {
+      await modeSelect.selectOption('custom')
+    }
+
+    // Open link picker and click GrowBot preset
+    await page.locator('.ql-link').click()
+    await expect(page.getByText('Insert Tracked Link')).toBeVisible({ timeout: 5000 })
+    await page.locator('button', { hasText: /GrowBot AI Chat/ }).first().click()
+
+    // UTM step should appear with /growbot in the URL preview
+    await expect(page.getByText('Add Tracking')).toBeVisible({ timeout: 5000 })
+    await expect(page.locator('div', { hasText: '/growbot' }).first()).toBeVisible()
+  })
+
   test('Copy a Link button opens link picker in clipboard mode', async ({ page }) => {
     await page.click('#create-campaign-btn', { force: true })
     await expect(page.locator('h2', { hasText: 'Create Campaign' })).toBeVisible({ timeout: 10000 })

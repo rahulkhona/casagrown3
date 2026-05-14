@@ -94,8 +94,10 @@ const MENU_GROUPS: MenuGroup[] = [
     items: [
       { label: 'Promotions Builder', path: '/crm/promotions' },
       { label: 'Landing Pages', path: '/crm/landing-pages' },
+      { label: 'Link Generator', path: '/crm/link-generator' },
       { label: 'Data Sources', path: '/crm/data-sources' },
       { label: 'Leads', path: '/crm/leads' },
+      { label: 'USDA Farm Prospects', path: '/crm/prospects' },
       { label: 'Email / SMS Campaigns', path: '/crm/campaigns' },
       { label: 'Drip Sequences', path: '/crm/sequences' },
       { label: 'Audiences', path: '/crm/audiences' },

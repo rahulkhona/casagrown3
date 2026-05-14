@@ -453,6 +453,22 @@ export default function GrowBotChatPage() {
                   setMessages(prev => prev.map(m =>
                     m.id === botMessageId ? { ...m, text: payload.message || 'Something went wrong.' } : m
                   ))
+                } else if (currentEvent === 'auth_required') {
+                  // Guest hit the free-exchange limit — inject AuthenticationCard into chat
+                  setStreamingMsgId(null)
+                  setIsThinking(false)
+                  const authMsg: ChatMessage = {
+                    id: botMessageId,
+                    role: 'assistant',
+                    text: "You've had 5 free chats today \uD83C\uDF31 Sign in to keep going — it's free!",
+                    actions: [{ type: 'AuthenticationCard', position: 'after', data: { reason: 'guest_limit' } }],
+                    timestamp: new Date().toISOString(),
+                  }
+                  setMessages(prev => {
+                    const updated = prev.map(m => m.id === botMessageId ? authMsg : m)
+                    saveCurrentTopic(updated, topicIdOverride)
+                    return updated
+                  })
                 }
               } catch { /* skip malformed */ }
               currentEvent = ''

@@ -6,9 +6,11 @@
  * No "From" number required — Verify manages its own senders.
  *
  * Env vars required:
- *   TWILIO_ACCOUNT_SID          — Twilio Account SID
- *   TWILIO_AUTH_TOKEN            — Twilio Auth Token
- *   TWILIO_VERIFY_SERVICE_SID   — Verify Service SID (create at console.twilio.com)
+ *   TWILIO_ACCOUNT_SID                    — Twilio Account SID
+ *   TWILIO_AUTH_TOKEN                      — Twilio Auth Token
+ *   TWILIO_VERIFY_SERVICE_SID             — Verify Service SID (OTP only)
+ *   TWILIO_FROM_NUMBER                     — Transactional SMS sender (order alerts)
+ *   TWILIO_MARKETING_MESSAGING_SERVICE_SID — 10DLC approved Messaging Service for marketing SMS
  *
  * Twilio Verify magic numbers (test credentials):
  *   +15005550006  → approved (success)
@@ -201,3 +203,59 @@ export async function sendSms(
     }
 }
 
+/**
+ * Send a marketing SMS via Twilio Messaging Service (10DLC).
+ * Uses TWILIO_MARKETING_MESSAGING_SERVICE_SID — the approved 10DLC
+ * Messaging Service registered for marketing campaigns.
+ * Twilio handles opt-outs (STOP/UNSTOP) and 10DLC compliance automatically.
+ */
+export async function sendMarketingSms(
+    to: string,
+    body: string,
+): Promise<{ success: boolean; error?: string }> {
+    const accountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
+    const authToken = Deno.env.get("TWILIO_AUTH_TOKEN");
+    const messagingServiceSid = Deno.env.get("TWILIO_MARKETING_MESSAGING_SERVICE_SID");
+
+    if (!accountSid || !authToken || !messagingServiceSid) {
+        return {
+            success: false,
+            error: "Marketing SMS not configured — set TWILIO_MARKETING_MESSAGING_SERVICE_SID in Supabase secrets",
+        };
+    }
+
+    const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+    const credentials = btoa(`${accountSid}:${authToken}`);
+
+    const params = new URLSearchParams();
+    params.set("To", to);
+    params.set("MessagingServiceSid", messagingServiceSid); // routes via 10DLC registered campaign
+    params.set("Body", body);
+
+    try {
+        const res = await fetch(url, {
+            method: "POST",
+            headers: {
+                Authorization: `Basic ${credentials}`,
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: params.toString(),
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+            return { success: true };
+        }
+
+        return {
+            success: false,
+            error: data.message || `Twilio marketing SMS error (${res.status})`,
+        };
+    } catch (err) {
+        return {
+            success: false,
+            error: `Network error: ${(err as Error).message}`,
+        };
+    }
+}

@@ -14,7 +14,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.6";
 import Mustache from "https://esm.sh/mustache@4.2.0";
 import { sendBroadcastEmailBatch, sendBroadcastTemplateBatch } from "../_shared/postmark.ts";
-import { sendSms } from "../_shared/twilio.ts";
+import { sendMarketingSms } from "../_shared/twilio.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { buildTemplateModel } from "../_shared/template-interpolation.ts";
 
@@ -303,7 +303,7 @@ Deno.serve(async (req: Request) => {
               supabase,
             );
 
-            const result = await sendSms(r.phone!, smsBody);
+            const result = await sendMarketingSms(r.phone!, smsBody);
             await supabase.from("crm_campaign_sends").insert({
               campaign_id: campaign.id,
               recipient_type: r.recipient_type,

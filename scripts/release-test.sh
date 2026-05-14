@@ -500,42 +500,47 @@ else
     local build_log="scripts/output/build_$(echo "$app_name" | tr '[:upper:]' '[:lower:]').log"
     mkdir -p scripts/output
 
-    if ! lsof -nP -iTCP:$port -sTCP:LISTEN &>/dev/null; then
-      # Clean stale .next cache to prevent ChunkLoadError from outdated webpack/turbopack hashes
-      rm -rf "$app_dir/.next"
-      echo "    Compiling production build (see $build_log)..."
-      if ! (cd "$app_dir" && npm run build > "../../$build_log" 2>&1); then
-        echo -e "${RED}    ❌ Build failed for $app_name! Check $build_log${NC}"
-        cat "$build_log" | tail -20
-        exit 1
-      fi
+    # Always evict any stale server on this port before starting fresh.
+    # Zombie processes from previous runs cause auth-setup timeouts that cascade
+    # to 176+ "did not run" tests in the affected app.
+    if lsof -nP -iTCP:$port -sTCP:LISTEN &>/dev/null; then
+      echo "    ⚠️  Evicting stale server on :$port..."
+      lsof -Pni :$port | grep LISTEN | awk '{print $2}' | xargs -r kill -9 2>/dev/null || true
+      sleep 2
+    fi
 
-      if [ "$use_port_env" = "true" ]; then
-        (cd "$app_dir" && PORT=$port npm run start &>/dev/null) &
-      else
-        (cd "$app_dir" && npm run start &>/dev/null) &
-      fi
-      pid=$!
-      echo "    $app_name → :$port"
-      
-      echo "    Waiting for $app_name server..."
-      local server_ready=false
-      for i in $(seq 1 180); do
-        if curl -s "http://localhost:$port" &>/dev/null; then
-          server_ready=true
-          break
-        fi
-        sleep 1
-      done
+    # Clean stale .next cache to prevent ChunkLoadError from outdated webpack/turbopack hashes
+    rm -rf "$app_dir/.next"
+    echo "    Compiling production build (see $build_log)..."
+    if ! (cd "$app_dir" && npm run build > "../../$build_log" 2>&1); then
+      echo -e "${RED}    ❌ Build failed for $app_name! Check $build_log${NC}"
+      cat "$build_log" | tail -20
+      exit 1
+    fi
 
-      if [ "$server_ready" = "true" ]; then
-        echo -e "    ${GREEN}✅ $app_name server ready${NC}"
-      else
-        echo -e "${RED}    ❌ $app_name server failed to start within 3 minutes.${NC}"
-        exit 1
-      fi
+    if [ "$use_port_env" = "true" ]; then
+      (cd "$app_dir" && NODE_OPTIONS='--max-old-space-size=4096' PORT=$port npm run start &>/dev/null) &
     else
-      echo "    $app_name → :$port (already running)"
+      (cd "$app_dir" && NODE_OPTIONS='--max-old-space-size=4096' npm run start &>/dev/null) &
+    fi
+    pid=$!
+    echo "    $app_name → :$port"
+
+    echo "    Waiting for $app_name server..."
+    local server_ready=false
+    for i in $(seq 1 180); do
+      if curl -s "http://localhost:$port" &>/dev/null; then
+        server_ready=true
+        break
+      fi
+      sleep 1
+    done
+
+    if [ "$server_ready" = "true" ]; then
+      echo -e "    ${GREEN}✅ $app_name server ready${NC}"
+    else
+      echo -e "${RED}    ❌ $app_name server failed to start within 3 minutes.${NC}"
+      exit 1
     fi
 
     local logfile="scripts/output/playwright_$(echo "$app_name" | tr '[:upper:]' '[:lower:]').log"

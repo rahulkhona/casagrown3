@@ -14,6 +14,14 @@ serve(async (req: Request) => {
   try {
     let { message, image, history = [], userId, conversationId, guestSessionId } = await req.json();
 
+    // Extract client IP for guest rate limiting
+    const clientIp = (
+      req.headers.get('x-real-ip') ||
+      req.headers.get('cf-connecting-ip') ||
+      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      'unknown'
+    );
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
     
@@ -217,6 +225,36 @@ RULES (follow strictly):\n`;
     openAiMessages.push({ role: "user", content: userContent });
 
     const IS_MOCKED = Deno.env.get('AI_MOCK') === 'true';
+
+    // ── Guest IP rate limit: 5 free exchanges per IP per day ─────────────
+    // Skip for: welcome message, logged-in users, and mocked test runs
+    const GUEST_EXCHANGE_LIMIT = 5;
+    if (!userId && message !== '__INIT_WELCOME__' && message !== '__AUTH_COMPLETE__' && !IS_MOCKED) {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const { count } = await supabase
+        .from('growbot_token_usage')
+        .select('id', { count: 'exact', head: true })
+        .is('user_id', null)
+        .eq('ip_address', clientIp)
+        .gte('created_at', todayStart.toISOString());
+
+      if ((count || 0) >= GUEST_EXCHANGE_LIMIT) {
+        console.log(`[GrowBot] Guest IP ${clientIp} hit limit (${count} exchanges today). Requesting auth.`);
+        const encoder = new TextEncoder();
+        const body = new ReadableStream({
+          start(controller) {
+            controller.enqueue(encoder.encode(
+              `event: auth_required\ndata: ${JSON.stringify({ reason: 'guest_limit', exchanges: count })}\n\n`
+            ));
+            controller.close();
+          }
+        });
+        return new Response(body, {
+          headers: { ...corsHeaders, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' }
+        });
+      }
+    }
 
     if (IS_MOCKED) {
       console.log('[LOCAL] Skipping Gemini — AI_MOCK is true');
@@ -565,11 +603,12 @@ RULES (follow strictly):\n`;
             });
           }
 
-          // Record token usage
+          // Record token usage (including IP for guest rate limiting)
           if (message !== '__INIT_WELCOME__' && (totalPromptTokens > 0 || totalResponseTokens > 0)) {
             supabase.from('growbot_token_usage').insert({
               user_id: userId || null,
               guest_session_id: userId ? null : (guestSessionId || null),
+              ip_address: userId ? null : clientIp,  // only store IP for guests
               prompt_tokens: totalPromptTokens,
               response_tokens: totalResponseTokens,
               total_tokens: totalPromptTokens + totalResponseTokens,

@@ -397,7 +397,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
               flex: 1, padding: '4px 8px', border: '1px solid var(--gray-200)',
               borderRadius: 6, fontSize: 12, fontFamily: 'inherit', outline: 'none',
             }}
-            placeholder="Enter address..."
+            placeholder="Street, City, State ZIP"
             value={altAddress}
             onChange={e => setAltAddress(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleCheckAltAddress()}

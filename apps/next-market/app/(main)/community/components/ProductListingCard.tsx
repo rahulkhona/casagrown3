@@ -357,7 +357,7 @@ export default function ProductListingCard({ productId, messageContent, currentU
                         <div className={styles.plcAltForm}>
                           <input
                             className={styles.plcAltInput}
-                            placeholder="Enter address..."
+                            placeholder="Street, City, State ZIP"
                             value={altAddress}
                             onChange={e => setAltAddress(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && handleCheckAddress()}

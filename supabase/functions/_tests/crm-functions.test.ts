@@ -541,3 +541,107 @@ Deno.test('process-earnings-estimate-request-queue: skips leads marked ai_estima
     headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
   })
 })
+
+// ── sendMarketingSms ──────────────────────────────────────────────────────────
+
+import { sendMarketingSms } from '../_shared/twilio.ts'
+
+Deno.test('sendMarketingSms: returns config error when TWILIO_MARKETING_MESSAGING_SERVICE_SID is not set', async () => {
+  const original = Deno.env.get('TWILIO_MARKETING_MESSAGING_SERVICE_SID')
+  if (original) Deno.env.delete('TWILIO_MARKETING_MESSAGING_SERVICE_SID')
+
+  const result = await sendMarketingSms('+15005550006', 'Hello from CasaGrown!')
+
+  assertEquals(result.success, false)
+  assertExists(result.error)
+  assertEquals(
+    result.error?.includes('TWILIO_MARKETING_MESSAGING_SERVICE_SID'),
+    true,
+    `Error should mention missing env var, got: ${result.error}`
+  )
+
+  if (original) Deno.env.set('TWILIO_MARKETING_MESSAGING_SERVICE_SID', original)
+})
+
+Deno.test('sendMarketingSms: uses MessagingServiceSid (not From) in Twilio API call', async () => {
+  let capturedBody: URLSearchParams | null = null
+
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async (input: string | URL | Request, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url
+    if (url.includes('api.twilio.com')) {
+      capturedBody = new URLSearchParams(init?.body as string)
+      return new Response(JSON.stringify({ sid: 'SM_test', status: 'queued' }), { status: 201 })
+    }
+    return originalFetch(input, init)
+  }
+
+  Deno.env.set('TWILIO_ACCOUNT_SID', 'ACtest')
+  Deno.env.set('TWILIO_AUTH_TOKEN', 'authtest')
+  Deno.env.set('TWILIO_MARKETING_MESSAGING_SERVICE_SID', 'MGtest123')
+
+  const result = await sendMarketingSms('+15005550006', 'Spring market is live!')
+
+  assertEquals(result.success, true)
+  assertExists(capturedBody, 'Twilio API should have been called')
+  assertEquals(capturedBody!.get('MessagingServiceSid'), 'MGtest123', 'Must use MessagingServiceSid')
+  assertEquals(capturedBody!.get('From'), null, 'Must NOT set From when using MessagingServiceSid')
+  assertEquals(capturedBody!.get('To'), '+15005550006')
+  assertEquals(capturedBody!.get('Body'), 'Spring market is live!')
+
+  globalThis.fetch = originalFetch
+  Deno.env.delete('TWILIO_ACCOUNT_SID')
+  Deno.env.delete('TWILIO_AUTH_TOKEN')
+  Deno.env.delete('TWILIO_MARKETING_MESSAGING_SERVICE_SID')
+})
+
+Deno.test('sendMarketingSms: Twilio error response returns success:false with message', async () => {
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async (input: string | URL | Request, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url
+    if (url.includes('api.twilio.com')) {
+      return new Response(
+        JSON.stringify({ code: 21614, message: 'To number is not a valid mobile number' }),
+        { status: 400 }
+      )
+    }
+    return originalFetch(input, init)
+  }
+
+  Deno.env.set('TWILIO_ACCOUNT_SID', 'ACtest')
+  Deno.env.set('TWILIO_AUTH_TOKEN', 'authtest')
+  Deno.env.set('TWILIO_MARKETING_MESSAGING_SERVICE_SID', 'MGtest123')
+
+  const result = await sendMarketingSms('+15005550001', 'Test message')
+
+  assertEquals(result.success, false)
+  assertExists(result.error)
+
+  globalThis.fetch = originalFetch
+  Deno.env.delete('TWILIO_ACCOUNT_SID')
+  Deno.env.delete('TWILIO_AUTH_TOKEN')
+  Deno.env.delete('TWILIO_MARKETING_MESSAGING_SERVICE_SID')
+})
+
+Deno.test('sendMarketingSms: network failure returns success:false', async () => {
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async (input: string | URL | Request) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url
+    if (url.includes('api.twilio.com')) throw new Error('Network unreachable')
+    return originalFetch(input)
+  }
+
+  Deno.env.set('TWILIO_ACCOUNT_SID', 'ACtest')
+  Deno.env.set('TWILIO_AUTH_TOKEN', 'authtest')
+  Deno.env.set('TWILIO_MARKETING_MESSAGING_SERVICE_SID', 'MGtest123')
+
+  const result = await sendMarketingSms('+15005550006', 'Test')
+
+  assertEquals(result.success, false)
+  assertEquals(result.error?.includes('Network'), true)
+
+  globalThis.fetch = originalFetch
+  Deno.env.delete('TWILIO_ACCOUNT_SID')
+  Deno.env.delete('TWILIO_AUTH_TOKEN')
+  Deno.env.delete('TWILIO_MARKETING_MESSAGING_SERVICE_SID')
+})

@@ -3,8 +3,38 @@ import React, { useState, useEffect } from 'react'
 import { ShoppingBag, Wrench, Leaf, BookOpen, Send, Sparkles, KeyRound, ExternalLink, Search, MapPin } from 'lucide-react'
 import { createClient } from '../../../lib/supabase'
 import SocialShareModal from '../SocialShareModal'
+import { MultiSearchCard } from './MultiSearchCard'
+import { FarmersMarketCard } from './FarmersMarketCard'
 
 // ─── Shared Components ───────────────────────────────────────────────
+
+/** Minimal markdown renderer: **bold**, *italic*, bullet lists */
+export function renderMd(text: string): React.ReactNode {
+  if (!text) return null
+  const formatInline = (str: string): React.ReactNode[] =>
+    str.split(/(\*\*\*.*?\*\*\*|\*\*.*?\*\*|\*.*?\*)/g).map((part, i) => {
+      if (part.startsWith('***') && part.endsWith('***')) return <strong key={i}><em>{part.slice(3, -3)}</em></strong>
+      if (part.startsWith('**') && part.endsWith('**')) return <strong key={i}>{part.slice(2, -2)}</strong>
+      if (part.startsWith('*') && part.endsWith('*')) return <em key={i}>{part.slice(1, -1)}</em>
+      return part
+    })
+  const elements: React.ReactNode[] = []
+  let listItems: string[] = []
+  const flushList = () => {
+    if (!listItems.length) return
+    elements.push(<ul key={`ul-${elements.length}`} style={{ margin: '4px 0', paddingLeft: 18 }}>{listItems.map((li, i) => <li key={i} style={{ marginBottom: 2 }}>{formatInline(li)}</li>)}</ul>)
+    listItems = []
+  }
+  for (const line of text.split('\n')) {
+    const t = line.trim()
+    if (t.startsWith('* ') || t.startsWith('- ') || t.startsWith('• ')) { listItems.push(t.slice(2)); continue }
+    flushList()
+    if (!t) { elements.push(<br key={`br-${elements.length}`} />); continue }
+    elements.push(<p key={`p-${elements.length}`} style={{ margin: '3px 0' }}>{formatInline(t)}</p>)
+  }
+  flushList()
+  return <>{elements}</>
+}
 
 export function ActionChips({ actions, onActionClick }: { actions?: string[], onActionClick?: (action: string) => void }) {
   if (!actions || actions.length === 0) return null;
@@ -74,7 +104,7 @@ export function DiagnosisCard({ data, onActionClick }: { data: any, onActionClic
         <div style={{ color: '#7f1d1d' }}><strong>Urgency:</strong> {data.urgency}</div>
         <div style={{ background: 'white', borderRadius: 8, padding: 12, marginTop: 6 }}>
           <div style={{ fontWeight: 700, color: '#374151', marginBottom: 4 }}>Remedy Plan:</div>
-          <div style={{ color: '#4b5563', fontSize: 13, whiteSpace: 'pre-wrap' }}>{data.remedy_plan}</div>
+          <div style={{ color: '#4b5563', fontSize: 13 }}>{renderMd(data.remedy_plan)}</div>
         </div>
       </div>
       <ActionChips actions={data.suggested_next_actions} onActionClick={onActionClick} />
@@ -728,12 +758,21 @@ export function AuthenticationCard({ data, onActionClick, onSystemMessage }: { d
 
   return (
     <div style={{ border: '1px solid #c7d2fe', borderRadius: 12, padding: 16, background: '#eef2ff', marginTop: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: data?.reason === 'guest_limit' && step === 'email' ? 6 : 12 }}>
         <KeyRound size={18} color="#6366f1" />
         <span style={{ fontWeight: 700, color: '#312e81', fontSize: 15 }}>
-          {step === 'email' ? 'Sign In to Continue' : 'Enter Verification Code'}
+          {data?.reason === 'guest_limit' && step === 'email'
+            ? "You've used your 5 free chats 🌱"
+            : step === 'email' ? 'Sign In to Continue' : 'Enter Verification Code'}
         </span>
       </div>
+
+      {/* Context subtitle for rate-limit gate — explains why sign-in is needed */}
+      {data?.reason === 'guest_limit' && step === 'email' && (
+        <div style={{ color: '#4b5563', fontSize: 13, marginBottom: 12 }}>
+          Sign in to keep chatting — it's free and takes 30 seconds!
+        </div>
+      )}
 
       {error && (
         <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 12px', marginBottom: 12, color: '#dc2626', fontSize: 13 }}>
@@ -847,6 +886,8 @@ export default function DynamicUICardRenderer({ action, onActionClick, onSystemM
     case 'BroadcastBuyRequestCard':  return <BroadcastBuyRequestCard data={action.data} onActionClick={onActionClick} />;
     case 'GrowSuggestionCard':       return <GrowSuggestionCard data={action.data} onActionClick={onActionClick} />;
     case 'PlantGuideCard':           return <PlantGuideCard data={action.data} onActionClick={onActionClick} />;
+    case 'MultiSearchCard':          return <MultiSearchCard data={action.data} onActionClick={onActionClick} />;
+    case 'FarmersMarketCard':        return <FarmersMarketCard data={action.data} onActionClick={onActionClick} />;
     // ShoppingResultsCard retired in v1 — falls through to DynamicToolCard if somehow called
 
     // All new tools added via Admin → render dynamically

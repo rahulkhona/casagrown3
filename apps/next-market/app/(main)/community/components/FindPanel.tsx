@@ -6,6 +6,7 @@ import { geocodeAddress } from '../../../../lib/geocode'
 import { useNotificationPrompt } from '../../../../lib/useNotificationPrompt'
 import { NotificationPromptModal } from '../../../components/NotificationPromptModal'
 import { useErrorToast } from '../../../components/ErrorToast'
+import AddressInput from '../../../components/AddressInput'
 import ProductListingCard from './ProductListingCard'
 import ChatMessage from './ChatMessage'
 import { CommunityChatMessage } from '../../../../../../packages/app/features/community-chat/community-chat-service'
@@ -44,6 +45,7 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
 
   // ── Search form state ──
   const [address, setAddress] = useState('')
+  const [zip, setZip] = useState('')
   const [lat, setLat] = useState<number | null>(null)
   const [lng, setLng] = useState<number | null>(null)
   const [keywords, setKeywords] = useState('')
@@ -57,6 +59,10 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
   const [results, setResults] = useState<BoothResult[]>([])
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
+
+  // ── USDA fallback state ──
+  const [usdaMarkets, setUsdaMarkets] = useState<any[]>([])
+  const [loadingUsda, setLoadingUsda] = useState(false)
 
   // ── Product chat messages (for showing conversations alongside cards) ──
   const [productMessages, setProductMessages] = useState<Record<string, CommunityChatMessage>>({})
@@ -73,6 +79,7 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
       if (saved) {
         const parsed = JSON.parse(saved)
         if (parsed.address) setAddress(parsed.address)
+        if (parsed.zip) setZip(parsed.zip)
         if (parsed.lat) { setLat(parsed.lat); setLng(parsed.lng); setAddressResolved(true) }
         if (parsed.keywords) setKeywords(parsed.keywords)
         if (parsed.fulfillment) setFulfillment(parsed.fulfillment)
@@ -90,8 +97,10 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
       .single()
       .then(async ({ data: profile }) => {
         if (profile?.street_address) {
-          const addr = [profile.street_address, profile.city, profile.state_code].filter(Boolean).join(', ')
+          const addrParts = [profile.street_address, profile.city, `${profile.state_code || ''} ${profile.zip_code || ''}`.trim()].filter(Boolean)
+          const addr = addrParts.join(', ')
           setAddress(addr)
+          if (profile.zip_code) setZip(profile.zip_code)
           if (profile.state_code) setBuyerStateCode(profile.state_code)
           const geo = await geocodeAddress(addr)
           if (geo) { setLat(geo.lat); setLng(geo.lng); setAddressResolved(true) }
@@ -103,10 +112,10 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
   const saveToLocalStorage = useCallback(() => {
     try {
       localStorage.setItem('buzz_find_last', JSON.stringify({
-        address, lat, lng, keywords, fulfillment, radius, stateCode: buyerStateCode,
+        address, zip, lat, lng, keywords, fulfillment, radius, stateCode: buyerStateCode,
       }))
     } catch {}
-  }, [address, lat, lng, keywords, fulfillment, radius, buyerStateCode])
+  }, [address, zip, lat, lng, keywords, fulfillment, radius, buyerStateCode])
 
   // ── Handle address change ──
   const handleAddressResolve = async () => {
@@ -114,9 +123,11 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
     const geo = await geocodeAddress(address.trim())
     if (geo) {
       setLat(geo.lat); setLng(geo.lng); setAddressResolved(true)
-      // Extract state code from the address string (e.g. "123 Main St, San Jose, CA")
+      // Extract state and zip from the address string (e.g. "123 Main St, San Jose, CA 95120")
       const stateMatch = address.match(/,\s*([A-Z]{2})\b/)
       if (stateMatch) setBuyerStateCode(stateMatch[1])
+      const zipMatch = address.match(/\b(\d{5})\b/)
+      if (zipMatch) setZip(zipMatch[1])
     } else {
       showError('Could not find that address. Please include city and state.')
     }
@@ -140,9 +151,11 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
               'Oklahoma': 'OK', 'Arizona': 'AZ', 'Oregon': 'OR', 'Washington': 'WA',
             }
             const sc = stateMap[data.address.state] || data.address['ISO3166-2-lvl4']?.split('-')[1] || data.address.state
-            const parts = [street, city, sc, data.address.postcode].filter(Boolean)
+            const postcode = data.address.postcode?.split('-')[0] || ''
+            const parts = [street, city, `${sc || ''} ${postcode}`.trim()].filter(Boolean)
             setAddress(parts.join(', '))
             if (sc) setBuyerStateCode(sc)
+            if (postcode) setZip(postcode)
           }
         } catch { /* ignore */ }
         setAddressResolved(true); setLocationLoading(false)
@@ -232,6 +245,26 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
 
     setLoading(false)
 
+    // ── USDA fallback: fire when real results are sparse ──
+    if (boothResults.length < 3) {
+      // Prefer stored zip; fall back to extracting from address string
+      const zipcode = zip || address.match(/\b(\d{5})\b/)?.[1] || ''
+      if (zipcode) {
+        setLoadingUsda(true)
+        setUsdaMarkets([])
+        supabase.functions.invoke('usda-farmers-markets', {
+          body: { zipcode, radius }
+        }).then(({ data }) => {
+          if (data?.data && Array.isArray(data.data)) {
+            setUsdaMarkets(data.data.slice(0, 5))
+          }
+        }).catch(e => console.warn('USDA fallback error (FindPanel):', e))
+          .finally(() => setLoadingUsda(false))
+      }
+    } else {
+      setUsdaMarkets([])
+    }
+
     // Queue notifications for growers who grow what the buyer searched for
     if (keywords.trim() && profileH3 && userId) {
       supabase.rpc('queue_grower_search_match', {
@@ -313,34 +346,41 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
       <div className={styles.findForm}>
         {/* Address */}
         <div className={styles.findField}>
-          <label className={styles.findLabel}>📍 Location</label>
-          <div className={styles.findAddressRow}>
-            <input
-              className={styles.findInput}
-              placeholder="Your address..."
-              value={address}
-              onChange={e => { setAddress(e.target.value); setAddressResolved(false) }}
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddressResolve() } }}
-            />
-            {!addressResolved && address.trim() && (
-              <button className={styles.findResolveBtn} onClick={handleAddressResolve}>✓</button>
-            )}
-            {addressResolved && (
-              <span className={styles.findResolvedBadge}>✅</span>
-            )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <label className={styles.findLabel} style={{ margin: 0 }}>📍 Location</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {addressResolved && <span style={{ fontSize: 12, color: 'var(--green-600)' }}>✅ Set</span>}
+              <button
+                onClick={handleUseMyLocation}
+                disabled={locationLoading}
+                style={{
+                  background: 'none', border: 'none', cursor: locationLoading ? 'wait' : 'pointer',
+                  color: 'var(--green-600, #16a34a)', fontSize: 13, fontWeight: 600,
+                  padding: 0, display: 'flex', alignItems: 'center', gap: 4,
+                }}
+              >
+                {locationLoading ? '⏳ Locating...' : '📍 Use My Location'}
+              </button>
+            </div>
           </div>
-          {!addressResolved && (
+          <AddressInput
+            value={address}
+            onChange={(combined) => {
+              setAddress(combined)
+              setAddressResolved(false)
+              // Extract zip from combined "Street, City, ST ZIP"
+              const zipMatch = combined.match(/\b(\d{5})\b/)
+              if (zipMatch) setZip(zipMatch[1])
+              else setZip('')
+            }}
+            placeholderStreet="Street Address"
+          />
+          {!addressResolved && address.trim() && (
             <button
-              onClick={handleUseMyLocation}
-              disabled={locationLoading}
-              style={{
-                background: 'none', border: 'none', cursor: locationLoading ? 'wait' : 'pointer',
-                color: 'var(--green-600, #16a34a)', fontSize: 13, fontWeight: 600,
-                padding: '4px 0', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4,
-              }}
-            >
-              {locationLoading ? '⏳ Getting location...' : '📍 Use My Location'}
-            </button>
+              className={styles.findResolveBtn}
+              onClick={handleAddressResolve}
+              style={{ marginTop: 6, width: '100%' }}
+            >✓ Confirm Address</button>
           )}
         </div>
 
@@ -433,13 +473,13 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
               <span className={styles.findEmptyIcon}>🌱</span>
               <h4 className={styles.findEmptyTitle}>No products found</h4>
               <p className={styles.findEmptyText}>
-                No one nearby is currently selling "{keywords}".
+                No one nearby is currently selling &quot;{keywords}&quot;.
               </p>
 
               {/* Post "Looking for" message */}
               {!lookingForPosted ? (
                 <button className={styles.findPostBtn} onClick={handlePostLookingFor}>
-                  📣 Post "Looking for {keywords}" to Community
+                  📣 Post &quot;Looking for {keywords}&quot; to Community
                 </button>
               ) : (
                 <p className={styles.findPostedConfirm}>✅ Posted to Community!</p>
@@ -451,7 +491,91 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
                   🔔 Notify me when available (7 days)
                 </button>
               ) : (
-                <p className={styles.findPostedConfirm}>🔔 Watch saved — we'll notify you!</p>
+                <p className={styles.findPostedConfirm}>🔔 Watch saved — we&apos;ll notify you!</p>
+              )}
+
+              {/* USDA Farmers Market fallback */}
+              {loadingUsda && (
+                <div style={{ marginTop: 24, textAlign: 'center', color: 'var(--gray-400)', fontSize: 13 }}>
+                  🌾 Looking for nearby farmers markets…
+                </div>
+              )}
+              {!loadingUsda && usdaMarkets.length > 0 && (
+                <div style={{ marginTop: 28, paddingTop: 24, borderTop: '2px dashed #e5e7eb', textAlign: 'left', width: '100%' }}>
+                  {/* Context banner */}
+                  <div style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 10,
+                    background: 'linear-gradient(135deg, #fefce8, #fef9c3)',
+                    border: '1px solid #fde047', borderRadius: 12,
+                    padding: '12px 16px', marginBottom: 16,
+                  }}>
+                    <span style={{ fontSize: 22, flexShrink: 0 }}>🌾</span>
+                    <div>
+                      <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: '#854d0e' }}>
+                        No neighbors selling &quot;{keywords}&quot; right now
+                      </p>
+                      <p style={{ margin: '4px 0 0', fontSize: 12, color: '#a16207', lineHeight: 1.5 }}>
+                        These USDA-registered Farmers Markets near you may carry it.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <span style={{ fontWeight: 700, fontSize: 15, color: '#1f2937' }}>🏪 Nearby Farmers Markets</span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 600, color: '#6b7280',
+                      background: '#f3f4f6', borderRadius: 999, padding: '2px 8px',
+                    }}>via USDA</span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {usdaMarkets.map((market, i) => {
+                      const distMiles = market.distance ? parseFloat(market.distance).toFixed(1) : null
+                      const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(market.location_address || `${market.listing_name} ${market.location_city} ${market.location_state}`)}`
+                      const websiteUrl = market.media_website?.startsWith('http') ? market.media_website : market.media_website ? `https://${market.media_website}` : null
+                      return (
+                        <div key={i} style={{
+                          background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12,
+                          overflow: 'hidden', display: 'flex', boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
+                        }}>
+                          <div style={{ width: 5, flexShrink: 0, background: 'linear-gradient(180deg, #f59e0b, #d97706)' }} />
+                          <div style={{ flex: 1, padding: '12px 14px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+                              <span style={{ fontWeight: 700, fontSize: 14, color: '#1f2937' }}>{market.listing_name}</span>
+                              {distMiles && (
+                                <span style={{
+                                  fontSize: 11, fontWeight: 600, color: '#059669',
+                                  background: '#ecfdf5', border: '1px solid #a7f3d0',
+                                  borderRadius: 999, padding: '1px 7px',
+                                }}>📍 {distMiles} mi away</span>
+                              )}
+                            </div>
+                            <p style={{ margin: '0 0 10px', fontSize: 12, color: '#6b7280' }}>
+                              {market.location_address || `${market.location_street || ''} ${market.location_city}, ${market.location_state}`}
+                            </p>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                              <a href={mapsUrl} target="_blank" rel="noreferrer" style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 5,
+                                padding: '6px 14px', borderRadius: 999,
+                                background: '#1f2937', color: '#fff',
+                                fontSize: 12, fontWeight: 600, textDecoration: 'none',
+                              }}>🗺️ Directions</a>
+                              {websiteUrl && (
+                                <a href={websiteUrl} target="_blank" rel="noreferrer" style={{
+                                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                                  padding: '6px 14px', borderRadius: 999,
+                                  background: '#fff', color: '#d97706',
+                                  fontSize: 12, fontWeight: 600, textDecoration: 'none',
+                                  border: '1px solid #fde68a',
+                                }}>🌐 Website</a>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
               )}
             </div>
           )}

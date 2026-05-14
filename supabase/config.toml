@@ -736,3 +736,58 @@ entrypoint = "./functions/generate-campaign-content/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/growbot/index.ts"
+
+[functions.crm-ofn-prospects]
+enabled = true
+verify_jwt = true
+import_map = "./functions/crm-ofn-prospects/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/crm-ofn-prospects/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/crm-ofn-prospects/*.html" ]
+
+[functions.ofn-product-search]
+enabled = true
+verify_jwt = true
+import_map = "./functions/ofn-product-search/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/ofn-product-search/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/ofn-product-search/*.html" ]
+
+[functions.casagrown-product-search]
+enabled = true
+verify_jwt = true
+import_map = "./functions/casagrown-product-search/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/casagrown-product-search/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/casagrown-product-search/*.html" ]
+
+[functions.usda-farmers-markets]
+enabled = true
+verify_jwt = true
+import_map = "./functions/usda-farmers-markets/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/usda-farmers-markets/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/usda-farmers-markets/*.html" ]
+
+[functions.universal-search]
+enabled = true
+verify_jwt = true
+import_map = "./functions/universal-search/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/universal-search/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/universal-search/*.html" ]

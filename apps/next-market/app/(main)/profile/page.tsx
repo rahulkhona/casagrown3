@@ -6,6 +6,7 @@ import { createClient } from '../../../lib/supabase'
 import { useAuth } from '../../../lib/useAuth'
 import CameraCapture from '../../../components/CameraCapture'
 import ImageCropper from '../../../components/ImageCropper'
+import AddressInput from '../../components/AddressInput'
 import { useNotificationPrompt, isNotificationsEnabled } from '../../../lib/useNotificationPrompt'
 import { NotificationPromptModal } from '../../components/NotificationPromptModal'
 import styles from './page.module.css'
@@ -486,8 +487,9 @@ function ProfilePageInner() {
         <h3 className={styles.sectionTitle}>Address</h3>
 
         <div className="form-group">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <label className="label" htmlFor="street">Street</label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}
+          >
+            <label className="label">Address</label>
             <button
               type="button"
               onClick={useCurrentLocation}
@@ -501,27 +503,30 @@ function ProfilePageInner() {
               {geolocating ? '⏳ Locating...' : '📍 Use My Location'}
             </button>
           </div>
-          <input id="street" className="input" value={form.street} onChange={e => setForm({ ...form, street: e.target.value })} placeholder="123 Main St" />
+          <AddressInput
+            value={[form.street, form.city, `${form.state} ${form.zip}`.trim()].filter(Boolean).join(', ')}
+            onChange={(combined) => {
+              const parts = combined.split(',').map(s => s.trim())
+              if (parts.length >= 3) {
+                const sz = parts[parts.length - 1].split(' ')
+                setForm(prev => ({
+                  ...prev,
+                  street: parts.slice(0, -2).join(', '),
+                  city: parts[parts.length - 2],
+                  state: sz[0] || '',
+                  zip: sz.slice(1).join(' '),
+                }))
+              } else {
+                setForm(prev => ({ ...prev, street: combined, city: '', state: '', zip: '' }))
+              }
+            }}
+            placeholderStreet="123 Main St"
+          />
           {locationDenied && (
             <p style={{ margin: '4px 0 0', fontSize: 11, color: '#b45309', lineHeight: 1.4 }}>
               🔒 To enable: tap the <strong>lock icon</strong> in your address bar → <strong>Site settings</strong> → allow <strong>Location</strong>, then reload.
             </p>
           )}
-        </div>
-
-        <div className="form-row">
-          <div className="form-group">
-            <label className="label" htmlFor="city">City</label>
-            <input id="city" className="input" value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} placeholder="San Jose" />
-          </div>
-          <div className="form-group" style={{ maxWidth: 100 }}>
-            <label className="label" htmlFor="state">State</label>
-            <input id="state" className="input" value={form.state} onChange={e => setForm({ ...form, state: e.target.value })} placeholder="CA" maxLength={2} />
-          </div>
-          <div className="form-group" style={{ maxWidth: 120 }}>
-            <label className="label" htmlFor="zip">ZIP</label>
-            <input id="zip" className="input" value={form.zip} onChange={e => setForm({ ...form, zip: e.target.value })} placeholder="95112" maxLength={10} />
-          </div>
         </div>
 
         <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%', marginTop: 8 }} disabled={saving}>

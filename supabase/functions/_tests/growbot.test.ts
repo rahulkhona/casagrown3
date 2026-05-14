@@ -7,6 +7,12 @@
  * 3. Error handling (empty message)
  * 4. Guest session support
  * 5. Token usage reporting
+ * 6. IP rate limit gate — guest-only, bypassed for authenticated users
+ *    NOTE: The actual IP rate limit counter (2 exchanges/day) is bypassed when
+ *    AI_MOCK=true to prevent test noise. The DB-level counter logic is verified
+ *    separately in pgTAP. What IS tested here:
+ *    - Authenticated users (userId present) NEVER receive auth_required events
+ *    - Guest users receive normal responses in mock mode (limit not enforced)
  *
  * Run: cd supabase && deno test --allow-env --allow-net --allow-run --no-check functions/_tests/growbot.test.ts
  *
@@ -223,6 +229,86 @@ Deno.test({
       assert(!done.data.text.includes('ReferenceError'), 'Error text should not contain raw ReferenceErrors')
       // Check for stack trace patterns like "at Object.<anonymous>" or "at fn (file:///..."
       assert(!/\bat [A-Z]\w+\.\</.test(done.data.text), 'Error text should not contain stack traces')
+    }
+  },
+})
+
+
+// ══════════════════════════════════════════════════════════════
+// IP Rate Limit Gate — Guest-Only
+// ══════════════════════════════════════════════════════════════
+
+Deno.test({
+  name: 'growbot: authenticated user (userId present) never receives auth_required event',
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    // Authenticated users bypass the IP rate limit gate entirely.
+    // We use the seeded buyer UUID; mock mode skips real DB auth checks.
+    const { status, events } = await callGrowbot({
+      message: 'How do I grow spinach?',
+      history: [],
+      userId: 'a1111111-1111-1111-1111-111111111111', // seeded buyer (Dan)
+      guestSessionId: null,
+    })
+    assert(status < 500, `Expected non-500 status, got ${status}`)
+    const authRequired = events.find(e => e.event === 'auth_required')
+    assertEquals(
+      authRequired,
+      undefined,
+      'Authenticated users must never receive auth_required — rate limit is guest-only',
+    )
+    const done = events.find(e => e.event === 'done')
+    assertExists(done, 'Authenticated user should always receive a done event')
+  },
+})
+
+Deno.test({
+  name: 'growbot: guest receives normal response in mock mode (rate limit bypassed for testing)',
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    // AI_MOCK=true skips the IP counter check so parallel test runs cannot
+    // accidentally exhaust the daily guest quota during the release suite.
+    const { status, events } = await callGrowbot({
+      message: 'What is crop rotation?',
+      history: [],
+      userId: null,
+      guestSessionId: 'rate-limit-bypass-test',
+    })
+    assert(status < 500, `Expected non-500 status, got ${status}`)
+    const authRequired = events.find(e => e.event === 'auth_required')
+    assertEquals(
+      authRequired,
+      undefined,
+      'AI_MOCK=true must bypass IP rate limit so tests are not flaky',
+    )
+    const done = events.find(e => e.event === 'done')
+    assertExists(done, 'Guest should complete exchange in mock mode')
+  },
+})
+
+Deno.test({
+  name: 'growbot: __INIT_WELCOME__ and __AUTH_COMPLETE__ are exempt from rate limit gate',
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    // These sentinel messages initialise/complete auth — they must never be
+    // blocked by the IP gate regardless of exchange count.
+    for (const sentinel of ['__INIT_WELCOME__', '__AUTH_COMPLETE__']) {
+      const { status, events } = await callGrowbot({
+        message: sentinel,
+        history: [],
+        userId: null,
+        guestSessionId: `sentinel-test-${sentinel}`,
+      })
+      assert(status < 500, `${sentinel} must not return 500, got ${status}`)
+      const authRequired = events.find(e => e.event === 'auth_required')
+      assertEquals(
+        authRequired,
+        undefined,
+        `${sentinel} must be exempt from IP rate limit gate`,
+      )
     }
   },
 })

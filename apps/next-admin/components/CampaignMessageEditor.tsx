@@ -1389,7 +1389,9 @@ export default function CampaignMessageEditor({
 
                       <div style={{ fontWeight: 'bold', fontSize: '0.8rem', color: '#6b7280', textTransform: 'uppercase', marginTop: 8, marginBottom: 4 }}>Marketing Pages</div>
                       {[
+                        { url: `${baseUrl}/growbot`, label: 'GrowBot AI Chat', slug: '/growbot' },
                         { url: `${baseUrl}/sell`, label: 'Seller Calculator', slug: '/sell' },
+                        { url: `${baseUrl}/create-listing`, label: 'Create a Listing', slug: '/create-listing' },
                         { url: `${baseUrl}/check-nutrition-loss`, label: 'Nutrition Loss Checker', slug: '/check-nutrition-loss' },
                         { url: `${baseUrl}/join`, label: 'Buyer Sign Up', slug: '/join' },
                       ].filter(p => p.label.toLowerCase().includes(linkSearch.toLowerCase()) || p.slug.includes(linkSearch.toLowerCase())).map(p => (

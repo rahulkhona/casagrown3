@@ -8,6 +8,9 @@ and any associated triggers/functions/RLS policies.
 > **Migrations applied (in order)**: `20260131173152_initial_schema` →
 > `20260131183000_refactor_redemptions` → `20260131191000_zip_scraped_tracking`
 > → `20260131191500_update_zip_tracking` → `20260131192000_scraping_logs` →
+
+> [!WARNING]
+> **Explicit Grants Required**: Supabase no longer exposes tables in the `public` schema to the Data API by default (effective May 30, 2026 for new projects, Oct 30, 2026 for existing). All new tables created in `public` **must** include explicit grants for `anon`, `authenticated`, and `service_role` at the end of the migration file, or API access will fail with `42501 Unauthorized`.
 > `20260131203000_guest_experimentation` → `20260201100000_auth_triggers` →
 > `20260201200000_h3_community_refactor` →
 > `20260202161700_update_profiles_schema` → `20260203051900_add_country_code` →

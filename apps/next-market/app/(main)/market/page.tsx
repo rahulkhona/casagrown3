@@ -173,6 +173,11 @@ function BrowseMarketPageInner() {
   const [buyerStateCode, setBuyerStateCode] = useState<string | null>(null)
   const [searchError, setSearchError] = useState<string | null>(null)
 
+  // External Fallback Results
+  const [usdaMarkets, setUsdaMarkets] = useState<any[]>([])
+  const [localFarms, setLocalFarms] = useState<any[]>([])
+  const [loadingExternal, setLoadingExternal] = useState(false)
+
   // Pagination state for infinite scroll
   const PAGE_SIZE = 20
   const [boothOffset, setBoothOffset] = useState(0)
@@ -222,8 +227,8 @@ function BrowseMarketPageInner() {
     geocodeAddress(address.trim()).then(geo => {
       if (geo) {
         setLat(geo.lat); setLng(geo.lng)
-        const zipMatch = geo.display?.match(/\b(\d{5})\b/)
-        if (zipMatch) setZipCode(zipMatch[1])
+        const zip = geo.zipCode || (geo.display?.match(/\b(\d{5})\b/) || [])[1] || (address.match(/\b(\d{5})\b/) || [])[1] || ''
+        if (zip) setZipCode(zip)
         setAddressResolved(true)
       }
     })
@@ -477,6 +482,28 @@ function BrowseMarketPageInner() {
       setBoothOffset(0)
       const resultCount = Array.isArray(data) ? data.filter((b: BoothResult) => !b.is_demo).length : 0
       setHasMoreBooths(resultCount >= PAGE_SIZE)
+
+      // Trigger USDA fallback — always run when we have coordinates + zip.
+      if (lat && lng) {
+        const effectiveZip = zipCode || (address.match(/\b(\d{5})\b/) || [])[1] || ''
+        if (effectiveZip) {
+          setLoadingExternal(true)
+          supabase.functions.invoke('usda-farmers-markets', {
+            body: { zipcode: effectiveZip, radius: maxMiles }
+          }).then(({ data: usdaData }) => {
+            if (usdaData?.data && Array.isArray(usdaData.data)) {
+              setUsdaMarkets(usdaData.data.slice(0, 5))
+            }
+            if (usdaData?.farms && Array.isArray(usdaData.farms)) {
+              setLocalFarms(usdaData.farms.slice(0, 6))
+            }
+            setLoadingExternal(false)
+          }).catch(e => {
+            console.warn('USDA search error:', e)
+            setLoadingExternal(false)
+          })
+        }
+      }
     }
 
     // Compute H3 zone IDs for the search area and cache for pulse polling
@@ -605,9 +632,16 @@ function BrowseMarketPageInner() {
     const geo = await geocodeAddress(address.trim())
     if (geo) {
       setLat(geo.lat); setLng(geo.lng)
-      // Extract zip code from display name (e.g. "...San Jose, CA 95120, USA")
+      // Extract zip code from geocoding explicitly or fallback to display name regex
+      const explicitZip = geo.zipCode
       const zipMatch = geo.display?.match(/\b(\d{5})\b/)
-      if (zipMatch) setZipCode(zipMatch[1])
+      const finalZip = explicitZip || (zipMatch ? zipMatch[1] : undefined)
+      if (finalZip) {
+        setZipCode(finalZip)
+      } else {
+        // If we can't find a zip code, the external search (like USDA) might fail to find anything.
+        console.warn('Could not determine zip code for address')
+      }
       setAddressResolved(true)
     } else {
       setLocationError('Could not find that address. Please include city and state.')
@@ -1152,12 +1186,19 @@ function BrowseMarketPageInner() {
 
       {/* Search + Filters (always visible) */}
       <div className={styles.searchSection}>
-        <input
-          className="input"
-          placeholder="Search products... (tomatoes, basil, honey)"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            className="input"
+            style={{ flex: 1 }}
+            placeholder="Search products... (tomatoes, basil, honey)"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); searchBooths(true); } }}
+          />
+          <button className="btn btn-primary" onClick={() => searchBooths(true)}>
+            Search
+          </button>
+        </div>
         <div className={styles.filterRow}>
           <div className={styles.pills}>
             {(['all', 'delivery', 'pickup'] as const).map(f => (
@@ -1205,47 +1246,7 @@ function BrowseMarketPageInner() {
                   ? `${realCount} booth${realCount !== 1 ? 's' : ''} near you + ${demoCount} demo`
                   : `${booths.length} booth${booths.length !== 1 ? 's' : ''} near you`}
             </p>
-            {realCount < 2 && !showPioneerBanner && (
-              <div style={{
-                position: 'relative', overflow: 'hidden', padding: 20, borderRadius: 20,
-                background: 'linear-gradient(145deg, #ffffff, #f0fdf4)',
-                border: '1px solid rgba(34, 197, 94, 0.2)',
-                boxShadow: '0 8px 30px rgba(0,0,0,0.04)',
-                textAlign: 'left', display: 'flex', alignItems: 'center', gap: 16,
-                marginTop: 20, marginBottom: 8, width: '100%', maxWidth: 500,
-              }}>
-                <div style={{
-                  position: 'absolute', top: -30, right: -20, opacity: 0.08,
-                  fontSize: 120, transform: 'rotate(15deg)', pointerEvents: 'none'
-                }}>
-                  {isSearching ? getSearchEmoji(search) : '🌱'}
-                </div>
-                <div style={{ flex: 1, position: 'relative', zIndex: 1 }}>
-                  <h3 style={{ margin: '0 0 6px', fontSize: 17, color: '#1f2937', fontWeight: 800, letterSpacing: '-0.3px' }}>
-                    {isSearching ? `Looking for ${search}?` : 'Everything is better with friends'}
-                  </h3>
-                  <p style={{ margin: '0 0 16px', fontSize: 14, color: '#4b5563', lineHeight: 1.5 }}>
-                    {isSearching 
-                      ? `Know a neighbor who might have ${search}? Invite them to list on CasaGrown!` 
-                      : 'More neighbors mean more fresh food. Invite your neighbors to start building your local community!'}
-                  </p>
-                  <button 
-                    onClick={() => setShowGlobalShareModal(true)}
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 8,
-                      padding: '10px 20px', borderRadius: 999,
-                      background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff',
-                      fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer',
-                      boxShadow: '0 4px 14px rgba(22,163,74,0.3)', transition: 'transform 0.2s ease',
-                    }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.02)' }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}
-                  >
-                    🚀 Invite Neighbors
-                  </button>
-                </div>
-              </div>
-            )}
+
           </div>
         )
       })()}
@@ -1258,7 +1259,7 @@ function BrowseMarketPageInner() {
       ) : booths.length === 0 ? (
         <div style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center',
-          padding: '24px 20px', textAlign: 'center'
+          padding: isSearching && !searchError ? 0 : '24px 20px', textAlign: 'center'
         }}>
           {searchError ? (
             /* ── Error state: show retry button instead of misleading "Invite" CTA ── */
@@ -1297,7 +1298,7 @@ function BrowseMarketPageInner() {
                 🔄 Try Again
               </button>
             </div>
-          ) : (
+          ) : isSearching ? null : (
             /* ── Genuine empty state: no booths found, invite neighbors ── */
             <div style={{
               position: 'relative', overflow: 'hidden', padding: '32px 24px', borderRadius: 24,
@@ -1310,25 +1311,21 @@ function BrowseMarketPageInner() {
               <div style={{
                 position: 'absolute', top: -40, right: -30, opacity: 0.05,
                 fontSize: 160, transform: 'rotate(15deg)', pointerEvents: 'none'
-              }}>{isSearching ? getSearchEmoji(search) : '🌱'}</div>
+              }}>🌱</div>
 
               <div style={{
                 width: 64, height: 64, borderRadius: '50%',
                 background: '#dcfce7', color: '#16a34a',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 28, marginBottom: 16, boxShadow: '0 4px 12px rgba(22,163,74,0.15)'
-              }}>
-                {isSearching ? getSearchEmoji(search) : '🌱'}
-              </div>
+              }}>🌱</div>
 
               <h3 style={{ margin: '0 0 8px', fontSize: 19, color: '#1f2937', fontWeight: 800, letterSpacing: '-0.4px', position: 'relative', zIndex: 1 }}>
-                {isSearching ? `Looking for ${search}?` : 'Everything is better with friends'}
+                Everything is better with friends
               </h3>
 
               <p style={{ margin: '0 0 24px', fontSize: 15, color: '#4b5563', lineHeight: 1.5, position: 'relative', zIndex: 1, maxWidth: 360 }}>
-                {isSearching
-                  ? `Know a neighbor who might have ${search}? Invite them to list on CasaGrown!`
-                  : 'More neighbors mean more fresh food. Invite your neighbors to start building your local community!'}
+                More neighbors mean more fresh food. Invite your neighbors to start building your local community!
               </p>
 
               <button
@@ -1349,158 +1346,302 @@ function BrowseMarketPageInner() {
             </div>
           )}
         </div>
-      ) : (
-        <div className={styles.boothGrid}>
-          {booths.map(booth => {
-            const theme = themeColors[booth.decorative_theme] || themeColors.minimal
-            const products = booth.matched_products || []
-            return (
-              <div key={booth.booth_id} className="card">
-                {/* Header → booth page */}
-                <Link href={`/market/booth/${booth.booth_id}`}
-                  className={styles.cardHeaderLink}
-                >
-                  <div className={styles.cardHeader} style={{
-                    background: booth.header_image_url ? `url(${booth.header_image_url}) center/cover` : theme.gradient,
-                    borderBottom: `3px solid ${theme.border}`,
-                  }}>
-                    {booth.header_image_url && <div className={styles.headerOverlay} />}
-                    <div className={styles.headerContent}>
-                      <h3 className={styles.cardTitle} style={{ color: booth.header_image_url ? '#fff' : theme.border }}>
-                        {booth.booth_name}
-                      </h3>
-                      <div className={styles.cardMeta}>
-                        {booth.is_demo && (
-                          <span className="badge" style={{ fontSize: 10, background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac' }}>🌿 Demo</span>
-                        )}
-                        {booth.owner_id === user?.id ? (
-                          <span className="badge" style={{ fontSize: 11, background: '#dbeafe', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>Your Booth</span>
-                        ) : (
-                          <span className="badge badge-green" style={{ fontSize: 11 }}>{booth.distance_miles} mi</span>
-                        )}
-                        <span style={{ color: 'var(--gray-400)' }}>·</span>
-                        <span>{booth.product_count} items</span>
-                      </div>
-                    </div>
-                    {/* Seller avatar */}
-                    <div className={styles.sellerBadge}>
-                      <div className={styles.sellerAvatar}>
-                        {booth.seller_avatar_url
-                          ? <img src={booth.seller_avatar_url} alt="" />
-                          : <span>{booth.booth_name.charAt(0)}</span>
-                        }
-                      </div>
-                      {booth.seller_avg_rating && booth.seller_rating_count >= 5 ? (
-                        <span className={styles.sellerRating}>⭐ {booth.seller_avg_rating}</span>
-                      ) : !booth.is_demo && (
-                        <span className={styles.sellerRating} style={{ fontSize: 10, color: 'var(--gray-400)' }}>🆕 New Seller</span>
+      ) : (() => {
+        const realBooths = booths.filter(b => !b.is_demo)
+        const demoBoothsOnly = booths.filter(b => b.is_demo)
+        // Show demos to pad results when fewer than 12 real booths found (TARGET_MIN)
+        const showDemos = realBooths.length < 12 && demoBoothsOnly.length > 0
+
+        const renderBoothCard = (booth: BoothResult) => {
+          const theme = themeColors[booth.decorative_theme] || themeColors.minimal
+          const products = booth.matched_products || []
+          return (
+            <div key={booth.booth_id} className="card">
+              <Link href={`/market/booth/${booth.booth_id}`} className={styles.cardHeaderLink}>
+                <div className={styles.cardHeader} style={{
+                  background: booth.header_image_url ? `url(${booth.header_image_url}) center/cover` : theme.gradient,
+                  borderBottom: `3px solid ${theme.border}`,
+                }}>
+                  {booth.header_image_url && <div className={styles.headerOverlay} />}
+                  <div className={styles.headerContent}>
+                    <h3 className={styles.cardTitle} style={{ color: booth.header_image_url ? '#fff' : theme.border }}>
+                      {booth.booth_name}
+                    </h3>
+                    <div className={styles.cardMeta}>
+                      {booth.is_demo && (
+                        <span className="badge" style={{ fontSize: 10, background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac' }}>🌿 Demo</span>
                       )}
+                      {booth.owner_id === user?.id ? (
+                        <span className="badge" style={{ fontSize: 11, background: '#dbeafe', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>Your Booth</span>
+                      ) : (
+                        <span className="badge badge-green" style={{ fontSize: 11 }}>{booth.distance_miles} mi</span>
+                      )}
+                      <span style={{ color: 'var(--gray-400)' }}>·</span>
+                      <span>{booth.product_count} items</span>
                     </div>
                   </div>
-                </Link>
-
-                {/* Body */}
-                <div className={styles.cardBody}>
-                  {booth.description && <p className={styles.cardDesc}>{booth.is_demo ? `${booth.description} Demo listing — viewing only.` : booth.description}</p>}
-
-                  <div className={styles.tagRow}>
-                    {booth.offers_delivery && (
-                      <span className="badge badge-green">🚗 Delivers {booth.delivery_radius_miles}mi</span>
-                    )}
-                    {booth.offers_pickup && !booth.is_demo && (
-                      <span className="badge badge-blue">📍 Pickup</span>
+                  <div className={styles.sellerBadge}>
+                    <div className={styles.sellerAvatar}>
+                      {booth.seller_avatar_url
+                        ? <img src={booth.seller_avatar_url} alt="" />
+                        : <span>{booth.booth_name.charAt(0)}</span>
+                      }
+                    </div>
+                    {booth.seller_avg_rating && booth.seller_rating_count >= 5 ? (
+                      <span className={styles.sellerRating}>⭐ {booth.seller_avg_rating}</span>
+                    ) : !booth.is_demo && (
+                      <span className={styles.sellerRating} style={{ fontSize: 10, color: 'var(--gray-400)' }}>🆕 New Seller</span>
                     )}
                   </div>
-
-                  {products.length > 0 && (
-                    <div className={styles.productList}>
-                      {products.slice(0, isSearching ? 6 : 4).map((p: any) => (
-                        <div key={p.id} style={{ position: 'relative' }}>
-                          <Link
-                            href={`/market/booth/${booth.booth_id}/product/${p.id}`}
-                            className={styles.productCard}
-                          >
-                            <div className={styles.productThumb}>
-                              {p.photo ? <img src={p.photo} alt={p.name} /> : <span>{categoryIcons[p.category] || '📦'}</span>}
-                            </div>
-                            <div className={styles.productInfo}>
-                              <span className={styles.productName}>{p.name}</span>
-                              <div className={styles.productMeta}>
-                                <span className={styles.productPrice}>{p.price_usd === 0 ? <span style={{ color: '#16a34a', fontWeight: 'bold' }}>Free</span> : <>{formatUsd(p.price_usd)}<span className={styles.unit}>/{p.unit}</span></>}</span>
-                                <span className={styles.qty}>{p.inventory > 0 ? `${p.inventory} ${p.unit === 'dozen' ? p.unit : p.unit === 'box' && p.inventory !== 1 ? 'boxes' : p.unit === 'bag' && p.inventory !== 1 ? 'bags' : p.unit !== 'piece' && p.unit !== 'each' ? p.unit : p.unit === 'each' ? 'each' : ''} avail`.replace('  ', ' ') : 'Sold out'}</span>
-                              </div>
-                            </div>
-                          </Link>
-                          {!marketIsOpen && !booth.is_demo && (
-                            <button
-                              onClick={(e) => toggleProductReminder(p.id, e)}
-                              title={savedProductIds.has(p.id) ? 'Remove reminder' : 'Remind me when market opens'}
-                              className={styles.remindBtn}
-                              style={{
-                                position: 'absolute', top: 4, right: 4,
-                                background: savedProductIds.has(p.id) ? 'var(--green-100, #dcfce7)' : 'rgba(255,255,255,0.9)',
-                                border: savedProductIds.has(p.id) ? '1px solid var(--green-300, #86efac)' : '1px solid var(--gray-200, #e5e7eb)',
-                                borderRadius: 20, padding: '2px 8px', fontSize: 11,
-                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3,
-                                color: savedProductIds.has(p.id) ? 'var(--green-700, #15803d)' : 'var(--gray-600)',
-                                zIndex: 2, transition: 'all 0.2s',
-                              }}
-                            >
-                              🔔 {savedProductIds.has(p.id) ? 'Saved' : 'Remind Me'}
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                      {products.length > (isSearching ? 6 : 4) && (
-                        <Link
-                          href={`/market/booth/${booth.booth_id}`}
-                          className={styles.moreCard}
-                        >+{products.length - (isSearching ? 6 : 4)}</Link>
-                      )}
-                    </div>
+                </div>
+              </Link>
+              <div className={styles.cardBody}>
+                {booth.description && <p className={styles.cardDesc}>{booth.is_demo ? `${booth.description} Demo listing — viewing only.` : booth.description}</p>}
+                <div className={styles.tagRow}>
+                  {booth.offers_delivery && (
+                    <span className="badge badge-green">🚗 Delivers {booth.delivery_radius_miles}mi</span>
                   )}
+                  {booth.offers_pickup && !booth.is_demo && (
+                    <span className="badge badge-blue">📍 Pickup</span>
+                  )}
+                </div>
+                {products.length > 0 && (
+                  <div className={styles.productList}>
+                    {products.slice(0, isSearching ? 6 : 4).map((p: any) => (
+                      <div key={p.id} style={{ position: 'relative' }}>
+                        <Link href={`/market/booth/${booth.booth_id}/product/${p.id}`} className={styles.productCard}>
+                          <div className={styles.productThumb}>
+                            {p.photo ? <img src={p.photo} alt={p.name} /> : <span>{categoryIcons[p.category] || '📦'}</span>}
+                          </div>
+                          <div className={styles.productInfo}>
+                            <span className={styles.productName}>{p.name}</span>
+                            <div className={styles.productMeta}>
+                              <span className={styles.productPrice}>{p.price_usd === 0 ? <span style={{ color: '#16a34a', fontWeight: 'bold' }}>Free</span> : <>{formatUsd(p.price_usd)}<span className={styles.unit}>/{p.unit}</span></>}</span>
+                              <span className={styles.qty}>{p.inventory > 0 ? `${p.inventory} ${p.unit === 'dozen' ? p.unit : p.unit === 'box' && p.inventory !== 1 ? 'boxes' : p.unit === 'bag' && p.inventory !== 1 ? 'bags' : p.unit !== 'piece' && p.unit !== 'each' ? p.unit : p.unit === 'each' ? 'each' : ''} avail`.replace('  ', ' ') : 'Sold out'}</span>
+                            </div>
+                          </div>
+                        </Link>
+                        {!marketIsOpen && !booth.is_demo && (
+                          <button
+                            onClick={(e) => toggleProductReminder(p.id, e)}
+                            title={savedProductIds.has(p.id) ? 'Remove reminder' : 'Remind me when market opens'}
+                            className={styles.remindBtn}
+                            style={{
+                              position: 'absolute', top: 4, right: 4,
+                              background: savedProductIds.has(p.id) ? 'var(--green-100, #dcfce7)' : 'rgba(255,255,255,0.9)',
+                              border: savedProductIds.has(p.id) ? '1px solid var(--green-300, #86efac)' : '1px solid var(--gray-200, #e5e7eb)',
+                              borderRadius: 20, padding: '2px 8px', fontSize: 11,
+                              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3,
+                              color: savedProductIds.has(p.id) ? 'var(--green-700, #15803d)' : 'var(--gray-600)',
+                              zIndex: 2, transition: 'all 0.2s',
+                            }}
+                          >
+                            🔔 {savedProductIds.has(p.id) ? 'Saved' : 'Remind Me'}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {products.length > (isSearching ? 6 : 4) && (
+                      <Link href={`/market/booth/${booth.booth_id}`} className={styles.moreCard}>
+                        +{products.length - (isSearching ? 6 : 4)}
+                      </Link>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        }
+
+        return (
+          <>
+            {/* ── 1. Real booths ── */}
+            {realBooths.length > 0 && (
+              <div className={styles.boothGrid}>
+                {realBooths.map(renderBoothCard)}
+                {/* Infinite scroll sentinel */}
+                {hasMoreBooths && !loading && (
+                  <div ref={sentinelRef} style={{ padding: 20, textAlign: 'center' }}>
+                    {loadingMore && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: 'var(--gray-500)', fontSize: 14 }}>
+                        <LoadingSpinner /> Loading more booths…
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── 2. USDA Farmers Markets (full-width, below real booths) ── */}
+            {!hasMoreBooths && !loading && (
+              <>
+                {loadingExternal && (
+                  <div style={{ display: 'flex', justifyContent: 'center', padding: 20 }}>
+                    <LoadingSpinner />
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ── 3. Demo booths — only when no real results AND no USDA ── */}
+            {showDemos && demoBoothsOnly.length > 0 && (
+              <div style={{ marginTop: 32 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, padding: '10px 16px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12 }}>
+                  <span style={{ fontSize: 18 }}>🌿</span>
+                  <div>
+                    <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: '#15803d' }}>Showing demo listings</p>
+                    <p style={{ margin: 0, fontSize: 12, color: '#16a34a' }}>No real sellers found yet. These demos show what CasaGrown looks like when neighbors start selling.</p>
+                  </div>
+                </div>
+                <div className={styles.boothGrid}>
+                  {demoBoothsOnly.map(renderBoothCard)}
+                </div>
+              </div>
+            )}
+
+            {/* End of results CTA */}
+            {!hasMoreBooths && !loading && booths.length > 0 && (() => {
+              const realCount = booths.filter(b => !b.is_demo).length
+              return (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--gray-500)' }}>
+                  <p style={{ marginBottom: 12, fontSize: 14 }}>
+                    {realCount === 0 ? "You've reached the end of the demo booths." : "You've reached the end of the market."} Don't see what you're looking for?
+                  </p>
+                  <button
+                    onClick={() => setShowGlobalShareModal(true)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '10px 20px', borderRadius: 999, background: '#fff', border: '1px solid var(--gray-300)', color: 'var(--gray-700)', fontSize: 14, fontWeight: 600, cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
+                  >
+                    📣 Invite Neighbors
+                  </button>
+                </div>
+              )
+            })()}
+          </>
+        )
+      })()}
+
+      {/* USDA fallback — empty-shelf guard: show when real CasaGrown results are sparse */}
+      {!loading && booths.filter(b => !b.is_demo).length < 3 && (
+        <>
+          {/* Local Farms (On-Farm Markets + CSAs) */}
+          {!loadingExternal && localFarms.length > 0 && (() => {
+            const rc = booths.filter(b => !b.is_demo).length
+            return (
+              <div style={{ marginTop: rc > 0 ? 48 : 24, paddingTop: rc > 0 ? 32 : 0, borderTop: rc > 0 ? '2px dashed #e5e7eb' : 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)', border: '1px solid #86efac', borderRadius: 16, padding: '16px 20px', marginBottom: 24 }}>
+                  <span style={{ fontSize: 28, flexShrink: 0 }}>🌱</span>
+                  <div>
+                    <p style={{ margin: 0, fontWeight: 700, fontSize: 15, color: '#14532d' }}>
+                      {isSearching && rc === 0 ? `No neighbors selling "${search}" — check these local farms` : 'Local farms selling directly to you'}
+                    </p>
+                    <p style={{ margin: '4px 0 0', fontSize: 13, color: '#166534', lineHeight: 1.5 }}>These USDA-registered farms sell direct to consumers. Contact them to see what&apos;s available.</p>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                  <h3 style={{ fontSize: 20, fontWeight: 800, color: '#1f2937', margin: 0, letterSpacing: '-0.02em' }}>🌿 Local Farms Near You</h3>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', background: '#f3f4f6', borderRadius: 999, padding: '2px 10px' }}>via USDA</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {localFarms.map((farm, i) => {
+                    const isCSA = farm._directory === 'csa'
+                    const mapsUrl = farm.location_address
+                      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(farm.location_address)}`
+                      : (farm.location_y && farm.location_x)
+                      ? `https://maps.google.com/?q=${farm.location_y},${farm.location_x}`
+                      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([farm.listing_name, farm.location_city, farm.location_state].filter(Boolean).join(', '))}`
+                    const websiteUrl = farm.media_website?.startsWith('http') ? farm.media_website : farm.media_website ? `https://${farm.media_website}` : null
+                    return (
+                      <div key={i} style={{ display: 'flex', alignItems: 'stretch', background: '#fff', border: '1px solid #d1fae5', borderRadius: 16, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+                        <div style={{ width: 6, flexShrink: 0, background: isCSA ? 'linear-gradient(180deg, #059669, #047857)' : 'linear-gradient(180deg, #16a34a, #15803d)' }} />
+                        <div style={{ flex: 1, padding: '14px 16px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+                            <span style={{ fontWeight: 700, fontSize: 15, color: '#1f2937' }}>{farm.listing_name}</span>
+                            <span style={{ fontSize: 11, fontWeight: 700, background: isCSA ? '#059669' : '#16a34a', color: '#fff', borderRadius: 999, padding: '2px 8px' }}>{isCSA ? 'CSA' : 'On-Farm Market'}</span>
+                          </div>
+                          <p style={{ margin: '0 0 10px', fontSize: 12, color: '#6b7280' }}>📍 {farm.location_address || [farm.location_city, farm.location_state, farm.location_zipcode].filter(Boolean).join(', ')}</p>
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            <a href={mapsUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 14px', borderRadius: 999, background: '#1f2937', color: '#fff', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🗺️ Directions</a>
+                            {websiteUrl && <a href={websiteUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 14px', borderRadius: 999, background: '#fff', color: '#15803d', fontSize: 12, fontWeight: 600, textDecoration: 'none', border: '1px solid #86efac' }}>🌐 Website</a>}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )
-          })}
+          })()}
 
-          {/* Infinite scroll sentinel */}
-          {hasMoreBooths && !loading && (
-            <div ref={sentinelRef} style={{ padding: 20, textAlign: 'center' }}>
-              {loadingMore && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: 'var(--gray-500)', fontSize: 14 }}>
-                  <LoadingSpinner /> Loading more booths…
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* End of results CTA */}
-          {!hasMoreBooths && !loading && booths.length > 0 && (() => {
-            const realCount = booths.filter(b => !b.is_demo).length
+          {/* USDA Farmers Markets */}
+          {!loadingExternal && usdaMarkets.length > 0 && (() => {
+            const rc = booths.filter(b => !b.is_demo).length
             return (
-            <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--gray-500)' }}>
-              <p style={{ marginBottom: 12, fontSize: 14 }}>
-                {realCount === 0 ? "You've reached the end of the demo booths." : "You've reached the end of the market."} Don't see what you're looking for?
-              </p>
-              <button 
-                onClick={() => setShowGlobalShareModal(true)}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  padding: '10px 20px', borderRadius: 999,
-                  background: '#fff', border: '1px solid var(--gray-300)', color: 'var(--gray-700)',
-                  fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                }}
-              >
-                📣 Invite Neighbors
-              </button>
-            </div>
-          )})()}
+              <div style={{ marginTop: rc > 0 ? 48 : 24, paddingTop: rc > 0 ? 32 : 0, borderTop: rc > 0 ? '2px dashed #e5e7eb' : 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, background: 'linear-gradient(135deg, #fefce8, #fef9c3)', border: '1px solid #fde047', borderRadius: 16, padding: '16px 20px', marginBottom: 24 }}>
+                  <span style={{ fontSize: 28, flexShrink: 0 }}>🌾</span>
+                  <div>
+                    <p style={{ margin: 0, fontWeight: 700, fontSize: 15, color: '#854d0e' }}>
+                      {isSearching && rc === 0 ? `No neighbors are selling "${search}" right now` : 'Explore your local food community'}
+                    </p>
+                    <p style={{ margin: '4px 0 0', fontSize: 13, color: '#a16207', lineHeight: 1.5 }}>
+                      {isSearching && rc === 0
+                        ? `We searched your neighborhood but couldn't find "${search}" from local sellers. These USDA-registered Farmers Markets near you may carry it!`
+                        : 'Here are certified Farmers Markets in your area from the USDA Local Food Portal.'}
+                    </p>
+                  </div>
+                </div>
+                <h3 style={{ fontSize: 20, fontWeight: 800, color: '#1f2937', marginBottom: 4, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 8 }}>🏪 Nearby Farmers Markets <span style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', background: '#f3f4f6', borderRadius: 999, padding: '2px 10px' }}>via USDA</span></h3>
+                <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 20px' }}>Sorted by distance from your location</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {usdaMarkets.map((market, i) => {
+                    const distMiles = market.distance ? parseFloat(market.distance).toFixed(1) : null
+                    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(market.location_address || `${market.listing_name} ${market.location_city} ${market.location_state}`)}`
+                    const websiteUrl = market.media_website?.startsWith('http') ? market.media_website : market.media_website ? `https://${market.media_website}` : null
+                    return (
+                      <div key={i} style={{ display: 'flex', alignItems: 'stretch', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 16, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', transition: 'box-shadow 0.2s' }}
+                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 20px rgba(0,0,0,0.1)'}
+                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.05)'}
+                      >
+                        <div style={{ width: 6, flexShrink: 0, background: 'linear-gradient(180deg, #f59e0b, #d97706)' }} />
+                        <div style={{ flex: 1, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 28, flexShrink: 0 }}>🏪</span>
+                          <div style={{ flex: 1, minWidth: 200 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+                              <span style={{ fontWeight: 700, fontSize: 16, color: '#1f2937' }}>{market.listing_name}</span>
+                              {distMiles && <span style={{ fontSize: 12, fontWeight: 600, color: '#059669', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 999, padding: '2px 8px' }}>📍 {distMiles} mi away</span>}
+                            </div>
+                            <p style={{ margin: 0, fontSize: 13, color: '#6b7280' }}>{market.location_address || `${market.location_street || ''} ${market.location_city}, ${market.location_state} ${market.location_zipcode}`}</p>
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+                            <a href={mapsUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 999, background: '#1f2937', color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none', boxShadow: '0 2px 6px rgba(0,0,0,0.15)' }} onMouseEnter={e => (e.currentTarget as HTMLAnchorElement).style.background = '#374151'} onMouseLeave={e => (e.currentTarget as HTMLAnchorElement).style.background = '#1f2937'}>🗺️ Directions</a>
+                            {websiteUrl && <a href={websiteUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 999, background: '#fff', color: '#d97706', fontSize: 13, fontWeight: 600, textDecoration: 'none', border: '1px solid #fde68a' }}>🌐 Website</a>}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })()}
+        </>
+      )}
+
+      {/* After USDA fallback: invite CTA for search-miss case */}
+      {!loading && booths.filter(b => !b.is_demo).length < 3 && isSearching && (
+        <div style={{ textAlign: 'center', padding: '32px 20px 16px' }}>
+          <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 12 }}>
+            Don&apos;t see what you&apos;re looking for? Help grow your local market.
+          </p>
+          <button
+            onClick={() => setShowGlobalShareModal(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '10px 24px', borderRadius: 999, background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer', boxShadow: '0 4px 14px rgba(22,163,74,0.3)' }}
+          >
+            🚀 Invite Neighbors to Sell
+          </button>
         </div>
       )}
 
-      {/* Demo Warning Modal */}
       {showDemoModal && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 1000,
