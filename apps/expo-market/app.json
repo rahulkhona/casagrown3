@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "CasaGrown Market",
+    "name": "CasaGrown",
     "slug": "casagrown-market",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "scheme": "casagrown-market",
+    "scheme": "casagrown",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -25,11 +25,6 @@
         "NSPhotoLibraryAddUsageDescription": "CasaGrown needs permission to save delivery proof photos to your photo library.",
         "NSLocationWhenInUseUsageDescription": "CasaGrown uses your location to show nearby produce and set your community."
       },
-      "entitlements": {
-        "com.apple.developer.in-app-payments": [
-          "merchant.com.casagrown.market"
-        ]
-      }
     },
     "android": {
       "adaptiveIcon": {
@@ -108,13 +103,6 @@
         {
           "icon": "./assets/icon.png",
           "color": "#22c55e"
-        }
-      ],
-      [
-        "@stripe/stripe-react-native",
-        {
-          "merchantIdentifier": "merchant.com.casagrown.market",
-          "enableGooglePay": true
         }
       ],
       "@react-native-community/datetimepicker"
