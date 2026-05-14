@@ -6,13 +6,17 @@
   "build": {
     "preview": {
       "distribution": "internal",
-      "projectRoot": "../..",
+      "env": {
+        "YARN_IGNORE_PATH": "1"
+      },
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
-      "projectRoot": "../..",
+      "env": {
+        "YARN_IGNORE_PATH": "1"
+      },
       "android": {
         "buildType": "app-bundle"
       },
