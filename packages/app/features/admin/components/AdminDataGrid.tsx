@@ -1,7 +1,7 @@
+'use client'
+
 import React from 'react'
-import { YStack, XStack, Text, Button, ScrollView, Spinner } from 'tamagui'
 import { colors } from '@casagrown/app/design-tokens'
-import { ChevronLeft, ChevronRight } from '@tamagui/lucide-icons'
 
 export interface ColumnDef<T> {
   header: string
@@ -10,16 +10,22 @@ export interface ColumnDef<T> {
   width?: number | string
   minWidth?: number | string
   flex?: number
+  sticky?: 'left' | 'right'  // pin this column to the edge — always visible
 }
 
 interface AdminDataGridProps<T> {
   data: T[]
   columns: ColumnDef<T>[]
+  loading?: boolean
   isLoading?: boolean
   onRowClick?: (item: T) => void
+  // Accept both naming conventions used across the codebase
+  onNext?: () => void
+  onPrev?: () => void
   onNextPage?: () => void
   onPrevPage?: () => void
   hasMore?: boolean
+  hasNext?: boolean
   hasPrev?: boolean
   page?: number
   emptyMessage?: string
@@ -28,137 +34,135 @@ interface AdminDataGridProps<T> {
 export function AdminDataGrid<T>({
   data,
   columns,
-  isLoading = false,
+  loading,
+  isLoading,
   onRowClick,
+  onNext,
+  onPrev,
   onNextPage,
   onPrevPage,
-  hasMore = false,
+  hasMore,
+  hasNext,
   hasPrev = false,
   page = 1,
-  emptyMessage = 'No records found.'
+  emptyMessage = 'No records found.',
 }: AdminDataGridProps<T>) {
-
-  const renderCell = (item: T, col: ColumnDef<T>) => {
-    if (col.cell) {
-      return col.cell(item)
-    }
-    const val = item[col.accessorKey as keyof T]
-    return <Text color={colors.gray[700]} numberOfLines={1}>{String(val ?? '')}</Text>
-  }
+  const busy = isLoading || loading || false
+  const canGoNext = hasMore || hasNext || false
+  const goNext = onNext || onNextPage
+  const goPrev = onPrev || onPrevPage
+  const showPagination = !!(goNext || goPrev)
 
   return (
-    <YStack 
-      backgroundColor="white" 
-      borderRadius="$4" 
-      borderWidth={1} 
-      borderColor={colors.gray[200]} 
-      overflow="hidden"
-      elevation="$1"
-    >
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <YStack minWidth={800} flex={1}>
-          
-          {/* HEADER */}
-          <XStack 
-            backgroundColor={colors.gray[50]} 
-            borderBottomWidth={1} 
-            borderColor={colors.gray[200]}
-            paddingVertical="$3"
-            paddingHorizontal="$4"
-          >
-            {columns.map((col, idx) => (
-              <XStack 
-                key={String(col.accessorKey) + idx} 
-                flex={col.flex ?? (col.width ? undefined : 1)} 
-                width={col.width as any}
-                minWidth={col.minWidth as any}
-                paddingRight="$2"
+    <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, tableLayout: 'fixed' }}>
+          <thead>
+            <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
+              {columns.map((col, i) => {
+                const stickyStyle: React.CSSProperties = col.sticky === 'right'
+                  ? { position: 'sticky', right: 0, zIndex: 2, background: '#f9fafb', boxShadow: '-2px 0 4px rgba(0,0,0,0.06)' }
+                  : col.sticky === 'left'
+                  ? { position: 'sticky', left: 0, zIndex: 2, background: '#f9fafb', boxShadow: '2px 0 4px rgba(0,0,0,0.06)' }
+                  : {}
+                return (
+                  <th
+                    key={i}
+                    style={{
+                      padding: '10px 14px',
+                      textAlign: 'left',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: '#6b7280',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      whiteSpace: 'nowrap',
+                      width: col.width,
+                      minWidth: col.minWidth as any,
+                      ...stickyStyle,
+                    }}
+                  >
+                    {col.header}
+                  </th>
+                )
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {busy && (!data || data.length === 0) && (
+              <tr>
+                <td colSpan={columns.length} style={{ padding: 48, textAlign: 'center', color: '#9ca3af' }}>
+                  Loading…
+                </td>
+              </tr>
+            )}
+            {!busy && (!data || data.length === 0) && (
+              <tr>
+                <td colSpan={columns.length} style={{ padding: 48, textAlign: 'center', color: '#9ca3af' }}>
+                  {emptyMessage}
+                </td>
+              </tr>
+            )}
+            {data && data.map((item, rowIdx) => (
+              <tr
+                key={rowIdx}
+                onClick={() => onRowClick?.(item)}
+                style={{
+                  borderBottom: rowIdx < data.length - 1 ? '1px solid #f3f4f6' : 'none',
+                  cursor: onRowClick ? 'pointer' : 'default',
+                  background: '#fff',
+                  transition: 'background 0.1s',
+                }}
+                onMouseEnter={e => { if (onRowClick) (e.currentTarget as HTMLElement).style.background = '#f9fafb' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#fff' }}
               >
-                <Text color={colors.gray[600]} fontSize="$3" fontWeight="600" textTransform="uppercase" letterSpacing={0.5}>
-                  {col.header}
-                </Text>
-              </XStack>
+                {columns.map((col, colIdx) => {
+                  const val = (item as any)[col.accessorKey as string]
+                  const stickyStyle: React.CSSProperties = col.sticky === 'right'
+                    ? { position: 'sticky', right: 0, background: '#fff', boxShadow: '-2px 0 4px rgba(0,0,0,0.06)', zIndex: 1 }
+                    : col.sticky === 'left'
+                    ? { position: 'sticky', left: 0, background: '#fff', boxShadow: '2px 0 4px rgba(0,0,0,0.06)', zIndex: 1 }
+                    : {}
+                  return (
+                    <td
+                      key={colIdx}
+                      style={{ padding: '10px 14px', verticalAlign: 'middle', color: '#374151', overflow: 'hidden', ...stickyStyle }}
+                    >
+                      {col.cell ? col.cell(item) : (
+                        <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={String(val ?? '')}>
+                          {String(val ?? '')}
+                        </span>
+                      )}
+                    </td>
+                  )
+                })}
+              </tr>
             ))}
-          </XStack>
+          </tbody>
+        </table>
+      </div>
 
-          {/* LOADING STATE */}
-          {isLoading && data.length === 0 && (
-            <YStack padding="$6" alignItems="center" justifyContent="center">
-              <Spinner size="large" color={colors.green[600]} />
-            </YStack>
-          )}
-
-          {/* EMPTY STATE */}
-          {!isLoading && data.length === 0 && (
-            <YStack padding="$6" alignItems="center" justifyContent="center">
-              <Text color={colors.gray[500]} fontSize="$4">{emptyMessage}</Text>
-            </YStack>
-          )}
-
-          {/* ROWS */}
-          {data.map((item, rowIndex) => (
-            <XStack
-              key={rowIndex}
-              borderBottomWidth={rowIndex === data.length - 1 ? 0 : 1}
-              borderColor={colors.gray[100]}
-              paddingVertical="$3"
-              paddingHorizontal="$4"
-              cursor={onRowClick ? 'pointer' : 'default'}
-              hoverStyle={onRowClick ? { backgroundColor: colors.gray[50] } : undefined}
-              onPress={() => onRowClick && onRowClick(item)}
-              alignItems="center"
+      {showPagination && (
+        <div style={{ borderTop: '1px solid #e5e7eb', padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 13, color: '#9ca3af' }}>Page {page}</span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => goPrev?.()}
+              disabled={!hasPrev || busy}
+              style={{ padding: '5px 14px', fontSize: 13, borderRadius: 6, border: '1px solid #d1d5db', background: !hasPrev ? '#f9fafb' : '#fff', color: !hasPrev ? '#9ca3af' : '#374151', cursor: !hasPrev ? 'default' : 'pointer' }}
             >
-              {columns.map((col, colIndex) => (
-                <XStack 
-                  key={String(col.accessorKey) + colIndex} 
-                  flex={col.flex ?? (col.width ? undefined : 1)} 
-                  width={col.width as any}
-                  minWidth={col.minWidth as any}
-                  paddingRight="$2"
-                >
-                  {renderCell(item, col)}
-                </XStack>
-              ))}
-            </XStack>
-          ))}
-        </YStack>
-      </ScrollView>
-
-      {/* FOOTER / PAGINATION */}
-      {(onNextPage || onPrevPage) && (
-        <XStack 
-          borderTopWidth={1} 
-          borderColor={colors.gray[200]} 
-          padding="$3" 
-          justifyContent="space-between" 
-          alignItems="center"
-          backgroundColor={colors.white}
-        >
-          <Text color={colors.gray[500]} fontSize="$3">
-            Page {page}
-          </Text>
-          <XStack gap="$2">
-            <Button 
-              size="$3" 
-              icon={ChevronLeft} 
-              disabled={!hasPrev || isLoading}
-              onPress={onPrevPage}
-              chromeless
+              ← Prev
+            </button>
+            <button
+              onClick={() => goNext?.()}
+              disabled={!canGoNext || busy}
+              style={{ padding: '5px 14px', fontSize: 13, borderRadius: 6, border: '1px solid #d1d5db', background: !canGoNext ? '#f9fafb' : '#fff', color: !canGoNext ? '#9ca3af' : '#374151', cursor: !canGoNext ? 'default' : 'pointer' }}
             >
-              Previous
-            </Button>
-            <Button 
-              size="$3" 
-              iconAfter={ChevronRight} 
-              disabled={!hasMore || isLoading}
-              onPress={onNextPage}
-              chromeless
-            >
-              Next
-            </Button>
-          </XStack>
-        </XStack>
+              Next →
+            </button>
+          </div>
+        </div>
       )}
-    </YStack>
+    </div>
   )
 }

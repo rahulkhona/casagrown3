@@ -275,6 +275,58 @@ export default function CampaignMessageEditor({
     openAssetPicker()
   }, [openAssetPicker])
 
+  // ── Insert image at saved cursor position, with table-cell fallback ──
+  // quill.insertEmbed() is blocked inside <td> by the table module.
+  // When inside a table cell we fall back to direct DOM insertion.
+  const insertImageAtCursor = useCallback((url: string) => {
+    try {
+      const quill = quillRef.current?.getEditor()
+      if (!quill) return
+
+      const idx = quillSelectionRef.current?.index ?? (quill.getLength() - 1)
+
+      // Detect if saved cursor position is inside a table cell
+      const [leaf] = quill.getLeaf(Math.max(0, idx))
+      const domNode: HTMLElement | null = leaf?.domNode ?? null
+      const cellNode = domNode?.closest?.('td, th') as HTMLElement | null
+
+      if (cellNode) {
+        // Direct DOM insertion for table cells
+        const img = document.createElement('img')
+        img.src = url
+        img.style.maxWidth = '100%'
+        img.style.height = 'auto'
+
+        // Use the browser's live selection if available, otherwise append to cell
+        const nativeSel = window.getSelection()
+        if (nativeSel && nativeSel.rangeCount > 0) {
+          const range = nativeSel.getRangeAt(0)
+          // Only use if range is actually inside this cell
+          if (cellNode.contains(range.commonAncestorContainer)) {
+            range.deleteContents()
+            range.insertNode(img)
+            range.setStartAfter(img)
+            range.setEndAfter(img)
+            nativeSel.removeAllRanges()
+            nativeSel.addRange(range)
+          } else {
+            cellNode.appendChild(img)
+          }
+        } else {
+          cellNode.appendChild(img)
+        }
+        // Sync Quill's internal Delta after DOM mutation
+        quill.update()
+      } else {
+        quill.insertEmbed(idx, 'image', url)
+        quill.setSelection(idx + 1)
+      }
+    } catch (e) {
+      console.warn('[insertImageAtCursor]', e)
+    }
+  }, [])
+
+
   const insertPromoHandler = useCallback(() => {
     const quill = quillRef.current?.getEditor()
     if (quill) {
@@ -1218,12 +1270,7 @@ export default function CampaignMessageEditor({
                   
                   if (htmlMode === 'wysiwyg') {
                     try {
-                      const quill = quillRef.current?.getEditor()
-                      if (quill) {
-                        const idx = quillSelectionRef.current?.index ?? quill.getLength()
-                        quill.insertEmbed(idx, 'image', publicUrlData.publicUrl)
-                        quill.setSelection(idx + 1)
-                      }
+                      insertImageAtCursor(publicUrlData.publicUrl)
                     } catch {}
                   } else {
                     navigator.clipboard.writeText(publicUrlData.publicUrl)
@@ -1253,12 +1300,7 @@ export default function CampaignMessageEditor({
                          onClick={() => {
                            if (htmlMode === 'wysiwyg') {
                              try {
-                               const quill = quillRef.current?.getEditor()
-                               if (quill) {
-                                 const idx = quillSelectionRef.current?.index ?? quill.getLength();
-                                 quill.insertEmbed(idx, 'image', a.url)
-                                 quill.setSelection(idx + 1)
-                               }
+                               insertImageAtCursor(a.url)
                              } catch {}
                            } else {
                              navigator.clipboard.writeText(a.url)

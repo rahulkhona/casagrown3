@@ -19,7 +19,8 @@ serve(async (req) => {
       'Content-Type': 'application/json',
       'Accept': 'application/json'
     }
-    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`
+    // OFN uses X-Api-Token for user API tokens
+    if (apiKey) headers['X-Api-Token'] = apiKey
 
     // 1. Fetch Enterprises
     const enterprisesRes = await fetch(`${OFN_API_URL}/enterprises`, { headers })
@@ -27,27 +28,28 @@ serve(async (req) => {
       throw new Error(`Failed to fetch enterprises: ${enterprisesRes.statusText}`)
     }
     
-    // Some endpoints wrap in { data: [] } or just return an array or return a Hydra collection.
-    // DFC API often returns hydra:member
+    // OFN DFC API returns JSON-LD with @graph containing the enterprise objects
     const rawData = await enterprisesRes.json()
-    const enterprisesList = rawData['hydra:member'] || rawData.data || rawData || []
+    const enterprisesList: any[] = rawData['@graph'] || rawData['hydra:member'] || rawData.data || (Array.isArray(rawData) ? rawData : [])
     
     let totalEnterprisesSynced = 0
     let totalProductsSynced = 0
 
     for (const ent of enterprisesList) {
+      // Only process Enterprise nodes (skip address/social media nodes in the @graph)
+      if (ent['@type'] && ent['@type'] !== 'dfc-b:Enterprise') continue
+
       const entId = ent['@id'] || ent.id
       if (!entId) continue
       
-      const parsedId = entId.split('/').pop() // Get just the UUID if it's an IRI
+      const parsedId = entId.split('/').pop() // Get numeric ID from IRI
       
-      const name = ent.name || ent['dfc-b:name'] || 'Unknown Enterprise'
-      const description = ent.description || ent['dfc-b:description'] || null
-      // Very basic extraction of contact info if available in JSON-LD
-      const contact_email = ent.email || null
-      const contact_phone = ent.phone || null
+      const name = ent['dfc-b:name'] || ent.name || 'Unknown Enterprise'
+      const description = ent['dfc-b:hasDescription'] || ent.description || null
+      const contact_email = ent['dfc-b:email'] || ent.email || null
+      const contact_phone = ent['dfc-b:hasPhoneNumber']?.['dfc-b:phoneNumber'] || ent.phone || null
       
-      // Attempt to extract lat/lng from addresses if nested
+      // Address is a URL reference in DFC — fetch it separately
       let lat = null
       let lng = null
       let address_text = null
@@ -55,19 +57,25 @@ serve(async (req) => {
       let state = null
       let zipcode = null
       
-      if (ent.addresses && ent.addresses.length > 0) {
-          const addr = ent.addresses[0]
-          lat = addr.latitude || addr['dfc-b:latitude'] || null
-          lng = addr.longitude || addr['dfc-b:longitude'] || null
-          city = addr.city || addr['dfc-b:city'] || null
-          zipcode = addr.zipCode || addr.postcode || addr['dfc-b:postalCode'] || null
-          address_text = addr.street || addr['dfc-b:street'] || null
-      } else if (ent['dfc-b:hasAddress']) {
-          // If it's a DFC address object
-          const addr = ent['dfc-b:hasAddress']
-          city = addr['dfc-b:hasCity']
-          zipcode = addr['dfc-b:hasPostalCode']
+      const addressRef = ent['dfc-b:hasAddress']
+      if (typeof addressRef === 'string' && addressRef.startsWith('http')) {
+        try {
+          const addrRes = await fetch(addressRef, { headers })
+          if (addrRes.ok) {
+            const addrData = await addrRes.json()
+            const addr = addrData['@graph']?.[0] || addrData
+            city = addr['dfc-b:hasCity'] || null
+            zipcode = addr['dfc-b:hasPostalCode'] || null
+            state = addr['dfc-b:hasCountryOfOrigin'] || null
+            address_text = addr['dfc-b:hasStreet'] || null
+          }
+        } catch { /* ignore address fetch errors */ }
+      } else if (typeof addressRef === 'object' && addressRef !== null) {
+        city = addressRef['dfc-b:hasCity'] || null
+        zipcode = addressRef['dfc-b:hasPostalCode'] || null
+        address_text = addressRef['dfc-b:hasStreet'] || null
       }
+
 
       // Upsert Enterprise
       const { error: entError } = await supabase

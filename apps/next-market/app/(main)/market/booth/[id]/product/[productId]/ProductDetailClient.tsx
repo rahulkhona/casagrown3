@@ -574,8 +574,8 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
             </div>
           )}
 
-          {/* Market Closed Banner */}
-          {!isScheduleOpen && (
+          {/* Market Closed Banner — only shown when override is off and schedule says closed */}
+          {!marketIsOpen && (
             <div style={{
               background: 'linear-gradient(135deg, #fefce8 0%, #fef9c3 100%)',
               border: '1px solid #fbbf24',

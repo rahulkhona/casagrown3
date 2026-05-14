@@ -16,7 +16,8 @@ const SUPABASE_URL = 'http://127.0.0.1:54321'
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ??
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
 
-Deno.test('ofn-product-search: returns valid structure', async () => {
+Deno.test({ name: 'ofn-product-search: returns valid structure', ignore: true }, async () => {
+  // OFN_ENABLED=false — gated until partner API credentials are obtained
   const req = await fetch(`${SUPABASE_URL}/functions/v1/ofn-product-search`, {
     method: 'POST',
     headers: {
@@ -83,7 +84,8 @@ Deno.test('universal-search: returns default message', async () => {
   assertEquals(data.message, 'Hello Functions!');
 });
 
-Deno.test('crm-ofn-prospects: triggers sync', async () => {
+Deno.test({ name: 'crm-ofn-prospects: triggers sync', ignore: true }, async () => {
+  // OFN_ENABLED=false — gated until partner API credentials are obtained
   const req = await fetch(`${SUPABASE_URL}/functions/v1/crm-ofn-prospects`, {
     method: 'POST',
     headers: {

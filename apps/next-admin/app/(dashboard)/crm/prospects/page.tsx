@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 import { YStack, XStack, Text, Input, Button, Spinner } from 'tamagui'
+import { Search, MapPin, ExternalLink, Leaf, Mail, Phone } from '@tamagui/lucide-icons'
 import { createClient } from '../../../../lib/supabase'
 import { geocodeAddress } from '../../../../lib/geocode'
 

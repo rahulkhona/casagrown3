@@ -61,11 +61,11 @@ serve(async (req) => {
   }
 
   try {
-    const { zipcode, radius = 50 } = await req.json()
+    const { zipcode, lat, lng, radius = 50 } = await req.json()
 
-    if (!zipcode) {
+    if (!zipcode && (lat == null || lng == null)) {
       return new Response(
-        JSON.stringify({ error: 'zipcode is required' }),
+        JSON.stringify({ error: 'zipcode or lat/lng is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -75,7 +75,10 @@ serve(async (req) => {
       console.warn('USDA_API_KEY is not set')
     }
 
-    const params = `zip=${encodeURIComponent(zipcode)}&radius=${radius}`
+    // Build params: prefer zip if available, fall back to lat/lng
+    const params = zipcode
+      ? `zip=${encodeURIComponent(zipcode)}&radius=${radius}`
+      : `lat=${lat}&lng=${lng}&radius=${radius}`
 
     // Fetch all three directories in parallel
     const [markets, onfarm, csas] = await Promise.all([

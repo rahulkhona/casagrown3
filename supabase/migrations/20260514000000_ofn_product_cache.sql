@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS public.ofn_enterprises (
     zipcode text,
     lat double precision,
     lng double precision,
-    location_geom extensions.geography(Point, 4326),
+    location_geom geography(Point, 4326),
     last_synced_at timestamptz DEFAULT now() NOT NULL
 );
 

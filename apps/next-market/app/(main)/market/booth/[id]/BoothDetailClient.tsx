@@ -170,8 +170,11 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
   }, [booth?.id, products.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // With window-based fulfillment, buying is always available as long as product has inventory
-  // and valid fulfillment windows. The banner uses isScheduleOpen for marketing purposes.
-  const isClosed = !isScheduleOpen
+  // isClosed drives the "Market is currently closed" banner.
+  // Use marketIsOpen (which respects the market_never_closes override) so the
+  // banner is suppressed when the admin override is active. isScheduleOpen is
+  // only used for the banner on the market listing page.
+  const isClosed = !marketIsOpen
 
   // Toggle product reminder
   const toggleProductReminder = async (productId: string, e: React.MouseEvent) => {

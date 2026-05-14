@@ -24,26 +24,26 @@ export default function SkillsPage() {
     {
       header: 'Tool Name',
       accessorKey: 'name',
-      flex: 1,
+      width: '20%',
     },
     {
-      header: 'Description (Trigger Rules)',
+      header: 'Description',
       accessorKey: 'trigger_rules',
-      flex: 2,
+      width: '38%',
       cell: (item) => (
-        <Text numberOfLines={2} fontSize="$2" color={colors.gray[700]}>
+        <span style={{ fontSize: 13, color: '#374151', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.trigger_rules}>
           {item.trigger_rules}
-        </Text>
+        </span>
       )
     },
     {
       header: 'Backend RPC',
       accessorKey: 'backend_function',
-      flex: 1,
+      width: '18%',
       cell: (item) => (
-        <Text fontSize="$2" color={item.backend_function ? colors.green[700] : colors.gray[400]} fontFamily="$mono">
+        <span style={{ fontSize: 12, fontFamily: 'monospace', color: item.backend_function ? '#166534' : '#9ca3af' }}>
           {item.backend_function || '—'}
-        </Text>
+        </span>
       )
     },
     {
@@ -51,45 +51,28 @@ export default function SkillsPage() {
       accessorKey: 'is_active',
       width: 80,
       cell: (item) => (
-        <Button
-          size="$2"
-          chromeless
-          icon={item.is_active ? <Eye size={16} color={colors.green[600]} /> : <EyeOff size={16} color={colors.gray[400]} />}
-          onPress={async () => {
-            const { error } = await adminApi.update('growbot_skills', { is_active: !item.is_active }, { eq: { id: item.id } })
-            if (error) console.error(error)
-            refresh()
-          }}
-        />
+        <button
+          onClick={async (e) => { e.stopPropagation(); await adminApi.update('growbot_skills', { is_active: !item.is_active }, { eq: { id: item.id } }); refresh() }}
+          style={{ padding: '3px 10px', fontSize: 12, fontWeight: 600, background: item.is_active ? '#f0fdf4' : '#f9fafb', color: item.is_active ? '#166534' : '#6b7280', border: `1px solid ${item.is_active ? '#86efac' : '#d1d5db'}`, borderRadius: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}
+        >{item.is_active ? '● On' : '○ Off'}</button>
       )
     },
     {
       header: 'Actions',
       accessorKey: 'id',
-      width: 100,
+      width: 150,
+      sticky: 'right',
       cell: (item) => (
-        <XStack gap="$2">
-          <Button 
-            size="$2" 
-            chromeless 
-            icon={<SquarePen size={16} color={colors.blue[600]} />} 
-            onPress={() => {
-              setErrorMessage('')
-              setIsAdding(false)
-              setEditingSkill(item)
-            }} 
-          />
-          <Button 
-            size="$2" 
-            chromeless 
-            icon={<Trash2 size={16} color={colors.red[500]} />} 
-            onPress={async () => {
-              const { error } = await adminApi.delete('growbot_skills', { eq: { id: item.id } })
-              if (error) console.error(error)
-              refresh()
-            }} 
-          />
-        </XStack>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            onClick={(e) => { e.stopPropagation(); setErrorMessage(''); setIsAdding(false); setEditingSkill(item) }}
+            style={{ padding: '4px 10px', fontSize: 12, fontWeight: 600, background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
+          >✏️ Edit</button>
+          <button
+            onClick={async (e) => { e.stopPropagation(); const { error } = await adminApi.delete('growbot_skills', { eq: { id: item.id } }); if (error) console.error(error); refresh() }}
+            style={{ padding: '4px 10px', fontSize: 12, fontWeight: 600, background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
+          >🗑 Delete</button>
+        </div>
       )
     }
   ]
@@ -116,6 +99,7 @@ export default function SkillsPage() {
       label: 'Schema Properties (JSON)', 
       type: 'textarea', 
       required: false,
+      mono: true,
       placeholder: '[{"name": "search_query", "type": "string", "description": "The search term"}, {"name": "category", "type": "string", "description": "Product category"}]',
       description: 'JSON array defining the parameters the LLM should extract. Each entry needs: name, type (string|array|object_array), description. Optional: required (boolean).'
     },

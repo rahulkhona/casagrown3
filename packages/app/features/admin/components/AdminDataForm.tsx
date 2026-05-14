@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { YStack, XStack, Text, Button, Input, TextArea, Label, Spinner, Checkbox } from 'tamagui'
-import { Check } from '@tamagui/lucide-icons'
+import { XStack, Text, Button, Spinner } from 'tamagui'
 import { colors } from '@casagrown/app/design-tokens'
 
 export type FormFieldType = 'text' | 'number' | 'email' | 'boolean' | 'textarea' | 'date' | 'checkbox_group' | 'select'
@@ -13,6 +12,7 @@ export interface FormFieldDef {
   disabled?: boolean
   description?: string
   placeholder?: string
+  mono?: boolean  // render textarea in monospace (for JSON/code fields)
   options?: { label: string; value: string | boolean }[]
 }
 
@@ -23,6 +23,19 @@ interface AdminDataFormProps {
   onCancel?: () => void
   submitLabel?: string
   isSubmitting?: boolean
+}
+
+const baseInput: React.CSSProperties = {
+  width: '100%',
+  padding: '8px 12px',
+  border: `1px solid ${colors.gray[300]}`,
+  borderRadius: 6,
+  fontSize: 14,
+  fontFamily: 'inherit',
+  outline: 'none',
+  background: 'white',
+  color: colors.gray[900],
+  boxSizing: 'border-box',
 }
 
 const EMPTY_OBJ = {}
@@ -44,9 +57,7 @@ export function AdminDataForm({
 
   const handleChange = (name: string, value: any) => {
     setValues(prev => ({ ...prev, [name]: value }))
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }))
-    }
+    if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }))
   }
 
   const validate = () => {
@@ -67,167 +78,165 @@ export function AdminDataForm({
 
   const renderField = (field: FormFieldDef) => {
     const value = values[field.name] ?? ''
+    const borderColor = errors[field.name] ? colors.red[500] : colors.gray[300]
+    const disabled = field.disabled || isSubmitting
 
     switch (field.type) {
       case 'textarea':
         return (
-          <TextArea
+          <textarea
             value={value}
-            onChangeText={(text) => handleChange(field.name, text)}
+            onChange={e => handleChange(field.name, e.target.value)}
             placeholder={field.placeholder}
-            disabled={field.disabled || isSubmitting}
-            minHeight={100}
-            borderColor={errors[field.name] ? colors.red[500] : colors.gray[300]}
-            fontWeight="normal"
+            disabled={disabled}
+            rows={field.mono ? 8 : 4}
+            style={{
+              ...baseInput,
+              borderColor,
+              resize: 'vertical',
+              lineHeight: 1.5,
+              fontFamily: field.mono ? 'monospace' : 'inherit',
+              minHeight: field.mono ? 160 : 100,
+            }}
           />
         )
+
       case 'boolean':
         return (
-          <XStack alignItems="center" gap="$3">
-            <Checkbox 
-              size="$5" 
-              checked={!!value} 
-              onCheckedChange={(checked) => handleChange(field.name, !!checked)}
-              disabled={field.disabled || isSubmitting}
-              borderColor={colors.gray[300]}
-              backgroundColor={!!value ? colors.green[50] : 'white'}
-            >
-              <Checkbox.Indicator>
-                <Check size={18} color={colors.green[700]} />
-              </Checkbox.Indicator>
-            </Checkbox>
-            <Text color={colors.gray[600]}>{!!value ? 'Enabled' : 'Disabled'}</Text>
-          </XStack>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={!!value}
+              onChange={e => handleChange(field.name, e.target.checked)}
+              disabled={disabled}
+              style={{ width: 16, height: 16, accentColor: colors.green[600] }}
+            />
+            <span style={{ fontSize: 14, color: colors.gray[600] }}>{!!value ? 'Enabled' : 'Disabled'}</span>
+          </label>
         )
-      case 'checkbox_group':
-        // Expects `value` to be an array of selected option values
+
+      case 'checkbox_group': {
         const selectedValues = Array.isArray(value) ? value : []
         return (
-          <XStack flexWrap="wrap" gap="$4">
-            {(field.options || []).map((opt) => {
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+            {(field.options || []).map(opt => {
               const isChecked = selectedValues.includes(opt.value)
               return (
-                <XStack key={String(opt.value)} alignItems="center" gap="$2">
-                  <Checkbox
-                    size="$3"
+                <label key={String(opt.value)} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14, color: colors.gray[700] }}>
+                  <input
+                    type="checkbox"
                     checked={isChecked}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
+                    onChange={e => {
+                      if (e.target.checked) {
                         handleChange(field.name, [...selectedValues, opt.value])
                       } else {
-                        handleChange(field.name, selectedValues.filter(v => v !== opt.value))
+                        handleChange(field.name, selectedValues.filter((v: any) => v !== opt.value))
                       }
                     }}
-                    disabled={field.disabled || isSubmitting}
-                  >
-                    <Checkbox.Indicator>
-                      <Check />
-                    </Checkbox.Indicator>
-                  </Checkbox>
-                  <Label size="$3" color={colors.gray[700]} onPress={() => { /* optional tap label logic */ }}>
-                    {opt.label}
-                  </Label>
-                </XStack>
+                    disabled={disabled}
+                    style={{ width: 14, height: 14, accentColor: colors.green[600] }}
+                  />
+                  {opt.label}
+                </label>
               )
             })}
-          </XStack>
+          </div>
         )
+      }
+
       case 'select':
         return (
-          <XStack flexWrap="wrap" gap="$2">
-            {(field.options || []).map((opt) => {
-              const isSelected = value === opt.value
-              return (
-                <Button
-                  key={String(opt.value)}
-                  size="$3"
-                  backgroundColor={isSelected ? colors.green[600] : 'white'}
-                  borderWidth={1}
-                  borderColor={isSelected ? colors.green[600] : colors.gray[300]}
-                  pressStyle={{ backgroundColor: colors.green[100] }}
-                  hoverStyle={{ backgroundColor: isSelected ? colors.green[700] : colors.gray[50] }}
-                  onPress={() => handleChange(field.name, opt.value)}
-                  disabled={field.disabled || isSubmitting}
-                  borderRadius="$6"
-                >
-                  <Text
-                    color={isSelected ? 'white' : colors.gray[700]}
-                    fontWeight={isSelected ? '700' : '400'}
-                    fontSize="$3"
-                  >
-                    {opt.label}
-                  </Text>
-                </Button>
-              )
-            })}
-          </XStack>
+          <select
+            value={String(value)}
+            onChange={e => handleChange(field.name, e.target.value)}
+            disabled={disabled}
+            style={{ ...baseInput, borderColor }}
+          >
+            {(field.options || []).map(opt => (
+              <option key={String(opt.value)} value={String(opt.value)}>{opt.label}</option>
+            ))}
+          </select>
         )
+
       case 'number':
         return (
-          <Input
-            value={value.toString()}
-            onChangeText={(text) => {
-              const num = parseFloat(text)
-              handleChange(field.name, isNaN(num) ? '' : num)
-            }}
-            keyboardType="numeric"
+          <input
+            type="number"
+            value={value}
+            onChange={e => handleChange(field.name, e.target.value === '' ? '' : parseFloat(e.target.value))}
             placeholder={field.placeholder}
-            disabled={field.disabled || isSubmitting}
-            borderColor={errors[field.name] ? colors.red[500] : colors.gray[300]}
-            fontWeight="normal"
+            disabled={disabled}
+            style={{ ...baseInput, borderColor }}
           />
         )
+
       case 'date':
-      case 'text':
+        return (
+          <input
+            type="date"
+            value={value}
+            onChange={e => handleChange(field.name, e.target.value)}
+            disabled={disabled}
+            style={{ ...baseInput, borderColor }}
+          />
+        )
+
       case 'email':
+        return (
+          <input
+            type="email"
+            value={value}
+            onChange={e => handleChange(field.name, e.target.value)}
+            placeholder={field.placeholder}
+            disabled={disabled}
+            autoComplete="off"
+            style={{ ...baseInput, borderColor }}
+          />
+        )
+
+      case 'text':
       default:
         return (
-          <Input
+          <input
+            type="text"
             value={value}
-            onChangeText={(text) => handleChange(field.name, text)}
+            onChange={e => handleChange(field.name, e.target.value)}
             placeholder={field.placeholder}
-            disabled={field.disabled || isSubmitting}
-            keyboardType={field.type === 'email' ? 'email-address' : 'default'}
-            autoCapitalize={field.type === 'email' ? 'none' : undefined}
-            borderColor={errors[field.name] ? colors.red[500] : colors.gray[300]}
-            fontWeight="normal"
+            disabled={disabled}
+            style={{ ...baseInput, borderColor }}
           />
         )
     }
   }
 
   return (
-    <YStack gap="$5" backgroundColor="white" padding="$6" borderRadius="$4" borderWidth={1} borderColor={colors.gray[200]}>
-      
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, background: 'white', padding: 24, borderRadius: 8, border: `1px solid ${colors.gray[200]}` }}>
       {fields.map(field => (
-        <YStack key={field.name} gap="$2">
-          <Label htmlFor={field.name} color={colors.gray[800]}>
-            {field.label} {field.required && <Text color={colors.red[500]}>*</Text>}
-          </Label>
-          
+        <div key={field.name} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={{ fontSize: 14, fontWeight: 600, color: colors.gray[800] }}>
+            {field.label}
+            {field.required && <span style={{ color: colors.red[500], marginLeft: 2 }}>*</span>}
+          </label>
+
           {renderField(field)}
-          
+
           {field.description && (
-            <Text fontSize="$2" color={colors.gray[500]}>{field.description}</Text>
+            <span style={{ fontSize: 12, color: colors.gray[500] }}>{field.description}</span>
           )}
           {errors[field.name] && (
-            <Text fontSize="$2" color={colors.red[500]}>{errors[field.name]}</Text>
+            <span style={{ fontSize: 12, color: colors.red[500] }}>{errors[field.name]}</span>
           )}
-        </YStack>
+        </div>
       ))}
 
       <XStack gap="$3" justifyContent="flex-end" paddingTop="$4" borderTopWidth={1} borderColor={colors.gray[200]}>
         {onCancel && (
-          <Button 
-            chromeless 
-            onPress={onCancel} 
-            disabled={isSubmitting}
-          >
+          <Button chromeless onPress={onCancel} disabled={isSubmitting}>
             <Text color={colors.gray[600]}>Cancel</Text>
           </Button>
         )}
-        <Button 
-          backgroundColor={colors.green[600]} 
+        <Button
+          backgroundColor={colors.green[600]}
           disabled={isSubmitting}
           onPress={handleSubmit}
           icon={isSubmitting ? <Spinner color="white" /> : undefined}
@@ -235,6 +244,6 @@ export function AdminDataForm({
           {!isSubmitting && <Text color="white" fontWeight="600">{submitLabel}</Text>}
         </Button>
       </XStack>
-    </YStack>
+    </div>
   )
 }

@@ -99,6 +99,8 @@ describe('geocode.ts', () => {
 
     it('returns parsed result for valid response', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
         json: () => Promise.resolve([{
           lat: '37.3690',
           lon: '-121.9270',
@@ -117,6 +119,8 @@ describe('geocode.ts', () => {
 
     it('handles response without state field', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
         json: () => Promise.resolve([{
           lat: '40.7128',
           lon: '-74.0060',

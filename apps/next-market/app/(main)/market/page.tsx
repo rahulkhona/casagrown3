@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
 import { useAuth } from '../../../lib/useAuth'
-import { geocodeAddress } from '../../../lib/geocode'
+import { geocodeAddress, GeocodeRateLimitError } from '../../../lib/geocode'
 import { formatUsd } from '../../../lib/store'
 import { useMarketStatus } from '../../../lib/useMarketStatus'
 import MarketClosedBox from '../../components/MarketClosedBox'
@@ -20,6 +20,11 @@ import { getGlobalMarketShareMessage } from '../../../lib/shareMessages'
 import AddressInput from '../../components/AddressInput'
 import GrowBotFAB from '../../components/GrowBotFAB'
 import styles from './page.module.css'
+
+// ── Feature Flags ──
+// Set OFN_ENABLED to true once a partner API token is obtained from Open Food Network.
+// Until then, the OFN product fallback is suppressed (USDA remains active).
+const OFN_ENABLED = false
 
 // ── Compact countdown timer for closed market ──
 function CountdownTimer({ targetDate, theme = 'light' }: { targetDate: Date, theme?: 'light' | 'dark' }) {
@@ -484,46 +489,45 @@ function BrowseMarketPageInner() {
       const resultCount = Array.isArray(data) ? data.filter((b: BoothResult) => !b.is_demo).length : 0
       setHasMoreBooths(resultCount >= PAGE_SIZE)
 
-      // Trigger USDA fallback — always run when we have coordinates + zip.
+      // Trigger USDA fallback — always run when we have coordinates.
+      // zip is optional and used as a hint; lat/lng are the primary lookup keys.
       if (lat && lng) {
         const effectiveZip = zipCode || (address.match(/\b(\d{5})\b/) || [])[1] || ''
-        if (effectiveZip) {
-          setLoadingExternal(true)
-          
-          // 1. Run USDA
-          supabase.functions.invoke('usda-farmers-markets', {
-            body: { zipcode: effectiveZip, radius: maxMiles }
-          }).then(({ data: usdaData }) => {
-            if (usdaData?.data && Array.isArray(usdaData.data)) {
-              setUsdaMarkets(usdaData.data.slice(0, 5))
-            }
-            if (usdaData?.farms && Array.isArray(usdaData.farms)) {
-              setLocalFarms(usdaData.farms.slice(0, 6))
-            }
-            setLoadingExternal(false)
-          }).catch(e => {
-            console.warn('USDA search error:', e)
-            setLoadingExternal(false)
-          })
+        setLoadingExternal(true)
 
-          // 2. Run OFN Fallback if query exists and native results are sparse
-          const nativeCount = Array.isArray(data) ? data.reduce((acc: number, b: any) => acc + (b.matched_products?.length || 0), 0) : 0
-          if (search.trim() && nativeCount < 4) {
-            supabase.functions.invoke('ofn-product-search', {
-              body: { query: search.trim(), zipcode: effectiveZip, lat, lng, radius: maxMiles }
-            }).then(({ data: ofnData }) => {
-              if (ofnData?.data && Array.isArray(ofnData.data)) {
-                setOfnProducts(ofnData.data)
-              } else {
-                setOfnProducts([])
-              }
-            }).catch(e => {
-              console.warn('OFN search error:', e)
-              setOfnProducts([])
-            })
-          } else {
-            setOfnProducts([])
+        // 1. Run USDA (works with zip OR lat/lng)
+        supabase.functions.invoke('usda-farmers-markets', {
+          body: { zipcode: effectiveZip, lat, lng, radius: maxMiles }
+        }).then(({ data: usdaData }) => {
+          if (usdaData?.data && Array.isArray(usdaData.data)) {
+            setUsdaMarkets(usdaData.data.slice(0, 5))
           }
+          if (usdaData?.farms && Array.isArray(usdaData.farms)) {
+            setLocalFarms(usdaData.farms.slice(0, 6))
+          }
+          setLoadingExternal(false)
+        }).catch(e => {
+          console.warn('USDA search error:', e)
+          setLoadingExternal(false)
+        })
+
+        // 2. Run OFN Fallback if enabled, query exists and native results are sparse
+        const nativeCount = Array.isArray(data) ? data.reduce((acc: number, b: any) => acc + (b.matched_products?.length || 0), 0) : 0
+        if (OFN_ENABLED && search.trim() && nativeCount < 4) {
+          supabase.functions.invoke('ofn-product-search', {
+            body: { query: search.trim(), zipcode: effectiveZip, lat, lng, radius: maxMiles }
+          }).then(({ data: ofnData }) => {
+            if (ofnData?.data && Array.isArray(ofnData.data)) {
+              setOfnProducts(ofnData.data)
+            } else {
+              setOfnProducts([])
+            }
+          }).catch(e => {
+            console.warn('OFN search error:', e)
+            setOfnProducts([])
+          })
+        } else {
+          setOfnProducts([])
         }
       }
     }
@@ -651,22 +655,30 @@ function BrowseMarketPageInner() {
   const handleAddressSubmit = async () => {
     if (!address.trim()) return
     setLocationLoading(true); setLocationError('')
-    const geo = await geocodeAddress(address.trim())
-    if (geo) {
-      setLat(geo.lat); setLng(geo.lng)
-      // Extract zip code from geocoding explicitly or fallback to display name regex
-      const explicitZip = geo.zipCode
-      const zipMatch = geo.display?.match(/\b(\d{5})\b/)
-      const finalZip = explicitZip || (zipMatch ? zipMatch[1] : undefined)
-      if (finalZip) {
-        setZipCode(finalZip)
+    try {
+      const geo = await geocodeAddress(address.trim())
+      if (geo) {
+        setLat(geo.lat); setLng(geo.lng)
+        // Extract zip code from geocoding explicitly or fallback to display name regex
+        const explicitZip = geo.zipCode
+        const zipMatch = geo.display?.match(/\b(\d{5})\b/)
+        const finalZip = explicitZip || (zipMatch ? zipMatch[1] : undefined)
+        if (finalZip) {
+          setZipCode(finalZip)
+        } else {
+          // If we can't find a zip code, the external search (like USDA) might fail to find anything.
+          console.warn('Could not determine zip code for address')
+        }
+        setAddressResolved(true)
       } else {
-        // If we can't find a zip code, the external search (like USDA) might fail to find anything.
-        console.warn('Could not determine zip code for address')
+        setLocationError('Could not find that address. Please include city and state.')
       }
-      setAddressResolved(true)
-    } else {
-      setLocationError('Could not find that address. Please include city and state.')
+    } catch (err) {
+      if (err instanceof GeocodeRateLimitError) {
+        setLocationError('Location service is temporarily busy. Please wait a moment and try again.')
+      } else {
+        setLocationError('Could not find that address. Please include city and state.')
+      }
     }
     setLocationLoading(false)
   }
@@ -913,64 +925,8 @@ function BrowseMarketPageInner() {
         </div>
       </div>
 
-      {/* Demo booths for guest users — give them something to browse */}
-      {booths.filter(b => b.is_demo).length > 0 && (
-        <div className="container" style={{ paddingTop: 16 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--gray-800, #1f2937)', marginBottom: 4, letterSpacing: '-0.02em' }}>
-            🛒 Explore the Market
-          </h3>
-          <p style={{ fontSize: 12, color: 'var(--gray-500, #6b7280)', lineHeight: 1.4, margin: '0 0 12px' }}>
-            Browse demo listings to see how the market works
-          </p>
-          <div className={styles.boothGrid}>
-            {booths.filter(b => b.is_demo).map(booth => {
-              const theme = themeColors[booth.decorative_theme] || themeColors.minimal
-              const products = booth.matched_products || []
-              return (
-                <div key={booth.booth_id} className="card">
-                  <Link href={`/market/booth/${booth.booth_id}`} className={styles.cardHeaderLink}>
-                    <div className={styles.cardHeader} style={{
-                      background: booth.header_image_url ? `url(${booth.header_image_url}) center/cover` : theme.gradient,
-                      borderBottom: `3px solid ${theme.border}`,
-                    }}>
-                      {booth.header_image_url && <div className={styles.headerOverlay} />}
-                      <div className={styles.headerContent}>
-                        <h3 className={styles.cardTitle} style={{ color: booth.header_image_url ? '#fff' : theme.border }}>{booth.booth_name}</h3>
-                        <div className={styles.cardMeta}>
-                          <span className="badge" style={{ fontSize: 10, background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac' }}>🌿 Demo</span>
-                          <span style={{ color: 'var(--gray-400)' }}>·</span>
-                          <span>{booth.product_count} items</span>
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                  <div className={styles.cardBody}>
-                    {booth.description && <p className={styles.cardDesc}>{booth.description} Demo listing — viewing only.</p>}
-                    {products.length > 0 && (
-                      <div className={styles.productList}>
-                        {products.slice(0, 4).map((p: any) => (
-                          <Link key={p.id} href={`/market/booth/${booth.booth_id}/product/${p.id}`} className={styles.productCard}>
-                            <div className={styles.productThumb}>
-                              {p.photo ? <img src={p.photo} alt={p.name} /> : <span>{categoryIcons[p.category] || '📦'}</span>}
-                            </div>
-                            <div className={styles.productInfo}>
-                              <span className={styles.productName}>{p.name}</span>
-                              <div className={styles.productMeta}>
-                                <span className={styles.productPrice}>{p.price_usd === 0 ? <span style={{ color: '#16a34a', fontWeight: 'bold' }}>Free</span> : formatUsd(p.price_usd)}</span>
-                              </div>
-                            </div>
-                          </Link>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-      
+
+
       {/* Sell FAB — consistent with STATE 3 */}
       <Link
           href="/create-listing"
@@ -1371,8 +1327,8 @@ function BrowseMarketPageInner() {
       ) : (() => {
         const realBooths = booths.filter(b => !b.is_demo)
         const demoBoothsOnly = booths.filter(b => b.is_demo)
-        // Show demos to pad results when fewer than 12 real booths found (TARGET_MIN)
-        const showDemos = realBooths.length < 12 && demoBoothsOnly.length > 0
+        // Demos now shown exclusively after USDA results (in the <3 real booth fallback section below)
+        const showDemos = false
 
         const renderBoothCard = (booth: BoothResult) => {
           const theme = themeColors[booth.decorative_theme] || themeColors.minimal
@@ -1521,8 +1477,8 @@ function BrowseMarketPageInner() {
               </div>
             )}
 
-            {/* End of results CTA */}
-            {!hasMoreBooths && !loading && booths.length > 0 && (() => {
+            {/* End of results CTA — only show when results are complete and external fallback is NOT shown */}
+            {!hasMoreBooths && !loading && booths.length > 0 && booths.filter(b => !b.is_demo).length >= 3 && (() => {
               const realCount = booths.filter(b => !b.is_demo).length
               return (
                 <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--gray-500)' }}>
@@ -1538,6 +1494,7 @@ function BrowseMarketPageInner() {
                 </div>
               )
             })()}
+
           </>
         )
       })()}
@@ -1545,8 +1502,8 @@ function BrowseMarketPageInner() {
       {/* USDA fallback — empty-shelf guard: show when real CasaGrown results are sparse */}
       {!loading && booths.filter(b => !b.is_demo).length < 3 && (
         <>
-          {/* OFN Products Fallback */}
-          {!loadingExternal && ofnProducts.length > 0 && (() => {
+          {/* OFN Products Fallback — gated by OFN_ENABLED flag (requires partner API access) */}
+          {OFN_ENABLED && !loadingExternal && ofnProducts.length > 0 && (() => {
             const rc = booths.filter(b => !b.is_demo).length
             return (
               <div style={{ marginTop: rc > 0 ? 48 : 24, paddingTop: rc > 0 ? 32 : 0, borderTop: rc > 0 ? '2px dashed #e5e7eb' : 'none' }}>
@@ -1678,6 +1635,74 @@ function BrowseMarketPageInner() {
                             <a href={mapsUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 999, background: '#1f2937', color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none', boxShadow: '0 2px 6px rgba(0,0,0,0.15)' }} onMouseEnter={e => (e.currentTarget as HTMLAnchorElement).style.background = '#374151'} onMouseLeave={e => (e.currentTarget as HTMLAnchorElement).style.background = '#1f2937'}>🗺️ Directions</a>
                             {websiteUrl && <a href={websiteUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 999, background: '#fff', color: '#d97706', fontSize: 13, fontWeight: 600, textDecoration: 'none', border: '1px solid #fde68a' }}>🌐 Website</a>}
                           </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* Demo Booths — show below USDA when CasaGrown has < 3 real results */}
+          {demoBooths.length > 0 && (() => {
+            const rc = booths.filter(b => !b.is_demo).length
+            return (
+              <div style={{ marginTop: rc > 0 ? 48 : 24, paddingTop: rc > 0 ? 32 : 0, borderTop: rc > 0 ? '2px dashed #e5e7eb' : 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)', border: '1px solid #86efac', borderRadius: 16, padding: '16px 20px', marginBottom: 24 }}>
+                  <span style={{ fontSize: 28, flexShrink: 0 }}>🌿</span>
+                  <div>
+                    <p style={{ margin: 0, fontWeight: 700, fontSize: 15, color: '#14532d' }}>
+                      See how CasaGrown works
+                    </p>
+                    <p style={{ margin: '4px 0 0', fontSize: 13, color: '#166534', lineHeight: 1.5 }}>
+                      Browse these demo listings to explore the market experience. Transactions are view-only.
+                    </p>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                  <h3 style={{ fontSize: 20, fontWeight: 800, color: '#1f2937', margin: 0, letterSpacing: '-0.02em' }}>🛒 Demo Booths</h3>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: '#15803d', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 999, padding: '2px 10px' }}>View Only</span>
+                </div>
+                <div className={styles.boothGrid}>
+                  {demoBooths.map(booth => {
+                    const theme = themeColors[booth.decorative_theme] || themeColors.minimal
+                    const products = booth.matched_products || []
+                    return (
+                      <div key={booth.booth_id} className="card">
+                        <Link href={`/market/booth/${booth.booth_id}`} className={styles.cardHeaderLink}>
+                          <div className={styles.cardHeader} style={{
+                            background: booth.header_image_url ? `url(${booth.header_image_url}) center/cover` : theme.gradient,
+                            borderBottom: `3px solid ${theme.border}`,
+                          }}>
+                            {booth.header_image_url && <div className={styles.headerOverlay} />}
+                            <div className={styles.headerContent}>
+                              <h3 className={styles.cardTitle} style={{ color: booth.header_image_url ? '#fff' : theme.border }}>{booth.booth_name}</h3>
+                              <div className={styles.cardMeta}>
+                                <span className="badge" style={{ fontSize: 10, background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac' }}>🌿 Demo</span>
+                                <span style={{ color: 'var(--gray-400)' }}>·</span>
+                                <span>{booth.product_count} items</span>
+                              </div>
+                            </div>
+                          </div>
+                        </Link>
+                        <div className={styles.cardBody}>
+                          {booth.description && <p className={styles.cardDesc}>{booth.description} Demo listing — viewing only.</p>}
+                          {products.length > 0 && (
+                            <div className={styles.productList}>
+                              {products.slice(0, 4).map((p: any) => (
+                                <Link key={p.id} href={`/market/booth/${booth.booth_id}/product/${p.id}`} className={styles.productCard}>
+                                  <div className={styles.productThumb}>
+                                    {p.photo ? <img src={p.photo} alt={p.name} /> : <span>{categoryIcons[p.category] || '📦'}</span>}
+                                  </div>
+                                  <div className={styles.productInfo}>
+                                    <span className={styles.productName}>{p.name}</span>
+                                    <span className={styles.productPrice}>${p.price_usd?.toFixed(2)}/{p.unit}</span>
+                                  </div>
+                                </Link>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )

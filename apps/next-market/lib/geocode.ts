@@ -44,6 +44,21 @@ function setCache(key: string, result: GeoResult) {
   } catch { /* quota */ }
 }
 
+// Custom error type so callers can distinguish rate-limit from not-found
+export class GeocodeRateLimitError extends Error {
+  constructor() { super('Geocoding service is busy. Please wait a moment and try again.') }
+}
+
+async function fetchGeocode(address: string): Promise<any> {
+  const url = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(address)}&limit=1&countrycodes=us`
+  const res = await fetch(url, {
+    headers: { 'User-Agent': 'CasaGrown-Market/1.0' },
+  })
+  if (res.status === 429) throw new GeocodeRateLimitError()
+  if (!res.ok) throw new Error(`Geocoding failed: ${res.status}`)
+  return res.json()
+}
+
 export async function geocodeAddress(address: string): Promise<GeoResult | null> {
   const cacheKey = address.trim().toLowerCase()
 
@@ -54,11 +69,15 @@ export async function geocodeAddress(address: string): Promise<GeoResult | null>
   }
 
   try {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(address)}&limit=1&countrycodes=us`
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'CasaGrown-Market/1.0' },
-    })
-    const data = await res.json()
+    let data: any
+    try {
+      data = await fetchGeocode(address)
+    } catch (err) {
+      if (err instanceof GeocodeRateLimitError) throw err // re-throw so caller can show proper message
+      // On network/5xx, wait 1s and retry once
+      await new Promise(r => setTimeout(r, 1000))
+      data = await fetchGeocode(address)
+    }
 
     if (!data?.[0]?.lat || !data?.[0]?.lon) return null
 
@@ -80,6 +99,7 @@ export async function geocodeAddress(address: string): Promise<GeoResult | null>
 
     return result
   } catch (err) {
+    if (err instanceof GeocodeRateLimitError) throw err // let caller handle rate-limit explicitly
     console.warn('Geocoding failed:', err)
     return null
   }

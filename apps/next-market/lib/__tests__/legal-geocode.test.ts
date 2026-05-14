@@ -78,6 +78,8 @@ describe('geocode.ts - geocodeAddress', () => {
 
   it('returns coords from successful geocode', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
       json: () => Promise.resolve([{
         lat: '37.3690',
         lon: '-121.8900',
