@@ -1,6 +1,8 @@
 -- Migration: ofn_product_cache
 -- Purpose: Store OFN enterprises and catalog items locally to ensure < 100ms marketplace fallback search.
 
+CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA extensions;
+
 CREATE TABLE IF NOT EXISTS public.ofn_enterprises (
     id text PRIMARY KEY,
     name text NOT NULL,
@@ -14,7 +16,7 @@ CREATE TABLE IF NOT EXISTS public.ofn_enterprises (
     zipcode text,
     lat double precision,
     lng double precision,
-    location_geom geography(Point, 4326),
+    location_geom extensions.geography(Point, 4326),
     last_synced_at timestamptz DEFAULT now() NOT NULL
 );
 
