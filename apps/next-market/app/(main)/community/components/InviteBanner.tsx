@@ -4,6 +4,7 @@ import { useErrorToast } from '../../../components/ErrorToast'
 import styles from '../page.module.css'
 import SocialShareModal from '../../../components/SocialShareModal'
 import { getCommunityInviteMessage } from '../../../../lib/shareMessages'
+import { useCommunityDigest } from '../../../../lib/useCommunityDigest'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 
 interface InviteBannerProps {
@@ -18,6 +19,7 @@ export default function InviteBanner({ h3Index, userId }: InviteBannerProps) {
   const autoShare = searchParams?.get('share') === 'true'
 
   const [showShareModal, setShowShareModal] = useState(autoShare)
+  const { digest } = useCommunityDigest()
   const refParam = userId ? `?ref=${userId}` : ''
   const inviteUrl = typeof window !== 'undefined' ? `${window.location.origin}/community${refParam}` : ''
 
@@ -52,7 +54,7 @@ export default function InviteBanner({ h3Index, userId }: InviteBannerProps) {
           title="Invite Neighbors"
           subtitle="Share the community with your neighborhood."
           shareUrl={inviteUrl}
-          shareMessage={(p) => getCommunityInviteMessage(p)}
+          shareMessage={(p) => getCommunityInviteMessage(p, digest)}
           entityName="Community Invite"
           shareContext="community_invite"
           userId={userId}

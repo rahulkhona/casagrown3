@@ -17,6 +17,7 @@ import { LoadingSpinner } from '../../components/LoadingSpinner'
 import { useErrorToast } from '../../components/ErrorToast'
 import SocialShareModal from '../../components/SocialShareModal'
 import { getGlobalMarketShareMessage } from '../../../lib/shareMessages'
+import { useCommunityDigest } from '../../../lib/useCommunityDigest'
 import AddressInput from '../../components/AddressInput'
 import GrowBotFAB from '../../components/GrowBotFAB'
 import styles from './page.module.css'
@@ -195,6 +196,7 @@ function BrowseMarketPageInner() {
   const [savedProductIds, setSavedProductIds] = useState<Set<string>>(new Set())
   const [showDemoModal, setShowDemoModal] = useState(false)
   const [showGlobalShareModal, setShowGlobalShareModal] = useState(false)
+  const { digest } = useCommunityDigest()
   const { showSuccess, showInfo } = useErrorToast()
 
   // Pioneer banner state
@@ -1761,7 +1763,7 @@ function BrowseMarketPageInner() {
           title="Invite Neighbors"
           subtitle="Share CasaGrown with your neighborhood."
           shareUrl={typeof window !== 'undefined' ? `${window.location.origin}/` : ''}
-          shareMessage={(p) => getGlobalMarketShareMessage(p)}
+          shareMessage={(p) => getGlobalMarketShareMessage(p, digest)}
           entityName="Market Invite"
           shareContext="market_invite"
           userId={user?.id}

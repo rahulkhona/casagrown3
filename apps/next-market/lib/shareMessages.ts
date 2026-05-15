@@ -20,7 +20,15 @@ function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]
 }
 
-export function getGlobalMarketShareMessage(platform?: SharePlatformType): string {
+export function getGlobalMarketShareMessage(platform?: SharePlatformType, digest?: string | null): string {
+  // If we have a fresh AI community digest, weave it into the invite
+  if (digest) {
+    if (isCommunityPost(platform)) {
+      return `🌱 Here's what neighbors are buzzing about on CasaGrown:\n\n${digest}\n\nCasaGrown is a local marketplace where neighbors buy and sell fresh homegrown produce.\n\n👇 Explore what's growing near you:\n`
+    }
+    return `${getRandomGreeting()} Here's what's happening on CasaGrown right now:\n\n${digest}\n\nIt's a local marketplace where you can buy fresh produce from neighbors' gardens!\n\n👇 Click the link below to explore the market:\n`
+  }
+
   if (isCommunityPost(platform)) {
     const variations = [
       "🌱 I've been buying fresh produce from neighbors' gardens through CasaGrown and it's been amazing! Incredibly fresh, hyper-local, and helps reduce food waste in our community.",
@@ -80,7 +88,15 @@ export function getBoothProductShareMessage(productName: string, nextMarketLabel
   return `${getRandomGreeting()} ${pick(variations)}\n\n👇 Click the link below to view and purchase for this ${nextMarketLabel || 'weekend'}:\n`
 }
 
-export function getCommunityInviteMessage(platform?: SharePlatformType): string {
+export function getCommunityInviteMessage(platform?: SharePlatformType, digest?: string | null): string {
+  // If we have a fresh AI digest, use it for a dynamic, timely message
+  if (digest) {
+    if (isCommunityPost(platform)) {
+      return `🌱 Here's what neighbors are talking about on CasaGrown Community:\n\n${digest}\n\n👇 Join the neighborhood chat:\n`
+    }
+    return `${getRandomGreeting()} Here's what's happening on CasaGrown Community right now:\n\n${digest}\n\n👇 Click the link below to join the neighborhood chat:\n`
+  }
+
   if (isCommunityPost(platform)) {
     const variations = [
       "🌱 I've been hanging out on CasaGrown Community and it's become my go-to for all things gardening! Neighbors share tips on growing, pest control, seasonal planting, recipes, and more. Plus there's CasaBot — an AI gardening assistant that can answer questions about soil, composting, what to plant this season, and how to deal with pests. Really helpful if you're a beginner or just want quick advice!",
