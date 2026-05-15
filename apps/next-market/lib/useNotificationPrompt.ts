@@ -81,6 +81,13 @@ export function getPromptVariant(): PromptVariant | 'none' {
 
 /** Check if notifications are effectively enabled (granted or unsupported) */
 export function isNotificationsEnabled(): boolean {
+  // In the native Expo wrapper, the Web Notification API doesn't exist.
+  // The wrapper manages push permissions independently — if we're native,
+  // check the localStorage flag set by receiveNativeToken, default to true
+  // (the user already granted the OS permission or the wrapper will prompt).
+  if (typeof window !== 'undefined' && window.IS_NATIVE_APP) {
+    return storageGet('casagrown_native_push_registered') !== 'denied'
+  }
   return getPermissionStatus() === 'granted'
 }
 
@@ -127,6 +134,7 @@ async function enableWebPush(userId: string): Promise<boolean> {
     return new Promise((resolve) => {
       window.receiveNativeToken = async (tokenStr: string) => {
         if (tokenStr === 'DENIED') {
+          storageSet('casagrown_native_push_registered', 'denied');
           resolve(false);
           return;
         }
@@ -135,6 +143,7 @@ async function enableWebPush(userId: string): Promise<boolean> {
           await supabase.functions.invoke('register-push-token', {
             body: { token: tokenStr, platform: 'expo', endpoint: null },
           });
+          storageSet('casagrown_native_push_registered', 'granted');
           resolve(true);
         } catch (err) {
           console.error('[Notifications] Expo Push registration failed:', err);
