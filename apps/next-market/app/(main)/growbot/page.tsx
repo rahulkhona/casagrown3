@@ -514,8 +514,9 @@ export default function GrowBotChatPage() {
     const text = input.trim()
     if (!text && mediaFiles.length === 0) return
 
-    // Convert media to base64 if present
+    // Convert media to base64 for Gemini AND upload to storage for persistence
     let imageBase64: string | undefined
+    let persistentMediaUrl: string | undefined
     if (mediaFiles.length > 0) {
       const file = mediaFiles[0]
       const reader = new FileReader()
@@ -523,14 +524,31 @@ export default function GrowBotChatPage() {
         reader.onloadend = () => resolve(reader.result as string)
         reader.readAsDataURL(file)
       })
+
+      // Upload to Supabase Storage for persistent URL (used in polls, sharing)
+      try {
+        const supabase = createClient()
+        const ext = file.name.split('.').pop() || 'jpg'
+        const storagePath = `growbot/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+        const { error: uploadErr } = await supabase.storage.from('chat-media').upload(storagePath, file)
+        if (!uploadErr) {
+          const { data: urlData } = supabase.storage.from('chat-media').getPublicUrl(storagePath)
+          if (urlData?.publicUrl) persistentMediaUrl = urlData.publicUrl
+        } else {
+          console.warn('[GrowBot] Image upload to storage failed:', uploadErr.message)
+        }
+      } catch (e) {
+        console.warn('[GrowBot] Image upload error:', e)
+      }
     }
 
-    // Add user message
+    // Add user message — use persistent storage URL if available, else blob preview
+    const mediaUrl = persistentMediaUrl || (mediaPreviews.length > 0 ? mediaPreviews[0] : undefined)
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
       text: text || '📷 Photo',
-      media: mediaPreviews.map(url => ({ url, type: 'image' })),
+      media: mediaUrl ? [{ url: mediaUrl, type: 'image' }] : [],
       timestamp: new Date().toISOString(),
     }
 
@@ -657,6 +675,7 @@ export default function GrowBotChatPage() {
         bot_response: msg.text,
         conversation_context: [],
         actions: msg.actions || [],
+        image_url: questionImage || null,
         user_id: uid,
         guest_session_id: uid ? null : guestSessionIdRef.current,
       })
