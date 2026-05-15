@@ -86,7 +86,7 @@ export function isNotificationsEnabled(): boolean {
   // check the localStorage flag set by receiveNativeToken, default to true
   // (the user already granted the OS permission or the wrapper will prompt).
   if (typeof window !== 'undefined' && window.IS_NATIVE_APP) {
-    return storageGet('casagrown_native_push_registered') !== 'denied'
+    return storageGet('casagrown_native_push_registered') === 'granted'
   }
   return getPermissionStatus() === 'granted'
 }

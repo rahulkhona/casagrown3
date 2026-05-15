@@ -645,7 +645,7 @@ export function Navbar() {
                         <span>{item.label}</span>
                       </Link>
                     ))}
-                    {isNotificationsEnabled() !== 'granted' && (
+                    {!isNotificationsEnabled() && (
                       <button className={styles.menuItem} onClick={() => { setMenuOpen(false); showPrompt(true); }}>
                         <span className={styles.menuItemIcon}>🔔</span>
                         <span>Enable Notifications</span>
