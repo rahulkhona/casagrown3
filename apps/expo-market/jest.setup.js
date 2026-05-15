@@ -15,6 +15,7 @@ jest.mock('expo-linking', () => ({
   getInitialURL: jest.fn(() => Promise.resolve(null)),
   addEventListener: jest.fn(() => ({ remove: jest.fn() })),
   openSettings: jest.fn(),
+  openURL: jest.fn(),
 }))
 
 jest.mock('expo-notifications', () => ({

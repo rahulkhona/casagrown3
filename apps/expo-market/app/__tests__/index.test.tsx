@@ -163,6 +163,57 @@ describe('Deep Link Handling', () => {
   })
 })
 
+// ─── 7b. External Link Handling ───────────────────────────────────
+
+describe('External Link Handling', () => {
+  let webviewProps: any
+  const openURL = Linking.openURL as jest.Mock
+
+  beforeEach(() => {
+    openURL.mockClear()
+    const { getByTestId } = render(<AppShell />)
+    webviewProps = getByTestId('webview').props
+  })
+
+  // Internal URLs — should stay in WebView (return true)
+  it.each([
+    ['https://casagrown.com/market/booth/123', 'casagrown.com'],
+    ['https://www.casagrown.com/market', 'www.casagrown.com subdomain'],
+    ['https://api.casagrown.com/v1/test', 'api.casagrown.com subdomain'],
+    ['http://localhost:3000/market', 'localhost dev'],
+    ['https://xyz.supabase.co/auth/v1/callback', 'Supabase auth flow'],
+  ])('keeps %s in WebView (%s)', (url) => {
+    const result = webviewProps.onShouldStartLoadWithRequest({ url })
+    expect(result).toBe(true)
+    expect(openURL).not.toHaveBeenCalled()
+  })
+
+  // External URLs — should open in system browser (return false)
+  it.each([
+    ['https://www.usda.gov/results', 'USDA results'],
+    ['https://openfoodnetwork.net/shop/farm', 'OFN store'],
+    ['https://bryarwoodfarm.com', 'farmer website'],
+    ['https://google.com', 'generic external'],
+  ])('opens %s in system browser (%s)', (url) => {
+    const result = webviewProps.onShouldStartLoadWithRequest({ url })
+    expect(result).toBe(false)
+    expect(openURL).toHaveBeenCalledWith(url)
+  })
+
+  // Edge cases
+  it('allows blob: URLs through (file downloads)', () => {
+    const result = webviewProps.onShouldStartLoadWithRequest({ url: 'blob:https://casagrown.com/abc-123' })
+    expect(result).toBe(true)
+    expect(openURL).not.toHaveBeenCalled()
+  })
+
+  it('allows about:blank through', () => {
+    const result = webviewProps.onShouldStartLoadWithRequest({ url: 'about:blank' })
+    expect(result).toBe(true)
+    expect(openURL).not.toHaveBeenCalled()
+  })
+})
+
 // ─── 8. WebView Message Handler ───────────────────────────────────
 
 describe('WebView Message Handler', () => {
