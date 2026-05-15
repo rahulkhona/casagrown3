@@ -1235,13 +1235,13 @@ export default function GrowBotChatPage() {
               )}
 
               {/* Thumbs + Share — only on substantive advice (not data collection or redirects) */}
-              {msg.role === 'assistant' && msg.text && (() => {
+              {msg.role === 'assistant' && (() => {
                 const msgIdx = messages.findIndex(m => m.id === msg.id)
                 const hasUserBefore = messages.slice(0, msgIdx).some(m => m.role === 'user')
                 if (!hasUserBefore) return null
                 // Only show feedback/poll on substantive advice
                 const hasNextActions = msg.nextActions && msg.nextActions.length > 0
-                const skipCardTypes = ['UserMemoryCard', 'MarketRedirectCard', 'CommunityRedirectCard', 'ExternalSearchCard', 'SellerWizardCard']
+                const skipCardTypes = ['UserMemoryCard', 'MarketRedirectCard', 'CommunityRedirectCard', 'ExternalSearchCard', 'SellerWizardCard', 'AuthenticationCard']
                 const hasSubstantiveCards = (msg.actions?.length ?? 0) > 0 && msg.actions!.some((a: any) => !skipCardTypes.includes(a.type))
                 const isSubstantive = hasNextActions || hasSubstantiveCards || (msg.text?.trim().length > 80)
                 if (!isSubstantive) return null
