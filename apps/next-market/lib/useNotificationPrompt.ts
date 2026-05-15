@@ -132,10 +132,13 @@ async function enableWebPush(userId: string): Promise<boolean> {
   const { NativeBridge } = await import('./nativeBridge')
   if (NativeBridge.isNative) {
     console.log('[Notifications] Native mode detected, requesting push permissions...');
+    alert('[DEBUG 1] Native mode, sending REQUEST_PUSH_PERMISSION to native');
     return new Promise((resolve) => {
       window.receiveNativeToken = async (tokenStr: string) => {
         console.log('[Notifications] receiveNativeToken called:', tokenStr?.substring(0, 30));
+        alert('[DEBUG 2] receiveNativeToken: ' + (tokenStr?.substring(0, 40) || 'EMPTY'));
         if (tokenStr === 'DENIED') {
+          alert('[DEBUG 2b] Token was DENIED');
           storageSet('casagrown_native_push_registered', 'denied');
           resolve(false);
           return;
@@ -147,14 +150,17 @@ async function enableWebPush(userId: string): Promise<boolean> {
             body: { token: tokenStr, platform: 'expo', endpoint: null },
           });
           if (error) {
+            alert('[DEBUG 3] register-push-token FAILED: ' + JSON.stringify(error));
             console.error('[Notifications] register-push-token error:', error);
             resolve(false);
             return;
           }
+          alert('[DEBUG 3] SUCCESS! Token registered');
           console.log('[Notifications] Token registered successfully:', data);
           storageSet('casagrown_native_push_registered', 'granted');
           resolve(true);
         } catch (err) {
+          alert('[DEBUG 3] EXCEPTION: ' + (err instanceof Error ? err.message : String(err)));
           console.error('[Notifications] Expo Push registration failed:', err);
           resolve(false);
         }
