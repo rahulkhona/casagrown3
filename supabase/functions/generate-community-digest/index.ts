@@ -2,7 +2,7 @@
  * generate-community-digest — AI-powered summary of recent community discussions
  *
  * Runs hourly via pg_cron. Skips if no new messages since last digest.
- * Summarizes the last 10 messages into a 2-3 sentence teaser for share/invite messages.
+ * Summarizes the last 30 messages into a 2-3 sentence teaser for share/invite messages.
  */
 import { serveWithCors, jsonOk } from '../_shared/serve-with-cors.ts'
 
@@ -39,14 +39,14 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     return jsonOk({ skipped: true, reason: 'No new messages since last digest' }, corsHeaders)
   }
 
-  // 5. Fetch last 10 non-system, top-level messages with author names
+  // 5. Fetch last 30 non-system, top-level messages for broader thematic coverage
   const { data: messages, error: msgError } = await supabase
     .from('community_chat_messages')
     .select('content, created_at, author_id')
     .is('parent_id', null)
     .eq('is_system', false)
     .order('created_at', { ascending: false })
-    .limit(10)
+    .limit(30)
 
   if (msgError || !messages || messages.length === 0) {
     return jsonOk({ skipped: true, reason: 'Could not fetch messages' }, corsHeaders)
