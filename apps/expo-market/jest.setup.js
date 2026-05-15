@@ -18,6 +18,9 @@ jest.mock('expo-linking', () => ({
 }))
 
 jest.mock('expo-notifications', () => ({
+  setNotificationHandler: jest.fn(),
+  setNotificationChannelAsync: jest.fn(),
+  AndroidImportance: { MAX: 5 },
   getPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'undetermined' })),
   requestPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted' })),
   getExpoPushTokenAsync: jest.fn(() => Promise.resolve({ data: 'ExponentPushToken[mock-token]' })),
@@ -29,13 +32,26 @@ jest.mock('expo-splash-screen', () => ({
   hideAsync: jest.fn(),
 }))
 
+jest.mock('expo-constants', () => ({
+  expoConfig: {
+    extra: {
+      eas: { projectId: 'mock-project-id' },
+    },
+  },
+}))
+
 jest.mock('react-native-webview', () => {
-  const { forwardRef } = require('react')
+  const { forwardRef, useImperativeHandle } = require('react')
   const { View } = require('react-native')
   return {
-    WebView: forwardRef((props, ref) =>
-      require('react').createElement(View, { ...props, ref, testID: 'webview' })
-    ),
+    WebView: forwardRef((props, ref) => {
+      useImperativeHandle(ref, () => ({
+        injectJavaScript: jest.fn(),
+        goBack: jest.fn(),
+        reload: jest.fn(),
+      }))
+      return require('react').createElement(View, { ...props, testID: 'webview' })
+    }),
   }
 })
 

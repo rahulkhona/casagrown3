@@ -475,13 +475,21 @@ test.describe('Reject & Refund Workflow', () => {
     expect(smsData.length).toBeGreaterThan(0)
     expect(smsData[0].status).toBe('skipped_disabled') // from our feature flag
 
-    // 7. Verify Push via supabase rest API
-    const pushRes = await request.get(`${supabaseUrl}/rest/v1/push_notification_log?body=ilike.*${encodeURIComponent(rejectReason)}*`, {
+    // 7. Verify Push via supabase rest API (poll — async dispatch)
+    let pushFound = false
+    for (let i = 0; i < 5; i++) {
+      await page.waitForTimeout(1000)
+      const pushRes = await request.get(`${supabaseUrl}/rest/v1/push_notification_log?body=ilike.*${encodeURIComponent(rejectReason)}*`, {
         headers: { 'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey }
-    })
-    expect(pushRes.ok()).toBe(true)
-    const pushData = await pushRes.json()
-    expect(pushData.length).toBeGreaterThan(0)
+      })
+      expect(pushRes.ok()).toBe(true)
+      const pushData = await pushRes.json()
+      if (pushData.length > 0) {
+        pushFound = true
+        break
+      }
+    }
+    expect(pushFound).toBe(true)
 
     // 8. Verify In-App Notification via supabase rest API
     const inAppRes = await request.get(`${supabaseUrl}/rest/v1/market_notifications?content=ilike.*${encodeURIComponent(rejectReason)}*`, {
