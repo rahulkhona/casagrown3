@@ -566,6 +566,7 @@ export default function GrowBotChatPage() {
   // ── In-chat poll view (shown as overlay, no navigation)
   const [pollView, setPollView] = useState<{
     shareId: string; question: string; answer: string;
+    questionImage?: string;
     actions?: any[];
     votes: { accurate: number; partial: number; inaccurate: number };
     myVote: string | null;
@@ -643,6 +644,9 @@ export default function GrowBotChatPage() {
     const lastUserMsg = [...messages.slice(0, msgIndex + 1)].reverse().find(m => m.role === 'user')
     if (!lastUserMsg) return
 
+    // Grab the first image from the user message (plant photo for ID/diagnosis)
+    const questionImage = lastUserMsg.media?.[0]?.url || undefined
+
     setPollingMsgId(msg.id)
     const supabase = createClient()
     const uid = user?.id || null
@@ -653,6 +657,7 @@ export default function GrowBotChatPage() {
         bot_response: msg.text,
         conversation_context: [],
         actions: msg.actions || [],
+        image_url: questionImage || null,
         user_id: uid,
         guest_session_id: uid ? null : guestSessionIdRef.current,
       })
@@ -667,7 +672,7 @@ export default function GrowBotChatPage() {
       return updated
     })
     // Show in-chat poll overlay instead of navigating
-    openPollView({ shareId: data.id, question: lastUserMsg.text, answer: msg.text, actions: msg.actions, votes: { accurate: 0, partial: 0, inaccurate: 0 }, myVote: null })
+    openPollView({ shareId: data.id, question: lastUserMsg.text, answer: msg.text, questionImage, actions: msg.actions, votes: { accurate: 0, partial: 0, inaccurate: 0 }, myVote: null })
   }
 
   const handlePollVote = async (rating: 'accurate' | 'partial' | 'inaccurate') => {
@@ -1264,7 +1269,8 @@ export default function GrowBotChatPage() {
                         onClick={() => {
                           const msgIdx = messages.findIndex(m => m.id === msg.id)
                           const lastUserMsg = [...messages.slice(0, msgIdx + 1)].reverse().find(m => m.role === 'user')
-                          setPollView({ shareId: msg.shareId!, question: lastUserMsg?.text || '', answer: msg.text, votes: { accurate: 0, partial: 0, inaccurate: 0 }, myVote: null })
+                          const qImage = lastUserMsg?.media?.[0]?.url || undefined
+                          setPollView({ shareId: msg.shareId!, question: lastUserMsg?.text || '', answer: msg.text, questionImage: qImage, votes: { accurate: 0, partial: 0, inaccurate: 0 }, myVote: null })
                         }}
                         style={{ fontSize: 12, color: '#166534', textDecoration: 'none', background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 12, padding: '3px 10px', cursor: 'pointer' }}
                       >📊 View poll</button>
@@ -1347,7 +1353,12 @@ export default function GrowBotChatPage() {
               <button onClick={() => setPollView(null)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#9ca3af', cursor: 'pointer', padding: 4 }}>✕</button>
             </div>
 
-            {/* Question bubble */}
+            {/* Question image + bubble */}
+            {pollView.questionImage && (
+              <div style={{ marginBottom: 8, borderRadius: 12, overflow: 'hidden', maxWidth: 200 }}>
+                <img src={pollView.questionImage} alt="Plant photo" style={{ width: '100%', height: 'auto', display: 'block', borderRadius: 12 }} />
+              </div>
+            )}
             <div style={{ background: '#1e3a2f', color: 'white', borderRadius: '12px 12px 4px 12px', padding: '10px 14px', fontSize: 14, marginBottom: 10 }}>
               {pollView.question}
             </div>
