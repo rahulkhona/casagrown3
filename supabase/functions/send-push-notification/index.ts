@@ -434,7 +434,6 @@ async function sendExpoPush(
                 url: payload.url || "/market",
             },
             channelId: "default",
-            tag: payload.tag || "casagrown",
         }),
     });
 
