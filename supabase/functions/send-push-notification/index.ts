@@ -167,6 +167,16 @@ serveWithCors(async (req, { supabase, corsHeaders, env }) => {
                 }
                 await sendFCM(sub, { title, body, url, tag });
                 sent++;
+            } else if (sub.platform === "expo") {
+                if (!enableMobilePush) {
+                    console.log(
+                        `⏭️ Expo push skipped — ENABLE_MOBILE_PUSH is false (subscription ${sub.id})`,
+                    );
+                    skipped++;
+                    continue;
+                }
+                await sendExpoPush(sub, { title, body, url, tag });
+                sent++;
             }
         } catch (err) {
             console.error(`❌ Push failed for subscription ${sub.id}:`, err);
@@ -397,6 +407,60 @@ async function sendFCM(
             throw new PushError(`FCM token invalid: ${error}`, 410);
         }
         throw new PushError(`FCM delivery failed: ${error}`, 500);
+    }
+}
+
+// =============================================================================
+// Expo Push — Uses Expo Push API (no credentials needed, just the token)
+// =============================================================================
+
+async function sendExpoPush(
+    subscription: { token: string; id: string },
+    payload: PushPayload,
+): Promise<void> {
+    const response = await fetch("https://exp.host/--/api/v2/push/send", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Accept-Encoding": "gzip, deflate",
+        },
+        body: JSON.stringify({
+            to: subscription.token,
+            title: payload.title,
+            body: payload.body,
+            sound: "default",
+            data: {
+                url: payload.url || "/market",
+            },
+            channelId: "default",
+            tag: payload.tag || "casagrown",
+        }),
+    });
+
+    if (!response.ok) {
+        const errBody = await response.text();
+        throw new PushError(
+            `Expo push failed: ${response.status} ${errBody}`,
+            response.status,
+        );
+    }
+
+    const result = await response.json();
+    const ticket = result.data;
+
+    if (ticket?.status === "error") {
+        // DeviceNotRegistered means the token is stale
+        if (ticket.details?.error === "DeviceNotRegistered") {
+            throw new PushError(
+                `Expo token not registered: ${ticket.message}`,
+                410,
+            );
+        }
+        throw new PushError(
+            `Expo push error: ${ticket.message}`,
+            500,
+        );
     }
 }
 
