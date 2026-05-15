@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, use } from 'react'
+import React, { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import { createClient } from '../../../../lib/supabase'
 
@@ -21,7 +21,7 @@ const GROWBOT_AVATAR = '/growbot-avatar-v3.png'
 
 function renderInline(text: string) {
   // Process bold, italic, and inline code
-  const parts: (string | JSX.Element)[] = []
+  const parts: (string | React.JSX.Element)[] = []
   let key = 0
   const inlineRegex = /(\*\*(.*?)\*\*|\*(.*?)\*|`(.*?)`)/g
   let lastIndex = 0
