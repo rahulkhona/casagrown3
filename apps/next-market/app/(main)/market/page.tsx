@@ -925,27 +925,6 @@ function BrowseMarketPageInner() {
         </div>
       </div>
 
-
-
-      {/* Sell FAB — consistent with STATE 3 */}
-      <Link
-          href="/create-listing"
-          id="sell-fab"
-          style={{
-            position: 'fixed', bottom: 80, right: 24,
-            background: 'linear-gradient(135deg, #16a34a, #15803d)',
-            color: '#fff', borderRadius: 28, padding: '14px 24px',
-            fontSize: 15, fontWeight: 600, textDecoration: 'none',
-            display: 'flex', alignItems: 'center', gap: 8,
-            boxShadow: '0 6px 20px rgba(22, 163, 74, 0.4)',
-            zIndex: 100, transition: 'transform 0.2s, box-shadow 0.2s',
-          }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}
-        >
-          {marketIsOpen ? '🌱 Sell Something' : '🌱 List for Next Market'}
-        </Link>
-      <GrowBotFAB />
       </>
     )
   }

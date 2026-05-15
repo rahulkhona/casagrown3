@@ -14,9 +14,10 @@
   border-right: 1px solid var(--border);
 }
 
-/* In native WebView, dvh can be unreliable — use env() safe area */
+/* In native WebView, env(safe-area-inset-bottom) can be 0 on Android —
+   but the web BottomNav is still rendered, so use the same 120px offset. */
 :global(.native-app) .container {
-  height: calc(100dvh - 64px - env(safe-area-inset-bottom, 56px));
+  height: calc(100dvh - 120px);
 }
 
 /* ─── Community Name Header ──────────────────────────────────── */
