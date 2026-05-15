@@ -5,6 +5,7 @@ import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import * as Linking from 'expo-linking';
 import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
+import Constants from 'expo-constants';
 
 const BASE_URL = process.env.EXPO_PUBLIC_WEB_URL || 'https://casagrown.com';
 const START_URL = `${BASE_URL}/market`;
@@ -75,23 +76,35 @@ export default function AppShell() {
       const data = JSON.parse(event.nativeEvent.data);
 
       if (data.type === 'REQUEST_PUSH_PERMISSION') {
-        // Request Native Push Permissions
-        const { status: existingStatus } = await Notifications.getPermissionsAsync();
-        let finalStatus = existingStatus;
-        if (existingStatus !== 'granted') {
-          const { status } = await Notifications.requestPermissionsAsync();
-          finalStatus = status;
-        }
+        try {
+          // Request Native Push Permissions
+          const { status: existingStatus } = await Notifications.getPermissionsAsync();
+          let finalStatus = existingStatus;
+          if (existingStatus !== 'granted') {
+            const { status } = await Notifications.requestPermissionsAsync();
+            finalStatus = status;
+          }
 
-        if (finalStatus !== 'granted') {
-          webViewRef.current?.injectJavaScript(`window.receiveNativeToken('DENIED'); true;`);
-          return;
-        }
+          if (finalStatus !== 'granted') {
+            webViewRef.current?.injectJavaScript(`window.receiveNativeToken('DENIED'); true;`);
+            return;
+          }
 
-        const projectId = 'b27dce81-8b43-4a0b-9bc2-3c2c10b7f6c3'; // From app.json
-        const pushTokenData = await Notifications.getExpoPushTokenAsync({ projectId });
-        const tokenStr = pushTokenData.data;
-        webViewRef.current?.injectJavaScript(`window.receiveNativeToken('${tokenStr}'); true;`);
+          const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+          if (!projectId) {
+            console.error('Missing EAS projectId in app.json');
+            webViewRef.current?.injectJavaScript(`window.receiveNativeToken('DENIED'); true;`);
+            return;
+          }
+          const pushTokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+          const tokenStr = pushTokenData.data;
+          webViewRef.current?.injectJavaScript(`window.receiveNativeToken('${tokenStr}'); true;`);
+        } catch (pushErr: any) {
+          console.error('Push token error:', pushErr);
+          // Surface the error to the WebView for debugging
+          const errMsg = (pushErr?.message || 'Unknown push error').replace(/'/g, '');
+          webViewRef.current?.injectJavaScript(`window.receiveNativeToken('DENIED'); console.error('Native push error: ${errMsg}'); true;`);
+        }
       }
 
       if (data.type === 'OPEN_APP_SETTINGS') {
@@ -99,9 +112,6 @@ export default function AppShell() {
       }
 
     } catch (e: any) {
-      // Push notification entitlement errors are expected on simulators — suppress them
-      const msg = e?.message || '';
-      if (msg.includes('aps-environment') || msg.includes('getRegistrationInfoAsync')) return;
       console.error('WebView message parsing error:', e);
     }
   };
