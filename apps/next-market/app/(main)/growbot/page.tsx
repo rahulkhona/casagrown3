@@ -1288,7 +1288,7 @@ export default function GrowBotChatPage() {
                           const msgIdx = messages.findIndex(m => m.id === msg.id)
                           const lastUserMsg = [...messages.slice(0, msgIdx + 1)].reverse().find(m => m.role === 'user')
                           const qImage = lastUserMsg?.media?.[0]?.url || undefined
-                          setPollView({ shareId: msg.shareId!, question: lastUserMsg?.text || '', answer: msg.text, questionImage: qImage, votes: { accurate: 0, partial: 0, inaccurate: 0 }, myVote: null })
+                          setPollView({ shareId: msg.shareId!, question: lastUserMsg?.text || '', answer: msg.text, questionImage: qImage, actions: msg.actions, votes: { accurate: 0, partial: 0, inaccurate: 0 }, myVote: null })
                         }}
                         style={{ fontSize: 12, color: '#166534', textDecoration: 'none', background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 12, padding: '3px 10px', cursor: 'pointer' }}
                       >📊 View poll</button>
