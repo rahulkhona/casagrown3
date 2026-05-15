@@ -555,7 +555,7 @@ export default function GrowBotChatPage() {
   }
 
   // ── Share the raw answer via SocialShareModal (e.g. for recipes)
-  const [shareAnswerModal, setShareAnswerModal] = useState<{ question: string; answer: string } | null>(null)
+  const [shareAnswerModal, setShareAnswerModal] = useState<{ question: string; answer: string; pollUrl?: string } | null>(null)
 
   const handleShareAnswer = (msg: ChatMessage) => {
     const msgIndex = messages.findIndex(m => m.id === msg.id)
@@ -1557,7 +1557,8 @@ export default function GrowBotChatPage() {
                   if (!user) return
                   setShareAnswerModal({
                     question: pollView.question,
-                    answer: `${typeof window !== 'undefined' ? window.location.origin : ''}/growbot/share/${pollView.shareId}`,
+                    answer: pollView.answer,
+                    pollUrl: `${typeof window !== 'undefined' ? window.location.origin : ''}/growbot/share/${pollView.shareId}`,
                   })
                 }}
                 disabled={!user}
@@ -1619,11 +1620,24 @@ export default function GrowBotChatPage() {
 
       {/* Share Modal — used for polls (shareUrl = poll page) opened from the poll overlay */}
       {shareAnswerModal && (() => {
-        const isPollShare = shareAnswerModal.answer.startsWith('http')
-        const shareUrl = isPollShare ? shareAnswerModal.answer : (typeof window !== 'undefined' ? window.location.href : '')
+        const isPollShare = !!shareAnswerModal.pollUrl
+        const shareUrl = isPollShare ? shareAnswerModal.pollUrl! : (typeof window !== 'undefined' ? window.location.href : '')
+        // Strip markdown for plain-text share body
+        const plainAnswer = shareAnswerModal.answer
+          .replace(/\*\*(.*?)\*\*/g, '$1')  // bold
+          .replace(/\*(.*?)\*/g, '$1')       // italic
+          .replace(/^[\s]*[-*]\s/gm, '• ')   // bullets
+          .replace(/^#{1,3}\s+/gm, '')       // headings
+          .trim()
+        const truncatedAnswer = plainAnswer.length > 500 ? plainAnswer.slice(0, 500) + '…' : plainAnswer
         const shareMsg = isPollShare
-          ? `🗳️ I asked GrowBot: "${shareAnswerModal.question}" — do you think this advice is accurate? Vote here:`
-          : `🌱 GrowBot tip: ${shareAnswerModal.answer.slice(0, 200)}${shareAnswerModal.answer.length > 200 ? '…' : ''}`
+          ? `🌱 I asked GrowBot: "${shareAnswerModal.question}"
+
+Here's what GrowBot said:
+${truncatedAnswer}
+
+🗳️ Do you think this advice is accurate? Vote here:`
+          : `🌱 GrowBot tip: ${truncatedAnswer}`
         return (
           <SocialShareModal
             isOpen={true}

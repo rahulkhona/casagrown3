@@ -19,13 +19,37 @@ interface Suggestion { id: string; suggestion_text: string; upvotes: number; vot
 
 const GROWBOT_AVATAR = '/growbot-avatar-v3.png'
 
+function renderInline(text: string) {
+  // Process bold, italic, and inline code
+  const parts: (string | JSX.Element)[] = []
+  let key = 0
+  const inlineRegex = /(\*\*(.*?)\*\*|\*(.*?)\*|`(.*?)`)/g
+  let lastIndex = 0
+  let match
+  while ((match = inlineRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index))
+    if (match[2] !== undefined) parts.push(<strong key={key++}>{match[2]}</strong>)
+    else if (match[3] !== undefined) parts.push(<em key={key++}>{match[3]}</em>)
+    else if (match[4] !== undefined) parts.push(<code key={key++} style={{ background: '#f3f4f6', padding: '1px 4px', borderRadius: 4, fontSize: '0.9em' }}>{match[4]}</code>)
+    lastIndex = match.index + match[0].length
+  }
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex))
+  return parts.length ? parts : [text]
+}
+
 function renderMarkdown(text: string) {
   return text.split('\n').map((line, i) => {
     const trimmed = line.trim()
     if (!trimmed) return <br key={i} />
+    // Headings
+    if (trimmed.startsWith('### '))
+      return <p key={i} style={{ margin: '8px 0 4px', fontWeight: 700, fontSize: '0.95em' }}>{renderInline(trimmed.slice(4))}</p>
+    if (trimmed.startsWith('## '))
+      return <p key={i} style={{ margin: '10px 0 4px', fontWeight: 700, fontSize: '1em' }}>{renderInline(trimmed.slice(3))}</p>
+    // Bullets
     if (trimmed.startsWith('* ') || trimmed.startsWith('- '))
-      return <li key={i} style={{ marginBottom: 2 }}>{trimmed.slice(2)}</li>
-    return <p key={i} style={{ margin: '3px 0' }}>{trimmed.replace(/\*\*(.*?)\*\*/g, '$1')}</p>
+      return <li key={i} style={{ marginBottom: 2, marginLeft: 16 }}>{renderInline(trimmed.slice(2))}</li>
+    return <p key={i} style={{ margin: '3px 0' }}>{renderInline(trimmed)}</p>
   })
 }
 
