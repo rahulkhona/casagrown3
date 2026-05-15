@@ -466,8 +466,12 @@ export function MarketRedirectCard({ data, onActionClick }: { data: any, onActio
   );
 }
 
-export function CommunityRedirectCard({ data, onActionClick }: { data: any, onActionClick?: (action: string) => void }) {
+export function CommunityRedirectCard({ data, onActionClick, onCommunityPost }: { data: any, onActionClick?: (action: string) => void, onCommunityPost?: (post: string) => Promise<boolean> }) {
   const [copied, setCopied] = React.useState(false);
+  const [posting, setPosting] = React.useState(false);
+  const [posted, setPosted] = React.useState(false);
+  const [error, setError] = React.useState('');
+
   const handleCopy = () => {
     if (data.suggested_post) {
       navigator.clipboard.writeText(data.suggested_post);
@@ -475,6 +479,24 @@ export function CommunityRedirectCard({ data, onActionClick }: { data: any, onAc
       setTimeout(() => setCopied(false), 2000);
     }
   };
+
+  const handlePost = async () => {
+    if (!data.suggested_post || !onCommunityPost || posting || posted) return;
+    setPosting(true);
+    setError('');
+    try {
+      const ok = await onCommunityPost(data.suggested_post);
+      if (ok) {
+        setPosted(true);
+      } else {
+        setError('Could not post — please complete your profile first.');
+      }
+    } catch (err: any) {
+      setError('Failed to post. Please try again.');
+    }
+    setPosting(false);
+  };
+
   return (
     <div style={{ border: '1px solid #c7d2fe', borderRadius: 12, padding: 16, background: '#eef2ff', marginTop: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -498,18 +520,46 @@ export function CommunityRedirectCard({ data, onActionClick }: { data: any, onAc
           </button>
         </div>
       )}
-      <a
-        href="/community"
-        style={{
+      {posted ? (
+        <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          width: '100%', padding: '10px 0', background: '#6366f1', color: 'white',
-          border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 14,
-          cursor: 'pointer', textDecoration: 'none', boxSizing: 'border-box',
-        }}
-      >
-        <Send size={15} />
-        Go to Community Board
-      </a>
+          width: '100%', padding: '10px 0', background: '#dcfce7', color: '#166534',
+          border: '1px solid #bbf7d0', borderRadius: 8, fontWeight: 600, fontSize: 14,
+          boxSizing: 'border-box',
+        }}>
+          ✅ Posted to your community!
+        </div>
+      ) : onCommunityPost ? (
+        <button
+          onClick={handlePost}
+          disabled={posting}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            width: '100%', padding: '10px 0', background: posting ? '#a5b4fc' : '#6366f1', color: 'white',
+            border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 14,
+            cursor: posting ? 'wait' : 'pointer', boxSizing: 'border-box',
+          }}
+        >
+          <Send size={15} />
+          {posting ? 'Posting…' : '📤 Post to Community'}
+        </button>
+      ) : (
+        <a
+          href="/community"
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            width: '100%', padding: '10px 0', background: '#6366f1', color: 'white',
+            border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 14,
+            cursor: 'pointer', textDecoration: 'none', boxSizing: 'border-box',
+          }}
+        >
+          <Send size={15} />
+          Go to Community Board
+        </a>
+      )}
+      {error && (
+        <div style={{ color: '#dc2626', fontSize: 12, marginTop: 6, textAlign: 'center' }}>{error}</div>
+      )}
       <ActionChips actions={data.suggested_next_actions} onActionClick={onActionClick} />
     </div>
   );
@@ -867,7 +917,7 @@ export function AuthenticationCard({ data, onActionClick, onSystemMessage }: { d
 /** Internal/silent tools that should not render a visible card */
 const SILENT_TOOLS = new Set(['UserMemoryCard', 'PlantGuideCard']);
 
-export default function DynamicUICardRenderer({ action, onActionClick, onSystemMessage }: { action: any, onActionClick?: (a: string) => void, onSystemMessage?: (msg: string) => void }) {
+export default function DynamicUICardRenderer({ action, onActionClick, onSystemMessage, onCommunityPost }: { action: any, onActionClick?: (a: string) => void, onSystemMessage?: (msg: string) => void, onCommunityPost?: (post: string) => Promise<boolean> }) {
   // Silent tools: executed by the backend but invisible to the user
   if (SILENT_TOOLS.has(action.type)) {
     return null;
@@ -881,7 +931,7 @@ export default function DynamicUICardRenderer({ action, onActionClick, onSystemM
     case 'PlantIdentificationCard':  return <PlantIdentificationCard data={action.data} onActionClick={onActionClick} />;
     case 'RecipeCard':               return <RecipeCard data={action.data} onActionClick={onActionClick} />;
     case 'MarketRedirectCard':       return <MarketRedirectCard data={action.data} onActionClick={onActionClick} />;
-    case 'CommunityRedirectCard':    return <CommunityRedirectCard data={action.data} onActionClick={onActionClick} />;
+    case 'CommunityRedirectCard':    return <CommunityRedirectCard data={action.data} onActionClick={onActionClick} onCommunityPost={onCommunityPost} />;
     case 'ExternalSearchCard':       return <ExternalSearchCard data={action.data} onActionClick={onActionClick} />;
     case 'BroadcastBuyRequestCard':  return <BroadcastBuyRequestCard data={action.data} onActionClick={onActionClick} />;
     case 'GrowSuggestionCard':       return <GrowSuggestionCard data={action.data} onActionClick={onActionClick} />;

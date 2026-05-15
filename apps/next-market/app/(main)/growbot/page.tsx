@@ -852,6 +852,26 @@ export default function GrowBotChatPage() {
     sendToGrowBot(msg, messages)
   }
 
+  // Auto-post to community board from CommunityRedirectCard
+  const handleCommunityCardPost = async (postContent: string): Promise<boolean> => {
+    if (!user) return false
+    const supabase = createClient()
+    const { data: profile } = await supabase.from('profiles').select('home_community_h3_index').eq('id', user.id).single()
+    if (!profile?.home_community_h3_index) return false
+    try {
+      const { sendCommunityMessage } = await import('../../../../../packages/app/features/community-chat/community-chat-service')
+      await sendCommunityMessage(supabase, {
+        h3Index: profile.home_community_h3_index,
+        content: postContent,
+        authorId: user.id,
+      })
+      return true
+    } catch (err: any) {
+      console.error('[GrowBot] Community card post failed:', err)
+      return false
+    }
+  }
+
   const handleNewTopic = () => {
     if (activeTopicId && messages.length > 0) {
       saveCurrentTopic(messages)
@@ -1237,7 +1257,7 @@ export default function GrowBotChatPage() {
               {msg.actions && msg.actions.length > 0 && (
                 <div>
                   {msg.actions.map((action: any, i: number) => (
-                    <DynamicUICardRenderer key={i} action={action} onActionClick={handleActionClick} onSystemMessage={handleSystemMessage} />
+                    <DynamicUICardRenderer key={i} action={action} onActionClick={handleActionClick} onSystemMessage={handleSystemMessage} onCommunityPost={handleCommunityCardPost} />
                   ))}
                 </div>
               )}
