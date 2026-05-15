@@ -24,7 +24,7 @@
         "NSPhotoLibraryUsageDescription": "CasaGrown needs photo library access to add images to your listings.",
         "NSPhotoLibraryAddUsageDescription": "CasaGrown needs permission to save delivery proof photos to your photo library.",
         "NSLocationWhenInUseUsageDescription": "CasaGrown uses your location to show nearby produce and set your community."
-      },
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -32,6 +32,7 @@
         "backgroundColor": "#f0fdf4"
       },
       "package": "com.casagrown.market",
+      "softwareKeyboardLayoutMode": "pan",
       "intentFilters": [
         {
           "action": "VIEW",
@@ -75,11 +76,12 @@
         }
       ],
       "permissions": [
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
-        "POST_NOTIFICATIONS"
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "plugins": [
@@ -109,6 +111,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "8263827d-3616-4e60-a027-9c94737c9465"
+      }
+    },
+    "owner": "rkhona"
   }
 }
