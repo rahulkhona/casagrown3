@@ -32,7 +32,7 @@
         "backgroundColor": "#f0fdf4"
       },
       "package": "com.casagrown.market",
-      "softwareKeyboardLayoutMode": "pan",
+      "softwareKeyboardLayoutMode": "resize",
       "intentFilters": [
         {
           "action": "VIEW",
