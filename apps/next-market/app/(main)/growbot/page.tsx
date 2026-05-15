@@ -657,7 +657,6 @@ export default function GrowBotChatPage() {
         bot_response: msg.text,
         conversation_context: [],
         actions: msg.actions || [],
-        image_url: questionImage || null,
         user_id: uid,
         guest_session_id: uid ? null : guestSessionIdRef.current,
       })
@@ -1363,18 +1362,26 @@ export default function GrowBotChatPage() {
               {pollView.question}
             </div>
 
-            {/* Answer — render DynamicUICards if available, otherwise full text */}
-            {pollView.actions && pollView.actions.length > 0 ? (
-              <div style={{ marginBottom: 16 }}>
-                {pollView.actions.map((action: any, i: number) => (
-                  <DynamicUICardRenderer key={i} action={action} />
-                ))}
-              </div>
-            ) : (
-              <div style={{ background: '#f0fdf4', borderRadius: '12px 12px 12px 4px', padding: '10px 14px', fontSize: 14, color: '#111827', marginBottom: 16, lineHeight: 1.6, border: '1px solid #bbf7d0', maxHeight: 200, overflowY: 'auto' }}>
-                {pollView.answer}
-              </div>
-            )}
+            {/* Answer — show text AND/OR action cards */}
+            <div style={{ marginBottom: 16 }}>
+              {pollView.answer && pollView.answer.trim().length > 0 && (
+                <div style={{ background: '#f0fdf4', borderRadius: '12px 12px 12px 4px', padding: '10px 14px', fontSize: 14, color: '#111827', lineHeight: 1.6, border: '1px solid #bbf7d0', maxHeight: 200, overflowY: 'auto' }}>
+                  {pollView.answer}
+                </div>
+              )}
+              {pollView.actions && pollView.actions.length > 0 && (
+                <div>
+                  {pollView.actions.map((action: any, i: number) => (
+                    <DynamicUICardRenderer key={i} action={action} />
+                  ))}
+                </div>
+              )}
+              {(!pollView.answer || pollView.answer.trim().length === 0) && (!pollView.actions || pollView.actions.length === 0) && (
+                <div style={{ background: '#f9fafb', borderRadius: 12, padding: '10px 14px', fontSize: 13, color: '#6b7280', fontStyle: 'italic' }}>
+                  No response content available.
+                </div>
+              )}
+            </div>
 
             {/* Vote buttons */}
             <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 10 }}>How accurate is this answer?</div>
