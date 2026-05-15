@@ -13,6 +13,28 @@ const START_URL = `${BASE_URL}/market`;
 // Prevent splash screen from hiding until WebView is loaded
 SplashScreen.preventAutoHideAsync();
 
+// Set up notification handler for foreground notifications
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
+// Create default notification channel (required for Android 8+)
+if (Platform.OS === 'android') {
+  Notifications.setNotificationChannelAsync('default', {
+    name: 'CasaGrown',
+    importance: Notifications.AndroidImportance.MAX,
+    vibrationPattern: [0, 250, 250, 250],
+    lightColor: '#22c55e',
+    sound: 'default',
+  });
+}
+
 export default function AppShell() {
   const webViewRef = useRef<WebView>(null);
   const [currentUrl, setCurrentUrl] = useState(START_URL);
