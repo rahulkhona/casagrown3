@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BackHandler, KeyboardAvoidingView, Platform, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { WebView, WebViewMessageEvent } from 'react-native-webview';
+import { WebView, WebViewMessageEvent, WebViewNavigation } from 'react-native-webview';
 import * as Linking from 'expo-linking';
 import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
@@ -9,6 +9,24 @@ import Constants from 'expo-constants';
 
 const BASE_URL = process.env.EXPO_PUBLIC_WEB_URL || 'https://casagrown.com';
 const START_URL = `${BASE_URL}/market`;
+
+/** URLs matching these hostnames stay inside the WebView; everything else opens in the system browser. */
+const isInternalUrl = (url: string): boolean => {
+  try {
+    // Allow blob/data URLs (file downloads, inline content)
+    if (url.startsWith('blob:') || url.startsWith('data:') || url.startsWith('about:')) return true;
+
+    const { hostname } = new URL(url);
+    return (
+      hostname === 'casagrown.com' ||
+      hostname.endsWith('.casagrown.com') ||
+      hostname === 'localhost' ||
+      hostname.endsWith('.supabase.co')       // Supabase auth flows
+    );
+  } catch {
+    return true; // If URL can't be parsed, let the WebView handle it
+  }
+};
 
 // Prevent splash screen from hiding until WebView is loaded
 SplashScreen.preventAutoHideAsync();
@@ -154,6 +172,14 @@ export default function AppShell() {
       onMessage={onMessage}
       onNavigationStateChange={(navState) => {
         setCanGoBack(navState.canGoBack);
+      }}
+      onShouldStartLoadWithRequest={(request: WebViewNavigation) => {
+        // External links (USDA, OFN, farmer sites) → open in system browser
+        if (!isInternalUrl(request.url)) {
+          Linking.openURL(request.url);
+          return false; // Cancel WebView navigation
+        }
+        return true; // Internal CasaGrown / auth pages stay in WebView
       }}
       onLoadEnd={() => {
         // Hide splash screen once the webview finishes its initial load
