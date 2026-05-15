@@ -131,8 +131,10 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 async function enableWebPush(userId: string): Promise<boolean> {
   const { NativeBridge } = await import('./nativeBridge')
   if (NativeBridge.isNative) {
+    console.log('[Notifications] Native mode detected, requesting push permissions...');
     return new Promise((resolve) => {
       window.receiveNativeToken = async (tokenStr: string) => {
+        console.log('[Notifications] receiveNativeToken called:', tokenStr?.substring(0, 30));
         if (tokenStr === 'DENIED') {
           storageSet('casagrown_native_push_registered', 'denied');
           resolve(false);
@@ -140,9 +142,16 @@ async function enableWebPush(userId: string): Promise<boolean> {
         }
         try {
           const supabase = createClient();
-          await supabase.functions.invoke('register-push-token', {
+          console.log('[Notifications] Registering expo token with backend...');
+          const { data, error } = await supabase.functions.invoke('register-push-token', {
             body: { token: tokenStr, platform: 'expo', endpoint: null },
           });
+          if (error) {
+            console.error('[Notifications] register-push-token error:', error);
+            resolve(false);
+            return;
+          }
+          console.log('[Notifications] Token registered successfully:', data);
           storageSet('casagrown_native_push_registered', 'granted');
           resolve(true);
         } catch (err) {
@@ -151,6 +160,7 @@ async function enableWebPush(userId: string): Promise<boolean> {
         }
       };
       NativeBridge.requestPushPermissions();
+      console.log('[Notifications] requestPushPermissions sent to native');
     });
   }
 
