@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from './supabase-browser'
+import { createClient } from './supabase'
 
 /**
  * Fetches the latest community digest (AI-generated summary of recent discussions).
@@ -12,20 +12,25 @@ export function useCommunityDigest() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const supabase = createClient()
-    supabase
-      .from('community_digests')
-      .select('summary')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
-      .then(({ data }) => {
+    async function fetchDigest() {
+      try {
+        const supabase = createClient()
+        const { data } = await supabase
+          .from('community_digests')
+          .select('summary')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single()
         if (data?.summary) {
           setDigest(data.summary)
         }
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false))
+      } catch {
+        // No digest available — will use generic share messages
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchDigest()
   }, [])
 
   return { digest, loading }
