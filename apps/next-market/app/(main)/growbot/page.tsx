@@ -572,6 +572,24 @@ export default function GrowBotChatPage() {
     setTimeout(() => inputRef.current?.focus(), 50)
   }
 
+  // ── Extract readable text from action cards (for sharing when msg.text is empty)
+  const summarizeActions = (actions?: any[]): string => {
+    if (!actions || actions.length === 0) return ''
+    return actions.map((a: any) => {
+      const d = a.data || {}
+      switch (a.type) {
+        case 'DiagnosisCard':
+          return `🔬 Diagnosis: ${d.diagnosis || 'Unknown'}\nUrgency: ${d.urgency || 'N/A'}\n\nRemedy Plan:\n${d.remedy_plan || d.remedyPlan || ''}`
+        case 'PlantIdentificationCard':
+          return `🌿 Plant: ${d.common_name || d.commonName || d.name || 'Unknown'}\nScientific: ${d.scientific_name || d.scientificName || 'N/A'}\n\n${d.description || d.care_tips || d.careTips || ''}`
+        case 'RecipeCard':
+          return `🍽️ Recipe: ${d.name || d.title || 'Recipe'}\n\n${d.description || ''}\n\nIngredients:\n${Array.isArray(d.ingredients) ? d.ingredients.join('\n') : d.ingredients || ''}`
+        default:
+          return ''
+      }
+    }).filter(Boolean).join('\n\n')
+  }
+
   // ── Share the raw answer via SocialShareModal (e.g. for recipes)
   const [shareAnswerModal, setShareAnswerModal] = useState<{ question: string; answer: string; pollUrl?: string } | null>(null)
 
@@ -1592,9 +1610,10 @@ export default function GrowBotChatPage() {
               <button
                 onClick={() => {
                   if (!user) return
+                  const answerText = pollView.answer?.trim() || summarizeActions(pollView.actions)
                   setShareAnswerModal({
                     question: pollView.question,
-                    answer: pollView.answer,
+                    answer: answerText,
                     pollUrl: `${typeof window !== 'undefined' ? window.location.origin : ''}/growbot/share/${pollView.shareId}`,
                   })
                 }}
