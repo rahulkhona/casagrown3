@@ -1,0 +1,103 @@
+# ============================================================
+# EAS Build archive filter (replaces .gitignore for EAS uploads)
+# This file exists because EAS's archive tool does NOT handle
+# gitignore negation patterns (e.g. !.yarn/releases).
+# Without this, .yarn/releases/yarn-4.13.0.cjs gets excluded
+# and the build fails with "Cannot find module".
+# ============================================================
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.*
+
+# Yarn — exclude caches but KEEP .yarn/releases/ (the yarn binary)
+.yarn/cache
+.yarn/unplugged
+.yarn/install-state.gz
+
+# Next.js
+.next/
+out/
+
+# Expo / React Native
+.expo/
+dist/
+web-build/
+*.jks
+*.p8
+*.pyc
+*.keystore
+*.gho
+package-lock.json
+yarn-error.log
+
+# Tamagui
+.tamagui/
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/*.log
+*.swp
+*.swo
+
+# Caches
+.turbo
+.cache
+unplugged/
+
+# Local env files
+.env
+.env*.local
+supabase/.env
+supabase/functions/.env
+
+# Simulator artifacts
+*.sim_log.txt
+apps/expo-community/sim_log.txt
+apps/expo-community/simulator_screen.png
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs
+*.log
+
+# Supabase
+supabase/.temp/
+supabase/functions/.debug/
+
+# TypeScript build info
+*.tsbuildinfo
+*.zip
+
+# Figma exported code
+figma_code/
+
+# Test output artifacts
+test-results/
+playwright-report/
+window_dump.xml
+
+# Test artifacts
+coverage/
+e2e/.auth/
+**/e2e/.auth/
+apps/next-admin/.env.vercel
+.vercel
+supabase/snippets/
+
+# Scratch / debug artifacts
+vitest_output.txt
+**/vitest_output.txt
+schema.sql
+clear_verification.sql
+*.sh.bak
+.gemini/
+
+# Root-level scratch test scripts
+/test-*.js
+/test-*.ts
+/test-*.mjs
