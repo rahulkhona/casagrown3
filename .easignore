@@ -20,10 +20,12 @@ node_modules/
 .next/
 out/
 
-# Expo / React Native
+# Expo / React Native — exclude local native builds so EAS prebuilds fresh
 .expo/
 dist/
 web-build/
+android/
+ios/
 *.jks
 *.p8
 *.pyc
