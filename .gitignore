@@ -97,3 +97,7 @@ clear_verification.sql
 /test-*.js
 /test-*.ts
 /test-*.mjs
+
+# Firebase config (contains API keys)
+apps/expo-market/google-services.json
+apps/expo-market/GoogleService-Info.plist

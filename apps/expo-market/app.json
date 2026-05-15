@@ -16,9 +16,13 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.casagrown.market",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "associatedDomains": [
         "applinks:casagrown.com"
       ],
+      "entitlements": {
+        "aps-environment": "production"
+      },
       "infoPlist": {
         "NSCameraUsageDescription": "CasaGrown needs camera access to photograph your produce for listings.",
         "NSPhotoLibraryUsageDescription": "CasaGrown needs photo library access to add images to your listings.",
@@ -32,6 +36,7 @@
         "backgroundColor": "#f0fdf4"
       },
       "package": "com.casagrown.market",
+      "googleServicesFile": "./google-services.json",
       "softwareKeyboardLayoutMode": "resize",
       "intentFilters": [
         {
