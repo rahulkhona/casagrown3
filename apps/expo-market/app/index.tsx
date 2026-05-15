@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { BackHandler, Platform, StyleSheet, Alert } from 'react-native';
+import { BackHandler, KeyboardAvoidingView, Platform, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import * as Linking from 'expo-linking';
@@ -114,25 +114,36 @@ export default function AppShell() {
     true; // note: this is required, or you'll sometimes get silent failures
   `;
 
+  const webview = (
+    <WebView
+      ref={webViewRef}
+      source={{ uri: currentUrl }}
+      injectedJavaScriptBeforeContentLoaded={INJECTED_JAVASCRIPT}
+      onMessage={onMessage}
+      onNavigationStateChange={(navState) => {
+        setCanGoBack(navState.canGoBack);
+      }}
+      onLoadEnd={() => {
+        // Hide splash screen once the webview finishes its initial load
+        SplashScreen.hideAsync();
+      }}
+      allowsBackForwardNavigationGestures={true}
+      bounces={false}
+      pullToRefreshEnabled={true}
+      overScrollMode="never"
+      style={styles.webview}
+    />
+  );
+
   return (
     <SafeAreaView style={styles.container}>
-      <WebView
-        ref={webViewRef}
-        source={{ uri: currentUrl }}
-        injectedJavaScriptBeforeContentLoaded={INJECTED_JAVASCRIPT}
-        onMessage={onMessage}
-        onNavigationStateChange={(navState) => {
-          setCanGoBack(navState.canGoBack);
-        }}
-        onLoadEnd={() => {
-          // Hide splash screen once the webview finishes its initial load
-          SplashScreen.hideAsync();
-        }}
-        allowsBackForwardNavigationGestures={true}
-        bounces={false}
-        pullToRefreshEnabled={true}
-        style={styles.webview}
-      />
+      {Platform.OS === 'android' ? (
+        <KeyboardAvoidingView style={styles.container} behavior="height">
+          {webview}
+        </KeyboardAvoidingView>
+      ) : (
+        webview
+      )}
     </SafeAreaView>
   );
 }
