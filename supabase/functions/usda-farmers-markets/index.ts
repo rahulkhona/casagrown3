@@ -70,7 +70,7 @@ serve(async (req) => {
       )
     }
 
-    const apiKey = Deno.env.get('USDA_API_KEY') || ''
+    const apiKey = Deno.env.get('USDA_API_KEYS') || Deno.env.get('USDA_API_KEY') || ''
     if (!apiKey) {
       console.warn('USDA_API_KEY is not set')
     }
