@@ -1275,19 +1275,21 @@ function NewProductPageInner() {
         )}
 
         {/* ===== Market Day — display only ===== */}
-        <div className={styles.section}>
-          <div className={styles.marketDayBanner}>
-            <span className={styles.marketDayIcon}>📅</span>
-            <div>
-              <strong>Next Market Day: {nextMarket?.label || 'TBD'}</strong>
-              {nextMarket && (
-                <span className={styles.marketDayTime}>
-                  {formatTime(nextMarket.openTime)} – {formatTime(nextMarket.closeTime)}
-                </span>
-              )}
+        {!state.marketNeverCloses && (
+          <div className={styles.section}>
+            <div className={styles.marketDayBanner}>
+              <span className={styles.marketDayIcon}>📅</span>
+              <div>
+                <strong>Next Market Day: {nextMarket?.label || 'TBD'}</strong>
+                {nextMarket && (
+                  <span className={styles.marketDayTime}>
+                    {formatTime(nextMarket.openTime)} – {formatTime(nextMarket.closeTime)}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         <form onSubmit={handleSubmit}>
 

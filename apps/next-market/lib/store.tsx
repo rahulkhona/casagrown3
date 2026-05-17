@@ -220,7 +220,7 @@ const PHOTO = (emoji: string, bg: string) =>
 // ============================================================================
 
 const MOCK_USER: User = {
-  id: 'user-1',
+  id: 'f1111111-1111-1111-1111-111111111111',
   name: 'Alex Rivera',
   email: 'alex@example.com',
   phone: '(555) 123-4567',
@@ -386,54 +386,29 @@ const MOCK_PRODUCTS: Product[] = [
 
 const MOCK_ORDERS: Order[] = [
   {
-    id: 'order-1', buyerId: 'user-1', buyerName: 'Alex Rivera',
-    sellerId: 'user-2', sellerName: 'Maria Garcia',
-    boothId: 'booth-1', boothName: "Maria's Garden Fresh",
+    id: 'order-1', buyerId: 'f2222222-2222-2222-2222-222222222222', buyerName: 'David Chen',
+    sellerId: 'f1111111-1111-1111-1111-111111111111', sellerName: 'Sarah Jenkins',
+    boothId: 'booth-1', boothName: "Sarah's Heritage Harvest",
     items: [
-      { productId: 'prod-1', productName: 'Heritage Tomatoes', qty: 2, unitPrice: 4.50, couponDiscount: 0 },
-      { productId: 'prod-2', productName: 'Fresh Basil Bunch', qty: 1, unitPrice: 3.00, couponDiscount: 0 },
+      { productId: 'prod-1', productName: 'Heritage Garlic Bulbs', qty: 2, unitPrice: 8.50, couponDiscount: 0 },
     ],
-    subtotal: 12.00, tax: 1.11, platformFee: 0.60, total: 13.71,
-    status: 'accepted', deliveryType: 'delivery', passcode: '847293',
-    proofPhotos: [], createdAt: '2026-03-12T08:15:00Z', updatedAt: '2026-03-12T08:20:00Z',
-  },
-  {
-    id: 'order-2', buyerId: 'user-1', buyerName: 'Alex Rivera',
-    sellerId: 'user-3', sellerName: 'James Chen',
-    boothId: 'booth-2', boothName: "Chen's Citrus Corner",
-    items: [
-      { productId: 'prod-6', productName: 'Meyer Lemons', qty: 3, unitPrice: 3.50, couponDiscount: 0 },
-    ],
-    subtotal: 10.50, tax: 0.97, platformFee: 0.53, total: 12.00,
-    status: 'confirmed', deliveryType: 'pickup', passcode: '159374',
-    proofPhotos: [], createdAt: '2026-03-11T09:00:00Z', updatedAt: '2026-03-11T09:45:00Z',
+    subtotal: 17.00, tax: 1.57, platformFee: 0.85, total: 19.42,
+    status: 'accepted', deliveryType: 'pickup', passcode: '847293',
+    proofPhotos: [], createdAt: '2026-05-12T08:15:00Z', updatedAt: '2026-05-12T08:20:00Z',
   },
 ]
 
 const MOCK_CONVERSATIONS: Conversation[] = [
   {
-    id: 'conv-1', orderId: 'order-1', buyerId: 'user-1', buyerName: 'Alex Rivera',
-    sellerId: 'user-2', sellerName: 'Maria Garcia', boothName: "Maria's Garden Fresh",
-    lastMessage: 'Your order has been accepted! I\'ll start preparing it.',
-    lastMessageAt: '2026-03-12T08:20:00Z', unread: 1,
+    id: 'conv-1', orderId: 'order-1', buyerId: 'f2222222-2222-2222-2222-222222222222', buyerName: 'David Chen',
+    sellerId: 'f1111111-1111-1111-1111-111111111111', sellerName: 'Sarah Jenkins', boothName: "Sarah's Heritage Harvest",
+    lastMessage: 'Awesome! See you then! 😊',
+    lastMessageAt: '2026-05-12T08:20:30Z', unread: 1,
     messages: [
-      { id: 'msg-1', senderId: 'system', senderName: 'System', text: 'Order #order-1 placed for Heritage Tomatoes (2 lb), Fresh Basil Bunch (1).', type: 'system', timestamp: '2026-03-12T08:15:00Z' },
-      { id: 'msg-2', senderId: 'user-1', senderName: 'Alex Rivera', text: 'Hi Maria! Are the tomatoes ripe and ready? I\'m making bruschetta tonight.', type: 'text', timestamp: '2026-03-12T08:16:00Z' },
-      { id: 'msg-3', senderId: 'user-2', senderName: 'Maria Garcia', text: 'Yes! Just picked them this morning. They\'re perfect for bruschetta! 🍅', type: 'text', timestamp: '2026-03-12T08:18:00Z' },
-      { id: 'msg-4', senderId: 'system', senderName: 'System', text: 'Maria Garcia accepted the order.', type: 'system', timestamp: '2026-03-12T08:20:00Z' },
-      { id: 'msg-5', senderId: 'user-2', senderName: 'Maria Garcia', text: 'Your order has been accepted! I\'ll start preparing it.', type: 'text', timestamp: '2026-03-12T08:20:30Z' },
-    ],
-  },
-  {
-    id: 'conv-2', orderId: 'order-2', buyerId: 'user-1', buyerName: 'Alex Rivera',
-    sellerId: 'user-3', sellerName: 'James Chen', boothName: "Chen's Citrus Corner",
-    lastMessage: 'Thanks for the amazing lemons! 🍋',
-    lastMessageAt: '2026-03-11T09:45:00Z', unread: 0,
-    messages: [
-      { id: 'msg-6', senderId: 'system', senderName: 'System', text: 'Order #order-2 placed for Meyer Lemons (3 lb).', type: 'system', timestamp: '2026-03-11T09:00:00Z' },
-      { id: 'msg-7', senderId: 'user-3', senderName: 'James Chen', text: 'Great choice! Come by anytime between 8 and 11.', type: 'text', timestamp: '2026-03-11T09:05:00Z' },
-      { id: 'msg-8', senderId: 'system', senderName: 'System', text: 'Delivery confirmed. Order complete.', type: 'system', timestamp: '2026-03-11T09:40:00Z' },
-      { id: 'msg-9', senderId: 'user-1', senderName: 'Alex Rivera', text: 'Thanks for the amazing lemons! 🍋', type: 'text', timestamp: '2026-03-11T09:45:00Z' },
+      { id: 'msg-2', senderId: 'f2222222-2222-2222-2222-222222222222', senderName: 'David Chen', text: 'Hi Sarah! Are the garlic bulbs ready for pickup?', type: 'text', timestamp: '2026-05-12T08:16:00Z' },
+      { id: 'msg-3', senderId: 'f1111111-1111-1111-1111-111111111111', senderName: 'Sarah Jenkins', text: 'Yes! Just bagged them up this morning. They look great! 🧄', type: 'text', timestamp: '2026-05-12T08:18:00Z' },
+      { id: 'msg-4', senderId: 'f2222222-2222-2222-2222-222222222222', senderName: 'David Chen', text: 'Perfect, I will swing by in about 10 minutes.', type: 'text', timestamp: '2026-05-12T08:20:00Z' },
+      { id: 'msg-5', senderId: 'f1111111-1111-1111-1111-111111111111', senderName: 'Sarah Jenkins', text: 'Awesome! See you then! 😊', type: 'text', timestamp: '2026-05-12T08:20:30Z' },
     ],
   },
 ]
@@ -521,7 +496,7 @@ function reducer(state: MarketState, action: Action): MarketState {
         productCount: 0, rating: 5.0, totalSales: 0, createdAt: new Date().toISOString(),
       }
       // Auto-authenticate: if they created a booth, they're a valid user
-      const user: User = state.user || { id: 'user-1', name: action.payload.ownerName, email: '', phone: '', address: { street: '', city: '', state: '', zip: '' } }
+      const user: User = state.user || { id: 'f1111111-1111-1111-1111-111111111111', name: action.payload.ownerName, email: '', phone: '', address: { street: '', city: '', state: '', zip: '' } }
       return { ...state, booths: [...state.booths, booth], user, isAuthenticated: true }
     }
     case 'UPDATE_BOOTH':
