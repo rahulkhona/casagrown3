@@ -133,6 +133,28 @@ async function cleanupUser(id: string) {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// Test 0: Unauthenticated users are redirected to login (regression guard)
+// Prevents: stuck "Checking account status..." for logged-out visitors
+// ─────────────────────────────────────────────────────────────────────
+test('unauthenticated /delete-account redirects to login', async ({ browser }) => {
+  // Use a fresh context with no auth cookies — simulates a logged-out visitor
+  const ctx = await browser.newContext()
+  const p = await ctx.newPage()
+  await p.goto('/delete-account')
+  await p.waitForLoadState('networkidle')
+
+  // Must end up at /login (with next param), not stuck on loading spinner
+  await expect(p).toHaveURL(/\/login/, { timeout: 10_000 })
+
+  // Must NOT still be showing the loading message
+  const loadingText = p.locator('text=Checking account status')
+  await expect(loadingText).not.toBeVisible()
+
+  console.log('[DELETE-ACCOUNT] ✅ Unauthenticated redirect to login verified:', p.url())
+  await ctx.close()
+})
+
+// ─────────────────────────────────────────────────────────────────────
 // Test 1: Delete Account page renders correctly
 // ─────────────────────────────────────────────────────────────────────
 test('delete account page shows confirmation UI', async ({ page }) => {
