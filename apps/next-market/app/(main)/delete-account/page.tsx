@@ -46,7 +46,7 @@ export default function DeleteAccountPage() {
       setLoading(false)
     }
     fetchPreflight()
-  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, authLoading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDelete = async () => {
     if (confirmText !== 'DELETE') return
