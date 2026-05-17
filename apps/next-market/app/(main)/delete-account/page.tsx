@@ -18,7 +18,7 @@ interface PreflightData {
 }
 
 export default function DeleteAccountPage() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const { dispatch } = useMarket()
   const supabase = createClient()
@@ -29,7 +29,11 @@ export default function DeleteAccountPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    if (!user) return
+    if (authLoading) return // still hydrating
+    if (!user) {
+      router.replace('/login?next=/delete-account')
+      return
+    }
     const fetchPreflight = async () => {
       const { data, error } = await supabase.rpc('get_closure_preflight', {
         p_user_id: user.id
