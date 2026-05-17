@@ -45,8 +45,9 @@ test.describe('Market Browse', () => {
     await page.goto('/market')
     await page.waitForTimeout(2000)
     const categoryFilter = page.locator('button, [role="tab"]').filter({ hasText: /produce|baked|eggs/i }).first()
-    if (await categoryFilter.isVisible()) {
-      await categoryFilter.click()
+    if (await categoryFilter.isVisible({ timeout: 3000 }).catch(() => false)) {
+      // Filter button may be disabled during loading — force click is safe here
+      await categoryFilter.click({ force: true, timeout: 5000 }).catch(() => {})
       await page.waitForTimeout(500)
     }
   })

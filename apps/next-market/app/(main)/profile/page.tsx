@@ -533,6 +533,22 @@ function ProfilePageInner() {
           {saving ? 'Saving...' : saved ? '✓ Saved' : 'Save Profile'}
         </button>
       </form>
+
+      {/* Delete Account — positioned at the very bottom of the profile page */}
+      <div style={{ marginTop: 32, paddingTop: 20, borderTop: '1px solid var(--gray-200)' }}>
+        <button
+          data-testid="delete-account-link"
+          className="btn btn-outline"
+          style={{
+            width: '100%', justifyContent: 'flex-start',
+            color: 'var(--red-600)', borderColor: 'var(--red-200)',
+          }}
+          onClick={() => window.location.assign('/delete-account')}
+        >
+          🗑️ Delete Account
+        </button>
+      </div>
+
       <NotificationPromptModal {...modalProps} />
     </div>
   )

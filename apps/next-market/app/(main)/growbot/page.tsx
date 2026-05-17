@@ -718,10 +718,16 @@ export default function GrowBotChatPage() {
       email: pollGuestForm.email.toLowerCase().trim(),
       options: { shouldCreateUser: true },
     })
-    setPollGuestForm(p => error
-      ? { ...p, loading: false, error: error.message }
-      : { ...p, loading: false, step: 'otp' }
-    )
+    setPollGuestForm(p => {
+      if (error) {
+        const msg = error.message?.toLowerCase() || ''
+        const friendlyMsg = (msg.includes('database error saving new user') || msg.includes('not available for registration'))
+          ? 'This email address has been permanently closed and cannot be used to create a new account.'
+          : error.message
+        return { ...p, loading: false, error: friendlyMsg }
+      }
+      return { ...p, loading: false, step: 'otp' }
+    })
   }
 
   const handleGuestPollVerify = async () => {

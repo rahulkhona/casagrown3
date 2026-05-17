@@ -53,6 +53,22 @@ async function insertTestImage(page: any) {
   return testImageUrl
 }
 
+// Helper: Click the image and wait for the sizing popover to appear.
+// Retries up to 3 times with increasing delays — Quill image blot click
+// registration can race with editor focus and fail on first attempt.
+async function clickImageAndOpenPopover(page: any, img: any) {
+  const popover = page.locator('[data-testid="img-sizing-popover"]')
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    await img.click({ force: true })
+    await page.waitForTimeout(400 * attempt) // 400ms, 800ms, 1200ms
+    if (await popover.isVisible({ timeout: 2000 }).catch(() => false)) return popover
+    console.log(`[EDITOR] Popover not visible after attempt ${attempt}, retrying...`)
+  }
+  // Final assertion — will produce a clear failure message if still not visible
+  await expect(popover).toBeVisible({ timeout: 5000 })
+  return popover
+}
+
 // Helper: Insert a table by clicking the grid popover and wait for it to render
 async function insertTable(page: any, rows: number, cols: number) {
   // Click in editor first to set focus
@@ -89,11 +105,7 @@ test.describe('Image Sizing in WYSIWYG Editor', () => {
     const img = page.locator('.ql-editor img').first()
     await expect(img).toBeVisible({ timeout: 5000 })
 
-    await img.click({ force: true })
-    await page.waitForTimeout(400)
-
-    const popover = page.locator('[data-testid="img-sizing-popover"]')
-    await expect(popover).toBeVisible({ timeout: 5000 })
+    const popover = await clickImageAndOpenPopover(page, img)
     await expect(page.locator('[data-testid="img-size-small"]')).toBeVisible()
     await expect(page.locator('[data-testid="img-size-medium"]')).toBeVisible()
     await expect(page.locator('[data-testid="img-size-full"]')).toBeVisible()
@@ -106,9 +118,7 @@ test.describe('Image Sizing in WYSIWYG Editor', () => {
     const img = page.locator('.ql-editor img').first()
     await expect(img).toBeVisible({ timeout: 5000 })
 
-    await img.click({ force: true })
-    await page.waitForTimeout(400)
-    await expect(page.locator('[data-testid="img-sizing-popover"]')).toBeVisible({ timeout: 5000 })
+    await clickImageAndOpenPopover(page, img)
 
     await page.click('[data-testid="img-size-medium"]')
     await page.waitForTimeout(300)
@@ -123,9 +133,7 @@ test.describe('Image Sizing in WYSIWYG Editor', () => {
     const img = page.locator('.ql-editor img').first()
     await expect(img).toBeVisible({ timeout: 5000 })
 
-    await img.click({ force: true })
-    await page.waitForTimeout(400)
-    await expect(page.locator('[data-testid="img-sizing-popover"]')).toBeVisible({ timeout: 5000 })
+    await clickImageAndOpenPopover(page, img)
 
     const widthInput = page.locator('[data-testid="img-custom-width"]')
     await widthInput.fill('250')
@@ -142,9 +150,7 @@ test.describe('Image Sizing in WYSIWYG Editor', () => {
     const img = page.locator('.ql-editor img').first()
     await expect(img).toBeVisible({ timeout: 5000 })
 
-    await img.click({ force: true })
-    await page.waitForTimeout(400)
-    await expect(page.locator('[data-testid="img-sizing-popover"]')).toBeVisible({ timeout: 5000 })
+    await clickImageAndOpenPopover(page, img)
 
     await page.click('[data-testid="img-align-center"]')
     await page.waitForTimeout(300)
@@ -165,9 +171,7 @@ test.describe('Image Sizing in WYSIWYG Editor', () => {
     const img = page.locator('.ql-editor img').first()
     await expect(img).toBeVisible({ timeout: 5000 })
 
-    await img.click({ force: true })
-    await page.waitForTimeout(400)
-    await expect(page.locator('[data-testid="img-sizing-popover"]')).toBeVisible({ timeout: 5000 })
+    await clickImageAndOpenPopover(page, img)
 
     const altInput = page.locator('[data-testid="img-alt-text"]')
     await altInput.fill('Fresh garden produce from CasaGrown')
@@ -185,9 +189,7 @@ test.describe('Image Sizing in WYSIWYG Editor', () => {
     const img = page.locator('.ql-editor img').first()
     await expect(img).toBeVisible({ timeout: 5000 })
 
-    await img.click({ force: true })
-    await page.waitForTimeout(400)
-    await expect(page.locator('[data-testid="img-sizing-popover"]')).toBeVisible({ timeout: 5000 })
+    await clickImageAndOpenPopover(page, img)
 
     await page.click('[data-testid="img-size-small"]')
     await page.waitForTimeout(300)
@@ -202,9 +204,7 @@ test.describe('Image Sizing in WYSIWYG Editor', () => {
     const img = page.locator('.ql-editor img').first()
     await expect(img).toBeVisible({ timeout: 5000 })
 
-    await img.click({ force: true })
-    await page.waitForTimeout(400)
-    await expect(page.locator('[data-testid="img-sizing-popover"]')).toBeVisible({ timeout: 5000 })
+    await clickImageAndOpenPopover(page, img)
 
     await page.click('[data-testid="img-size-full"]')
     await page.waitForTimeout(300)
@@ -219,9 +219,7 @@ test.describe('Image Sizing in WYSIWYG Editor', () => {
     const img = page.locator('.ql-editor img').first()
     await expect(img).toBeVisible({ timeout: 5000 })
 
-    await img.click({ force: true })
-    await page.waitForTimeout(400)
-    await expect(page.locator('[data-testid="img-sizing-popover"]')).toBeVisible({ timeout: 5000 })
+    await clickImageAndOpenPopover(page, img)
 
     await page.click('[data-testid="img-remove"]')
     await page.waitForTimeout(500)
@@ -343,9 +341,7 @@ test.describe('HTML Output Integrity', () => {
     const img = page.locator('.ql-editor img').first()
     await expect(img).toBeVisible({ timeout: 5000 })
 
-    await img.click({ force: true })
-    await page.waitForTimeout(400)
-    await expect(page.locator('[data-testid="img-sizing-popover"]')).toBeVisible({ timeout: 5000 })
+    await clickImageAndOpenPopover(page, img)
     await page.click('[data-testid="img-size-medium"]')
     await page.waitForTimeout(500)
 

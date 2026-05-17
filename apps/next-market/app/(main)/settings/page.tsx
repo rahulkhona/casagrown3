@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useMarket } from '../../../lib/store'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../../../lib/useAuth'
@@ -145,6 +145,8 @@ export default function SettingsPage() {
   const { state, dispatch } = useMarket()
   const router = useRouter()
   const { user } = useAuth()
+  const [isMounted, setIsMounted] = useState(false)
+  useEffect(() => { setIsMounted(true) }, [])
 
   return (
     <div className="container-sm">
@@ -176,7 +178,7 @@ export default function SettingsPage() {
       </div>
 
       {/* PWA Install */}
-      {typeof window !== 'undefined' && !window.IS_NATIVE_APP && (
+      {isMounted && !(window as any).IS_NATIVE_APP && (
         <div className="card" style={{ padding: 20, marginBottom: 12 }}>
           <strong style={{ fontSize: 15 }}>📱 Install App</strong>
           <p style={{ fontSize: 13, color: 'var(--gray-500)', marginTop: 2, marginBottom: 12 }}>
@@ -197,13 +199,26 @@ export default function SettingsPage() {
           <button className="btn btn-outline" style={{ width: '100%', justifyContent: 'flex-start' }} onClick={() => router.push('/profile-setup')}>
             ✏️ Edit Profile
           </button>
-          {state.isAuthenticated && (
+          {!!user && (
             <button className="btn btn-danger" style={{ width: '100%', justifyContent: 'flex-start' }} onClick={() => {
               dispatch({ type: 'LOGOUT' })
               dispatch({ type: 'ADD_TOAST', payload: { message: 'Logged out', type: 'info' } })
               router.push('/')
             }}>
               🚪 Log Out
+            </button>
+          )}
+          {!!user && (
+            <button
+              data-testid="delete-account-link"
+              className="btn btn-outline"
+              style={{
+                width: '100%', justifyContent: 'flex-start',
+                color: 'var(--red-600)', borderColor: 'var(--red-200)',
+              }}
+              onClick={() => router.push('/delete-account')}
+            >
+              🗑️ Delete Account
             </button>
           )}
         </div>

@@ -28,6 +28,7 @@ export default function MentionPicker({ query, onSelect, h3Index }: MentionPicke
         .from('profiles')
         .select('id, full_name, avatar_url')
         .eq('home_community_h3_index', h3Index)
+        .is('closure_status', null)
         .ilike('full_name', `${query}%`)
         .limit(5)
         

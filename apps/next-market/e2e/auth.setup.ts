@@ -2,9 +2,10 @@
  * Auth setup for Market Playwright tests.
  *
  * Uses Supabase GoTrue REST API to get a JWT, then injects it into
- * the browser's localStorage so tests can run as an authenticated user.
+ * the browser's localStorage AND cookies so tests can run as an authenticated user.
  *
- * Same pattern as the community app's auth.setup.ts.
+ * The @supabase/ssr createBrowserClient reads session from cookies by default,
+ * so we must set cookies in addition to localStorage.
  */
 import { test as setup, expect } from '@playwright/test'
 
@@ -39,7 +40,7 @@ setup('authenticate market user', async ({ page }) => {
   // 2. Navigate to market login page first (sets correct origin)
   await page.goto('/login')
 
-  // 3. Inject JWT into localStorage
+  // 3. Inject JWT into localStorage (legacy keys)
   await page.evaluate(
     ({ accessToken, refreshToken, user: u }) => {
       const sessionPayload = JSON.stringify({
@@ -63,6 +64,41 @@ setup('authenticate market user', async ({ page }) => {
     { accessToken: access_token, refreshToken: refresh_token, user }
   )
 
-  // 4. Save browser storage state
+  // 4. Set cookies for @supabase/ssr createBrowserClient
+  // The SSR client uses cookies with base64url encoding by default.
+  // Cookie name defaults to STORAGE_KEY = 'supabase.auth.token'
+  const sessionForCookie = {
+    access_token,
+    refresh_token,
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+    expires_in: 3600,
+    token_type: 'bearer',
+    user,
+  }
+  const cookieValue = Buffer.from(JSON.stringify(sessionForCookie)).toString('base64url')
+
+  await page.context().addCookies([
+    {
+      name: 'sb-127-auth-token',
+      value: `base64-${cookieValue}`,
+      domain: '127.0.0.1',
+      path: '/',
+      sameSite: 'Lax',
+      httpOnly: false,
+      expires: Math.floor(Date.now() / 1000) + 3600,
+    },
+    {
+      name: 'supabase.auth.token',
+      value: `base64-${cookieValue}`,
+      domain: '127.0.0.1',
+      path: '/',
+      sameSite: 'Lax',
+      httpOnly: false,
+      expires: Math.floor(Date.now() / 1000) + 3600,
+    },
+  ])
+
+  // 5. Save browser storage state (includes both localStorage and cookies)
   await page.context().storageState({ path: authFile })
 })
+

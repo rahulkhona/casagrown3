@@ -460,6 +460,22 @@ else
   log_suite "GrowBot Edge" "$GROWBOT_PASSED" "$GROWBOT_FAILED"
 fi
 
+# 5m: Account Closure tests
+echo "  Running Account Closure tests..."
+CLOSURE_OUTPUT=$(cd supabase && deno test --allow-env --allow-net --allow-run --no-check \
+  functions/_tests/account-closure.test.ts 2>&1)
+CLOSURE_PASSED=$(echo "$CLOSURE_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
+CLOSURE_FAILED=$(echo "$CLOSURE_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
+
+if [ "${CLOSURE_FAILED:-0}" -eq 0 ] || [ -z "$CLOSURE_FAILED" ]; then
+  echo -e "  ${GREEN}✅ Account Closure: ${CLOSURE_PASSED} tests — ALL PASS${NC}"
+  log_suite "Account Closure" "$CLOSURE_PASSED"
+else
+  echo -e "  ${RED}❌ Account Closure: ${CLOSURE_PASSED} passed, ${CLOSURE_FAILED} failed${NC}"
+  echo "$CLOSURE_OUTPUT" | grep "FAILED" | head -10
+  log_suite "Account Closure" "$CLOSURE_PASSED" "$CLOSURE_FAILED"
+fi
+
 # ─────────────────────────────────────────────────────────────────────────
 # PHASE 6: Shell Integration Tests (Escalation Handling)
 # ─────────────────────────────────────────────────────────────────────────

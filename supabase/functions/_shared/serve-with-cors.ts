@@ -217,7 +217,17 @@ export async function requireAuth(
         // Not a valid JWT, fall through to user auth
     }
 
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+    // Use anon-key client for user token verification.
+    // The service-role client may reject HS256 user JWTs in some environments.
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
+    const authClient = ANON_KEY
+        ? createClient(SUPABASE_URL, ANON_KEY, {
+            global: { headers: { Authorization: `Bearer ${token}` } },
+          })
+        : supabase;
+
+    const { data: { user }, error } = await authClient.auth.getUser(token);
 
     if (error) {
         console.error("Auth Error (getUser failed):", error.message);

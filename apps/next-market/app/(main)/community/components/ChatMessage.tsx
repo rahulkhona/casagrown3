@@ -141,7 +141,7 @@ export default function ChatMessage({ message, currentUserId, onDelete, onFlag, 
           {isBot && <span className={styles.botBadge}>BOT</span>}
           
           {/* NEW: Inline Message Action */}
-          {!isOwnMessage && !isGuest && (
+          {!isOwnMessage && !isGuest && message.author_name !== 'Deleted User' && (
             <div style={{ display: 'inline-flex', alignItems: 'center' }}>
               {(!isBot || message.author_name === 'GrowBot' || message.author_id === 'a0000000-0000-0000-0000-00000ca5ab07') && (
                 <a 

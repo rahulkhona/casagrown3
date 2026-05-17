@@ -446,27 +446,38 @@ test.describe('Reject & Refund Workflow', () => {
     // The navbar also has 'seller@test.local', so the count should go from 2 down to 1.
     await expect(page.getByText('seller@test.local', { exact: true })).toHaveCount(1, { timeout: 15000 })
 
-    // 5. Verify the email via Mailpit (API exposed locally on 54324 usually in test env)
-    // In our test, Mailpit is running on localhost:54324
-    let emailFound = false;
-    for (let i = 0; i < 5; i++) {
-        await page.waitForTimeout(2000)
-        const mailRes = await request.get('http://localhost:54324/api/v1/messages')
-        if (mailRes.ok()) {
-            const data = await mailRes.json()
-            const messages = data.messages || []
-            if (messages.some((m: any) => m.Subject.includes('CasaGrown Market') && m.Snippet.includes(rejectReason))) {
-                emailFound = true;
-                break;
-            }
-        }
-    }
-    expect(emailFound).toBe(true)
-
-    // 6. Verify SMS via supabase rest API (service role bypass)
+    // 5. Verify In-App Notification via supabase rest API
+    // Poll with retries — the trigger commit can race with the REST read when
+    // called immediately after the UI confirmation.
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321'
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
     
+    let inAppData: any[] = []
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const inAppRes = await request.get(
+        `${supabaseUrl}/rest/v1/market_notifications?content=ilike.*${encodeURIComponent(rejectReason)}*&order=created_at.desc&limit=5`,
+        { headers: { 'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey } }
+      )
+      if (inAppRes.ok()) {
+        inAppData = await inAppRes.json()
+        if (inAppData.length > 0) break
+      }
+      console.log(`[PAYOUT-TEST] In-app poll attempt ${attempt + 1}: ${inAppData.length} rows`)
+      await page.waitForTimeout(1500)
+    }
+    console.log('[PAYOUT-TEST] In-app notification found:', inAppData.length, inAppData[0]?.content?.substring(0, 80))
+    expect(inAppData.length).toBeGreaterThan(0)
+
+    // 6. Verify Funds Return (Ledger entry for refund)
+    const ledgerRes = await request.get(`${supabaseUrl}/rest/v1/market_ledger?user_id=eq.a1111111-1111-1111-1111-111111111111&event_type=eq.refund_issued`, {
+        headers: { 'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey }
+    })
+    expect(ledgerRes.ok()).toBe(true)
+    const ledgerData = await ledgerRes.json()
+    expect(ledgerData.length).toBeGreaterThan(0)
+    expect(ledgerData[0].amount_usd).toBe(15) // The refunded amount from our seed in USD
+
+    // 7. Verify SMS via supabase rest API (service role bypass)
     const smsRes = await request.get(`${supabaseUrl}/rest/v1/sms_notification_log?message=ilike.*${encodeURIComponent(rejectReason)}*`, {
         headers: { 'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey }
     })
@@ -475,7 +486,7 @@ test.describe('Reject & Refund Workflow', () => {
     expect(smsData.length).toBeGreaterThan(0)
     expect(smsData[0].status).toBe('skipped_disabled') // from our feature flag
 
-    // 7. Verify Push via supabase rest API (poll — async dispatch)
+    // 8. Verify Push via supabase rest API (poll — async dispatch)
     let pushFound = false
     for (let i = 0; i < 5; i++) {
       await page.waitForTimeout(1000)
@@ -491,22 +502,28 @@ test.describe('Reject & Refund Workflow', () => {
     }
     expect(pushFound).toBe(true)
 
-    // 8. Verify In-App Notification via supabase rest API
-    const inAppRes = await request.get(`${supabaseUrl}/rest/v1/market_notifications?content=ilike.*${encodeURIComponent(rejectReason)}*`, {
-        headers: { 'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey }
-    })
-    expect(inAppRes.ok()).toBe(true)
-    const inAppData = await inAppRes.json()
-    expect(inAppData.length).toBeGreaterThan(0)
-
-    // 9. Verify Funds Return (Ledger entry for refund)
-    const ledgerRes = await request.get(`${supabaseUrl}/rest/v1/market_ledger?user_id=eq.a1111111-1111-1111-1111-111111111111&event_type=eq.refund_issued`, {
-        headers: { 'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey }
-    })
-    expect(ledgerRes.ok()).toBe(true)
-    const ledgerData = await ledgerRes.json()
-    expect(ledgerData.length).toBeGreaterThan(0)
-    expect(ledgerData[0].amount_usd).toBe(15) // The refunded amount from our seed in USD
+    // 9. Verify the email via Mailpit (async — pg_net processes http_request_queue)
+    // This is the least reliable channel in test because pg_net's background worker
+    // may delay or the send-email-notification edge function may not be fully configured.
+    let emailFound = false;
+    for (let i = 0; i < 5; i++) {
+        await page.waitForTimeout(2000)
+        const mailRes = await request.get('http://localhost:54324/api/v1/messages')
+        if (mailRes.ok()) {
+            const data = await mailRes.json()
+            const messages = data.messages || []
+            if (messages.some((m: any) =>
+              m.Subject?.includes('CasaGrown Market') && m.Snippet?.includes(rejectReason)
+            )) {
+                emailFound = true;
+                break;
+            }
+        }
+    }
+    if (!emailFound) {
+      console.log('[PAYOUT-TEST] ⚠ Email not found in Mailpit — pg_net async delay. In-app + SMS + Push verified.')
+    }
+    expect(emailFound).toBe(true)
   })
 })
 

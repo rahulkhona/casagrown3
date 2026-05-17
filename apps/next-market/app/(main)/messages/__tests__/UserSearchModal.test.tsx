@@ -37,6 +37,7 @@ describe('UserSearchModal', () => {
     const mockQuery = {
       select: vi.fn().mockReturnThis(),
       neq: vi.fn().mockReturnThis(),
+      is: vi.fn().mockReturnThis(),
       ilike: vi.fn().mockReturnThis(),
       limit: vi.fn().mockReturnThis(),
       order: vi.fn().mockResolvedValue({
@@ -59,6 +60,7 @@ describe('UserSearchModal', () => {
     const mockQuery = {
       select: vi.fn().mockReturnThis(),
       neq: vi.fn().mockReturnThis(),
+      is: vi.fn().mockReturnThis(),
       ilike: vi.fn().mockReturnThis(),
       limit: vi.fn().mockReturnThis(),
       order: vi.fn().mockResolvedValue({
@@ -83,6 +85,7 @@ describe('UserSearchModal', () => {
     const mockQuery = {
       select: vi.fn().mockReturnThis(),
       neq: vi.fn().mockReturnThis(),
+      is: vi.fn().mockReturnThis(),
       ilike: vi.fn().mockReturnThis(),
       limit: vi.fn().mockReturnThis(),
       order: vi.fn().mockResolvedValue({ data: [], error: null })

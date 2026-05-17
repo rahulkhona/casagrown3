@@ -199,7 +199,7 @@ export default function MessageThreadPage() {
       // Fetch conversation metadata
       const { data: convData, error: convError } = await supabase
         .from('market_conversations')
-        .select('*, profile_a:profiles!market_conversations_participant_a_fkey(id, full_name, avatar_url), profile_b:profiles!market_conversations_participant_b_fkey(id, full_name, avatar_url)')
+        .select('*, profile_a:profiles!market_conversations_participant_a_fkey(id, full_name, avatar_url, closure_status), profile_b:profiles!market_conversations_participant_b_fkey(id, full_name, avatar_url, closure_status)')
         .eq('id', id)
         .single()
 
@@ -433,7 +433,9 @@ export default function MessageThreadPage() {
       return
     }
 
-    if ((!inputText.trim() && mediaFiles.length === 0) || sending || isBlocked) return
+    // Block sending to closed/deleted accounts
+    const isRecipientClosed = otherUser?.closure_status != null || otherUser?.full_name === 'Deleted User'
+    if ((!inputText.trim() && mediaFiles.length === 0) || sending || isBlocked || isRecipientClosed) return
 
     // Anti-harassment: Inline moderation check if there's text
     if (inputText.trim()) {
@@ -999,7 +1001,11 @@ export default function MessageThreadPage() {
             </button>
           </div>
         )}
-        {isBlocked ? (
+        {(otherUser?.closure_status != null || otherUser?.full_name === 'Deleted User') ? (
+          <div style={{ textAlign: 'center', padding: '16px', background: '#fef3c7', borderRadius: 20, color: '#92400e', fontSize: '0.875rem', lineHeight: 1.5 }}>
+            ⚠️ This account has been closed. You can view previous messages but cannot send new ones.
+          </div>
+        ) : isBlocked ? (
           <div style={{ textAlign: 'center', padding: '12px', background: '#f3f4f6', borderRadius: 20, color: '#6b7280', fontSize: '0.875rem' }}>
             This conversation is blocked and cannot receive new messages.
           </div>

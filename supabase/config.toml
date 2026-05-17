@@ -802,3 +802,8 @@ entrypoint = "./functions/sync-ofn-catalog/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/sync-ofn-catalog/*.html" ]
+
+[functions.request-account-closure]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/request-account-closure/index.ts"

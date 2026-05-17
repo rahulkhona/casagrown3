@@ -142,7 +142,12 @@ function PromoContent() {
         setStep('profile')
       }
     } catch (err: any) {
-      setErrorMsg(err.message || 'Something went wrong.')
+      const msg = (err.message || '').toLowerCase()
+      if (msg.includes('database error saving new user') || msg.includes('not available for registration')) {
+        setErrorMsg('This email address has been permanently closed and cannot be used to create a new account.')
+      } else {
+        setErrorMsg(err.message || 'Something went wrong.')
+      }
     } finally {
       setSubmitting(false)
     }
@@ -168,7 +173,13 @@ function PromoContent() {
           data: { full_name: name, street_address: fullAddress, phone, sms_consent: smsConsent, tos_accepted: true }
         }
       })
-      if (error) throw error
+      if (error) {
+        const msg = (error.message || '').toLowerCase()
+        if (msg.includes('database error saving new user') || msg.includes('not available for registration')) {
+          throw new Error('This email address has been permanently closed and cannot be used to create a new account.')
+        }
+        throw error
+      }
       setStep('otp')
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to send OTP.')

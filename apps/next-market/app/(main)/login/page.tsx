@@ -68,8 +68,16 @@ function LoginPageInner() {
     })
 
     if (otpError) {
+      // Check for banned user (account closure)
+      const msg = otpError.message?.toLowerCase() || ''
+      if (msg.includes('banned') || msg.includes('user is banned')) {
+        setError('This account has been permanently closed. If you\'d like to use CasaGrown again, please sign up with a different email address.')
+      } else if (msg.includes('database error saving new user') || msg.includes('not available for registration')) {
+        setError('This email address has been permanently closed and cannot be used to create a new account. Please use a different email address.')
+      } else {
+        setError(otpError.message)
+      }
       trackError('login_otp_send_failed', { error: otpError.message })
-      setError(otpError.message)
       setLoading(false)
       return
     }

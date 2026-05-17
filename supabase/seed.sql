@@ -7,6 +7,11 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM vault.decrypted_secrets WHERE name = 'service_role_key') THEN
     PERFORM vault.create_secret('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU', 'service_role_key', 'Dummy key for local development');
   END IF;
+  -- supabase_url is required by trg_notify_dm_inserted_webhook (and other triggers)
+  -- to build the edge function URL. Without it, net.http_post gets NULL url → constraint error.
+  IF NOT EXISTS (SELECT 1 FROM vault.decrypted_secrets WHERE name = 'supabase_url') THEN
+    PERFORM vault.create_secret('http://127.0.0.1:54321', 'supabase_url', 'Local Supabase URL for edge function calls');
+  END IF;
 END $$;
 
 -- 1. Countries

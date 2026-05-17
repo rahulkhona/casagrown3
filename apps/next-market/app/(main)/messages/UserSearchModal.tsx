@@ -32,6 +32,7 @@ export function UserSearchModal({ onClose }: UserSearchModalProps) {
         .select('id, full_name, avatar_url, communities(name)')
         .neq('id', user.id)
         .neq('id', CASABOT_ID)
+        .is('closure_status', null)
         
       if (query.trim()) {
         req = req.ilike('full_name', `%${query.trim()}%`)
