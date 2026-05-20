@@ -7,7 +7,10 @@ import { useMarket, formatUsd } from '../../../../lib/store'
 import styles from './page.module.css'
 
 export default function ChatConversationPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
+  const resolvedParams = params && typeof (params as any).then === 'function'
+    ? params
+    : Promise.resolve(params || {})
+  const { id } = use(resolvedParams)
   const router = useRouter()
   const { state, dispatch } = useMarket()
   const conv = state.conversations.find(c => c.id === id)

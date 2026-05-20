@@ -185,6 +185,75 @@ function PasteReminderModal({
   )
 }
 
+interface PlatformCardProps {
+  icon: React.ReactNode
+  title: string
+  description: string
+  brandColor: string
+  onClick: () => void
+}
+
+function PlatformCard({
+  icon,
+  title,
+  description,
+  brandColor,
+  onClick
+}: PlatformCardProps) {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        width: '100%',
+        padding: '14px 16px',
+        border: hovered ? '1px solid #10B981' : '1px solid #e5e7eb',
+        borderRadius: 14,
+        background: hovered ? 'rgba(16, 185, 129, 0.02)' : '#fff',
+        cursor: 'pointer',
+        textAlign: 'left',
+        transition: 'all 0.2s ease',
+        boxShadow: hovered ? '0 4px 12px rgba(16, 185, 129, 0.08)' : '0 1px 2px rgba(0,0,0,0.02)',
+        boxSizing: 'border-box',
+        outline: 'none',
+      }}
+    >
+      <div style={{
+        width: 42,
+        height: 42,
+        borderRadius: 10,
+        background: brandColor,
+        color: '#fff',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 14,
+        flexShrink: 0,
+        boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+      }}>
+        {icon}
+      </div>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>{title}</span>
+        <span style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.3 }}>{description}</span>
+      </div>
+      <div style={{
+        marginLeft: 8,
+        color: hovered ? '#10B981' : '#d1d5db',
+        fontSize: 16,
+        fontWeight: 700,
+        transition: 'color 0.2s ease'
+      }}>
+        →
+      </div>
+    </button>
+  )
+}
+
 // ── Main Modal ──
 
 export default function SocialShareModal({
@@ -200,35 +269,66 @@ export default function SocialShareModal({
   platforms,
 }: SocialShareModalProps) {
   const [toastMessage, setToastMessage] = useState<string | null>(null)
-  const [pasteReminder, setPasteReminder] = useState<'Facebook' | 'Nextdoor' | null>(null)
-  const [shouldRemind, setShouldRemind] = useState(true)
-  const [loadingPlatform, setLoadingPlatform] = useState<string | null>(null)
+  const [customMessages, setCustomMessages] = useState<Record<string, string>>({})
+  const [activePreviewTab, setActivePreviewTab] = useState<SharePlatformType>('whatsapp')
+  const [isEditing, setIsEditing] = useState(false)
+  const [selectedPlatform, setSelectedPlatform] = useState<SharePlatformType | null>(null)
+  const [trackedUrls, setTrackedUrls] = useState<Record<string, string>>({})
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        setShouldRemind(localStorage.getItem(DONT_REMIND_KEY) !== 'true')
-      } catch {}
+    if (isOpen) {
+      setIsEditing(false)
+      setSelectedPlatform(null)
+      setTrackedUrls({})
+      const initial: Record<string, string> = {}
+      const keys: SharePlatformType[] = ['sms', 'whatsapp', 'email', 'nextdoor', 'facebook', 'native', 'copy']
+      keys.forEach((p) => {
+        initial[p] = typeof shareMessage === 'function' ? shareMessage(p) : shareMessage || ''
+      })
+      setCustomMessages(initial)
     }
-  }, [])
+  }, [isOpen, shareMessage])
 
-  if (!isOpen) return null
+  // Dynamically filter active tab to the first visible option when opening or updating platforms
+  useEffect(() => {
+    if (isOpen) {
+      const available = (['whatsapp', 'nextdoor', 'facebook', 'sms', 'email', 'copy'] as const).filter(show)
+      if (available.length > 0 && !available.includes(activePreviewTab as any)) {
+        setActivePreviewTab(available[0])
+      }
+    }
+  }, [isOpen, platforms])
 
   /** Check if a platform should be shown */
   const show = (p: SharePlatform) => !platforms || platforms.includes(p)
 
-  /** Get a tracked short link for the given platform, or fall back to raw URL */
-  const getTrackedUrl = async (platform: SharePlatform): Promise<string> => {
+  const availableTabs = (['whatsapp', 'nextdoor', 'facebook', 'sms', 'email', 'copy'] as const).filter(show)
+
+  /** Fetch a tracked link quietly in the background */
+  const fetchTrackedUrl = useCallback(async (platform: SharePlatform): Promise<string> => {
     if (!shareContext) return shareUrl
     try {
-      setLoadingPlatform(platform)
       return await createTrackedShareLink(shareUrl, shareContext, platform, userId)
     } catch {
       return shareUrl
-    } finally {
-      setLoadingPlatform(null)
     }
-  }
+  }, [shareUrl, shareContext, userId])
+
+  // Pre-fetch tracked URLs in parallel as soon as the modal is opened
+  useEffect(() => {
+    if (isOpen) {
+      availableTabs.forEach(async (p) => {
+        try {
+          const url = await fetchTrackedUrl(p)
+          setTrackedUrls(prev => ({ ...prev, [p]: url }))
+        } catch (e) {
+          console.warn('[SocialShareModal] Pre-fetch failed for', p, e)
+        }
+      })
+    }
+  }, [isOpen])
+
+  if (!isOpen) return null
 
   /** Resolve the share message for a given platform */
   const resolveMessage = (platform: SharePlatformType): string => {
@@ -237,12 +337,17 @@ export default function SocialShareModal({
 
   /** Build the share payload text, replacing the raw URL with the tracked one */
   const getPayload = (trackedUrl: string, platform: SharePlatformType) => {
-    const msg = resolveMessage(platform)
+    const baseMsg = (customMessages[platform] || resolveMessage(platform)).trim()
+    if (!baseMsg) return trackedUrl
     // If message already includes the raw URL, replace it with tracked
-    if (msg.includes(shareUrl)) {
-      return msg.replace(shareUrl, trackedUrl)
+    if (baseMsg.includes(shareUrl)) {
+      return baseMsg.replace(shareUrl, trackedUrl)
     }
-    return `${msg}\n\n${trackedUrl}`
+    // If message already includes the tracked URL, return it as is
+    if (baseMsg.includes(trackedUrl)) {
+      return baseMsg
+    }
+    return `${baseMsg}\n\n${trackedUrl}`
   }
 
   const showToast = (msg: string) => {
@@ -250,75 +355,80 @@ export default function SocialShareModal({
     setTimeout(() => setToastMessage(null), 2500)
   }
 
-  const handleShareSMS = async () => {
-    const tracked = await getTrackedUrl('sms')
+  const handleShareSMS = () => {
+    const tracked = trackedUrls['sms'] || shareUrl
     const text = encodeURIComponent(getPayload(tracked, 'sms'))
     window.location.href = `sms:?body=${text}`
   }
 
-  const handleShareWhatsApp = async () => {
-    const tracked = await getTrackedUrl('whatsapp')
+  const handleShareWhatsApp = () => {
+    const tracked = trackedUrls['whatsapp'] || shareUrl
     const text = encodeURIComponent(getPayload(tracked, 'whatsapp'))
     window.open(`https://wa.me/?text=${text}`, '_blank')
   }
 
-  const handleShareEmail = async () => {
-    const tracked = await getTrackedUrl('email')
+  const handleShareEmail = () => {
+    const tracked = trackedUrls['email'] || shareUrl
     const subject = encodeURIComponent(entityName || title)
     const body = encodeURIComponent(getPayload(tracked, 'email'))
     window.location.href = `mailto:?subject=${subject}&body=${body}`
   }
 
-  const handleShareNextdoor = async () => {
-    const tracked = await getTrackedUrl('nextdoor')
-    const payload = getPayload(tracked, 'nextdoor')
-    navigator.clipboard.writeText(payload).catch(()=>{})
-    if (shouldRemind) {
-      setPasteReminder('Nextdoor')
-    } else {
-      showToast('✅ Copied! Paste on Nextdoor')
-      window.open('https://nextdoor.com/news_feed/', '_blank')
+  const getCommentPayload = (trackedUrl: string) => {
+    if (shareContext === 'product_share' || shareContext === 'new_product_share' || shareContext === 'buy_request') {
+      return `👉 Browse & order here: ${trackedUrl} 🌿`
     }
+    if (shareContext === 'booth_share' || shareContext === 'booth_invitation') {
+      return `👉 View my produce stand and order here: ${trackedUrl} 🌿`
+    }
+    if (shareContext === 'community_invite' || shareContext === 'following_invite' || shareContext === 'market_invite') {
+      return `👉 Join our local garden community and browse fresh produce here: ${trackedUrl} 🌿`
+    }
+    return `👉 Explore what's fresh and order here: ${trackedUrl} 🌿`
   }
 
-  const handleShareFacebook = async () => {
-    const tracked = await getTrackedUrl('facebook')
-    const payload = getPayload(tracked, 'facebook')
-    const url = encodeURIComponent(tracked)
-    navigator.clipboard.writeText(payload).catch(()=>{})
-    if (shouldRemind) {
-      setPasteReminder('Facebook')
-    } else {
-      showToast('✅ Copied! Paste on Facebook')
-      window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank')
-    }
+  const handleShareNextdoorStep1 = () => {
+    const baseMsg = (customMessages['nextdoor'] || resolveMessage('nextdoor')).trim()
+    navigator.clipboard.writeText(baseMsg).catch(()=>{})
+    showToast('📋 Post Text Copied! Opening Nextdoor...')
+    window.open('https://nextdoor.com/news_feed/', '_blank')
   }
 
-  const handlePasteReminderContinue = () => {
-    const platform = pasteReminder
-    setPasteReminder(null)
-    if (platform === 'Nextdoor') {
-      window.open('https://nextdoor.com/news_feed/', '_blank')
-    } else if (platform === 'Facebook') {
-      // Use the original shareUrl for Facebook sharer since tracked link was already used in copied text
-      const url = encodeURIComponent(shareUrl)
-      window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank')
-    }
+  const handleShareNextdoorStep2 = () => {
+    const tracked = trackedUrls['nextdoor'] || shareUrl
+    const commentText = getCommentPayload(tracked)
+    navigator.clipboard.writeText(commentText).catch(()=>{})
+    showToast('📋 Comment Message Copied! Paste in comments.')
   }
 
-  const handleCopyLink = async () => {
+  const handleShareFacebookStep1 = () => {
+    const baseMsg = (customMessages['facebook'] || resolveMessage('facebook')).trim()
+    navigator.clipboard.writeText(baseMsg).catch(()=>{})
+    showToast('📋 Post Text Copied! Opening Facebook...')
+    window.open('https://www.facebook.com/', '_blank')
+  }
+
+  const handleShareFacebookStep2 = () => {
+    const tracked = trackedUrls['facebook'] || shareUrl
+    const commentText = getCommentPayload(tracked)
+    navigator.clipboard.writeText(commentText).catch(()=>{})
+    showToast('📋 Comment Message Copied! Paste in comments.')
+  }
+
+  const handleCopyLink = () => {
     try {
-      const tracked = await getTrackedUrl('copy')
-      await navigator.clipboard.writeText(tracked)
-      showToast('📋 Link Copied!')
+      const tracked = trackedUrls['copy'] || shareUrl
+      const payload = getPayload(tracked, 'copy')
+      navigator.clipboard.writeText(payload).catch(()=>{})
+      showToast('📋 Copied to Clipboard!')
     } catch {}
   }
 
-  const handleShareNative = async () => {
+  const handleShareNative = () => {
     if (navigator.share) {
       try {
-        const tracked = await getTrackedUrl('native')
-        await navigator.share({ title: entityName, text: resolveMessage('native'), url: tracked })
+        const tracked = trackedUrls['native'] || shareUrl
+        navigator.share({ title: entityName, text: customMessages['native'] || resolveMessage('native'), url: tracked }).catch(()=>{})
       } catch {}
     }
   }
@@ -333,14 +443,6 @@ export default function SocialShareModal({
 
   return (
     <>
-      {/* Paste Reminder Interstitial */}
-      {pasteReminder && (
-        <PasteReminderModal
-          platform={pasteReminder}
-          onContinue={handlePasteReminderContinue}
-          onCancel={() => setPasteReminder(null)}
-        />
-      )}
 
       {/* Backdrop */}
       <div 
@@ -355,10 +457,11 @@ export default function SocialShareModal({
       {/* Modal */}
       <div style={{
         position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-        zIndex: 10000, background: '#fff', borderRadius: 20, width: '90%', maxWidth: 400,
-        padding: '28px 24px 20px', 
+        zIndex: 10000, background: '#fff', borderRadius: 20, width: '90%', maxWidth: 410,
+        padding: '24px 20px 20px', 
         boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center'
+        display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
+        maxHeight: '90vh', overflowY: 'auto'
       }}>
         {/* Toast */}
         {toastMessage && (
@@ -372,145 +475,900 @@ export default function SocialShareModal({
           </div>
         )}
 
-        {/* CasaGrown Logo */}
-        <img 
-          src="/logo.png" 
-          alt="CasaGrown" 
-          style={{ width: 48, height: 48, marginBottom: 12, borderRadius: 10 }}
-        />
-        <h2 style={{ margin: '0 0 6px', fontSize: 20, color: '#111827', fontWeight: 700 }}>{title}</h2>
-        {subtitle && (
-          <p style={{ margin: '0 0 18px', fontSize: 14, color: '#6b7280', lineHeight: 1.5 }}>{subtitle}</p>
+        {selectedPlatform === null ? (
+          <>
+            {/* Custom Header Row - Selection Screen */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              width: '100%',
+              marginBottom: 16,
+              borderBottom: '1px solid #f3f4f6',
+              paddingBottom: 10
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <img 
+                  src="/logo.png" 
+                  alt="CasaGrown" 
+                  style={{ width: 24, height: 24, borderRadius: 5 }}
+                />
+                <span style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>CasaGrown Share</span>
+              </div>
+              <button 
+                onClick={onClose}
+                style={{
+                  background: 'none', border: 'none', color: '#10B981',
+                  fontSize: 14, fontWeight: 600, cursor: 'pointer', padding: '4px 8px'
+                }}
+              >
+                Skip
+              </button>
+            </div>
+
+            <h2 style={{ margin: '0 0 4px', fontSize: 18, color: '#111827', fontWeight: 700, width: '100%', textAlign: 'left' }}>
+              Select Platform to Share
+            </h2>
+            <p style={{ margin: '0 0 16px', fontSize: 13, color: '#6b7280', lineHeight: 1.4, width: '100%', textAlign: 'left' }}>
+              Choose a platform to preview, customize, and invite your neighbors!
+            </p>
+
+            {/* Screen 1: Platform Selection Cards */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', padding: '4px 0' }}>
+              {/* WhatsApp Card */}
+              {show('whatsapp') && (
+                <PlatformCard
+                  icon={<WhatsAppIcon />}
+                  title="Share on WhatsApp"
+                  description="Send a message to neighbors or group chats"
+                  brandColor="#25D366"
+                  onClick={() => {
+                    setSelectedPlatform('whatsapp')
+                    setActivePreviewTab('whatsapp')
+                  }}
+                />
+              )}
+              {/* Nextdoor Card */}
+              {show('nextdoor') && (
+                <PlatformCard
+                  icon={<NextdoorIcon />}
+                  title="Share on Nextdoor"
+                  description="Post directly to your neighborhood feed"
+                  brandColor="#00B246"
+                  onClick={() => {
+                    setSelectedPlatform('nextdoor')
+                    setActivePreviewTab('nextdoor')
+                  }}
+                />
+              )}
+              {/* Facebook Card */}
+              {show('facebook') && (
+                <PlatformCard
+                  icon={<FacebookIcon />}
+                  title="Share on Facebook"
+                  description="Post to your timeline or local garden groups"
+                  brandColor="#1877F2"
+                  onClick={() => {
+                    setSelectedPlatform('facebook')
+                    setActivePreviewTab('facebook')
+                  }}
+                />
+              )}
+              {/* SMS/iMessage Card */}
+              {show('sms') && (
+                <PlatformCard
+                  icon={<span style={{ fontSize: 20 }}>💬</span>}
+                  title="Text a Neighbor"
+                  description="Text a direct invite using iMessage/SMS"
+                  brandColor="#34C759"
+                  onClick={() => {
+                    setSelectedPlatform('sms')
+                    setActivePreviewTab('sms')
+                  }}
+                />
+              )}
+              {/* Email Card */}
+              {show('email') && (
+                <PlatformCard
+                  icon={<EmailIcon />}
+                  title="Send via Email"
+                  description="Send a beautiful rich newsletter banner"
+                  brandColor="#6366F1"
+                  onClick={() => {
+                    setSelectedPlatform('email')
+                    setActivePreviewTab('email')
+                  }}
+                />
+              )}
+              {/* Copy Card */}
+              {show('copy') && (
+                <PlatformCard
+                  icon={<LinkIcon />}
+                  title="Copy Link"
+                  description="Copy tailored text + short link to clipboard"
+                  brandColor="#4B5563"
+                  onClick={() => {
+                    setSelectedPlatform('copy')
+                    setActivePreviewTab('copy')
+                    handleCopyLink()
+                  }}
+                />
+              )}
+              {/* Native Share Card */}
+              {show('native') && typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
+                <PlatformCard
+                  icon={<ShareMoreIcon />}
+                  title="More Options"
+                  description="Share using your device's native options"
+                  brandColor="#10B981"
+                  onClick={() => {
+                    setSelectedPlatform('native')
+                    setActivePreviewTab('native')
+                  }}
+                />
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Custom Header Row - Focused Screen */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              width: '100%',
+              marginBottom: 16,
+              borderBottom: '1px solid #f3f4f6',
+              paddingBottom: 10
+            }}>
+              <button 
+                onClick={() => setSelectedPlatform(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#10B981',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  padding: '4px 8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4
+                }}
+              >
+                ← Back
+              </button>
+              <span style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>
+                {selectedPlatform === 'whatsapp' ? 'WhatsApp Share' :
+                 selectedPlatform === 'sms' ? 'Text Message' :
+                 selectedPlatform === 'email' ? 'Email Invite' :
+                 selectedPlatform === 'facebook' ? 'Facebook Post' :
+                 selectedPlatform === 'nextdoor' ? 'Nextdoor Post' :
+                 selectedPlatform === 'copy' ? 'Copy Message' : 'Share Options'}
+              </span>
+              <button 
+                onClick={onClose}
+                style={{
+                  background: 'none', border: 'none', color: '#10B981',
+                  fontSize: 14, fontWeight: 600, cursor: 'pointer', padding: '4px 8px'
+                }}
+              >
+                Skip
+              </button>
+            </div>
+
+            {/* Context Title/Subtitle */}
+            <div style={{ display: 'flex', flexDirection: 'column', width: '100%', gap: 2, marginBottom: 12, textAlign: 'left' }}>
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#374151' }}>{title}</h3>
+              {subtitle && <p style={{ margin: 0, fontSize: 12, color: '#6b7280', lineHeight: 1.3 }}>{subtitle}</p>}
+            </div>
+
+            {/* Message Editor */}
+            {isEditing ? (
+              <div style={{ width: '100%', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <textarea
+                  value={customMessages[activePreviewTab] || ''}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setCustomMessages((prev) => ({ ...prev, [activePreviewTab]: val }))
+                  }}
+                  placeholder="Add a custom message to your share..."
+                  rows={8}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    border: '1px solid #d1d5db',
+                    fontSize: 14,
+                    color: '#374151',
+                    fontFamily: 'inherit',
+                    resize: 'none',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = '#10B981'
+                    e.target.style.boxShadow = '0 0 0 3px rgba(16, 185, 129, 0.1)'
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = '#d1d5db'
+                    e.target.style.boxShadow = 'none'
+                  }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: '#9ca3af', padding: '0 2px' }}>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <span>{(customMessages[activePreviewTab] || '').length} characters</span>
+                    {(customMessages[activePreviewTab] || '') !== resolveMessage(activePreviewTab) && (
+                      <button 
+                        onClick={() => {
+                          const defaultMsg = resolveMessage(activePreviewTab)
+                          setCustomMessages((prev) => ({ ...prev, [activePreviewTab]: defaultMsg }))
+                        }}
+                        style={{ background: 'none', border: 'none', color: '#10B981', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                      >
+                        Reset to Default
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setIsEditing(false)}
+                    style={{
+                      background: '#10B981',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 6,
+                      padding: '4px 10px',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4
+                    }}
+                  >
+                    ✓ Done
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsEditing(true)}
+                style={{
+                  width: '100%',
+                  padding: '12px 14px',
+                  border: '1px solid #10B981',
+                  borderRadius: 10,
+                  background: 'transparent',
+                  color: '#10B981',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  marginBottom: 16,
+                  transition: 'background 0.2s ease, color 0.2s ease',
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.background = 'rgba(16, 185, 129, 0.05)'
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.background = 'transparent'
+                }}
+              >
+                ✏️ Edit Message
+              </button>
+            )}
+
+            {/* Dynamic Preview Container */}
+            {!isEditing && (
+              <div style={{
+                width: '100%',
+                background: '#f3f4f6',
+                borderRadius: 12,
+              padding: '12px',
+              marginBottom: 16,
+              boxSizing: 'border-box',
+              textAlign: 'left',
+              fontSize: 13,
+              minHeight: 120,
+              maxHeight: 240,
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'flex-start',
+              border: '1px solid #e5e7eb',
+            }}>
+              {activePreviewTab === 'whatsapp' && (
+                /* WhatsApp Preview Bubble */
+                <div style={{
+                  background: '#DCF8C6',
+                  borderRadius: '8px 8px 8px 0',
+                  padding: '10px 12px',
+                  alignSelf: 'flex-start',
+                  maxWidth: '92%',
+                  boxShadow: '0 1px 1px rgba(0,0,0,0.1)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                  border: '1px solid #c7eeb3',
+                  boxSizing: 'border-box'
+                }}>
+                  <span style={{ color: '#303030', whiteSpace: 'pre-wrap', lineHeight: 1.4 }}>
+                    {customMessages['whatsapp'] || resolveMessage('whatsapp') || 'Hey neighbors! Check out my listing on CasaGrown!'}
+                  </span>
+                  
+                  {/* WhatsApp Link Preview Card */}
+                  <div style={{
+                    background: '#e1f5fe',
+                    borderRadius: 6,
+                    overflow: 'hidden',
+                    borderLeft: '4px solid #039be5',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    boxSizing: 'border-box'
+                  }}>
+                    <div style={{ padding: '8px 10px', display: 'flex', gap: 8 }}>
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <span style={{ fontSize: 11, color: '#039be5', fontWeight: 600 }}>casagrown.org</span>
+                        <span style={{ fontSize: 12, color: '#212121', fontWeight: 700 }}>
+                          {entityName || 'Organic Homegrown Produce'}
+                        </span>
+                        <span style={{ fontSize: 11, color: '#727272', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                          Grown with love. Click to check out my local garden share!
+                        </span>
+                      </div>
+                      <div style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 4,
+                        background: '#10B981',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#fff',
+                        flexShrink: 0,
+                        fontSize: 20
+                      }}>
+                        🍅
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: 10, color: '#757575', marginTop: -2 }}>
+                    <span>10:42 AM ✓✓</span>
+                  </div>
+                </div>
+              )}
+
+              {activePreviewTab === 'sms' && (
+                /* iMessage/SMS Preview Bubble */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
+                  <div style={{
+                    background: '#34C759',
+                    color: '#fff',
+                    borderRadius: 20,
+                    padding: '10px 16px',
+                    alignSelf: 'flex-start',
+                    maxWidth: '85%',
+                    boxShadow: '0 1px 1px rgba(0,0,0,0.1)',
+                    lineHeight: 1.4,
+                    whiteSpace: 'pre-wrap',
+                    boxSizing: 'border-box'
+                  }}>
+                    {customMessages['sms'] || resolveMessage('sms') || 'Hey neighbors! Check out my listing on CasaGrown!'}
+                  </div>
+                  
+                  {/* iMessage Link Preview Bubble */}
+                  <div style={{
+                    background: '#fff',
+                    borderRadius: 18,
+                    overflow: 'hidden',
+                    border: '1px solid #e5e7eb',
+                    maxWidth: '85%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                    alignSelf: 'flex-start',
+                    boxSizing: 'border-box'
+                  }}>
+                    <div style={{ height: 90, background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36 }}>
+                      🌱
+                    </div>
+                    <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span style={{ fontSize: 10, color: '#8e8e93', textTransform: 'uppercase', fontWeight: 600 }}>CASAGROWN.ORG</span>
+                      <span style={{ fontSize: 12, color: '#000', fontWeight: 600 }}>
+                        {entityName || 'Organic Homegrown Produce'}
+                      </span>
+                      <span style={{ fontSize: 10, color: '#8e8e93' }}>
+                        Tap to view details and order.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activePreviewTab === 'nextdoor' && (
+                /* Nextdoor Feed Post Card */
+                <div style={{
+                  background: '#fff',
+                  borderRadius: 12,
+                  border: '1px solid #e5e7eb',
+                  padding: '12px',
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <div style={{
+                      width: 28, height: 28, borderRadius: '50%', background: '#00B246',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 11
+                    }}>
+                      N
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontWeight: 700, fontSize: 11, color: '#111827' }}>Your Neighbor</span>
+                      <span style={{ fontSize: 9, color: '#6b7280' }}>CasaGrown • Just now</span>
+                    </div>
+                  </div>
+                  
+                  <span style={{ color: '#374151', whiteSpace: 'pre-wrap', lineHeight: 1.4, fontSize: 12 }}>
+                    {customMessages['nextdoor'] || resolveMessage('nextdoor') || 'Hey neighbors! Check out my listing on CasaGrown!'}
+                  </span>
+
+                  {/* Nextdoor Post Link Box */}
+                  <div style={{
+                    borderRadius: 8,
+                    border: '1px solid #e5e7eb',
+                    overflow: 'hidden',
+                    background: '#f9fafb',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    boxSizing: 'border-box'
+                  }}>
+                    <div style={{ height: 90, background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36 }}>
+                      🧺
+                    </div>
+                    <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span style={{ fontSize: 10, color: '#00B246', fontWeight: 600 }}>casagrown.org</span>
+                      <span style={{ fontSize: 12, color: '#111827', fontWeight: 700 }}>
+                        {entityName || 'Organic Homegrown Produce'}
+                      </span>
+                      <span style={{ fontSize: 11, color: '#6b7280' }}>
+                        Connect with local growers in our neighborhood.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activePreviewTab === 'facebook' && (
+                /* Facebook Post Preview */
+                <div style={{
+                  background: '#fff',
+                  borderRadius: 8,
+                  border: '1px solid #e5e7eb',
+                  padding: '12px',
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <div style={{
+                      width: 28, height: 28, borderRadius: '50%', background: '#1877F2',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 12
+                    }}>
+                      F
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontWeight: 700, fontSize: 11, color: '#050505' }}>CasaGrown Member</span>
+                      <span style={{ fontSize: 9, color: '#65676b' }}>Just now • 🌐</span>
+                    </div>
+                  </div>
+                  
+                  <span style={{ color: '#050505', whiteSpace: 'pre-wrap', lineHeight: 1.4, fontSize: 12 }}>
+                    {customMessages['facebook'] || resolveMessage('facebook') || 'Hey neighbors! Check out my listing on CasaGrown!'}
+                  </span>
+
+                  {/* Facebook Link Preview Box */}
+                  <div style={{
+                    border: '1px solid #e5e7eb',
+                    overflow: 'hidden',
+                    background: '#f0f2f5',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    boxSizing: 'border-box'
+                  }}>
+                    <div style={{ height: 90, background: '#e4e6eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36 }}>
+                      🏡
+                    </div>
+                    <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span style={{ fontSize: 9, color: '#65676b', textTransform: 'uppercase' }}>CASAGROWN.ORG</span>
+                      <span style={{ fontSize: 12, color: '#050505', fontWeight: 700 }}>
+                        {entityName || 'Organic Homegrown Produce'}
+                      </span>
+                      <span style={{ fontSize: 11, color: '#65676b', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                        Fresh local produce from my garden to your table.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activePreviewTab === 'email' && (
+                /* Email Client Preview */
+                <div style={{
+                  background: '#fff',
+                  borderRadius: 12,
+                  border: '1px solid #e5e7eb',
+                  padding: '12px',
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                  fontFamily: 'system-ui, -apple-system, sans-serif'
+                }}>
+                  <div style={{ borderBottom: '1px solid #f3f4f6', paddingBottom: 6, display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11 }}>
+                    <div style={{ display: 'flex', gap: 4 }}><span style={{ color: '#9ca3af', width: 44 }}>To:</span><span style={{ color: '#374151', fontWeight: 500 }}>neighbor@community.org</span></div>
+                    <div style={{ display: 'flex', gap: 4 }}><span style={{ color: '#9ca3af', width: 44 }}>Subject:</span><span style={{ color: '#111827', fontWeight: 600 }}>{entityName || title || 'Check this out'}</span></div>
+                  </div>
+                  <div style={{
+                    color: '#374151',
+                    fontSize: 12,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 12,
+                    paddingTop: 4
+                  }}>
+                    {/* Embedded Rich Email Banner */}
+                    <img 
+                      src="/produce-banner.png" 
+                      alt="Organic Produce Banner" 
+                      style={{
+                        width: '100%',
+                        height: 'auto',
+                        maxHeight: 140,
+                        objectFit: 'cover',
+                        borderRadius: 8,
+                        border: '1px solid #e5e7eb'
+                      }}
+                    />
+                    <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                      {customMessages['email'] || resolveMessage('email') || 'Hey, check out this local gardening share!'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {activePreviewTab === 'copy' && (
+                /* Clipboard Preview */
+                <div style={{
+                  background: '#f9fafb',
+                  borderRadius: 12,
+                  border: '1px dashed #d1d5db',
+                  padding: '14px',
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  position: 'relative'
+                }}>
+                  <div style={{
+                    position: 'absolute',
+                    top: 8,
+                    right: 8,
+                    background: '#e0f2fe',
+                    color: '#0369a1',
+                    padding: '2px 6px',
+                    borderRadius: 4,
+                    fontSize: 9,
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    fontFamily: 'system-ui'
+                  }}>
+                    Clipboard
+                  </div>
+                  <div style={{ color: '#4b5563', whiteSpace: 'pre-wrap', lineHeight: 1.4, wordBreak: 'break-all' }}>
+                    {customMessages['copy'] || resolveMessage('copy') || shareUrl}
+                  </div>
+                  <div style={{
+                    borderTop: '1px solid #e5e7eb',
+                    paddingTop: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    color: '#10B981',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    fontFamily: 'system-ui'
+                  }}>
+                    <span>📋</span> Ready to paste anywhere
+                  </div>
+                </div>
+              )}
+
+              {activePreviewTab === 'native' && (
+                /* Native Share Device Mockup */
+                <div style={{
+                  background: '#f9fafb',
+                  borderRadius: 12,
+                  border: '1px dashed #d1d5db',
+                  padding: '14px',
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
+                  fontFamily: 'system-ui',
+                  fontSize: 12,
+                  position: 'relative'
+                }}>
+                  <div style={{
+                    position: 'absolute',
+                    top: 8,
+                    right: 8,
+                    background: '#e0f2fe',
+                    color: '#0369a1',
+                    padding: '2px 6px',
+                    borderRadius: 4,
+                    fontSize: 9,
+                    fontWeight: 600,
+                    textTransform: 'uppercase'
+                  }}>
+                    Device Share
+                  </div>
+                  <div style={{ color: '#4b5563', whiteSpace: 'pre-wrap', lineHeight: 1.4, wordBreak: 'break-all' }}>
+                    {customMessages['native'] || resolveMessage('native') || shareUrl}
+                  </div>
+                  <div style={{
+                    borderTop: '1px solid #e5e7eb',
+                    paddingTop: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    color: '#10B981',
+                    fontSize: 11,
+                    fontWeight: 600
+                  }}>
+                    <span>📱</span> Launches native system dialog
+                  </div>
+                </div>
+              )}
+              </div>
+            )}
+
+            {/* Single Platform Action Button */}
+            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {selectedPlatform === 'sms' && (
+                <button
+                  onClick={handleShareSMS}
+                  style={{
+                    ...btnBase,
+                    background: 'linear-gradient(135deg, #34C759, #30B350)',
+                    color: '#fff',
+                    boxShadow: '0 4px 14px rgba(52, 199, 89, 0.25)',
+                  }}
+                >
+                  <span style={{ fontSize: 20 }}>💬</span> Open Messages & Text
+                </button>
+              )}
+
+              {selectedPlatform === 'whatsapp' && (
+                <button
+                  onClick={handleShareWhatsApp}
+                  style={{
+                    ...btnBase,
+                    background: '#25D366',
+                    color: '#fff',
+                    boxShadow: '0 4px 14px rgba(37, 211, 102, 0.25)',
+                  }}
+                >
+                  <WhatsAppIcon /> Open WhatsApp & Share
+                </button>
+              )}
+
+              {selectedPlatform === 'email' && (
+                <button
+                  onClick={handleShareEmail}
+                  style={{
+                    ...btnBase,
+                    background: '#6366F1',
+                    color: '#fff',
+                    boxShadow: '0 4px 14px rgba(99, 102, 241, 0.25)',
+                  }}
+                >
+                  <EmailIcon /> Open Email & Send
+                </button>
+              )}
+
+              {selectedPlatform === 'nextdoor' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+                  <div style={{
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 14,
+                    padding: '14px 16px',
+                    textAlign: 'left',
+                    background: '#f9fafb',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Step 1: Custom Post Text</span>
+                      <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 500 }}>Copies text only</span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: 11, color: '#6b7280', lineHeight: 1.4 }}>
+                      Copy the custom description, then paste it in your new post composer on Nextdoor.
+                    </p>
+                    <button
+                      onClick={handleShareNextdoorStep1}
+                      style={{
+                        ...btnBase,
+                        background: '#00B246',
+                        color: '#fff',
+                        boxShadow: '0 4px 14px rgba(0, 178, 70, 0.2)',
+                      }}
+                    >
+                      <NextdoorIcon /> Copy & Continue to Nextdoor
+                    </button>
+                  </div>
+
+                  <div style={{
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 14,
+                    padding: '14px 16px',
+                    textAlign: 'left',
+                    background: '#f9fafb',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Step 2: Copy Comment Message</span>
+                      <span style={{ fontSize: 11, color: '#10B981', fontWeight: 600 }}>Algorithm-safe</span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: 11, color: '#6b7280', lineHeight: 1.4 }}>
+                      Copy the pre-formatted comment containing your tracked shop link, to paste in the comments section immediately following your post publication!
+                    </p>
+                    <button
+                      onClick={handleShareNextdoorStep2}
+                      style={{
+                        ...btnBase,
+                        background: '#fff',
+                        color: '#10B981',
+                        border: '1px solid #10B981',
+                        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.05)',
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.background = 'rgba(16, 185, 129, 0.02)'
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.background = '#fff'
+                      }}
+                    >
+                      <LinkIcon /> Copy Comment Message
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {selectedPlatform === 'facebook' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+                  <div style={{
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 14,
+                    padding: '14px 16px',
+                    textAlign: 'left',
+                    background: '#f9fafb',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Step 1: Custom Post Text</span>
+                      <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 500 }}>Copies text only</span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: 11, color: '#6b7280', lineHeight: 1.4 }}>
+                      Copy the custom description, then paste it in your new post composer on Facebook.
+                    </p>
+                    <button
+                      onClick={handleShareFacebookStep1}
+                      style={{
+                        ...btnBase,
+                        background: '#1877F2',
+                        color: '#fff',
+                        boxShadow: '0 4px 14px rgba(24, 119, 242, 0.2)',
+                      }}
+                    >
+                      <FacebookIcon /> Copy & Continue to Facebook
+                    </button>
+                  </div>
+
+                  <div style={{
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 14,
+                    padding: '14px 16px',
+                    textAlign: 'left',
+                    background: '#f9fafb',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Step 2: Copy Comment Message</span>
+                      <span style={{ fontSize: 11, color: '#10B981', fontWeight: 600 }}>Algorithm-safe</span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: 11, color: '#6b7280', lineHeight: 1.4 }}>
+                      Copy the pre-formatted comment containing your tracked shop link, to paste in the comments section immediately following your post publication!
+                    </p>
+                    <button
+                      onClick={handleShareFacebookStep2}
+                      style={{
+                        ...btnBase,
+                        background: '#fff',
+                        color: '#10B981',
+                        border: '1px solid #10B981',
+                        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.05)',
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.background = 'rgba(16, 185, 129, 0.02)'
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.background = '#fff'
+                      }}
+                    >
+                      <LinkIcon /> Copy Comment Message
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {selectedPlatform === 'copy' && (
+                <button 
+                  onClick={handleCopyLink}
+                  style={{
+                    ...btnBase,
+                    background: '#10B981',
+                    color: '#fff',
+                    boxShadow: '0 4px 14px rgba(16, 185, 129, 0.25)',
+                  }}
+                >
+                  <LinkIcon /> {toastMessage && toastMessage.includes('Link') || toastMessage && toastMessage.includes('Copied') ? 'Message Copied!' : 'Copy Message & Link'}
+                </button>
+              )}
+
+              {selectedPlatform === 'native' && (
+                <button 
+                  onClick={handleShareNative}
+                  style={{
+                    ...btnBase,
+                    background: '#10B981',
+                    color: '#fff',
+                    boxShadow: '0 4px 14px rgba(16, 185, 129, 0.25)',
+                  }}
+                >
+                  <ShareMoreIcon /> Share via Device Options
+                </button>
+              )}
+            </div>
+          </>
         )}
-
-        {/* Share Buttons */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
-          
-          {/* SMS / iMessage */}
-          {show('sms') && (
-            <button
-              onClick={handleShareSMS}
-              disabled={loadingPlatform === 'sms'}
-              style={{
-                ...btnBase,
-                background: 'linear-gradient(135deg, #34C759, #30B350)',
-                color: '#fff',
-                opacity: loadingPlatform === 'sms' ? 0.7 : 1,
-              }}
-            >
-              <span style={{ fontSize: 20 }}>💬</span> {loadingPlatform === 'sms' ? 'Preparing...' : 'Text a Neighbor'}
-            </button>
-          )}
-
-          {/* WhatsApp */}
-          {show('whatsapp') && (
-            <button
-              onClick={handleShareWhatsApp}
-              disabled={loadingPlatform === 'whatsapp'}
-              style={{
-                ...btnBase,
-                background: '#25D366',
-                color: '#fff',
-                opacity: loadingPlatform === 'whatsapp' ? 0.7 : 1,
-              }}
-            >
-              <WhatsAppIcon /> {loadingPlatform === 'whatsapp' ? 'Preparing...' : 'Share on WhatsApp'}
-            </button>
-          )}
-
-          {/* Email */}
-          {show('email') && (
-            <button
-              onClick={handleShareEmail}
-              disabled={loadingPlatform === 'email'}
-              style={{
-                ...btnBase,
-                background: '#6366F1',
-                color: '#fff',
-                opacity: loadingPlatform === 'email' ? 0.7 : 1,
-              }}
-            >
-              <EmailIcon /> {loadingPlatform === 'email' ? 'Preparing...' : 'Send via Email'}
-            </button>
-          )}
-
-          {/* Nextdoor */}
-          {show('nextdoor') && (
-            <button
-              onClick={handleShareNextdoor}
-              disabled={loadingPlatform === 'nextdoor'}
-              style={{
-                ...btnBase,
-                background: '#00B246',
-                color: '#fff',
-                opacity: loadingPlatform === 'nextdoor' ? 0.7 : 1,
-              }}
-            >
-              <NextdoorIcon /> {loadingPlatform === 'nextdoor' ? 'Preparing...' : 'Share on Nextdoor'}
-            </button>
-          )}
-
-          {/* Facebook */}
-          {show('facebook') && (
-            <button
-              onClick={handleShareFacebook}
-              disabled={loadingPlatform === 'facebook'}
-              style={{
-                ...btnBase,
-                background: '#1877F2',
-                color: '#fff',
-                opacity: loadingPlatform === 'facebook' ? 0.7 : 1,
-              }}
-            >
-              <FacebookIcon /> {loadingPlatform === 'facebook' ? 'Preparing...' : 'Share on Facebook'}
-            </button>
-          )}
-
-          {/* Copy Link */}
-          {show('copy') && (
-            <button 
-              onClick={handleCopyLink}
-              disabled={loadingPlatform === 'copy'}
-              style={{
-                ...btnBase,
-                background: '#f9fafb',
-                color: '#374151',
-                border: '1px solid #e5e7eb',
-                opacity: loadingPlatform === 'copy' ? 0.7 : 1,
-              }}
-            >
-              <LinkIcon /> {loadingPlatform === 'copy' ? 'Preparing...' : toastMessage && toastMessage.includes('Link') ? 'Link Copied!' : 'Copy Link'}
-            </button>
-          )}
-
-          {/* Native Share */}
-          {show('native') && typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
-            <button 
-              onClick={handleShareNative}
-              disabled={loadingPlatform === 'native'}
-              style={{
-                ...btnBase,
-                background: '#f9fafb',
-                color: '#374151',
-                border: '1px solid #e5e7eb',
-                opacity: loadingPlatform === 'native' ? 0.7 : 1,
-              }}
-            >
-              <ShareMoreIcon /> {loadingPlatform === 'native' ? 'Preparing...' : 'More Options'}
-            </button>
-          )}
-        </div>
-
-        {/* Skip */}
-        <button 
-          onClick={onClose}
-          style={{
-            marginTop: 16, background: 'none', border: 'none', color: '#9ca3af',
-            fontSize: 14, fontWeight: 500, cursor: 'pointer', padding: '8px 16px'
-          }}
-        >
-          Skip
-        </button>
       </div>
     </>
   )

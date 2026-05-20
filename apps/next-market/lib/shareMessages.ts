@@ -5,6 +5,38 @@ function isCommunityPost(platform?: SharePlatformType): boolean {
   return platform === 'facebook' || platform === 'nextdoor'
 }
 
+export function sanitizeDigest(digest: string | null | undefined): string {
+  if (!digest) return ''
+
+  // 1. Remove thought blocks and loose thought tags
+  let clean = digest.replace(/<thought>[\s\S]*?<\/thought>/gi, '')
+  clean = clean.replace(/<\/thought>/gi, '').replace(/<thought>/gi, '')
+  clean = clean.replace(/Perfect\s*$/i, '')
+
+  // 2. If it contains Draft 1, let's try to extract Draft 1
+  const draft1Match = clean.match(/(?:^|\n)\s*(?:\*\s*)?(?:\*Draft\s*1\*|Draft\s*1)[:* -]*([\s\S]*?)(?=(?:\n\s*(?:\*\s*)?(?:\*Draft|Draft\s*[2-9]))|$)/i)
+  if (draft1Match && draft1Match[1].trim()) {
+    return draft1Match[1].trim()
+  }
+
+  // 3. Fallback: if it doesn't have "Draft 1" but has metadata lines like "* Output:", "* Activity:", let's strip those lines.
+  const lines = clean.split('\n')
+  const filteredLines = lines.filter(line => {
+    const l = line.trim().toLowerCase()
+    // Filter out metadata-like lines
+    if (l.startsWith('* output:') || l.startsWith('output:') || 
+        l.startsWith('* activity:') || l.startsWith('activity:') || 
+        l.startsWith('* items:') || l.startsWith('items:') || 
+        l.startsWith('* engagement:') || l.startsWith('engagement:') ||
+        l.startsWith('draft ') || l.startsWith('*draft ')) {
+      return false
+    }
+    return true
+  })
+
+  return filteredLines.join('\n').trim()
+}
+
 export function getRandomGreeting(): string {
   const greetings = [
     "Hey there!",
@@ -22,21 +54,37 @@ function pick<T>(arr: T[]): T {
 
 export function getGlobalMarketShareMessage(platform?: SharePlatformType, digest?: string | null): string {
   // If we have a fresh AI community digest, weave it into the invite
-  if (digest) {
-    if (isCommunityPost(platform)) {
-      return `🌱 Here's what neighbors are buzzing about on CasaGrown:\n\n${digest}\n\nCasaGrown is a local marketplace where neighbors buy and sell fresh homegrown produce.\n\n👇 Explore what's growing near you:\n`
+  const cleanDigest = sanitizeDigest(digest)
+  if (cleanDigest) {
+    if (platform === 'sms') {
+      return `Check out what's fresh on CasaGrown! 🌱\n\n${cleanDigest}\n\n👇 Link:`
     }
-    return `${getRandomGreeting()} Here's what's happening on CasaGrown right now:\n\n${digest}\n\nIt's a local marketplace where you can buy fresh produce from neighbors' gardens!\n\n👇 Click the link below to explore the market:\n`
+    if (platform === 'email') {
+      return `Hi neighbor,\n\nI wanted to share this fresh update from CasaGrown. Neighbors are sharing all kinds of amazing homegrown produce recently:\n\n${cleanDigest}\n\nIt's a great local marketplace to buy directly from nearby gardens.\n\n👇 Click the link below to explore the market:`
+    }
+    if (platform === 'whatsapp') {
+      return `Hey neighbor! Here's what's fresh on CasaGrown right now:\n\n${cleanDigest}\n\nIt's a local marketplace where you can buy fresh produce from neighbors' gardens! 🌿\n\n👇 Explore here:`
+    }
+    if (isCommunityPost(platform)) {
+      return `🌱 Here's what neighbors are buzzing about on CasaGrown:\n\n${cleanDigest}\n\nCasaGrown is a local marketplace where neighbors buy and sell fresh homegrown produce.\n\n👇 Explore what's growing near you:\n`
+    }
+    return `${getRandomGreeting()} Here's what's happening on CasaGrown right now:\n\n${cleanDigest}\n\nIt's a local marketplace where you can buy fresh produce from neighbors' gardens!\n\n👇 Click the link below to explore the market:\n`
   }
 
-  if (isCommunityPost(platform)) {
-    const variations = [
-      "🌱 I've been buying fresh produce from neighbors' gardens through CasaGrown and it's been amazing! Incredibly fresh, hyper-local, and helps reduce food waste in our community.",
-      "🌿 I recently discovered CasaGrown — it's a local marketplace where neighbors sell their fresh homegrown produce. I've been loving it and wanted to share with the community!",
-      "🍅 Anyone else into fresh, local food? I've been using CasaGrown to buy directly from nearby gardens and the quality is so much better than the store. Highly recommend!",
-      "🥬 I found this great neighborhood marketplace called CasaGrown where I can buy garden-fresh fruits, veggies, and more from local growers. If you love fresh food, check it out!",
-    ]
-    return `${pick(variations)}\n\n👇 Explore what's growing near you:\n`
+  if (platform === 'sms') {
+    return "Check out what our neighbors are growing on CasaGrown! 🌱\n\n👇 Click here to see what's fresh:"
+  }
+  if (platform === 'email') {
+    return "Hi neighbor,\n\nI've been using CasaGrown recently to buy amazing fresh produce directly from our neighbors' gardens. It's incredibly fresh, hyper-local, and helps prevent food waste in our community. I highly recommend checking it out!\n\n👇 Click the link below to explore what's growing nearby:"
+  }
+  if (platform === 'whatsapp') {
+    return "Hey neighbor! Have you checked out CasaGrown? It's a local marketplace where neighbors sell their fresh homegrown garden produce. You've got to check it out! 🌿\n\n👇 Link below:"
+  }
+  if (platform === 'nextdoor') {
+    return "🌱 Hi neighbors! I recently discovered CasaGrown — a local neighborhood marketplace where we can buy fresh homegrown produce directly from nearby gardens. I've been loving it and wanted to share with the community!\n\n👇 Explore what's growing near you:"
+  }
+  if (platform === 'facebook') {
+    return "🍅 I've been using CasaGrown to buy fresh produce directly from local gardens and the quality is so much better than the store. Highly recommend checking out what's growing nearby!"
   }
 
   const variations = [
@@ -90,20 +138,37 @@ export function getBoothProductShareMessage(productName: string, nextMarketLabel
 
 export function getCommunityInviteMessage(platform?: SharePlatformType, digest?: string | null): string {
   // If we have a fresh AI digest, use it for a dynamic, timely message
-  if (digest) {
-    if (isCommunityPost(platform)) {
-      return `🌱 Here's what neighbors are talking about on CasaGrown Community:\n\n${digest}\n\n👇 Join the neighborhood chat:\n`
+  const cleanDigest = sanitizeDigest(digest)
+  if (cleanDigest) {
+    if (platform === 'sms') {
+      return `Check out what's buzzin' on CasaGrown Community chat! 🐝\n\n${cleanDigest}\n\n👇 Join us:`
     }
-    return `${getRandomGreeting()} Here's what's happening on CasaGrown Community right now:\n\n${digest}\n\n👇 Click the link below to join the neighborhood chat:\n`
+    if (platform === 'email') {
+      return `Hi neighbor,\n\nI wanted to invite you to join the CasaGrown Community chat. Here's a quick look at what our local gardening neighbors are talking about recently:\n\n${cleanDigest}\n\n👇 Click the link below to join the conversation:`
+    }
+    if (platform === 'whatsapp') {
+      return `Hey neighbor! Here's what's happening on the CasaGrown Community chat right now:\n\n${cleanDigest}\n\n👇 Join the neighborhood chat here:`
+    }
+    if (isCommunityPost(platform)) {
+      return `🌱 Here's what neighbors are talking about on CasaGrown Community:\n\n${cleanDigest}\n\n👇 Join the neighborhood chat:\n`
+    }
+    return `${getRandomGreeting()} Here's what's happening on CasaGrown Community right now:\n\n${cleanDigest}\n\n👇 Click the link below to join the neighborhood chat:\n`
   }
 
-  if (isCommunityPost(platform)) {
-    const variations = [
-      "🌱 I've been hanging out on CasaGrown Community and it's become my go-to for all things gardening! Neighbors share tips on growing, pest control, seasonal planting, recipes, and more. Plus there's CasaBot — an AI gardening assistant that can answer questions about soil, composting, what to plant this season, and how to deal with pests. Really helpful if you're a beginner or just want quick advice!",
-      "🐝 If you're into gardening, cooking with fresh food, or just curious about what's growing locally — check out CasaGrown Community! It's a neighborhood chat where we share gardening tips, harvest photos, recipes, and help each other out. They also have CasaBot, an AI assistant that gives personalized gardening advice on everything from pest identification to planting schedules.",
-      "🌿 I joined CasaGrown Community and I'm really enjoying it! It's a neighborhood space for gardening tips, fresh food talk, seasonal planting advice, and local produce recommendations. One of my favorite features is CasaBot — it's an AI gardening assistant you can ask about anything from composting to dealing with aphids. Great for beginners and experienced growers alike!",
-    ]
-    return `${pick(variations)}\n\n👇 Join the neighborhood chat:\n`
+  if (platform === 'sms') {
+    return "Come join the CasaGrown neighborhood gardening chat! 🐝\n\n👇 Click here to join the group:"
+  }
+  if (platform === 'email') {
+    return "Hi neighbor,\n\nI've been hanging out in the CasaGrown Community chat and it's been awesome! Neighbors share gardening tips, harvest photos, recipes, and seasonal planting advice. Plus, there's CasaBot — an AI gardening assistant that can help answer any gardening questions on the spot. Highly recommend joining!\n\n👇 Click the link below to join the chat:"
+  }
+  if (platform === 'whatsapp') {
+    return "Hey neighbor! Come join the CasaGrown Community chat. We share gardening tips, local harvest photos, recipes, and help each other out! 🌿\n\n👇 Click here to join:"
+  }
+  if (platform === 'nextdoor') {
+    return "🌱 Hi neighbors! I joined the CasaGrown Community chat and it's become my go-to for all things gardening. Neighbors are sharing tips, recipe ideas, and plant help. It's really helpful if you love fresh food or gardening!\n\n👇 Join the neighborhood chat:"
+  }
+  if (platform === 'facebook') {
+    return "🌿 If you love gardening or cooking with fresh local food, check out the CasaGrown Community chat! It's a great neighborhood space for sharing tips, advice, and gardening help. Highly recommend joining!"
   }
 
   const variations = [
@@ -111,7 +176,7 @@ export function getCommunityInviteMessage(platform?: SharePlatformType, digest?:
     "Come join CasaGrown Community! We talk about gardening, fresh produce, pest control, composting, and local food. Plus there's CasaBot — an AI assistant that gives gardening advice and suggestions on the spot. Really helpful for getting quick answers! 🌱",
     "I found this great neighborhood community on CasaGrown for gardening and fresh food talk! Neighbors share tips, seasonal advice, and recipes. And there's CasaBot — an AI gardening assistant that can answer your plant questions, suggest what to grow, and help with pest issues. 🌿"
   ]
-  return `${getRandomGreeting()} ${pick(variations)}\n\n👇 Click the link below to join the neighborhood chat:\n`
+  return `${getRandomGreeting()} ${pick(variations)}\n\n👇 Click the link below to join the group:`
 }
 
 export function getCommunityMessageForwardMessage(truncatedMessage: string, platform?: SharePlatformType): string {

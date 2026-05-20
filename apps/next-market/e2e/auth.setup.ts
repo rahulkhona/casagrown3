@@ -81,7 +81,7 @@ setup('authenticate market user', async ({ page }) => {
     {
       name: 'sb-127-auth-token',
       value: `base64-${cookieValue}`,
-      domain: '127.0.0.1',
+      domain: 'localhost',
       path: '/',
       sameSite: 'Lax',
       httpOnly: false,
@@ -90,7 +90,7 @@ setup('authenticate market user', async ({ page }) => {
     {
       name: 'supabase.auth.token',
       value: `base64-${cookieValue}`,
-      domain: '127.0.0.1',
+      domain: 'localhost',
       path: '/',
       sameSite: 'Lax',
       httpOnly: false,

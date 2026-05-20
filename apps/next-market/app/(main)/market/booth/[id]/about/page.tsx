@@ -5,7 +5,10 @@ import Link from 'next/link'
 import { useMarket } from '../../../../../../lib/store'
 
 export default function BoothAboutPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
+  const resolvedParams = params && typeof (params as any).then === 'function'
+    ? params
+    : Promise.resolve(params || {})
+  const { id } = use(resolvedParams)
   const { state } = useMarket()
   const booth = state.booths.find(b => b.id === id)
 

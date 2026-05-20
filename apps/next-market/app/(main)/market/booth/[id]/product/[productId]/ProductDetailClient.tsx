@@ -34,7 +34,10 @@ function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number)
 function metersToMiles(m: number): number { return m / 1609.344 }
 
 function ProductDetailPageInner({ params }: { params: Promise<{ id: string; productId: string }> }) {
-  const { id: boothId, productId } = use(params)
+  const resolvedParams = params && typeof (params as any).then === 'function'
+    ? params
+    : Promise.resolve(params || {})
+  const { id: boothId, productId } = use(resolvedParams)
   const supabase = createClient()
   const router = useRouter()
   const pathname = usePathname()
@@ -1070,7 +1073,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
         shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
         shareMessage={(p) => {
           const priceText = product?.price_usd === 0 ? 'Free' : `${formatUsd(product?.price_usd || 0)} / ${product?.unit}`
-          const deliveryText = booth && (booth.offers_delivery || booth.offers_pickup) ? `${booth.offers_delivery && booth.offers_pickup ? '🚗 Delivery or 📍 Pickup' : booth.offers_delivery ? '🚗 Delivery' : '📍 Pickup'} near ${booth.pickup_display_address || anonymizeAddress(booth.pickup_address) || 'you'}` : '📍 Available nearby'
+          const deliveryText = (productOffersDelivery || productOffersPickup) ? `${productOffersDelivery && productOffersPickup ? '🚗 Delivery or 📍 Pickup' : productOffersDelivery ? '🚗 Delivery' : '📍 Pickup'} near ${booth?.pickup_display_address || anonymizeAddress(booth?.pickup_address || '') || 'you'}` : '📍 Available nearby'
           return getProductShareMessage(product?.name || 'produce', priceText, deliveryText, p) +
             (product?.inventory ? `\n\nOnly ${product.inventory} available!` : '')
         }}

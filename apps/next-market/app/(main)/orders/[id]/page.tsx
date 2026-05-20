@@ -91,7 +91,10 @@ interface DisputeMessage {
 function formatUsd(n: number) { return '$' + n.toFixed(2) }
 
 function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
-  const { id: orderId } = use(params)
+  const resolvedParams = params && typeof (params as any).then === 'function'
+    ? params
+    : Promise.resolve(params || {})
+  const { id: orderId } = use(resolvedParams)
   const router = useRouter()
   const supabase = createClient()
   const { user, isAuthenticated, loading: authLoading } = useAuth()

@@ -16,7 +16,10 @@ import { useErrorToast } from '../../../../components/ErrorToast'
 import styles from './page.module.css'
 
 export default function BoothDetailClient({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
+  const resolvedParams = params && typeof (params as any).then === 'function'
+    ? params
+    : Promise.resolve(params || {})
+  const { id } = use(resolvedParams)
   const supabase = createClient()
   const router = useRouter()
   const pathname = usePathname()
