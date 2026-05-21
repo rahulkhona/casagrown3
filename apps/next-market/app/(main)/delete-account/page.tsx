@@ -30,8 +30,14 @@ export default function DeleteAccountPage() {
 
   useEffect(() => {
     if (authLoading) return // still hydrating
+    if (deleting) return // do not redirect while deletion/signout is in progress
     if (!user) {
-      router.replace('/login?next=/delete-account')
+      setLoading(false)
+      if (typeof window !== 'undefined') {
+        window.location.replace('/login?next=/delete-account')
+      } else {
+        router.replace('/login?next=/delete-account')
+      }
       return
     }
     const fetchPreflight = async () => {
@@ -46,7 +52,7 @@ export default function DeleteAccountPage() {
       setLoading(false)
     }
     fetchPreflight()
-  }, [user, authLoading]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, authLoading, deleting]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDelete = async () => {
     if (confirmText !== 'DELETE') return

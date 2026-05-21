@@ -170,8 +170,8 @@ test.describe('Share Context — booth_share (My Booth page)', () => {
       await page.context().close()
       return
     }
-    await shareBtn.click()
-    const copyBtn = page.getByRole('button', { name: 'Copy Link', exact: true })
+    await shareBtn.click({ force: true })
+    const copyBtn = page.locator('button', { hasText: 'Copy tailored text' })
     await expect(copyBtn).toBeVisible({ timeout: 5000 })
     await copyBtn.click()
     await page.waitForTimeout(2000)
@@ -196,7 +196,7 @@ test.describe('Share Context — product_share (Product card share)', () => {
     await productShareBtn.click()
     await page.waitForTimeout(500)
 
-    const copyBtn = page.getByRole('button', { name: 'Copy Link', exact: true })
+    const copyBtn = page.locator('button', { hasText: 'Copy tailored text' })
     if (await copyBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await copyBtn.click()
       await page.waitForTimeout(2000)
@@ -221,7 +221,7 @@ test.describe('Share Context — booth_invitation (Invitations page)', () => {
     await shareBtn.click()
     await page.waitForTimeout(500)
 
-    const copyBtn = page.getByRole('button', { name: 'Copy Link', exact: true })
+    const copyBtn = page.locator('button', { hasText: 'Copy tailored text' })
     if (await copyBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
       await copyBtn.click()
       await page.waitForTimeout(2000)
@@ -247,7 +247,7 @@ test.describe('Share Context — product_share (Products list page)', () => {
     await shareBtn.click()
     await page.waitForTimeout(500)
 
-    const copyBtn = page.getByRole('button', { name: 'Copy Link', exact: true })
+    const copyBtn = page.locator('button', { hasText: 'Copy tailored text' })
     if (await copyBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
       await copyBtn.click()
       await page.waitForTimeout(2000)
@@ -286,7 +286,7 @@ test.describe('Share Context — pioneer_invite (PioneerBanner)', () => {
     await inviteBtn.click({ force: true })
     await page.waitForTimeout(500)
 
-    const copyBtn = page.getByRole('button', { name: 'Copy Link', exact: true })
+    const copyBtn = page.locator('button', { hasText: 'Copy tailored text' })
     if (await copyBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
       await copyBtn.click({ force: true })
       await page.waitForTimeout(2000)
@@ -312,7 +312,7 @@ test.describe('Share Context — community_invite (InviteBanner)', () => {
     await inviteBtn.click()
     await page.waitForTimeout(500)
 
-    const copyBtn = page.getByRole('button', { name: 'Copy Link', exact: true })
+    const copyBtn = page.locator('button', { hasText: 'Copy tailored text' })
     if (await copyBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
       await copyBtn.click()
       await page.waitForTimeout(2000)
@@ -346,7 +346,7 @@ test.describe('Share Context — market_invite (Market page)', () => {
     await inviteBtn.click({ force: true })
     await page.waitForTimeout(500)
 
-    const copyBtn = page.getByRole('button', { name: 'Copy Link', exact: true })
+    const copyBtn = page.locator('button', { hasText: 'Copy tailored text' })
     if (await copyBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
       await copyBtn.click({ force: true })
       await page.waitForTimeout(2000)
@@ -380,7 +380,7 @@ test.describe('Share Context — market_closed_invite (MarketClosedBox)', () => 
     await inviteBtn.click()
     await page.waitForTimeout(500)
 
-    const copyBtn = page.getByRole('button', { name: 'Copy Link', exact: true })
+    const copyBtn = page.locator('button', { hasText: 'Copy tailored text' })
     if (await copyBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
       await copyBtn.click()
       await page.waitForTimeout(2000)
@@ -406,7 +406,7 @@ test.describe('Share Context — following_invite (Following page)', () => {
     await shareBtn.click()
     await page.waitForTimeout(500)
 
-    const copyBtn = page.getByRole('button', { name: 'Copy Link', exact: true })
+    const copyBtn = page.locator('button', { hasText: 'Copy tailored text' })
     if (await copyBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
       await copyBtn.click()
       await page.waitForTimeout(2000)
@@ -457,7 +457,7 @@ test.describe('Share Context — product_share (ProductDetailClient)', () => {
     await shareBtn.click()
     await page.waitForTimeout(500)
 
-    const copyBtn = page.getByRole('button', { name: 'Copy Link', exact: true })
+    const copyBtn = page.locator('button', { hasText: 'Copy tailored text' })
     if (await copyBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
       await copyBtn.click()
       await page.waitForTimeout(2000)
@@ -483,7 +483,7 @@ test.describe('Share Context — helper_invite (My Booth helper invite)', () => 
     await inviteBtn.click()
     await page.waitForTimeout(500)
 
-    const copyBtn = page.getByRole('button', { name: 'Copy Link', exact: true })
+    const copyBtn = page.locator('button', { hasText: 'Copy tailored text' })
     if (await copyBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
       await copyBtn.click()
       await page.waitForTimeout(2000)
@@ -518,7 +518,7 @@ test.describe('Share Context — chat_message_share (ChatMessage)', () => {
     await shareBtn.click()
     await page.waitForTimeout(500)
 
-    const copyBtn = page.getByRole('button', { name: 'Copy Link', exact: true })
+    const copyBtn = page.locator('button', { hasText: 'Copy tailored text' })
     if (await copyBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
       await copyBtn.click()
       await page.waitForTimeout(2000)
@@ -557,14 +557,18 @@ test.describe('Platform-Specific UTM Differentiation', () => {
       await page.waitForTimeout(1500)
     }
 
-    // Re-open modal if it closed
-    if (!(await page.getByRole('button', { name: 'Copy Link', exact: true }).isVisible({ timeout: 1000 }).catch(() => false))) {
-      await shareBtn.click()
+    // Navigate back to selection screen if WhatsApp screen is open, or re-open modal if closed
+    const backBtn = page.locator('button:has-text("Back")')
+    if (await backBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await backBtn.click()
+      await page.waitForTimeout(500)
+    } else if (!(await page.locator('button', { hasText: 'Copy tailored text' }).isVisible({ timeout: 1000 }).catch(() => false))) {
+      await shareBtn.click({ force: true })
       await page.waitForTimeout(500)
     }
 
     // Click Copy Link
-    const copyBtn = page.getByRole('button', { name: 'Copy Link', exact: true })
+    const copyBtn = page.locator('button', { hasText: 'Copy tailored text' })
     if (await copyBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await copyBtn.click()
       await page.waitForTimeout(1500)
@@ -858,18 +862,17 @@ test.describe('Per-Platform Share Content', () => {
     await shareBtn.click()
     await authedPage.waitForTimeout(500)
 
-    const copyBtn = authedPage.getByRole('button', { name: 'Copy Link', exact: true })
+    const copyBtn = authedPage.locator('button', { hasText: 'Copy tailored text' })
     if (await copyBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
       await copyBtn.click()
       await authedPage.waitForTimeout(2000)
 
       // Verify the API was called — the clipboard content should be the short URL
-      if (state.calls.length > 0) {
-        const call = state.calls[0]
-        expect(call.destination_url).toContain('utm_source=copy')
-        expect(call.destination_url).toContain('utm_medium=social_share')
-        console.log('[PLATFORM-04] ✅ Copy Link API verified — tracked URL generated for clipboard')
-      }
+      const copyCalls = state.calls.filter(c => c.destination_url.includes('utm_source=copy'))
+      expect(copyCalls.length).toBeGreaterThan(0)
+      const call = copyCalls[0]
+      expect(call.destination_url).toContain('utm_medium=social_share')
+      console.log('[PLATFORM-04] ✅ Copy Link API verified — tracked URL generated for clipboard')
     }
     await authedPage.context().close()
     await context.close()

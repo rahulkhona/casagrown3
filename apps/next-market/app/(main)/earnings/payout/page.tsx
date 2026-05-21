@@ -134,6 +134,16 @@ export default function PayoutPage() {
   const [cashingOut, setCashingOut] = useState(false)
   const [cashoutResult, setCashoutResult] = useState<{ success: boolean; txnId?: string; status?: string } | null>(null)
 
+  // ── Feature flag: Stripe Connect ──
+  const stripeConnectEnabled = process.env.NEXT_PUBLIC_STRIPE_CONNECT_ENABLED === 'true'
+
+  // ── Stripe Connect States ──
+  const [stripeInfo, setStripeInfo] = useState<{ stripe_connect_id: string | null; stripe_onboarding_completed: boolean; stripe_connect_active: boolean } | null>(null)
+  const [selectedPayoutMode, setSelectedPayoutMode] = useState<'stripe' | 'manual' | 'auto'>('manual')
+  const [connectingStripe, setConnectingStripe] = useState(false)
+  const [loadingStripeInfo, setLoadingStripeInfo] = useState(!stripeConnectEnabled ? false : true)
+  const [failedTransfer, setFailedTransfer] = useState<{ id: string; amount: number; error: string } | null>(null)
+
   // ── Auto-payout state ──
   const [showAutoPay, setShowAutoPay] = useState(false)
   const [autoConfig, setAutoConfig] = useState<AutoPayConfig>({
@@ -181,6 +191,52 @@ export default function PayoutPage() {
     })
   }, [userId, supabase])
 
+  // ── Fetch Stripe Connect Info ──
+  const fetchStripeInfo = useCallback(async () => {
+    if (!userId || !stripeConnectEnabled) return
+    setLoadingStripeInfo(true)
+    try {
+      const { data, error } = await supabase.rpc('get_profile_stripe_connect_info')
+      if (!error && data && data.length > 0) {
+        setStripeInfo(data[0])
+      }
+    } catch (err) {
+      console.error('[PAYOUT] Error fetching stripe connect info:', err)
+    } finally {
+      setLoadingStripeInfo(false)
+    }
+  }, [userId, supabase])
+
+  useEffect(() => {
+    fetchStripeInfo()
+  }, [fetchStripeInfo])
+
+  // ── Fetch Failed Stripe Transfers ──
+  useEffect(() => {
+    if (!userId || !stripeConnectEnabled) return
+    supabase.from('user_settlements')
+      .select('id, net_payout_usd, stripe_transfer_error, status')
+      .eq('user_id', userId)
+      .in('status', ['stripe_transfer_failed', 'wallet_fallback', 'stripe_transfer_reversed'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          const isRestored = data.status === 'wallet_fallback' || data.status === 'stripe_transfer_reversed'
+          setFailedTransfer({
+            id: data.id,
+            amount: data.net_payout_usd,
+            error: isRestored
+              ? `Funds restored to your wallet. Original error: ${data.stripe_transfer_error || 'Unknown'}`
+              : data.stripe_transfer_error || 'Unknown error'
+          })
+        } else {
+          setFailedTransfer(null)
+        }
+      })
+  }, [userId, supabase])
+
   // ── Fetch auto-payout config ──
   useEffect(() => {
     if (!userId) return
@@ -188,6 +244,19 @@ export default function PayoutPage() {
       if (data) setAutoConfig(data)
     })
   }, [userId, supabase])
+
+  // ── Sync payout mode on mount or data load ──
+  useEffect(() => {
+    if (stripeInfo) {
+      if (stripeInfo.stripe_connect_active) {
+        setSelectedPayoutMode('stripe')
+      } else if (autoConfig.enabled) {
+        setSelectedPayoutMode('auto')
+      } else {
+        setSelectedPayoutMode('manual')
+      }
+    }
+  }, [stripeInfo, autoConfig.enabled])
 
   // ── Fetch gift cards ──
   useEffect(() => {
@@ -427,6 +496,104 @@ export default function PayoutPage() {
     } finally { setAutoSaving(false) }
   }, [autoConfig, payoutStatus, supabase])
 
+  // ── Stripe Connect handlers ──
+  const handleConnectStripe = useCallback(async () => {
+    trackClick('connect_stripe_init')
+    setError(null)
+    setConnectingStripe(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('stripe-connect-onboard')
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+      if (data?.url) {
+        window.location.href = data.url
+      } else {
+        throw new Error('Failed to get onboarding URL from Stripe.')
+      }
+    } catch (err: any) {
+      trackError('stripe_connect_failed', { error: err.message })
+      setError(err.message || 'Failed to initiate Stripe connection.')
+    } finally {
+      setConnectingStripe(false)
+    }
+  }, [supabase])
+
+  const handlePayoutModeSelect = useCallback(async (mode: 'stripe' | 'manual' | 'auto') => {
+    trackClick('payout_mode_select', { mode })
+    setError(null)
+    setSuccessMsg(null)
+    
+    try {
+      if (mode === 'stripe') {
+        if (stripeInfo?.stripe_onboarding_completed) {
+          const { error: activeErr } = await supabase.rpc('set_stripe_connect_active', { p_active: true })
+          if (activeErr) throw activeErr
+          
+          const { error: autoErr } = await supabase.rpc('save_auto_redemption_config', {
+            p_enabled: false,
+            p_method: autoConfig.method,
+            p_threshold_usd: autoConfig.threshold_usd,
+            p_cashout_payout_id: payoutStatus?.handle || autoConfig.cashout_payout_id,
+            p_gift_card_brand: autoConfig.gift_card_brand,
+            p_gift_card_amount_usd: autoConfig.gift_card_amount_usd,
+            p_charity_project_id: autoConfig.charity_project_id,
+            p_charity_project_name: autoConfig.charity_project_name,
+          })
+          if (autoErr) throw autoErr
+          
+          setAutoConfig(prev => ({ ...prev, enabled: false }))
+          setStripeInfo(prev => prev ? ({ ...prev, stripe_connect_active: true }) : null)
+          setSelectedPayoutMode('stripe')
+          setSuccessMsg('✅ Stripe Direct Payouts activated successfully!')
+        } else {
+          setSelectedPayoutMode('stripe')
+        }
+      } else if (mode === 'auto') {
+        const { error: activeErr } = await supabase.rpc('set_stripe_connect_active', { p_active: false })
+        if (activeErr) throw activeErr
+        
+        const { error: autoErr } = await supabase.rpc('save_auto_redemption_config', {
+          p_enabled: true,
+          p_method: autoConfig.method,
+          p_threshold_usd: autoConfig.threshold_usd,
+          p_cashout_payout_id: payoutStatus?.handle || autoConfig.cashout_payout_id,
+          p_gift_card_brand: autoConfig.gift_card_brand,
+          p_gift_card_amount_usd: autoConfig.gift_card_amount_usd,
+          p_charity_project_id: autoConfig.charity_project_id,
+          p_charity_project_name: autoConfig.charity_project_name,
+        })
+        if (autoErr) throw autoErr
+        
+        setAutoConfig(prev => ({ ...prev, enabled: true }))
+        setStripeInfo(prev => prev ? ({ ...prev, stripe_connect_active: false }) : null)
+        setSelectedPayoutMode('auto')
+        setSuccessMsg('✅ Automatic payouts activated.')
+      } else if (mode === 'manual') {
+        const { error: activeErr } = await supabase.rpc('set_stripe_connect_active', { p_active: false })
+        if (activeErr) throw activeErr
+        
+        const { error: autoErr } = await supabase.rpc('save_auto_redemption_config', {
+          p_enabled: false,
+          p_method: autoConfig.method,
+          p_threshold_usd: autoConfig.threshold_usd,
+          p_cashout_payout_id: payoutStatus?.handle || autoConfig.cashout_payout_id,
+          p_gift_card_brand: autoConfig.gift_card_brand,
+          p_gift_card_amount_usd: autoConfig.gift_card_amount_usd,
+          p_charity_project_id: autoConfig.charity_project_id,
+          p_charity_project_name: autoConfig.charity_project_name,
+        })
+        if (autoErr) throw autoErr
+        
+        setAutoConfig(prev => ({ ...prev, enabled: false }))
+        setStripeInfo(prev => prev ? ({ ...prev, stripe_connect_active: false }) : null)
+        setSelectedPayoutMode('manual')
+        setSuccessMsg('✅ Switched to manual payouts.')
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to update payout mode')
+    }
+  }, [supabase, stripeInfo, autoConfig, payoutStatus])
+
   // Auto-dismiss results
   useEffect(() => { if (redemptionResult) { const t = setTimeout(() => setRedemptionResult(null), 8000); return () => clearTimeout(t) } }, [redemptionResult])
   useEffect(() => { if (completedDonation) { const t = setTimeout(() => setCompletedDonation(null), 8000); return () => clearTimeout(t) } }, [completedDonation])
@@ -477,43 +644,138 @@ export default function PayoutPage() {
       {error && <div className={styles.alertError}>❌ {error} <button onClick={() => setError(null)} className={styles.alertClose}>✕</button></div>}
       {successMsg && <div className={styles.alertSuccess}>✅ {successMsg}</div>}
 
-      {/* ── Auto/Manual Toggle ── */}
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        padding: '14px 18px', background: autoConfig.enabled ? 'var(--green-50)' : 'var(--gray-50)',
-        border: `1px solid ${autoConfig.enabled ? 'var(--green-200)' : 'var(--gray-200)'}`,
-        borderRadius: 12, marginBottom: 20,
-      }}>
-        <div>
-          <strong style={{ fontSize: 14, color: 'var(--gray-800)' }}>
-            {autoConfig.enabled ? '⚡ Auto-Payout' : '🖐️ Manual Payout'}
-          </strong>
-          <p style={{ fontSize: 12, color: 'var(--gray-500)', margin: '2px 0 0' }}>
-            {autoConfig.enabled
-              ? 'Automatically pay out when your balance hits a threshold'
-              : 'Choose how to use your earnings below'}
-          </p>
-          <p style={{ fontSize: 10, color: 'var(--gray-400)', margin: '2px 0 0' }}>
-            Balances over $500 or 90 days of inactivity trigger mandatory settlement
+      {/* failed transfer warning banner */}
+      {failedTransfer && (
+        <div className={styles.warningBanner} style={
+          failedTransfer.error.startsWith('Funds restored')
+            ? { borderColor: 'var(--green-300)', background: 'var(--green-50)' }
+            : undefined
+        }>
+          <span className={styles.warningIcon}>{failedTransfer.error.startsWith('Funds restored') ? 'ℹ️' : '⚠️'}</span>
+          <div className={styles.warningContent}>
+            <div className={styles.warningTitle}>
+              {failedTransfer.error.startsWith('Funds restored') ? 'Direct Transfer Recovered' : 'Direct Transfer Failed'}
+            </div>
+            <div className={styles.warningText}>
+              {failedTransfer.error.startsWith('Funds restored')
+                ? <>Your last direct deposit of {formatUsd(failedTransfer.amount)} couldn&apos;t reach your bank. The funds have been restored to your wallet — you can withdraw via Gift Card, Venmo, or PayPal below.</>
+                : <>We couldn&apos;t transfer your last payout of {formatUsd(failedTransfer.amount)}. Stripe Error: {failedTransfer.error}.</>
+              }
+            </div>
+            {!failedTransfer.error.startsWith('Funds restored') && (
+              <button className={styles.warningFixBtn} onClick={handleConnectStripe} disabled={connectingStripe}>
+                {connectingStripe ? 'Opening Stripe...' : 'Fix in Stripe Onboarding'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Premium 3-Option Selection Grid */}
+      <div className={styles.payoutMethodGrid}>
+        {/* Direct Payout (Stripe Connect) — gated by feature flag */}
+        {stripeConnectEnabled && (
+          <div
+            className={`${styles.methodCard} ${selectedPayoutMode === 'stripe' ? styles.methodCardActive : ''}`}
+            onClick={() => handlePayoutModeSelect('stripe')}
+          >
+            {stripeInfo?.stripe_connect_active && stripeInfo?.stripe_onboarding_completed && (
+              <span className={styles.methodCardBadge}>
+                ⚡ Active
+              </span>
+            )}
+            <span className={styles.methodCardIcon}>💳</span>
+            <strong className={styles.methodCardTitle}>Direct Payout (Stripe)</strong>
+            <p className={styles.methodCardDesc}>
+              Send net earnings directly to your bank account via Stripe Connect at settlement.
+            </p>
+          </div>
+        )}
+
+        {/* Manual Wallet Payouts */}
+        <div
+          className={`${styles.methodCard} ${selectedPayoutMode === 'manual' ? styles.methodCardActive : ''}`}
+          onClick={() => handlePayoutModeSelect('manual')}
+        >
+          <span className={styles.methodCardIcon}>🖐️</span>
+          <strong className={styles.methodCardTitle}>Manual Wallet</strong>
+          <p className={styles.methodCardDesc}>
+            Keep earnings in your CasaGrown wallet and withdraw manually via Venmo, PayPal, or Gift Cards.
           </p>
         </div>
-        <label style={{ position: 'relative', display: 'inline-block', width: 44, height: 24, flexShrink: 0 }}>
-          <input type="checkbox" checked={autoConfig.enabled} onChange={e => setAutoConfig(prev => ({ ...prev, enabled: e.target.checked }))}
-            style={{ opacity: 0, width: 0, height: 0 }} />
-          <span style={{
-            position: 'absolute', cursor: 'pointer', inset: 0, borderRadius: 24,
-            background: autoConfig.enabled ? 'var(--green-500)' : 'var(--gray-300)',
-            transition: 'background 0.2s',
-          }}>
-            <span style={{
-              position: 'absolute', height: 18, width: 18, left: autoConfig.enabled ? 22 : 3, bottom: 3,
-              background: 'white', borderRadius: '50%', transition: 'left 0.2s',
-            }} />
-          </span>
-        </label>
+
+        {/* Automatic Wallet Payouts */}
+        <div
+          className={`${styles.methodCard} ${selectedPayoutMode === 'auto' ? styles.methodCardActive : ''}`}
+          onClick={() => handlePayoutModeSelect('auto')}
+        >
+          <span className={styles.methodCardIcon}>⚡</span>
+          <strong className={styles.methodCardTitle}>Auto Wallet</strong>
+          <p className={styles.methodCardDesc}>
+            Automatically pay out to your Venmo, PayPal, or Gift Card once a custom threshold is met.
+          </p>
+        </div>
       </div>
 
-      {autoConfig.enabled ? (
+      {stripeConnectEnabled && selectedPayoutMode === 'stripe' ? (
+        <div style={{ background: 'var(--white)', border: '1px solid var(--gray-200)', borderRadius: 12, padding: 20 }}>
+          {loadingStripeInfo ? (
+            <div className={styles.emptyState}>
+              <span className={styles.searchSpinner}>⏳</span>
+              <p>Loading Stripe Connect information...</p>
+            </div>
+          ) : stripeInfo?.stripe_onboarding_completed ? (
+            <div className={`${styles.stripeConnectCard} ${styles.stripeLinked}`} style={{ margin: 0 }}>
+              <div className={styles.stripeHeader}>
+                <div className={styles.stripeBrand}>
+                  <span className={styles.stripeLogo}>stripe</span>
+                  <span className={styles.stripeTitle}>Direct Payouts Active</span>
+                </div>
+                <span className={`${styles.stripeStatusBadge} ${styles.stripeStatusLinked}`}>
+                  ✓ Connected & Active
+                </span>
+              </div>
+              <p className={styles.stripeDesc}>
+                Your Standard Stripe account <strong>({stripeInfo.stripe_connect_id})</strong> is linked. Payouts from future settlements will bypass your virtual wallet and deposit directly to your bank account via ACH.
+              </p>
+              <div className={styles.stripeActions}>
+                <a
+                  href="https://dashboard.stripe.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={styles.stripeDashLink}
+                >
+                  View Stripe Dashboard ↗
+                </a>
+                <span style={{ color: 'var(--gray-300)' }}>|</span>
+                <button className={styles.switchManualBtn} onClick={() => handlePayoutModeSelect('manual')}>
+                  Switch to Manual Payouts
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className={`${styles.stripeConnectCard} ${styles.stripeUnlinked}`} style={{ margin: 0 }}>
+              <div className={styles.stripeHeader}>
+                <div className={styles.stripeBrand}>
+                  <span className={styles.stripeLogo}>stripe</span>
+                  <span className={styles.stripeTitle}>Direct Payouts via Stripe Connect</span>
+                </div>
+                <span className={`${styles.stripeStatusBadge} ${styles.stripeStatusUnlinked}`}>
+                  Not Connected
+                </span>
+              </div>
+              <p className={styles.stripeDesc}>
+                Connect your bank account to receive direct deposits from every settlement. Set up your Stripe Standard account in less than 3 minutes to start receiving fast, automated ACH payouts.
+              </p>
+              <div className={styles.stripeActions}>
+                <button className="btn btn-primary" onClick={handleConnectStripe} disabled={connectingStripe}>
+                  {connectingStripe ? 'Connecting to Stripe...' : 'Connect Stripe'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : selectedPayoutMode === 'auto' ? (
         /* ═══ AUTO-PAYOUT CONFIG ═══ */
         <div className={styles.tabContent} style={{ border: '1px solid var(--green-200)', borderRadius: 12, padding: 20, background: 'var(--white)' }}>
           <div style={{ marginBottom: 16 }}>
@@ -582,7 +844,7 @@ export default function PayoutPage() {
 
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 6 }}>Payout Threshold</label>
-            <p style={{ fontSize: 11, color: 'var(--gray-500)', margin: '0 0 8px' }}>When your balance reaches this amount, your full balance is automatically paid out</p>
+            <p style={{ fontSize: 11, color: 'var(--gray-500)', margin: '0 0 8px' }}>When your balance reaches this amount, your full balance is automatically paid out. Balances exceeding $500 will automatically trigger a sweep payout.</p>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {THRESHOLD_PRESETS.map(t => (
                 <button key={t}

@@ -82,8 +82,8 @@ describe('SocialShareModal Component - User Interactions', () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
     
-    // Screen 1 Headers
-    expect(screen.getByText('Select Platform to Share')).toBeInTheDocument()
+    // Screen 1 Headers — title prop overrides the default 'Select Platform to Share' fallback
+    expect(screen.getByText('Invite Neighbors')).toBeInTheDocument()
     expect(screen.getByText('Choose a platform to preview, customize, and invite your neighbors!')).toBeInTheDocument()
 
     // Platform options present
@@ -112,7 +112,7 @@ describe('SocialShareModal Component - User Interactions', () => {
 
     // Clicking Back returns to selection
     fireEvent.click(screen.getByText('← Back'))
-    expect(screen.getByText('Select Platform to Share')).toBeInTheDocument()
+    expect(screen.getByText('Invite Neighbors')).toBeInTheDocument()
 
     // Go to WhatsApp screen again
     fireEvent.click(screen.getByText('Share on WhatsApp'))

@@ -507,7 +507,7 @@ export default function SocialShareModal({
             </div>
 
             <h2 style={{ margin: '0 0 4px', fontSize: 18, color: '#111827', fontWeight: 700, width: '100%', textAlign: 'left' }}>
-              Select Platform to Share
+              {title || 'Select Platform to Share'}
             </h2>
             <p style={{ margin: '0 0 16px', fontSize: 13, color: '#6b7280', lineHeight: 1.4, width: '100%', textAlign: 'left' }}>
               Choose a platform to preview, customize, and invite your neighbors!

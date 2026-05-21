@@ -138,7 +138,7 @@ async function cleanupUser(id: string) {
 // ─────────────────────────────────────────────────────────────────────
 test('unauthenticated /delete-account redirects to login', async ({ browser }) => {
   // Use a fresh context with no auth cookies — simulates a logged-out visitor
-  const ctx = await browser.newContext()
+  const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } })
   const p = await ctx.newPage()
   await p.goto('/delete-account')
 
@@ -161,8 +161,6 @@ test('unauthenticated /delete-account redirects to login', async ({ browser }) =
 // ─────────────────────────────────────────────────────────────────────
 test('delete account page shows confirmation UI', async ({ page }) => {
   await page.goto('/delete-account')
-  await page.waitForLoadState('networkidle')
-
   await expect(page.locator('h1')).toContainText('Delete Account', { timeout: 10_000 })
 
   const confirmInput = page.locator('[data-testid="delete-confirm-input"]')
@@ -177,8 +175,6 @@ test('delete account page shows confirmation UI', async ({ page }) => {
 // ─────────────────────────────────────────────────────────────────────
 test('typing DELETE enables the delete button', async ({ page }) => {
   await page.goto('/delete-account')
-  await page.waitForLoadState('networkidle')
-
   const confirmInput = page.locator('[data-testid="delete-confirm-input"]')
   await confirmInput.waitFor({ state: 'visible', timeout: 10_000 })
   const deleteBtn = page.locator('[data-testid="delete-account-btn"]')
@@ -195,8 +191,6 @@ test('typing DELETE enables the delete button', async ({ page }) => {
 // ─────────────────────────────────────────────────────────────────────
 test('delete account page discloses consequences', async ({ page }) => {
   await page.goto('/delete-account')
-  await page.waitForLoadState('networkidle')
-
   const heading = page.locator('h1')
   await expect(heading).toContainText('Delete Account', { timeout: 30_000 })
 
@@ -287,9 +281,7 @@ test('community user preflight shows community footprint', async () => {
 test('cancel button navigates back', async ({ page }) => {
   // Navigate to profile first, then to delete-account
   await page.goto('/profile')
-  await page.waitForLoadState('networkidle')
   await page.goto('/delete-account')
-  await page.waitForLoadState('networkidle')
 
   const cancelBtn = page.getByRole('button', { name: 'Cancel' })
   await cancelBtn.waitFor({ state: 'visible', timeout: 10_000 })
@@ -333,7 +325,6 @@ test('full browser deletion flow calls edge function and logs out', async ({ pag
   })
 
   await page.goto('/delete-account')
-  await page.waitForLoadState('networkidle')
 
   // Wait for the page to fully render
   const heading = page.locator('h1')
@@ -393,8 +384,6 @@ test('closed users do not appear in DM search', async ({ page }) => {
   }).catch(() => {})
 
   await page.goto('/messages')
-  await page.waitForLoadState('networkidle')
-
   const newChatBtn = page.locator('[data-testid="new-chat-btn"]')
     .or(page.getByRole('button', { name: /new|message|chat/i }))
     .first()
@@ -423,8 +412,6 @@ test('closed users do not appear in DM search', async ({ page }) => {
 // ─────────────────────────────────────────────────────────────────────
 test('success page shows correct messaging', async ({ page }) => {
   await page.goto('/delete-account/success')
-  await page.waitForLoadState('networkidle')
-
   await expect(page.getByText('Account Successfully Closed')).toBeVisible({ timeout: 10_000 })
   await expect(page.getByText('support@casagrown.com')).toBeVisible({ timeout: 5_000 })
 })
@@ -545,11 +532,11 @@ test('DM and Follow buttons hidden for Deleted User in community', async ({ page
   }).catch(() => {})
 
   await page.goto('/community')
-  await page.waitForLoadState('networkidle')
-
-  // Look for "Deleted User" author name text
+  await page.waitForTimeout(3000) // let community messages load
+  // Look for "Deleted User" author name text (soft wait — message may not be in visible range)
   const deletedUserSpan = page.locator('text=Deleted User').first()
-  const isVisible = await deletedUserSpan.isVisible({ timeout: 5_000 }).catch(() => false)
+  await deletedUserSpan.waitFor({ state: 'visible', timeout: 15000 }).catch(() => {})
+  const isVisible = await deletedUserSpan.isVisible({ timeout: 2_000 }).catch(() => false)
 
   if (isVisible) {
     // The parent message should NOT have DM or Follow buttons
@@ -623,7 +610,6 @@ test('DM compose is blocked for closed accounts', async ({ page }) => {
 
   if (convId) {
     await page.goto(`/messages/${convId}`)
-    await page.waitForLoadState('networkidle')
 
     // Should show the "account closed" banner
     await expect(page.getByText('account has been closed')).toBeVisible({ timeout: 10_000 })

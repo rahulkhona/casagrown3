@@ -1,4 +1,5 @@
 import { jsonOk, serveWithCors } from "../_shared/serve-with-cors.ts";
+import { getStripeApiBase } from "../_shared/stripe.ts";
 
 /**
  * confirm-payment — Supabase Edge Function
@@ -55,7 +56,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     ) {
         try {
             const piResponse = await fetch(
-                `https://api.stripe.com/v1/payment_intents/${txn.stripe_payment_intent_id}?expand[]=payment_method`,
+                `${getStripeApiBase()}/v1/payment_intents/${txn.stripe_payment_intent_id}?expand[]=payment_method`,
                 {
                     method: "GET",
                     headers: {

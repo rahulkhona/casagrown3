@@ -166,4 +166,210 @@
   .amountGrid { grid-template-columns: repeat(2, 1fr); }
   .tabGrid { gap: 8px; }
   .tabBtn { min-width: 0; padding: 10px 12px; }
+  .payoutMethodGrid { grid-template-columns: 1fr !important; }
+}
+
+/* ── Premium 3-Option Payout Grid ── */
+.payoutMethodGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.methodCard {
+  background: #fff;
+  border: 2px solid var(--gray-200);
+  border-radius: var(--radius-xl, 14px);
+  padding: 20px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  transition: all 0.2s ease-in-out;
+  position: relative;
+  overflow: hidden;
+}
+.methodCard:hover {
+  border-color: var(--green-300);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  transform: translateY(-2px);
+}
+.methodCardActive {
+  border-color: var(--green-600);
+  background: linear-gradient(135deg, var(--green-50), #fff);
+  box-shadow: 0 4px 20px rgba(74, 117, 89, 0.08);
+}
+.methodCardIcon {
+  font-size: 24px;
+  margin-bottom: 12px;
+}
+.methodCardTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--gray-900);
+  margin-bottom: 6px;
+}
+.methodCardDesc {
+  font-size: 12px;
+  color: var(--gray-500);
+  line-height: 1.4;
+  margin-bottom: auto;
+}
+.methodCardBadge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: var(--green-600);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ── Stripe Connect Cards ── */
+.stripeConnectCard {
+  border-radius: var(--radius-xl, 14px);
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border: 1px solid transparent;
+}
+.stripeUnlinked {
+  background: linear-gradient(135deg, #fffbeb, #fff);
+  border-color: #fde68a; /* amber-200 */
+}
+.stripeLinked {
+  background: linear-gradient(135deg, var(--green-50), #fff);
+  border-color: var(--green-200);
+}
+.stripeHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.stripeBrand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.stripeLogo {
+  font-weight: 800;
+  font-size: 20px;
+  color: #635bff; /* Stripe color */
+  background: white;
+  padding: 4px 10px;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.stripeTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--gray-900);
+}
+.stripeStatusBadge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+.stripeStatusUnlinked {
+  background: #fef3c7; /* amber-100 */
+  color: #b45309; /* amber-700 */
+}
+.stripeStatusLinked {
+  background: #dcfce7; /* green-100 */
+  color: #15803d; /* green-700 */
+}
+.stripeDesc {
+  font-size: 13px;
+  color: var(--gray-600);
+  line-height: 1.5;
+}
+.stripeActions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.stripeDashLink {
+  font-size: 13px;
+  color: var(--green-600);
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.stripeDashLink:hover {
+  color: var(--green-800);
+  text-decoration: underline;
+}
+.switchManualBtn {
+  font-size: 13px;
+  color: var(--gray-500);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  text-decoration: underline;
+  padding: 0;
+}
+.switchManualBtn:hover {
+  color: var(--gray-800);
+}
+
+/* ── Warning Banner ── */
+.warningBanner {
+  background: linear-gradient(135deg, #fef2f2, #fff);
+  border: 1px solid #fee2e2;
+  border-radius: var(--radius-xl, 14px);
+  padding: 16px;
+  margin-bottom: 20px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.warningIcon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+.warningContent {
+  flex: 1;
+}
+.warningTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: #991b1b;
+  margin-bottom: 4px;
+}
+.warningText {
+  font-size: 12px;
+  color: #7f1d1d;
+  line-height: 1.5;
+}
+.warningFixBtn {
+  margin-top: 8px;
+  background: #dc2626;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.warningFixBtn:hover {
+  background: #b91c1c;
 }

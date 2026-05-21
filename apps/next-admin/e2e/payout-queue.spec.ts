@@ -477,12 +477,20 @@ test.describe('Reject & Refund Workflow', () => {
     expect(ledgerData.length).toBeGreaterThan(0)
     expect(ledgerData[0].amount_usd).toBe(15) // The refunded amount from our seed in USD
 
-    // 7. Verify SMS via supabase rest API (service role bypass)
-    const smsRes = await request.get(`${supabaseUrl}/rest/v1/sms_notification_log?message=ilike.*${encodeURIComponent(rejectReason)}*`, {
+    // 7. Verify SMS via supabase rest API (poll — async dispatch, same as push)
+    let smsData: any[] = []
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const smsRes = await request.get(`${supabaseUrl}/rest/v1/sms_notification_log?message=ilike.*${encodeURIComponent(rejectReason)}*`, {
         headers: { 'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey }
-    })
-    expect(smsRes.ok()).toBe(true)
-    const smsData = await smsRes.json()
+      })
+      if (smsRes.ok()) {
+        smsData = await smsRes.json()
+        if (smsData.length > 0) break
+      }
+      console.log(`[PAYOUT-TEST] SMS poll attempt ${attempt + 1}: ${smsData.length} rows`)
+      await page.waitForTimeout(1500)
+    }
+    console.log('[PAYOUT-TEST] SMS notification found:', smsData.length, smsData[0]?.status)
     expect(smsData.length).toBeGreaterThan(0)
     expect(smsData[0].status).toBe('skipped_disabled') // from our feature flag
 

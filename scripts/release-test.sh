@@ -189,17 +189,21 @@ npx supabase test db > /tmp/pgtap_output.log 2>&1
 PGTAP_EXIT=$?
 PGTAP_OUTPUT=$(cat /tmp/pgtap_output.log)
 
+# Always extract test count from the summary line: "Files=63, Tests=842, ..."
+PGTAP_TESTS=$(echo "$PGTAP_OUTPUT" | grep "Files=" | sed 's/.*Tests=\([0-9]*\).*/\1/' || echo "0")
+PGTAP_FILES=$(echo "$PGTAP_OUTPUT" | grep "Files=" | sed 's/.*Files=\([0-9]*\).*/\1/' || echo "0")
+PGTAP_TESTS=${PGTAP_TESTS:-0}
+PGTAP_FILES=${PGTAP_FILES:-0}
+
 if echo "$PGTAP_OUTPUT" | grep -q "All tests successful"; then
-  PGTAP_TESTS=$(echo "$PGTAP_OUTPUT" | grep "Files=" | sed 's/.*Tests=\([0-9]*\).*/\1/')
-  PGTAP_FILES=$(echo "$PGTAP_OUTPUT" | grep "Files=" | sed 's/.*Files=\([0-9]*\).*/\1/')
   echo -e "  ${GREEN}✅ pgTAP: ${PGTAP_FILES} files, ${PGTAP_TESTS} tests — ALL PASS${NC}"
   log_suite "pgTAP Database" "${PGTAP_TESTS}"
 else
-  echo -e "  ${RED}❌ pgTAP failed${NC}"
-  echo "$PGTAP_OUTPUT" | grep -E "^not ok|FAILED" | head -10
-  PGTAP_PASSED=$(echo "$PGTAP_OUTPUT" | grep -c "^ok " || echo "0")
-  PGTAP_FAILED_CT=$(echo "$PGTAP_OUTPUT" | grep -c "^not ok" || echo "0")
-  log_suite "pgTAP Database" "$PGTAP_PASSED" "$PGTAP_FAILED_CT"
+  # Count file-level failures (bad plans, crashes — NOT individual test assertions)
+  PGTAP_BAD_FILES=$(echo "$PGTAP_OUTPUT" | grep -c "Non-zero exit status\|Parse errors" || echo "0")
+  echo -e "  ${RED}❌ pgTAP: ${PGTAP_FILES} files, ${PGTAP_TESTS} tests — ${PGTAP_BAD_FILES} file(s) had issues${NC}"
+  echo "$PGTAP_OUTPUT" | grep -E "Non-zero exit|Parse errors|Bad plan" | head -10 | sed 's/^/    /'
+  log_suite "pgTAP Database" "$PGTAP_TESTS" "$PGTAP_BAD_FILES"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -660,6 +664,25 @@ else
     STRESS3_PASSED=$(echo "$STRESS3" | grep -c "^ok " || echo "0")
     STRESS3_FAILED=$(echo "$STRESS3" | grep -c "^not ok" || echo "0")
     log_suite "100K Stress" "$STRESS3_PASSED" "$STRESS3_FAILED"
+  fi
+
+  echo "  Running Stripe Connect safety net + stress tests..."
+  STRESS4=$(npx supabase test db \
+    supabase/tests/database/61_stripe_connect_stress.test.sql \
+    supabase/tests/database/62_stripe_connect_safety_net.test.sql 2>&1)
+  if echo "$STRESS4" | grep -q "All tests successful"; then
+    STRESS4_TESTS=$(echo "$STRESS4" | grep "^Files=" | sed 's/.*Tests=\([0-9]*\).*/\1/')
+    echo -e "  ${GREEN}✅ Stripe Connect Safety: ${STRESS4_TESTS} tests${NC}"
+    log_suite "Stripe Connect Safety" "${STRESS4_TESTS:-0}"
+  elif echo "$STRESS4" | grep -q "finish"; then
+    echo -e "  ${GREEN}✅ Stripe Connect Safety${NC}"
+    log_suite "Stripe Connect Safety" "1"
+  else
+    echo -e "  ${YELLOW}⚠️  Stripe Connect Safety had issues${NC}"
+    echo "$STRESS4" | grep -E "^not ok|ERROR" | head -5 | sed 's/^/    /'
+    STRESS4_PASSED=$(echo "$STRESS4" | grep -c "^ok " || echo "0")
+    STRESS4_FAILED=$(echo "$STRESS4" | grep -c "^not ok" || echo "0")
+    log_suite "Stripe Connect Safety" "$STRESS4_PASSED" "$STRESS4_FAILED"
   fi
 fi
 

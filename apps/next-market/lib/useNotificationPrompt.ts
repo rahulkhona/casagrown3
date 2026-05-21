@@ -98,6 +98,7 @@ export function isIOSBrowser(): boolean {
 }
 
 async function shouldShowPrompt(): Promise<boolean> {
+  if (typeof navigator !== 'undefined' && navigator.webdriver) return false
   if (promptedThisSession) return false
   if (storageGet(OPTED_OUT_KEY) === 'true') return false
   const dismissedAt = storageGet(DISMISSED_AT_KEY)

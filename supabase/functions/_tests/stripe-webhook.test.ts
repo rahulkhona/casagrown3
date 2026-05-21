@@ -480,3 +480,63 @@ Deno.test({
     assertEquals(Number(events[0].amount_usd), 0)
   },
 })
+
+// ============================================================================
+// 9. account.updated — connected account onboarding completion
+// ============================================================================
+Deno.test({
+  name: 'stripe-webhook: account.updated completes onboarding and activates Stripe Connect',
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    // Create a new test user to link
+    const user = await createTestUser('onboard')
+    assertExists(user.id)
+
+    const stripeAccountId = `acct_test_onboard_${Date.now()}`
+
+    // Update profiles table with the stripe_connect_id using the rest API
+    const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}`, {
+      method: 'PATCH',
+      headers: {
+        ...HEADERS,
+        'Prefer': 'return=representation',
+      },
+      body: JSON.stringify({
+        stripe_connect_id: stripeAccountId,
+        stripe_onboarding_completed: false,
+        stripe_connect_active: false,
+      }),
+    })
+    assertEquals(patchRes.status, 200)
+
+    // Call the webhook simulating Stripe sending account.updated
+    const result = await callWebhook({
+      id: `evt_onboard_${Date.now()}`,
+      type: 'account.updated',
+      data: {
+        object: {
+          id: stripeAccountId,
+          charges_enabled: true,
+          payouts_enabled: true,
+          details_submitted: true,
+        },
+      },
+    })
+
+    assertEquals(result.status, 200)
+    assertEquals(result.data.received, true)
+
+    // Verify profile onboarding status was updated to true
+    const profiles = await restGet('profiles', `id=eq.${user.id}`)
+    assertEquals(profiles.length, 1)
+    assertEquals(profiles[0].stripe_onboarding_completed, true)
+    assertEquals(profiles[0].stripe_connect_active, true)
+
+    // Verify an in-app notification was generated for the user
+    const notifs = await restGet('notifications', `user_id=eq.${user.id}`)
+    assertEquals(notifs.length, 1)
+    assertEquals(notifs[0].link_url, '/earnings/payout')
+  },
+})
+

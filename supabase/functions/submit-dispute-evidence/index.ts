@@ -15,6 +15,7 @@ import {
     serveWithCors,
     // @ts-ignore: Deno requires .ts extension for local imports
 } from "../_shared/serve-with-cors.ts";
+import { getStripeApiBase } from "../_shared/stripe.ts";
 
 // ── Evidence formatters ──────────────────────────────────────────────────────
 
@@ -327,7 +328,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     });
 
     const stripeRes = await fetch(
-        `https://api.stripe.com/v1/disputes/${dispute.stripe_dispute_id}`,
+        `${getStripeApiBase()}/v1/disputes/${dispute.stripe_dispute_id}`,
         {
             method: "POST",
             headers: {

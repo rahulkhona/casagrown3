@@ -4,6 +4,7 @@ import {
   requireAuth,
   serveWithCors,
 } from "../_shared/serve-with-cors.ts";
+import { getStripeApiBase } from "../_shared/stripe.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 /**
@@ -209,7 +210,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
       }
     }
 
-    const refundRes = await fetch("https://api.stripe.com/v1/refunds", {
+    const refundRes = await fetch(`${getStripeApiBase()}/v1/refunds`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${STRIPE_SECRET}`,

@@ -29,6 +29,7 @@ import {
     requireAuth,
     serveWithCors,
 } from "../_shared/serve-with-cors.ts";
+import { getStripeApiBase } from "../_shared/stripe.ts";
 
 serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     // Authenticate first — reject anon before revealing config state
@@ -40,6 +41,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     if (!STRIPE_SECRET_KEY) {
         return jsonError("STRIPE_SECRET_KEY not configured", corsHeaders);
     }
+    const STRIPE_API_BASE = getStripeApiBase();
 
     // Diagnostic: log key prefix to trace which key is being used
     const keyPrefix = STRIPE_SECRET_KEY.substring(0, 12);
@@ -238,7 +240,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
         // Cancel old Stripe PI
         await fetch(
-            `https://api.stripe.com/v1/payment_intents/${existingHold.stripe_payment_intent_id}/cancel`,
+            `${STRIPE_API_BASE}/v1/payment_intents/${existingHold.stripe_payment_intent_id}/cancel`,
             {
                 method: "POST",
                 headers: {
@@ -250,7 +252,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
         // Create new PI with the card-only amount
         const piResponse = await fetch(
-            "https://api.stripe.com/v1/payment_intents",
+            `${STRIPE_API_BASE}/v1/payment_intents`,
             {
                 method: "POST",
                 headers: {
@@ -340,7 +342,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     holdAmountCents = Math.max(holdAmountCents, remainderCents);
 
     const piResponse = await fetch(
-        "https://api.stripe.com/v1/payment_intents",
+        `${STRIPE_API_BASE}/v1/payment_intents`,
         {
             method: "POST",
             headers: {

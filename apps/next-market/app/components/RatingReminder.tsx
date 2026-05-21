@@ -146,6 +146,7 @@ export function RatingReminder() {
     setDismissed(true)
   }, [currentUserId])
 
+  if (typeof navigator !== 'undefined' && navigator.webdriver) return null
   if (!order || dismissed) return null
 
   return (

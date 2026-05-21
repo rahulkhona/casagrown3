@@ -3,6 +3,7 @@ import {
     requireAuth,
     serveWithCors,
 } from "../_shared/serve-with-cors.ts";
+import { getStripeApiBase } from "../_shared/stripe.ts";
 
 /**
  * create-payment-intent — Supabase Edge Function
@@ -128,7 +129,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
         // Create Stripe PaymentIntent
         const piResponse = await fetch(
-            "https://api.stripe.com/v1/payment_intents",
+            `${getStripeApiBase()}/v1/payment_intents`,
             {
                 method: "POST",
                 headers: {

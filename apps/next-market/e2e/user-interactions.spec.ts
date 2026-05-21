@@ -1,5 +1,8 @@
 import { test, expect, Page } from './fixtures'
 
+// This suite tests guest/unauthenticated pages like login, terms, etc.
+// Enforce guest session to prevent pre-authenticated redirects
+test.use({ storageState: { cookies: [], origins: [] } })
 
 const BASE = process.env.BASE_URL || 'http://localhost:3001'
 

@@ -87,6 +87,7 @@ const TX_ICONS: Record<string, { icon: string; cls: string }> = {
   card_hold:         { icon: '💳', cls: styles.iconCharge },
   payout_sent:       { icon: '💸', cls: styles.iconCashout },
   credit_received:   { icon: '🎁', cls: styles.iconCredit },
+  stripe_transfer_reversed: { icon: '↩️', cls: styles.iconRefund },
 }
 
 function getDateRange(range: DateRange, customStart?: string, customEnd?: string) {
@@ -136,9 +137,9 @@ export default function EarningsPage() {
   const [ratedOrders, setRatedOrders] = useState<Record<string, number>>({})
   const { showError, showSuccess } = useErrorToast()
 
-  // 1099 Tax Reporting thresholds
   const [taxThreshold, setTaxThreshold] = useState<{ amount: number; minTxns: number; warnPct: number } | null>(null)
   const [userState, setUserState] = useState<string | null>(null)
+  const [stripeConnectActive, setStripeConnectActive] = useState(false)
 
   const supabase = useMemo(() => createClient(), [])
 
@@ -261,8 +262,20 @@ export default function EarningsPage() {
             if (defaultRow) setTaxThreshold({ amount: defaultRow.amount, minTxns: defaultRow.min_txns, warnPct: defaultRow.warn_pct })
           }
         })
+
+      // Check if Stripe Connect is active
+      supabase.rpc('get_profile_stripe_connect_info').then(
+        ({ data, error }) => {
+          if (!error && data && data.length > 0) {
+            setStripeConnectActive(data[0].stripe_connect_active)
+          }
+        },
+        (err) => {
+          console.error('[EARNINGS] Error loading Stripe Connect info:', err)
+        }
+      )
     }
-  }, [isAuthenticated, userId, fetchTransactions, fetchSummary, fetchPending, fetchCredits, fetchCreditDetails])
+  }, [isAuthenticated, userId, fetchTransactions, fetchSummary, fetchPending, fetchCredits, fetchCreditDetails, supabase])
 
   // Trigger notification prompt on mount
   useEffect(() => { showPrompt() }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -581,11 +594,17 @@ export default function EarningsPage() {
             )}
           </div>
           <div className={styles.summaryCard} style={(summary?.processing_payouts_usd || 0) > 0 ? { borderColor: 'var(--amber-300)', background: 'var(--amber-50)' } : {}}>
-            <span className={styles.summaryLabel}>⏳ Processing Payouts</span>
+            <span className={styles.summaryLabel}>
+              {stripeConnectActive ? '⏳ Bank Deposit In-Transit' : '⏳ Admin Processing'}
+            </span>
             <span className={styles.summaryValue} style={{ color: (summary?.processing_payouts_usd || 0) > 0 ? 'var(--amber-700)' : 'inherit' }}>
               {formatUsd(summary?.processing_payouts_usd || 0)}
             </span>
-            <span className={styles.summaryHint}>Transfers requested and arriving soon</span>
+            <span className={styles.summaryHint}>
+              {stripeConnectActive
+                ? 'Transferred to Stripe, clearing to your bank via ACH'
+                : 'Platform admins are processing your manual payout'}
+            </span>
           </div>
           <div className={styles.summaryCard} style={{ borderColor: 'var(--blue-200, #bfdbfe)', background: 'var(--blue-50, #eff6ff)' }}>
             <span className={styles.summaryLabel}>📦 Unsettled</span>

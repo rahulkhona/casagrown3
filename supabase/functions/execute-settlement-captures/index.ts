@@ -24,12 +24,16 @@ import {
     jsonError,
     serveWithCors,
 } from "../_shared/serve-with-cors.ts";
+import { getStripeApiBase } from "../_shared/stripe.ts";
 
 serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     const STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY");
     if (!STRIPE_SECRET_KEY) {
         return jsonError("STRIPE_SECRET_KEY not configured", corsHeaders);
     }
+    // Configurable Stripe API base URL — defaults to production.
+    // Set STRIPE_API_BASE=http://localhost:<port> in tests to use the simulator.
+    const STRIPE_API_BASE = getStripeApiBase();
 
     const { settlement_id } = await req.json();
     if (!settlement_id) {
@@ -50,7 +54,16 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     }
 
     if (!captures || captures.length === 0) {
-        return jsonOk({ message: "No captures to execute", total: 0 }, corsHeaders);
+        return jsonOk({
+            message: "No captures to execute",
+            total: 0,
+            succeeded: 0,
+            failed: 0,
+            debts_created: 0,
+            transfers_total: 0,
+            transfers_succeeded: 0,
+            transfers_failed: 0,
+        }, corsHeaders);
     }
 
     console.log(`[CAPTURE] Processing ${captures.length} captures for settlement ${settlement_id}`);
@@ -67,6 +80,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             STRIPE_SECRET_KEY,
             capture.stripe_payment_intent_id,
             captureAmountCents,
+            STRIPE_API_BASE,
         );
 
         if (result.success) {
@@ -91,6 +105,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                 STRIPE_SECRET_KEY,
                 capture.stripe_payment_intent_id,
                 captureAmountCents,
+                STRIPE_API_BASE,
             );
 
             if (retryResult.success) {
@@ -188,12 +203,250 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         console.log(`[CAPTURE] Total captured: $${totalCaptured.toFixed(2)} (awaiting payout)`);
     }
 
+    // ── Execute Stripe Connect Direct Transfers ─────────────────────────────────
+    console.log(`[STRIPE-CONNECT-TRANSFER] Querying pending transfers for settlement ${settlement_id}...`);
+    const { data: stripeSettlements, error: stripeSettlementsErr } = await supabase
+        .from("user_settlements")
+        .select(`
+            id,
+            user_id,
+            net_payout_usd,
+            profiles (
+                stripe_connect_id,
+                full_name,
+                email
+            )
+        `)
+        .eq("settlement_id", settlement_id)
+        .eq("status", "stripe_transfer_pending");
+
+    let transfersSucceeded = 0;
+    let transfersFailed = 0;
+
+    if (stripeSettlementsErr) {
+        console.error("[STRIPE-CONNECT-TRANSFER] Failed to query user settlements for transfers:", stripeSettlementsErr);
+    } else if (stripeSettlements && stripeSettlements.length > 0) {
+        console.log(`[STRIPE-CONNECT-TRANSFER] Found ${stripeSettlements.length} pending transfers to execute.`);
+
+        for (const stripeSettlement of stripeSettlements) {
+            const userId = stripeSettlement.user_id;
+            const netPayoutUsd = Number(stripeSettlement.net_payout_usd);
+            const profile = stripeSettlement.profiles as any;
+            const stripeConnectId = profile?.stripe_connect_id;
+            const fullName = profile?.full_name || "Seller";
+            const email = profile?.email;
+
+            console.log(`[STRIPE-CONNECT-TRANSFER] Transferring $${netPayoutUsd} to user ${userId} (Stripe Connect ID: ${stripeConnectId})`);
+
+            if (!stripeConnectId) {
+                const errorMsg = "Seller has no linked Stripe Connect ID";
+                console.error(`[STRIPE-CONNECT-TRANSFER] ${errorMsg} for user ${userId}`);
+                await supabase
+                    .from("user_settlements")
+                    .update({
+                        status: "stripe_transfer_failed",
+                        stripe_transfer_error: errorMsg,
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq("id", stripeSettlement.id);
+                transfersFailed++;
+                continue;
+            }
+
+            // HIGH-1: Build transfer with retry for transient failures.
+            // Only retry on 5xx (server errors); 4xx are permanent (e.g. invalid account).
+            const transferResult = await attemptStripeTransferWithRetry(
+                STRIPE_SECRET_KEY,
+                stripeConnectId,
+                netPayoutUsd,
+                settlement_id,
+                userId,
+                STRIPE_API_BASE,
+            );
+
+            if (!transferResult.success) {
+                const stripeError = transferResult.error ?? "Unknown transfer error";
+                console.error(`[STRIPE-CONNECT-TRANSFER] Transfer permanently failed for user ${userId}: ${stripeError}`);
+
+                await supabase
+                    .from("user_settlements")
+                    .update({
+                        status: "stripe_transfer_failed",
+                        stripe_transfer_error: stripeError,
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq("id", stripeSettlement.id);
+
+                // C2 FIX: Restore wallet balance so seller can withdraw manually.
+                // This reverses the payout_sent debit from settlement and credits pending_usd.
+                try {
+                    const { data: restoreResult, error: restoreErr } = await supabase.rpc(
+                        "restore_wallet_after_failed_transfer",
+                        {
+                            p_user_settlement_id: stripeSettlement.id,
+                            p_reason: "stripe_transfer_failed",
+                            p_error_details: stripeError,
+                            p_new_status: "wallet_fallback",
+                        },
+                    );
+                    if (restoreErr) {
+                        console.error(`[STRIPE-CONNECT-TRANSFER] CRITICAL: Failed to restore wallet for user ${userId}:`, restoreErr);
+                    } else if (restoreResult?.error) {
+                        console.error(`[STRIPE-CONNECT-TRANSFER] CRITICAL: Wallet restore RPC returned error for user ${userId}:`, restoreResult.error);
+                    } else {
+                        console.log(`[STRIPE-CONNECT-TRANSFER] Wallet restored for user ${userId}: $${netPayoutUsd.toFixed(2)} → pending_usd`);
+                    }
+                } catch (restoreEx) {
+                    console.error(`[STRIPE-CONNECT-TRANSFER] CRITICAL: Exception restoring wallet for user ${userId}:`, restoreEx);
+                }
+
+                // 1. In-App Notification — tell user funds are in their wallet
+                await supabase.from("notifications").insert({
+                    user_id: userId,
+                    content: `⚠️ Direct Payout Failed: We couldn't transfer $${netPayoutUsd.toFixed(2)} to your Stripe account (${stripeError}). Your funds have been restored to your CasaGrown wallet — you can withdraw via Gift Card, Venmo, or PayPal.`,
+                    link_url: "/earnings/payout",
+                });
+
+                // 2. Push Notification for Failure
+                try {
+                    await supabase.functions.invoke("send-push-notification", {
+                        body: {
+                            userIds: [userId],
+                            title: "⚠️ Direct deposit failed",
+                            body: `Transfer of $${netPayoutUsd.toFixed(2)} failed. Funds restored to your wallet.`,
+                            url: "/earnings/payout",
+                        },
+                    });
+                } catch (pushErr) {
+                    console.warn("[STRIPE-CONNECT-TRANSFER] Failed to send failure push notification:", pushErr);
+                }
+
+                // 3. SMS Notification for Failure
+                try {
+                    await supabase.functions.invoke("send-sms-notification", {
+                        body: {
+                            userId,
+                            content: `CasaGrown: Direct deposit of $${netPayoutUsd.toFixed(2)} failed. Your funds have been restored to your wallet. Withdraw via Gift Card, Venmo, or PayPal at casagrown.org/earnings/payout`,
+                        },
+                    });
+                } catch (smsErr) {
+                    console.warn("[STRIPE-CONNECT-TRANSFER] Failed to send failure SMS notification:", smsErr);
+                }
+
+                // 4. Email Notification for Failure
+                try {
+                    if (email) {
+                        await supabase.functions.invoke("send-notification-email", {
+                            body: {
+                                type: "stripe_connect_transfer_failed",
+                                recipients: [{ email, name: fullName }],
+                                dollarAmount: netPayoutUsd,
+                                errorMessage: stripeError,
+                            },
+                        });
+                    }
+                } catch (emailErr) {
+                    console.warn("[STRIPE-CONNECT-TRANSFER] Failed to send failure email notification:", emailErr);
+                }
+
+                transfersFailed++;
+            } else {
+                const transferData = transferResult.data!;
+                const now = new Date().toISOString();
+
+                // HIGH-6: Stamp stripe_transfer_completed_at for SLA tracking
+                await supabase
+                    .from("user_settlements")
+                    .update({
+                        status: "paid_out",
+                        stripe_transfer_id: transferData.id,
+                        stripe_transfer_completed_at: now,
+                        updated_at: now,
+                    })
+                    .eq("id", stripeSettlement.id);
+
+                // Log outflow bank ledger entry
+                try {
+                    await supabase.rpc("append_bank_ledger_entry", {
+                        p_event_type: "stripe_connect_transfer",
+                        p_direction: "outflow",
+                        p_amount_usd: netPayoutUsd,
+                        p_provider: "stripe",
+                        p_reference_type: "transfer",
+                        p_reference_id: transferData.id,
+                        p_settlement_id: settlement_id,
+                        p_metadata: { user_id: userId, stripe_connect_id: stripeConnectId },
+                    });
+                } catch (ledgerErr) {
+                    console.warn("[STRIPE-CONNECT-TRANSFER] Failed to append bank ledger entry:", ledgerErr);
+                }
+
+                // 1. In-App Notification for Success
+                await supabase.from("notifications").insert({
+                    user_id: userId,
+                    content: `Direct Payout Completed: $${netPayoutUsd.toFixed(2)} has been transferred to your linked bank account. Reference: ${transferData.id}.`,
+                    link_url: "/earnings",
+                });
+
+                // 2. Push Notification for Success
+                try {
+                    await supabase.functions.invoke("send-push-notification", {
+                        body: {
+                            userIds: [userId],
+                            title: "💸 Funds on the way!",
+                            body: `$${netPayoutUsd.toFixed(2)} has been transferred to your bank via Stripe Connect.`,
+                            url: "/earnings",
+                        },
+                    });
+                } catch (pushErr) {
+                    console.warn("[STRIPE-CONNECT-TRANSFER] Failed to send success push notification:", pushErr);
+                }
+
+                // 3. SMS Notification for Success
+                try {
+                    await supabase.functions.invoke("send-sms-notification", {
+                        body: {
+                            userId,
+                            content: `CasaGrown: Direct payout of $${netPayoutUsd.toFixed(2)} has been sent to your bank. Check your Stripe dashboard for ETA.`,
+                        },
+                    });
+                } catch (smsErr) {
+                    console.warn("[STRIPE-CONNECT-TRANSFER] Failed to send success SMS notification:", smsErr);
+                }
+
+                // 4. Email Notification for Success
+                try {
+                    if (email) {
+                        await supabase.functions.invoke("send-notification-email", {
+                            body: {
+                                type: "stripe_connect_transfer_success",
+                                recipients: [{ email, name: fullName }],
+                                dollarAmount: netPayoutUsd,
+                                stripeTransferId: transferData.id,
+                            },
+                        });
+                    }
+                } catch (emailErr) {
+                    console.warn("[STRIPE-CONNECT-TRANSFER] Failed to send success email notification:", emailErr);
+                }
+
+                console.log(`✅ [STRIPE-CONNECT-TRANSFER] Successfully transferred $${netPayoutUsd} to user ${userId} (${transferData.id})`);
+                transfersSucceeded++;
+            }
+        }
+    } else {
+        console.log("[STRIPE-CONNECT-TRANSFER] No pending Stripe Connect transfers to execute.");
+    }
+
     return jsonOk({
         settlement_id,
         total: captures.length,
         succeeded,
         failed,
         debts_created: debtsCreated,
+        transfers_total: stripeSettlements?.length || 0,
+        transfers_succeeded: transfersSucceeded,
+        transfers_failed: transfersFailed,
     }, corsHeaders);
 });
 
@@ -203,10 +456,11 @@ async function attemptStripeCapture(
     stripeKey: string,
     paymentIntentId: string,
     amountCents: number,
+    apiBase: string,
 ): Promise<{ success: boolean; chargeId?: string; error?: string }> {
     try {
         const response = await fetch(
-            `https://api.stripe.com/v1/payment_intents/${paymentIntentId}/capture`,
+            `${apiBase}/v1/payment_intents/${paymentIntentId}/capture`,
             {
                 method: "POST",
                 headers: {
@@ -238,4 +492,80 @@ async function attemptStripeCapture(
             error: err instanceof Error ? err.message : "Unknown error",
         };
     }
+}
+
+// ── Helper: Attempt Stripe Transfer with retry on transient 5xx errors ───────
+// HIGH-1: Mirrors the PI capture retry pattern. Only retries on server errors
+// (5xx); 4xx errors (invalid account, insufficient funds) are permanent.
+
+async function attemptStripeTransferWithRetry(
+    stripeKey: string,
+    destination: string,
+    amountUsd: number,
+    transferGroup: string,
+    userId: string,
+    apiBase: string,
+): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }> {
+    const amountCents = Math.round(amountUsd * 100);
+    const body = new URLSearchParams({
+        amount: String(amountCents),
+        currency: "usd",
+        destination,
+        transfer_group: transferGroup,
+        "metadata[settlement_id]": transferGroup,
+        "metadata[user_id]": userId,
+    });
+
+    for (let attempt = 1; attempt <= 2; attempt++) {
+        if (attempt > 1) {
+            console.warn(`[STRIPE-CONNECT-TRANSFER] Retrying transfer for user ${userId} (attempt ${attempt}/2 — waiting 5s)...`);
+            await new Promise((resolve) => setTimeout(resolve, 5000));
+        }
+
+        try {
+            const response = await fetch(`${apiBase}/v1/transfers`, {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${stripeKey}`,
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    // C1 FIX: Idempotency key prevents duplicate transfers if the function
+                    // crashes after Stripe processes the transfer but before we record success.
+                    // Same settlement + same user = same key = Stripe deduplicates automatically.
+                    "Idempotency-Key": `xfer_${transferGroup}_${userId}`,
+                },
+                body,
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                if (attempt > 1) {
+                    console.log(`[STRIPE-CONNECT-TRANSFER] Retry succeeded for user ${userId} on attempt ${attempt}`);
+                }
+                return { success: true, data };
+            }
+
+            const errorMsg = data?.error?.message || `HTTP ${response.status}`;
+
+            // 4xx = permanent failure (bad account, insufficient funds, etc.) — do not retry
+            if (response.status < 500) {
+                console.error(`[STRIPE-CONNECT-TRANSFER] Permanent transfer failure (${response.status}) for user ${userId}: ${errorMsg}`);
+                return { success: false, error: errorMsg };
+            }
+
+            // 5xx = transient — will retry if attempt < 2
+            console.warn(`[STRIPE-CONNECT-TRANSFER] Transient failure (${response.status}) for user ${userId}: ${errorMsg}`);
+            if (attempt === 2) {
+                return { success: false, error: `${errorMsg} (failed after 2 attempts)` };
+            }
+        } catch (fetchErr) {
+            const errorStr = fetchErr instanceof Error ? fetchErr.message : "Network error";
+            console.warn(`[STRIPE-CONNECT-TRANSFER] Fetch error on attempt ${attempt} for user ${userId}: ${errorStr}`);
+            if (attempt === 2) {
+                return { success: false, error: `${errorStr} (failed after 2 attempts)` };
+            }
+        }
+    }
+
+    return { success: false, error: "Transfer failed after all retry attempts" };
 }

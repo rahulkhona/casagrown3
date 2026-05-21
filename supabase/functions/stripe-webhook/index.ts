@@ -21,36 +21,176 @@ import {
     jsonOk,
     serveWithCors,
 } from "../_shared/serve-with-cors.ts";
+import { getStripeApiBase } from "../_shared/stripe.ts";
 
 // ── Main handler ────────────────────────────────────────────────────────────
 
 serveWithCors(async (req, { supabase, env, corsHeaders }) => {
+    // HIGH-2: Support separate secrets for platform vs Connect webhooks
     const STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET");
+    const STRIPE_CONNECT_WEBHOOK_SECRET = env("STRIPE_CONNECT_WEBHOOK_SECRET") || STRIPE_WEBHOOK_SECRET;
 
-    // Parse the raw body for signature verification
+    // Parse the raw body — must be read before any other body access
     const body = await req.text();
     const signature = req.headers.get("stripe-signature");
 
+    // Peek at the event to choose the right webhook secret:
+    // Connect events (account.*) carry an `account` field at the top level.
+    let event: Record<string, unknown>;
+    try {
+        event = JSON.parse(body);
+    } catch {
+        return jsonError("Invalid JSON body", corsHeaders, 400);
+    }
+
+    // HIGH-2: Route to the correct secret based on event origin
+    const isConnectEvent = typeof event?.account === "string" && event.account.startsWith("acct_");
+    const activeSecret = isConnectEvent ? STRIPE_CONNECT_WEBHOOK_SECRET : STRIPE_WEBHOOK_SECRET;
+
     // Verify webhook signature (if secret is configured)
-    if (STRIPE_WEBHOOK_SECRET && signature) {
+    if (activeSecret && signature) {
         const isValid = await verifyStripeSignature(
             body,
             signature,
-            STRIPE_WEBHOOK_SECRET,
+            activeSecret,
         );
         if (!isValid) {
-            console.error("Invalid Stripe webhook signature");
+            console.error(`Invalid Stripe webhook signature (${isConnectEvent ? "Connect" : "Platform"} event)`);
             return jsonError("Invalid signature", corsHeaders, 401);
         }
-    } else if (STRIPE_WEBHOOK_SECRET && !signature) {
+    } else if (activeSecret && !signature) {
         console.error("Missing stripe-signature header");
         return jsonError("Missing signature", corsHeaders, 401);
     }
-
-    const event = JSON.parse(body);
     console.log(`Stripe webhook received: ${event.type}, id: ${event.id}`);
 
     switch (event.type) {
+        case "account.updated": {
+            const account = event.data.object;
+            const stripeAccountId = account.id;
+
+            console.log(`[STRIPE-WEBHOOK] Processing account.updated for account ${stripeAccountId}`);
+
+            // Parse payload: if charges_enabled, payouts_enabled, and details_submitted are true:
+            const chargesEnabled = account.charges_enabled;
+            const payoutsEnabled = account.payouts_enabled;
+            const detailsSubmitted = account.details_submitted;
+
+            console.log(`[STRIPE-WEBHOOK] Account status - charges_enabled: ${chargesEnabled}, payouts_enabled: ${payoutsEnabled}, details_submitted: ${detailsSubmitted}`);
+
+            if (chargesEnabled && payoutsEnabled && detailsSubmitted) {
+                console.log(`[STRIPE-WEBHOOK] Stripe Account ${stripeAccountId} has completed onboarding! Updating database...`);
+
+                // Find the profile matching stripe_connect_id
+                const { data: profile, error: profileError } = await supabase
+                    .from("profiles")
+                    .select("id, stripe_onboarding_completed")
+                    .eq("stripe_connect_id", stripeAccountId)
+                    .single();
+
+                if (profileError || !profile) {
+                    console.error(`[STRIPE-WEBHOOK] Failed to find profile with stripe_connect_id ${stripeAccountId}:`, profileError);
+                    return jsonOk({ received: true, warning: "Profile not found" }, corsHeaders);
+                }
+
+                if (!profile.stripe_onboarding_completed) {
+                    // Update database: stripe_onboarding_completed = true & stripe_connect_active = true
+                    const { error: updateErr } = await supabase
+                        .from("profiles")
+                        .update({
+                            stripe_onboarding_completed: true,
+                            stripe_connect_active: true,
+                        })
+                        .eq("id", profile.id);
+
+                    if (updateErr) {
+                        console.error("[STRIPE-WEBHOOK] Failed to update profile onboarding status:", updateErr);
+                        throw new Error(`Failed to update profile: ${updateErr.message}`);
+                    }
+
+                    console.log(`[STRIPE-WEBHOOK] Profile ${profile.id} onboarding status updated to completed and active.`);
+
+                    // H1 FIX: Write audit log entry for webhook-triggered activation.
+                    // The RPC set_stripe_connect_active() writes audit logs, but the webhook
+                    // bypasses it with a direct update — so we need to log here explicitly.
+                    await supabase.from("stripe_connect_audit_log").insert({
+                        user_id: profile.id,
+                        changed_by: "webhook",
+                        old_active: false,
+                        new_active: true,
+                        old_onboarding_completed: false,
+                        new_onboarding_completed: true,
+                        reason: `account.updated: charges_enabled=${chargesEnabled}, payouts_enabled=${payoutsEnabled}, details_submitted=${detailsSubmitted}`,
+                    });
+
+                    // 1. In-App Notification (insert into notifications)
+                    const inAppContent = "Your Stripe account has been successfully linked. All future settlements will bypass your virtual wallet and deposit directly to your bank.";
+                    const { error: notifErr } = await supabase
+                        .from("notifications")
+                        .insert({
+                            user_id: profile.id,
+                            content: inAppContent,
+                            link_url: "/earnings/payout",
+                        });
+
+                    if (notifErr) {
+                        console.error("[STRIPE-WEBHOOK] Failed to create in-app notification:", notifErr);
+                    }
+
+                    // 2. Push Notification (invoke internal edge function)
+                    try {
+                        await supabase.functions.invoke("send-push-notification", {
+                            body: {
+                                userIds: [profile.id],
+                                title: "🎉 Stripe linked!",
+                                body: "Stripe linked! Direct bank deposits are now active.",
+                                url: "/earnings/payout",
+                            },
+                        });
+                    } catch (pushErr) {
+                        console.warn("[STRIPE-WEBHOOK] Failed to send push notification:", pushErr);
+                    }
+
+                    // 3. SMS Notification (if user has phone)
+                    try {
+                        const smsContent = "CasaGrown: Success! Your bank account has been linked via Stripe Connect. Your earnings will now be sent directly to your bank.";
+                        await supabase.functions.invoke("send-sms-notification", {
+                            body: {
+                                userId: profile.id,
+                                content: smsContent,
+                            },
+                        });
+                    } catch (smsErr) {
+                        console.warn("[STRIPE-WEBHOOK] Failed to send SMS notification:", smsErr);
+                    }
+
+                    // 4. Email Notification (if user has email)
+                    try {
+                        const { data: userData } = await supabase
+                            .from("profiles")
+                            .select("email, full_name")
+                            .eq("id", profile.id)
+                            .single();
+                        
+                        if (userData?.email) {
+                            await supabase.functions.invoke("send-notification-email", {
+                                body: {
+                                    type: "stripe_connect_onboarded",
+                                    recipients: [{ email: userData.email, name: userData.full_name || "Seller" }],
+                                },
+                            });
+                        }
+                    } catch (emailErr) {
+                        console.warn("[STRIPE-WEBHOOK] Failed to send onboarding email notification:", emailErr);
+                    }
+                } else {
+                    console.log(`[STRIPE-WEBHOOK] Profile ${profile.id} already marked as completed, skipping notifications.`);
+                }
+            }
+
+            return jsonOk({ received: true }, corsHeaders);
+        }
+
         case "payment_intent.succeeded": {
             const paymentIntent = event.data.object;
             const stripeId = paymentIntent.id;
@@ -160,7 +300,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                 try {
                     // Fetch balance transactions for this payout
                     const btRes = await fetch(
-                        `https://api.stripe.com/v1/balance_transactions?payout=${payoutId}&limit=100&type=charge`,
+                        `${getStripeApiBase()}/v1/balance_transactions?payout=${payoutId}&limit=100&type=charge`,
                         {
                             headers: {
                                 Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
@@ -875,6 +1015,212 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             return jsonOk({ received: true, result: disputeStatus }, corsHeaders);
         }
 
+        // ── C3: Seller disconnected their Stripe account from our platform ──────
+        case "account.application.deauthorized": {
+            const deauthAccount = event.data.object;
+            const deauthStripeId = event.account || deauthAccount?.id;
+
+            console.log(`[STRIPE-WEBHOOK] account.application.deauthorized for ${deauthStripeId}`);
+
+            if (!deauthStripeId) {
+                console.warn("[STRIPE-WEBHOOK] Deauthorization event has no account ID");
+                return jsonOk({ received: true, warning: "No account ID" }, corsHeaders);
+            }
+
+            // Find the profile with this Stripe Connect ID
+            const { data: deauthProfile, error: deauthProfileErr } = await supabase
+                .from("profiles")
+                .select("id, stripe_connect_active, stripe_onboarding_completed")
+                .eq("stripe_connect_id", deauthStripeId)
+                .single();
+
+            if (deauthProfileErr || !deauthProfile) {
+                console.warn(`[STRIPE-WEBHOOK] No profile found for deauthorized account ${deauthStripeId}`);
+                return jsonOk({ received: true, warning: "Profile not found" }, corsHeaders);
+            }
+
+            // Deactivate Connect for this user — future settlements will use wallet path
+            const { error: deauthUpdateErr } = await supabase
+                .from("profiles")
+                .update({
+                    stripe_connect_active: false,
+                    stripe_onboarding_completed: false,
+                })
+                .eq("id", deauthProfile.id);
+
+            if (deauthUpdateErr) {
+                console.error("[STRIPE-WEBHOOK] Failed to deactivate Connect for deauthorized user:", deauthUpdateErr);
+            }
+
+            // Write audit log
+            await supabase.from("stripe_connect_audit_log").insert({
+                user_id: deauthProfile.id,
+                changed_by: "webhook",
+                old_active: deauthProfile.stripe_connect_active,
+                new_active: false,
+                old_onboarding_completed: deauthProfile.stripe_onboarding_completed,
+                new_onboarding_completed: false,
+                reason: "account.application.deauthorized: Seller disconnected their Stripe account",
+            });
+
+            // Notify the seller (4 channels)
+            const deauthNotifContent = "Your Stripe account has been disconnected. Future earnings will be deposited to your CasaGrown wallet instead. You can reconnect anytime from your Payout settings.";
+
+            await supabase.from("notifications").insert({
+                user_id: deauthProfile.id,
+                content: deauthNotifContent,
+                link_url: "/earnings/payout",
+            });
+
+            try {
+                await supabase.functions.invoke("send-push-notification", {
+                    body: {
+                        userIds: [deauthProfile.id],
+                        title: "Stripe disconnected",
+                        body: "Your Stripe account has been disconnected. Earnings will go to your wallet.",
+                        url: "/earnings/payout",
+                    },
+                });
+            } catch (pushErr) {
+                console.warn("[STRIPE-WEBHOOK] Failed to send deauth push:", pushErr);
+            }
+
+            try {
+                await supabase.functions.invoke("send-sms-notification", {
+                    body: {
+                        userId: deauthProfile.id,
+                        content: "CasaGrown: Your Stripe account has been disconnected. Future earnings will go to your CasaGrown wallet. Reconnect at casagrown.org/earnings/payout",
+                    },
+                });
+            } catch (smsErr) {
+                console.warn("[STRIPE-WEBHOOK] Failed to send deauth SMS:", smsErr);
+            }
+
+            try {
+                const { data: deauthUserData } = await supabase
+                    .from("profiles")
+                    .select("email, full_name")
+                    .eq("id", deauthProfile.id)
+                    .single();
+
+                if (deauthUserData?.email) {
+                    await supabase.functions.invoke("send-notification-email", {
+                        body: {
+                            type: "stripe_connect_deauthorized",
+                            recipients: [{ email: deauthUserData.email, name: deauthUserData.full_name || "Seller" }],
+                        },
+                    });
+                }
+            } catch (emailErr) {
+                console.warn("[STRIPE-WEBHOOK] Failed to send deauth email:", emailErr);
+            }
+
+            console.log(`[STRIPE-WEBHOOK] User ${deauthProfile.id} Connect deactivated due to deauthorization.`);
+            return jsonOk({ received: true, action: "connect_deactivated" }, corsHeaders);
+        }
+
+        // ── C4: Stripe asynchronously failed or reversed a transfer ──────────────
+        case "transfer.failed":
+        case "transfer.reversed": {
+            const transfer = event.data.object;
+            const transferId = transfer.id;  // tr_...
+            const transferUserId = transfer.metadata?.user_id;
+            const transferSettlementId = transfer.metadata?.settlement_id;
+            const reversalReason = event.type === "transfer.reversed"
+                ? `Transfer reversed by Stripe: ${transfer.reversals?.data?.[0]?.reason || "unknown"}`
+                : `Transfer failed: ${transfer.failure_message || "unknown"}`;
+
+            console.log(`[STRIPE-WEBHOOK] ${event.type} for transfer ${transferId} (user: ${transferUserId})`);
+
+            // Find the user_settlement by stripe_transfer_id
+            const { data: affectedSettlement, error: settleErr } = await supabase
+                .from("user_settlements")
+                .select("id, user_id, net_payout_usd, status")
+                .eq("stripe_transfer_id", transferId)
+                .single();
+
+            if (settleErr || !affectedSettlement) {
+                console.warn(`[STRIPE-WEBHOOK] No user_settlement found for transfer ${transferId}`);
+                return jsonOk({ received: true, warning: "No matching settlement" }, corsHeaders);
+            }
+
+            // Guard: don't double-process if already handled
+            if (affectedSettlement.status === "wallet_fallback" || affectedSettlement.status === "stripe_transfer_reversed") {
+                console.log(`[STRIPE-WEBHOOK] Transfer ${transferId} already handled (status: ${affectedSettlement.status})`);
+                return jsonOk({ received: true, skipped: "already_processed" }, corsHeaders);
+            }
+
+            // Call the restore_wallet RPC to reverse ledger + credit pending_usd
+            const newStatus = event.type === "transfer.reversed" ? "stripe_transfer_reversed" : "wallet_fallback";
+            const { data: restoreResult, error: restoreErr } = await supabase.rpc(
+                "restore_wallet_after_failed_transfer",
+                {
+                    p_user_settlement_id: affectedSettlement.id,
+                    p_reason: event.type,
+                    p_error_details: reversalReason,
+                    p_new_status: newStatus,
+                },
+            );
+
+            if (restoreErr) {
+                console.error(`[STRIPE-WEBHOOK] CRITICAL: Failed to restore wallet for transfer ${transferId}:`, restoreErr);
+            } else {
+                console.log(`[STRIPE-WEBHOOK] Wallet restored for transfer ${transferId}:`, restoreResult);
+            }
+
+            const userId = affectedSettlement.user_id;
+            const amount = Number(affectedSettlement.net_payout_usd);
+
+            // Notify seller (4 channels)
+            const transferNotifContent = event.type === "transfer.reversed"
+                ? `Your bank returned the $${amount.toFixed(2)} deposit. The funds have been restored to your CasaGrown wallet.`
+                : `Your direct deposit of $${amount.toFixed(2)} failed. The funds have been restored to your CasaGrown wallet.`;
+
+            await supabase.from("notifications").insert({
+                user_id: userId,
+                content: transferNotifContent,
+                link_url: "/earnings/payout",
+            });
+
+            try {
+                await supabase.functions.invoke("send-push-notification", {
+                    body: {
+                        userIds: [userId],
+                        title: event.type === "transfer.reversed" ? "Deposit returned" : "Deposit failed",
+                        body: `$${amount.toFixed(2)} restored to your wallet.`,
+                        url: "/earnings/payout",
+                    },
+                });
+            } catch (_) { /* best effort */ }
+
+            try {
+                await supabase.functions.invoke("send-sms-notification", {
+                    body: {
+                        userId,
+                        content: `CasaGrown: ${transferNotifContent} Withdraw at casagrown.org/earnings/payout`,
+                    },
+                });
+            } catch (_) { /* best effort */ }
+
+            // Alert admin staff about the reversal/failure
+            const { data: adminStaff } = await supabase
+                .from("staff_members")
+                .select("user_id, email")
+                .contains("roles", ["admin"]);
+
+            if (adminStaff && adminStaff.length > 0) {
+                for (const admin of adminStaff) {
+                    await supabase.from("notifications").insert({
+                        user_id: admin.user_id,
+                        content: `🚨 Stripe ${event.type}: Transfer ${transferId} for user ${userId} ($${amount.toFixed(2)}) — ${reversalReason}. Wallet restored automatically.`,
+                        link_url: "/payouts",
+                    });
+                }
+            }
+
+            return jsonOk({ received: true, action: "wallet_restored", status: newStatus }, corsHeaders);
+        }
+
         default:
             console.log(`Unhandled event type: ${event.type}`);
             return jsonOk({ received: true }, corsHeaders);
@@ -897,11 +1243,21 @@ async function verifyStripeSignature(
 
         if (!timestampPart || !signaturePart) return false;
 
-        const timestamp = timestampPart.split("=")[1];
+        const timestampStr = timestampPart.split("=")[1];
         const expectedSig = signaturePart.split("=")[1];
 
+        // CRIT-1 FIX: Reject webhooks older than 5 minutes to prevent replay attacks.
+        // Stripe recommends a 300-second tolerance window.
+        const timestampSeconds = parseInt(timestampStr, 10);
+        if (isNaN(timestampSeconds) || Math.abs(Date.now() / 1000 - timestampSeconds) > 300) {
+            console.error(
+                `Stripe webhook timestamp rejected — age: ${Math.round(Date.now() / 1000 - timestampSeconds)}s (max 300s). Possible replay attack.`,
+            );
+            return false;
+        }
+
         // Construct signed payload
-        const signedPayload = `${timestamp}.${payload}`;
+        const signedPayload = `${timestampStr}.${payload}`;
 
         // Compute HMAC
         const key = await crypto.subtle.importKey(
