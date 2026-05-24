@@ -3,76 +3,113 @@
 import { LoadingSpinner } from '../../components/LoadingSpinner'
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useAuth } from '../../../lib/useAuth'
 import { createClient } from '../../../lib/supabase'
-import { formatUsd } from '../../../lib/store'
 import { useErrorToast } from '../../components/ErrorToast'
 import styles from './page.module.css'
 
-interface HelperOrder {
-  order_id: string
-  product_name: string
-  quantity: number
-  status: string
-  fulfillment_type: string
-  buyer_name: string
-  booth_name: string
+interface HelpingBooth {
+  id: string
   booth_id: string
+  booth_name: string
   seller_name: string
-  total_usd: number
+  status: string
   created_at: string
-  delivered_by_name: string | null
+  booth_is_active: boolean
 }
 
 export default function HelpingPage() {
-  const { isAuthenticated, loading: authLoading } = useAuth()
-  const router = useRouter()
-  const [orders, setOrders] = useState<HelperOrder[]>([])
+  const { user, isAuthenticated, loading: authLoading } = useAuth()
+  const [booths, setBooths] = useState<HelpingBooth[]>([])
   const [loading, setLoading] = useState(true)
-  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [leavingId, setLeavingId] = useState<string | null>(null)
+  const [confirmLeaveId, setConfirmLeaveId] = useState<string | null>(null)
   const { showError, showSuccess } = useErrorToast()
 
   const supabase = createClient()
 
-  const fetchQueue = useCallback(async () => {
+  const fetchBooths = useCallback(async () => {
+    if (!user) return
     try {
-      const { data, error } = await supabase.rpc('get_helper_queue')
-      if (!error && data) setOrders(data)
+      const { data: helpers, error } = await supabase
+        .from('booth_helpers')
+        .select('id, booth_id, role, status, created_at')
+        .eq('helper_id', user.id)
+        .eq('status', 'accepted')
+        .order('created_at')
+
+      if (error || !helpers || helpers.length === 0) {
+        setBooths([])
+        setLoading(false)
+        return
+      }
+
+      const boothIds = helpers.map(h => h.booth_id)
+      const { data: boothRows } = await supabase
+        .from('market_booths')
+        .select('id, name, owner_id, is_open')
+        .in('id', boothIds)
+
+      const ownerIds = Array.from(new Set(boothRows?.map(b => b.owner_id) || []))
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', ownerIds)
+
+      const boothMap = new Map(boothRows?.map(b => [b.id, b]) || [])
+      const profileMap = new Map(profiles?.map(p => [p.id, p]) || [])
+
+      setBooths(helpers.map(h => {
+        const booth = boothMap.get(h.booth_id)
+        const seller = booth ? profileMap.get(booth.owner_id) : null
+        return {
+          id: h.id,
+          booth_id: h.booth_id,
+          booth_name: booth?.name || 'Unnamed Booth',
+          seller_name: seller?.full_name || 'Seller',
+          status: h.status,
+          created_at: h.created_at,
+          booth_is_active: booth?.is_open !== false,
+        }
+      }))
     } catch (e: any) {
-      console.error('Helper queue error:', e)
-      showError('Failed to load queue: ' + (e.message || 'Unknown error'))
+      console.error('Helping page error:', e)
+      showError('Failed to load booths: ' + (e.message || 'Unknown error'))
     } finally {
       setLoading(false)
     }
-  }, [supabase])
+  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (isAuthenticated) fetchQueue()
-  }, [isAuthenticated, fetchQueue])
+    if (isAuthenticated) fetchBooths()
+  }, [isAuthenticated, fetchBooths])
 
-  const handleMarkDelivered = useCallback(async (orderId: string) => {
-    setActionLoading(orderId)
+  const handleLeaveBooth = useCallback(async (helperRowId: string, boothName: string) => {
+    setLeavingId(helperRowId)
     try {
-      const { data, error } = await supabase.rpc('helper_mark_delivered', {
-        p_order_id: orderId,
-        p_proof_urls: [],
-      })
+      const { error } = await supabase
+        .from('booth_helpers')
+        .update({ status: 'left', updated_at: new Date().toISOString() })
+        .eq('id', helperRowId)
+
       if (error) {
-        showError('Error: ' + error.message)
-      } else if (data?.error) {
-        showError(data.error)
+        showError('Failed to leave booth: ' + error.message)
       } else {
-        showSuccess('Order marked as delivered! 📦✅')
-        fetchQueue()
+        showSuccess(`You've left "${boothName}"`)
+        setBooths(prev => prev.filter(b => b.id !== helperRowId))
       }
     } catch (e: any) {
-      console.error('Mark delivered error:', e)
-      showError('Failed to mark delivered: ' + (e.message || 'Unknown error'))
+      showError('Error: ' + (e.message || 'Unknown error'))
     } finally {
-      setActionLoading(null)
+      setLeavingId(null)
+      setConfirmLeaveId(null)
     }
-  }, [supabase, fetchQueue])
+  }, [supabase]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr)
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  }
 
   if (authLoading) return <LoadingSpinner />
   if (!isAuthenticated) {
@@ -84,94 +121,85 @@ export default function HelpingPage() {
     )
   }
 
-  // Group orders by booth
-  const grouped = orders.reduce<Record<string, { boothName: string; sellerName: string; orders: HelperOrder[] }>>((acc, o) => {
-    if (!acc[o.booth_id]) acc[o.booth_id] = { boothName: o.booth_name, sellerName: o.seller_name, orders: [] }
-    acc[o.booth_id].orders.push(o)
-    return acc
-  }, {})
-
-  const boothIds = Object.keys(grouped)
-
   return (
     <div className="container">
       <div className={styles.pageWrap}>
         <div className="page-header">
           <h1 className="page-title">🤝 Helping</h1>
-          <p className="page-subtitle">Orders for booths you help with — deliver or support pickup</p>
+          <p className="page-subtitle">Booths you're helping with — manage orders from the Orders page</p>
         </div>
 
         {loading ? (
-          <div className={styles.emptyState}><p>Loading orders...</p></div>
-        ) : boothIds.length === 0 ? (
+          <div className={styles.emptyState}><p>Loading...</p></div>
+        ) : booths.length === 0 ? (
           <div className={styles.emptyState}>
             <span className={styles.emptyIcon}>🤝</span>
-            <p>No pending orders for your produce stands</p>
-            <p style={{ fontSize: 13, color: 'var(--gray-400)' }}>
-              Join a booth as a helper to see orders here
+            <p>You're not helping at any booths yet</p>
+            <p style={{ fontSize: 13, color: 'var(--gray-400)', marginTop: 4 }}>
+              Ask a seller for their booth passcode to start helping
             </p>
           </div>
         ) : (
-          boothIds.map(boothId => {
-            const group = grouped[boothId]
-            return (
-              <div key={boothId} className={styles.boothGroup}>
-                <div className={styles.boothHeader}>
-                  <div>
-                    <h2 className={styles.boothName}>{group.boothName}</h2>
-                    <span className={styles.boothSeller}>by {group.sellerName}</span>
+          <div className={styles.boothList}>
+            {booths.map(booth => (
+              <div key={booth.id} className={styles.boothCard}>
+                <div className={styles.boothCardHeader}>
+                  <div className={styles.boothInfo}>
+                    <div className={styles.boothIcon}>🏪</div>
+                    <div>
+                      <h2 className={styles.boothName}>{booth.booth_name}</h2>
+                      <span className={styles.boothSeller}>by {booth.seller_name}</span>
+                    </div>
                   </div>
-                  <span className={styles.orderCount}>{group.orders.length} order{group.orders.length !== 1 ? 's' : ''}</span>
+                  <span className={`${styles.statusPill} ${booth.booth_is_active ? styles.statusOpen : styles.statusClosed}`}>
+                    {booth.booth_is_active ? '● Active' : '● Archived'}
+                  </span>
                 </div>
 
-                <div className={styles.orderList}>
-                  {group.orders.map(order => (
-                    <div key={order.order_id} className={styles.orderCard}>
-                      <div className={styles.orderTop}>
-                        <div className={styles.orderInfo}>
-                          <span className={styles.fulfillmentBadge} data-type={order.fulfillment_type}>
-                            {order.fulfillment_type === 'delivery' ? '🚗 Delivery' : '📍 Pickup'}
-                          </span>
-                          <span className={`${styles.statusBadge} ${styles['status_' + order.status]}`}>
-                            {order.status}
-                          </span>
-                        </div>
-                        <span className={styles.orderTotal}>{formatUsd(order.total_usd)}</span>
-                      </div>
+                <div className={styles.detailRow}>
+                  <div className={styles.detailItem}>
+                    <span className={styles.detailLabel}>Since</span>
+                    <span className={styles.detailValue}>{formatDate(booth.created_at)}</span>
+                  </div>
+                </div>
 
-                      <div className={styles.orderBody}>
-                        <h3 className={styles.productName}>
-                          {order.product_name} <span className={styles.qty}>× {order.quantity}</span>
-                        </h3>
-                        <p className={styles.buyerName}>🧑 {order.buyer_name}</p>
-                        {order.delivered_by_name && (
-                          <p className={styles.deliveredBy}>✅ Delivered by {order.delivered_by_name}</p>
-                        )}
-                      </div>
+                <div className={styles.boothActions}>
+                  <Link href="/orders" className={styles.actionBtn}>
+                    📦 Orders
+                  </Link>
+                  <Link href={`/my-stands/${booth.booth_id}`} className={styles.actionBtn}>
+                    🛍️ View Booth
+                  </Link>
 
-                      <div className={styles.orderActions}>
-                        <Link href={`/orders/${order.order_id}`} className={styles.chatBtn}>
-                          💬 Chat
-                        </Link>
-                        {['pending', 'confirmed', 'delivering'].includes(order.status) && (
-                          <button
-                            className={styles.deliverBtn}
-                            onClick={() => handleMarkDelivered(order.order_id)}
-                            disabled={actionLoading === order.order_id}
-                          >
-                            {actionLoading === order.order_id ? 'Marking...' : '📦 Mark Delivered'}
-                          </button>
-                        )}
-                        <Link href={`/orders/${order.order_id}`} className={styles.viewBtn}>
-                          View →
-                        </Link>
-                      </div>
+                  {confirmLeaveId === booth.id ? (
+                    <div className={styles.confirmLeave}>
+                      <span className={styles.confirmText}>Leave "{booth.booth_name}"?</span>
+                      <button
+                        className={styles.confirmYes}
+                        onClick={() => handleLeaveBooth(booth.id, booth.booth_name)}
+                        disabled={leavingId === booth.id}
+                      >
+                        {leavingId === booth.id ? 'Leaving...' : 'Yes, Leave'}
+                      </button>
+                      <button
+                        className={styles.confirmNo}
+                        onClick={() => setConfirmLeaveId(null)}
+                      >
+                        Cancel
+                      </button>
                     </div>
-                  ))}
+                  ) : (
+                    <button
+                      className={styles.leaveBtn}
+                      onClick={() => setConfirmLeaveId(booth.id)}
+                    >
+                      ✕ Leave Booth
+                    </button>
+                  )}
                 </div>
               </div>
-            )
-          })
+            ))}
+          </div>
         )}
       </div>
     </div>

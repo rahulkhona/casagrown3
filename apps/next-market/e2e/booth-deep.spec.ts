@@ -56,8 +56,8 @@ test.describe('Booth Management', () => {
     if (await submitBtn.count() > 0) {
       await submitBtn.first().click()
       await page.waitForTimeout(1000)
-      // Should show validation errors or stay on page
-      expect(page.url()).toContain('/products')
+      // Should show validation errors or stay on page (may redirect to /my-stands after multi-stand migration)
+      expect(page.url()).toMatch(/products|my-stands|my-booth/)
     }
   })
 

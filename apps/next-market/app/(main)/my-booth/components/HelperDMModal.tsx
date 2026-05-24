@@ -17,6 +17,10 @@ export function HelperDMModal({ boothName, passcode, userId, onClose, onSent }: 
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
 
+  // Preview step
+  const [selectedUser, setSelectedUser] = useState<{ id: string; name: string; avatar_url?: string } | null>(null)
+  const [previewMessage, setPreviewMessage] = useState('')
+
   useEffect(() => {
     setLoading(true)
     const timer = setTimeout(async () => {
@@ -55,38 +59,43 @@ export function HelperDMModal({ boothName, passcode, userId, onClose, onSent }: 
     return () => clearTimeout(timer)
   }, [query, userId])
 
-  const handleInvite = async (targetId: string, targetName: string) => {
-    if (sending) return
+  const buildMessage = (targetName: string) => {
+    const joinUrl = typeof window !== 'undefined'
+      ? `${window.location.origin}/join-booth/${encodeURIComponent(passcode)}`
+      : ''
+    const boothLabel = boothName?.trim() ? `my produce stand "${boothName}"` : 'my CasaGrown produce stand'
+
+    return [
+      `Hey ${targetName}! 👋`,
+      '',
+      `I need some help managing my excess produce on CasaGrown and was wondering if you'd be able to help me out?`,
+      '',
+      `It's pretty straightforward — just keep an eye on orders, hand things off to buyers when they come by, and maybe reply to a message or two.`,
+      '',
+      `If you can, tap this link to join ${boothLabel}:`,
+      joinUrl,
+      '',
+      `Let me know! 🌱`,
+    ].join('\n')
+  }
+
+  const handleSelect = (user: any) => {
+    const name = user.full_name || 'Neighbor'
+    setSelectedUser({ id: user.id, name, avatar_url: user.avatar_url })
+    setPreviewMessage(buildMessage(name))
+  }
+
+  const handleSend = async () => {
+    if (!selectedUser || sending) return
     setSending(true)
     const supabase = createClient()
 
     try {
-      const joinUrl = typeof window !== 'undefined'
-        ? `${window.location.origin}/join-booth/${encodeURIComponent(passcode)}`
-        : ''
-
-      const boothLabel = boothName?.trim() ? `my produce stand "${boothName}"` : 'my CasaGrown produce stand'
-
-      const inviteMessage = [
-        `Hey ${targetName}! 👋`,
-        '',
-        `I need some help managing my excess produce on CasaGrown and was wondering if you'd be able to help me out?`,
-        '',
-        `It's pretty straightforward — just keep an eye on orders, hand things off to buyers when they come by, and maybe reply to a message or two.`,
-        '',
-        `If you can, here's the link to get access to ${boothLabel}:`,
-        joinUrl,
-        '',
-        `Passcode: ${passcode}`,
-        '',
-        `Let me know! 🌱`,
-      ].join('\n')
-
       // 1. Find or create conversation
       const { data: existing } = await supabase
         .from('market_conversations')
         .select('id')
-        .or(`and(participant_a.eq.${userId},participant_b.eq.${targetId}),and(participant_a.eq.${targetId},participant_b.eq.${userId})`)
+        .or(`and(participant_a.eq.${userId},participant_b.eq.${selectedUser.id}),and(participant_a.eq.${selectedUser.id},participant_b.eq.${userId})`)
         .maybeSingle()
 
       let convId = existing?.id
@@ -96,7 +105,7 @@ export function HelperDMModal({ boothName, passcode, userId, onClose, onSent }: 
         const { data: blockCheck } = await supabase
           .from('market_blocks')
           .select('id')
-          .eq('blocker_id', targetId)
+          .eq('blocker_id', selectedUser.id)
           .eq('blocked_id', userId)
           .maybeSingle()
 
@@ -107,7 +116,7 @@ export function HelperDMModal({ boothName, passcode, userId, onClose, onSent }: 
 
         const { data: newConv, error: insertError } = await supabase
           .from('market_conversations')
-          .insert({ participant_a: userId, participant_b: targetId })
+          .insert({ participant_a: userId, participant_b: selectedUser.id })
           .select('id')
           .single()
 
@@ -120,7 +129,7 @@ export function HelperDMModal({ boothName, passcode, userId, onClose, onSent }: 
         const { error: msgError } = await supabase.from('market_chat_messages').insert({
           conversation_id: convId,
           sender_id: userId,
-          content: inviteMessage,
+          content: previewMessage,
         })
         if (msgError) {
           console.warn('Failed to send helper invite message:', msgError)
@@ -144,7 +153,7 @@ export function HelperDMModal({ boothName, passcode, userId, onClose, onSent }: 
         }
       }
 
-      onSent(targetName, convId)
+      onSent(selectedUser.name, convId)
     } catch (err) {
       console.warn('DM helper invite failed:', err)
       setSending(false)
@@ -164,76 +173,139 @@ export function HelperDMModal({ boothName, passcode, userId, onClose, onSent }: 
         maxHeight: '80vh', display: 'flex', flexDirection: 'column',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <h2 style={{ margin: 0, fontSize: '1.1rem', color: '#111827' }}>💬 DM a Helper Invite</h2>
+          <h2 style={{ margin: 0, fontSize: '1.1rem', color: '#111827' }}>
+            {selectedUser ? '📝 Preview Message' : '💬 DM a Helper Invite'}
+          </h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: '#6b7280' }}>×</button>
         </div>
 
-        <p style={{ fontSize: 13, color: 'var(--gray-500)', margin: '0 0 12px' }}>
-          Search for someone and we&apos;ll send them a message with your produce stand invite link and passcode.
-        </p>
-
-        <input
-          type="text"
-          placeholder="Search by name..."
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          autoFocus
-          style={{
-            width: '100%', padding: '10px 14px', borderRadius: 10,
-            border: '1px solid #d1d5db', fontSize: '0.95rem', marginBottom: 12,
-          }}
-        />
-
-        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {loading ? (
-            <p style={{ textAlign: 'center', color: '#6b7280', padding: 16 }}>Searching...</p>
-          ) : results.length === 0 ? (
-            <p style={{ textAlign: 'center', color: '#6b7280', padding: 16 }}>
-              {query.trim() ? `No one found matching "${query}"` : 'No neighbors found in your area yet.'}
+        {!selectedUser ? (
+          /* Step 1: Search & Select */
+          <>
+            <p style={{ fontSize: 13, color: 'var(--gray-500)', margin: '0 0 12px' }}>
+              Select someone to send a helper invite DM to.
             </p>
-          ) : (
-            results.map(r => (
+
+            <input
+              type="text"
+              placeholder="Search by name..."
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              autoFocus
+              style={{
+                width: '100%', padding: '10px 14px', borderRadius: 10,
+                border: '1px solid #d1d5db', fontSize: '0.95rem', marginBottom: 12,
+                boxSizing: 'border-box',
+              }}
+            />
+
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {loading ? (
+                <p style={{ textAlign: 'center', color: '#6b7280', padding: 16 }}>Searching...</p>
+              ) : results.length === 0 ? (
+                <p style={{ textAlign: 'center', color: '#6b7280', padding: 16 }}>
+                  {query.trim() ? `No one found matching "${query}"` : 'No neighbors found in your area yet.'}
+                </p>
+              ) : (
+                results.map(r => (
+                  <button
+                    key={r.id}
+                    onClick={() => handleSelect(r)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
+                      background: 'none', border: '1px solid #e5e7eb', borderRadius: 10,
+                      cursor: 'pointer', textAlign: 'left',
+                      transition: 'background 0.15s',
+                    }}
+                  >
+                    <div style={{
+                      width: 38, height: 38, borderRadius: '50%', backgroundColor: '#e5e7eb',
+                      overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {r.avatar_url ? (
+                        <img src={r.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <span style={{ fontWeight: 'bold', color: '#9ca3af', fontSize: 15 }}>
+                          {r.full_name?.charAt(0).toUpperCase() || '?'}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ flexGrow: 1 }}>
+                      <div style={{ color: '#111827', fontWeight: 600, fontSize: 14 }}>
+                        {r.full_name || 'Anonymous Neighbor'}
+                      </div>
+                    </div>
+                    <span style={{
+                      fontSize: 12, fontWeight: 600, color: 'var(--green-700)',
+                      background: 'var(--green-50)', padding: '4px 10px', borderRadius: 8,
+                      flexShrink: 0,
+                    }}>
+                      Select
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          </>
+        ) : (
+          /* Step 2: Preview & Send */
+          <>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12,
+              padding: '8px 12px', borderRadius: 10, background: 'var(--green-50)',
+              border: '1px solid var(--green-200)',
+            }}>
+              <div style={{
+                width: 32, height: 32, borderRadius: '50%', backgroundColor: '#e5e7eb',
+                overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {selectedUser.avatar_url ? (
+                  <img src={selectedUser.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <span style={{ fontWeight: 'bold', color: '#9ca3af', fontSize: 13 }}>
+                    {selectedUser.name.charAt(0).toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--green-800)' }}>To: {selectedUser.name}</span>
+            </div>
+
+            <div style={{
+              flex: 1, overflowY: 'auto', padding: '12px 14px', borderRadius: 10,
+              border: '1px solid #e5e7eb', background: '#f9fafb',
+              fontSize: 13, lineHeight: 1.6, color: '#374151',
+              whiteSpace: 'pre-wrap', marginBottom: 12,
+              maxHeight: 240,
+            }}>
+              {previewMessage}
+            </div>
+
+            <div style={{ display: 'flex', gap: 8 }}>
               <button
-                key={r.id}
-                onClick={() => handleInvite(r.id, r.full_name || 'Neighbor')}
+                onClick={() => setSelectedUser(null)}
+                style={{
+                  flex: 1, padding: '10px', borderRadius: 10, border: '1px solid #d1d5db',
+                  background: 'white', color: '#374151', fontSize: 14, fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                ← Back
+              </button>
+              <button
+                onClick={handleSend}
                 disabled={sending}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
-                  background: 'none', border: '1px solid #e5e7eb', borderRadius: 10,
-                  cursor: sending ? 'not-allowed' : 'pointer', textAlign: 'left',
-                  opacity: sending ? 0.5 : 1, transition: 'background 0.15s',
+                  flex: 1, padding: '10px', borderRadius: 10, border: 'none',
+                  background: 'var(--green-600)', color: 'white', fontSize: 14, fontWeight: 600,
+                  cursor: sending ? 'not-allowed' : 'pointer',
+                  opacity: sending ? 0.7 : 1,
                 }}
-                onMouseOver={e => e.currentTarget.style.background = '#f0fdf4'}
-                onMouseOut={e => e.currentTarget.style.background = 'none'}
               >
-                <div style={{
-                  width: 38, height: 38, borderRadius: '50%', backgroundColor: '#e5e7eb',
-                  overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  {r.avatar_url ? (
-                    <img src={r.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    <span style={{ fontWeight: 'bold', color: '#9ca3af', fontSize: 15 }}>
-                      {r.full_name?.charAt(0).toUpperCase() || '?'}
-                    </span>
-                  )}
-                </div>
-                <div style={{ flexGrow: 1 }}>
-                  <div style={{ color: '#111827', fontWeight: 600, fontSize: 14 }}>
-                    {r.full_name || 'Anonymous Neighbor'}
-                  </div>
-                </div>
-                <span style={{
-                  fontSize: 12, fontWeight: 600, color: 'var(--green-700)',
-                  background: 'var(--green-50)', padding: '4px 10px', borderRadius: 8,
-                  flexShrink: 0,
-                }}>
-                  {sending ? '...' : 'Invite'}
-                </span>
+                {sending ? 'Sending...' : '📩 Send Invite'}
               </button>
-            ))
-          )}
-        </div>
+            </div>
+          </>
+        )}
       </div>
     </>
   )

@@ -61,7 +61,7 @@ INSERT INTO market_orders (id, buyer_id, seller_id, subtotal_usd, total_usd, sta
 VALUES ('cc460001-aa00-0000-0000-000000000001',
   'cc460001-0000-0000-0000-000000000001', 'cc460001-0000-0000-0000-000000000002',
   50.00, 50.00, 'delivered', 10, 5.00,
-  (SELECT id FROM market_booths WHERE owner_id = 'cc460001-0000-0000-0000-000000000002'),
+  (SELECT id FROM market_booths WHERE owner_id = 'cc460001-0000-0000-0000-000000000002' LIMIT 1),
   'cc460001-a100-0000-0000-000000000001', 'Test Product', 5, 10.00, 'delivery');
 
 -- Dispute: $10 partial refund
@@ -111,7 +111,7 @@ INSERT INTO market_orders (id, buyer_id, seller_id, subtotal_usd, total_usd, sta
 VALUES ('cc460001-aa00-0000-0000-000000000002',
   'cc460001-0000-0000-0000-000000000003', 'cc460001-0000-0000-0000-000000000002',
   35.00, 35.00, 'delivered',
-  (SELECT id FROM market_booths WHERE owner_id = 'cc460001-0000-0000-0000-000000000002'),
+  (SELECT id FROM market_booths WHERE owner_id = 'cc460001-0000-0000-0000-000000000002' LIMIT 1),
   'cc460001-a100-0000-0000-000000000001', 'Test Product', 3, 11.67, 'delivery');
 
 -- Stripe hold for $35 (Buyer2)
@@ -226,7 +226,7 @@ INSERT INTO market_orders (id, buyer_id, seller_id, subtotal_usd, total_usd, sta
 VALUES ('cc460001-aa00-0000-0000-000000000003',
   'cc460001-0000-0000-0000-000000000001', 'cc460001-0000-0000-0000-000000000002',
   50.00, 50.00, 'delivered', 10, 5.00,
-  (SELECT id FROM market_booths WHERE owner_id = 'cc460001-0000-0000-0000-000000000002'),
+  (SELECT id FROM market_booths WHERE owner_id = 'cc460001-0000-0000-0000-000000000002' LIMIT 1),
   'cc460001-a100-0000-0000-000000000001', 'Test Product', 5, 10.00, 'delivery');
 
 SELECT _complete_market_order_with_receipt('cc460001-aa00-0000-0000-000000000003');
@@ -270,7 +270,7 @@ INSERT INTO market_orders (id, buyer_id, seller_id, subtotal_usd, total_usd, sta
 VALUES ('cc460001-aa00-0000-0000-000000000004',
   'cc460001-0000-0000-0000-000000000004', 'cc460001-0000-0000-0000-000000000002',
   50.00, 50.00, 'delivered',
-  (SELECT id FROM market_booths WHERE owner_id = 'cc460001-0000-0000-0000-000000000002'),
+  (SELECT id FROM market_booths WHERE owner_id = 'cc460001-0000-0000-0000-000000000002' LIMIT 1),
   'cc460001-a100-0000-0000-000000000001', 'Test Product', 5, 10.00, 'delivery');
 
 SELECT _complete_market_order_with_receipt('cc460001-aa00-0000-0000-000000000004');
@@ -312,7 +312,7 @@ INSERT INTO market_orders (id, buyer_id, seller_id, subtotal_usd, total_usd, sta
 VALUES ('cc460001-aa00-0000-0000-000000000005',
   'cc460001-0000-0000-0000-000000000003', 'cc460001-0000-0000-0000-000000000002',
   15.00, 15.00, 'delivered',
-  (SELECT id FROM market_booths WHERE owner_id = 'cc460001-0000-0000-0000-000000000002'),
+  (SELECT id FROM market_booths WHERE owner_id = 'cc460001-0000-0000-0000-000000000002' LIMIT 1),
   'cc460001-a100-0000-0000-000000000001', 'Test Product', 1, 15.00, 'delivery');
 
 SELECT _complete_market_order_with_receipt('cc460001-aa00-0000-0000-000000000005');
@@ -384,7 +384,7 @@ INSERT INTO market_orders (id, buyer_id, seller_id, subtotal_usd, total_usd, sta
 VALUES ('cc460001-aa00-0000-0000-000000000006',
   'cc460001-0000-0000-0000-000000000005', 'cc460001-0000-0000-0000-000000000002',
   25.00, 25.00, 'delivered',
-  (SELECT id FROM market_booths WHERE owner_id = 'cc460001-0000-0000-0000-000000000002'),
+  (SELECT id FROM market_booths WHERE owner_id = 'cc460001-0000-0000-0000-000000000002' LIMIT 1),
   'cc460001-a100-0000-0000-000000000001', 'Test Product', 2, 12.50, 'delivery');
 
 SELECT _complete_market_order_with_receipt('cc460001-aa00-0000-0000-000000000006');

@@ -306,9 +306,9 @@ function JoinBoothPageInner() {
 
           <button
             className={`btn btn-primary btn-lg ${styles.actionBtn}`}
-            onClick={() => router.push('/my-booth')}
+            onClick={() => router.push('/helping')}
           >
-            Go to My Produce Stand →
+            Go to My Helping Booths →
           </button>
           <button className={styles.backLink} onClick={() => router.push('/market')}>
             Browse Market

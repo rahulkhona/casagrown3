@@ -493,3 +493,149 @@ Deno.test({
     console.log(`✅ M10 notify-product-flagged response: ${res.status}`)
   },
 })
+
+// ══════════════════════════════════════════════════════════════
+// Catalog → Listing Content Moderation Tests
+// ══════════════════════════════════════════════════════════════
+
+// M11 — Profanity in listing name is flagged by deterministic pre-check (no LLM needed)
+Deno.test({
+  name: 'M11 — profanity in name is flagged without LLM call',
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    const product_id = await seedProduct({
+      name: 'What the fuck tomatoes',
+      description: 'Fresh tomatoes',
+      category: 'produce',
+      price_usd: 3.0,
+    })
+    try {
+      const res = await fetch(FN_URL, {
+        method: 'POST',
+        headers: AUTH_HEADERS,
+        body: JSON.stringify({
+          product_id,
+          seller_id: SEED_SELLER_ID,
+          name: 'What the fuck tomatoes',
+          description: 'Fresh tomatoes',
+          price_usd: 3.0,
+          category: 'produce',
+          photo_url: null,
+        }),
+      })
+      assertEquals(res.status, 200)
+      const body = await res.json()
+      assertEquals(body.status, 'flagged', 'Profanity should always be flagged (no LLM needed)')
+      assert(
+        (body.flags?.issues as string[] ?? []).includes('profanity_offensive_language'),
+        `Expected profanity issue, got: ${JSON.stringify(body.flags?.issues)}`,
+      )
+
+      // Verify product is hidden in DB
+      const product = await getProduct(product_id)
+      assertEquals(product.moderation_status, 'flagged', 'DB should show flagged')
+      assertEquals(product.is_active, false, 'Product should be hidden')
+      console.log('✅ M11 profanity pre-check flagged without LLM')
+    } finally {
+      await deleteProduct(product_id)
+    }
+  },
+})
+
+// M12 — Catalog-allocated product gets moderation_status set when moderated
+Deno.test({
+  name: 'M12 — catalog-originated product gets moderation applied',
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    // Create a product as if it came from catalog allocation
+    const product_id = await seedProduct({
+      name: 'Catalog Heirloom Tomatoes',
+      description: 'From the backyard catalog, organic and fresh',
+      category: 'produce',
+      price_usd: 5.0,
+      moderation_status: 'pending',
+    })
+    try {
+      // Simulate what catalog allocation triggers — call moderate-listing
+      const res = await fetch(FN_URL, {
+        method: 'POST',
+        headers: AUTH_HEADERS,
+        body: JSON.stringify({
+          product_id,
+          seller_id: SEED_SELLER_ID,
+          name: 'Catalog Heirloom Tomatoes',
+          description: 'From the backyard catalog, organic and fresh',
+          price_usd: 5.0,
+          category: 'produce',
+          photo_url: null,
+        }),
+      })
+      assertEquals(res.status, 200)
+      const body = await res.json()
+
+      // Should be approved (clean content)
+      assert(
+        body.status === 'approved' || body.skipped === true,
+        `Expected approved, got: ${JSON.stringify(body)}`,
+      )
+
+      // Verify DB was updated from 'pending'
+      const product = await getProduct(product_id)
+      assert(
+        product.moderation_status === 'approved',
+        `Expected approved in DB, got: ${product.moderation_status}`,
+      )
+      assertExists(product.moderation_content_hash, 'Hash should be set')
+      console.log('✅ M12 catalog product moderated successfully')
+    } finally {
+      await deleteProduct(product_id)
+    }
+  },
+})
+
+// M13 — Banned substance name from catalog is flagged on moderation
+Deno.test({
+  name: 'M13 — banned substance from catalog is flagged on allocation moderation',
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    const product_id = await seedProduct({
+      name: 'Marijuana Brownies',
+      description: 'THC infused homemade brownies',
+      category: 'produce',
+      price_usd: 20.0,
+    })
+    try {
+      const res = await fetch(FN_URL, {
+        method: 'POST',
+        headers: AUTH_HEADERS,
+        body: JSON.stringify({
+          product_id,
+          seller_id: SEED_SELLER_ID,
+          name: 'Marijuana Brownies',
+          description: 'THC infused homemade brownies',
+          price_usd: 20.0,
+          category: 'produce',
+          photo_url: null,
+        }),
+      })
+      assertEquals(res.status, 200)
+      const body = await res.json()
+
+      // Profanity pre-check won't catch this (it's not profanity)
+      // but LLM should flag it. If no LLM key, note the gap.
+      if (Deno.env.get('OPENROUTER_API_KEY') || Deno.env.get('GEMINI_API_KEY')) {
+        assertEquals(body.status, 'flagged', 'Marijuana listing should be flagged')
+        const product = await getProduct(product_id)
+        assertEquals(product.is_active, false, 'Should be hidden from market')
+      } else {
+        console.warn('⚠️  M13: No AI key — marijuana would be auto-approved (LLM needed to catch this)')
+      }
+      console.log('✅ M13 catalog banned substance moderation test complete')
+    } finally {
+      await deleteProduct(product_id)
+    }
+  },
+})

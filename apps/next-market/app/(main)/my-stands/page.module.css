@@ -1,0 +1,232 @@
+/* ── My Booths Hub Page ── */
+.page {
+  max-width: 800px; margin: 0 auto; padding: 0 16px 100px;
+}
+
+/* ── Header ── */
+.header {
+  padding: 24px 0 8px;
+}
+.title {
+  font-size: 24px; font-weight: 800; color: var(--gray-800);
+  margin: 0 0 4px;
+}
+.subtitle {
+  font-size: 14px; color: var(--gray-500); margin: 0;
+}
+
+/* ── Action Row (below title, above booth cards) ── */
+.actionRow {
+  display: flex; gap: 10px; margin: 16px 0 4px;
+  align-items: center;
+}
+.actionBtnOutline {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 18px; font-size: 14px; font-weight: 600;
+  border: 1px solid var(--gray-300); border-radius: 24px;
+  background: #fff; color: var(--gray-700);
+  text-decoration: none; cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.actionBtnOutline:hover {
+  border-color: var(--green-300); background: var(--green-50);
+  color: var(--green-700);
+}
+.actionBtnPrimary {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 18px; font-size: 14px; font-weight: 700;
+  border: none; border-radius: 24px;
+  background: var(--green-600, #16a34a); color: #fff;
+  text-decoration: none; cursor: pointer;
+  transition: all 0.15s;
+  margin-left: auto;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(22,163,74,0.25);
+}
+.actionBtnPrimary:hover {
+  background: var(--green-700, #15803d);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(22,163,74,0.35);
+}
+
+/* ── Empty State ── */
+.emptyState {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 64px 24px; text-align: center;
+  background: linear-gradient(135deg, rgba(22,163,74,0.04) 0%, rgba(22,163,74,0.01) 100%);
+  border: 2px dashed var(--green-200);
+  border-radius: var(--radius-xl);
+  margin-top: 24px;
+}
+.emptyIcon {
+  font-size: 64px; margin-bottom: 16px;
+  animation: float 3s ease-in-out infinite;
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.emptyTitle {
+  font-size: 22px; font-weight: 700; color: var(--gray-800);
+  margin: 0 0 8px;
+}
+.emptyText {
+  font-size: 14px; color: var(--gray-500); max-width: 360px;
+  line-height: 1.6; margin: 0 0 24px;
+}
+.ctaBtn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 14px 28px; font-size: 16px; font-weight: 700;
+  border: none; border-radius: var(--radius-lg); cursor: pointer;
+  color: #fff; background: var(--green-600, #16a34a);
+  text-decoration: none;
+  transition: all 0.2s;
+  box-shadow: 0 4px 14px rgba(22,163,74,0.3);
+}
+.ctaBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(22,163,74,0.4);
+}
+
+/* ── Stands Grid ── */
+.standsGrid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px; margin-top: 20px;
+}
+
+/* ── Stand Card ── */
+.standCard {
+  border-radius: var(--radius-xl); overflow: hidden;
+  border: 1px solid var(--border);
+  background: #fff;
+  transition: all 0.25s ease;
+  position: relative;
+}
+.standCard:hover {
+  box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+  transform: translateY(-3px);
+  border-color: var(--green-200);
+}
+
+/* Banner */
+.cardBanner {
+  height: 100px; width: 100%;
+  background: linear-gradient(135deg, var(--green-50) 0%, var(--green-100) 100%);
+  position: relative; overflow: hidden;
+}
+.cardBanner img {
+  width: 100%; height: 100%; object-fit: cover;
+}
+.statusBadge {
+  position: absolute; top: 10px; right: 10px; z-index: 2;
+  padding: 4px 10px; border-radius: 20px;
+  font-size: 11px; font-weight: 700;
+  backdrop-filter: blur(8px);
+}
+.statusActive {
+  background: rgba(22,163,74,0.9); color: #fff;
+}
+.statusInactive {
+  background: rgba(156,163,175,0.9); color: #fff;
+}
+.statusHelper {
+  background: rgba(34, 197, 94, 0.15); color: #16a34a;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+/* Card body */
+.cardBody {
+  padding: 16px 18px 14px;
+}
+.standName {
+  font-size: 17px; font-weight: 700; color: var(--gray-800);
+  margin: 0 0 8px;
+}
+.cardMeta {
+  display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px;
+}
+.metaChip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 12px; color: var(--gray-500);
+  background: var(--gray-50); border: 1px solid var(--gray-100);
+  padding: 3px 10px; border-radius: 16px;
+}
+
+/* Quick actions row */
+.cardActions {
+  display: flex; gap: 8px; padding: 0 18px 16px;
+}
+.cardActionBtn {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center;
+  gap: 6px; padding: 8px 12px; font-size: 13px; font-weight: 600;
+  border-radius: var(--radius-lg); cursor: pointer;
+  transition: all 0.15s; text-decoration: none; text-align: center;
+  white-space: nowrap;
+}
+.cardActionPrimary {
+  background: var(--green-50); color: var(--green-700);
+  border: 1px solid var(--green-200);
+}
+.cardActionPrimary:hover {
+  background: var(--green-100); border-color: var(--green-300);
+}
+.cardActionSecondary {
+  background: var(--gray-100); color: var(--gray-700);
+  border: 1px solid var(--gray-200);
+}
+.cardActionSecondary:hover, .cardActionSecondary:active {
+  background: var(--gray-200); border-color: var(--gray-300);
+}
+.cardActionDanger {
+  background: #fef2f2; color: #dc2626;
+  border: 1px solid #fecaca;
+}
+.cardActionDanger:hover, .cardActionDanger:active {
+  background: #fee2e2; border-color: #fca5a5;
+}
+
+/* ── Create New Stand FAB ── */
+.fab {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 16px; margin-top: 20px;
+  font-size: 15px; font-weight: 700;
+  border: 2px dashed var(--green-300); border-radius: var(--radius-xl);
+  background: rgba(22,163,74,0.04); color: var(--green-700);
+  cursor: pointer; text-decoration: none;
+  transition: all 0.2s;
+}
+.fab:hover {
+  background: var(--green-50); border-color: var(--green-400);
+  transform: translateY(-1px);
+}
+
+/* ── Bottom Links ── */
+.bottomLinks {
+  display: flex; flex-direction: column; gap: 12px;
+  margin-top: 24px; padding-top: 24px;
+  border-top: 1px solid var(--gray-100);
+}
+.bottomLink {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 18px;
+  background: #fff; border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  text-decoration: none; color: var(--gray-700);
+  font-size: 15px; font-weight: 600;
+  transition: all 0.15s;
+}
+.bottomLink:hover {
+  border-color: var(--green-200);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+.bottomLinkArrow {
+  margin-left: auto; color: var(--gray-400);
+  font-size: 18px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 480px) {
+  .standsGrid { grid-template-columns: 1fr; }
+  .cardActions { flex-wrap: wrap; }
+}

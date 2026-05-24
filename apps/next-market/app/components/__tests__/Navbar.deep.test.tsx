@@ -159,6 +159,9 @@ describe('Navbar', () => {
     const { Navbar } = await import('../Navbar')
     const { container } = render(React.createElement(Navbar))
     await act(async () => { await new Promise(r => setTimeout(r, 50)) })
+    // Open menu to reveal profile badge
+    const menuBtn = container.querySelector('button[aria-label="Menu"]')!
+    await act(async () => { fireEvent.click(menuBtn) })
     // Profile initial "A" from "Alice Smith"
     expect(container.textContent).toContain('A')
   })
@@ -190,7 +193,7 @@ describe('Navbar', () => {
     await act(async () => { fireEvent.click(menuBtn) })
     expect(menuBtn.textContent).toBe('✕')
     expect(container.textContent).toContain('Navigation')
-    expect(container.textContent).toContain('My Produce Stand')
+    expect(container.textContent).toContain('My Stands')
     expect(container.textContent).toContain('Helping')
     expect(container.textContent).toContain('Earnings & Activity')
     expect(container.textContent).toContain('Wallet')

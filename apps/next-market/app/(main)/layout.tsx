@@ -61,7 +61,7 @@ const BROWSABLE_ROUTES = ['/', '/market', '/community', '/get-started', '/voice'
  * they get redirected to /profile-setup.
  */
 const PROTECTED_ROUTES = [
-  '/my-booth', '/orders', '/earnings', '/chat', '/helping',
+  '/my-booth', '/my-stands', '/orders', '/earnings', '/chat', '/helping',
   '/following', '/notifications', '/settings', '/profile', '/cart',
 ]
 
@@ -84,8 +84,8 @@ function OnboardingGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading || !user || isExempt) return
 
-    // Always enforce ToS first
-    if (needsToS) {
+    // Enforce ToS only on protected routes (allow browsing without ToS)
+    if (needsToS && isProtected) {
       router.replace('/terms')
       return
     }
@@ -98,15 +98,6 @@ function OnboardingGate({ children }: { children: React.ReactNode }) {
 
   // Block content on protected routes when onboarding is needed
   if (needsOnboarding && isProtected && !isExempt) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
-        <LoadingSpinner />
-      </div>
-    )
-  }
-
-  // ToS is always enforced — block everything except exempt routes
-  if (needsToS && !isExempt) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
         <LoadingSpinner />

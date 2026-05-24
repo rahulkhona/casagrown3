@@ -287,6 +287,7 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
           <div>
             <h1 className={styles.orderTitle}>{order.product_name}</h1>
             <p className={styles.orderSub}>
+              {order.booth_name && order.booth_name !== 'Unknown Booth' && <><span>🏪 {order.booth_name}</span> · </>}
               {order.fulfillment_type === 'delivery' ? '🚗 Delivery' : '📍 Pickup'} · Order placed {new Date(order.created_at).toLocaleDateString()}
             </p>
           </div>

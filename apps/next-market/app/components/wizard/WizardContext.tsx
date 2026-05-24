@@ -48,6 +48,10 @@ export interface WizardState {
   pushEnabled: boolean;
   agreedToTos: boolean;
   
+  // Stand / Catalog
+  boothId: string | null;
+  catalogItemId: string | null;
+
   // Control
   currentStep: number;
   isExistingUser: boolean | null;
@@ -82,6 +86,8 @@ const defaultState: WizardState = {
   smsEnabled: true,
   pushEnabled: false,
   agreedToTos: false,
+  boothId: null,
+  catalogItemId: null,
   currentStep: 1,
   isExistingUser: null,
   isPublished: false,
@@ -293,66 +299,86 @@ export function WizardProvider({ children }: { children: ReactNode }) {
       }
 
       // ── 1. Ensure a booth exists (auto-create if needed) ──
-      let boothId: string | null = null
-      const { data: existingBooth } = await supabase
-        .from('market_booths')
-        .select('id')
-        .eq('owner_id', authUser.id)
-        .single()
+      let boothId: string | null = state.boothId || null
 
-      if (existingBooth) {
-        boothId = existingBooth.id
-      } else {
-        const boothName = state.fullName ? `${state.fullName}'s Produce Stand` : 'My Produce Stand'
-
-        const autoWeeklyDw: Record<string, any[]> = {}
-        const autoWeeklyPw: Record<string, any[]> = {}
-        
-        const flatDw: any[] = []
-        const flatPw: any[] = []
-        
-        // Flatten the windows from the selected dates
-        state.selectedDates.forEach(date => {
-          if (state.offersDelivery && state.deliveryWindows[date]) {
-            const mapped = mapInlineWindows(state.deliveryWindows[date])
-            flatDw.push(...mapped)
-            
-            // Format date for weekly defaults
-            const dayKey = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' })
-            autoWeeklyDw[dayKey] = autoWeeklyDw[dayKey] ? [...autoWeeklyDw[dayKey], ...mapped] : mapped
-          }
-          if (state.offersPickup && state.pickupWindows[date]) {
-            const mapped = mapInlineWindows(state.pickupWindows[date])
-            flatPw.push(...mapped)
-            
-            // Format date for weekly defaults
-            const dayKey = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' })
-            autoWeeklyPw[dayKey] = autoWeeklyPw[dayKey] ? [...autoWeeklyPw[dayKey], ...mapped] : mapped
-          }
-        })
-
-        const { data: newBooth, error: boothErr } = await supabase
+      if (!boothId) {
+        // No stand selected in wizard — check if user has any existing stand
+        const { data: existingBooth } = await supabase
           .from('market_booths')
-          .insert({
-            owner_id: authUser.id,
-            name: boothName,
-            status: 'published',
-            offers_delivery: state.offersDelivery,
-            offers_pickup: state.offersPickup,
-            delivery_radius_miles: state.deliveryRadius,
-            pickup_address: state.offersPickup ? state.pickupAddress || null : null,
-            delivery_windows: flatDw,
-            pickup_windows: flatPw,
-            weekly_delivery_windows: autoWeeklyDw,
-            weekly_pickup_windows: autoWeeklyPw,
-            payment_method: 'automatic',
-            decorative_theme: 'floral',
-          })
-          .select()
+          .select('id')
+          .eq('owner_id', authUser.id)
+          .limit(1)
           .single()
 
-        if (boothErr || !newBooth) throw new Error('Failed to create booth: ' + (boothErr?.message || 'unknown error'))
-        boothId = newBooth.id
+        if (existingBooth) {
+          boothId = existingBooth.id
+        } else {
+          // Auto-create a stand — try create_stand RPC first, fallback to direct insert
+          const boothName = state.fullName ? `${state.fullName}'s Produce Stand` : 'My Produce Stand'
+
+          const autoWeeklyDw: Record<string, any[]> = {}
+          const autoWeeklyPw: Record<string, any[]> = {}
+          
+          const flatDw: any[] = []
+          const flatPw: any[] = []
+          
+          // Flatten the windows from the selected dates
+          state.selectedDates.forEach(date => {
+            if (state.offersDelivery && state.deliveryWindows[date]) {
+              const mapped = mapInlineWindows(state.deliveryWindows[date])
+              flatDw.push(...mapped)
+              
+              // Format date for weekly defaults
+              const dayKey = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' })
+              autoWeeklyDw[dayKey] = autoWeeklyDw[dayKey] ? [...autoWeeklyDw[dayKey], ...mapped] : mapped
+            }
+            if (state.offersPickup && state.pickupWindows[date]) {
+              const mapped = mapInlineWindows(state.pickupWindows[date])
+              flatPw.push(...mapped)
+              
+              // Format date for weekly defaults
+              const dayKey = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' })
+              autoWeeklyPw[dayKey] = autoWeeklyPw[dayKey] ? [...autoWeeklyPw[dayKey], ...mapped] : mapped
+            }
+          })
+
+          // Try create_stand RPC first
+          let rpcWorked = false
+          try {
+            const { data: rpcData, error: rpcErr } = await supabase.rpc('create_stand', {
+              p_name: boothName,
+            })
+            if (!rpcErr && rpcData) {
+              boothId = typeof rpcData === 'string' ? rpcData : rpcData.id || rpcData
+              rpcWorked = true
+            }
+          } catch { /* RPC may not exist yet — fallback below */ }
+
+          if (!rpcWorked) {
+            const { data: newBooth, error: boothErr } = await supabase
+              .from('market_booths')
+              .insert({
+                owner_id: authUser.id,
+                name: boothName,
+                status: 'published',
+                offers_delivery: state.offersDelivery,
+                offers_pickup: state.offersPickup,
+                delivery_radius_miles: state.deliveryRadius,
+                pickup_address: state.offersPickup ? state.pickupAddress || null : null,
+                delivery_windows: flatDw,
+                pickup_windows: flatPw,
+                weekly_delivery_windows: autoWeeklyDw,
+                weekly_pickup_windows: autoWeeklyPw,
+                payment_method: 'automatic',
+                decorative_theme: 'floral',
+              })
+              .select()
+              .single()
+
+            if (boothErr || !newBooth) throw new Error('Failed to create booth: ' + (boothErr?.message || 'unknown error'))
+            boothId = newBooth.id
+          }
+        }
       }
 
       // ── 2. Upload photos to storage ──
@@ -381,9 +407,7 @@ export function WizardProvider({ children }: { children: ReactNode }) {
         expiresAt = maxDate.toISOString()
       }
 
-      const { data: insertedProduct, error: prodErr } = await supabase
-        .from('market_products')
-        .insert({
+      const productInsert: Record<string, any> = {
           seller_id: authUser.id,
           market_date: state.selectedDates.length > 0 ? state.selectedDates[0] : new Date().toISOString().split('T')[0],
           name: state.name.trim() || 'Untitled Draft',
@@ -416,7 +440,21 @@ export function WizardProvider({ children }: { children: ReactNode }) {
             return Object.keys(obj).length > 0 ? obj : null
           })(),
           window_dates: state.selectedDates,
-        })
+      }
+
+      // Include booth_id if resolved
+      if (boothId) {
+        productInsert.booth_id = boothId
+      }
+
+      // Include catalog_item_id if listing is backed by a catalog item
+      if (state.catalogItemId) {
+        productInsert.catalog_item_id = state.catalogItemId
+      }
+
+      const { data: insertedProduct, error: prodErr } = await supabase
+        .from('market_products')
+        .insert(productInsert)
         .select('id')
         .single()
 

@@ -14,9 +14,9 @@ VALUES
   ('ff000000-0000-0000-0000-000000000b02', 'chatseller@test.local', 'Chat Seller')
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO market_booths (owner_id, name, description)
-VALUES ('ff000000-0000-0000-0000-000000000b02', 'Test Chat Booth', 'Test')
-ON CONFLICT (owner_id) DO NOTHING;
+INSERT INTO market_booths (id, owner_id, name, description)
+VALUES ('ff000000-0000-0000-0000-0000000000b2', 'ff000000-0000-0000-0000-000000000b02', 'Test Chat Booth', 'Test')
+ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO market_products (id, seller_id, name, price_usd, inventory, market_date)
 VALUES ('ff000000-0000-0000-0000-000000000c01', 'ff000000-0000-0000-0000-000000000b02', 'Test Roses', 10.00, 10, CURRENT_DATE)
@@ -26,7 +26,7 @@ INSERT INTO market_orders (id, buyer_id, seller_id, booth_id, product_id, produc
 VALUES (
   'ff000000-0000-0000-0000-000000000d01',
   'ff000000-0000-0000-0000-000000000b01', 'ff000000-0000-0000-0000-000000000b02',
-  (SELECT id FROM market_booths WHERE owner_id = 'ff000000-0000-0000-0000-000000000b02'),
+  (SELECT id FROM market_booths WHERE owner_id = 'ff000000-0000-0000-0000-000000000b02' LIMIT 1),
   'ff000000-0000-0000-0000-000000000c01', 'Test Roses', 'pending', 1, 10.00, 10.00, 10.00, 'pickup'
 ) ON CONFLICT (id) DO NOTHING;
 

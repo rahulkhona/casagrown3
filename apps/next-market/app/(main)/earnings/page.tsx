@@ -316,6 +316,7 @@ export default function EarningsPage() {
       date: tx.tx_date,
       status: tx.status,
       sellerName: m.seller_name || tx.counterparty || 'N/A',
+      boothName: m.booth_name || undefined,
       buyerName: m.buyer_name || tx.counterparty || 'N/A',
       productName: m.product_name || tx.description,
       quantity: m.quantity || 1,

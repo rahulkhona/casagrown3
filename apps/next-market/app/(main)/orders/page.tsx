@@ -367,6 +367,9 @@ function OrdersContent() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className={styles.roleLabel} data-role={roleDataAttr}>{roleLabel}</div>
                   <div className={styles.productName}>{order.product_name}</div>
+                  {order.booth_name && order.booth_name !== 'Unknown Booth' && (
+                    <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>🏪 {order.booth_name}</div>
+                  )}
                   <div className={styles.orderMeta}>
                     <span className={styles.modeChip} data-mode={order.fulfillment_type}>
                       {order.fulfillment_type === 'delivery' ? '🚗 Delivery' : '📍 Pickup'}

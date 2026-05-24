@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useMarket, isMarketOpen } from '../../lib/store'
 import { useAuth } from '../../lib/useAuth'
+import { useBootstrap } from '../../lib/useBootstrap'
 import { createClient } from '../../lib/supabase'
 import styles from './Navbar.module.css'
 import { resetTour } from './GuidedTour'
@@ -14,6 +15,37 @@ import { useMarketStatus } from '../../lib/useMarketStatus'
 import { useErrorToast } from './ErrorToast'
 import { useNotificationPrompt, isNotificationsEnabled } from '../../lib/useNotificationPrompt'
 import { NotificationPromptModal } from './NotificationPromptModal'
+
+function StandIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" width={size} height={size} style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+      {/* Store Front Wall */}
+      <path
+        d="M4 9v10.5h11 M20 9v6.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Awning with scalloped edges */}
+      <path
+        d="M5 4h14l3 5a2 2 0 0 1-4 0a2 2 0 0 1-4 0a2 2 0 0 1-4 0a2 2 0 0 1-4 0a2 2 0 0 1-4 0z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Plus Badge */}
+      <circle cx="18.5" cy="18.5" r="4.5" fill="currentColor" />
+      <path
+        d="M18.5 16.5v4 M16.5 18.5h4"
+        stroke="white"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
 
 interface Notification {
   id: string
@@ -59,6 +91,7 @@ let globalFirstLoad = true
 export function Navbar() {
   const { state, dispatch } = useMarket()
   const { profileComplete } = useAuth()
+  const { data: bootstrapData } = useBootstrap()
   const pathname = usePathname()
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -317,7 +350,7 @@ export function Navbar() {
 
   // Extended menu items (hamburger only — items NOT in BottomNav/header)
   const menuItems = [
-    { href: '/my-booth', label: 'My Produce Stand', icon: '🏪', section: 'main' },
+    { href: '/my-stands', label: 'My Stands', icon: '🏪', section: 'main' },
     { href: '/earnings', label: 'Earnings & Activity', icon: '💰', section: 'main' },
     { href: '/earnings/payout', label: 'Wallet', icon: '💸', section: 'main' },
     { href: '/helping', label: 'Helping', icon: '🤝', section: 'main' },
@@ -387,15 +420,15 @@ export function Navbar() {
 
         {/* Right Section */}
         <div className={styles.right}>
-          {/* Profile indicator (always visible for quick account identification) */}
-          {hasSession && profileName && (
-            <Link href="/profile" className={styles.profileBadge} title={profileEmail}>
-              {profileAvatar ? (
-                <img src={profileAvatar} alt="" className={styles.profileInitial} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
-              ) : (
-                <span className={styles.profileInitial}>{profileName.charAt(0).toUpperCase()}</span>
-              )}
-              <span className={`${styles.profileName} hide-mobile`}>{profileName.split(' ')[0]}</span>
+          {/* Stand management shortcut (header icon without confusing order badge) */}
+          {hasSession && profileName && !isProfileLocked && (
+            <Link
+              href="/my-stands"
+              className={styles.iconBtn}
+              title="My Stands"
+              style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gray-600)' }}
+            >
+              <StandIcon size={22} />
             </Link>
           )}
           {/* Cart icon — only when experiment is enabled */}
@@ -621,13 +654,17 @@ export function Navbar() {
                           className={`${styles.menuItem} ${styles.menuItemLocked}`}
                           onClick={() => { setMenuOpen(false); router.push(lockRedirect) }}
                         >
-                          <span className={styles.menuItemIcon}>{item.icon}</span>
+                          <span className={styles.menuItemIcon}>
+                            {item.href === '/my-stands' ? <StandIcon size={18} /> : item.icon}
+                          </span>
                           <span>{item.label}</span>
                           <span className={styles.lockIcon}>🔒</span>
                         </button>
                       ) : (
                         <Link key={item.href} href={item.href} className={`${styles.menuItem} ${pathname === item.href ? styles.menuItemActive : ''}`}>
-                          <span className={styles.menuItemIcon}>{item.icon}</span>
+                          <span className={styles.menuItemIcon}>
+                            {item.href === '/my-stands' ? <StandIcon size={18} /> : item.icon}
+                          </span>
                           <span>{item.label}</span>
                         </Link>
                       )

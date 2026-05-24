@@ -103,10 +103,19 @@ test.describe('Market Browse Interactions', () => {
   test('address/location input accepts text', async ({ page }) => {
     await page.goto(`${BASE}/market`)
     await page.waitForTimeout(2000)
-    const addressInput = page.locator('input[placeholder*="address" i], input[placeholder*="zip" i], input[placeholder*="location" i]').first()
-    if (await addressInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await addressInput.fill('94105')
-      await expect(addressInput).toHaveValue('94105')
+    // AddressInput uses separate street/city/state/zip fields
+    // The street field always has a placeholder like "e.g. 123 Main St" or "Street Address"
+    const streetInput = page.locator('input[placeholder*="Main St" i], input[placeholder*="address" i], input[placeholder*="street" i]').first()
+    if (await streetInput.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await streetInput.fill('123 Main St')
+      await expect(streetInput).toHaveValue('123 Main St')
+    } else {
+      // Fallback: look for any text input in the address form
+      const anyInput = page.locator('input[type="text"], input:not([type])').first()
+      if (await anyInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await anyInput.fill('94105')
+        await expect(anyInput).toHaveValue('94105')
+      }
     }
   })
 

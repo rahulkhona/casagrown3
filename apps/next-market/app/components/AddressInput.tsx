@@ -1,79 +1,89 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React from 'react'
 import styles from './AddressInput.module.css'
+import type { AddressFields } from '../../lib/address'
 
-function parseAddress(value: string) {
-  const parts = (value || '').split(',').map(s => s.trim())
+/**
+ * Parse a combined address string into AddressFields.
+ * Handles formats like:
+ *   "123 Main St, San Jose, CA 95125"
+ *   "123 Main St"
+ */
+function parseAddressString(raw: string): AddressFields {
+  if (!raw) return { street: '', city: '', state: '', zip: '' }
+  const parts = raw.split(',').map(s => s.trim())
   if (parts.length >= 3) {
-    const street = parts.slice(0, -2).join(', ')
-    const city = parts[parts.length - 2]
-    const sz = parts[parts.length - 1].split(' ')
-    const state = sz[0] || ''
-    const zip = sz.slice(1).join(' ')
-    return { street, city, state, zip }
+    const stateZip = parts[parts.length - 1].split(/\s+/)
+    return {
+      street: parts.slice(0, -2).join(', '),
+      city: parts[parts.length - 2],
+      state: stateZip[0] || '',
+      zip: stateZip.slice(1).join(' '),
+    }
   }
-  return { street: value || '', city: '', state: '', zip: '' }
+  if (parts.length === 2) {
+    return { street: parts[0], city: parts[1], state: '', zip: '' }
+  }
+  return { street: raw, city: '', state: '', zip: '' }
+}
+
+interface AddressInputProps {
+  /** Accepts either a structured AddressFields object or a legacy combined string */
+  value: AddressFields | string
+  /** Emits AddressFields when structured, or string when legacy string was passed */
+  onChange: (val: any) => void
+  placeholderStreet?: string
+  /** Show privacy note below the input */
+  showPrivacyNote?: boolean
 }
 
 export default function AddressInput({
   value,
   onChange,
-  placeholderStreet
-}: {
-  value: string;
-  onChange: (val: string) => void;
-  placeholderStreet?: string;
-}) {
-  const init = parseAddress(value)
-  const [street, setStreet] = useState(init.street)
-  const [city, setCity] = useState(init.city)
-  const [stateCode, setStateCode] = useState(init.state)
-  const [zip, setZip] = useState(init.zip)
+  placeholderStreet,
+  showPrivacyNote = false,
+}: AddressInputProps) {
+  // Normalize: if value is a string, parse into AddressFields
+  const isLegacy = typeof value === 'string'
+  const fields: AddressFields = isLegacy ? parseAddressString(value) : value
 
-  // Track the last value we synced FROM props so we only re-parse when
-  // the parent genuinely sets a new address (e.g. geolocation), not on
-  // every keystroke that round-trips back through onChange → value.
-  const lastSyncedValue = useRef(value)
-
-  useEffect(() => {
-    if (value === lastSyncedValue.current) return
-    lastSyncedValue.current = value
-    const p = parseAddress(value)
-    setStreet(p.street)
-    setCity(p.city)
-    setStateCode(p.state)
-    setZip(p.zip)
-  }, [value])
-
-  const emit = (s: string, c: string, st: string, z: string) => {
-    const combined = [s, c, `${st} ${z}`.trim()].filter(Boolean).join(', ')
-    lastSyncedValue.current = combined // prevent next useEffect from re-parsing what we just built
-    onChange(combined || '')
+  const update = (field: keyof AddressFields, val: string) => {
+    const updated = { ...fields, [field]: val }
+    if (isLegacy) {
+      // Emit combined string for backward compatibility
+      const combined = [
+        updated.street,
+        updated.city,
+        `${updated.state} ${updated.zip}`.trim(),
+      ].filter(Boolean).join(', ')
+      onChange(combined)
+    } else {
+      onChange(updated)
+    }
   }
 
   return (
     <div className={styles.addressInputContainer}>
       <input
         className={styles.input}
-        value={street}
-        onChange={e => { setStreet(e.target.value); emit(e.target.value, city, stateCode, zip) }}
+        value={fields.street}
+        onChange={e => update('street', e.target.value)}
         placeholder={placeholderStreet || 'Street Address'}
       />
       <div className={styles.row}>
         <input
           className={styles.input}
           style={{ flex: 2 }}
-          value={city}
-          onChange={e => { setCity(e.target.value); emit(street, e.target.value, stateCode, zip) }}
+          value={fields.city}
+          onChange={e => update('city', e.target.value)}
           placeholder="City"
         />
         <input
           className={styles.input}
           style={{ flex: 1 }}
-          value={stateCode}
+          value={fields.state}
           onChange={e => {
             const v = e.target.value.slice(0, 2).toUpperCase()
-            setStateCode(v)
-            emit(street, city, v, zip)
+            update('state', v)
           }}
           placeholder="ST"
           maxLength={2}
@@ -81,12 +91,23 @@ export default function AddressInput({
         <input
           className={styles.input}
           style={{ flex: 1 }}
-          value={zip}
-          onChange={e => { setZip(e.target.value); emit(street, city, stateCode, e.target.value) }}
+          value={fields.zip}
+          onChange={e => update('zip', e.target.value)}
           placeholder="ZIP"
         />
       </div>
+      {showPrivacyNote && (
+        <p style={{
+          fontSize: 12,
+          color: '#6b7280',
+          margin: '6px 0 0',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
+        }}>
+          🔒 Your exact address is private. Buyers only see your general area (e.g. &quot;Near Lincoln Ave, San Jose&quot;) until they place an order.
+        </p>
+      )}
     </div>
   )
 }
-

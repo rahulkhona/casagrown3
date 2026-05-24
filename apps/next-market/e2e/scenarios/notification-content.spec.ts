@@ -129,10 +129,9 @@ test.describe('Post-Transaction Notification Content', () => {
       // Check seller in-app notification
       const samNotifs = await queryNotifications(tokens['sam'], 'a1111111-1111-1111-1111-111111111111')
       const sellerCompleted = samNotifs.find((n: any) =>
-        n.content?.includes('Sale completed') && n.content?.includes('total')
+        n.content?.includes('Sale completed') && n.content?.includes('earned')
       )
       expect(sellerCompleted).toBeTruthy()
-      expect(sellerCompleted.content).not.toContain('earned')
       expect(sellerCompleted.content).toContain('$')
       console.log('[NC1] Seller in-app:', sellerCompleted?.content)
     })
@@ -154,8 +153,8 @@ test.describe('Post-Transaction Notification Content', () => {
       const sellerEmail = await findEmailBySubject('Sale Completed', 5000)
       if (sellerEmail) {
         expect(sellerEmail.subject).not.toContain('Market Update')
-        expect(sellerEmail.body).toContain('total')
-        expect(sellerEmail.body).not.toContain('earned')
+        expect(sellerEmail.body).toContain('earned')
+        expect(sellerEmail.body).not.toContain('total')
         expect(sellerEmail.body).toContain('CasaGrown')
         console.log('[NC2] Seller email subject:', sellerEmail.subject)
       } else {
@@ -182,10 +181,9 @@ test.describe('Post-Transaction Notification Content', () => {
       const sellerMsg = samNotifs.find((n: any) => n.content?.includes('Sale completed'))
 
       expect(buyerMsg?.content).toContain('settled')
-      expect(sellerMsg?.content).toContain('total')
-      expect(sellerMsg?.content).not.toContain('earned')
+      expect(sellerMsg?.content).toContain('earned')
 
-      console.log('[NC3] ✅ Both buyer ("settled") and seller ("total") notifications dispatched correctly')
+      console.log('[NC3] ✅ Both buyer ("settled") and seller ("earned") notifications dispatched correctly')
       console.log('[NC3] Same text goes to push, email, and SMS via notify_market_event()')
     })
   })

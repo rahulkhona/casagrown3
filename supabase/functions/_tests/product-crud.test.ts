@@ -178,3 +178,110 @@ Deno.test({ name: 'product-crud: seeded products are queryable with correct stru
   }
   console.log(`  ✅ ${products.length} seeded products verified`)
 }})
+
+// ══════════════════════════════════════════════════════════════
+// Helper Product Listing Tests
+// ══════════════════════════════════════════════════════════════
+
+const HELPER_ID = 'b2222222-2222-2222-2222-222222222222'  // buyer@test.local (helper for seller)
+const BOOTH_OWNER_ID = 'a1111111-1111-1111-1111-111111111111'  // seller@test.local
+
+Deno.test({ name: 'product-crud: helper can list product with seller_id = booth owner', sanitizeResources: false, sanitizeOps: false, fn: async () => {
+  // Get the booth owned by the seller where the helper is accepted
+  const booths = await queryTable('market_booths', `owner_id=eq.${BOOTH_OWNER_ID}&select=id&limit=1`)
+  if (booths.length === 0) { console.log('  No booth found — skipping'); return }
+  const boothId = booths[0].id
+
+  // Verify helper relationship exists
+  const helpers = await queryTable('booth_helpers', `helper_id=eq.${HELPER_ID}&booth_id=eq.${boothId}&status=eq.accepted&select=*`)
+  if (helpers.length === 0) { console.log('  No accepted helper relationship — skipping'); return }
+
+  // Helper inserts a product with seller_id = booth owner (not helper's own ID)
+  const today = new Date().toISOString().split('T')[0]
+  const { status, data: product } = await insertRow('market_products', {
+    seller_id: BOOTH_OWNER_ID,
+    booth_id: boothId,
+    market_date: today,
+    name: 'Helper Listed Tomatoes',
+    description: 'Listed by helper on behalf of seller',
+    price_usd: 4.00,
+    unit: 'lb',
+    inventory: 15,
+    category: 'produce',
+    moderation_status: 'approved',
+    is_active: true,
+  })
+
+  if (!product) { console.log('  Insert failed — skipping'); return }
+  assertEquals(status, 201, 'Helper should be able to insert product')
+  assertExists(product.id, 'Product should have ID')
+  assertEquals(product.seller_id, BOOTH_OWNER_ID, 'seller_id should be booth owner, not helper')
+  assertEquals(product.booth_id, boothId, 'booth_id should match')
+  assertEquals(product.name, 'Helper Listed Tomatoes')
+  console.log(`  [HELPER] Created product ${product.id} with seller_id=${product.seller_id} (booth owner) ✅`)
+
+  // Verify product is queryable under the booth
+  const found = await queryTable('market_products', `id=eq.${product.id}&select=seller_id,booth_id,name`)
+  assertEquals(found.length, 1, 'Product should be findable')
+  assertEquals(found[0].seller_id, BOOTH_OWNER_ID, 'Queried seller_id should be booth owner')
+  assertEquals(found[0].booth_id, boothId, 'Queried booth_id should match')
+
+  // Cleanup
+  await deleteRow('market_products', `id=eq.${product.id}`)
+  console.log('  ✅ Helper-listed product verified and cleaned up')
+}})
+
+Deno.test({ name: 'product-crud: helper-listed product appears in booth product list', sanitizeResources: false, sanitizeOps: false, fn: async () => {
+  const booths = await queryTable('market_booths', `owner_id=eq.${BOOTH_OWNER_ID}&select=id&limit=1`)
+  if (booths.length === 0) { console.log('  No booth found — skipping'); return }
+  const boothId = booths[0].id
+
+  const today = new Date().toISOString().split('T')[0]
+  const { data: product } = await insertRow('market_products', {
+    seller_id: BOOTH_OWNER_ID,
+    booth_id: boothId,
+    market_date: today,
+    name: 'Helper Listed Peppers',
+    price_usd: 2.50,
+    unit: 'each',
+    inventory: 20,
+    category: 'produce',
+    moderation_status: 'approved',
+    is_active: true,
+  })
+  if (!product) { console.log('  Insert failed — skipping'); return }
+
+  // Query booth products — the helper-listed product should appear
+  const boothProducts = await queryTable('market_products', `booth_id=eq.${boothId}&name=eq.Helper Listed Peppers&select=id,name,seller_id`)
+  assert(boothProducts.length >= 1, 'Helper-listed product should appear in booth product list')
+  assertEquals(boothProducts[0].seller_id, BOOTH_OWNER_ID, 'seller_id should be booth owner in booth listing')
+  console.log(`  [BOOTH] Product "${boothProducts[0].name}" found in booth ${boothId} ✅`)
+
+  await deleteRow('market_products', `id=eq.${product.id}`)
+}})
+
+Deno.test({ name: 'product-crud: product without booth_id gets auto-resolved via trigger', sanitizeResources: false, sanitizeOps: false, fn: async () => {
+  // Insert product without booth_id — the auto_resolve_product_booth_id trigger should assign one
+  const today = new Date().toISOString().split('T')[0]
+  const { status, data: product } = await insertRow('market_products', {
+    seller_id: BOOTH_OWNER_ID,
+    market_date: today,
+    name: 'Auto Booth Resolve Test',
+    price_usd: 1.00,
+    unit: 'each',
+    inventory: 5,
+    category: 'produce',
+    moderation_status: 'approved',
+    is_active: true,
+  })
+
+  if (!product) { console.log('  Insert failed — skipping'); return }
+  assertEquals(status, 201, 'Insert should succeed even without booth_id')
+
+  // Check if booth_id was auto-resolved
+  const found = await queryTable('market_products', `id=eq.${product.id}&select=booth_id`)
+  assertExists(found[0].booth_id, 'booth_id should be auto-resolved by trigger')
+  console.log(`  [AUTO] booth_id resolved to ${found[0].booth_id} ✅`)
+
+  await deleteRow('market_products', `id=eq.${product.id}`)
+}})

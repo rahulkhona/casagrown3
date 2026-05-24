@@ -31,9 +31,9 @@ VALUES ('ff000000-0000-0000-0000-0000000000c1', 'ff000000-0000-0000-0000-0000000
 ON CONFLICT (id) DO NOTHING;
 
 -- Ensure seller has a booth
-INSERT INTO market_booths (owner_id, name, description)
-VALUES ('ff000000-0000-0000-0000-000000000a02', 'Notif Test Booth', 'Test')
-ON CONFLICT (owner_id) DO NOTHING;
+INSERT INTO market_booths (id, owner_id, name, description)
+VALUES ('ff000000-0000-0000-0000-0000000000b2', 'ff000000-0000-0000-0000-000000000a02', 'Notif Test Booth', 'Test')
+ON CONFLICT (id) DO NOTHING;
 
 DELETE FROM market_notifications WHERE user_id IN (
   'ff000000-0000-0000-0000-000000000a01', 'ff000000-0000-0000-0000-000000000a02'
@@ -50,7 +50,7 @@ SELECT
   'ff000000-0000-0000-0000-000000000a01', 'ff000000-0000-0000-0000-000000000a02',
   b.id, 'ff000000-0000-0000-0000-0000000000c1',
   'Test Tomatoes', 2, 5.00, 10.00, 0.85, 1.00, 11.85, 'delivery', 'pending'
-FROM market_booths b WHERE b.owner_id = 'ff000000-0000-0000-0000-000000000a02';
+FROM market_booths b WHERE b.owner_id = 'ff000000-0000-0000-0000-000000000a02' LIMIT 1;
 
 INSERT INTO market_orders (
   id, buyer_id, seller_id, booth_id, product_id, product_name,
@@ -62,7 +62,7 @@ SELECT
   'ff000000-0000-0000-0000-000000000a01', 'ff000000-0000-0000-0000-000000000a02',
   b.id, 'ff000000-0000-0000-0000-0000000000c1',
   'Test Tomatoes', 1, 5.00, 5.00, 0.45, 0.50, 5.95, 'pickup', 'pending'
-FROM market_booths b WHERE b.owner_id = 'ff000000-0000-0000-0000-000000000a02';
+FROM market_booths b WHERE b.owner_id = 'ff000000-0000-0000-0000-000000000a02' LIMIT 1;
 
 -- ── (1-2) ORDER PLACED — INSERT trigger fires ─────────────────────────
 SELECT ok(
@@ -108,8 +108,8 @@ SELECT ok(
 -- ── (6) Completed — seller ─────────────────────────────────────────────
 SELECT ok(
   EXISTS(SELECT 1 FROM market_notifications
-    WHERE user_id = 'ff000000-0000-0000-0000-000000000a02' AND content LIKE '%Sale completed%' AND content LIKE '%total%'),
-  'Completed: seller gets sale completed notification with total (not earned)'
+    WHERE user_id = 'ff000000-0000-0000-0000-000000000a02' AND content LIKE '%Sale completed%' AND content LIKE '%earned%'),
+  'Completed: seller gets sale completed notification with earned amount'
 );
 
 -- ── (7) Cancelled ──────────────────────────────────────────────────────

@@ -30,7 +30,7 @@ ON CONFLICT (id) DO UPDATE SET
 -- Create a booth and product for the seller (needed by check_quarantine_for_product)
 insert into public.market_booths (id, owner_id, name)
 values ('a0000000-0000-0000-0000-0000000000b1', 'a0000000-0000-0000-0000-000000000099', 'Test Quarantine Booth')
-ON CONFLICT (owner_id) DO UPDATE SET name = EXCLUDED.name;
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
 
 insert into public.market_products (id, seller_id, name, category, price_usd, unit, inventory, is_active, market_date)
 values ('a0000000-0000-0000-0000-0000000000c1', 'a0000000-0000-0000-0000-000000000099', 'Test Mangoes', 'produce', 5.00, 'lb', 10, true, CURRENT_DATE)

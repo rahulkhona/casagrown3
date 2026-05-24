@@ -39,3 +39,35 @@ export function PersonPlusIcon({ size = 16, color = 'currentColor', style }: Ico
     </svg>
   )
 }
+
+/** Premium market stand icon with a circular plus badge */
+export function StandIcon({ size = 20, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" width={size} height={size} style={{ display: 'inline-block', verticalAlign: 'middle', ...style }}>
+      {/* Store Front Wall */}
+      <path
+        d="M4 9v10.5h11 M20 9v6.5"
+        stroke={color}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Awning with scalloped edges */}
+      <path
+        d="M5 4h14l3 5a2 2 0 0 1-4 0a2 2 0 0 1-4 0a2 2 0 0 1-4 0a2 2 0 0 1-4 0a2 2 0 0 1-4 0z"
+        stroke={color}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Plus Badge */}
+      <circle cx="18.5" cy="18.5" r="4.5" fill={color} />
+      <path
+        d="M18.5 16.5v4 M16.5 18.5h4"
+        stroke="white"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}

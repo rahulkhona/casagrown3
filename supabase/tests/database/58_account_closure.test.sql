@@ -1,10 +1,11 @@
 -- ===========================================================================
--- pgTAP test: Account Closure — 30 assertions
+-- pgTAP test: Account Closure — 51 assertions
 -- Tests fast-path deletion, Phase 1 freeze, dispute escalation, helper
--- revocation, poll cleanup, community anonymization, and email lock.
+-- revocation, poll cleanup, community anonymization, email lock, booth
+-- archival, catalog cleanup, and fulfillment window deletion.
 -- ===========================================================================
 BEGIN;
-SELECT plan(41);
+SELECT plan(49);
 
 -- ── Setup ──────────────────────────────────────────────────────────────
 -- Zero-footprint user (for fast-path tests)
@@ -16,6 +17,34 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO profiles (id, email, full_name, avatar_url)
 VALUES ('ac000000-0000-0000-0000-000000000001', 'fastpath@test.local', 'Fast Path User', 'https://example.com/avatar.jpg')
 ON CONFLICT (id) DO NOTHING;
+
+-- Fast-path user also gets a booth, catalog item, fulfillment window, and helper
+INSERT INTO market_booths (id, owner_id, name, description, is_open, helper_passcode)
+VALUES ('ac000000-0000-0000-0000-0000000000f1', 'ac000000-0000-0000-0000-000000000001', 'Fast Path Booth', 'Will be deleted', true, 'FP1234')
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
+
+INSERT INTO catalog_items (id, owner_id, name, default_price_usd, default_unit)
+VALUES ('ac000000-0000-0000-0000-0000000000c1', 'ac000000-0000-0000-0000-000000000001', 'FP Tomatoes', 5.00, 'lb')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO booth_fulfillment_windows (id, booth_id, window_type, day_of_week, start_time, end_time)
+VALUES ('ac000000-0000-0000-0000-0000000000a1', 'ac000000-0000-0000-0000-0000000000f1', 'pickup', 'mon', '09:00', '12:00')
+ON CONFLICT (id) DO NOTHING;
+
+-- Fast-path helper user
+INSERT INTO auth.users (id, email, instance_id, aud, role, created_at, updated_at)
+VALUES ('ac000000-0000-0000-0000-000000000002', 'fp-helper@test.local',
+  '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', now(), now())
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO profiles (id, email, full_name)
+VALUES ('ac000000-0000-0000-0000-000000000002', 'fp-helper@test.local', 'FP Helper')
+ON CONFLICT (id) DO NOTHING;
+
+ALTER TABLE booth_helpers DISABLE TRIGGER trg_booth_helper_status;
+INSERT INTO booth_helpers (booth_id, helper_id, status)
+VALUES ('ac000000-0000-0000-0000-0000000000f1', 'ac000000-0000-0000-0000-000000000002', 'accepted')
+ON CONFLICT (booth_id, helper_id) DO UPDATE SET status = 'accepted';
+ALTER TABLE booth_helpers ENABLE TRIGGER trg_booth_helper_status;
 
 -- Active user (for Phase 1 tests)
 INSERT INTO auth.users (id, email, instance_id, aud, role, created_at, updated_at)
@@ -43,9 +72,23 @@ ON CONFLICT (id) DO UPDATE SET
   street_address = EXCLUDED.street_address;
 
 -- Seller booth
-INSERT INTO market_booths (id, owner_id, name, description)
-VALUES ('ac000000-0000-0000-0000-0000000000b1', 'ac000000-0000-0000-0000-000000000010', 'Seller Booth', 'Test booth')
-ON CONFLICT (owner_id) DO UPDATE SET id = 'ac000000-0000-0000-0000-0000000000b1';
+INSERT INTO market_booths (id, owner_id, name, description, is_open)
+VALUES ('ac000000-0000-0000-0000-0000000000b1', 'ac000000-0000-0000-0000-000000000010', 'Seller Booth', 'Test booth', true)
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, is_open = true;
+
+-- Seller catalog items
+INSERT INTO catalog_items (id, owner_id, name, default_price_usd, default_unit)
+VALUES
+  ('ac000000-0000-0000-0000-0000000000c2', 'ac000000-0000-0000-0000-000000000010', 'Seller Tomatoes', 5.00, 'lb'),
+  ('ac000000-0000-0000-0000-0000000000c3', 'ac000000-0000-0000-0000-000000000010', 'Seller Basil', 3.00, 'bunch')
+ON CONFLICT (id) DO NOTHING;
+
+-- Seller fulfillment windows
+INSERT INTO booth_fulfillment_windows (id, booth_id, window_type, day_of_week, start_time, end_time)
+VALUES
+  ('ac000000-0000-0000-0000-0000000000a2', 'ac000000-0000-0000-0000-0000000000b1', 'pickup', 'tue', '10:00', '14:00'),
+  ('ac000000-0000-0000-0000-0000000000a3', 'ac000000-0000-0000-0000-0000000000b1', 'delivery', 'wed', '08:00', '11:00')
+ON CONFLICT (id) DO NOTHING;
 
 -- Products
 INSERT INTO market_products (id, seller_id, name, description, price_usd, unit, category, inventory, market_date, is_active)
@@ -137,6 +180,34 @@ SELECT is(
   'Profile should be hard-deleted after fast-path'
 );
 
+-- Test 4a: Booth is hard-deleted after fast-path
+SELECT is(
+  (SELECT COUNT(*)::integer FROM market_booths WHERE id = 'ac000000-0000-0000-0000-0000000000f1'),
+  0,
+  'Booth should be hard-deleted after fast-path'
+);
+
+-- Test 4b: Catalog items deleted after fast-path
+SELECT is(
+  (SELECT COUNT(*)::integer FROM catalog_items WHERE owner_id = 'ac000000-0000-0000-0000-000000000001'),
+  0,
+  'Catalog items should be deleted after fast-path'
+);
+
+-- Test 4c: Fulfillment windows deleted after fast-path
+SELECT is(
+  (SELECT COUNT(*)::integer FROM booth_fulfillment_windows WHERE id = 'ac000000-0000-0000-0000-0000000000a1'),
+  0,
+  'Fulfillment windows should be deleted after fast-path'
+);
+
+-- Test 4d: Helper relationships deleted after fast-path
+SELECT is(
+  (SELECT COUNT(*)::integer FROM booth_helpers WHERE booth_id = 'ac000000-0000-0000-0000-0000000000f1'),
+  0,
+  'Helper relationships should be hard-deleted after fast-path'
+);
+
 -- ═══════════════════════════════════════════════════════════════════════
 -- SECTION B: Phase 1 Freeze Core Atomicity (Tests 5-10)
 -- ═══════════════════════════════════════════════════════════════════════
@@ -198,6 +269,34 @@ SELECT is(
   (SELECT COUNT(*)::integer FROM market_products WHERE seller_id = 'ac000000-0000-0000-0000-000000000010'),
   2,
   'Products with orders should still exist; no-order product (Mint) should be hard-deleted'
+);
+
+-- Test 12a: Booth archived (not deleted) after Phase 1 freeze
+SELECT is(
+  (SELECT is_open FROM market_booths WHERE id = 'ac000000-0000-0000-0000-0000000000b1'),
+  false,
+  'Booth should be archived (is_open=false) after Phase 1 freeze'
+);
+
+-- Test 12b: Booth still exists (not deleted — kept for order history)
+SELECT is(
+  (SELECT COUNT(*)::integer FROM market_booths WHERE id = 'ac000000-0000-0000-0000-0000000000b1'),
+  1,
+  'Booth should still exist (not deleted) for order history references'
+);
+
+-- Test 12c: Catalog items deleted after Phase 1 freeze
+SELECT is(
+  (SELECT COUNT(*)::integer FROM catalog_items WHERE owner_id = 'ac000000-0000-0000-0000-000000000010'),
+  0,
+  'Catalog items should be deleted after Phase 1 freeze'
+);
+
+-- Test 12d: Fulfillment windows deleted after Phase 1 freeze
+SELECT is(
+  (SELECT COUNT(*)::integer FROM booth_fulfillment_windows WHERE booth_id = 'ac000000-0000-0000-0000-0000000000b1'),
+  0,
+  'Fulfillment windows should be deleted after Phase 1 freeze'
 );
 
 -- ═══════════════════════════════════════════════════════════════════════

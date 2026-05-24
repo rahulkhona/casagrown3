@@ -24,10 +24,10 @@ VALUES ('ff000000-0000-0000-0000-0000000000f1', 'ff000000-0000-0000-0000-0000000
 ON CONFLICT (id) DO NOTHING;
 
 -- Ensure seller has a booth
-INSERT INTO market_booths (owner_id, name, description)
-VALUES ('ff000000-0000-0000-0000-000000000b02',
+INSERT INTO market_booths (id, owner_id, name, description)
+VALUES ('ff000000-0000-0000-0000-0000000000b2', 'ff000000-0000-0000-0000-000000000b02',
        'Dispute Test Booth', 'Test booth for dispute seller')
-ON CONFLICT (owner_id) DO NOTHING;
+ON CONFLICT (id) DO NOTHING;
 
 -- Create two orders for testing (one for refund, one for rating)
 INSERT INTO market_orders (

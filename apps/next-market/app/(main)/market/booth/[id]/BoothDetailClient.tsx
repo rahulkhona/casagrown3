@@ -36,11 +36,36 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
   const [following, setFollowing] = useState(false)
   const [followerCount, setFollowerCount] = useState(0)
   const [sellerRating, setSellerRating] = useState<{ avg: number; count: number } | null>(null)
+  const [deliveryWindows, setDeliveryWindows] = useState<any[]>([])
+  const [pickupWindows, setPickupWindows] = useState<any[]>([])
   const { showPrompt, modalProps } = useNotificationPrompt(user?.id)
 
   // Reminder state
   const [savedProductIds, setSavedProductIds] = useState<Set<string>>(new Set())
   const { showSuccess, showInfo } = useErrorToast()
+
+  // Format fulfillment windows grouped by day
+  const DAY_LABELS: Record<string, string> = {
+    mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun',
+  }
+  const DAY_ORDER = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+  const formatTime = (t: string) => {
+    const h = parseInt(t.split(':')[0])
+    if (h === 0) return '12 AM'
+    if (h === 12) return '12 PM'
+    return h > 12 ? `${h - 12} PM` : `${h} AM`
+  }
+  const formatWindowsByDay = (windows: any[]) => {
+    const grouped: Record<string, string[]> = {}
+    for (const w of windows) {
+      const day = w.day_of_week
+      if (!grouped[day]) grouped[day] = []
+      grouped[day].push(`${formatTime(w.start_time)} – ${formatTime(w.end_time)}`)
+    }
+    return DAY_ORDER
+      .filter(d => grouped[d])
+      .map(d => ({ day: DAY_LABELS[d], slots: grouped[d] }))
+  }
 
   useEffect(() => {
     const load = async () => {
@@ -56,7 +81,7 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
           supabase
             .from('market_products')
             .select('*')
-            .eq('seller_id', boothData.owner_id)
+            .eq('booth_id', id)
             .eq('is_active', true)
             .eq('is_draft', false)
             .eq('moderation_status', 'approved')
@@ -70,6 +95,17 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
         if (prods) setProducts(prods)
         if (profileData && profileData.seller_rating_count >= 5) {
           setSellerRating({ avg: profileData.seller_avg_rating, count: profileData.seller_rating_count })
+        }
+
+        // Fetch fulfillment windows from relational table
+        const { data: windows } = await supabase
+          .from('booth_fulfillment_windows')
+          .select('*')
+          .eq('booth_id', id)
+          .order('day_of_week')
+        if (windows) {
+          setDeliveryWindows(windows.filter((w: any) => w.window_type === 'delivery'))
+          setPickupWindows(windows.filter((w: any) => w.window_type === 'pickup'))
         }
 
         // Check follow status + count
@@ -153,7 +189,7 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
       const { data: prods } = await supabase
         .from('market_products')
         .select('*')
-        .eq('seller_id', booth.owner_id)
+        .eq('booth_id', booth.id)
         .eq('is_active', true)
         .eq('is_draft', false)
         .eq('moderation_status', 'approved')
@@ -309,13 +345,47 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
               <div className={styles.fulfillmentCard}>
                 <div style={{ fontSize: 28 }}>🚗</div>
                 <strong>Delivery</strong>
+                {/* Base address (city, state — no house number) */}
+                {(booth.booth_city || booth.pickup_city) && (
+                  <span className={styles.fulfillmentDetail}>
+                    From {booth.booth_city || booth.pickup_city}{booth.booth_state || booth.pickup_state ? `, ${booth.booth_state || booth.pickup_state}` : ''}
+                  </span>
+                )}
+                {/* Radius */}
                 {booth.delivery_radius_miles && (
                   <span className={styles.fulfillmentDetail}>Within {booth.delivery_radius_miles} miles</span>
                 )}
-                {booth.delivery_windows && (booth.delivery_windows as any[]).length > 0 && (
+                {/* Zip codes */}
+                {booth.delivery_zipcodes && booth.delivery_zipcodes.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4, justifyContent: 'center' }}>
+                    {booth.delivery_zipcodes.map((z: string) => (
+                      <span key={z} style={{
+                        fontSize: 11, padding: '2px 8px', borderRadius: 12,
+                        background: 'var(--green-50)', color: 'var(--green-700)',
+                        border: '1px solid var(--green-200)',
+                      }}>{z}</span>
+                    ))}
+                  </div>
+                )}
+                {/* Buyer distance check */}
+                {buyerZip && booth.delivery_zipcodes && booth.delivery_zipcodes.length > 0 && (
+                  <div style={{ marginTop: 6, fontSize: 12, fontWeight: 600 }}>
+                    {booth.delivery_zipcodes.includes(buyerZip) ? (
+                      <span style={{ color: 'var(--green-700)' }}>✅ Delivers to your zip ({buyerZip})</span>
+                    ) : (
+                      <span style={{ color: '#b45309' }}>⚠️ Your zip ({buyerZip}) may be outside delivery area</span>
+                    )}
+                  </div>
+                )}
+                {/* Fulfillment windows from table */}
+                {deliveryWindows.length > 0 && (
                   <div className={styles.windowList}>
-                    {(booth.delivery_windows as any[]).map((w: any, i: number) => (
-                      <span key={i} className={styles.windowChip}>{w.start} – {w.end}</span>
+                    {formatWindowsByDay(deliveryWindows).map(({ day, slots }, i) => (
+                      <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {slots.map((slot, j) => (
+                          <span key={j} className={styles.windowChip}>{day} {slot}</span>
+                        ))}
+                      </div>
                     ))}
                   </div>
                 )}
@@ -325,13 +395,21 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
               <div className={styles.fulfillmentCard}>
                 <div style={{ fontSize: 28 }}>📍</div>
                 <strong>Pickup</strong>
-                {(booth.pickup_display_address || booth.pickup_address) && (
-                  <span className={styles.fulfillmentDetail}>{booth.pickup_display_address || booth.pickup_address}</span>
+                {/* Partial address — city area only, no house number */}
+                {(booth.pickup_city || booth.booth_city) && (
+                  <span className={styles.fulfillmentDetail}>
+                    Near {booth.pickup_city || booth.booth_city}{booth.pickup_state || booth.booth_state ? `, ${booth.pickup_state || booth.booth_state}` : ''}
+                  </span>
                 )}
-                {booth.pickup_windows && (booth.pickup_windows as any[]).length > 0 && (
+                {/* Fulfillment windows */}
+                {pickupWindows.length > 0 && (
                   <div className={styles.windowList}>
-                    {(booth.pickup_windows as any[]).map((w: any, i: number) => (
-                      <span key={i} className={styles.windowChip}>{w.start} – {w.end}</span>
+                    {formatWindowsByDay(pickupWindows).map(({ day, slots }, i) => (
+                      <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {slots.map((slot, j) => (
+                          <span key={j} className={styles.windowChip}>{day} {slot}</span>
+                        ))}
+                      </div>
                     ))}
                   </div>
                 )}

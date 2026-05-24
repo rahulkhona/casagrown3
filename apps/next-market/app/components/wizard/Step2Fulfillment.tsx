@@ -1,8 +1,18 @@
 'use client'
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useWizard } from './WizardContext'
+import { useAuth } from '../../../lib/useAuth'
+import { createClient } from '../../../lib/supabase'
 import AddressInput from '../AddressInput'
 import styles from './wizard.module.css'
+
+interface StandOption {
+  id: string
+  name: string
+  offers_delivery: boolean
+  offers_pickup: boolean
+  delivery_radius_miles: number
+}
 
 const PRODUCT_TIME_WINDOWS = [
   { id: '8-10', label: '8–10a' },
@@ -157,7 +167,66 @@ function WindowSelector({
 
 export default function Step2Fulfillment() {
   const { state, updateState, nextStep, prevStep } = useWizard()
+  const { user } = useAuth()
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [stands, setStands] = useState<StandOption[]>([])
+  const [standsLoaded, setStandsLoaded] = useState(false)
+
+  // Load user's stands
+  useEffect(() => {
+    if (!user?.id) return
+    const supabase = createClient()
+    supabase
+      .from('market_booths')
+      .select('id, name, offers_delivery, offers_pickup, delivery_radius_miles')
+      .eq('owner_id', user.id)
+      .then(({ data }) => {
+        const standList = data || []
+        setStands(standList)
+        setStandsLoaded(true)
+
+        // Check URL param for pre-selected booth
+        if (typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search)
+          const urlBoothId = params.get('booth')
+          if (urlBoothId && standList.some(s => s.id === urlBoothId) && !state.boothId) {
+            const stand = standList.find(s => s.id === urlBoothId)!
+            updateState({
+              boothId: stand.id,
+              offersDelivery: stand.offers_delivery,
+              offersPickup: stand.offers_pickup,
+              deliveryRadius: stand.delivery_radius_miles || 5,
+            })
+            return
+          }
+        }
+
+        // Auto-select if only 1 stand and no boothId yet
+        if (standList.length === 1 && !state.boothId) {
+          const stand = standList[0]
+          updateState({
+            boothId: stand.id,
+            offersDelivery: stand.offers_delivery,
+            offersPickup: stand.offers_pickup,
+            deliveryRadius: stand.delivery_radius_miles || 5,
+          })
+        }
+      })
+  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleStandChange = (standId: string) => {
+    const stand = stands.find(s => s.id === standId)
+    if (stand) {
+      updateState({
+        boothId: stand.id,
+        offersDelivery: stand.offers_delivery,
+        offersPickup: stand.offers_pickup,
+        deliveryRadius: stand.delivery_radius_miles || 5,
+      })
+    } else {
+      updateState({ boothId: null })
+    }
+  }
 
   const localToday = new Date()
   const todayStr = `${localToday.getFullYear()}-${String(localToday.getMonth()+1).padStart(2,'0')}-${String(localToday.getDate()).padStart(2,'0')}`
@@ -277,6 +346,42 @@ export default function Step2Fulfillment() {
       
       <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 16 }}>How will buyers get it?</h2>
       
+      {/* Stand Selector */}
+      {standsLoaded && stands.length > 0 && (
+        <div className={styles.formGroup} style={{ marginBottom: 24, paddingBottom: 24, borderBottom: '1px dashed #d1d5db' }}>
+          <label className={styles.label}>🏪 Which Stand?</label>
+          {stands.length === 1 ? (
+            <div style={{
+              padding: '12px 16px', borderRadius: 12,
+              background: '#f0fdf4', border: '1px solid #bbf7d0',
+              display: 'flex', alignItems: 'center', gap: 10,
+              fontSize: 15, fontWeight: 600, color: '#15803d',
+            }}>
+              <span style={{ fontSize: 20 }}>🏪</span>
+              {stands[0].name}
+              <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 400, color: '#16a34a' }}>Auto-selected</span>
+            </div>
+          ) : (
+            <select
+              className={styles.input}
+              value={state.boothId || ''}
+              onChange={e => handleStandChange(e.target.value)}
+              style={{ accentColor: '#16a34a' }}
+            >
+              <option value="">Select a stand...</option>
+              {stands.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          )}
+          {stands.length > 1 && state.boothId && (
+            <p style={{ fontSize: 12, color: '#16a34a', marginTop: 6, fontWeight: 600 }}>
+              ✅ Fulfillment defaults loaded from this stand
+            </p>
+          )}
+        </div>
+      )}
+
       <div className={styles.formGroup} style={{ marginBottom: 24, paddingBottom: 24, borderBottom: '1px dashed #d1d5db' }}>
         <label className={styles.label}>🏠 Home / Farm Address</label>
         <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 8px' }}>

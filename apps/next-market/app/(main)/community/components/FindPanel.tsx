@@ -7,6 +7,8 @@ import { useNotificationPrompt } from '../../../../lib/useNotificationPrompt'
 import { NotificationPromptModal } from '../../../components/NotificationPromptModal'
 import { useErrorToast } from '../../../components/ErrorToast'
 import AddressInput from '../../../components/AddressInput'
+import type { AddressFields } from '../../../../lib/address'
+import { EMPTY_ADDRESS, formatFullAddress } from '../../../../lib/address'
 import ProductListingCard from './ProductListingCard'
 import ChatMessage from './ChatMessage'
 import { CommunityChatMessage } from '../../../../../../packages/app/features/community-chat/community-chat-service'
@@ -44,7 +46,7 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
   const { showPrompt, modalProps } = useNotificationPrompt(userId)
 
   // ── Search form state ──
-  const [address, setAddress] = useState('')
+  const [address, setAddress] = useState<AddressFields>(EMPTY_ADDRESS)
   const [zip, setZip] = useState('')
   const [lat, setLat] = useState<number | null>(null)
   const [lng, setLng] = useState<number | null>(null)
@@ -78,7 +80,14 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
       const saved = localStorage.getItem('buzz_find_last')
       if (saved) {
         const parsed = JSON.parse(saved)
-        if (parsed.address) setAddress(parsed.address)
+        if (parsed.address) {
+          // Handle legacy string format from localStorage
+          if (typeof parsed.address === 'string') {
+            setAddress({ street: parsed.address, city: '', state: '', zip: '' })
+          } else {
+            setAddress(parsed.address)
+          }
+        }
         if (parsed.zip) setZip(parsed.zip)
         if (parsed.lat) { setLat(parsed.lat); setLng(parsed.lng); setAddressResolved(true) }
         if (parsed.keywords) setKeywords(parsed.keywords)
@@ -97,12 +106,16 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
       .single()
       .then(async ({ data: profile }) => {
         if (profile?.street_address) {
-          const addrParts = [profile.street_address, profile.city, `${profile.state_code || ''} ${profile.zip_code || ''}`.trim()].filter(Boolean)
-          const addr = addrParts.join(', ')
+          const addr: AddressFields = {
+            street: profile.street_address || '',
+            city: profile.city || '',
+            state: profile.state_code || '',
+            zip: profile.zip_code || '',
+          }
           setAddress(addr)
           if (profile.zip_code) setZip(profile.zip_code)
           if (profile.state_code) setBuyerStateCode(profile.state_code)
-          const geo = await geocodeAddress(addr)
+          const geo = await geocodeAddress(formatFullAddress(addr))
           if (geo) { setLat(geo.lat); setLng(geo.lng); setAddressResolved(true) }
         }
       })
@@ -119,15 +132,13 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
 
   // ── Handle address change ──
   const handleAddressResolve = async () => {
-    if (!address.trim()) return
-    const geo = await geocodeAddress(address.trim())
+    const full = formatFullAddress(address)
+    if (!full.trim()) return
+    const geo = await geocodeAddress(full.trim())
     if (geo) {
       setLat(geo.lat); setLng(geo.lng); setAddressResolved(true)
-      // Extract state and zip from the address string (e.g. "123 Main St, San Jose, CA 95120")
-      const stateMatch = address.match(/,\s*([A-Z]{2})\b/)
-      if (stateMatch) setBuyerStateCode(stateMatch[1])
-      const zipMatch = address.match(/\b(\d{5})\b/)
-      if (zipMatch) setZip(zipMatch[1])
+      if (address.state) setBuyerStateCode(address.state)
+      if (address.zip) setZip(address.zip)
     } else {
       showError('Could not find that address. Please include city and state.')
     }
@@ -152,8 +163,7 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
             }
             const sc = stateMap[data.address.state] || data.address['ISO3166-2-lvl4']?.split('-')[1] || data.address.state
             const postcode = data.address.postcode?.split('-')[0] || ''
-            const parts = [street, city, `${sc || ''} ${postcode}`.trim()].filter(Boolean)
-            setAddress(parts.join(', '))
+            setAddress({ street: street || '', city: city || '', state: sc || '', zip: postcode })
             if (sc) setBuyerStateCode(sc)
             if (postcode) setZip(postcode)
           }
@@ -248,7 +258,7 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
     // ── USDA fallback: fire when real results are sparse ──
     if (boothResults.length < 3) {
       // Prefer stored zip; fall back to extracting from address string
-      const zipcode = zip || address.match(/\b(\d{5})\b/)?.[1] || ''
+      const zipcode = zip || address.zip || ''
       if (zipcode) {
         setLoadingUsda(true)
         setUsdaMarkets([])
@@ -279,7 +289,7 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
 
   // ── Post "Looking for" message & save watch ──
   const handlePostLookingFor = async () => {
-    let addrLabel = address ? address.replace(/^[\d-]+\s*/, '') : 'my area'
+    let addrLabel = formatFullAddress(address) || 'my area'
     if (userId) {
        const { data: prof } = await supabase.from('profiles').select('street_address, city, state_code').eq('id', userId).single()
        if (prof?.street_address) {
@@ -365,17 +375,16 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
           </div>
           <AddressInput
             value={address}
-            onChange={(combined) => {
-              setAddress(combined)
+            onChange={(updated) => {
+              setAddress(updated)
               setAddressResolved(false)
-              // Extract zip from combined "Street, City, ST ZIP"
-              const zipMatch = combined.match(/\b(\d{5})\b/)
-              if (zipMatch) setZip(zipMatch[1])
+              if (updated.zip) setZip(updated.zip)
               else setZip('')
+              if (updated.state) setBuyerStateCode(updated.state)
             }}
             placeholderStreet="Street Address"
           />
-          {!addressResolved && address.trim() && (
+          {!addressResolved && (address.street || address.city || address.zip) && (
             <button
               className={styles.findResolveBtn}
               onClick={handleAddressResolve}

@@ -96,22 +96,19 @@ Deno.test({
     const booth1 = rows[0]!
     assertExists(booth1)
 
-    // Second insert for same owner should fail (409 conflict)
-    let gotError = false
-    try {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/market_booths`, {
-        method: 'POST',
-        headers: { ...REST_HEADERS, 'Prefer': 'return=representation' },
-        body: JSON.stringify({ owner_id: userId, name: 'Booth 2' }),
-      })
-      if (res.status >= 400) gotError = true
-    } catch {
-      gotError = true
-    }
-
-    assertEquals(gotError, true, 'Duplicate owner_id should fail')
+    // Second insert for same owner should succeed since multi-stand is supported
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/market_booths`, {
+      method: 'POST',
+      headers: { ...REST_HEADERS, 'Prefer': 'return=representation' },
+      body: JSON.stringify({ owner_id: userId, name: 'Booth 2' }),
+    })
+    assertEquals(res.status, 201, 'Should allow multiple booths per owner')
+    const body = await res.json()
+    const booth2 = Array.isArray(body) ? body[0]! : body
+    assertExists(booth2)
 
     await supabaseRest('market_booths', 'DELETE', undefined, `id=eq.${booth1.id}`)
+    await supabaseRest('market_booths', 'DELETE', undefined, `id=eq.${booth2.id}`)
   },
 })
 

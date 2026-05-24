@@ -505,8 +505,8 @@ function ProfilePageInner() {
           </div>
           <AddressInput
             value={[form.street, form.city, `${form.state} ${form.zip}`.trim()].filter(Boolean).join(', ')}
-            onChange={(combined) => {
-              const parts = combined.split(',').map(s => s.trim())
+            onChange={(combined: string) => {
+              const parts = combined.split(',').map((s: string) => s.trim())
               if (parts.length >= 3) {
                 const sz = parts[parts.length - 1].split(' ')
                 setForm(prev => ({

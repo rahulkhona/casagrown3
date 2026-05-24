@@ -16,6 +16,7 @@ export default function Step1Basics() {
   const [categories, setCategories] = useState<{name: string}[]>([])
   const [aiAnalyzing, setAiAnalyzing] = useState(false)
   const [aiToast, setAiToast] = useState<string | null>(null)
+  const [allBooths, setAllBooths] = useState<{id: string, name: string}[]>([])
   
   // Recipe Generation States
   const [isGeneratingRecipes, setIsGeneratingRecipes] = useState(false)
@@ -74,7 +75,24 @@ export default function Step1Basics() {
       }
     }
     loadCategories()
-  }, [])
+
+    // Fetch user booths for multi-booth selector
+    if (isAuthenticated) {
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (!user) return
+        supabase.from('market_booths').select('id, name').eq('owner_id', user.id).order('created_at')
+          .then(({ data: booths }) => {
+            if (booths && booths.length > 0) {
+              setAllBooths(booths.map((b: any) => ({ id: b.id, name: b.name || 'Unnamed Booth' })))
+              // Pre-select first booth if none selected
+              if (!state.boothId) {
+                updateState({ boothId: booths[0].id })
+              }
+            }
+          })
+      })
+    }
+  }, [isAuthenticated]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleGenerateRecipes = async () => {
     if (!state.name || isGeneratingRecipes) return
@@ -218,6 +236,25 @@ export default function Step1Basics() {
   return (
     <div>
       <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 16 }}>Create Your Product Listing</h2>
+
+      {/* Booth Selector (multi-booth users) */}
+      {allBooths.length > 1 && (
+        <div className={styles.formGroup}>
+          <label className={styles.label}>🏪 Booth</label>
+          <select
+            className={styles.input}
+            value={state.boothId || ''}
+            onChange={(e) => updateState({ boothId: e.target.value })}
+          >
+            {allBooths.map(b => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+          <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
+            This product will be listed at the selected booth
+          </div>
+        </div>
+      )}
       
       <div className={styles.formGroup}>
         <label className={styles.label}>Photos</label>

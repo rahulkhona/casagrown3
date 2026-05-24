@@ -480,6 +480,22 @@ else
   log_suite "Account Closure" "$CLOSURE_PASSED" "$CLOSURE_FAILED"
 fi
 
+# 5n: Multi-Stand & Catalog tests
+echo "  Running Multi-Stand & Catalog tests..."
+MSTAND_OUTPUT=$(cd supabase && deno test --allow-env --allow-net --allow-run --no-check \
+  functions/_tests/multi-stand-catalog.test.ts 2>&1)
+MSTAND_PASSED=$(echo "$MSTAND_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
+MSTAND_FAILED=$(echo "$MSTAND_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
+
+if [ "${MSTAND_FAILED:-0}" -eq 0 ] || [ -z "$MSTAND_FAILED" ]; then
+  echo -e "  ${GREEN}✅ Multi-Stand & Catalog: ${MSTAND_PASSED} tests — ALL PASS${NC}"
+  log_suite "Multi-Stand & Catalog" "$MSTAND_PASSED"
+else
+  echo -e "  ${RED}❌ Multi-Stand & Catalog: ${MSTAND_PASSED} passed, ${MSTAND_FAILED} failed${NC}"
+  echo "$MSTAND_OUTPUT" | grep "FAILED" | head -10
+  log_suite "Multi-Stand & Catalog" "$MSTAND_PASSED" "$MSTAND_FAILED"
+fi
+
 # ─────────────────────────────────────────────────────────────────────────
 # PHASE 6: Shell Integration Tests (Escalation Handling)
 # ─────────────────────────────────────────────────────────────────────────

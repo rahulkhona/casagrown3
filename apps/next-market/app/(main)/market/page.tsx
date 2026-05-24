@@ -325,6 +325,7 @@ function BrowseMarketPageInner() {
       buyer_state_code: null,
       exclude_demos: false,
       p_limit: 12, p_offset: 0,
+      buyer_zip: null,
     }).then(({ data }) => {
       if (data && Array.isArray(data)) {
         const demos = data.filter((b: BoothResult) => b.is_demo)
@@ -369,6 +370,7 @@ function BrowseMarketPageInner() {
       exclude_demos: shouldExcludeDemos,
       p_limit: PAGE_SIZE,
       p_offset: silent ? boothOffset : 0,
+      buyer_zip: zipCode ? zipCode.substring(0, 5) : null,
     })
     if (error) {
       console.error('Search error:', error.message)
@@ -383,6 +385,7 @@ function BrowseMarketPageInner() {
           max_price: maxPrice ? parseFloat(maxPrice) : null,
           category_filter: category || null, buyer_state_code: buyerStateCode,
           exclude_demos: false, p_limit: PAGE_SIZE, p_offset: 0,
+          buyer_zip: zipCode ? zipCode.substring(0, 5) : null,
         })
         if (!retry.error && Array.isArray(retry.data)) {
           setSearchError(null)
@@ -577,6 +580,7 @@ function BrowseMarketPageInner() {
       exclude_demos: true, // no demos on subsequent pages
       p_limit: PAGE_SIZE,
       p_offset: nextOffset,
+      buyer_zip: zipCode ? zipCode.substring(0, 5) : null,
     })
     if (!error && Array.isArray(data)) {
       const realBooths = data.filter((b: BoothResult) => !b.is_demo)

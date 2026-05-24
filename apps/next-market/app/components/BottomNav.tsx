@@ -151,6 +151,37 @@ function useKeyboardVisible() {
   return visible
 }
 
+function StandIcon({ size = 22 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" width={size} height={size} style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+      {/* Store Front Wall */}
+      <path
+        d="M4 9v10.5h11 M20 9v6.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Awning with scalloped edges */}
+      <path
+        d="M5 4h14l3 5a2 2 0 0 1-4 0a2 2 0 0 1-4 0a2 2 0 0 1-4 0a2 2 0 0 1-4 0a2 2 0 0 1-4 0z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Plus Badge */}
+      <circle cx="18.5" cy="18.5" r="4.5" fill="currentColor" />
+      <path
+        d="M18.5 16.5v4 M16.5 18.5h4"
+        stroke="white"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
 const tabs = [
   { href: '/market', label: 'Market', icon: '🛍️', locked: false, tour: 'nav-market' },
   { href: '/orders', label: 'Orders', icon: '📦', locked: true, tour: 'nav-orders' },
@@ -191,7 +222,7 @@ export function BottomNav() {
             title="Complete your profile to unlock"
             data-tour={tab.tour}
           >
-            <span className={styles.icon}>{tab.icon}</span>
+            <span className={styles.icon}>{tab.icon === 'stand' ? <StandIcon /> : tab.icon}</span>
             <span className={styles.label}>
               {tab.label} 🔒
             </span>
@@ -204,7 +235,7 @@ export function BottomNav() {
             data-tour={tab.tour}
           >
             <span className={styles.icon}>
-              {tab.icon}
+              {tab.icon === 'stand' ? <StandIcon /> : tab.icon}
               {tab.href === '/community' && effectiveCommunity > 0 && (
                 <span style={{
                   position: 'absolute', top: -4, right: -4,

@@ -64,6 +64,7 @@ function NewProductPageInner() {
   const fromBuzz = searchParams.get('from') === 'buzz'
   const returnTo = searchParams.get('returnTo')
   const isRelist = searchParams.get('relist') === 'true'
+  const boothParam = searchParams.get('booth') // Target booth from My Stands page
   const isEditMode = !!editId
   const [editingInactive, setEditingInactive] = useState(false)
   const [prefilled, setPrefilled] = useState(false)
@@ -151,6 +152,7 @@ function NewProductPageInner() {
   // Inline booth setup (for users without a booth)
   const [hasBooth, setHasBooth] = useState<boolean | null>(null) // null = loading
   const [boothId, setBoothId] = useState<string | null>(null)
+  const [allBooths, setAllBooths] = useState<{id: string, name: string, owner_id?: string, isHelper?: boolean}[]>([])
   const [inlineDelivery, setInlineDelivery] = useState(true)
   const [inlinePickup, setInlinePickup] = useState(true)
   const [inlinePickupAddress, setInlinePickupAddress] = useState('')
@@ -322,34 +324,65 @@ function NewProductPageInner() {
     return () => clearTimeout(timer)
   }, [name, authUser, supabase]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Check if user already has a booth
+  // Check if user already has a booth (including helper booths)
   useEffect(() => {
     if (!authUser) return
-    supabase.from('market_booths').select('id').eq('owner_id', authUser.id).single()
-      .then(({ data }) => {
-        setHasBooth(!!data)
-        if (data?.id) setBoothId(data.id)
-        // Pre-fill pickup address from profile if no booth
-        if (!data) {
-          supabase.from('profiles').select('full_name, street_address, city, state_code').eq('id', authUser.id).single()
-            .then(({ data: profile }) => {
-              if (profile?.full_name) setInlineProfileName(profile.full_name)
-              if (profile?.street_address) {
-                setInlinePickupAddress([profile.street_address, profile.city, profile.state_code].filter(Boolean).join(', '))
-              }
-            })
+    if (boothParam) {
+      setHasBooth(true)
+      setBoothId(boothParam)
+      Promise.all([
+        supabase.from('market_booths').select('id, name, owner_id').eq('owner_id', authUser.id).order('created_at'),
+        supabase.from('booth_helpers').select('booth_id').eq('helper_id', authUser.id).eq('status', 'accepted'),
+      ]).then(async ([ownRes, helperRes]) => {
+        const ownBooths = (ownRes.data || []).map((b: any) => ({ id: b.id, name: b.name || 'Unnamed Booth', owner_id: b.owner_id }))
+        const helperBoothIds = (helperRes.data || []).map((h: any) => h.booth_id)
+        if (helperBoothIds.length > 0) {
+          const { data: hBooths } = await supabase.from('market_booths').select('id, name, owner_id').in('id', helperBoothIds)
+          const helperBooths = (hBooths || []).map((b: any) => ({ id: b.id, name: `🤝 ${b.name || 'Unnamed Booth'}`, owner_id: b.owner_id, isHelper: true }))
+          setAllBooths([...ownBooths, ...helperBooths])
+        } else {
+          setAllBooths(ownBooths)
         }
       })
-  }, [authUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+      return
+    }
+    Promise.all([
+      supabase.from('market_booths').select('id, name, owner_id').eq('owner_id', authUser.id).order('created_at'),
+      supabase.from('booth_helpers').select('booth_id').eq('helper_id', authUser.id).eq('status', 'accepted'),
+    ]).then(async ([ownRes, helperRes]) => {
+      const ownBooths = (ownRes.data || []).map((b: any) => ({ id: b.id, name: b.name || 'Unnamed Booth', owner_id: b.owner_id }))
+      const helperBoothIds = (helperRes.data || []).map((h: any) => h.booth_id)
+      let helperBooths: {id: string, name: string, owner_id: string, isHelper: boolean}[] = []
+      if (helperBoothIds.length > 0) {
+        const { data: hBooths } = await supabase.from('market_booths').select('id, name, owner_id').in('id', helperBoothIds)
+        helperBooths = (hBooths || []).map((b: any) => ({ id: b.id, name: `🤝 ${b.name || 'Unnamed Booth'}`, owner_id: b.owner_id, isHelper: true }))
+      }
+      const combined = [...ownBooths, ...helperBooths]
+      if (combined.length > 0) {
+        setHasBooth(true)
+        setBoothId(combined[0].id)
+        setAllBooths(combined)
+      } else {
+        setHasBooth(false)
+        supabase.from('profiles').select('full_name, street_address, city, state_code').eq('id', authUser.id).single()
+          .then(({ data: profile }) => {
+            if (profile?.full_name) setInlineProfileName(profile.full_name)
+            if (profile?.street_address) {
+              setInlinePickupAddress([profile.street_address, profile.city, profile.state_code].filter(Boolean).join(', '))
+            }
+          })
+      }
+    })
+  }, [authUser?.id, boothParam]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load booth defaults for product windows
   useEffect(() => {
-    if (!authUser?.id || boothDefaultsLoaded) return
+    if (!authUser?.id || boothDefaultsLoaded || !boothId) return
     const loadBoothDefaults = async () => {
       const { data: booth } = await supabase
         .from('market_booths')
         .select('offers_delivery, offers_pickup, weekly_delivery_windows, weekly_pickup_windows, delivery_windows, pickup_windows, delivery_radius_miles, pickup_address')
-        .eq('owner_id', authUser.id)
+        .eq('id', boothId)
         .single()
       if (!booth) return
       setBoothOffersDelivery(booth.offers_delivery ?? true)
@@ -381,7 +414,7 @@ function NewProductPageInner() {
       setBoothDefaultsLoaded(true)
     }
     loadBoothDefaults()
-  }, [authUser?.id, boothDefaultsLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [authUser?.id, boothId, boothDefaultsLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load existing product in edit mode
   useEffect(() => {
@@ -662,7 +695,8 @@ function NewProductPageInner() {
     try {
 
     // ── 1. Ensure a booth exists (auto-create if needed) ──
-    let boothId: string | null = null
+    let boothId: string | null = boothParam || null
+    if (!boothId) {
     const { data: existingBooth } = await supabase
       .from('market_booths')
       .select('id, status')
@@ -717,6 +751,7 @@ function NewProductPageInner() {
       }
       boothId = newBooth.id
     }
+    } // end if (!boothId)
 
     // ── 2. Check if product name contains blocked words ──
     const { data: allBlocked } = await supabase
@@ -858,7 +893,7 @@ function NewProductPageInner() {
         supabase.functions.invoke('moderate-listing', {
           body: {
             product_id: editId,
-            seller_id: authUser.id,
+            seller_id: (() => { const s = allBooths.find(b => b.id === boothId); return (s?.isHelper && s?.owner_id) ? s.owner_id : authUser.id })(),
             name: name.trim() || 'Untitled Draft',
             description: description.trim() || null,
             price_usd: parseFloat(priceUsd || '0'),
@@ -927,7 +962,20 @@ function NewProductPageInner() {
     const { data: insertedProduct, error } = await supabase
       .from('market_products')
       .insert({
-        seller_id: authUser.id,
+        seller_id: await (async () => {
+          const selected = allBooths.find(b => b.id === boothId)
+          if (selected?.isHelper && selected?.owner_id) return selected.owner_id
+          // If booth not in allBooths yet (race condition), look up owner directly
+          if (boothId && boothId !== allBooths.find(b => !b.isHelper)?.id) {
+            const { data: boothRow } = await supabase
+              .from('market_booths')
+              .select('owner_id')
+              .eq('id', boothId)
+              .single()
+            if (boothRow && boothRow.owner_id !== authUser.id) return boothRow.owner_id
+          }
+          return authUser.id
+        })(),
         market_date: marketDate,
         name: name.trim() || 'Untitled Draft',
         description: description.trim() || null,
@@ -976,7 +1024,7 @@ function NewProductPageInner() {
       supabase.functions.invoke('moderate-listing', {
         body: {
           product_id: insertedProduct.id,
-          seller_id: authUser.id,
+          seller_id: (() => { const s = allBooths.find(b => b.id === boothId); return (s?.isHelper && s?.owner_id) ? s.owner_id : authUser.id })(),
           name: name.trim() || 'Untitled Draft',
           description: description.trim() || null,
           price_usd: parseFloat(priceUsd || '0'),
@@ -1293,6 +1341,45 @@ function NewProductPageInner() {
 
         <form onSubmit={handleSubmit}>
 
+          {/* ===== Booth Selector (multi-booth users) ===== */}
+          {allBooths.length > 1 && (
+            <div className={styles.section}>
+              <label className={styles.label}>🏪 Booth</label>
+              {boothParam ? (
+                <>
+                  <div style={{
+                    width: '100%', padding: '10px 14px', fontSize: 15, borderRadius: 10,
+                    border: '1px solid #d1d5db', background: '#f9fafb', color: '#374151',
+                  }}>
+                    {allBooths.find(b => b.id === boothId)?.name || 'Loading...'}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
+                    Adding to this booth. <a href="/my-booth/products/new" style={{ color: 'var(--green-600)' }}>Switch booth?</a>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <select
+                    value={boothId || ''}
+                    onChange={e => setBoothId(e.target.value)}
+                    style={{
+                      width: '100%', padding: '10px 14px', fontSize: 15, borderRadius: 10,
+                      border: '1px solid #d1d5db', background: '#fff', outline: 'none',
+                      appearance: 'auto',
+                    }}
+                  >
+                    {allBooths.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
+                    This product will be listed at the selected booth
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           {/* ===== Photos with cropping ===== */}
           <div className={styles.section}>
             <label className={styles.label}>Photos {photos.length > 0 ? <span style={{ color: 'var(--green-600)' }}>✓</span> : <span className={styles.required}>*</span>}</label>
@@ -1570,7 +1657,7 @@ function NewProductPageInner() {
               <div className={styles.field}>
                 <label className={styles.label}>Per</label>
                 <select className={styles.input} value={unit} onChange={e => setUnit(e.target.value)}>
-                  {['each', 'bunch', 'dozen', 'jar', 'loaf', 'bag', 'box', 'basket'].map(u => (
+                  {['each', 'bunch', 'dozen', 'lb', 'oz', 'bag', 'basket', 'box', 'pint', 'quart', 'jar', 'loaf'].map(u => (
                     <option key={u} value={u}>{u}</option>
                   ))}
                 </select>

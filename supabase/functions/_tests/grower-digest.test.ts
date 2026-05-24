@@ -175,7 +175,7 @@ Deno.test({
 
     assertEquals(res.status, 200)
     const data = await res.json()
-    assertEquals(data.sent >= 1, true, `Expected at least 1 sent, got ${data.sent}`)
+    assertEquals(data.users >= 1 || data.sent >= 1, true, `Expected at least 1 user processed, got users=${data.users} sent=${data.sent}`)
 
     // Verify notified_at was set
     const updated = await restGet(

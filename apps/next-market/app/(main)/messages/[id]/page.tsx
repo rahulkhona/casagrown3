@@ -961,34 +961,35 @@ export default function MessageThreadPage() {
               onClick={async () => {
                 if (!user || isBlocked) return
                 const supabase = createClient()
-                const { data: booth } = await supabase.from('market_booths').select('name, helper_passcode').eq('owner_id', user.id).maybeSingle()
+                // Get all user's booths with passcodes
+                const { data: booths } = await supabase.from('market_booths').select('name, helper_passcode').eq('owner_id', user.id).not('helper_passcode', 'is', null)
+                if (!booths || booths.length === 0) {
+                  setErrorToast('Generate a pairing code in your booth settings first')
+                  setTimeout(() => setErrorToast(null), 3000)
+                  return
+                }
+                // Use first booth with a passcode (could be expanded to a picker later)
+                const booth = booths[0]
                 const boothLabel = booth?.name?.trim() ? `my produce stand "${booth.name}"` : 'my CasaGrown produce stand'
-                const passcode = booth?.helper_passcode || ''
+                const passcode = booth.helper_passcode || ''
                 const joinUrl = passcode ? `${window.location.origin}/join-booth/${encodeURIComponent(passcode)}` : ''
                 const helpMsg = [
-                  `Hey! \ud83d\udc4b`,
+                  `Hey! 👋`,
                   '',
                   `I need some help managing my excess produce on CasaGrown and was wondering if you'd be able to help me out?`,
                   '',
-                  `It's pretty straightforward \u2014 just keep an eye on orders, hand things off to buyers when they come by, and maybe reply to a message or two.`,
+                  `It's pretty straightforward — just keep an eye on orders, hand things off to buyers when they come by, and maybe reply to a message or two.`,
                   ...(joinUrl ? [
                     '',
-                    `If you can, here's the link to get access to ${boothLabel}:`,
+                    `Tap this link to join ${boothLabel} as a helper:`,
                     joinUrl,
-                    '',
-                    `Passcode: ${passcode}`,
                   ] : []),
                   '',
-                  `Let me know! \ud83c\udf31`,
+                  `Let me know! 🌱`,
                 ].join('\n')
-                await supabase.from('market_chat_messages').insert({
-                  conversation_id: id,
-                  sender_id: user.id,
-                  content: helpMsg,
-                })
-                const { data: fetchNew } = await supabase.from('market_chat_messages').select('*, offer_product:market_products(id, name, price_usd, photos, unit, seller_id), market_chat_reactions(user_id, emoji)').eq('conversation_id', id).order('created_at', { ascending: true })
-                if (fetchNew) setMessages(fetchNew)
-                setTimeout(scrollToBottom, 50)
+                // Populate compose box so user can review before sending
+                setInputText(helpMsg)
+                setTimeout(() => inputRef.current?.focus(), 50)
               }}
               style={{
                 flexShrink: 0, background: 'linear-gradient(135deg, var(--green-50), var(--amber-50))',

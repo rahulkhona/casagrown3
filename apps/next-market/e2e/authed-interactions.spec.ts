@@ -816,7 +816,7 @@ test.describe('Helper Dashboard', () => {
     await page.goto('/helping')
     await page.waitForTimeout(2000)
     const body = await page.locator('body').textContent()
-    expect(body).toMatch(/Help|Orders|Deliver|No|Assist/i)
+    expect(body).toMatch(/Help|Booth|Leave|not helping/i)
   })
 })
 

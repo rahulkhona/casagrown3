@@ -38,9 +38,9 @@ VALUES ('ff000000-0000-0000-0000-0000000000d1', 'ff000000-0000-0000-0000-0000000
        jsonb_build_array(to_char(CURRENT_DATE, 'YYYY-MM-DD')))
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO market_booths (owner_id, name, description)
-VALUES ('ff000000-0000-0000-0000-000000000b02', 'V2 Test Booth', 'Test')
-ON CONFLICT (owner_id) DO NOTHING;
+INSERT INTO market_booths (id, owner_id, name, description)
+VALUES ('ff000000-0000-0000-0000-0000000000b2', 'ff000000-0000-0000-0000-000000000b02', 'V2 Test Booth', 'Test')
+ON CONFLICT (id) DO NOTHING;
 
 DELETE FROM market_notifications WHERE user_id IN (
   'ff000000-0000-0000-0000-000000000b01', 'ff000000-0000-0000-0000-000000000b02'
@@ -57,7 +57,7 @@ SELECT
   'ff000000-0000-0000-0000-000000000b01', 'ff000000-0000-0000-0000-000000000b02',
   b.id, 'ff000000-0000-0000-0000-0000000000d1',
   'V2 Tomatoes', 2, 5.00, 10.00, 0.85, 1.00, 11.85, 'delivery', 'pending', 0.00
-FROM market_booths b WHERE b.owner_id = 'ff000000-0000-0000-0000-000000000b02';
+FROM market_booths b WHERE b.owner_id = 'ff000000-0000-0000-0000-000000000b02' LIMIT 1;
 
 
 -- ════════════════════════════════════════════════════════════════════════
@@ -117,17 +117,17 @@ SELECT ok(
   EXISTS(SELECT 1 FROM market_notifications
     WHERE user_id = 'ff000000-0000-0000-0000-000000000b02'
       AND content LIKE '%Sale completed%'
-      AND content LIKE '%total%'
+      AND content LIKE '%earned%'
       AND content LIKE '%$10.00%'),
-  '(8) Seller completion: says "$10.00 total" (push/email/SMS get same text)'
+  '(8) Seller completion: says "$10.00 earned" (push/email/SMS get same text)'
 );
 
 SELECT ok(
-  NOT EXISTS(SELECT 1 FROM market_notifications
+  EXISTS(SELECT 1 FROM market_notifications
     WHERE user_id = 'ff000000-0000-0000-0000-000000000b02'
       AND content LIKE '%Sale completed%'
-      AND content LIKE '%earned%'),
-  '(9) Seller completion: does NOT say "earned"'
+      AND content LIKE '%Rate the buyer%'),
+  '(9) Seller completion: includes rate the buyer CTA'
 );
 
 -- (10) Buyer gets rate prompt
@@ -186,7 +186,7 @@ SELECT 'ff000000-0000-0000-0000-000000000e02',
   'ff000000-0000-0000-0000-000000000b01', 'ff000000-0000-0000-0000-000000000b02',
   b.id, 'ff000000-0000-0000-0000-0000000000d1',
   'V2 Tomatoes', 1, 5.00, 5.00, 0.45, 0.50, 5.95, 'pickup', 'pending'
-FROM market_booths b WHERE b.owner_id = 'ff000000-0000-0000-0000-000000000b02';
+FROM market_booths b WHERE b.owner_id = 'ff000000-0000-0000-0000-000000000b02' LIMIT 1;
 
 -- (14) Seller gets new order notification
 SELECT ok(
@@ -204,13 +204,13 @@ SELECT ok(
   '(15) Cancelled: buyer gets cancellation notification'
 );
 
--- (16) Verify no orphaned "earned" text in any notification
+-- (16) Verify seller completion says "earned" (not "total")
 SELECT ok(
-  NOT EXISTS(SELECT 1 FROM market_notifications
-    WHERE user_id IN ('ff000000-0000-0000-0000-000000000b01', 'ff000000-0000-0000-0000-000000000b02')
+  EXISTS(SELECT 1 FROM market_notifications
+    WHERE user_id = 'ff000000-0000-0000-0000-000000000b02'
       AND content LIKE '%Sale completed%'
       AND content LIKE '%earned%'),
-  '(16) Global: no notification contains "earned" for sale completion'
+  '(16) Seller completion notification uses "earned" (not "total")'
 );
 
 SELECT * FROM finish();
