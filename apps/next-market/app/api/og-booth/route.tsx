@@ -1,34 +1,35 @@
 import { ImageResponse } from 'next/og'
-import { createServerSupabase } from '../../../../../lib/supabase-server'
+import { createClient } from '@supabase/supabase-js'
+import { NextRequest } from 'next/server'
 
 export const runtime = 'nodejs'
-export const alt = 'CasaGrown Booth'
-export const size = { width: 1200, height: 630 }
-export const contentType = 'image/png'
 
-export default async function OGImage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
+const size = { width: 1200, height: 630 }
+
+export async function GET(req: NextRequest) {
+  const boothId = req.nextUrl.searchParams.get('id')
+  if (!boothId) return new Response('Missing id', { status: 400 })
 
   try {
-    const supabase = await createServerSupabase()
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    )
 
     // Fetch booth info
     const { data: booth } = await supabase
       .from('market_booths')
       .select('name, header_image_url, booth_city, booth_state')
-      .eq('id', id)
+      .eq('id', boothId)
       .single()
 
     if (!booth) return fallbackImage()
-
-    // If booth has a header image, redirect to it (social crawlers follow redirects)
-    // But we can't redirect from ImageResponse, so let's always generate a branded image
 
     // Fetch product photos for the collage
     const { data: products } = await supabase
       .from('market_products')
       .select('name, photos')
-      .eq('booth_id', id)
+      .eq('booth_id', boothId)
       .eq('is_deleted', false)
       .order('created_at', { ascending: false })
       .limit(6)
@@ -98,11 +99,17 @@ export default async function OGImage({ params }: { params: Promise<{ id: string
                 />
               </div>
             ) : (
-              // No photos at all — show placeholder icons
-              <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', gap: '24px' }}>
-                {['🍅', '🌽', '🥬', '🍯'].map((emoji, i) => (
-                  <span key={i} style={{ fontSize: '80px' }}>{emoji}</span>
-                ))}
+              // No photos — show booth name prominently
+              <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '12px' }}>
+                <span style={{ fontSize: '72px' }}>🏪</span>
+                <span style={{ fontSize: '48px', fontWeight: 800, color: 'white', textAlign: 'center', padding: '0 40px' }}>
+                  {boothName}
+                </span>
+                {location && (
+                  <span style={{ fontSize: '24px', color: 'rgba(255,255,255,0.7)' }}>
+                    📍 {location}
+                  </span>
+                )}
               </div>
             )}
           </div>
