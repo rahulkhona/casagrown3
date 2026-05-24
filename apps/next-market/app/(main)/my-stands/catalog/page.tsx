@@ -50,7 +50,7 @@ const GROWING_METHODS = [
 ]
 
 export default function CatalogPage() {
-  const { user, loading: authLoading } = useAuth()
+  const { user, loading: authLoading, isPro } = useAuth()
   const router = useRouter()
   const supabase = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -363,7 +363,15 @@ export default function CatalogPage() {
     }
   }, [authLoading, user, router])
 
+  // Catalog is Pro-only — redirect free users
+  useEffect(() => {
+    if (!authLoading && user && !isPro) {
+      router.replace('/my-stands')
+    }
+  }, [authLoading, user, isPro, router])
+
   if (authLoading || !user) return <LoadingSpinner />
+  if (!isPro) return <LoadingSpinner />
 
   // Filter items
   const filteredItems = items.filter(item => {

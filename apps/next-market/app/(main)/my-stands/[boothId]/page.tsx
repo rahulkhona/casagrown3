@@ -244,7 +244,7 @@ interface ProductRow {
 export default function StandDetailPage({ params }: { params: Promise<{ boothId: string }> }) {
   const unwrappedParams = use(params)
   const boothId = unwrappedParams.boothId
-  const { user, loading: authLoading, isAuthenticated } = useAuth()
+  const { user, loading: authLoading, isAuthenticated, isPro } = useAuth()
   const supabase = createClient()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -1546,17 +1546,19 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
               >
                 🆕 Create New Listing
               </button>
-              <button
-                className={styles.actionBtn}
-                style={{ padding: '14px 20px', fontSize: 15, fontWeight: 600, justifyContent: 'center' }}
-                onClick={() => {
-                  setShowAddChoice(false)
-                  setShowCatalogPicker(true)
-                  setSelectedCatalogItem(null)
-                }}
-              >
-                📦 List from Catalog ({catalogItems.length} items)
-              </button>
+              {isPro && (
+                <button
+                  className={styles.actionBtn}
+                  style={{ padding: '14px 20px', fontSize: 15, fontWeight: 600, justifyContent: 'center' }}
+                  onClick={() => {
+                    setShowAddChoice(false)
+                    setShowCatalogPicker(true)
+                    setSelectedCatalogItem(null)
+                  }}
+                >
+                  📦 List from Catalog ({catalogItems.length} items)
+                </button>
+              )}
             </div>
             <button
               style={{

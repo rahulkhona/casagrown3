@@ -23,7 +23,7 @@ interface ExistingStand {
 }
 
 export default function NewStandPage() {
-  const { user, loading: authLoading, isAuthenticated } = useAuth()
+  const { user, loading: authLoading, isAuthenticated, isPro } = useAuth()
   const supabase = createClient()
   const router = useRouter()
 
@@ -48,6 +48,13 @@ export default function NewStandPage() {
       router.replace('/login?redirect=/my-stands/new')
     }
   }, [authLoading, isAuthenticated, router])
+
+  // Creating additional booths is Pro-only
+  useEffect(() => {
+    if (!authLoading && user && !isPro) {
+      router.replace('/my-stands')
+    }
+  }, [authLoading, user, isPro, router])
 
   // Load existing stands + profile address
   useEffect(() => {

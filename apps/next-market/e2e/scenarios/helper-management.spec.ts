@@ -387,10 +387,11 @@ test.describe('Helper Product Listing — /my-stands + /create-listing', () => {
       // Wait until it has the helper booth option
       await page.waitForFunction(
         (bid) => {
-          const selects = document.querySelectorAll('select')
-          for (const s of selects) {
-            for (const o of s.options) {
-              if (o.value === bid) return true
+          const selects = Array.from(document.querySelectorAll('select'))
+          for (let i = 0; i < selects.length; i++) {
+            const opts = selects[i].options
+            for (let j = 0; j < opts.length; j++) {
+              if (opts[j].value === bid) return true
             }
           }
           return false

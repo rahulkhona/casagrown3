@@ -26,7 +26,7 @@ interface StandRow {
 }
 
 export default function MyStandsPage() {
-  const { user, loading: authLoading, isAuthenticated } = useAuth()
+  const { user, loading: authLoading, isAuthenticated, isPro } = useAuth()
   const supabase = createClient()
   const router = useRouter()
 
@@ -217,15 +217,17 @@ export default function MyStandsPage() {
         </p>
       </div>
 
-      {/* Action Row — above booth cards */}
-      <div className={styles.actionRow}>
-        <Link href="/my-stands/catalog" className={styles.actionBtnOutline}>
-          📦 Manage Product Catalog
-        </Link>
-        <Link href="/my-stands/new" className={styles.actionBtnPrimary}>
-          + Add New Booth
-        </Link>
-      </div>
+      {/* Action Row — above booth cards (Pro only) */}
+      {isPro && (
+        <div className={styles.actionRow}>
+          <Link href="/my-stands/catalog" className={styles.actionBtnOutline}>
+            📦 Manage Product Catalog
+          </Link>
+          <Link href="/my-stands/new" className={styles.actionBtnPrimary}>
+            + Add New Booth
+          </Link>
+        </div>
+      )}
 
       {/* Search */}
       {(stands.length + helperStands.length) > 3 && (
@@ -304,13 +306,15 @@ export default function MyStandsPage() {
               >
                 🔗 Share
               </button>
-              <button
-                className={`${styles.cardActionBtn} ${styles.cardActionSecondary}`}
-                onClick={() => setArchiveTarget(stand)}
-                style={stand.is_active ? { color: '#b45309' } : { color: 'var(--green-700)' }}
-              >
-                {stand.is_active ? '📦 Archive' : '🔄 Reactivate'}
-              </button>
+              {isPro && (
+                <button
+                  className={`${styles.cardActionBtn} ${styles.cardActionSecondary}`}
+                  onClick={() => setArchiveTarget(stand)}
+                  style={stand.is_active ? { color: '#b45309' } : { color: 'var(--green-700)' }}
+                >
+                  {stand.is_active ? '📦 Archive' : '🔄 Reactivate'}
+                </button>
+              )}
             </div>
           </div>
         ))}

@@ -132,7 +132,17 @@ Deno.test({ name: 'multi-stand: create product on default booth (legacy path)', 
 // 2. Multi-Booth Path
 // ══════════════════════════════════════════════════════════════
 
-Deno.test({ name: 'multi-stand: seller has multiple booths', sanitizeResources: false, sanitizeOps: false, fn: async () => {
+Deno.test({ name: 'multi-stand: seller can have multiple booths', sanitizeResources: false, sanitizeOps: false, fn: async () => {
+  // Create a temporary second booth
+  const { status, data: tempBooth } = await insert('market_booths', {
+    owner_id: SELLER_ID,
+    name: 'Temp Multi-Stand Test Booth',
+    is_default: false,
+    offers_pickup: true,
+    offers_delivery: false,
+  })
+  assertEquals(status, 201, 'Should create second booth')
+
   const booths = await query('market_booths', `owner_id=eq.${SELLER_ID}&select=id,name,is_default&order=created_at`)
   assert(booths.length >= 2, `Seller should have at least 2 booths, got ${booths.length}`)
   
@@ -143,6 +153,9 @@ Deno.test({ name: 'multi-stand: seller has multiple booths', sanitizeResources: 
   for (const b of booths) {
     console.log(`    ${b.is_default ? '★' : ' '} ${b.name} (${b.id})`)
   }
+
+  // Cleanup
+  await remove('market_booths', `id=eq.${tempBooth.id}`)
 }})
 
 Deno.test({ name: 'multi-stand: create product on non-default booth', sanitizeResources: false, sanitizeOps: false, fn: async () => {
@@ -205,17 +218,31 @@ Deno.test({ name: 'catalog: create item with all fields', sanitizeResources: fal
   await remove('catalog_items', `id=eq.${item.id}`)
 }})
 
-Deno.test({ name: 'catalog: seeded catalog items exist', sanitizeResources: false, sanitizeOps: false, fn: async () => {
+Deno.test({ name: 'catalog: catalog items can be created and queried', sanitizeResources: false, sanitizeOps: false, fn: async () => {
+  // Create a temp catalog item
+  const { status, data: item } = await insert('catalog_items', {
+    owner_id: SELLER_ID,
+    name: 'Seeded Test Tomatoes',
+    category: 'produce',
+    total_inventory: 25,
+    default_price_usd: 4.50,
+    default_unit: 'lb',
+  })
+  assertEquals(status, 201, 'Should create catalog item')
+
   const items = await query('catalog_items', `owner_id=eq.${SELLER_ID}&select=id,name,total_inventory,default_price_usd`)
   assert(items.length >= 1, `Seller should have catalog items, got ${items.length}`)
   
-  for (const item of items) {
-    assertExists(item.id)
-    assertExists(item.name)
-    assert(item.total_inventory > 0, `${item.name} should have inventory`)
-    console.log(`  📦 ${item.name}: ${item.total_inventory} units @ $${item.default_price_usd}`)
+  for (const i of items) {
+    assertExists(i.id)
+    assertExists(i.name)
+    assert(i.total_inventory > 0, `${i.name} should have inventory`)
+    console.log(`  📦 ${i.name}: ${i.total_inventory} units @ $${i.default_price_usd}`)
   }
   console.log(`  ✅ ${items.length} catalog items verified`)
+
+  // Cleanup
+  await remove('catalog_items', `id=eq.${item.id}`)
 }})
 
 // ══════════════════════════════════════════════════════════════

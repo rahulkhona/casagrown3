@@ -15,6 +15,7 @@ export interface BootstrapProfile {
   tos_accepted_at: string | null
   profile_completed_at: string | null
   referral_code?: string | null
+  is_pro?: boolean
 }
 
 export interface BootstrapMarketConfig {

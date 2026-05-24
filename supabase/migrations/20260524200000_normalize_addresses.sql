@@ -255,21 +255,7 @@ FROM market_booths b,
 WHERE b.name = 'Willow Glen Farm Stand' AND b.owner_id = 'a1111111-1111-1111-1111-111111111111'
 ON CONFLICT DO NOTHING;
 
--- Sam's Saturday Market Stand
-INSERT INTO booth_fulfillment_windows (booth_id, window_type, day_of_week, start_time, end_time)
-SELECT b.id, 'pickup', d.day, d.start_t::time, d.end_t::time
-FROM market_booths b,
-  (VALUES ('sat', '09:00', '13:00')) AS d(day, start_t, end_t)
-WHERE b.name = 'Sam''s Saturday Market Stand' AND b.owner_id = 'a1111111-1111-1111-1111-111111111111'
-ON CONFLICT DO NOTHING;
 
--- Sam's Saturday Market
-INSERT INTO booth_fulfillment_windows (booth_id, window_type, day_of_week, start_time, end_time)
-SELECT b.id, 'pickup', d.day, d.start_t::time, d.end_t::time
-FROM market_booths b,
-  (VALUES ('sat', '08:00', '12:00'), ('sun', '10:00', '14:00')) AS d(day, start_t, end_t)
-WHERE b.name = 'Sam''s Saturday Market' AND b.owner_id = 'a1111111-1111-1111-1111-111111111111'
-ON CONFLICT DO NOTHING;
 
 
 -- ── 6. Update seed data: populate decomposed address fields for all demo booths ──
@@ -280,17 +266,7 @@ UPDATE market_booths SET
   pickup_street = '1168 Lincoln Ave', pickup_city = 'San Jose', pickup_state = 'CA', pickup_zip = '95125'
 WHERE name = 'Willow Glen Farm Stand' AND owner_id = 'a1111111-1111-1111-1111-111111111111';
 
--- Sam's Saturday Market Stand
-UPDATE market_booths SET
-  booth_street = '1168 Lincoln Ave', booth_city = 'San Jose', booth_state = 'CA', booth_zip = '95125',
-  pickup_street = '1168 Lincoln Ave', pickup_city = 'San Jose', pickup_state = 'CA', pickup_zip = '95125'
-WHERE name = 'Sam''s Saturday Market Stand' AND owner_id = 'a1111111-1111-1111-1111-111111111111';
 
--- Sam's Saturday Market
-UPDATE market_booths SET
-  booth_street = 'San Jose Farmers Market, 760 W San Carlos St', booth_city = 'San Jose', booth_state = 'CA', booth_zip = '95126',
-  pickup_street = 'San Jose Farmers Market, 760 W San Carlos St', pickup_city = 'San Jose', pickup_state = 'CA', pickup_zip = '95126'
-WHERE name = 'Sam''s Saturday Market' AND owner_id = 'a1111111-1111-1111-1111-111111111111';
 
 -- Maria's Garden Fresh
 UPDATE market_booths SET

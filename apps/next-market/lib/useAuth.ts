@@ -31,6 +31,7 @@ export function useAuth() {
   const banReason = profile?.ban_reason ?? null
   const tosAccepted = profile ? !!profile.tos_accepted_at : null
   const profileComplete = profile ? !!profile.profile_completed_at : null
+  const isPro = profile?.is_pro ?? false
 
   return {
     user,
@@ -40,6 +41,7 @@ export function useAuth() {
     banReason,
     tosAccepted,
     profileComplete,
+    isPro,
     refresh,
   }
 }

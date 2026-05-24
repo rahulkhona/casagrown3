@@ -347,6 +347,9 @@ ON CONFLICT (id) DO UPDATE SET
   nearby_community_h3_indices = EXCLUDED.nearby_community_h3_indices,
   home_location = EXCLUDED.home_location;
 
+-- Make seller@test.local a Pro user (needed for catalog/multi-stand E2E tests)
+UPDATE profiles SET is_pro = true WHERE id = 'a1111111-1111-1111-1111-111111111111';
+
 -- Seed points for both users (enough for test transactions)
 -- Using 2000 to ensure enough points after cashout test (−500 pts) for the
 -- giftcards test (first Gaming card = ~3000 pts, need enough after order holds).
@@ -1770,7 +1773,7 @@ VALUES (
 ) ON CONFLICT DO NOTHING;
 
 -- =============================================================================
--- Sam Seller's Booths (Multi-Stand Testing)
+-- Sam Seller's Default Booth (Willow Glen Farm Stand)
 -- =============================================================================
 
 -- Booth 1: Default booth (Willow Glen Farm Stand)
@@ -1792,101 +1795,24 @@ INSERT INTO market_booths (id, owner_id, name, description, decorative_theme,
   delivery_windows = EXCLUDED.delivery_windows, pickup_windows = EXCLUDED.pickup_windows,
   pickup_location = EXCLUDED.pickup_location;
 
--- Booth 2: Farmers Market booth (non-default)
-INSERT INTO market_booths (id, owner_id, name, description, decorative_theme,
-  offers_delivery, offers_pickup, delivery_radius_miles, pickup_address,
-  delivery_windows, pickup_windows, payment_method, pickup_location, is_default,
-  delivery_zipcodes
-) VALUES (
-  'b0010001-0001-0001-0001-000000000002',
-  'a1111111-1111-1111-1111-111111111111',
-  'Sam''s Saturday Market', 'Find us at the Saturday farmers market! Fresh seasonal picks.', 'floral',
-  false, true, 0, 'San Jose Farmers Market, 760 W San Carlos St',
-  '[]'::jsonb,
-  '[{"id":"8-12","start":"08:00","end":"12:00"}]'::jsonb,
-  'automatic', ST_SetSRID(ST_MakePoint(-121.9020, 37.3229), 4326), false,
-  ARRAY['95125','95126','95128']
-) ON CONFLICT DO NOTHING;
-
--- =============================================================================
--- Sam Seller's Catalog Items (5 items for testing allocation)
--- =============================================================================
-
-INSERT INTO catalog_items (id, owner_id, name, description, category, photos,
-  default_price_usd, default_unit, total_inventory, certifications,
-  variety, growing_method, shelf_life_days, storage_instructions
-) VALUES
-  -- 1. Heirloom Tomatoes
-  ('ca010001-0001-0001-0001-000000000001',
-   'a1111111-1111-1111-1111-111111111111',
-   'Heirloom Tomatoes',
-   'Vine-ripened Cherokee Purple and Brandywine tomatoes from our raised beds. No pesticides.',
-   'produce', '{}',
-   4.50, 'lb', 30,
-   ARRAY['pesticide_free', 'naturally_grown'],
-   'Cherokee Purple / Brandywine', 'raised_bed', 5, 'Store at room temp, refrigerate when ripe'),
-
-  -- 2. Meyer Lemons
-  ('ca010001-0001-0001-0001-000000000002',
-   'a1111111-1111-1111-1111-111111111111',
-   'Meyer Lemons',
-   'Sweet and fragrant Meyer lemons from our backyard tree. Perfect for lemonade and baking.',
-   'produce', '{}',
-   3.00, 'bag', 40,
-   ARRAY['naturally_grown'],
-   'Meyer', 'soil', 14, 'Store at room temp or refrigerate for longer life'),
-
-  -- 3. Fresh Basil Bunches
-  ('ca010001-0001-0001-0001-000000000003',
-   'a1111111-1111-1111-1111-111111111111',
-   'Fresh Basil',
-   'Large-leaf Genovese basil, harvested same morning. Makes the best pesto!',
-   'produce', '{}',
-   2.50, 'bunch', 25,
-   ARRAY['organic', 'pesticide_free'],
-   'Genovese', 'container', 3, 'Trim stems and place in water at room temp'),
-
-  -- 4. Wildflower Honey
-  ('ca010001-0001-0001-0001-000000000004',
-   'a1111111-1111-1111-1111-111111111111',
-   'Raw Wildflower Honey',
-   'Unfiltered, raw wildflower honey from our backyard beehive. Rich and floral.',
-   'honey', '{}',
-   12.00, 'jar', 15,
-   ARRAY['naturally_grown'],
-   NULL, NULL, 365, 'Store in a cool, dry place'),
-
-  -- 5. Rainbow Chard
-  ('ca010001-0001-0001-0001-000000000005',
-   'a1111111-1111-1111-1111-111111111111',
-   'Rainbow Chard',
-   'Beautiful rainbow Swiss chard — red, yellow, and white stems. Great sautéed with garlic.',
-   'produce', '{}',
-   3.50, 'bunch', 20,
-   ARRAY['pesticide_free', 'non_gmo'],
-   'Rainbow / Bright Lights', 'raised_bed', 5, 'Refrigerate in a damp paper towel')
-ON CONFLICT DO NOTHING;
 
 -- ============================================================
---  Multi-Stand & Helper Seed Data
+--  Helper Seed Data
 --  Enables manual verification of:
---  - Booth name on orders, order detail, and notifications
 --  - Helper management (passcode, join flow, helper orders view)
---  - Multi-stand (seller with 2+ stands)
 --
 --  Test Accounts:
---  - seller@test  (a1111111...) — has 2 stands
+--  - seller@test  (a1111111...) — has 1 default booth
 --  - buyer@test   (b2222222...) — buyer + helper for seller
---  - Maria Garcia (s1)          — helper for seller's 2nd stand
+--  - Maria Garcia (s1)          — helper for seller's booth
 -- ============================================================
 
-DO $multi_stand_helpers$
+DO $helpers_seed$
 DECLARE
   seller_id UUID := 'a1111111-1111-1111-1111-111111111111';
   buyer_id  UUID := 'b2222222-2222-2222-2222-222222222222';
   s1        UUID; -- Maria Garcia
   default_booth_id UUID;
-  second_booth_id  UUID := 'bb000000-0000-0000-0000-222222222222';
 BEGIN
   -- Lookup Maria's user ID
   SELECT id INTO s1 FROM profiles WHERE email = 'maria@test.local';
@@ -1894,92 +1820,28 @@ BEGIN
   -- ── 1. Set helper_passcode on seller's default booth ──
   UPDATE market_booths
   SET helper_passcode = 'HELP42'
-  WHERE owner_id = 'a1111111-1111-1111-1111-111111111111'::uuid AND is_default = true
+  WHERE owner_id = seller_id AND is_default = true
   RETURNING id INTO default_booth_id;
 
-  -- ── 2. Create a 2nd stand for seller@test ──
-  INSERT INTO market_booths (
-    id, owner_id, name, description, decorative_theme,
-    offers_delivery, offers_pickup, delivery_radius_miles,
-    pickup_address, delivery_windows, pickup_windows,
-    payment_method, pickup_location, is_default, helper_passcode
-  ) VALUES (
-    second_booth_id, seller_id,
-    'Sam''s Saturday Market Stand',
-    'Weekend farmers market stand specializing in seasonal produce and preserves',
-    'rustic',
-    false, true, 0,
-    '1168 Lincoln Ave, San Jose, CA 95125',
-    '[]'::jsonb,
-    '[{"id":"8-10","start":"08:00","end":"10:00"},{"id":"10-12","start":"10:00","end":"12:00"}]'::jsonb,
-    'automatic',
-    ST_SetSRID(ST_MakePoint(-121.8977, 37.3084), 4326),
-    false,  -- NOT the default stand
-    'SAT99'
-  ) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
-
-  -- ── 3. Add products to 2nd stand ──
-  INSERT INTO market_products (
-    seller_id, market_date, name, description, category,
-    price_usd, unit, inventory, photos, harvested_at,
-    moderation_status, booth_id
-  ) VALUES
-    (seller_id, CURRENT_DATE, 'Strawberry Preserves',
-     'Small-batch strawberry jam made with garden strawberries',
-     'honey', 7.50, 'jar', 8, '{}', NULL, 'approved', second_booth_id),
-    (seller_id, CURRENT_DATE, 'Pickled Jalapeños',
-     'Tangy pickled jalapeños from our garden',
-     'produce', 5.00, 'jar', 12, '{}', NULL, 'approved', second_booth_id),
-    (seller_id, CURRENT_DATE, 'Sun-Dried Tomatoes',
-     'Slow-dried heirloom tomatoes in olive oil',
-     'produce', 8.00, 'jar', 6, '{}', NULL, 'approved', second_booth_id)
-  ON CONFLICT DO NOTHING;
-
-  -- ── 4. Add booth_helpers ──
-  -- buyer@test is a helper for seller's DEFAULT booth (passcode HELP42)
+  -- ── 2. Add booth_helpers ──
+  -- buyer@test is a helper for seller's default booth (passcode HELP42)
   INSERT INTO booth_helpers (booth_id, helper_id, status)
   VALUES (default_booth_id, buyer_id, 'accepted')
   ON CONFLICT (booth_id, helper_id) DO UPDATE SET status = 'accepted';
 
-  -- Maria is a helper for seller's 2nd SATURDAY stand (passcode SAT99)
+  -- Maria is also a helper for seller's default booth
   IF s1 IS NOT NULL THEN
     INSERT INTO booth_helpers (booth_id, helper_id, status)
-    VALUES (second_booth_id, s1, 'accepted')
+    VALUES (default_booth_id, s1, 'accepted')
     ON CONFLICT (booth_id, helper_id) DO UPDATE SET status = 'accepted';
   END IF;
 
-  -- ── 5. Orders from the 2nd stand (so booth_name shows as "Sam's Saturday Market Stand") ──
-  -- Maria buys from seller's 2nd stand
-  IF s1 IS NOT NULL THEN
-    INSERT INTO market_orders (
-      buyer_id, seller_id, booth_id, product_id, product_name,
-      quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
-      fulfillment_type, status
-    )
-    SELECT s1, p.seller_id, second_booth_id, p.id, 'Strawberry Preserves',
-      2, 7.50, 15.00, 1.39, 16.39, 'pickup', 'confirmed'
-    FROM market_products p
-    WHERE p.name = 'Strawberry Preserves' AND p.booth_id = second_booth_id
-    LIMIT 1;
-  END IF;
-
-  -- buyer@test also buys from seller's 2nd stand
-  INSERT INTO market_orders (
-    buyer_id, seller_id, booth_id, product_id, product_name,
-    quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
-    fulfillment_type, status
-  )
-  SELECT buyer_id, p.seller_id, second_booth_id, p.id, 'Pickled Jalapeños',
-    3, 5.00, 15.00, 1.39, 16.39, 'pickup', 'completed'
-  FROM market_products p
-  WHERE p.name = 'Pickled Jalapeños' AND p.booth_id = second_booth_id
-  LIMIT 1;
-
-  -- ── 6. Set helper_passcode on Maria's booth too (for testing join flow) ──
+  -- ── 3. Set helper_passcode on Maria's booth too (for testing join flow) ──
   IF s1 IS NOT NULL THEN
     UPDATE market_booths
     SET helper_passcode = 'MARIA1'
     WHERE owner_id = s1 AND is_default = true;
   END IF;
 
-END $multi_stand_helpers$;
+END $helpers_seed$;
+
