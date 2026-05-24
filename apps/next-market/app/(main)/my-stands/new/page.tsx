@@ -7,6 +7,7 @@ import { useAuth } from '../../../../lib/useAuth'
 import { createClient } from '../../../../lib/supabase'
 import { LoadingSpinner } from '../../../components/LoadingSpinner'
 import AddressInput from '../../../components/AddressInput'
+import { type AddressFields, EMPTY_ADDRESS, formatFullAddress, toGeocodingString } from '../../../../lib/address'
 import { geocodeAddress, toPostgisPoint } from '../../../../lib/geocode'
 
 import styles from './page.module.css'
@@ -28,7 +29,7 @@ export default function NewStandPage() {
 
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [pickupAddress, setPickupAddress] = useState('')
+  const [pickupAddress, setPickupAddress] = useState<AddressFields>(EMPTY_ADDRESS)
   const [offersPickup, setOffersPickup] = useState(true)
   const [offersDelivery, setOffersDelivery] = useState(true)
   const [deliveryRadius, setDeliveryRadius] = useState(5)
@@ -78,9 +79,13 @@ export default function NewStandPage() {
       }
 
       // Default pickup address from profile
-      if (!pickupAddress && profile?.street_address) {
-        const addr = [profile.street_address, profile.city].filter(Boolean).join(', ')
-        setPickupAddress(addr)
+      if (!pickupAddress.street && profile?.street_address) {
+        setPickupAddress({
+          street: profile.street_address || '',
+          city: profile.city || '',
+          state: profile.state_code || '',
+          zip: '',
+        })
       }
     }
     load()
@@ -93,7 +98,19 @@ export default function NewStandPage() {
     setOffersPickup(source.offers_pickup)
     setOffersDelivery(source.offers_delivery)
     setDeliveryRadius(source.delivery_radius_miles || 5)
-    if (source.pickup_address) setPickupAddress(source.pickup_address)
+    if (source.pickup_address) {
+      // Parse legacy string from existing stand
+      const pa = source.pickup_address
+      const parts = pa.split(',').map((s: string) => s.trim())
+      if (parts.length >= 3) {
+        const sz = parts[parts.length - 1].split(/\s+/)
+        setPickupAddress({ street: parts.slice(0, -2).join(', '), city: parts[parts.length - 2], state: sz[0] || '', zip: sz.slice(1).join(' ') })
+      } else if (parts.length === 2) {
+        setPickupAddress({ street: parts[0], city: parts[1], state: '', zip: '' })
+      } else {
+        setPickupAddress({ street: pa, city: '', state: '', zip: '' })
+      }
+    }
     if (source.delivery_zipcodes) setDeliveryZipcodes(source.delivery_zipcodes)
   }
 
@@ -123,7 +140,7 @@ export default function NewStandPage() {
       if (!offersDelivery && !offersPickup) {
         issues.push('Enable at least one fulfillment option')
       }
-      if (offersPickup && !pickupAddress.trim()) {
+      if (offersPickup && !toGeocodingString(pickupAddress)) {
         issues.push('Enter a pickup address')
       }
       if (issues.length > 0) {
@@ -132,6 +149,7 @@ export default function NewStandPage() {
         return
       }
 
+      const pickupStr = formatFullAddress(pickupAddress)
       const dbRow: Record<string, any> = {
         owner_id: user.id,
         name: name.trim(),
@@ -139,13 +157,21 @@ export default function NewStandPage() {
         offers_pickup: offersPickup,
         offers_delivery: offersDelivery,
         delivery_radius_miles: deliveryRadius,
-        pickup_address: pickupAddress.trim() || null,
+        pickup_address: pickupStr || null,
+        pickup_street: pickupAddress.street || null,
+        pickup_city: pickupAddress.city || null,
+        pickup_state: pickupAddress.state || null,
+        pickup_zip: pickupAddress.zip || null,
+        booth_street: pickupAddress.street || null,
+        booth_city: pickupAddress.city || null,
+        booth_state: pickupAddress.state || null,
+        booth_zip: pickupAddress.zip || null,
         delivery_zipcodes: deliveryZipcodes.length > 0 ? deliveryZipcodes : null,
       }
 
       // Geocode pickup address
-      if (offersPickup && pickupAddress.trim()) {
-        const geo = await geocodeAddress(pickupAddress.trim())
+      if (offersPickup && pickupStr) {
+        const geo = await geocodeAddress(pickupStr)
         if (geo) {
           dbRow.pickup_location = toPostgisPoint(geo.lat, geo.lng)
         }
@@ -242,7 +268,7 @@ export default function NewStandPage() {
           <label className={styles.label}>Pickup Address</label>
           <AddressInput
             value={pickupAddress}
-            onChange={val => setPickupAddress(val)}
+            onChange={(val: AddressFields) => setPickupAddress(val)}
             placeholderStreet="e.g. 123 Oak Street"
           />
         </div>

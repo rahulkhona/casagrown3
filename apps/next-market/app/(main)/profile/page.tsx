@@ -7,6 +7,7 @@ import { useAuth } from '../../../lib/useAuth'
 import CameraCapture from '../../../components/CameraCapture'
 import ImageCropper from '../../../components/ImageCropper'
 import AddressInput from '../../components/AddressInput'
+import type { AddressFields } from '../../../lib/address'
 import { useNotificationPrompt, isNotificationsEnabled } from '../../../lib/useNotificationPrompt'
 import { NotificationPromptModal } from '../../components/NotificationPromptModal'
 import styles from './page.module.css'
@@ -504,21 +505,9 @@ function ProfilePageInner() {
             </button>
           </div>
           <AddressInput
-            value={[form.street, form.city, `${form.state} ${form.zip}`.trim()].filter(Boolean).join(', ')}
-            onChange={(combined: string) => {
-              const parts = combined.split(',').map((s: string) => s.trim())
-              if (parts.length >= 3) {
-                const sz = parts[parts.length - 1].split(' ')
-                setForm(prev => ({
-                  ...prev,
-                  street: parts.slice(0, -2).join(', '),
-                  city: parts[parts.length - 2],
-                  state: sz[0] || '',
-                  zip: sz.slice(1).join(' '),
-                }))
-              } else {
-                setForm(prev => ({ ...prev, street: combined, city: '', state: '', zip: '' }))
-              }
+            value={{ street: form.street, city: form.city, state: form.state, zip: form.zip }}
+            onChange={(val: AddressFields) => {
+              setForm(prev => ({ ...prev, street: val.street, city: val.city, state: val.state, zip: val.zip }))
             }}
             placeholderStreet="123 Main St"
           />

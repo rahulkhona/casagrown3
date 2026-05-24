@@ -19,6 +19,7 @@ import SocialShareModal from '../../components/SocialShareModal'
 import { getGlobalMarketShareMessage } from '../../../lib/shareMessages'
 import { useCommunityDigest } from '../../../lib/useCommunityDigest'
 import AddressInput from '../../components/AddressInput'
+import { type AddressFields, EMPTY_ADDRESS, toGeocodingString, formatFullAddress } from '../../../lib/address'
 import GrowBotFAB from '../../components/GrowBotFAB'
 import styles from './page.module.css'
 
@@ -153,7 +154,18 @@ function BrowseMarketPageInner() {
   const saved = typeof window !== 'undefined' && !searchParams.has('lat')
     ? new URLSearchParams(localStorage.getItem('market_search') || '') : null
 
-  const [address, setAddress] = useState(searchParams.get('addr') || saved?.get('addr') || '')
+  const [address, setAddress] = useState<AddressFields>(() => {
+    const savedAddr = searchParams.get('addr') || saved?.get('addr') || ''
+    if (!savedAddr) return EMPTY_ADDRESS
+    // Parse legacy "street, city, state zip" from URL/localStorage
+    const parts = savedAddr.split(',').map(s => s.trim())
+    if (parts.length >= 3) {
+      const stateZip = parts[parts.length - 1].split(/\s+/)
+      return { street: parts.slice(0, -2).join(', '), city: parts[parts.length - 2], state: stateZip[0] || '', zip: stateZip.slice(1).join(' ') }
+    }
+    if (parts.length === 2) return { street: parts[0], city: parts[1], state: '', zip: '' }
+    return { street: savedAddr, city: '', state: '', zip: '' }
+  })
   const [lat, setLat] = useState<number | null>(searchParams.has('lat') ? parseFloat(searchParams.get('lat')!) : saved?.has('lat') ? parseFloat(saved.get('lat')!) : null)
   const [lng, setLng] = useState<number | null>(searchParams.has('lng') ? parseFloat(searchParams.get('lng')!) : saved?.has('lng') ? parseFloat(saved.get('lng')!) : null)
   const [locationLoading, setLocationLoading] = useState(false)
@@ -210,7 +222,8 @@ function BrowseMarketPageInner() {
   // Sync state to URL and localStorage
   const syncUrl = useCallback(() => {
     const params = new URLSearchParams()
-    if (address) params.set('addr', address)
+    const addrStr = formatFullAddress(address)
+    if (addrStr) params.set('addr', addrStr)
     if (lat) params.set('lat', lat.toFixed(4))
     if (lng) params.set('lng', lng.toFixed(4))
     if (search) params.set('q', search)
@@ -231,11 +244,12 @@ function BrowseMarketPageInner() {
   // Recovery: address is present but coordinates are missing/incomplete (e.g. corrupt localStorage).
   // Auto-geocode the address to restore lat/lng and unblock the search.
   useEffect(() => {
-    if (addressResolved || !address.trim() || (lat != null && lng != null)) return
-    geocodeAddress(address.trim()).then(geo => {
+    const addrGeoStr = toGeocodingString(address)
+    if (addressResolved || !addrGeoStr || (lat != null && lng != null)) return
+    geocodeAddress(addrGeoStr).then(geo => {
       if (geo) {
         setLat(geo.lat); setLng(geo.lng)
-        const zip = geo.zipCode || (geo.display?.match(/\b(\d{5})\b/) || [])[1] || (address.match(/\b(\d{5})\b/) || [])[1] || ''
+        const zip = geo.zipCode || (geo.display?.match(/\b(\d{5})\b/) || [])[1] || (address.zip) || ''
         if (zip) setZipCode(zip)
         setAddressResolved(true)
       }
@@ -258,10 +272,15 @@ function BrowseMarketPageInner() {
         if (!addressResolved && !searchParams.has('lat')) {
           if (profile?.state_code) setBuyerStateCode(profile.state_code)
           if (profile?.street_address) {
-            const addr = [profile.street_address, profile.city, profile.state_code].filter(Boolean).join(', ')
+            const addr: AddressFields = {
+              street: profile.street_address || '',
+              city: profile.city || '',
+              state: profile.state_code || '',
+              zip: profile.zip_code || '',
+            }
             setAddress(addr)
             if (profile.zip_code) setZipCode(profile.zip_code)
-            const geo = await geocodeAddress(addr)
+            const geo = await geocodeAddress(toGeocodingString(addr))
             if (geo) { setLat(geo.lat); setLng(geo.lng); setAddressResolved(true) }
           }
         } else if (profile?.state_code) {
@@ -497,7 +516,7 @@ function BrowseMarketPageInner() {
       // Trigger USDA fallback — always run when we have coordinates.
       // zip is optional and used as a hint; lat/lng are the primary lookup keys.
       if (lat && lng) {
-        const effectiveZip = zipCode || (address.match(/\b(\d{5})\b/) || [])[1] || ''
+        const effectiveZip = zipCode || address.zip || ''
         setLoadingExternal(true)
 
         // 1. Run USDA (works with zip OR lat/lng)
@@ -659,10 +678,11 @@ function BrowseMarketPageInner() {
   }, [lat, lng, maxMiles, addressResolved]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAddressSubmit = async () => {
-    if (!address.trim()) return
+    const geoStr = toGeocodingString(address)
+    if (!geoStr) return
     setLocationLoading(true); setLocationError('')
     try {
-      const geo = await geocodeAddress(address.trim())
+      const geo = await geocodeAddress(geoStr)
       if (geo) {
         setLat(geo.lat); setLng(geo.lng)
         // Extract zip code from geocoding explicitly or fallback to display name regex
@@ -709,7 +729,7 @@ function BrowseMarketPageInner() {
             const sc = stateMap[data.address.state] || data.address['ISO3166-2-lvl4']?.split('-')[1] || data.address.state
             // Build full address with zip code and state abbreviation
             const parts = [street, city, sc, data.address.postcode].filter(Boolean)
-            setAddress(parts.join(', '))
+            setAddress({ street, city, state: sc || '', zip: data.address.postcode || '' })
             // Extract zip code for category filtering and state isolation
             if (data.address.postcode) setZipCode(data.address.postcode)
             // Set buyer state code for state isolation
@@ -907,12 +927,12 @@ function BrowseMarketPageInner() {
           <div className={styles.addressForm}>
             <AddressInput
               value={address}
-              onChange={val => setAddress(val)}
+              onChange={(val: AddressFields) => setAddress(val)}
               placeholderStreet="e.g. 123 Main St"
             />
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
               <button className="btn btn-primary" onClick={handleAddressSubmit}
-                disabled={locationLoading || !address.trim()} style={{ flex: 1 }}>
+                disabled={locationLoading || !toGeocodingString(address)} style={{ flex: 1 }}>
                 {locationLoading ? 'Finding...' : 'Find Produce'}
               </button>
             </div>
@@ -1143,7 +1163,7 @@ function BrowseMarketPageInner() {
 
       {/* Address bar + change (always visible) */}
       <div className={styles.addressBar}>
-        <span className={styles.addressLabel}>📍 {address || 'Your location'}</span>
+        <span className={styles.addressLabel}>📍 {formatFullAddress(address) || 'Your location'}</span>
         <button className="btn btn-xs btn-ghost" onClick={handleChangeAddress}>Change</button>
       </div>
 

@@ -4,6 +4,7 @@ import { useWizard } from './WizardContext'
 import { useAuth } from '../../../lib/useAuth'
 import { createClient } from '../../../lib/supabase'
 import AddressInput from '../AddressInput'
+import { type AddressFields, formatFullAddress } from '../../../lib/address'
 import styles from './wizard.module.css'
 
 interface StandOption {
@@ -244,12 +245,19 @@ export default function Step2Fulfillment() {
     const newErrors: Record<string, string> = {}
     if (!state.address) {
       newErrors.address = 'Home/Farm address is required'
-    } else if (!/\b\d{5}\b/.test(state.address)) {
-      newErrors.address = 'Address must include a 5-digit ZIP code'
+    } else {
+      // Check for ZIP in the address string
+      const addrStr = typeof state.address === 'string' ? state.address : formatFullAddress(state.address as any)
+      if (!/\b\d{5}\b/.test(addrStr)) {
+        newErrors.address = 'Address must include a 5-digit ZIP code'
+      }
     }
 
-    if (state.offersPickup && state.pickupAddress && !/\b\d{5}\b/.test(state.pickupAddress)) {
-      newErrors.pickupAddress = 'Alternate pickup address must include a 5-digit ZIP code'
+    if (state.offersPickup && state.pickupAddress) {
+      const pickupStr = typeof state.pickupAddress === 'string' ? state.pickupAddress : formatFullAddress(state.pickupAddress as any)
+      if (!/\b\d{5}\b/.test(pickupStr)) {
+        newErrors.pickupAddress = 'Alternate pickup address must include a 5-digit ZIP code'
+      }
     }
     
     if (!state.offersDelivery && !state.offersPickup) {
@@ -388,8 +396,18 @@ export default function Step2Fulfillment() {
           This is your primary location. It is used to calculate delivery distances and local taxes.
         </p>
         <AddressInput 
-          value={state.address || ''} 
-          onChange={(val) => updateState({ address: val })}
+          value={(() => {
+            const a = state.address || ''
+            if (typeof a !== 'string') return a
+            const parts = a.split(',').map((s: string) => s.trim())
+            if (parts.length >= 3) {
+              const sz = parts[parts.length - 1].split(/\s+/)
+              return { street: parts.slice(0, -2).join(', '), city: parts[parts.length - 2], state: sz[0] || '', zip: sz.slice(1).join(' ') }
+            }
+            if (parts.length === 2) return { street: parts[0], city: parts[1], state: '', zip: '' }
+            return { street: a, city: '', state: '', zip: '' }
+          })()}
+          onChange={(val: AddressFields) => updateState({ address: formatFullAddress(val) })}
         />
         {errors.address && <div className={styles.errorText}>{errors.address}</div>}
         <button 
@@ -480,8 +498,18 @@ export default function Step2Fulfillment() {
                   <label className={styles.label}>📍 Alternate Pickup Address <span className={styles.optional}>(optional)</span></label>
                   <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 8px' }}>Leave blank to use your Home / Farm address.</p>
                   <AddressInput
-                    value={state.pickupAddress || ''}
-                    onChange={val => updateState({ pickupAddress: val })}
+                    value={(() => {
+                      const a = state.pickupAddress || ''
+                      if (typeof a !== 'string') return a
+                      const parts = a.split(',').map((s: string) => s.trim())
+                      if (parts.length >= 3) {
+                        const sz = parts[parts.length - 1].split(/\s+/)
+                        return { street: parts.slice(0, -2).join(', '), city: parts[parts.length - 2], state: sz[0] || '', zip: sz.slice(1).join(' ') }
+                      }
+                      if (parts.length === 2) return { street: parts[0], city: parts[1], state: '', zip: '' }
+                      return { street: a, city: '', state: '', zip: '' }
+                    })()}
+                    onChange={(val: AddressFields) => updateState({ pickupAddress: formatFullAddress(val) })}
                     placeholderStreet="e.g. Corner Store Parking Lot"
                   />
                   {errors.pickupAddress && <span className={styles.errorText} style={{ display: 'block' }}>{errors.pickupAddress}</span>}
