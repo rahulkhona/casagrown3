@@ -1,3 +1,4 @@
+-- Repair: re-apply nearby_booths with SET search_path for PostGIS on hosted Supabase
 -- Add buyer_zip parameter to nearby_booths and support zipcode-based delivery matching
 -- A booth is eligible for delivery if:
 --   1. The buyer is within the booth's delivery_radius_miles (existing behavior), OR
