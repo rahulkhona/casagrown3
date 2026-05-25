@@ -298,7 +298,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <YStack flex={1} backgroundColor={colors.white} overflow="hidden">
         {/* We wrap children in a ScrollView so the page scrolls internally, keeping sidebar fixed */}
         <ScrollView flex={1}>
-          <YStack flex={1} padding="$6" $sm={{ padding: '$4' }}>
+          <YStack flexShrink={0} padding="$6" $sm={{ padding: '$4' }}>
             {children}
           </YStack>
         </ScrollView>
