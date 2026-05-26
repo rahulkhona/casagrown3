@@ -10,6 +10,12 @@ import AddressInput from '../../components/AddressInput'
 import type { AddressFields } from '../../../lib/address'
 import { useNotificationPrompt, isNotificationsEnabled } from '../../../lib/useNotificationPrompt'
 import { NotificationPromptModal } from '../../components/NotificationPromptModal'
+import { useSubscription } from '../../../lib/useSubscription'
+import { UpgradePrompt } from '../../components/UpgradePrompt'
+import { ProGate } from '../../components/ProGate'
+import { FacebookStatus } from '../../components/FacebookStatus'
+import { WidgetEmbed } from '../../components/WidgetEmbed'
+import { GrowBotSettings } from '../../components/GrowBotSettings'
 import styles from './page.module.css'
 
 function ProfilePageInner() {
@@ -88,10 +94,12 @@ function ProfilePageInner() {
   }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (searchParams.get('verifyPhone') === 'true') {
+    if (searchParams.get('verifyPhone') === 'true' && !phoneVerified) {
       setError('Please verify your phone number below to ensure you receive order notifications.')
+    } else if (searchParams.get('verifyPhone') === 'true' && phoneVerified) {
+      setError('')
     }
-  }, [searchParams])
+  }, [searchParams, phoneVerified])
 
   // Handle file upload from gallery
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -523,6 +531,35 @@ function ProfilePageInner() {
         </button>
       </form>
 
+      {/* ── My Plan / Upgrade ── */}
+      <div id="my-plan" style={{ marginTop: 32 }}>
+        <div className="divider" />
+        <PlanSection />
+      </div>
+
+      {/* ── Facebook Integration (Pro only) ── */}
+      <ProGate feature="Facebook catalog sync">
+        <div style={{ marginTop: 24 }}>
+          <div className="divider" />
+          <h3 className={styles.sectionTitle}>Facebook Integration</h3>
+          <FacebookStatus />
+        </div>
+      </ProGate>
+
+      {/* ── GrowBot Configuration (Pro only) ── */}
+      <ProGate feature="GrowBot AI configuration">
+        <GrowBotProfileSection />
+      </ProGate>
+
+      {/* ── Website Widget (Pro only) ── */}
+      {/* <ProGate feature="Website chat widget">
+        <div style={{ marginTop: 24 }}>
+          <div className="divider" />
+          <h3 className={styles.sectionTitle}>Website Chat Widget</h3>
+          <WidgetEmbed />
+        </div>
+      </ProGate> */}
+
       {/* Delete Account — positioned at the very bottom of the profile page */}
       <div style={{ marginTop: 32, paddingTop: 20, borderTop: '1px solid var(--gray-200)' }}>
         <button
@@ -539,6 +576,243 @@ function ProfilePageInner() {
       </div>
 
       <NotificationPromptModal {...modalProps} />
+    </div>
+  )
+}
+
+/** Plan section — shows Pro badge or upgrade prompt */
+function PlanSection() {
+  const { plan, isPro, status, trialEndsAt, currentPeriodEnd, canceledAt } = useSubscription()
+  const { user } = useAuth()
+  const supabase = createClient()
+  const [loading, setLoading] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
+
+  const isCancelPending = isPro && !!canceledAt
+
+  const handleCancelPro = async () => {
+    setLoading(true)
+    try {
+      const { error } = await supabase.functions.invoke('manage-subscription', {
+        body: { action: 'cancel' },
+      })
+      if (error) throw error
+      setShowConfirm(false)
+      window.location.reload()
+    } catch (err) {
+      console.error('Cancel failed:', err)
+      setLoading(false)
+      setShowConfirm(false)
+    }
+  }
+
+  const handleResumePro = async () => {
+    setLoading(true)
+    try {
+      const { error } = await supabase.functions.invoke('manage-subscription', {
+        body: { action: 'resume' },
+      })
+      if (error) throw error
+      window.location.reload()
+    } catch (err) {
+      console.error('Resume failed:', err)
+      setLoading(false)
+    }
+  }
+
+  if (isPro) {
+    return (
+      <>
+      <h3 className={styles.sectionTitle}>My Plan</h3>
+      <div style={{
+        background: isCancelPending
+          ? 'linear-gradient(135deg, #92400e, #b45309)'
+          : 'linear-gradient(135deg, #065f46, #059669)',
+        borderRadius: 12, padding: 16, color: 'white',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <span style={{ fontSize: 18, fontWeight: 700 }}>🚜 CasaGrown Pro</span>
+            <span style={{
+              marginLeft: 8, fontSize: 11, padding: '2px 8px', borderRadius: 6,
+              background: 'rgba(255,255,255,0.2)',
+            }}>
+              {isCancelPending
+                ? '⏳ Cancels soon'
+                : status === 'trialing' ? '🎉 Trial' : '✓ Active'}
+            </span>
+          </div>
+          {isCancelPending ? (
+            <button
+              onClick={handleResumePro}
+              disabled={loading}
+              style={{
+                padding: '6px 14px', borderRadius: 6, border: 'none',
+                background: 'white', color: '#065f46',
+                fontSize: 12, fontWeight: 700, cursor: loading ? 'wait' : 'pointer',
+              }}
+            >
+              {loading ? 'Resuming...' : '↩ Resume Pro'}
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowConfirm(true)}
+              disabled={loading}
+              style={{
+                padding: '6px 14px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.3)',
+                background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.8)',
+                fontSize: 12, cursor: loading ? 'wait' : 'pointer',
+              }}
+            >
+              Cancel Pro
+            </button>
+          )}
+        </div>
+
+        {/* Status info */}
+        {isCancelPending && currentPeriodEnd && (
+          <div style={{
+            margin: '12px 0 0', padding: '12px 14px', borderRadius: 10,
+            background: 'rgba(255,255,255,0.15)', fontSize: 13,
+          }}>
+            <div style={{ marginBottom: 6 }}>
+              ⚠️ Your Pro subscription will <strong>permanently cancel on {new Date(currentPeriodEnd).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</strong>
+            </div>
+            <div style={{ fontSize: 12, opacity: 0.9, marginBottom: 6 }}>
+              After that date, Pro features will be disabled and you'll need to sign up again to re-activate.
+            </div>
+            <div style={{ fontSize: 12, opacity: 0.8 }}>
+              Changed your mind? Click <strong>"↩ Resume Pro"</strong> above to keep your subscription going.
+            </div>
+          </div>
+        )}
+        {!isCancelPending && status === 'trialing' && trialEndsAt && (
+          <p style={{ margin: '8px 0 0', fontSize: 12, opacity: 0.8 }}>
+            Trial ends {new Date(trialEndsAt).toLocaleDateString()}
+          </p>
+        )}
+        {!isCancelPending && currentPeriodEnd && status === 'active' && (
+          <p style={{ margin: '8px 0 0', fontSize: 12, opacity: 0.8 }}>
+            Next billing: {new Date(currentPeriodEnd).toLocaleDateString()}
+          </p>
+        )}
+      </div>
+
+      {/* Styled cancel confirmation */}
+      {showConfirm && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(0,0,0,0.5)', padding: 16,
+          animation: 'fadeIn 0.2s ease',
+        }}
+        onClick={() => setShowConfirm(false)}
+        >
+          <div
+            style={{
+              background: 'white', borderRadius: 20, padding: '28px 24px',
+              maxWidth: 360, width: '100%', textAlign: 'center',
+              boxShadow: '0 25px 50px rgba(0,0,0,0.25)',
+              animation: 'slideUp 0.3s ease',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{
+              width: 64, height: 64, borderRadius: '50%', margin: '0 auto 16px',
+              background: '#fef2f2', display: 'flex', alignItems: 'center',
+              justifyContent: 'center', fontSize: 28,
+            }}>
+              😢
+            </div>
+            <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 8px', color: '#111827' }}>
+              Cancel CasaGrown Pro?
+            </h3>
+            <div style={{
+              textAlign: 'left', fontSize: 13, color: '#6b7280', lineHeight: 1.6,
+              margin: '16px 0', padding: '12px 16px',
+              background: '#f9fafb', borderRadius: 12,
+            }}>
+              <div style={{ marginBottom: 6 }}>✓ Pro features stay active until your billing period ends</div>
+              <div style={{ marginBottom: 6 }}>✓ You can resume anytime before the period ends</div>
+              <div>✓ Full refund available within the first 7 days</div>
+            </div>
+            <button
+              onClick={handleCancelPro}
+              disabled={loading}
+              style={{
+                width: '100%', padding: 14, border: 'none', borderRadius: 9999,
+                background: '#dc2626', color: 'white', fontSize: 15, fontWeight: 600,
+                cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.7 : 1,
+                marginBottom: 8,
+              }}
+            >
+              {loading ? 'Cancelling...' : 'Yes, Cancel Pro'}
+            </button>
+            <button
+              onClick={() => setShowConfirm(false)}
+              style={{
+                width: '100%', padding: 10, border: 'none', borderRadius: 9999,
+                background: 'transparent', color: '#9ca3af', fontSize: 13,
+                fontWeight: 500, cursor: 'pointer',
+              }}
+            >
+              Never mind, keep Pro
+            </button>
+          </div>
+        </div>
+      )}
+      </>
+    )
+  }
+
+  return (
+    <>
+      <h3 className={styles.sectionTitle}>Upgrade for Low Fees &amp; Drive More Sales</h3>
+      <UpgradePrompt />
+    </>
+  )
+}
+
+/** GrowBot settings section — fetches user's primary booth and renders GrowBotSettings */
+function GrowBotProfileSection() {
+  const { user } = useAuth()
+  const { isPro } = useSubscription()
+  const [boothId, setBoothId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!user) return
+    const supabase = createClient()
+    supabase
+      .from('market_booths')
+      .select('id')
+      .eq('owner_id', user.id)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        setBoothId(data?.id ?? null)
+        setLoading(false)
+      })
+  }, [user])
+
+  if (loading) return null
+  if (!boothId) {
+    return (
+      <div style={{ marginTop: 24 }}>
+        <div className="divider" />
+        <h3 className={styles.sectionTitle}>GrowBot AI Settings</h3>
+        <p style={{ fontSize: 13, color: '#6b7280' }}>
+          Create a booth first to configure GrowBot settings.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ marginTop: 24 }}>
+      <div className="divider" />
+      <GrowBotSettings boothId={boothId} isPro={isPro} />
     </div>
   )
 }

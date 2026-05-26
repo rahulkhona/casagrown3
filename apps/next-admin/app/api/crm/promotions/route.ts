@@ -73,6 +73,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ token, existed: false })
     }
 
+    if (action === 'upsert_sub_discount') {
+      const { data, error } = await supabase.from('crm_promo_subscription_discounts')
+        .upsert(payload, { onConflict: 'promotion_id' })
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ ok: true })
+    }
+
+    if (action === 'delete_sub_discount') {
+      await supabase.from('crm_promo_subscription_discounts').delete().eq('promotion_id', payload.promotion_id)
+      return NextResponse.json({ ok: true })
+    }
+
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })

@@ -90,6 +90,9 @@ const ALLOWED_TABLES = new Set([
   // Quarantine zones (agricultural pest quarantines)
   'quarantine_zones',
   'quarantine_bot_health',
+  // Facebook post queue (admin moderation)
+  'fb_post_queue',
+  'fb_auto_post_log',
 ])
 
 interface AdminRequestBody {

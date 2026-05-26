@@ -21,7 +21,10 @@ const isInternalUrl = (url: string): boolean => {
       hostname === 'casagrown.com' ||
       hostname.endsWith('.casagrown.com') ||
       hostname === 'localhost' ||
-      hostname.endsWith('.supabase.co')       // Supabase auth flows
+      hostname.endsWith('.supabase.co') ||     // Supabase auth flows
+      hostname === 'checkout.stripe.com' ||    // Stripe checkout for Pro subscriptions
+      hostname === 'www.facebook.com' ||       // Facebook OAuth flow
+      hostname === 'web.facebook.com'          // Facebook OAuth flow (alt)
     );
   } catch {
     return true; // If URL can't be parsed, let the WebView handle it

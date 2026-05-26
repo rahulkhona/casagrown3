@@ -985,7 +985,7 @@
       "apps/next-market": {
         "packageJson": {
           "dependencies": [
-            "npm:@stripe/stripe-js@^8.9.0",
+            "npm:@stripe/stripe-js@^9.6.0",
             "npm:@supabase/ssr@0.9",
             "npm:@supabase/supabase-js@^2.99.1",
             "npm:@testing-library/jest-dom@^6.9.1",

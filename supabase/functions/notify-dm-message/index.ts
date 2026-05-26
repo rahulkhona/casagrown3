@@ -90,6 +90,22 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
         link_url: `/messages/${conversationId}`
     });
 
+    // 7. Trigger GrowBot auto-reply (copilot for Pro sellers)
+    try {
+        await supabase.functions.invoke('auto-reply-seller-chat', {
+            body: {
+                type: 'dm',
+                messageId,
+                senderId,
+                recipientId,
+                conversationId,
+            },
+        });
+        console.log(`🤖 Auto-reply triggered for DM in ${conversationId}`);
+    } catch (botErr: any) {
+        console.warn(`⚠️ Auto-reply trigger failed: ${botErr.message}`);
+    }
+
     // GAP-8: Email fallback if recipient has no push subscription
     // Batched: only send if no DM email was sent in the last hour
     try {

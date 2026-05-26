@@ -66,6 +66,7 @@ const MENU_GROUPS: MenuGroup[] = [
     items: [
       { label: 'Skills', path: '/growbot/skills' },
       { label: 'Rules', path: '/growbot/rules' },
+      { label: 'Seller Bot Rules', path: '/growbot/seller-rules' },
     ]
   },
   {
@@ -78,6 +79,13 @@ const MENU_GROUPS: MenuGroup[] = [
       { label: 'Chargebacks', path: '/disputes' },
       { label: 'Escalations', path: '/escalations' },
       { label: 'Redemption Methods', path: '/methods' },
+    ]
+  },
+  {
+    title: 'PRO SUBSCRIPTIONS',
+    icon: CreditCard,
+    items: [
+      { label: 'Subscriptions', path: '/subscriptions' },
     ]
   },
   {

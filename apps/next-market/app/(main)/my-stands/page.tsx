@@ -8,6 +8,7 @@ import { createClient } from '../../../lib/supabase'
 import { LoadingSpinner } from '../../components/LoadingSpinner'
 import { StandIcon } from '../../components/icons'
 import SocialShareModal from '../../components/SocialShareModal'
+import { UpgradePrompt } from '../../components/UpgradePrompt'
 
 import styles from './page.module.css'
 
@@ -217,8 +218,8 @@ export default function MyStandsPage() {
         </p>
       </div>
 
-      {/* Action Row — above booth cards (Pro only) */}
-      {isPro && (
+      {/* Action Row — Pro gets active buttons, free gets greyed + upgrade pitch */}
+      {isPro ? (
         <div className={styles.actionRow}>
           <Link href="/my-stands/catalog" className={styles.actionBtnOutline}>
             📦 Manage Product Catalog
@@ -226,6 +227,24 @@ export default function MyStandsPage() {
           <Link href="/my-stands/new" className={styles.actionBtnPrimary}>
             + Add New Booth
           </Link>
+        </div>
+      ) : (
+        <div style={{ marginBottom: 24 }}>
+          {/* Greyed-out Pro buttons */}
+          <div className={styles.actionRow}>
+            <button className={styles.actionBtnOutline} disabled style={{
+              opacity: 0.5, cursor: 'not-allowed', pointerEvents: 'none',
+              filter: 'grayscale(0.5)',
+            }}>
+              📦 Manage Product Catalog 🔒
+            </button>
+            <button className={styles.actionBtnPrimary} disabled style={{
+              opacity: 0.5, cursor: 'not-allowed', pointerEvents: 'none',
+              filter: 'grayscale(0.5)',
+            }}>
+              + Add New Booth 🔒
+            </button>
+          </div>
         </div>
       )}
 
@@ -319,6 +338,17 @@ export default function MyStandsPage() {
           </div>
         ))}
       </div>
+
+      {/* Pro upgrade carousel — below booth cards for non-Pro */}
+      {!isPro && (
+        <div style={{ marginTop: 32 }}>
+          <div className="divider" />
+          <h3 className={styles.subtitle} style={{ fontSize: 16, fontWeight: 600, color: 'var(--gray-700)', marginBottom: 16 }}>
+            Grow Your Business with Pro
+          </h3>
+          <UpgradePrompt />
+        </div>
+      )}
 
       {/* Helper Stands */}
       {helperStands.length > 0 && (

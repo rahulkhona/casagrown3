@@ -1,0 +1,217 @@
+/**
+ * sync-facebook-catalog — Syncs active products to Facebook catalogs
+ *
+ * POST /functions/v1/sync-facebook-catalog
+ * Auth: service_role (cron) or user JWT (manual trigger)
+ * Body: { user_id?: string } (optional, for single-user sync)
+ */
+import { serveWithCors, requireAuth, jsonOk, jsonError } from '../_shared/serve-with-cors.ts'
+import { upsertCatalogProducts, deleteCatalogProduct } from '../_shared/facebook.ts'
+
+serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
+  const auth = await requireAuth(req, supabase, corsHeaders)
+  if (auth instanceof Response) return auth
+
+  const body = await req.json().catch(() => ({}))
+  const targetUserId = body.user_id
+
+  // Get all active FB connections with Pro subscriptions
+  let query = supabase
+    .from('seller_fb_connections')
+    .select(`
+      id, user_id, fb_page_access_token, fb_page_id, status, auto_sync_enabled,
+      seller_subscriptions!inner(plan, status)
+    `)
+    .eq('status', 'connected')
+    .eq('auto_sync_enabled', true)
+
+  if (targetUserId) {
+    query = query.eq('user_id', targetUserId)
+  }
+
+  const { data: connections, error: connErr } = await query
+
+  if (connErr) {
+    console.error('Failed to fetch connections:', connErr)
+    return jsonError('Failed to fetch connections', corsHeaders)
+  }
+
+  if (!connections || connections.length === 0) {
+    return jsonOk({ synced: 0, message: 'No active connections' }, corsHeaders)
+  }
+
+  let totalSynced = 0
+  let totalErrors = 0
+
+  for (const conn of connections) {
+    // Verify Pro subscription is active
+    const sub = (conn as any).seller_subscriptions
+    if (!sub || !['active', 'trialing'].includes(sub.status)) continue
+
+    if (!conn.fb_page_access_token || !conn.fb_page_id) continue
+
+    try {
+      // Get booth catalogs for this connection
+      const { data: catalogs } = await supabase
+        .from('booth_fb_catalogs')
+        .select('id, booth_id, fb_catalog_id, sync_enabled')
+        .eq('connection_id', conn.id)
+        .eq('sync_enabled', true)
+
+      let connectionProductCount = 0
+
+      for (const catalog of catalogs || []) {
+        if (!catalog.fb_catalog_id) continue
+
+        // Get active products for this booth
+        const { data: products } = await supabase
+          .from('market_products')
+          .select('id, name, description, price_usd, unit, inventory, category, photos, seller_id')
+          .eq('booth_id', catalog.booth_id)
+          .eq('is_active', true)
+          .eq('is_deleted', false)
+
+        if (!products || products.length === 0) continue
+
+        // Get seller profile for brand name
+        const { data: sellerProfile } = await supabase
+          .from('profiles')
+          .select('full_name, city, zip_code')
+          .eq('id', conn.user_id)
+          .single()
+
+        // Compute content hashes and find changed products
+        const productPayloads = []
+        for (const product of products) {
+          const hash = await computeContentHash(product)
+
+          // Check if content changed
+          const { data: syncRecord } = await supabase
+            .from('product_fb_sync')
+            .select('content_hash')
+            .eq('product_id', product.id)
+            .single()
+
+          if (syncRecord?.content_hash === hash) continue // No change
+
+          const photoUrl = product.photos?.[0] || `${siteUrl}/logo.png`
+
+          productPayloads.push({
+            retailer_id: product.id,
+            name: `${product.name} · ${sellerProfile?.city || ''} ${sellerProfile?.zip_code || ''}`.trim(),
+            description: product.description || product.name,
+            price: Number(product.price_usd),
+            currency: 'USD',
+            url: `${siteUrl}/market/product/${product.id}`,
+            image_url: photoUrl,
+            availability: product.inventory > 0 ? 'in stock' : 'out of stock',
+            brand: sellerProfile?.full_name || 'CasaGrown Seller',
+            condition: 'new',
+            category: product.category || 'Food, Beverages & Tobacco',
+          })
+
+          // Upsert sync record
+          await supabase
+            .from('product_fb_sync')
+            .upsert({
+              product_id: product.id,
+              content_hash: hash,
+              seller_sync_status: 'pending',
+              last_inventory_synced: product.inventory,
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'product_id' })
+        }
+
+        // Batch upsert to Facebook
+        if (productPayloads.length > 0) {
+          try {
+            await upsertCatalogProducts(
+              catalog.fb_catalog_id,
+              productPayloads,
+              conn.fb_page_access_token,
+            )
+
+            // Update sync status to synced
+            for (const p of productPayloads) {
+              await supabase
+                .from('product_fb_sync')
+                .update({
+                  seller_sync_status: 'synced',
+                  seller_synced_at: new Date().toISOString(),
+                  seller_error: null,
+                })
+                .eq('product_id', p.retailer_id)
+            }
+
+            connectionProductCount += productPayloads.length
+          } catch (fbErr: any) {
+            console.error(`FB sync error for catalog ${catalog.fb_catalog_id}:`, fbErr.message)
+
+            // Mark products as errored
+            for (const p of productPayloads) {
+              await supabase
+                .from('product_fb_sync')
+                .update({
+                  seller_sync_status: 'error',
+                  seller_error: fbErr.message,
+                })
+                .eq('product_id', p.retailer_id)
+            }
+
+            await supabase
+              .from('booth_fb_catalogs')
+              .update({ last_error: fbErr.message })
+              .eq('id', catalog.id)
+
+            totalErrors++
+          }
+        }
+
+        // Update catalog stats
+        await supabase
+          .from('booth_fb_catalogs')
+          .update({
+            last_sync_at: new Date().toISOString(),
+            last_sync_count: products.length,
+            last_error: null,
+          })
+          .eq('id', catalog.id)
+      }
+
+      // Update connection stats
+      await supabase
+        .from('seller_fb_connections')
+        .update({
+          last_sync_at: new Date().toISOString(),
+          last_sync_product_count: connectionProductCount,
+          last_error: null,
+        })
+        .eq('id', conn.id)
+
+      totalSynced += connectionProductCount
+    } catch (err: any) {
+      console.error(`Sync failed for connection ${conn.id}:`, err.message)
+      await supabase
+        .from('seller_fb_connections')
+        .update({ last_error: err.message })
+        .eq('id', conn.id)
+      totalErrors++
+    }
+  }
+
+  return jsonOk({
+    synced: totalSynced,
+    errors: totalErrors,
+    connections: connections.length,
+  }, corsHeaders)
+})
+
+/** Compute SHA-256 content hash for change detection */
+async function computeContentHash(product: any): Promise<string> {
+  const data = `${product.name}|${product.description || ''}|${product.price_usd}|${product.inventory}|${(product.photos || []).join(',')}`
+  const encoder = new TextEncoder()
+  const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(data))
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+}

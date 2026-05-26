@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { createClient } from '../lib/supabase'
 import { useAuth } from '../lib/useAuth'
+import { useSubscription } from '../lib/useSubscription'
+import { BotSuggestionBar } from '../app/components/BotSuggestionBar'
 import styles from './OrderChat.module.css'
 
 interface ChatMessage {
@@ -28,11 +30,48 @@ interface OrderChatProps {
 export default function OrderChat({ orderId, otherUserName, otherUserId, myAvatar, otherAvatar, isSeller = false, fulfillmentType = 'pickup', orderStatus = 'pending', onMessageSent, onStatusChange }: OrderChatProps) {
   const supabase = useMemo(() => createClient(), [])
   const { user } = useAuth()
+  const { isPro } = useSubscription()
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [assistLoading, setAssistLoading] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [newMsg, setNewMsg] = useState('')
   const [sending, setSending] = useState(false)
   const [etaMode, setEtaMode] = useState(false)
   const [etaValue, setEtaValue] = useState('')
+
+  // Handle GrowBot Assist manual trigger for Order Chat
+  const handleGrowBotAssist = async () => {
+    if (showSuggestions) {
+      setShowSuggestions(false)
+      return
+    }
+
+    setShowSuggestions(true)
+    setAssistLoading(true)
+    try {
+      const lastBuyerMsg = [...messages].reverse().find(m => m.sender_id === otherUserId)
+      const triggerMsgId = lastBuyerMsg?.id || 'fake-id'
+
+      const { error } = await supabase.functions.invoke('auto-reply-seller-chat', {
+        body: {
+          type: 'order',
+          messageId: triggerMsgId,
+          senderId: otherUserId,
+          recipientId: user?.id,
+          orderId: orderId,
+          isManual: true,
+        }
+      })
+
+      if (error) {
+        console.error('[GROWBOT ASSIST] Trigger error:', error.message)
+      }
+    } catch (err) {
+      console.error('[GROWBOT ASSIST] Invoke failed:', err)
+    } finally {
+      setAssistLoading(false)
+    }
+  }
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -79,6 +118,7 @@ export default function OrderChat({ orderId, otherUserName, otherUserId, myAvata
     setSending(true)
     const content = newMsg.trim()
     setNewMsg('')
+    setShowSuggestions(false)
 
     await supabase.from('order_chat_messages').insert({
       order_id: orderId,
@@ -105,6 +145,7 @@ export default function OrderChat({ orderId, otherUserName, otherUserId, myAvata
   const sendQuickReply = async (text: string, skipNotification = false) => {
     if (!user || sending) return
     setSending(true)
+    setShowSuggestions(false)
     await supabase.from('order_chat_messages').insert({
       order_id: orderId,
       sender_id: user.id,
@@ -244,6 +285,33 @@ export default function OrderChat({ orderId, otherUserName, otherUserId, myAvata
         </div>
       ) : (
         <div className={styles.quickRepliesContainer}>
+          {isSeller && isPro && (
+            <button
+              type="button"
+              disabled={sending || assistLoading}
+              onClick={handleGrowBotAssist}
+              style={{
+                background: showSuggestions
+                  ? 'linear-gradient(135deg, #ecfdf5, #d1fae5)'
+                  : 'linear-gradient(135deg, #f0f9ff, #e0f2fe)',
+                border: showSuggestions ? '1px solid #34d399' : '1px solid #38bdf8',
+                padding: '6px 12px',
+                borderRadius: 9999,
+                fontSize: '11px',
+                color: showSuggestions ? '#065f46' : '#0369a1',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                transition: 'all 0.15s',
+                fontWeight: 600,
+                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                marginRight: 6,
+                display: 'inline-flex',
+                alignItems: 'center',
+              }}
+            >
+              {assistLoading ? '🤖 Thinking...' : '🤖 Suggest Reply'}
+            </button>
+          )}
           {isSeller && fulfillmentType === 'pickup' && orderStatus === 'pending' && (
             <button onClick={async () => {
               await sendQuickReply('Your order is ready for pickup!', true)
@@ -257,6 +325,28 @@ export default function OrderChat({ orderId, otherUserName, otherUserId, myAvata
           {!isSeller && fulfillmentType === 'pickup' && ['pending', 'confirmed'].includes(orderStatus) && (
             <button onClick={() => setEtaMode(true)} className={styles.quickReplyChip}>🚗 On my way to pick up...</button>
           )}
+        </div>
+      )}
+
+      {/* Bot Suggestion Bar */}
+      {isSeller && isPro && showSuggestions && (
+        <div style={{ padding: '0 12px 8px', width: '100%', boxSizing: 'border-box' }}>
+          <BotSuggestionBar
+            channel="order"
+            conversationRef={orderId}
+            isLoading={assistLoading}
+            onSend={(text: string) => {
+              setNewMsg(text)
+              setShowSuggestions(false)
+              setTimeout(() => {
+                const btn = document.querySelector(`.${styles.sendBtn}`) as HTMLButtonElement
+                if (btn) btn.click()
+              }, 50)
+            }}
+            onSelect={(text: string) => {
+              setNewMsg(text)
+            }}
+          />
         </div>
       )}
 

@@ -45,6 +45,9 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
   const { user, isAuthenticated, profileComplete } = useAuth()
   const { isOpen: marketIsOpen, isScheduleOpen, nextOpenDate, loading: marketLoading } = useMarketStatus()
   const autoBuy = searchParams.get('autoBuy') === 'true'
+  // Messenger PSID linking — capture from URL, link to profile for cross-seller memory
+  const fbPsid = searchParams.get('fb_psid')
+  const fbPage = searchParams.get('fb_page')
   const [product, setProduct] = useState<any>(null)
   const [booth, setBooth] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -218,6 +221,17 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
       setShowBuy(true)
     }
   }, [autoBuy, isAuthenticated, product, booth]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Link Messenger PSID to profile for cross-seller bot memory
+  useEffect(() => {
+    if (!fbPsid || !fbPage || !user || isDemo) return
+    supabase.rpc('link_psid_to_profile', {
+      p_user_id: user.id, p_psid: fbPsid, p_page_id: fbPage,
+    }).then(({ error }) => {
+      if (error) console.warn('PSID link failed:', error.message)
+      else console.log(`[PSID] Linked ${fbPsid} to profile ${user.id}`)
+    })
+  }, [fbPsid, fbPage, user, isDemo]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Quarantine check — county-level only
   useEffect(() => {
@@ -1022,6 +1036,15 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
         </div>
       )}
 
+      {/* ── More from this booth ── */}
+      <MoreFromSeller
+        boothId={boothId}
+        boothName={booth.name}
+        sellerId={product.seller_id}
+        currentProductId={productId}
+        isDemo={isDemo}
+      />
+
       {/* Buy Modal — never shown for demo */}
       {showBuy && !isDemo && (
         <BuyModal
@@ -1080,6 +1103,172 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
         shareContext="product_share"
         userId={user?.id}
       />
+    </div>
+  )
+}
+
+/** More from this seller — keeps buyer in the seller's ecosystem */
+function MoreFromSeller({
+  boothId, boothName, sellerId, currentProductId, isDemo,
+}: {
+  boothId: string; boothName: string; sellerId: string;
+  currentProductId: string; isDemo: boolean;
+}) {
+  const supabase = createClient()
+  const [boothProducts, setBoothProducts] = useState<any[]>([])
+  const [otherBooths, setOtherBooths] = useState<any[]>([])
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    if (isDemo) return
+    const load = async () => {
+      // Fetch other products from the SAME booth (exclude current product)
+      const { data: products } = await supabase
+        .from('market_products')
+        .select('id, name, price_usd, unit, photos, inventory, category')
+        .eq('booth_id', boothId)
+        .eq('is_active', true)
+        .eq('is_deleted', false)
+        .neq('id', currentProductId)
+        .order('created_at', { ascending: false })
+        .limit(6)
+
+      if (products) setBoothProducts(products)
+
+      // Fetch other booths by the same seller
+      const { data: booths } = await supabase
+        .from('market_booths')
+        .select('id, name, header_image_url, offers_pickup, offers_delivery, pickup_display_address')
+        .eq('owner_id', sellerId)
+        .eq('is_open', true)
+        .neq('id', boothId)
+        .limit(5)
+
+      if (booths) setOtherBooths(booths)
+      setLoaded(true)
+    }
+    load()
+  }, [boothId, sellerId, currentProductId, isDemo]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!loaded || isDemo) return null
+  if (boothProducts.length === 0 && otherBooths.length === 0) return null
+
+  return (
+    <div style={{ padding: '8px 0 24px' }}>
+      {/* Products from same booth */}
+      {boothProducts.length > 0 && (
+        <div style={{ marginBottom: otherBooths.length > 0 ? 24 : 0 }}>
+          <h3 style={{
+            fontSize: 16, fontWeight: 700, color: 'var(--gray-800, #1f2937)',
+            margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            🏪 More from {boothName || 'this booth'}
+          </h3>
+          <div style={{
+            display: 'flex', gap: 12, overflowX: 'auto',
+            paddingBottom: 4, scrollSnapType: 'x mandatory',
+          }}>
+            {boothProducts.map(p => (
+              <Link
+                key={p.id}
+                href={`/market/booth/${boothId}/product/${p.id}`}
+                style={{
+                  flexShrink: 0, width: 140, scrollSnapAlign: 'start',
+                  textDecoration: 'none', color: 'inherit',
+                }}
+              >
+                <div style={{
+                  width: 140, height: 140, borderRadius: 12, overflow: 'hidden',
+                  background: 'var(--gray-100, #f3f4f6)', marginBottom: 6,
+                }}>
+                  {p.photos?.[0] ? (
+                    <img src={p.photos[0]} alt={p.name}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{
+                      width: '100%', height: '100%', display: 'flex',
+                      alignItems: 'center', justifyContent: 'center', fontSize: 36,
+                    }}>🥬</div>
+                  )}
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--gray-800)', lineHeight: 1.3 }}>
+                  {p.name}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--green-700, #15803d)', fontWeight: 600 }}>
+                  ${Number(p.price_usd).toFixed(2)}/{p.unit}
+                </div>
+                {p.inventory <= 0 && (
+                  <span style={{ fontSize: 10, color: '#ef4444', fontWeight: 600 }}>Sold Out</span>
+                )}
+              </Link>
+            ))}
+          </div>
+          {/* Visit booth link */}
+          <Link
+            href={`/market/booth/${boothId}`}
+            style={{
+              display: 'inline-block', marginTop: 8,
+              fontSize: 13, fontWeight: 600, color: 'var(--green-600, #16a34a)',
+              textDecoration: 'none',
+            }}
+          >
+            View all from {boothName || 'this booth'} →
+          </Link>
+        </div>
+      )}
+
+      {/* Other booths by same seller */}
+      {otherBooths.length > 0 && (
+        <div>
+          <h3 style={{
+            fontSize: 14, fontWeight: 600, color: 'var(--gray-500, #6b7280)',
+            margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.5px',
+          }}>
+            Also sells at
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {otherBooths.map(b => (
+              <Link
+                key={b.id}
+                href={`/market/booth/${b.id}`}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '10px 14px', borderRadius: 12,
+                  border: '1px solid var(--gray-200, #e5e7eb)',
+                  background: '#fff', textDecoration: 'none', color: 'inherit',
+                  transition: 'border-color 0.2s',
+                }}
+              >
+                <div style={{
+                  width: 44, height: 44, borderRadius: 10, overflow: 'hidden',
+                  background: 'var(--gray-100)', flexShrink: 0,
+                }}>
+                  {b.header_image_url ? (
+                    <img src={b.header_image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🏪</div>
+                  )}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--gray-800)' }}>
+                    {b.name}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--gray-500)', display: 'flex', gap: 8 }}>
+                    {b.offers_pickup && <span>📍 Pickup</span>}
+                    {b.offers_delivery && <span>🚗 Delivery</span>}
+                    {b.pickup_display_address && (
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        • {b.pickup_display_address}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <span style={{ color: 'var(--gray-400)', fontSize: 14 }}>→</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

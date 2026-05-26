@@ -54,7 +54,9 @@ export type EmailType =
     | "card_charged"
     | "order_cancelled_seller"
     | "capture_failed"
-    | "dispute_closed";
+    | "dispute_closed"
+    | "subscription_receipt"
+    | "stripe_connect_onboarded";
 
 export interface EmailRecipient {
     email: string;
@@ -132,6 +134,16 @@ export interface NotificationPayload {
     // Dispute closed fields
     disputeWon?: boolean;
     disputeFeeUsd?: number;
+    // Subscription receipt fields
+    subscriptionData?: {
+        planName: string;
+        amount: number;
+        date: string;
+        invoiceId: string;
+        invoiceUrl?: string | null;
+        periodStart?: string | null;
+        periodEnd?: string | null;
+    };
 }
 
 // =============================================================================
@@ -257,6 +269,18 @@ export function renderEmailByType(
             return renderCaptureFailed(payload, recipient);
         case "dispute_closed":
             return renderDisputeClosed(payload, recipient);
+        case "subscription_receipt":
+            return renderSubscriptionReceipt(payload, recipient);
+        case "stripe_connect_onboarded":
+            // Simple acknowledgment — reuse welcome-style template
+            return {
+                subject: "Stripe Connected — Direct Deposits Active | CasaGrown",
+                htmlBody: wrapInBrandedTemplate({
+                    title: "Stripe Connected",
+                    greeting: `Hi ${recipient.name || "there"},`,
+                    bodyHtml: `<p>Your Stripe account has been successfully linked. All future settlements will deposit directly to your bank account.</p>`,
+                }),
+            };
         default:
             return null;
     }
@@ -1555,6 +1579,88 @@ ${actionButton("View Disputes", `${SITE_URL}/disputes`)}`;
                 ? "linear-gradient(135deg, #15803d 0%, #16a34a 50%, #22c55e 100%)"
                 : "linear-gradient(135deg, #991b1b 0%, #dc2626 50%, #ef4444 100%)",
             headerEmoji: emoji,
+        }),
+    };
+}
+
+// =============================================================================
+// (s) Subscription Receipt
+// =============================================================================
+
+function renderSubscriptionReceipt(
+    p: NotificationPayload,
+    r: EmailRecipient,
+): { subject: string; htmlBody: string } {
+    const sub = p.subscriptionData || {
+        planName: 'CasaGrown Pro',
+        amount: 0,
+        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        invoiceId: 'N/A',
+    };
+
+    const greeting = `Hi ${r.name || 'there'},`;
+    const subject = `Payment Receipt — ${sub.planName} | CasaGrown`;
+
+    const invoiceLinkRow = sub.invoiceUrl
+        ? `<tr>
+            <td style="font-size: 12px; color: #6b7280; padding: 2px 0;">Invoice</td>
+            <td style="font-size: 12px; text-align: right; padding: 2px 0;"><a href="${sub.invoiceUrl}" style="color: #16a34a; text-decoration: none;">View on Stripe ↗</a></td>
+           </tr>`
+        : '';
+
+    const periodRow = (sub.periodStart && sub.periodEnd)
+        ? `<tr>
+            <td style="font-size: 12px; color: #6b7280; padding: 2px 0;">Billing Period</td>
+            <td style="font-size: 12px; color: #1f2937; text-align: right; padding: 2px 0;">${sub.periodStart} — ${sub.periodEnd}</td>
+           </tr>`
+        : '';
+
+    const bodyHtml = `
+        <p style="margin: 0 0 16px; font-size: 13px; color: #666; line-height: 1.5;">Your subscription payment has been processed successfully. Here's your receipt.</p>
+
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background: #f0fdf4; border: 1px solid #dcfce7; border-radius: 10px; overflow: hidden; margin-bottom: 16px;">
+          <tr>
+            <td style="padding: 16px 20px;">
+              <p style="margin: 0 0 8px; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">Subscription Receipt</p>
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td style="font-size: 12px; color: #6b7280; padding: 2px 0;">Plan</td>
+                  <td style="font-size: 12px; color: #1f2937; text-align: right; padding: 2px 0;">${sub.planName}</td>
+                </tr>
+                <tr>
+                  <td style="font-size: 12px; color: #6b7280; padding: 2px 0;">Amount</td>
+                  <td style="font-size: 14px; font-weight: 600; color: #16a34a; text-align: right; padding: 2px 0;">$${sub.amount.toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td style="font-size: 12px; color: #6b7280; padding: 2px 0;">Date</td>
+                  <td style="font-size: 12px; color: #1f2937; text-align: right; padding: 2px 0;">${sub.date}</td>
+                </tr>
+                <tr>
+                  <td style="font-size: 12px; color: #6b7280; padding: 2px 0;">Status</td>
+                  <td style="font-size: 12px; color: #16a34a; font-weight: 600; text-align: right; padding: 2px 0;">✅ Paid</td>
+                </tr>
+                <tr>
+                  <td style="font-size: 12px; color: #6b7280; padding: 2px 0;">Invoice ID</td>
+                  <td style="font-size: 12px; color: #1f2937; text-align: right; padding: 2px 0;">${sub.invoiceId}</td>
+                </tr>
+                ${periodRow}
+                ${invoiceLinkRow}
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <p style="margin: 0; font-size: 12px; color: #9ca3af; text-align: center;">Thank you for being a Pro seller! 🌱</p>
+    `;
+
+    return {
+        subject,
+        htmlBody: wrapInBrandedTemplate({
+            title: 'Payment Receipt',
+            greeting,
+            bodyHtml,
+            headerGradient: 'linear-gradient(135deg, #15803d 0%, #16a34a 50%, #22c55e 100%)',
+            headerEmoji: '🧾',
         }),
     };
 }

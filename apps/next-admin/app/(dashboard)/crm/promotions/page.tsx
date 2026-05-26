@@ -26,7 +26,7 @@ const quillModules = {
   ],
 }
 
-const marketUrl = process.env.NODE_ENV === 'development' ? 'http://localhost:3001' : 'https://casagrown.com'
+const marketUrl = process.env.NODE_ENV === 'development' ? 'http://localhost:3002' : 'https://casagrown.com'
 
 type Promotion = {
   id: string
@@ -78,6 +78,7 @@ export default function CrmPromotionsBuilderPage() {
   const [enrolleesPromoName, setEnrolleesPromoName] = useState('')
   const [showEnrollees, setShowEnrollees] = useState(false)
   const [loadingEnrollees, setLoadingEnrollees] = useState(false)
+  const [proSubPrice, setProSubPrice] = useState(10)
 
   const emptyForm = {
     name: '',
@@ -102,7 +103,10 @@ export default function CrmPromotionsBuilderPage() {
     credit_frequency: 'weekly' as 'weekly' | 'monthly' | 'onetime',
     credit_occurrences: '4',
     credit_start_date: new Date().toISOString().split('T')[0],
-    credit_image_url: ''
+    credit_image_url: '',
+    include_sub_discount: false,
+    sub_discount_pct: '25',
+    sub_discount_duration: '' as string,
   }
 
   // Form State
@@ -110,14 +114,16 @@ export default function CrmPromotionsBuilderPage() {
 
   const fetchPromotions = async () => {
     setLoading(true)
-    const [promoRes, lpRes, audRes] = await Promise.all([
+    const [promoRes, lpRes, audRes, settingsRes] = await Promise.all([
       supabase.from('crm_promotions').select('*').order('created_at', { ascending: false }),
       supabase.from('crm_landing_pages').select('id, title, slug').eq('is_active', true),
-      supabase.from('crm_audiences').select('id, name, estimated_count').order('name')
+      supabase.from('crm_audiences').select('id, name, estimated_count').order('name'),
+      supabase.from('platform_settings').select('pro_monthly_price_usd').limit(1).single()
     ])
     setPromotions((promoRes.data as Promotion[]) ?? [])
     setLandingPages((lpRes.data as LandingPage[]) ?? [])
     setAudiences((audRes.data as Audience[]) ?? [])
+    if (settingsRes.data?.pro_monthly_price_usd) setProSubPrice(settingsRes.data.pro_monthly_price_usd)
     setLoading(false)
   }
 
@@ -196,12 +202,14 @@ export default function CrmPromotionsBuilderPage() {
     const { data: promo, error } = await supabase.from('crm_promotions').select(`
       *,
       crm_promo_giveaways (*),
-      crm_recurring_user_incentives_blueprint (*)
+      crm_recurring_user_incentives_blueprint (*),
+      crm_promo_subscription_discounts (*)
     `).eq('id', id).single()
     
     if (promo && !error) {
       const gw = Array.isArray(promo.crm_promo_giveaways) ? promo.crm_promo_giveaways[0] : promo.crm_promo_giveaways
       const cred = Array.isArray(promo.crm_recurring_user_incentives_blueprint) ? promo.crm_recurring_user_incentives_blueprint[0] : promo.crm_recurring_user_incentives_blueprint
+      const subDisc = Array.isArray(promo.crm_promo_subscription_discounts) ? promo.crm_promo_subscription_discounts[0] : promo.crm_promo_subscription_discounts
       
       const deadline = new Date(promo.enrollment_deadline)
       const now = new Date()
@@ -248,7 +256,10 @@ export default function CrmPromotionsBuilderPage() {
         credit_frequency: cred?.frequency || 'weekly',
         credit_occurrences: cred?.occurrences?.toString() || '4',
         credit_start_date: cred?.start_date ? new Date(cred.start_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-        credit_image_url: cred?.image_url || ''
+        credit_image_url: cred?.image_url || '',
+        include_sub_discount: !!subDisc,
+        sub_discount_pct: subDisc?.discount_pct?.toString() || '25',
+        sub_discount_duration: subDisc?.duration_months?.toString() || '',
       })
       
       setPromoLinks([])  // reset tracked links list for this promotion
@@ -401,6 +412,26 @@ export default function CrmPromotionsBuilderPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'delete_credits', promotion_id: promoId }),
+        })
+      }
+
+      // Pro Subscription Discount UPSERT or DELETE via API
+      if (form.include_sub_discount) {
+        await fetch('/api/crm/promotions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'upsert_sub_discount',
+            promotion_id: promoId,
+            discount_pct: parseInt(form.sub_discount_pct),
+            duration_months: form.sub_discount_duration ? parseInt(form.sub_discount_duration) : null,
+          }),
+        })
+      } else if (editingId) {
+        await fetch('/api/crm/promotions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'delete_sub_discount', promotion_id: promoId }),
         })
       }
 
@@ -735,6 +766,49 @@ export default function CrmPromotionsBuilderPage() {
                   <input type="file" accept="image/*" onChange={handleCreditImageUpload} disabled={uploadingCreditImage} style={{ flex: 1, padding: 8, background: 'white' }} />
                   {uploadingCreditImage && <span className="crm-muted" style={{ fontSize: '0.85rem', fontWeight: 600 }}>Uploading...</span>}
                 </div>
+              </div>
+            </div>
+          )}
+
+          <hr className="divider" />
+
+          {/* Section 4: Pro Subscription Discount */}
+          <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>4. Pro Subscription Discount</span>
+            <button
+                type="button"
+                className={`crm-toggle ${form.include_sub_discount ? 'active' : ''}`}
+                onClick={() => setForm(f => ({ ...f, include_sub_discount: !f.include_sub_discount }))}
+                style={{ margin: 0, padding: '4px 8px', fontSize: '0.8rem' }}
+              >
+                <span className="toggle-dot" style={{ width: 14, height: 14 }} />
+                <span>{form.include_sub_discount ? 'Included' : 'Disabled'}</span>
+            </button>
+          </div>
+
+          {form.include_sub_discount && (
+            <div className="crm-form-grid" style={{ background: '#faf5ff', padding: 16, borderRadius: 8, border: '1px solid #e9d5ff' }}>
+               <div className="crm-field">
+                <label>Discount Percentage *</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input type="number" min="1" max="100" value={form.sub_discount_pct} onChange={e => setForm(f => ({...f, sub_discount_pct: e.target.value}))} style={{ width: 120 }} />
+                  <span style={{ color: '#6b7280', fontWeight: 600 }}>% off</span>
+                </div>
+                {form.sub_discount_pct && parseInt(form.sub_discount_pct) > 0 && (
+                  <div style={{ marginTop: 8, padding: '10px 14px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #bbf7d0' }}>
+                    <span style={{ fontSize: '0.95rem', fontWeight: 600, color: '#166534' }}>
+                      💰 {form.sub_discount_pct}% off = ${(proSubPrice * (1 - parseInt(form.sub_discount_pct) / 100)).toFixed(2)}/mo
+                    </span>
+                    <span style={{ fontSize: '0.85rem', color: '#6b7280', marginLeft: 8 }}>
+                      (saves ${(proSubPrice * parseInt(form.sub_discount_pct) / 100).toFixed(2)}/mo off regular ${proSubPrice.toFixed(2)}/mo)
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div className="crm-field">
+                <label>Duration (months)</label>
+                <input type="number" min="1" placeholder="Leave blank for perpetual" value={form.sub_discount_duration} onChange={e => setForm(f => ({...f, sub_discount_duration: e.target.value}))} />
+                <p style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: 4 }}>How many months the discount lasts. Blank = forever.</p>
               </div>
             </div>
           )}

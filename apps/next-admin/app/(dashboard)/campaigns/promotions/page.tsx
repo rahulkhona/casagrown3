@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { YStack, XStack, Text, Button, ScrollView, Separator, Checkbox, Spinner, Input, TextArea, Label } from 'tamagui'
-import { Plus, Check, X, Gift, CreditCard, Link as LinkIcon, Trash2 } from '@tamagui/lucide-icons'
+import { Plus, Check, X, Gift, CreditCard, Link as LinkIcon, Trash2, Tag } from '@tamagui/lucide-icons'
 import { adminApi } from '../../../../lib/adminApi'
 import { colors } from '@casagrown/app/design-tokens'
 
@@ -24,6 +24,12 @@ type PromoCredits = {
   start_date: string
 }
 
+type PromoSubDiscount = {
+  id: string
+  discount_pct: number
+  duration_months: number | null
+}
+
 type Promotion = {
   id: string
   name: string
@@ -34,6 +40,7 @@ type Promotion = {
   created_at: string
   giveaway?: PromoGiveaway
   credits?: PromoCredits
+  subDiscount?: PromoSubDiscount
 }
 
 export default function PromotionsPage() {
@@ -55,6 +62,7 @@ export default function PromotionsPage() {
   // Toggles
   const [hasGiveaway, setHasGiveaway] = useState(false)
   const [hasCredits, setHasCredits] = useState(false)
+  const [hasSubDiscount, setHasSubDiscount] = useState(false)
   const [createLandingPage, setCreateLandingPage] = useState(true)
 
   // Giveaway
@@ -70,6 +78,11 @@ export default function PromotionsPage() {
   const [crOccurrences, setCrOccurrences] = useState('1')
   const [crStart, setCrStart] = useState('')
 
+  // Subscription Discount
+  const [sdPct, setSdPct] = useState('25')
+  const [sdDuration, setSdDuration] = useState('3')
+  const [sdPerpetual, setSdPerpetual] = useState(false)
+
   const fetchPromotions = async () => {
     setLoading(true)
     try {
@@ -81,14 +94,17 @@ export default function PromotionsPage() {
         
         const { data: gws } = await adminApi.select('crm_promo_giveaways', '*', { in: { promotion_id: ids } })
         const { data: crs } = await adminApi.select('crm_recurring_user_incentives_blueprint', '*', { in: { promotion_id: ids } })
+        const { data: sds } = await adminApi.select('crm_promo_subscription_discounts', '*', { in: { promotion_id: ids } })
 
         const gwMap = (gws as any[] || []).reduce((acc, curr) => ({ ...acc, [curr.promotion_id]: curr }), {})
         const crMap = (crs as any[] || []).reduce((acc, curr) => ({ ...acc, [curr.promotion_id]: curr }), {})
+        const sdMap = (sds as any[] || []).reduce((acc, curr) => ({ ...acc, [curr.promotion_id]: curr }), {})
 
         const formatted = (promos as any[]).map(p => ({
           ...p,
           giveaway: gwMap[p.id],
-          credits: crMap[p.id]
+          credits: crMap[p.id],
+          subDiscount: sdMap[p.id]
         }))
         setPromotions(formatted)
       } else {
@@ -105,7 +121,7 @@ export default function PromotionsPage() {
 
   const handleCreate = async () => {
     if (!name || !deadline || !maxEnrollees) { setErrorMsg('Fill out all base fields.'); return }
-    if (!hasGiveaway && !hasCredits) { setErrorMsg('You must enable at least one offer (Giveaway or Credits).'); return }
+    if (!hasGiveaway && !hasCredits && !hasSubDiscount) { setErrorMsg('You must enable at least one offer (Giveaway, Credits, or Subscription Discount).'); return }
     
     setSubmitting(true)
     setErrorMsg('')
@@ -144,6 +160,16 @@ export default function PromotionsPage() {
           start_date: new Date(crStart).toISOString()
         })
         if (crErr) throw new Error(crErr)
+      }
+
+      // 3b. Create Subscription Discount if enabled
+      if (hasSubDiscount) {
+        const { error: sdErr } = await adminApi.insert('crm_promo_subscription_discounts', {
+          promotion_id: promoId,
+          discount_pct: parseInt(sdPct),
+          duration_months: sdPerpetual ? null : parseInt(sdDuration)
+        })
+        if (sdErr) throw new Error(sdErr)
       }
 
       // 4. Create CRM Campaign and Landing Page if enabled
@@ -195,6 +221,7 @@ export default function PromotionsPage() {
     setMaxEnrollees('100')
     setHasGiveaway(false)
     setHasCredits(false)
+    setHasSubDiscount(false)
     setCreateLandingPage(true)
     setGwStart('')
     setGwEnd('')
@@ -202,6 +229,9 @@ export default function PromotionsPage() {
     setCrCapValue('')
     setCrOccurrences('1')
     setCrStart('')
+    setSdPct('25')
+    setSdDuration('3')
+    setSdPerpetual(false)
     setErrorMsg('')
   }
 
@@ -348,6 +378,48 @@ export default function PromotionsPage() {
             )}
           </YStack>
 
+          {/* Subscription Discount Toggle & Form */}
+          <YStack backgroundColor={hasSubDiscount ? '#faf5ff' : colors.gray[50]} padding="$4" borderRadius="$3" borderWidth={1} borderColor={hasSubDiscount ? '#e9d5ff' : colors.gray[200]} gap="$3">
+            <XStack alignItems="center" gap="$3">
+              <Checkbox size="$5" checked={hasSubDiscount} onCheckedChange={(c) => setHasSubDiscount(!!c)} backgroundColor={hasSubDiscount ? '#a855f7' : 'white'}>
+                <Checkbox.Indicator><Check size={18} color="white" /></Checkbox.Indicator>
+              </Checkbox>
+              <Tag size={20} color={hasSubDiscount ? '#7e22ce' : colors.gray[400]} />
+              <Text fontWeight="600" color={hasSubDiscount ? '#581c87' : colors.gray[500]}>Enable Pro Subscription Discount</Text>
+            </XStack>
+            
+            {hasSubDiscount && (
+              <YStack gap="$3" marginTop="$2">
+                <XStack gap="$3" alignItems="flex-end">
+                  <YStack gap="$1" flex={1}>
+                    <Label>Discount (%)</Label>
+                    <Input keyboardType="numeric" value={sdPct} onChangeText={setSdPct} placeholder="25" />
+                  </YStack>
+                  <YStack gap="$1" flex={2}>
+                    <Label>Duration</Label>
+                    <XStack gap="$3" alignItems="center">
+                      <XStack alignItems="center" gap="$2" opacity={sdPerpetual ? 0.4 : 1}>
+                        <Input keyboardType="numeric" value={sdDuration} onChangeText={setSdDuration} placeholder="3" width={80} disabled={sdPerpetual} />
+                        <Text fontSize={14} color={colors.gray[600]}>months</Text>
+                      </XStack>
+                      <XStack alignItems="center" gap="$2">
+                        <Checkbox size="$4" checked={sdPerpetual} onCheckedChange={(c) => setSdPerpetual(!!c)} backgroundColor={sdPerpetual ? '#a855f7' : 'white'}>
+                          <Checkbox.Indicator><Check size={14} color="white" /></Checkbox.Indicator>
+                        </Checkbox>
+                        <Text fontSize={14} fontWeight="500" color={colors.gray[700]}>Forever</Text>
+                      </XStack>
+                    </XStack>
+                  </YStack>
+                </XStack>
+                <YStack backgroundColor="#f3e8ff" padding="$3" borderRadius="$2" borderWidth={1} borderColor="#e9d5ff">
+                  <Text fontSize={13} color="#6b21a8" fontWeight="500">
+                    {'💰 Preview: $10/mo → $' + (10 * (1 - parseInt(sdPct || '0') / 100)).toFixed(2) + '/mo' + (sdPerpetual ? ' forever' : ` for ${sdDuration || '?'} months, then $10/mo`)}
+                  </Text>
+                </YStack>
+              </YStack>
+            )}
+          </YStack>
+
           <Text fontSize="$5" fontWeight="600" color={colors.gray[800]} borderBottomWidth={1} borderColor={colors.gray[200]} paddingBottom="$3" marginTop="$4">
             3. Delivery
           </Text>
@@ -407,6 +479,14 @@ export default function PromotionsPage() {
                       <XStack backgroundColor={colors.green[50]} paddingHorizontal="$2" paddingVertical="$1" borderRadius="$2" alignSelf="flex-start" alignItems="center" gap="$2">
                         <CreditCard size={14} color={colors.green[700]} />
                         <Text fontSize={12} fontWeight="600" color={colors.green[800]}>${promo.credits.amount_usd} {promo.credits.frequency}</Text>
+                      </XStack>
+                    )}
+                    {promo.subDiscount && (
+                      <XStack backgroundColor="#faf5ff" paddingHorizontal="$2" paddingVertical="$1" borderRadius="$2" alignSelf="flex-start" alignItems="center" gap="$2">
+                        <Tag size={14} color="#7e22ce" />
+                        <Text fontSize={12} fontWeight="600" color="#581c87">
+                          {promo.subDiscount.discount_pct}% off Pro{promo.subDiscount.duration_months ? ` for ${promo.subDiscount.duration_months}mo` : ' forever'}
+                        </Text>
                       </XStack>
                     )}
                   </YStack>

@@ -27,7 +27,9 @@ export default function MessagesInboxPage() {
 
     const fetchInbox = async () => {
       const supabase = createClient()
-      const { data, error } = await supabase
+
+      // Fetch CasaGrown DMs
+      const { data } = await supabase
         .from('market_conversations')
         .select(`
           id,
@@ -45,10 +47,27 @@ export default function MessagesInboxPage() {
         .order('created_at', { ascending: false, foreignTable: 'market_chat_messages' })
         .limit(1, { foreignTable: 'market_chat_messages' })
 
+      // Fetch Messenger conversations for this seller
+      const { data: messengerData } = await supabase
+        .from('messenger_conversations')
+        .select(`
+          id,
+          fb_sender_id,
+          last_message_at,
+          message_count,
+          messenger_messages(content, created_at, role)
+        `)
+        .eq('seller_id', user.id)
+        .order('last_message_at', { ascending: false })
+        .order('created_at', { ascending: false, foreignTable: 'messenger_messages' })
+        .limit(1, { foreignTable: 'messenger_messages' })
+
+      let gbPreview = 'Ask me anything about gardening! 🌱'
+      const allConversations: any[] = []
+
+      // Format CasaGrown DMs
       if (data) {
-        let gbPreview = 'Ask me anything about gardening! 🌱'
-        
-        const formatted = data.map(conv => {
+        for (const conv of data) {
           const isA = conv.participant_a === user.id
           const otherProfile = (isA ? conv.profile_b : conv.profile_a) as any
           const unreadCount = isA ? conv.unread_count_a : conv.unread_count_b
@@ -70,17 +89,44 @@ export default function MessagesInboxPage() {
              gbPreview = previewText
           }
 
-          return {
+          allConversations.push({
             id: conv.id,
             otherUser: otherProfile,
             lastMessageAt: new Date(conv.last_message_at),
             unreadCount,
-            preview: previewText
-          }
-        })
-        setGrowBotPreview(gbPreview)
-        setConversations(formatted)
+            preview: previewText,
+            channel: 'dm' as const,
+          })
+        }
       }
+
+      // Format Messenger conversations
+      if (messengerData) {
+        for (const mc of messengerData) {
+          const msgs = mc.messenger_messages || []
+          msgs.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          const lastMsg = msgs.length > 0 ? msgs[0] : null
+
+          allConversations.push({
+            id: mc.id,
+            otherUser: {
+              id: mc.fb_sender_id,
+              full_name: mc.fb_sender_id ? `FB User ${mc.fb_sender_id.slice(-4)}` : 'Facebook Customer',
+              avatar_url: null,
+            },
+            lastMessageAt: new Date(mc.last_message_at),
+            unreadCount: 0,
+            preview: lastMsg?.content || 'No messages yet',
+            channel: 'messenger' as const,
+          })
+        }
+      }
+
+      // Sort merged list by last_message_at DESC
+      allConversations.sort((a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime())
+
+      setGrowBotPreview(gbPreview)
+      setConversations(allConversations)
       setLoading(false)
     }
 
@@ -160,13 +206,15 @@ export default function MessagesInboxPage() {
           </div>
         ) : (
           conversations
-            .filter(c => c.otherUser?.id !== 'a0000000-0000-0000-0000-00000ca5ab07')
+            .filter(c => c.channel === 'messenger' || c.otherUser?.id !== 'a0000000-0000-0000-0000-00000ca5ab07')
             .filter(c => !filterQuery.trim() || c.otherUser?.full_name?.toLowerCase().includes(filterQuery.toLowerCase()))
             .map(conv => (
-            <li key={conv.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-              <Link href={`/messages/${conv.id}`} style={{ display: 'flex', padding: '16px', textDecoration: 'none', color: 'inherit', alignItems: 'center', background: conv.unreadCount > 0 ? '#ecfdf5' : 'white', transition: 'background 0.2s' }}>
-                <div style={{ width: 48, height: 48, borderRadius: '50%', backgroundColor: '#e5e7eb', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#9ca3af', marginRight: 16 }}>
-                  {conv.otherUser?.avatar_url ? (
+            <li key={`${conv.channel}-${conv.id}`} style={{ borderBottom: '1px solid #f3f4f6' }}>
+              <Link href={conv.channel === 'messenger' ? `/messages/messenger/${conv.id}` : `/messages/${conv.id}`} style={{ display: 'flex', padding: '16px', textDecoration: 'none', color: 'inherit', alignItems: 'center', background: conv.unreadCount > 0 ? '#ecfdf5' : 'white', transition: 'background 0.2s' }}>
+                <div style={{ width: 48, height: 48, borderRadius: '50%', backgroundColor: conv.channel === 'messenger' ? '#e7f0ff' : '#e5e7eb', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: conv.channel === 'messenger' ? '#1877F2' : '#9ca3af', marginRight: 16, fontSize: conv.channel === 'messenger' ? '20px' : 'inherit' }}>
+                  {conv.channel === 'messenger' ? (
+                    '📱'
+                  ) : conv.otherUser?.avatar_url ? (
                     <img src={conv.otherUser.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
                     conv.otherUser?.full_name?.charAt(0).toUpperCase() || '?'
@@ -174,8 +222,11 @@ export default function MessagesInboxPage() {
                 </div>
                 <div style={{ flexGrow: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-                    <span style={{ fontWeight: conv.unreadCount > 0 ? '700' : '600', color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <span style={{ fontWeight: conv.unreadCount > 0 ? '700' : '600', color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: 6 }}>
                       {conv.otherUser?.full_name || 'Neighbor'}
+                      {conv.channel === 'messenger' && (
+                        <span style={{ fontSize: 10, background: '#1877F2', color: 'white', padding: '2px 6px', borderRadius: 8, fontWeight: 700, whiteSpace: 'nowrap' }}>📱 Messenger</span>
+                      )}
                     </span>
                     <span style={{ fontSize: '0.75rem', color: conv.unreadCount > 0 ? '#10b981' : '#9ca3af', flexShrink: 0, marginLeft: 8 }}>
                       {conv.lastMessageAt.toLocaleDateString([], { month: 'short', day: 'numeric' })}

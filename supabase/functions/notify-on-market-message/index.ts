@@ -108,6 +108,22 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
         console.warn(`⚠️ notify-on-market-message: Failed to trigger Email fallback: ${err}`);
     }
 
+    // 8. Trigger GrowBot auto-reply (copilot for Pro sellers)
+    try {
+        await supabase.functions.invoke('auto-reply-seller-chat', {
+            body: {
+                type: 'order',
+                messageId,
+                senderId,
+                recipientId,
+                orderId,
+            },
+        });
+        console.log(`🤖 Auto-reply triggered for order chat ${orderId}`);
+    } catch (botErr: any) {
+        console.warn(`⚠️ Auto-reply trigger failed: ${botErr.message}`);
+    }
+
     console.log(
         `📬 Market chat notification: ${senderName} → ${recipientId} (order ${orderId})`,
     );

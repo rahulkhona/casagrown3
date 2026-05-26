@@ -10,6 +10,8 @@ import CameraCapture from '../../../../components/CameraCapture'
 import ImageCropper from '../../../../components/ImageCropper'
 import { BlockModal } from '../../../components/BlockModal'
 import { ShareIcon } from '../../../components/icons'
+import { BotSuggestionBar } from '../../../components/BotSuggestionBar'
+import { useSubscription } from '../../../../lib/useSubscription'
 import DynamicUICardRenderer from '../../../components/casabot/DynamicUICards'
 function formatTime(dateStr: string) {
   const d = new Date(dateStr)
@@ -98,6 +100,9 @@ export default function MessageThreadPage() {
   const [myRole, setMyRole] = useState<'participant_a' | 'participant_b' | null>(null)
   const [otherUser, setOtherUser] = useState<any>(null)
   const [errorToast, setErrorToast] = useState<string | null>(null)
+  const { isPro } = useSubscription()
+  const [assistLoading, setAssistLoading] = useState(false)
+  const [showSuggestions, setShowSuggestions] = useState(false)
   const [isBlocked, setIsBlocked] = useState(false)
   const [showBlockModal, setShowBlockModal] = useState(false)
   const [unblockLoading, setUnblockLoading] = useState(false)
@@ -132,6 +137,45 @@ export default function MessageThreadPage() {
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  }
+
+  // Guarantee chronological order — Postgres can return ties in arbitrary order
+  const sortByTime = (msgs: any[]) =>
+    [...msgs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime() || a.id.localeCompare(b.id))
+
+  // Handle GrowBot Assist manual trigger
+  const handleGrowBotAssist = async () => {
+    if (showSuggestions) {
+      setShowSuggestions(false)
+      return
+    }
+
+    setShowSuggestions(true)
+    setAssistLoading(true)
+    try {
+      const supabase = createClient()
+      const lastBuyerMsg = [...messages].reverse().find(m => m.sender_id === otherUser?.id)
+      const triggerMsgId = lastBuyerMsg?.id || 'fake-id'
+
+      const { error } = await supabase.functions.invoke('auto-reply-seller-chat', {
+        body: {
+          type: 'dm',
+          messageId: triggerMsgId,
+          senderId: otherUser?.id,
+          recipientId: user?.id,
+          conversationId: id,
+          isManual: true,
+        }
+      })
+
+      if (error) {
+        console.error('[GROWBOT ASSIST] Trigger error:', error.message)
+      }
+    } catch (err) {
+      console.error('[GROWBOT ASSIST] Invoke failed:', err)
+    } finally {
+      setAssistLoading(false)
+    }
   }
 
   // File handling helpers
@@ -248,9 +292,10 @@ export default function MessageThreadPage() {
         .order('created_at', { ascending: true })
 
       if (isMounted && msgData) {
+        const sorted = sortByTime(msgData)
         setMessages(prev => {
-          if (prev.length < msgData.length) setTimeout(scrollToBottom, 150)
-          return msgData
+          if (prev.length < sorted.length) setTimeout(scrollToBottom, 150)
+          return sorted
         })
         // Always bounce to bottom when opening the chat cold
         if (loading) setTimeout(scrollToBottom, 150)
@@ -292,6 +337,38 @@ export default function MessageThreadPage() {
     }
   }, [loading, messages.length, otherUser?.id, id, user?.id])
 
+  // --- 📡 Seller Real-time Presence Heartbeat ---
+  useEffect(() => {
+    if (!user || id === 'growbot' || loading || authLoading) return
+
+    const supabase = createClient()
+    const updatePresence = async () => {
+      if (document.visibilityState !== 'visible') return
+      await supabase
+        .from('market_conversations')
+        .update({ seller_last_active_at: new Date().toISOString() })
+        .eq('id', id)
+    }
+
+    // Initial update
+    updatePresence()
+
+    // Heartbeat interval every 5 seconds
+    const interval = setInterval(updatePresence, 5000)
+
+    const handleVis = () => {
+      if (document.visibilityState === 'visible') {
+        updatePresence()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVis)
+
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVis)
+    }
+  }, [user, id, loading, authLoading])
+
   // --- 📡 WebSockets: Postgres Sync, Presence & Typing Broadcast ---
   useEffect(() => {
     if (!user || !otherUser || authLoading) return
@@ -318,9 +395,10 @@ export default function MessageThreadPage() {
                 .order('created_at', { ascending: true })
                 .then(({ data }) => {
                    if (data && isActiveTabRef.current) {
+                      const sorted = sortByTime(data)
                       setMessages(prev => {
-                         if (prev.length < data.length) setTimeout(scrollToBottom, 50)
-                         return data
+                         if (prev.length < sorted.length) setTimeout(scrollToBottom, 50)
+                         return sorted
                       })
                       clearUnreadCount(supabase, myRole || '')
                    }
@@ -340,12 +418,32 @@ export default function MessageThreadPage() {
         if (payload?.user_id !== user.id) {
            setIsOtherTyping(payload.isTyping)
            if (payload.isTyping) {
-              if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
-              // Auto-clear typing indicator if they close app abruptly
-              typingTimeoutRef.current = setTimeout(() => setIsOtherTyping(false), 4000)
+               if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
+               // Auto-clear typing indicator if they close app abruptly
+               // Bot replies take 5-15s so give them a 30s window; humans get 4s
+               const autoClrMs = otherUser?.id === 'a0000000-0000-0000-0000-00000ca5ab07' ? 30000 : 4000
+               typingTimeoutRef.current = setTimeout(() => setIsOtherTyping(false), autoClrMs)
               setTimeout(scrollToBottom, 50)
            }
         }
+      })
+
+      // 4. Bot Reply (instant fetch — faster than Postgres Realtime)
+      newChannel.on('broadcast', { event: 'bot_reply' }, () => {
+        setIsOtherTyping(false)
+        supabase.from('market_chat_messages')
+          .select(`*, offer_product:market_products(id, name, price_usd, photos, unit, seller_id), market_chat_reactions(user_id, emoji)`)
+          .eq('conversation_id', id)
+          .order('created_at', { ascending: true })
+          .then(({ data }) => {
+            if (data && isActiveTabRef.current) {
+              const sorted = sortByTime(data)
+              setMessages(prev => {
+                if (prev.length < sorted.length) setTimeout(scrollToBottom, 50)
+                return sorted
+              })
+            }
+          })
       })
 
       channelRef.current = newChannel
@@ -381,7 +479,7 @@ export default function MessageThreadPage() {
            .order('created_at', { ascending: true })
            .then(({ data }) => {
               if (data && isActiveTabRef.current) {
-                 setMessages(data)
+                 setMessages(sortByTime(data))
                  setTimeout(scrollToBottom, 150)
               }
            })
@@ -497,12 +595,13 @@ export default function MessageThreadPage() {
     setMediaFiles([])
     setMediaPreviews([])
     setReplyingToMessage(null)
+    setShowSuggestions(false)
     setSending(false)
     
     // Optimistic refresh
     const { data: fetchNew } = await supabase.from('market_chat_messages').select('*, offer_product:market_products(id, name, price_usd, photos, unit, seller_id), market_chat_reactions(user_id, emoji)').eq('conversation_id', id).order('created_at', { ascending: true })
     if (fetchNew) {
-      setMessages(fetchNew)
+      setMessages(sortByTime(fetchNew))
       setTimeout(scrollToBottom, 150)
     }
 
@@ -534,7 +633,7 @@ export default function MessageThreadPage() {
              const { data } = await supabase.from('market_chat_messages')
                .select('*, offer_product:market_products(id, name, price_usd, photos, unit, seller_id), market_chat_reactions(user_id, emoji)')
                .eq('conversation_id', id).order('created_at', { ascending: true });
-             if (data) { setMessages(data); setTimeout(scrollToBottom, 150); }
+             if (data) { setMessages(sortByTime(data)); setTimeout(scrollToBottom, 150); }
            }).catch((e: any) => console.error('GrowBot invoke error', e))
            .finally(() => setIsOtherTyping(false));
 
@@ -547,7 +646,7 @@ export default function MessageThreadPage() {
                .eq('conversation_id', id).order('created_at', { ascending: true });
              if (data && data.length > (history.length + 1)) {
                // New message arrived
-               setMessages(data);
+               setMessages(sortByTime(data));
                setIsOtherTyping(false);
                setTimeout(scrollToBottom, 150);
                clearInterval(poll);
@@ -631,7 +730,7 @@ export default function MessageThreadPage() {
       offer_product_id: productId
     })
     const { data: fetchNew } = await supabase.from('market_chat_messages').select('*, offer_product:market_products(id, name, price_usd, photos, unit, seller_id)').eq('conversation_id', id).order('created_at', { ascending: true })
-    if (fetchNew) setMessages(fetchNew)
+    if (fetchNew) setMessages(sortByTime(fetchNew))
     setTimeout(scrollToBottom, 50)
   }
 
@@ -942,6 +1041,39 @@ export default function MessageThreadPage() {
          </div>
       )}
 
+      {/* Bot Suggestion Bar — copilot mode for Pro sellers */}
+      {otherUser?.id !== 'a0000000-0000-0000-0000-00000ca5ab07' && myRole && showSuggestions && (
+        <div style={{ padding: '0 16px' }}>
+          <BotSuggestionBar
+            channel="dm"
+            conversationRef={id}
+            isLoading={assistLoading}
+            onSend={(text: string) => {
+              setInputText(text)
+              setShowSuggestions(false)
+              setTimeout(() => {
+                const form = document.querySelector('.chat-form')
+                if (form) {
+                  form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }))
+                }
+              }, 50)
+            }}
+            onSelect={(text: string) => {
+              setInputText(text)
+              if (inputRef.current) {
+                inputRef.current.focus()
+                setTimeout(() => {
+                  if (inputRef.current) {
+                    inputRef.current.selectionStart = text.length
+                    inputRef.current.selectionEnd = text.length
+                  }
+                }, 50)
+              }
+            }}
+          />
+        </div>
+      )}
+
       {/* Compose Footer */}
       <footer style={{ background: 'white', padding: '12px 16px', borderTop: (mediaPreviews.length > 0 || replyingToMessage) ? 'none' : '1px solid #e5e7eb', zIndex: 10, position: 'relative' }}>
         {/* Action Chips Row — above compose, Buzz-consistent */}
@@ -1000,6 +1132,32 @@ export default function MessageThreadPage() {
               }}>
               &#x1f91d; Request Help
             </button>
+            {isPro && (
+              <button
+                type="button"
+                disabled={uploadingMedia || sending || assistLoading}
+                onClick={handleGrowBotAssist}
+                style={{
+                  flexShrink: 0,
+                  background: showSuggestions
+                    ? 'linear-gradient(135deg, #ecfdf5, #d1fae5)'
+                    : 'linear-gradient(135deg, #f0f9ff, #e0f2fe)',
+                  border: showSuggestions ? '1px solid #34d399' : '1px solid #38bdf8',
+                  padding: '6px 12px',
+                  borderRadius: 9999,
+                  fontSize: '0.8rem',
+                  color: showSuggestions ? '#065f46' : '#0369a1',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.15s',
+                  fontWeight: 600,
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                  opacity: uploadingMedia || sending || assistLoading ? 0.5 : 1,
+                }}
+              >
+                {assistLoading ? '🤖 Thinking...' : '🤖 Suggest Reply'}
+              </button>
+            )}
           </div>
         )}
         {(otherUser?.closure_status != null || otherUser?.full_name === 'Deleted User') ? (

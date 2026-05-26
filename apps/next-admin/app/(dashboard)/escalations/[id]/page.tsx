@@ -122,6 +122,7 @@ export default function EscalationDetailPage() {
   const [detail, setDetail] = useState<EscalationRpcResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [sellerIsPro, setSellerIsPro] = useState(false)
 
   // Resolution form state
   const [resolutionType, setResolutionType] = useState<ResolutionType>('no_action')
@@ -148,9 +149,27 @@ export default function EscalationDetailPage() {
       if (res.data?.error) {
         setError(res.data.error)
       } else if (res.data) {
-        setDetail(res.data as EscalationRpcResponse)
+        const detail = res.data as EscalationRpcResponse
+        setDetail(detail)
         // Mark as viewed
         adminApi.rpc('admin_view_escalation', { p_dispute_id: disputeId })
+
+        // Check if seller is a Pro subscriber
+        if (detail.seller?.id) {
+          const subRes = await adminApi.select(
+            'seller_subscriptions',
+            'plan, status',
+            { eq: { seller_id: detail.seller.id }, in: { status: ['active', 'trialing'] } },
+            { limit: 1, single: true }
+          )
+          const isPro = !!(subRes.data && (subRes.data as any).plan === 'pro')
+          setSellerIsPro(isPro)
+          // Auto-default to purchase credits for Pro sellers
+          if (isPro) {
+            setCreditType('purchase')
+            setSecondaryCreditType('purchase')
+          }
+        }
       }
     } catch (err) {
       setError('Failed to load escalation details')
@@ -714,6 +733,30 @@ export default function EscalationDetailPage() {
             <YStack backgroundColor="white" borderWidth={1} borderColor="#E5E7EB" borderRadius={12} padding="$4" gap="$3">
               <Text fontSize={16} fontWeight="700" color="#374151">⚖️ Resolution</Text>
               <Separator />
+
+              {/* Pro Seller Banner */}
+              {sellerIsPro && (
+                <XStack
+                  backgroundColor="#FEF3C7"
+                  borderWidth={1}
+                  borderColor="#F59E0B"
+                  borderRadius={8}
+                  padding="$3"
+                  gap="$2"
+                  alignItems="flex-start"
+                >
+                  <Text fontSize={18}>⭐</Text>
+                  <YStack flex={1}>
+                    <Text fontSize={13} fontWeight="700" color="#92400E">
+                      Pro Seller — Reduced Platform Fees
+                    </Text>
+                    <Text fontSize={12} color="#A16207" marginTop="$1">
+                      This seller has reduced platform fees. Purchase credits are recommended
+                      over platform fee credits so they can use the credit faster.
+                    </Text>
+                  </YStack>
+                </XStack>
+              )}
 
               {/* Resolution Type Selection */}
               <YStack gap="$2">

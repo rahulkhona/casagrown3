@@ -329,8 +329,8 @@ export async function navigateToMarket(page: Page): Promise<void> {
  */
 export async function dismissLegalConsent(page: Page): Promise<void> {
   try {
-    // Check for the "Accept & Continue" button
-    const acceptBtn = page.locator('button:has-text("Accept"), button:has-text("accept"), button:has-text("Continue")')
+    // Check for the "Accept & Continue" button (scoped to avoid matching page forms like profile-setup)
+    const acceptBtn = page.locator('[class*="acceptBar"] button:has-text("Accept"), [class*="acceptBar"] button:has-text("Continue"), [class*="Consent"] button:has-text("Continue")')
     if (await acceptBtn.first().isVisible({ timeout: 1500 }).catch(() => false)) {
       // Click any unchecked checkboxes first (terms + privacy toggles)
       const checkboxes = page.locator('input[type="checkbox"]')

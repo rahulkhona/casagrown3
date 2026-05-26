@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@casagrown/app/utils/supabase";
 
 export interface UseAdminQueryOptions {
@@ -8,6 +8,8 @@ export interface UseAdminQueryOptions {
     defaultSortParams?: { column: string; ascending: boolean };
     filterColumn?: string;
     filterValue?: string;
+    /** Exact-match filters applied via .eq() */
+    filters?: Record<string, string>;
 }
 
 export function useAdminQuery<T = any>({
@@ -17,6 +19,7 @@ export function useAdminQuery<T = any>({
     defaultSortParams,
     filterColumn,
     filterValue,
+    filters,
 }: UseAdminQueryOptions) {
     const [data, setData] = useState<T[]>([]);
     const [loading, setLoading] = useState(true);
@@ -26,6 +29,9 @@ export function useAdminQuery<T = any>({
 
     const sortColumn = defaultSortParams?.column;
     const sortAscending = defaultSortParams?.ascending;
+
+    // Stabilize filters to prevent infinite re-renders
+    const filtersKey = useMemo(() => JSON.stringify(filters || {}), [filters]);
 
     const fetchData = useCallback(async (currentPage: number) => {
         setLoading(true);
@@ -38,6 +44,12 @@ export function useAdminQuery<T = any>({
             if (filterColumn && filterValue) {
                 // Simple ilike text filter for search
                 query = query.ilike(filterColumn, `%${filterValue}%`);
+            }
+
+            // Apply exact-match filters
+            const parsedFilters = filtersKey ? JSON.parse(filtersKey) : {};
+            for (const [col, val] of Object.entries(parsedFilters)) {
+                if (val) query = query.eq(col, val as string);
             }
 
             if (sortColumn) {
@@ -55,17 +67,17 @@ export function useAdminQuery<T = any>({
             const { data: result, error: fetchError, count } = await query
                 .range(from, to);
 
-            if (fetchError) throw fetchError;
+            if (fetchError) throw new Error(fetchError.message || JSON.stringify(fetchError));
 
             setData(result as unknown as T[]);
             setHasMore(count ? (from + result.length) < count : false);
         } catch (e: any) {
-            console.error(`Error fetching admin data for ${table}:`, e);
-            setError(e.message);
+            console.error(`Error fetching admin data for ${table}:`, e?.message || e);
+            setError(e.message || 'Unknown error');
         } finally {
             setLoading(false);
         }
-    }, [table, selectClause, pageSize, sortColumn, sortAscending, filterColumn, filterValue]);
+    }, [table, selectClause, pageSize, sortColumn, sortAscending, filterColumn, filterValue, filtersKey]);
 
     useEffect(() => {
         fetchData(page);

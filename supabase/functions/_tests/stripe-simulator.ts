@@ -232,6 +232,27 @@ export class StripeSimulator {
       return this.handleUpdateDispute(disputeMatch[1]!, params!);
     }
 
+    // ── Customers ─────────────────────────────────────────────────
+    if (path === "/v1/customers" && method === "POST") {
+      return this.handleCreateCustomer(params!);
+    }
+
+    // ── Checkout Sessions ────────────────────────────────────────
+    if (path === "/v1/checkout/sessions" && method === "POST") {
+      return this.handleCreateCheckoutSession(params!);
+    }
+
+    // ── Subscriptions ────────────────────────────────────────────
+    const subMatch = path.match(/^\/v1\/subscriptions\/([^/]+)$/);
+    if (subMatch && method === "POST") {
+      return this.handleUpdateSubscription(subMatch[1]!, params!);
+    }
+
+    // ── Billing Portal ───────────────────────────────────────────
+    if (path === "/v1/billing_portal/sessions" && method === "POST") {
+      return this.handleCreatePortalSession(params!);
+    }
+
     // ── 404 ───────────────────────────────────────────────────────
     this.log("GET", path, 404);
     return this.json(404, { error: { message: `No such endpoint: ${method} ${path}` } });
@@ -536,7 +557,76 @@ export class StripeSimulator {
     });
   }
 
+  // ── Customer handler ──────────────────────────────────────────────
+
+  private handleCreateCustomer(params: URLSearchParams): Response {
+    const id = `cus_sim_${++this.counter}_${Date.now()}`;
+    this.log("POST", "/v1/customers", 200);
+    return this.json(200, {
+      id,
+      object: "customer",
+      email: params.get("email") || "test@test.local",
+      metadata: this.parseMetadata(params),
+      created: Math.floor(Date.now() / 1000),
+    });
+  }
+
+  // ── Checkout Session handler ──────────────────────────────────────
+
+  private handleCreateCheckoutSession(params: URLSearchParams): Response {
+    const id = `cs_sim_${++this.counter}_${Date.now()}`;
+    const successUrl = params.get("success_url") || "http://localhost:3002/profile?pro=success";
+    // Simulate: return a URL that redirects to the success page directly
+    this.log("POST", "/v1/checkout/sessions", 200);
+    return this.json(200, {
+      id,
+      object: "checkout.session",
+      mode: params.get("mode") || "subscription",
+      customer: params.get("customer") || null,
+      url: successUrl,
+      status: "open",
+      created: Math.floor(Date.now() / 1000),
+    });
+  }
+
+  // ── Subscription handler ──────────────────────────────────────────
+
+  private handleUpdateSubscription(subId: string, params: URLSearchParams): Response {
+    this.log("POST", `/v1/subscriptions/${subId}`, 200);
+    return this.json(200, {
+      id: subId,
+      object: "subscription",
+      status: params.get("cancel_at_period_end") === "true" ? "active" : "active",
+      cancel_at_period_end: params.get("cancel_at_period_end") === "true",
+      created: Math.floor(Date.now() / 1000),
+    });
+  }
+
+  // ── Billing Portal handler ────────────────────────────────────────
+
+  private handleCreatePortalSession(params: URLSearchParams): Response {
+    const returnUrl = params.get("return_url") || "http://localhost:3002/profile";
+    this.log("POST", "/v1/billing_portal/sessions", 200);
+    return this.json(200, {
+      id: `bps_sim_${++this.counter}`,
+      object: "billing_portal.session",
+      url: `${returnUrl}?portal=simulated`,
+      created: Math.floor(Date.now() / 1000),
+    });
+  }
+
   // ── Helpers ───────────────────────────────────────────────────────
+
+  private parseMetadata(params: URLSearchParams): Record<string, string> {
+    const metadata: Record<string, string> = {};
+    for (const [k, v] of params.entries()) {
+      if (k.startsWith("metadata[")) {
+        const key = k.replace(/^metadata\[/, "").replace(/\]$/, "");
+        metadata[key] = v;
+      }
+    }
+    return metadata;
+  }
 
   private log(method: string, path: string, status: number, extra?: Record<string, string>) {
     this.callLog.push({ method, path, status, timestamp: Date.now(), body: extra });

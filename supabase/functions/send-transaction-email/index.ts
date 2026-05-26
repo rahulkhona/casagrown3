@@ -58,6 +58,9 @@ interface OrderData {
   creditApplied?: number;
   // Credit applied (seller platform_fee credit)
   sellerFeeCredit?: number;
+  // Stripe fee pass-through (Pro sellers)
+  stripeFee?: number;
+  sellerPlan?: string;
   // Compliance
   receiptFooter?: string;
 }
@@ -178,6 +181,8 @@ function renderReceipt(
           afterFee: data.sellerPayout!,
           delegated: false,
           sellerFeeCredit: data.sellerFeeCredit,
+          stripeFee: data.stripeFee,
+          sellerPlan: data.sellerPlan,
         });
       }
       break;
@@ -340,6 +345,8 @@ function buildFinancialSection(opts: {
   otherShare?: number;
   otherName?: string;
   sellerFeeCredit?: number;
+  stripeFee?: number;
+  sellerPlan?: string;
 }): string {
   let rows = `
         <tr><td style="padding: 0 20px;"><div style="height: 1px; background: #dcfce7;"></div></td></tr>
@@ -359,6 +366,15 @@ function buildFinancialSection(opts: {
               <tr>
                 <td style="font-size: 12px; color: #059669; font-weight: 600; padding: 2px 0;">Fee Credit Applied</td>
                 <td style="font-size: 12px; color: #059669; font-weight: 600; text-align: right; padding: 2px 0;">-$${opts.sellerFeeCredit.toFixed(2)}</td>
+              </tr>`;
+  }
+
+  // Stripe processing fee pass-through (Pro sellers)
+  if (opts.stripeFee && opts.stripeFee > 0) {
+    rows += `
+              <tr>
+                <td style="font-size: 12px; color: #d97706; padding: 2px 0;">Stripe Processing Fee</td>
+                <td style="font-size: 12px; color: #d97706; text-align: right; padding: 2px 0;">-$${opts.stripeFee.toFixed(2)}</td>
               </tr>`;
   }
 

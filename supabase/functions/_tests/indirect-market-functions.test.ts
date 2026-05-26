@@ -376,7 +376,7 @@ Deno.test({
 })
 
 Deno.test({
-  name: '[send-notification-email] processes all 11 email types without crash',
+  name: '[send-notification-email] processes all email types without crash',
   sanitizeResources: false,
   sanitizeOps: false,
   async fn() {
@@ -384,6 +384,12 @@ Deno.test({
       'order_placed', 'offer_made', 'order_disputed', 'dispute_resolved',
       'chat_initiated', 'points_purchase', 'points_redemption', 'points_refund',
       'tax_threshold_warning', 'delegation_revoked', 'delegation_accepted',
+      'welcome', 'abandoned_tos', 'abandoned_profile',
+      'credit_granted', 'credit_expiring', 'credit_expired',
+      'card_hold_placed', 'card_charged', 'order_cancelled_seller',
+      'capture_failed', 'dispute_closed',
+      'subscription_receipt', 'stripe_connect_onboarded',
+      'refund_offer', 'rating_reminder', 'followed_seller_adds_item',
     ]
     
     for (const type of types) {
@@ -396,11 +402,31 @@ Deno.test({
         pointsAmount: 100,
         dollarAmount: 1.0,
         orderId: 'test-order-123',
+        // Subscription receipt fields
+        subscriptionData: {
+          planName: 'CasaGrown Pro (Monthly)',
+          amount: 10.00,
+          date: 'May 25, 2026',
+          invoiceId: 'inv_test_123',
+          invoiceUrl: 'https://stripe.com/invoice/test',
+          periodStart: 'May 25, 2026',
+          periodEnd: 'Jun 25, 2026',
+        },
+        // Credit fields
+        creditAmountUsd: 5.00,
+        creditType: 'purchase',
+        creditReason: 'test',
+        // Hold/charge fields
+        holdAmountUsd: 25.00,
+        chargeAmountUsd: 25.00,
+        // Dispute closed fields
+        disputeWon: true,
+        disputeFeeUsd: 15.00,
       })
       assertEquals(status, 200, `${type} should return 200, got ${status}`)
       assertExists(data.results, `${type} should have results`)
     }
-    console.log(`✅ send-notification-email: all 11 email types rendered without crash`)
+    console.log(`✅ send-notification-email: all ${types.length} email types rendered without crash`)
   },
 })
 

@@ -24,6 +24,11 @@ type PromotionDetails = {
     start_date: string;
     image_url?: string | null;
   }
+  sub_discount?: {
+    discount_pct: number;
+    duration_months: number | null;
+    pro_monthly_price: number;
+  }
   hero_image_url: string | null
 }
 
@@ -103,6 +108,7 @@ function PromoContent() {
             is_capacity_reached: promoData.is_capacity_reached,
             giveaway: promoData.giveaway || undefined,
             credits: promoData.credits || undefined,
+            sub_discount: promoData.sub_discount || undefined,
             hero_image_url: promoData.hero_image_url || null
           })
         }
@@ -267,6 +273,29 @@ function PromoContent() {
           </div>
         </div>
       )}
+      {promo.sub_discount && (() => {
+        const pct = promo.sub_discount.discount_pct
+        const price = promo.sub_discount.pro_monthly_price
+        const discounted = (price * (1 - pct / 100)).toFixed(2)
+        const savings = (price * pct / 100).toFixed(2)
+        const duration = promo.sub_discount.duration_months
+        return (
+          <div className="incentive-item" style={{ borderLeft: '4px solid #a855f7' }}>
+            <span className="incentive-icon">⭐</span>
+            <div className="incentive-text">
+              <strong>Pro Subscription — {pct}% Off</strong>
+              <p style={{ fontSize: '1.1rem', fontWeight: 700, color: '#7e22ce', margin: '8px 0' }}>
+                ${discounted}/mo <span style={{ fontSize: '0.9rem', fontWeight: 400, color: '#9ca3af', textDecoration: 'line-through' }}>${price.toFixed(2)}/mo</span>
+              </p>
+              <ul className="credit-rules">
+                <li>✓ Save ${savings} every month on your Pro membership</li>
+                <li>✓ {duration ? `Discount lasts ${duration} month${duration > 1 ? 's' : ''}` : 'Discount lasts forever — lock in this rate!'}</li>
+                <li>✓ Lower platform fees, Stripe fee options & more</li>
+              </ul>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 
