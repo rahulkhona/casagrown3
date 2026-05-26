@@ -14,7 +14,8 @@ const mockInsert = vi.fn().mockResolvedValue({ data: null, error: null })
 const mockRpc = vi.fn().mockResolvedValue({ data: { success: true }, error: null })
 const mockSelect = vi.fn().mockReturnValue({
   eq: vi.fn().mockReturnValue({
-    order: vi.fn().mockResolvedValue({ data: [], error: null })
+    order: vi.fn().mockResolvedValue({ data: [], error: null }),
+    single: vi.fn().mockResolvedValue({ data: { plan: 'free', status: 'inactive' }, error: null }),
   })
 })
 const mockFrom = vi.fn().mockReturnValue({
@@ -27,6 +28,15 @@ vi.mock('../../lib/supabase', () => ({
     from: mockFrom,
     rpc: mockRpc,
   }),
+}))
+
+vi.mock('../../lib/useSubscription', () => ({
+  useSubscription: () => ({
+    plan: 'free',
+    status: 'inactive',
+    isPro: false,
+    loading: false,
+  })
 }))
 
 vi.mock('../../lib/useAuth', () => ({

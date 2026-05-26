@@ -122,6 +122,22 @@ export function useReferralCapture() {
     if (typeof window === 'undefined') return
 
     const params = new URLSearchParams(window.location.search)
+
+    // Capture Facebook Messenger parameters if present
+    const fbPsid = params.get('fb_psid')
+    const fbPageId = params.get('fb_page_id')
+    const fbChannel = params.get('fb_channel')
+
+    if (fbPsid) {
+      sessionStorage.setItem('fb_psid', fbPsid)
+    }
+    if (fbPageId) {
+      sessionStorage.setItem('fb_page_id', fbPageId)
+    }
+    if (fbChannel) {
+      sessionStorage.setItem('fb_channel', fbChannel)
+    }
+
     const hasRef = params.has('ref')
     const hasUtm = params.has('utm_source')
     const hasReferrer = document.referrer && !document.referrer.includes(window.location.hostname)

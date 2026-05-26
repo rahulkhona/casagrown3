@@ -272,6 +272,11 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
       }
 
       // Step 3: Place order ONLY after payment is secured
+      const fbPsid = typeof window !== 'undefined' ? sessionStorage.getItem('fb_psid') : null
+      const fbPageId = typeof window !== 'undefined' ? sessionStorage.getItem('fb_page_id') : null
+      const fbChannel = typeof window !== 'undefined' ? sessionStorage.getItem('fb_channel') : null
+      const fbMetadata = fbPsid ? { fb_psid: fbPsid, fb_page_id: fbPageId, fb_channel: fbChannel } : null
+
       const { data: orderResult, error: orderErr } = await supabase.rpc('place_market_order', {
         p_product_id: product.id,
         p_quantity: qty,
@@ -279,6 +284,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
         p_buyer_zip: buyerZip || null,
         p_expected_price: currentPrice,
         p_hold_id: holdResult.holdId || null,
+        p_fb_metadata: fbMetadata || null,
       })
 
       if (orderErr) { setError(orderErr.message); setLoading(false); return }

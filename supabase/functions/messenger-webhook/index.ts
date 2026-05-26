@@ -61,6 +61,19 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
               .eq('fb_sender_id', event.recipient?.id)
 
             for (const c of (convs || [])) {
+              // Avoid pausing co-pilot bot on native Page automated greetings:
+              // Check if the buyer has ever sent a message in this conversation.
+              const { count: userMsgCount } = await supabase
+                .from('messenger_messages')
+                .select('id', { count: 'exact', head: true })
+                .eq('conversation_id', c.id)
+                .eq('role', 'user')
+
+              if (!userMsgCount || userMsgCount === 0) {
+                console.log(`[MESSENGER] Echo detected but no user messages in history for conversation ${c.id}. Likely native Welcome automation. Skipping bot pause.`)
+                continue
+              }
+
               await supabase
                 .from('messenger_conversations')
                 .update({ 
@@ -86,13 +99,16 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                 .eq('status', 'pending')
             }
 
-            console.log(`[MESSENGER] Seller echo detected — bot paused, active presence set, pending drafts cancelled`)
+            console.log(`[MESSENGER] Seller manual echo processed — active presence set, pending drafts cancelled`)
           }
           continue
         }
 
-        // Skip non-message events (reads, deliveries, etc.) unless they are image attachments
+        // Skip non-message events (reads, deliveries, etc.) unless they are image attachments or postbacks
         let userMessage = event.message?.text
+        if (!userMessage && event.postback) {
+          userMessage = event.postback.title || event.postback.payload
+        }
         if (!userMessage && event.message?.attachments && event.message.attachments.length > 0) {
           const firstAttachment = event.message.attachments[0]
           if (firstAttachment.type === 'image') {
@@ -162,13 +178,14 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           .select('*, buyer_zip, buyer_fulfillment_pref, matched_booth_id')
           .single()
 
-        // Increment message count
+        // Increment message count and reset nudge timestamp
         if (conversation) {
           await supabase
             .from('messenger_conversations')
             .update({
               message_count: (conversation.message_count || 0) + 1,
               last_message_at: new Date().toISOString(),
+              nudge_sent_at: null, // Reset nudge tracker when user sends a message
             })
             .eq('id', conversation.id)
 

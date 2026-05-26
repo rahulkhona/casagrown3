@@ -26,6 +26,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     return await handleGrowerDigest(supabase, env, corsHeaders, siteUrl)
   } else if (action === 'reconcile_redemptions') {
     return await handleReconcileRedemptions(supabase, env, corsHeaders)
+  } else if (action === 'messenger_nudge') {
+    return await handleMessengerNudge(supabase, env, corsHeaders)
   } else {
     return jsonOk({ error: 'Unknown action: ' + action }, corsHeaders)
   }
@@ -781,4 +783,168 @@ async function refundStale(supabase: any, redemption: any, reason: string) {
   })
 
   console.log(`[RECONCILE] ❌ Refunded ${redemption.id}: $${refundUsd} — ${reason}`)
+}
+
+// ═══════════════════════════════════════════════
+// Automated Inactivity/Distraction Nudge for Facebook Messenger
+// ═══════════════════════════════════════════════
+async function handleMessengerNudge(
+  supabase: any,
+  env: (k: string) => string | undefined,
+  corsHeaders: Record<string, string>,
+) {
+  const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString()
+  const twentyThreeHoursAgo = new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString()
+
+  // 1. Get active Pro seller subscriptions
+  const { data: proSubs } = await supabase
+    .from('seller_subscriptions')
+    .select('user_id')
+    .eq('plan', 'pro')
+    .in('status', ['active', 'trialing'])
+
+  if (!proSubs || proSubs.length === 0) {
+    return jsonOk({ nudged: 0, reason: 'no_pro_sellers' }, corsHeaders)
+  }
+
+  const proSellerIds = proSubs.map((s: any) => s.user_id)
+
+  // 2. Fetch candidate cold conversations
+  const { data: candidates, error: candidateErr } = await supabase
+    .from('messenger_conversations')
+    .select('id, fb_sender_id, seller_id, last_message_at, message_count, matched_booth_id')
+    .in('seller_id', proSellerIds)
+    .is('nudge_sent_at', null)
+    .lte('last_message_at', thirtyMinAgo)
+    .gte('last_message_at', twentyThreeHoursAgo)
+
+  if (candidateErr) {
+    console.error('[CRON-NUDGE] Candidate fetch error:', candidateErr.message)
+    return jsonOk({ nudged: 0, error: candidateErr.message }, corsHeaders)
+  }
+
+  if (!candidates || candidates.length === 0) {
+    return jsonOk({ nudged: 0, message: 'No cold conversations' }, corsHeaders)
+  }
+
+  let nudgedCount = 0
+
+  for (const conv of candidates) {
+    // A. Verify the last message in this conversation was from the buyer (role = 'user')
+    const { data: lastMsg } = await supabase
+      .from('messenger_messages')
+      .select('role, content')
+      .eq('conversation_id', conv.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (!lastMsg || lastMsg.role !== 'user') {
+      continue // The last message was not from user (bot or seller already replied), skip!
+    }
+
+    // B. Get seller page connection details
+    const { data: fbConn } = await supabase
+      .from('seller_fb_connections')
+      .select('fb_page_access_token, fb_page_id')
+      .eq('user_id', conv.seller_id)
+      .eq('status', 'connected')
+      .maybeSingle()
+
+    if (!fbConn?.fb_page_access_token) {
+      continue // No FB connection, skip
+    }
+
+    // C. Generate re-engagement nudge text
+    let nudgeText = "Hi! I wanted to check if you are still interested or have any questions? I'm happy to help you complete your order! 🥬"
+
+    const AI_KEY = env('GEMINI_API_KEY')
+    const AI_MOCK = env('AI_MOCK') === 'true'
+    const model = env('AI_MODEL') || 'gemini-2.5-flash'
+
+    if (!AI_MOCK && AI_KEY) {
+      try {
+        const { loadBoothContext, buildSellerSystemPrompt, loadSellerBotRules } = await import('../_shared/growbot-seller.ts')
+        const ctx = await loadBoothContext(supabase, conv.matched_booth_id || '')
+        
+        if (ctx) {
+          const sellerRules = await loadSellerBotRules(supabase)
+          const systemPrompt = buildSellerSystemPrompt(ctx, sellerRules)
+          
+          const systemNudgeInstruction = `${systemPrompt}\n\nINSTRUCTION: The buyer has been inactive for over 30 minutes. Write a short, warm, one-to-two sentence nudge to politely check if they are still interested, need any help, or want to complete their order. Keep it concise, natural, and helpful. Do not say anything else.`
+          
+          const { data: history } = await supabase
+            .from('messenger_messages')
+            .select('role, content')
+            .eq('conversation_id', conv.id)
+            .order('created_at', { ascending: false })
+            .limit(10)
+
+          const sortedHistory = (history || []).reverse()
+          const contents: Array<{ role: string; parts: Array<{ text: string }> }> = []
+          for (const h of sortedHistory) {
+            const geminiRole = h.role === 'bot' ? 'model' : 'user'
+            contents.push({ role: geminiRole, parts: [{ text: h.content }] })
+          }
+
+          const geminiRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${AI_KEY}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                system_instruction: { parts: [{ text: systemNudgeInstruction }] },
+                contents,
+                generationConfig: { temperature: 0.3, maxOutputTokens: 256 },
+              }),
+            },
+          )
+
+          if (geminiRes.ok) {
+            const geminiData = await geminiRes.json()
+            const generated = geminiData.candidates?.[0]?.content?.parts
+              ?.filter((p: any) => p.text && p.thought !== true)
+              ?.map((p: any) => p.text)
+              ?.join('')
+            if (generated) nudgeText = generated.trim()
+          }
+        }
+      } catch (aiErr: any) {
+        console.warn(`[CRON-NUDGE] Gemini nudge generation failed for conversation ${conv.id}:`, aiErr.message)
+      }
+    }
+
+    // D. Send Messenger message
+    try {
+      const { sendMessengerMessage, appendMessengerParamsToUrls } = await import('../_shared/facebook.ts')
+      const trackedNudge = appendMessengerParamsToUrls(nudgeText, conv.fb_sender_id, fbConn.fb_page_id)
+      
+      await sendMessengerMessage(fbConn.fb_page_access_token, conv.fb_sender_id, {
+        text: trackedNudge,
+      })
+
+      // E. Record bot message in history & stamp nudge_sent_at
+      await supabase.from('messenger_messages').insert({
+        conversation_id: conv.id,
+        role: 'bot',
+        content: trackedNudge,
+      })
+
+      await supabase
+        .from('messenger_conversations')
+        .update({
+          nudge_sent_at: new Date().toISOString(),
+          last_message_at: new Date().toISOString(),
+          message_count: (conv.message_count || 0) + 1,
+        })
+        .eq('id', conv.id)
+
+      nudgedCount++
+      console.log(`[CRON-NUDGE] Successfully sent nudge to PSID ${conv.fb_sender_id} in conversation ${conv.id}`)
+    } catch (sendErr: any) {
+      console.error(`[CRON-NUDGE] Failed to send nudge to PSID ${conv.fb_sender_id}:`, sendErr.message)
+    }
+  }
+
+  return jsonOk({ nudged: nudgedCount }, corsHeaders)
 }

@@ -11,7 +11,7 @@
  * 5. Updates last_message_at on messenger_conversations
  */
 import { serveWithCors, jsonOk, jsonError } from '../_shared/serve-with-cors.ts'
-import { sendMessengerMessage } from '../_shared/facebook.ts'
+import { sendMessengerMessage, appendMessengerParamsToUrls } from '../_shared/facebook.ts'
 
 serveWithCors(async (req, { supabase, corsHeaders }) => {
   if (req.method !== 'POST') {
@@ -55,6 +55,8 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     return jsonError('Facebook connection not found or token missing', corsHeaders, 400)
   }
 
+  let finalMessageText = message
+
   // 3. Call Facebook Graph API to send the message (text or image attachment)
   try {
     const isImage = message.startsWith('http') && (
@@ -73,7 +75,8 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
         }
       })
     } else {
-      await sendMessengerMessage(fbConn.fb_page_access_token, fbSenderId, { text: message })
+      finalMessageText = appendMessengerParamsToUrls(message, fbSenderId, fbConn.fb_page_id)
+      await sendMessengerMessage(fbConn.fb_page_access_token, fbSenderId, { text: finalMessageText })
     }
   } catch (fbSendErr: any) {
     console.error('[SEND-MESSENGER-REPLY] Facebook API error:', fbSendErr.message)
@@ -86,7 +89,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     .insert({
       conversation_id,
       role: 'seller',
-      content: message,
+      content: finalMessageText,
     })
 
   if (insertError) {

@@ -238,6 +238,23 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
   // seller hasn't replied since). If so, reply instantly — no delay.
   const isManual = body.isManual === true
   let effectiveDelay = isManual ? (delayMinutes || 5) : delayMinutes
+
+  // Smart Welcome Coexistence: If the seller has set 0-delay (instant) and this is Facebook Messenger,
+  // we check if it is a brand-new conversation. If so, we temporarily enforce a 30-second (0.5 min)
+  // delay so Facebook's native Instant Reply/Greeting has time to fire, trigger our Echo webhook,
+  // and cancel our draft—preventing double replies.
+  if (!isManual && type === 'messenger' && conversationId && effectiveDelay === 0) {
+    const { count } = await supabase
+      .from('messenger_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('conversation_id', conversationId)
+
+    if (count !== null && count <= 1) {
+      console.log(`[AUTO-REPLY] New Messenger conversation detected with 0 delay. Enforcing 30s buffer delay to check for native Facebook replies.`)
+      effectiveDelay = 0.5
+    }
+  }
+
   const convRef = type === 'order' ? orderId : (type === 'messenger' ? `messenger_${conversationId}` : conversationId)
   if (!isManual && convRef && delayMinutes > 0) {
     const { data: lastDraft } = await supabase
@@ -248,7 +265,6 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
-
     // If last draft was 'sent' (bot replied, seller hasn't), bot is in conversation.
     // Reply instantly if the seller hasn't manually replied since.
     if (lastDraft?.status === 'sent') {

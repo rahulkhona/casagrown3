@@ -463,6 +463,11 @@ Deno.test({
       `SELECT id FROM market_booths WHERE owner_id = '${SELLER_ID}' AND is_default = true LIMIT 1`,
     );
 
+    // Clean up old drafts and messages for this conversation to prevent test contamination
+    await sqlExec(`DELETE FROM bot_reply_drafts WHERE seller_id = '${SELLER_ID}'`);
+    await sqlExec(`DELETE FROM market_chat_messages WHERE conversation_id = '${convId}'`);
+    await sqlExec(`UPDATE market_conversations SET seller_last_active_at = NULL WHERE id = '${convId}'`);
+
     // 1. Create a "sent" draft to simulate previous bot auto-reply
     const draftId = await sqlExec(`
       INSERT INTO bot_reply_drafts (channel, conversation_ref, trigger_message_id,
@@ -489,6 +494,7 @@ Deno.test({
       senderId: BUYER_ID,
       recipientId: SELLER_ID,
       conversationId: convId,
+      isManual: false,
     });
 
     assertEquals(status, 200);

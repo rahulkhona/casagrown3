@@ -207,22 +207,23 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
         // Send via Messenger API
         const { data: fbConn } = await supabase
           .from('seller_fb_connections')
-          .select('fb_page_access_token')
+          .select('fb_page_access_token, fb_page_id')
           .eq('user_id', draft.seller_id)
           .eq('status', 'connected')
           .single()
 
         if (fbConn?.fb_page_access_token) {
-          const { sendMessengerMessage } = await import('../_shared/facebook.ts')
+          const { sendMessengerMessage, appendMessengerParamsToUrls } = await import('../_shared/facebook.ts')
+          const trackedReply = appendMessengerParamsToUrls(finalReply, conv.fb_sender_id, fbConn.fb_page_id)
           await sendMessengerMessage(fbConn.fb_page_access_token, conv.fb_sender_id, {
-            text: finalReply,
+            text: trackedReply,
           })
 
           // Store in history
           await supabase.from('messenger_messages').insert({
             conversation_id: messengerConvId,
             role: 'bot',
-            content: finalReply,
+            content: trackedReply,
           })
 
           // Re-enable bot for this conversation

@@ -271,3 +271,29 @@ export async function publishMultiPhotoPost(
     throw err
   }
 }
+
+/**
+ * Scans outgoing text for CasaGrown booth or product URLs, and appends Messenger tracking query parameters.
+ */
+export function appendMessengerParamsToUrls(
+  text: string | undefined,
+  psid: string,
+  pageId: string,
+): string {
+  if (!text) return ''
+  const siteUrl = Deno.env.get('SITE_URL') || 'https://casagrown.com'
+  
+  const domains = [siteUrl, 'https://casagrown.com', 'http://localhost:3000', 'http://localhost:3002']
+  let textResult = text
+
+  for (const domain of domains) {
+    const domainEscaped = domain.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')
+    const regex = new RegExp(`(${domainEscaped}/market/booth/[a-zA-Z0-9-]+(?:/product/[a-zA-Z0-9-]+)?)`, 'g')
+    textResult = textResult.replace(regex, (url) => {
+      const separator = url.includes('?') ? '&' : '?'
+      return `${url}${separator}fb_psid=${psid}&fb_page_id=${pageId}&fb_channel=messenger`
+    })
+  }
+  
+  return textResult
+}

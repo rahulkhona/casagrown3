@@ -44,6 +44,14 @@ const mockSupabase = {
 
 vi.mock('../../lib/supabase', () => ({ createClient: () => mockSupabase }))
 vi.mock('@supabase/ssr', () => ({ createBrowserClient: () => mockSupabase }))
+vi.mock('../../lib/useSubscription', () => ({
+  useSubscription: () => ({
+    plan: 'free',
+    status: 'inactive',
+    isPro: false,
+    loading: false,
+  })
+}))
 vi.mock('../../lib/useAuth', () => ({
   useAuth: () => ({ user: { id: 'u1', email: 'test@test.com', user_metadata: { full_name: 'Test User' } }, isAuthenticated: true, loading: false }),
 }))
