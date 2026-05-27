@@ -213,8 +213,28 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           console.warn('[SUB-WEBHOOK] SMS notification failed:', smsErr)
         }
 
-        // 6. Record in earnings ledger (market_ledger) as a debit
+        // 6. Subscription receipt record
         if (invoiceAmountUsd > 0) {
+          try {
+            await supabase.from('subscription_receipts').insert({
+              user_id: sub.user_id,
+              amount_usd: invoiceAmountUsd,
+              description: 'CasaGrown Pro — Monthly subscription',
+              stripe_invoice_id: invoiceId,
+              invoice_url: invoiceUrl,
+              period_start: invoice.period_start
+                ? new Date(invoice.period_start * 1000).toISOString()
+                : new Date().toISOString(),
+              period_end: invoice.period_end
+                ? new Date(invoice.period_end * 1000).toISOString()
+                : null,
+            })
+            console.log(`[SUB-WEBHOOK] Receipt record created for $${invoiceAmountUsd}`)
+          } catch (receiptErr) {
+            console.warn('[SUB-WEBHOOK] Receipt record failed:', receiptErr)
+          }
+
+          // 7. Market ledger entry (pro_subscription debit)
           try {
             // Get current balance
             const { data: lastEntry } = await supabase
@@ -223,25 +243,23 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
               .eq('user_id', sub.user_id)
               .order('id', { ascending: false })
               .limit(1)
-              .single()
+              .maybeSingle()
 
-            const currentBalance = lastEntry?.balance_after || 0
+            const currentBalance = lastEntry?.balance_after ?? 0
+            const newBalance = Number((currentBalance - invoiceAmountUsd).toFixed(2))
 
             await supabase.from('market_ledger').insert({
               user_id: sub.user_id,
               event_type: 'pro_subscription',
               amount_usd: invoiceAmountUsd,
               direction: 'debit',
-              balance_after: currentBalance - invoiceAmountUsd,
+              balance_after: newBalance,
               metadata: {
-                description: 'CasaGrown Pro — Monthly subscription',
-                invoice_id: invoiceId,
-                invoice_url: invoiceUrl,
-                period_start: invoice.period_start,
-                period_end: invoice.period_end,
+                description: `CasaGrown Pro — Monthly subscription ($${invoiceAmountUsd.toFixed(2)})`,
+                stripe_invoice_id: invoiceId,
               },
             })
-            console.log(`[SUB-WEBHOOK] Ledger entry created for subscription payment: $${invoiceAmountUsd}`)
+            console.log(`[SUB-WEBHOOK] Ledger entry: pro_subscription debit $${invoiceAmountUsd}, balance: ${newBalance}`)
           } catch (ledgerErr) {
             console.warn('[SUB-WEBHOOK] Ledger entry failed:', ledgerErr)
           }

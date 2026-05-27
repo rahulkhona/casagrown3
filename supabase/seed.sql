@@ -350,6 +350,34 @@ ON CONFLICT (id) DO UPDATE SET
 -- Make seller@test.local a Pro user (needed for catalog/multi-stand E2E tests)
 UPDATE profiles SET is_pro = true WHERE id = 'a1111111-1111-1111-1111-111111111111';
 
+-- Pro subscription record (useSubscription hook queries this table)
+INSERT INTO seller_subscriptions (
+  user_id, plan, status, stripe_customer_id, stripe_subscription_id,
+  current_period_start, current_period_end
+) VALUES (
+  'a1111111-1111-1111-1111-111111111111', 'pro', 'active',
+  'cus_test_sam_seller', 'sub_test_sam_seller',
+  now() - interval '15 days', now() + interval '15 days'
+) ON CONFLICT (user_id) DO UPDATE SET
+  plan = 'pro', status = 'active',
+  current_period_start = now() - interval '15 days',
+  current_period_end = now() + interval '15 days';
+
+-- Facebook connection for Sam Seller (needed for facebook-autopost E2E tests)
+INSERT INTO seller_fb_connections (
+  user_id, fb_access_token, fb_page_id, fb_page_name,
+  fb_page_access_token, auto_sync_enabled, status
+) VALUES (
+  'a1111111-1111-1111-1111-111111111111',
+  'EAAtest_fake_token_for_e2e',
+  '123456789012345',
+  'Willow Glen Farm Stand',
+  'EAAtest_fake_page_token_for_e2e',
+  true, 'connected'
+) ON CONFLICT (user_id) DO UPDATE SET
+  status = 'connected', auto_sync_enabled = true,
+  fb_page_name = 'Willow Glen Farm Stand';
+
 -- Seed points for both users (enough for test transactions)
 -- Using 2000 to ensure enough points after cashout test (−500 pts) for the
 -- giftcards test (first Gaming card = ~3000 pts, need enough after order holds).

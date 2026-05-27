@@ -12,6 +12,8 @@ import { useNotificationPrompt, isNotificationsEnabled } from '../../../lib/useN
 import { NotificationPromptModal } from '../../components/NotificationPromptModal'
 import { useSubscription } from '../../../lib/useSubscription'
 import { UpgradePrompt } from '../../components/UpgradePrompt'
+import { ProCarousel } from '../../components/ProCarousel'
+import { useErrorToast } from '../../components/ErrorToast'
 import { ProGate } from '../../components/ProGate'
 import { FacebookStatus } from '../../components/FacebookStatus'
 import { WidgetEmbed } from '../../components/WidgetEmbed'
@@ -59,6 +61,11 @@ function ProfilePageInner() {
   // Camera & Cropper
   const [showCamera, setShowCamera] = useState(false)
   const [cropSrc, setCropSrc] = useState<string | null>(null)
+
+  // Pro interest checkbox
+  const [proInterest, setProInterest] = useState(false)
+  const [proEmailSending, setProEmailSending] = useState(false)
+  const { showSuccess: showToastSuccess } = useErrorToast()
 
   // Fetch actual profile from Supabase
   useEffect(() => {
@@ -215,6 +222,23 @@ function ProfilePageInner() {
       }
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
+
+      // Send Pro interest email if checkbox is checked (after successful save)
+      if (proInterest) {
+        console.log('[Pro Interest] Sending pro interest email...')
+        try {
+          const { error: fnError } = await supabase.functions.invoke('send-pro-interest-email', { body: {} })
+          if (fnError) {
+            console.error('[Pro Interest] Edge function error:', fnError)
+          } else {
+            console.log('[Pro Interest] Email sent successfully')
+            showToastSuccess('📧 Check your email for details about CasaGrown Pro!')
+            setProInterest(false)
+          }
+        } catch (err) {
+          console.error('[Pro Interest] Failed to invoke function:', err)
+        }
+      }
     } catch (err: any) {
       setError('Save failed: ' + (err.message || 'Unknown error'))
     } finally {
@@ -526,16 +550,16 @@ function ProfilePageInner() {
           )}
         </div>
 
-        <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%', marginTop: 8 }} disabled={saving}>
+        {/* ── My Plan / Upgrade ── */}
+        <div id="my-plan" style={{ marginTop: 16 }}>
+          <div className="divider" />
+          <PlanSection proInterest={proInterest} setProInterest={setProInterest} />
+        </div>
+
+        <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%', marginTop: 16 }} disabled={saving}>
           {saving ? 'Saving...' : saved ? '✓ Saved' : 'Save Profile'}
         </button>
       </form>
-
-      {/* ── My Plan / Upgrade ── */}
-      <div id="my-plan" style={{ marginTop: 32 }}>
-        <div className="divider" />
-        <PlanSection />
-      </div>
 
       {/* ── Facebook Integration (Pro only) ── */}
       <ProGate feature="Facebook catalog sync">
@@ -581,7 +605,7 @@ function ProfilePageInner() {
 }
 
 /** Plan section — shows Pro badge or upgrade prompt */
-function PlanSection() {
+function PlanSection({ proInterest, setProInterest }: { proInterest: boolean; setProInterest: (v: boolean) => void }) {
   const { plan, isPro, status, trialEndsAt, currentPeriodEnd, canceledAt } = useSubscription()
   const { user } = useAuth()
   const supabase = createClient()
@@ -696,6 +720,13 @@ function PlanSection() {
             Next billing: {new Date(currentPeriodEnd).toLocaleDateString()}
           </p>
         )}
+
+        {/* Manage link */}
+        <div style={{ marginTop: 12, textAlign: 'center' }}>
+          <a href="/pro-manage" style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)', textDecoration: 'underline' }}>
+            Manage your Pro subscription →
+          </a>
+        </div>
       </div>
 
       {/* Styled cancel confirmation */}
@@ -767,8 +798,30 @@ function PlanSection() {
 
   return (
     <>
-      <h3 className={styles.sectionTitle}>Upgrade for Low Fees &amp; Drive More Sales</h3>
-      <UpgradePrompt />
+      <h3 className={styles.sectionTitle}>Grow your business with CasaGrown Pro</h3>
+      <ProCarousel compact />
+
+      {/* Interest checkbox — triggers email on next profile save */}
+      <label style={{
+        display: 'flex', alignItems: 'flex-start', gap: 10,
+        marginTop: 16, padding: '14px 16px', borderRadius: 12,
+        background: 'var(--green-50, #f0fdf4)', border: '1px solid var(--green-200, #bbf7d0)',
+        cursor: 'pointer', fontSize: 14, color: 'var(--gray-700, #374151)',
+        lineHeight: 1.5,
+      }}>
+        <input
+          type="checkbox"
+          checked={proInterest}
+          onChange={e => setProInterest(e.target.checked)}
+          style={{ marginTop: 3, width: 18, height: 18, accentColor: '#059669', flexShrink: 0 }}
+        />
+        <span>
+          ✉️ Send me details about CasaGrown Pro features and pricing
+          <span style={{ display: 'block', fontSize: 12, color: 'var(--gray-500, #6b7280)', marginTop: 2 }}>
+            Check this box and save your profile to receive an email with everything you need to know about Pro.
+          </span>
+        </span>
+      </label>
     </>
   )
 }
@@ -812,7 +865,7 @@ function GrowBotProfileSection() {
   return (
     <div style={{ marginTop: 24 }}>
       <div className="divider" />
-      <GrowBotSettings boothId={boothId} isPro={isPro} />
+      <GrowBotSettings userId={user!.id} isPro={isPro} />
     </div>
   )
 }

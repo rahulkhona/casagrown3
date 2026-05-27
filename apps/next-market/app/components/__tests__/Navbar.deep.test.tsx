@@ -117,6 +117,27 @@ vi.mock('../../../lib/useBootstrap', () => ({
 // Mock CSS modules
 vi.mock('../Navbar.module.css', () => ({ default: new Proxy({}, { get: (_, key) => key }) }))
 
+// ── Missing hook/component mocks ──
+vi.mock('../../../lib/useMarketStatus', () => ({
+  useMarketStatus: () => ({ open: true, nextChange: null }),
+}))
+vi.mock('../ErrorToast', () => ({
+  useErrorToast: () => ({ showError: vi.fn(), showInfo: vi.fn() }),
+}))
+vi.mock('../../../lib/useNotificationPrompt', () => ({
+  useNotificationPrompt: () => ({ showPrompt: vi.fn(), modalProps: {} }),
+  isNotificationsEnabled: () => true,
+}))
+vi.mock('../NotificationPromptModal', () => ({
+  NotificationPromptModal: () => null,
+}))
+vi.mock('../../../lib/useSubscription', () => ({
+  useSubscription: () => ({ isPro: false, loading: false, plan: 'free', status: null, trialEndsAt: null, currentPeriodEnd: null, canceledAt: null }),
+}))
+vi.mock('../GuidedTour', () => ({
+  resetTour: vi.fn(),
+}))
+
 beforeEach(() => {
   vi.clearAllMocks()
   mockPathname = '/market'

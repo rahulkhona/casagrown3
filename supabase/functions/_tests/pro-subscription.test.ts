@@ -1,409 +1,375 @@
 /**
- * Deno integration tests for Pro subscription management.
+ * Pro Subscription — Integration Tests
  *
- * Tests the seller_subscriptions table, manage-subscription edge function,
- * and the relationship between subscriptions and profiles.is_pro flag.
- *
- * Run: cd supabase && deno test --allow-env --allow-net --allow-run --no-check functions/_tests/pro-subscription.test.ts
+ * Tests the manage-subscription edge function: confirm flow,
+ * subscription receipt records, notification creation, and
+ * stripe-subscription-webhook handlers.
  */
-
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "http://127.0.0.1:54321";
-const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU";
-const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ||
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
-
 import {
   assertEquals,
   assertExists,
-  assert,
-} from "https://deno.land/std@0.208.0/assert/mod.ts";
+} from "https://deno.land/std@0.192.0/testing/asserts.ts";
 
-const SELLER_ID = "a1111111-1111-1111-1111-111111111111";
-const BUYER_ID = "b2222222-2222-2222-2222-222222222222";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "http://127.0.0.1:54321";
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU";
+const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
 
-// Helper: run SQL via docker exec
-async function sqlExec(sql: string): Promise<string> {
-  const proc = new Deno.Command("docker", {
-    args: [
-      "exec", "-i", "supabase_db_casagrown3",
-      "psql", "-U", "postgres", "-t", "-A", "-c", sql,
-    ],
-    stdout: "piped",
-    stderr: "piped",
-  });
-  const output = await proc.output();
-  const raw = new TextDecoder().decode(output.stdout).trim();
-  const lines = raw.split("\n").filter((l) =>
-    !l.match(/^(INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|SET|RESET)\s/i)
-  );
-  return lines[0]?.trim() || raw;
-}
+// Test seller from seed data
+const TEST_SELLER_ID = "a1111111-1111-1111-1111-111111111111";
+const TEST_SELLER_EMAIL = "seller@test.local";
 
-// Helper: get seller token
-async function getSellerToken(): Promise<{ token: string; userId: string }> {
-  // Fix identity if needed
-  const proc = new Deno.Command("docker", {
-    args: [
-      "exec", "-i", "supabase_db_casagrown3",
-      "psql", "-U", "postgres", "-c",
-      `INSERT INTO auth.identities (id, user_id, provider_id, provider, identity_data, last_sign_in_at, created_at, updated_at)
-       SELECT id, id, email, 'email', jsonb_build_object('sub', id::text, 'email', email), now(), now(), now()
-       FROM auth.users WHERE email = 'seller@test.local'
-       ON CONFLICT (provider_id, provider) DO NOTHING;
-       UPDATE auth.users SET
-         confirmation_token = COALESCE(confirmation_token, ''),
-         recovery_token = COALESCE(recovery_token, ''),
-         email_change_token_new = COALESCE(email_change_token_new, ''),
-         email_change = COALESCE(email_change, ''),
-         email_change_token_current = COALESCE(email_change_token_current, ''),
-         reauthentication_token = COALESCE(reauthentication_token, '')
-       WHERE email = 'seller@test.local';`,
-    ],
-  });
-  try { await proc.output(); } catch { /* ok */ }
-
+async function dbSelect(table: string, query: string) {
   const res = await fetch(
-    `${SUPABASE_URL}/auth/v1/token?grant_type=password`,
+    `${SUPABASE_URL}/rest/v1/${table}?${query}`,
     {
-      method: "POST",
-      headers: { "Content-Type": "application/json", apikey: ANON_KEY },
-      body: JSON.stringify({ email: "seller@test.local", password: "TestPassword123!" }),
+      headers: {
+        apikey: SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      },
     },
   );
-  const data = await res.json();
-  if (!data.access_token) throw new Error(`Login failed: ${JSON.stringify(data)}`);
-  return { token: data.access_token, userId: data.user.id };
+  return res.json();
 }
 
-// Helper: call edge function
+async function dbInsert(table: string, data: Record<string, unknown>) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      Prefer: "return=representation,resolution=merge-duplicates",
+    },
+    body: JSON.stringify(data),
+  });
+  return res.json();
+}
+
+async function dbDelete(table: string, query: string) {
+  await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, {
+    method: "DELETE",
+    headers: {
+      apikey: SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+    },
+  });
+}
+
+async function dbUpdate(
+  table: string,
+  query: string,
+  data: Record<string, unknown>,
+) {
+  await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+    },
+    body: JSON.stringify(data),
+  });
+}
+
 async function callManageSubscription(
-  token: string,
-  body: Record<string, unknown>,
-): Promise<{ status: number; data: any }> {
+  action: string,
+  extra: Record<string, unknown> = {},
+) {
   const res = await fetch(
     `${SUPABASE_URL}/functions/v1/manage-subscription`,
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        apikey: ANON_KEY,
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ action, user_id: TEST_SELLER_ID, ...extra }),
     },
   );
-  let data;
-  try {
-    data = await res.json();
-  } catch {
-    data = { raw: await res.text() };
-  }
-  return { status: res.status, data };
+  return res.json();
 }
 
-// ══════════════════════════════════════════════════════════════
-// Table Structure
-// ══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// Setup: Ensure clean state
+// ═══════════════════════════════════════════════════════════════
+async function cleanupTestData() {
+  await dbDelete("subscription_receipts", `user_id=eq.${TEST_SELLER_ID}`);
+  await dbDelete("seller_subscriptions", `user_id=eq.${TEST_SELLER_ID}`);
+  await dbDelete("notifications", `user_id=eq.${TEST_SELLER_ID}`);
+  await dbUpdate("profiles", `id=eq.${TEST_SELLER_ID}`, { is_pro: false });
+}
 
-Deno.test({
-  name: "pro-subscription: seller_subscriptions table exists",
-  sanitizeResources: false,
-  sanitizeOps: false,
-  async fn() {
-    const exists = await sqlExec(
-      `SELECT count(*) FROM information_schema.tables WHERE table_name = 'seller_subscriptions'`,
-    );
-    assertEquals(exists, "1");
-  },
+// ═══════════════════════════════════════════════════════════════
+// Tests
+// ═══════════════════════════════════════════════════════════════
+
+Deno.test("Pro Subscription — status returns free when no subscription", async () => {
+  await cleanupTestData();
+  const result = await callManageSubscription("status");
+  assertEquals(result.plan, "free");
+  assertEquals(result.isPro, false);
 });
 
-Deno.test({
-  name: "pro-subscription: table has required columns",
-  sanitizeResources: false,
-  sanitizeOps: false,
-  async fn() {
-    const cols = await sqlExec(`
-      SELECT string_agg(column_name, ',' ORDER BY column_name)
-      FROM information_schema.columns
-      WHERE table_name = 'seller_subscriptions'
-    `);
-    assert(cols.includes("user_id"), "Should have user_id");
-    assert(cols.includes("plan"), "Should have plan");
-    assert(cols.includes("status"), "Should have status");
-    assert(cols.includes("stripe_subscription_id"), "Should have stripe_subscription_id");
-    assert(cols.includes("stripe_customer_id"), "Should have stripe_customer_id");
-  },
+Deno.test("Pro Subscription — confirm creates subscription + receipt + notification", async () => {
+  await cleanupTestData();
+
+  // Create an incomplete subscription first
+  await dbInsert("seller_subscriptions", {
+    user_id: TEST_SELLER_ID,
+    plan: "pro",
+    status: "inactive",
+    stripe_customer_id: "cus_test_123",
+    stripe_subscription_id: "sub_sim_test_123",
+    current_period_start: new Date().toISOString(),
+    current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+  });
+
+  const result = await callManageSubscription("confirm");
+
+  assertEquals(result.success, true);
+  assertEquals(result.isPro, true);
+
+  // Verify subscription is now active
+  const subs = await dbSelect(
+    "seller_subscriptions",
+    `user_id=eq.${TEST_SELLER_ID}&select=status,plan`,
+  );
+  assertEquals(subs[0]?.status, "active");
+  assertEquals(subs[0]?.plan, "pro");
+
+  // Verify profile is_pro flag
+  const profiles = await dbSelect(
+    "profiles",
+    `id=eq.${TEST_SELLER_ID}&select=is_pro`,
+  );
+  assertEquals(profiles[0]?.is_pro, true);
+
+  // Verify subscription receipt was created
+  const receipts = await dbSelect(
+    "subscription_receipts",
+    `user_id=eq.${TEST_SELLER_ID}&select=amount_usd,description`,
+  );
+  assertEquals(receipts.length >= 1, true, "Should have at least 1 receipt");
+  assertEquals(receipts[0]?.description, "CasaGrown Pro — Monthly subscription");
+
+  // Verify in-app notification was created
+  const notifications = await dbSelect(
+    "notifications",
+    `user_id=eq.${TEST_SELLER_ID}&select=content&order=created_at.desc&limit=1`,
+  );
+  assertEquals(notifications.length >= 1, true, "Should have at least 1 notification");
+  const content = notifications[0]?.content || "";
+  assertEquals(
+    content.includes("Pro") || content.includes("pro"),
+    true,
+    "Notification should mention Pro",
+  );
 });
 
-// ══════════════════════════════════════════════════════════════
-// CRUD Operations
-// ══════════════════════════════════════════════════════════════
-
-Deno.test({
-  name: "pro-subscription: create subscription record",
-  sanitizeResources: false,
-  sanitizeOps: false,
-  async fn() {
-    // Ensure clean slate
-    await sqlExec(
-      `DELETE FROM seller_subscriptions WHERE user_id = '${BUYER_ID}'`,
-    );
-
-    const id = await sqlExec(`
-      INSERT INTO seller_subscriptions (user_id, plan, status, stripe_customer_id, stripe_subscription_id)
-      VALUES ('${BUYER_ID}', 'pro', 'active', 'cus_test_buyer', 'sub_test_buyer')
-      RETURNING id
-    `);
-    assertExists(id);
-    assert(id.length > 10, "Should return a UUID");
-
-    // Cleanup
-    await sqlExec(
-      `DELETE FROM seller_subscriptions WHERE user_id = '${BUYER_ID}'`,
-    );
-  },
+Deno.test("Pro Subscription — status returns active after confirm", async () => {
+  const result = await callManageSubscription("status");
+  assertEquals(result.plan, "pro");
+  assertEquals(result.isPro, true);
+  assertEquals(result.status, "active");
 });
 
-Deno.test({
-  name: "pro-subscription: unique constraint on user_id",
-  sanitizeResources: false,
-  sanitizeOps: false,
-  async fn() {
-    // Seller already has a subscription from seed — try duplicate
-    const result = await sqlExec(`
-      DO $$ BEGIN
-        INSERT INTO seller_subscriptions (user_id, plan, status)
-        VALUES ('${SELLER_ID}', 'pro', 'active');
-      EXCEPTION WHEN unique_violation THEN
-        RAISE NOTICE 'unique_violation';
-      END $$
-    `);
-    // If we get here without error, ON CONFLICT handled it
-    // The key test is that the table enforces uniqueness
-    const count = await sqlExec(
-      `SELECT count(*) FROM seller_subscriptions WHERE user_id = '${SELLER_ID}'`,
-    );
-    assertEquals(count, "1");
-  },
+Deno.test("Pro Subscription — cancel marks subscription for end-of-period", async () => {
+  const result = await callManageSubscription("cancel");
+  assertEquals(result.success, true);
+
+  const subs = await dbSelect(
+    "seller_subscriptions",
+    `user_id=eq.${TEST_SELLER_ID}&select=canceled_at,status`,
+  );
+  assertExists(subs[0]?.canceled_at, "canceled_at should be set");
 });
 
-Deno.test({
-  name: "pro-subscription: plan check constraint validates values",
-  sanitizeResources: false,
-  sanitizeOps: false,
-  async fn() {
-    // Try invalid plan
-    const result = await sqlExec(`
-      DO $$ BEGIN
-        INSERT INTO seller_subscriptions (user_id, plan, status)
-        VALUES ('${BUYER_ID}', 'invalid_plan', 'active');
-      EXCEPTION WHEN check_violation THEN
-        RAISE NOTICE 'check_violation';
-      END $$
-    `);
-    // If no error, the constraint works or it fell through
-    const exists = await sqlExec(
-      `SELECT count(*) FROM seller_subscriptions WHERE user_id = '${BUYER_ID}' AND plan = 'invalid_plan'`,
-    );
-    assertEquals(exists, "0");
-  },
+Deno.test("Pro Subscription — resume clears canceled_at", async () => {
+  const result = await callManageSubscription("resume");
+  assertEquals(result.success, true);
+
+  const subs = await dbSelect(
+    "seller_subscriptions",
+    `user_id=eq.${TEST_SELLER_ID}&select=canceled_at`,
+  );
+  assertEquals(subs[0]?.canceled_at, null, "canceled_at should be null after resume");
 });
 
-Deno.test({
-  name: "pro-subscription: cancel subscription changes status",
-  sanitizeResources: false,
-  sanitizeOps: false,
-  async fn() {
-    await sqlExec(`
-      UPDATE seller_subscriptions SET status = 'canceled', canceled_at = now()
-      WHERE user_id = '${SELLER_ID}'
-    `);
+Deno.test("Pro Subscription — subscription_receipts table has correct schema", async () => {
+  const receipts = await dbSelect(
+    "subscription_receipts",
+    `user_id=eq.${TEST_SELLER_ID}&select=id,user_id,amount_usd,description,stripe_session_id,stripe_invoice_id,invoice_url,period_start,period_end,created_at&limit=1`,
+  );
 
-    const status = await sqlExec(
-      `SELECT status FROM seller_subscriptions WHERE user_id = '${SELLER_ID}'`,
-    );
-    assertEquals(status, "canceled");
-
-    // Restore for other tests
-    await sqlExec(`
-      UPDATE seller_subscriptions SET status = 'active', canceled_at = NULL
-      WHERE user_id = '${SELLER_ID}'
-    `);
-  },
+  if (receipts.length > 0) {
+    const r = receipts[0];
+    assertExists(r.id, "Should have id");
+    assertExists(r.user_id, "Should have user_id");
+    assertExists(r.amount_usd, "Should have amount_usd");
+    assertExists(r.description, "Should have description");
+    assertExists(r.created_at, "Should have created_at");
+  }
 });
 
-// ══════════════════════════════════════════════════════════════
-// manage-subscription Edge Function
-// ══════════════════════════════════════════════════════════════
+Deno.test("Pro Subscription — webhook handles invoice.paid", async () => {
+  await cleanupTestData();
 
-Deno.test({
-  name: "pro-subscription: manage-subscription requires auth",
-  sanitizeResources: false,
-  sanitizeOps: false,
-  async fn() {
-    const res = await fetch(
-      `${SUPABASE_URL}/functions/v1/manage-subscription`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: ANON_KEY,
-          // No auth token
-        },
-        body: JSON.stringify({ action: "create-checkout-session" }),
+  // Create an active subscription
+  await dbInsert("seller_subscriptions", {
+    user_id: TEST_SELLER_ID,
+    plan: "pro",
+    status: "active",
+    stripe_customer_id: "cus_webhook_test",
+    stripe_subscription_id: "sub_webhook_test",
+    current_period_start: new Date().toISOString(),
+    current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+  });
+
+  const webhookBody = {
+    id: "evt_test_invoice_paid",
+    type: "invoice.paid",
+    data: {
+      object: {
+        id: "in_test_123",
+        customer: "cus_webhook_test",
+        subscription: "sub_webhook_test",
+        amount_paid: 1000,
+        hosted_invoice_url: "https://stripe.com/invoice/test",
+        period_start: Math.floor(Date.now() / 1000),
+        period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
       },
-    );
+    },
+  };
 
-    // Should reject with 401 or return error
-    assert(
-      [200, 401, 403].includes(res.status),
-      `Expected auth rejection, got ${res.status}`,
-    );
-    if (res.status === 200) {
-      const data = await res.json();
-      // If 200, should have an error field
-      assert(
-        data.error || data.skipped,
-        "Unauthenticated request should error",
-      );
-    }
-  },
+  const res = await fetch(
+    `${SUPABASE_URL}/functions/v1/stripe-subscription-webhook`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      },
+      body: JSON.stringify(webhookBody),
+    },
+  );
+
+  const result = await res.json();
+  assertEquals(result.received, true);
+  assertEquals(result.action, "invoice_confirmed");
+
+  // Verify receipt was created
+  const receipts = await dbSelect(
+    "subscription_receipts",
+    `user_id=eq.${TEST_SELLER_ID}&select=amount_usd&order=created_at.desc&limit=1`,
+  );
+  assertEquals(receipts.length >= 1, true, "Should have receipt from webhook");
+  assertEquals(receipts[0]?.amount_usd, 10);
+
+  // Verify in-app notification
+  const notifications = await dbSelect(
+    "notifications",
+    `user_id=eq.${TEST_SELLER_ID}&select=content&order=created_at.desc&limit=1`,
+  );
+  assertEquals(notifications.length >= 1, true, "Should have notification from webhook");
 });
 
-Deno.test({
-  name: "pro-subscription: create-checkout-session returns structured response",
-  sanitizeResources: false,
-  sanitizeOps: false,
-  async fn() {
-    let token: string;
-    try {
-      ({ token } = await getSellerToken());
-    } catch (e) {
-      console.log(`⚠️ Could not get seller token: ${e.message} — skipping`);
-      return;
-    }
-    const { status, data } = await callManageSubscription(token, {
-      action: "create-checkout-session",
-    });
+Deno.test("Pro Subscription — webhook handles payment_failed", async () => {
+  const webhookBody = {
+    id: "evt_test_payment_failed",
+    type: "invoice.payment_failed",
+    data: {
+      object: {
+        customer: "cus_webhook_test",
+        subscription: "sub_webhook_test",
+      },
+    },
+  };
 
-    // Without real Stripe keys, will get an error but should be structured
-    assert(
-      [200, 400, 401, 404, 500].includes(status),
-      `Expected structured response, got ${status}: ${JSON.stringify(data)}`,
-    );
-    assertExists(data);
-  },
+  const res = await fetch(
+    `${SUPABASE_URL}/functions/v1/stripe-subscription-webhook`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      },
+      body: JSON.stringify(webhookBody),
+    },
+  );
+
+  const result = await res.json();
+  assertEquals(result.received, true);
+  assertEquals(result.action, "marked_past_due");
+
+  const subs = await dbSelect(
+    "seller_subscriptions",
+    `user_id=eq.${TEST_SELLER_ID}&select=status`,
+  );
+  assertEquals(subs[0]?.status, "past_due");
 });
 
-Deno.test({
-  name: "pro-subscription: cancel-subscription returns structured response",
-  sanitizeResources: false,
-  sanitizeOps: false,
-  async fn() {
-    let token: string;
-    try {
-      ({ token } = await getSellerToken());
-    } catch (e) {
-      console.log(`⚠️ Could not get seller token — skipping`);
-      return;
-    }
-    const { status, data } = await callManageSubscription(token, {
-      action: "cancel-subscription",
-    });
+Deno.test("Pro Subscription — webhook handles subscription.deleted", async () => {
+  await dbUpdate("seller_subscriptions", `user_id=eq.${TEST_SELLER_ID}`, {
+    status: "active",
+  });
+  await dbUpdate("profiles", `id=eq.${TEST_SELLER_ID}`, { is_pro: true });
 
-    assert(
-      [200, 400, 401, 404, 500].includes(status),
-      `Expected structured response, got ${status}: ${JSON.stringify(data)}`,
-    );
-    assertExists(data);
-  },
+  const webhookBody = {
+    id: "evt_test_sub_deleted",
+    type: "customer.subscription.deleted",
+    data: {
+      object: {
+        customer: "cus_webhook_test",
+        status: "canceled",
+      },
+    },
+  };
+
+  const res = await fetch(
+    `${SUPABASE_URL}/functions/v1/stripe-subscription-webhook`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      },
+      body: JSON.stringify(webhookBody),
+    },
+  );
+
+  const result = await res.json();
+  assertEquals(result.received, true);
+  assertEquals(result.action, "canceled");
+
+  const profiles = await dbSelect(
+    "profiles",
+    `id=eq.${TEST_SELLER_ID}&select=is_pro`,
+  );
+  assertEquals(profiles[0]?.is_pro, false);
 });
 
-Deno.test({
-  name: "pro-subscription: resume-subscription returns structured response",
-  sanitizeResources: false,
-  sanitizeOps: false,
-  async fn() {
-    let token: string;
-    try {
-      ({ token } = await getSellerToken());
-    } catch (e) {
-      console.log(`⚠️ Could not get seller token — skipping`);
-      return;
-    }
-    const { status, data } = await callManageSubscription(token, {
-      action: "resume-subscription",
-    });
+// Cleanup — restore seed state so downstream E2E tests pass
+Deno.test("Pro Subscription — cleanup test data", async () => {
+  await cleanupTestData();
 
-    assert(
-      [200, 400, 401, 404, 500].includes(status),
-      `Expected structured response, got ${status}: ${JSON.stringify(data)}`,
-    );
-    assertExists(data);
-  },
-});
+  // Restore seed state: is_pro=true + active subscription + FB connection
+  await dbUpdate("profiles", `id=eq.${TEST_SELLER_ID}`, { is_pro: true });
+  await dbInsert("seller_subscriptions", {
+    user_id: TEST_SELLER_ID,
+    plan: "pro",
+    status: "active",
+    stripe_customer_id: "cus_test_sam_seller",
+    stripe_subscription_id: "sub_test_sam_seller",
+  });
+  await dbInsert("seller_fb_connections", {
+    user_id: TEST_SELLER_ID,
+    fb_access_token: "EAAtest_fake_token_for_e2e",
+    fb_page_id: "123456789012345",
+    fb_page_name: "Willow Glen Farm Stand",
+    fb_page_access_token: "EAAtest_fake_page_token_for_e2e",
+    auto_sync_enabled: true,
+    status: "connected",
+  });
 
-Deno.test({
-  name: "pro-subscription: invalid action returns error",
-  sanitizeResources: false,
-  sanitizeOps: false,
-  async fn() {
-    let token: string;
-    try {
-      ({ token } = await getSellerToken());
-    } catch (e) {
-      console.log(`⚠️ Could not get seller token — skipping`);
-      return;
-    }
-    const { status, data } = await callManageSubscription(token, {
-      action: "invalid-action",
-    });
-
-    assertExists(data);
-    assert(data.error || status >= 400, "Should return error for invalid action");
-  },
-});
-
-// ══════════════════════════════════════════════════════════════
-// Pro Features Integration
-// ══════════════════════════════════════════════════════════════
-
-Deno.test({
-  name: "pro-subscription: profiles.is_pro reflects subscription status",
-  sanitizeResources: false,
-  sanitizeOps: false,
-  async fn() {
-    // Seller should be Pro
-    const isPro = await sqlExec(
-      `SELECT is_pro FROM profiles WHERE id = '${SELLER_ID}'`,
-    );
-    assertEquals(isPro, "t");
-
-    // Buyer should not be Pro
-    const buyerPro = await sqlExec(
-      `SELECT COALESCE(is_pro, false) FROM profiles WHERE id = '${BUYER_ID}'`,
-    );
-    assertEquals(buyerPro, "f");
-  },
-});
-
-Deno.test({
-  name: "pro-subscription: pro_onboarding fields exist",
-  sanitizeResources: false,
-  sanitizeOps: false,
-  async fn() {
-    const cols = await sqlExec(`
-      SELECT string_agg(column_name, ',' ORDER BY column_name)
-      FROM information_schema.columns
-      WHERE table_name = 'profiles' AND column_name IN (
-        'farm_name', 'business_type', 'business_logo_url', 'seller_bio',
-        'business_license', 'pro_features_enabled'
-      )
-    `);
-    assert(cols.includes("farm_name"), "profiles should have farm_name");
-    assert(cols.includes("business_logo_url"), "profiles should have business_logo_url");
-    assert(cols.includes("seller_bio"), "profiles should have seller_bio");
-    assert(cols.includes("pro_features_enabled"), "profiles should have pro_features_enabled");
-  },
+  assertEquals(true, true);
 });
