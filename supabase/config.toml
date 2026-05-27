@@ -807,3 +807,23 @@ entrypoint = "./functions/sync-ofn-catalog/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/request-account-closure/index.ts"
+
+[functions.send-pro-interest-email]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/send-pro-interest-email/index.ts"
+
+[functions.connect-facebook]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/connect-facebook/index.ts"
+
+[functions.manage-subscription]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/manage-subscription/index.ts"
+
+[functions.create-pro-checkout]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/create-pro-checkout/index.ts"

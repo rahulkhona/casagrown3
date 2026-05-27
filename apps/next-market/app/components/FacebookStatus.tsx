@@ -30,13 +30,35 @@ export function FacebookStatus() {
       })
   }, [user])
 
+  const [connecting, setConnecting] = useState(false)
+  const [connectError, setConnectError] = useState('')
+
   const handleConnect = async () => {
-    const supabase = createClient()
-    const { data, error } = await supabase.functions.invoke(
-      'connect-facebook',
-      { body: { return_path: window.location.pathname } },
-    )
-    if (data?.url) window.location.href = data.url
+    setConnecting(true)
+    setConnectError('')
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase.functions.invoke(
+        'connect-facebook',
+        { body: { return_path: window.location.pathname + window.location.search } },
+      )
+      if (error) {
+        console.error('Facebook connect error:', error)
+        setConnectError('Failed to start Facebook connection. Please try again.')
+        setConnecting(false)
+        return
+      }
+      if (data?.url) {
+        window.location.href = data.url
+      } else {
+        setConnectError('Could not generate Facebook login URL.')
+        setConnecting(false)
+      }
+    } catch (err: any) {
+      console.error('Facebook connect error:', err)
+      setConnectError(err.message || 'Something went wrong.')
+      setConnecting(false)
+    }
   }
 
   const handleSync = async () => {
@@ -115,6 +137,7 @@ export function FacebookStatus() {
             e.stopPropagation()
             handleConnect()
           }}
+          disabled={connecting}
           style={{
             padding: '8px 20px',
             borderRadius: 8,
@@ -123,13 +146,19 @@ export function FacebookStatus() {
             color: 'white',
             fontWeight: 600,
             fontSize: 14,
-            cursor: 'pointer',
+            cursor: connecting ? 'wait' : 'pointer',
+            opacity: connecting ? 0.7 : 1,
             position: 'relative',
             zIndex: 1,
           }}
         >
-          🔗 Connect Facebook
+          {connecting ? '🔗 Connecting...' : '🔗 Connect Facebook'}
         </button>
+        {connectError && (
+          <p style={{ margin: '8px 0 0', fontSize: 12, color: '#dc2626' }}>
+            ⚠️ {connectError}
+          </p>
+        )}
       </div>
     )
   }

@@ -496,6 +496,25 @@ else
   log_suite "Multi-Stand & Catalog" "$MSTAND_PASSED" "$MSTAND_FAILED"
 fi
 
+# 5o: Pro Subscription tests (confirm, receipts, notifications, webhooks)
+echo "  Running Pro Subscription tests..."
+PROSUB_OUTPUT=$(SUPABASE_URL=http://127.0.0.1:54321 \
+  SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
+  SUPABASE_ANON_KEY="$(npx supabase status -o env 2>/dev/null | grep ANON_KEY | cut -d'"' -f2)" \
+  deno test --allow-env --allow-net --no-check \
+  supabase/functions/_tests/pro-subscription.test.ts 2>&1)
+PROSUB_PASSED=$(echo "$PROSUB_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
+PROSUB_FAILED=$(echo "$PROSUB_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
+
+if [ "${PROSUB_FAILED:-0}" -eq 0 ] || [ -z "$PROSUB_FAILED" ]; then
+  echo -e "  ${GREEN}✅ Pro Subscription: ${PROSUB_PASSED} tests — ALL PASS${NC}"
+  log_suite "Pro Subscription" "$PROSUB_PASSED"
+else
+  echo -e "  ${RED}❌ Pro Subscription: ${PROSUB_PASSED} passed, ${PROSUB_FAILED} failed${NC}"
+  echo "$PROSUB_OUTPUT" | grep -E "FAILED|error:|AssertionError" | head -10
+  log_suite "Pro Subscription" "$PROSUB_PASSED" "$PROSUB_FAILED"
+fi
+
 # ─────────────────────────────────────────────────────────────────────────
 # PHASE 6: Shell Integration Tests (Escalation Handling)
 # ─────────────────────────────────────────────────────────────────────────

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '../../lib/supabase'
 
 interface GrowBotSettingsProps {
-  boothId: string
+  userId: string
   isPro: boolean
 }
 
@@ -39,11 +39,12 @@ type ChannelKey = 'messenger' | 'dm' | 'orders'
  * Suggested replies (copilot) on DMs & Orders are always on — no config needed.
  * Messenger has no copilot since we don't control Facebook's UI.
  */
-export function GrowBotSettings({ boothId, isPro }: GrowBotSettingsProps) {
+export function GrowBotSettings({ userId, isPro }: GrowBotSettingsProps) {
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const [configs, setConfigs] = useState<Record<ChannelKey, ChannelConfig>>({
     messenger: { enabled: true, delayMinutes: 0 },
@@ -55,9 +56,9 @@ export function GrowBotSettings({ boothId, isPro }: GrowBotSettingsProps) {
   useEffect(() => {
     const load = async () => {
       const { data } = await supabase
-        .from('market_booths')
+        .from('profiles')
         .select('bot_instructions, bot_channels')
-        .eq('id', boothId)
+        .eq('id', userId)
         .single()
 
       if (data) {
@@ -74,21 +75,25 @@ export function GrowBotSettings({ boothId, isPro }: GrowBotSettingsProps) {
       setLoading(false)
     }
     load()
-  }, [boothId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [userId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSave = async () => {
     setSaving(true)
     setSaved(false)
+    setSaveError(null)
     const { error } = await supabase
-      .from('market_booths')
+      .from('profiles')
       .update({
         bot_instructions: botInstructions || null,
         bot_channels: configs,
       })
-      .eq('id', boothId)
+      .eq('id', userId)
 
     setSaving(false)
-    if (!error) {
+    if (error) {
+      console.error('GrowBot save error:', error)
+      setSaveError(error.message)
+    } else {
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     }
@@ -117,7 +122,7 @@ export function GrowBotSettings({ boothId, isPro }: GrowBotSettingsProps) {
           padding: '10px 14px', borderRadius: 10, marginBottom: 16,
           background: '#fef9c3', color: '#92400e', fontSize: 13, border: '1px solid #fcd34d',
         }}>
-          ⚡ GrowBot requires a Pro subscription. <a href="/profile" style={{ fontWeight: 600 }}>Upgrade to Pro</a>
+          ⚡ GrowBot requires a Pro subscription. <a href="/pro-manage" style={{ fontWeight: 600 }}>Learn more</a>
         </div>
       )}
 
@@ -257,7 +262,7 @@ export function GrowBotSettings({ boothId, isPro }: GrowBotSettingsProps) {
             width: '100%',
           }}
         >
-          {saving ? 'Saving...' : saved ? '✓ Saved!' : 'Save GrowBot Settings'}
+          {saving ? 'Saving...' : saved ? '✓ Saved!' : 'Save'}
         </button>
       </div>
 

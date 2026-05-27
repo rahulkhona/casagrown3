@@ -7,17 +7,23 @@
  */
 import { serveWithCors, requireAuth, jsonOk, jsonError } from '../_shared/serve-with-cors.ts'
 import { getStripeApiBase } from '../_shared/stripe.ts'
+import { sendTransactionEmail, getUserEmail } from '../_shared/postmark.ts'
+import { wrapInBrandedTemplate } from '../_shared/email-templates.ts'
 
 serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
   const auth = await requireAuth(req, supabase, corsHeaders)
   if (auth instanceof Response) return auth
-  const userId = auth
+  let userId = auth
 
-  if (userId === 'service_role') {
+  // Allow service_role to impersonate a user (for integration tests)
+  const body = await req.json()
+  if (userId === 'service_role' && body.user_id) {
+    userId = body.user_id
+  } else if (userId === 'service_role') {
     return jsonError('User auth required', corsHeaders, 403)
   }
 
-  const { action, return_path } = await req.json()
+  const { action, return_path, session_id } = body
   const returnTo = return_path || '/profile'
   const STRIPE_SECRET_KEY = env('STRIPE_SECRET_KEY', true)!
   const stripeBase = getStripeApiBase()
@@ -203,14 +209,57 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
         customerId = cust.id
       }
 
-      // Get the Pro price ID from env
-      const PRICE_ID = env('STRIPE_PRO_PRICE_ID', true)!
+      // Determine price — use platform_settings for dynamic pricing
+      const { data: cfg } = await supabase
+        .from('platform_settings')
+        .select('pro_monthly_price_usd')
+        .limit(1)
+        .single()
+
+      const monthlyPriceUsd = cfg?.pro_monthly_price_usd ?? 10
+      
+      // Check for user-specific discounts
+      const { data: discounts } = await supabase
+        .from('user_subscription_discounts')
+        .select('discount_pct, duration_months')
+        .eq('user_id', userId)
+        .eq('active', true)
+        .gte('expires_at', new Date().toISOString())
+        .limit(1)
+
+      const discount = discounts?.[0] ?? null
+      const effectivePrice = discount
+        ? monthlyPriceUsd * (1 - discount.discount_pct / 100)
+        : monthlyPriceUsd
+      const priceInCents = Math.round(effectivePrice * 100)
+
+      // Always create price dynamically from our platform_settings
+      const priceParams = new URLSearchParams({
+        'unit_amount': String(priceInCents),
+        'currency': 'usd',
+        'recurring[interval]': 'month',
+        'product_data[name]': 'CasaGrown Pro',
+      })
+      const priceRes = await fetch(`${stripeBase}/v1/prices`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${STRIPE_SECRET_KEY}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: priceParams,
+      })
+      if (!priceRes.ok) {
+        console.error('Failed to create dynamic price:', await priceRes.text())
+        return jsonError('Failed to set up pricing', corsHeaders)
+      }
+      const priceData = await priceRes.json()
+      const priceId = priceData.id
 
       // Build checkout session params
       const params: Record<string, string> = {
         'mode': 'subscription',
         'customer': customerId,
-        'line_items[0][price]': PRICE_ID,
+        'line_items[0][price]': priceId,
         'line_items[0][quantity]': '1',
         'metadata[supabase_user_id]': userId,
         'subscription_data[metadata][supabase_user_id]': userId,
@@ -241,30 +290,235 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
 
       const session = await checkoutRes.json()
 
-      // Create subscription record immediately so Pro status reflects right away.
-      // The Stripe webhook will update it later with the real subscription ID.
+      // Don't activate Pro here — wait for Stripe webhook or return URL confirmation.
+      // Just store the pending checkout so we can reconcile later.
       const now = new Date().toISOString()
-      const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
       await supabase
         .from('seller_subscriptions')
         .upsert({
           user_id: userId,
           plan: 'pro',
-          status: trialDays > 0 ? 'trialing' : 'active',
+          status: 'incomplete',
           stripe_customer_id: customerId,
-          stripe_subscription_id: session.subscription || `pending_${session.id}`,
-          current_period_start: now,
-          current_period_end: periodEnd,
-          trial_ends_at: trialDays > 0 ? new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString() : null,
-          canceled_at: null,
+          stripe_subscription_id: `pending_${session.id}`,
           created_at: now,
           updated_at: now,
         }, { onConflict: 'user_id' })
 
-      // Set is_pro on profile immediately
-      await supabase.from('profiles').update({ is_pro: true }).eq('id', userId)
-
       return jsonOk({ clientSecret: session.client_secret }, corsHeaders)
+    }
+
+    // ── Confirm checkout (called from return URL after payment) ──
+    case 'confirm': {
+      // Get pricing info for receipt
+      const { data: cfgReceipt } = await supabase
+        .from('platform_settings')
+        .select('pro_monthly_price_usd')
+        .limit(1)
+        .single()
+      const receiptPrice = cfgReceipt?.pro_monthly_price_usd ?? 10
+
+      let confirmed = false
+      let amountPaid = receiptPrice
+
+      if (session_id && session_id.startsWith('cs_')) {
+        // Verify session with Stripe
+        const sessionRes = await fetch(`${stripeBase}/v1/checkout/sessions/${session_id}`, {
+          headers: { 'Authorization': `Bearer ${STRIPE_SECRET_KEY}` },
+        })
+
+        if (sessionRes.ok) {
+          const sessionData = await sessionRes.json()
+          if (sessionData.payment_status === 'paid' || sessionData.status === 'complete') {
+            const now = new Date().toISOString()
+            const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+            await supabase
+              .from('seller_subscriptions')
+              .upsert({
+                user_id: userId,
+                plan: 'pro',
+                status: 'active',
+                stripe_customer_id: sessionData.customer,
+                stripe_subscription_id: sessionData.subscription || `confirmed_${session_id}`,
+                current_period_start: now,
+                current_period_end: periodEnd,
+                canceled_at: null,
+                created_at: now,
+                updated_at: now,
+              }, { onConflict: 'user_id' })
+
+            await supabase.from('profiles').update({ is_pro: true }).eq('id', userId)
+            amountPaid = (sessionData.amount_total || receiptPrice * 100) / 100
+            confirmed = true
+          }
+        }
+      }
+
+      // Fallback: check if subscription already exists with incomplete status and activate it
+      if (!confirmed && sub?.status === 'inactive') {
+        const now = new Date().toISOString()
+        const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+        await supabase
+          .from('seller_subscriptions')
+          .update({
+            status: 'active',
+            current_period_start: now,
+            current_period_end: periodEnd,
+            updated_at: now,
+          })
+          .eq('user_id', userId)
+
+        await supabase.from('profiles').update({ is_pro: true }).eq('id', userId)
+        confirmed = true
+      }
+
+      if (!confirmed) {
+        return jsonOk({ success: false, message: 'Could not confirm checkout' }, corsHeaders)
+      }
+
+      // ── Send Subscription Receipt: All channels ──
+      const formattedDate = new Date().toLocaleDateString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric',
+      })
+      const periodEndDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+
+      // Get profile info
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', userId)
+        .single()
+      const sellerName = profile?.full_name || 'there'
+
+      // Get email from auth
+      const sellerEmail = await getUserEmail(supabase, userId)
+
+      // 1. In-app notification
+      await supabase.from('notifications').insert({
+        user_id: userId,
+        content: `🎉 Welcome to CasaGrown Pro! Your payment of $${amountPaid.toFixed(2)} was processed. Enjoy lower fees, Facebook catalog sync, and GrowBot auto-replies.`,
+        link_url: '/pro-manage',
+      })
+
+      // 2. Push notification
+      try {
+        await supabase.functions.invoke('send-push-notification', {
+          body: {
+            userIds: [userId],
+            title: '🎉 Welcome to CasaGrown Pro!',
+            body: `Your payment of $${amountPaid.toFixed(2)} was processed. Pro features are now active.`,
+            url: '/pro-manage',
+          },
+        })
+      } catch (pushErr) {
+        console.warn('[CONFIRM] Push notification failed:', pushErr)
+      }
+
+      // 3. Email receipt
+      if (sellerEmail) {
+        try {
+          const receiptHtml = wrapInBrandedTemplate({
+            title: 'Subscription Receipt',
+            greeting: `Hi ${sellerName},`,
+            bodyHtml: `
+              <p style="margin: 0 0 16px; font-size: 14px; color: #374151; line-height: 1.6;">Thank you for subscribing to CasaGrown Pro! Here's your receipt.</p>
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background: #f0fdf4; border: 1px solid #dcfce7; border-radius: 10px; overflow: hidden;">
+                <tr><td style="padding: 16px 20px 8px;"><p style="margin: 0 0 8px; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">Subscription Details</p>
+                  <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+                    <tr><td style="font-size: 13px; color: #6b7280; padding: 3px 0;">Plan</td><td style="font-size: 13px; color: #1f2937; text-align: right; padding: 3px 0; font-weight: 600;">CasaGrown Pro (Monthly)</td></tr>
+                    <tr><td style="font-size: 13px; color: #6b7280; padding: 3px 0;">Amount</td><td style="font-size: 13px; color: #1f2937; text-align: right; padding: 3px 0; font-weight: 600;">$${amountPaid.toFixed(2)}</td></tr>
+                    <tr><td style="font-size: 13px; color: #6b7280; padding: 3px 0;">Date</td><td style="font-size: 13px; color: #1f2937; text-align: right; padding: 3px 0;">${formattedDate}</td></tr>
+                    <tr><td style="font-size: 13px; color: #6b7280; padding: 3px 0;">Next Billing</td><td style="font-size: 13px; color: #1f2937; text-align: right; padding: 3px 0;">${periodEndDate}</td></tr>
+                  </table>
+                </td></tr>
+              </table>
+              <p style="margin: 20px 0 0; font-size: 13px; color: #6b7280; line-height: 1.5;">You can manage your subscription anytime from <a href="${siteUrl}/pro-manage" style="color: #059669; font-weight: 600;">Pro Management</a>.</p>
+            `,
+            footer: 'This is your official subscription receipt. Keep it for your records.',
+          })
+
+          await sendTransactionEmail({
+            to: sellerEmail,
+            subject: `CasaGrown Pro — Receipt for $${amountPaid.toFixed(2)}`,
+            htmlBody: receiptHtml,
+          })
+          console.log(`[CONFIRM] Receipt email sent to ${sellerEmail}`)
+        } catch (emailErr) {
+          console.warn('[CONFIRM] Receipt email failed:', emailErr)
+        }
+      }
+
+      // 4. SMS notification
+      try {
+        await supabase.functions.invoke('send-sms-notification', {
+          body: {
+            userId,
+            message: `CasaGrown: Welcome to Pro! Your payment of $${amountPaid.toFixed(2)} was processed. Thank you for your support! 🚜`,
+          },
+        })
+      } catch (smsErr) {
+        console.warn('[CONFIRM] SMS notification failed:', smsErr)
+      }
+
+      // 5. Subscription receipt record
+      try {
+        const periodEndReceipt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+        await supabase.from('subscription_receipts').insert({
+          user_id: userId,
+          amount_usd: amountPaid,
+          description: 'CasaGrown Pro — Monthly subscription',
+          stripe_session_id: session_id || null,
+          period_start: new Date().toISOString(),
+          period_end: periodEndReceipt,
+        })
+      } catch (receiptErr) {
+        console.warn('[CONFIRM] Receipt record failed:', receiptErr)
+      }
+
+      // 6. Stripe Connect encouragement email (delayed nudge)
+      if (sellerEmail) {
+        try {
+          // Check if seller already has Stripe Connect
+          const { data: connectCheck } = await supabase
+            .from('profiles')
+            .select('stripe_connect_id')
+            .eq('id', userId)
+            .single()
+
+          if (!connectCheck?.stripe_connect_id) {
+            const connectHtml = wrapInBrandedTemplate({
+              title: 'Set Up Your Payouts',
+              greeting: `Hi ${sellerName},`,
+              bodyHtml: `
+                <p style="margin: 0 0 16px; font-size: 14px; color: #374151; line-height: 1.6;">Now that you're a CasaGrown Pro seller, let's make sure you can receive your earnings quickly!</p>
+                <div style="background: #fffbeb; border: 1px solid #fcd34d; border-radius: 10px; padding: 16px; margin-bottom: 16px;">
+                  <p style="margin: 0 0 8px; font-size: 14px; font-weight: 700; color: #92400e;">⚡ Set Up Stripe Connect for Faster Payouts</p>
+                  <p style="margin: 0; font-size: 13px; color: #78350f; line-height: 1.5;">Connect your bank account through Stripe to receive direct deposits from your sales. It only takes 2 minutes.</p>
+                </div>
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+                  <tr><td style="padding: 8px 0;">
+                    <a href="${siteUrl}/earnings/payout" style="display: inline-block; padding: 14px 28px; background: linear-gradient(135deg, #065f46, #059669); color: white; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 15px;">Set Up Payouts →</a>
+                  </td></tr>
+                </table>
+                <p style="margin: 16px 0 0; font-size: 12px; color: #9ca3af; line-height: 1.5;">Without Stripe Connect, your earnings will accumulate as credits. Setting up payouts lets you withdraw directly to your bank account.</p>
+              `,
+              footer: 'You received this email because you subscribed to CasaGrown Pro.',
+            })
+
+            await sendTransactionEmail({
+              to: sellerEmail,
+              subject: `${sellerName}, set up your payouts to get paid faster 💰`,
+              htmlBody: connectHtml,
+            })
+            console.log(`[CONFIRM] Stripe Connect encouragement email sent to ${sellerEmail}`)
+          }
+        } catch (connectErr) {
+          console.warn('[CONFIRM] Stripe Connect email failed:', connectErr)
+        }
+      }
+
+      return jsonOk({ success: true, isPro: true }, corsHeaders)
     }
 
     default:

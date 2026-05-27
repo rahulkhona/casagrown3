@@ -17,8 +17,16 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     const code = url.searchParams.get('code')
     const stateRaw = url.searchParams.get('state') || ''
 
-    if (!code || !stateRaw) {
-      return new Response('Missing code or state', { status: 400, headers: corsHeaders })
+    // Handle user declining permissions (Not Now)
+    const error = url.searchParams.get('error')
+    if (error || !code) {
+      // Extract return path from state if available
+      const [, returnPathEncoded] = (stateRaw || '').split(':')
+      const redirectBack = returnPathEncoded ? decodeURIComponent(returnPathEncoded) : '/profile'
+      return new Response(null, {
+        status: 302,
+        headers: { ...corsHeaders, 'Location': `${siteUrl}${redirectBack}?fb=canceled` },
+      })
     }
 
     // State format: userId:returnPath

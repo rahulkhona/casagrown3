@@ -174,6 +174,30 @@ export function RealtimeNotificationListener() {
         }
       )
 
+      // 3. Listen for subscription status changes (Pro activation from web payment)
+      channel.on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'seller_subscriptions',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          if (!mountedRef.current) return
+          const sub = payload.new as any
+          if (sub?.status === 'active' || sub?.status === 'trialing') {
+            // Emit custom event so useSubscription can refresh without its own channel
+            if (Platform.OS === 'web' && typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('casagrown:subscription-changed', { detail: sub }))
+            } else {
+              DeviceEventEmitter.emit('casagrown:subscription-changed', sub)
+            }
+            emitBadgeRefresh()
+          }
+        }
+      )
+
       channel.subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           isSubscribedRef.current = true

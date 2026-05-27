@@ -107,7 +107,7 @@ export function ErrorToastProvider({ children, userId }: { children: React.React
     error:   { bg: '#fef2f2', border: '#fca5a5', icon: '❌', color: '#991b1b' },
     warning: { bg: '#fffbeb', border: '#fcd34d', icon: '⚠️', color: '#92400e' },
     info:    { bg: '#1f2937', border: '#374151', icon: '✨', color: '#f9fafb' },
-    success: { bg: '#f0fdf4', border: '#86efac', icon: '✅', color: '#166534' },
+    success: { bg: '#065f46', border: '#059669', icon: '✅', color: '#ffffff' },
   }
 
   const feedbackTypeConfig = {
@@ -123,7 +123,7 @@ export function ErrorToastProvider({ children, userId }: { children: React.React
       {/* ── Toast Stack ── */}
       {toasts.length > 0 && (
         <div style={{
-          position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)',
+          position: 'fixed', top: 72, left: '50%', transform: 'translateX(-50%)',
           zIndex: 10000, display: 'flex', flexDirection: 'column', gap: 8,
           width: 'min(90vw, 420px)', pointerEvents: 'none',
         }}>

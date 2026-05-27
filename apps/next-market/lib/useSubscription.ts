@@ -33,6 +33,8 @@ export function useSubscription(): SubscriptionInfo {
     }
 
     const supabase = createClient()
+
+    // Initial fetch
     supabase
       .from('seller_subscriptions')
       .select('plan, status, trial_ends_at, current_period_end, canceled_at')
@@ -56,6 +58,36 @@ export function useSubscription(): SubscriptionInfo {
           setSub((prev) => ({ ...prev, loading: false }))
         }
       })
+
+    // Listen for realtime updates from the shared system channel
+    // (RealtimeNotificationListener emits this event)
+    const handleSubChange = (e: any) => {
+      const data = e.detail || e // CustomEvent on web, plain object on native
+      if (data) {
+        const isPro =
+          data.plan === 'pro' &&
+          ['active', 'trialing'].includes(data.status)
+        setSub({
+          plan: data.plan,
+          status: data.status,
+          isPro,
+          trialEndsAt: data.trial_ends_at,
+          currentPeriodEnd: data.current_period_end,
+          canceledAt: data.canceled_at,
+          loading: false,
+        })
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('casagrown:subscription-changed', handleSubChange)
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('casagrown:subscription-changed', handleSubChange)
+      }
+    }
   }, [user])
 
   return sub

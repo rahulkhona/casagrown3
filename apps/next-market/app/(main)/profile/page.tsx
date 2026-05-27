@@ -15,6 +15,7 @@ import { UpgradePrompt } from '../../components/UpgradePrompt'
 import { ProCarousel } from '../../components/ProCarousel'
 import { useErrorToast } from '../../components/ErrorToast'
 import { ProGate } from '../../components/ProGate'
+import { useProEnabled } from '../../../lib/useProEnabled'
 import { FacebookStatus } from '../../components/FacebookStatus'
 import { WidgetEmbed } from '../../components/WidgetEmbed'
 import { GrowBotSettings } from '../../components/GrowBotSettings'
@@ -279,6 +280,7 @@ function ProfilePageInner() {
       { enableHighAccuracy: true, timeout: 10000 }
     )
   }
+  const proEnabled = useProEnabled()
 
   // ── Phone Verification ──
   const handleSendOtp = async () => {
@@ -551,10 +553,12 @@ function ProfilePageInner() {
         </div>
 
         {/* ── My Plan / Upgrade ── */}
-        <div id="my-plan" style={{ marginTop: 16 }}>
-          <div className="divider" />
-          <PlanSection proInterest={proInterest} setProInterest={setProInterest} />
-        </div>
+        {proEnabled && (
+          <div id="my-plan" style={{ marginTop: 16 }}>
+            <div className="divider" />
+            <PlanSection proInterest={proInterest} setProInterest={setProInterest} />
+          </div>
+        )}
 
         <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%', marginTop: 16 }} disabled={saving}>
           {saving ? 'Saving...' : saved ? '✓ Saved' : 'Save Profile'}

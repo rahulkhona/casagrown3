@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   const code = url.searchParams.get('code')
   const stateRaw = url.searchParams.get('state') || ''
   const error = url.searchParams.get('error')
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3002'
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3001'
 
   // Parse return path from state (format: userId:encodedReturnPath)
   let returnPath = '/profile'

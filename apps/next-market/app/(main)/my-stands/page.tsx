@@ -8,7 +8,9 @@ import { createClient } from '../../../lib/supabase'
 import { LoadingSpinner } from '../../components/LoadingSpinner'
 import { StandIcon } from '../../components/icons'
 import SocialShareModal from '../../components/SocialShareModal'
-import { UpgradePrompt } from '../../components/UpgradePrompt'
+import { ProCarousel } from '../../components/ProCarousel'
+import { useProEnabled } from '../../../lib/useProEnabled'
+import { useErrorToast } from '../../components/ErrorToast'
 
 import styles from './page.module.css'
 
@@ -40,6 +42,10 @@ export default function MyStandsPage() {
   const [leaveTarget, setLeaveTarget] = useState<(StandRow & { owner_name: string }) | null>(null)
   const [leaving, setLeaving] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [proInterestSent, setProInterestSent] = useState(false)
+  const [proInterestSending, setProInterestSending] = useState(false)
+  const { showSuccess } = useErrorToast()
+  const proEnabled = useProEnabled()
 
   // Auth guard
   useEffect(() => {
@@ -228,7 +234,7 @@ export default function MyStandsPage() {
             + Add New Booth
           </Link>
         </div>
-      ) : (
+      ) : proEnabled ? (
         <div style={{ marginBottom: 24 }}>
           {/* Greyed-out Pro buttons */}
           <div className={styles.actionRow}>
@@ -245,8 +251,11 @@ export default function MyStandsPage() {
               + Add New Booth 🔒
             </button>
           </div>
+          <p style={{ margin: '6px 0 0', fontSize: 12, color: '#9ca3af', textAlign: 'center', lineHeight: 1.5 }}>
+            🔒 Pro lets you create a booth for each farmers market or route — each with its own schedule, pickup location, and inventory
+          </p>
         </div>
-      )}
+      ) : null}
 
       {/* Search */}
       {(stands.length + helperStands.length) > 3 && (
@@ -340,13 +349,47 @@ export default function MyStandsPage() {
       </div>
 
       {/* Pro upgrade carousel — below booth cards for non-Pro */}
-      {!isPro && (
+      {!isPro && proEnabled && (
         <div style={{ marginTop: 32 }}>
           <div className="divider" />
           <h3 className={styles.subtitle} style={{ fontSize: 16, fontWeight: 600, color: 'var(--gray-700)', marginBottom: 16 }}>
-            Grow Your Business with Pro
+            Grow your business with CasaGrown Pro
           </h3>
-          <UpgradePrompt />
+          <ProCarousel compact />
+
+          {/* Interest button */}
+          <div style={{ marginTop: 16, textAlign: 'center' }}>
+            <button
+              onClick={async () => {
+                setProInterestSending(true)
+                try {
+                  const supabase = createClient()
+                  await supabase.functions.invoke('send-pro-interest-email', { body: {} })
+                  showSuccess('📧 Check your email for details about CasaGrown Pro!')
+                  setProInterestSent(true)
+                } catch {
+                  // Silently fail
+                } finally {
+                  setProInterestSending(false)
+                }
+              }}
+              disabled={proInterestSent || proInterestSending}
+              style={{
+                padding: '14px 28px', borderRadius: 12, border: 'none',
+                background: proInterestSent
+                  ? '#059669'
+                  : 'linear-gradient(135deg, #065f46 0%, #059669 100%)',
+                color: 'white', fontWeight: 700, fontSize: 15,
+                cursor: proInterestSent || proInterestSending ? 'not-allowed' : 'pointer',
+                opacity: proInterestSending ? 0.7 : 1,
+                boxShadow: proInterestSent ? 'none' : '0 4px 12px rgba(5, 150, 105, 0.3)',
+                transition: 'all 0.2s ease',
+                width: '100%', maxWidth: 400,
+              }}
+            >
+              {proInterestSending ? '✉️ Sending...' : proInterestSent ? '✅ Email sent — check your inbox!' : '🌱 I\u2019m interested in CasaGrown Pro'}
+            </button>
+          </div>
         </div>
       )}
 

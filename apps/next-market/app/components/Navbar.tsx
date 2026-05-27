@@ -15,6 +15,8 @@ import { useMarketStatus } from '../../lib/useMarketStatus'
 import { useErrorToast } from './ErrorToast'
 import { useNotificationPrompt, isNotificationsEnabled } from '../../lib/useNotificationPrompt'
 import { NotificationPromptModal } from './NotificationPromptModal'
+import { useSubscription } from '../../lib/useSubscription'
+import { useProEnabled } from '../../lib/useProEnabled'
 
 function StandIcon({ size = 20 }: { size?: number }) {
   return (
@@ -104,6 +106,8 @@ export function Navbar() {
   const menuRef = useRef<HTMLDivElement>(null)
   const { showError, showInfo } = useErrorToast()
   const { showPrompt, modalProps } = useNotificationPrompt(userId || undefined)
+  const { isPro, loading: subLoading } = useSubscription()
+  const proEnabled = useProEnabled()
 
   // Profile gate: grey out nav items unless fully onboarded (logged in + profile complete)
   const isProfileLocked = profileComplete !== true
@@ -682,6 +686,20 @@ export function Navbar() {
                         <span>{item.label}</span>
                       </Link>
                     ))}
+                    {/* Pro menu item */}
+                    {proEnabled && !subLoading && (
+                      isPro ? (
+                        <Link href="/pro-manage" className={`${styles.menuItem} ${pathname === '/pro-manage' ? styles.menuItemActive : ''}`}>
+                          <span className={styles.menuItemIcon}>🚜</span>
+                          <span>Manage Pro</span>
+                        </Link>
+                      ) : (
+                        <Link href="/pro-manage" className={styles.menuItem}>
+                          <span className={styles.menuItemIcon}>🚜</span>
+                          <span>CasaGrown Pro</span>
+                        </Link>
+                      )
+                    )}
                     {!isNotificationsEnabled() && (
                       <button className={styles.menuItem} onClick={() => { setMenuOpen(false); showPrompt(true); }}>
                         <span className={styles.menuItemIcon}>🔔</span>

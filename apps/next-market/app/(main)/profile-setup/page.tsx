@@ -8,6 +8,8 @@ import { createClient } from '../../../lib/supabase'
 import { trackFormSubmit, trackClick, trackError } from '../../../lib/analytics'
 import CameraCapture from '../../../components/CameraCapture'
 import ImageCropper from '../../../components/ImageCropper'
+import { ProCarousel } from '../../components/ProCarousel'
+import { useErrorToast } from '../../components/ErrorToast'
 import styles from './page.module.css'
 
 function ProfileSetupPageInner() {
@@ -48,6 +50,10 @@ function ProfileSetupPageInner() {
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false)
   const [twilioBlocked, setTwilioBlocked] = useState(false)
   const [showPhoneOptIn, setShowPhoneOptIn] = useState(false)
+
+  // Pro interest
+  const [proInterest, setProInterest] = useState(false)
+  const { showSuccess: showToastSuccess } = useErrorToast()
 
   // Pre-fill from existing profile
   useEffect(() => {
@@ -306,6 +312,15 @@ function ProfileSetupPageInner() {
 
       if (updateErr) { setError(updateErr.message); setSaving(false); return }
 
+      // Fire-and-forget: send Pro interest email if checkbox is checked
+      if (proInterest) {
+        try {
+          await supabase.functions.invoke('send-pro-interest-email', { body: {} })
+        } catch {
+          // Silently fail — don't block navigation
+        }
+      }
+
       if (redirectTo) {
         // Only append autoBuy for product purchase flows (e.g. /booth/), not community
         const needsAutoBuy = redirectTo.includes('/booth/') || redirectTo.includes('/product/')
@@ -527,6 +542,28 @@ function ProfileSetupPageInner() {
           <p className={styles.privacyNote}>
             🔒 Your address is used to connect you with nearby neighbors. It&apos;s never shared publicly.
           </p>
+
+          {/* Pro interest — optional during signup */}
+          <div style={{ marginTop: 16, marginBottom: 16 }}>
+            <ProCarousel compact />
+            <label style={{
+              display: 'flex', alignItems: 'flex-start', gap: 10,
+              marginTop: 12, padding: '12px 14px', borderRadius: 12,
+              background: '#f0fdf4', border: '1px solid #bbf7d0',
+              cursor: 'pointer', fontSize: 14, color: '#374151',
+              lineHeight: 1.5,
+            }}>
+              <input
+                type="checkbox"
+                checked={proInterest}
+                onChange={e => setProInterest(e.target.checked)}
+                style={{ marginTop: 3, width: 18, height: 18, accentColor: '#059669', flexShrink: 0 }}
+              />
+              <span>
+                ✉️ Send me details about CasaGrown Pro features and pricing
+              </span>
+            </label>
+          </div>
 
           <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={saving}>
             {saving ? 'Saving...' : 'Continue →'}
