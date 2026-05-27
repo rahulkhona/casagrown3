@@ -1,0 +1,99 @@
+# Stripe Deployment & Release Readiness Plan
+
+This document outlines the architecture, webhook mappings, environment flags, staging credentials, and step-by-step release roadmap for the three Stripe products implemented in **CasaGrown**.
+
+---
+
+## 1. Stripe Products Overview
+
+CasaGrown leverages Stripe across three distinct operational areas, providing a complete SaaS marketplace setup:
+
+1. **Regular Marketplace Checkout (Stripe Payments / Core)**
+   - **Scope:** Standard buyer purchases of marketplace points or farm products.
+   - **Endpoint:** `create-payment-intent` and `confirm-payment`.
+
+2. **Stripe Connect (Sellers Marketplace Payouts)**
+   - **Scope:** Standard onboarding of farmers and automated direct deposits of earnings from market settlements.
+   - **Endpoint:** `stripe-connect-onboard`.
+
+3. **CasaGrown Pro Subscriptions (Stripe Billing / Subscriptions)**
+   - **Scope:** Dynamic subscription checkout sessions, monthly billing renewal cycles, self-service billing portals, and multi-channel receipts.
+   - **Endpoint:** `manage-subscription` and `create-pro-checkout`.
+
+---
+
+## 2. Reconciled Staging Webhook Configurations
+
+For Staging, all webhook endpoints are mapped to the active remote Supabase staging project ID: **`fzdmszvfeewpwswlnfyk`**.
+
+### Webhook Endpoint A: Pro Subscriptions
+* **Staging URL:** `https://fzdmszvfeewpwswlnfyk.supabase.co/functions/v1/stripe-subscription-webhook`
+* **Stripe Product:** **Stripe Billing & Subscriptions**
+* **Required Events:**
+  1. `checkout.session.completed` — Handles initial Pro activation (updates DB, sets `is_pro: true` on profile, sends notifications).
+  2. `invoice.paid` — Handles dynamic billing renewals (logs subscription receipts in DB, tracks ledger debits, updates period range, sends Push/Email/SMS/In-App receipts).
+  3. `invoice.payment_failed` — Enters grace period and prompts user to update card details.
+  4. `customer.subscription.deleted` — Revokes Pro status instantly (`is_pro = false`) upon subscription cancellation or payment exhaustion.
+  5. `customer.subscription.updated` — Updates billing periods, changes subscription status, and handles pending cancellations.
+
+### Webhook Endpoint B: Marketplace Payments, Connect & Disputes
+* **Staging URL:** `https://fzdmszvfeewpwswlnfyk.supabase.co/functions/v1/stripe-webhook`
+* **Stripe Products:** **Stripe Connect**, **Stripe Payments (Core)**, and **Stripe Disputes (Chargeback Radar)**
+* **Required Events:**
+  - **Stripe Connect (Seller Onboarding & Settlements):**
+    1. `account.updated` — Activates the seller's Connect status (`stripe_onboarding_completed: true` & `stripe_connect_active: true`) when bank details are completed, logging Connect audit records and sending welcome notifications.
+    2. `payout.paid` — Automatically matches platform payouts to settled markets via Stripe balance transactions API and clears ledger balances.
+    3. `payout.failed` — Logs payout failure and sends emergency SMS/email alerts to admin staff.
+  - **Stripe Payments (Buyer Failsafe):**
+    4. `payment_intent.succeeded` — Credits points server-side if a buyer closes the app during checkout.
+    5. `payment_intent.payment_failed` — Logs point transaction failures.
+  - **Stripe Disputes (Chargebacks):**
+    6. `charge.dispute.created` — Logs incoming chargeback disputes, registers buyer debt, records ledger outflows, and notifies admin staff of evidence due dates.
+    7. `charge.dispute.funds_withdrawn` — Handles withholding of disputed transaction balances.
+    8. `charge.dispute.funds_reinstated` — Reclaims disputed funds if the chargeback is won.
+    9. `charge.dispute.closed` — Finalizes chargeback dispute resolution.
+
+---
+
+## 3. Environment Flags
+
+We maintain precise control over feature gating to ensure a safe, compliant rollout:
+
+| Environment Flag | Target Value | Purpose |
+| :--- | :--- | :--- |
+| **`NEXT_PUBLIC_STRIPE_CONNECT_ENABLED`** | `true` | Enables the "Direct Payout (Stripe)" tab in the seller payout dashboard, allowing bank account linking. |
+| **`NEXT_PUBLIC_ENABLE_PRO`** | `false` | Keeps Pro upsells, marketing menu links, and locked catalog/multi-stand elements hidden from normal users until all store approvals are secured. |
+
+### Tester Override Gating
+Reviewers from Facebook or Apple can access Pro features despite the global `NEXT_PUBLIC_ENABLE_PRO=false` flag. Adding their whitelisted email to the `pro_testers` DB table via SQL bypasses the global flag:
+```sql
+INSERT INTO pro_testers (email, notes) 
+VALUES ('tester-account@example.com', 'Facebook app reviewer account');
+```
+
+---
+
+## 4. Staging Secrets & Variables
+
+Before executing webhooks, configure the following secrets in your remote Supabase staging project:
+
+#### Staging Secrets (via `supabase secrets set`):
+* `STRIPE_SECRET_KEY` — Stripe Staging API Secret (`sk_test_...`).
+* `STRIPE_SUBSCRIPTION_WEBHOOK_SECRET` — Signing secret generated by Stripe for the subscriptions endpoint.
+* `STRIPE_WEBHOOK_SECRET` — Signing secret generated by Stripe for the core platform/Connect endpoint.
+* `STRIPE_CONNECT_WEBHOOK_SECRET` — (Optional) Set if Connect events use a separate endpoint.
+
+#### Edge Function variables (in `supabase/config.toml` or dashboard):
+* `SITE_URL` — Set to your Next.js staging web application URL to generate correct return paths.
+
+---
+
+## 5. Deployment Step-by-Step Roadmap
+
+Follow this sequential rollout path with direct supervision:
+
+1. **Step 1:** Merge local developer branch (`pro-branch`) into your local `main` branch.
+2. **Step 2:** Deploy changes to Supabase Staging (`supabase db push` and `supabase functions deploy`).
+3. **Step 3:** Push the updated local `main` branch to your GitHub remote.
+4. **Step 4:** Set up the webhook configurations in your Stripe Staging Dashboard using the URLs defined in Section 2.
+5. **Step 5:** Set the webhook signing secrets in your Supabase Staging secrets using `supabase secrets set`.
