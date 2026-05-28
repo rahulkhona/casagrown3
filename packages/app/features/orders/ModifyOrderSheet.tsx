@@ -28,6 +28,7 @@ import { BuyPointsSheet } from '../feed/BuyPointsSheet'
 import { CalendarPicker } from '../create-post/CalendarPicker'
 import type { Order } from './order-types'
 import * as Location from 'expo-location'
+import { showPermissionDeniedAlert } from '../../utils/permissions'
 
 // =============================================================================
 // Types
@@ -179,9 +180,9 @@ export function ModifyOrderSheet({
         const data = await res.json()
         if (data?.display_name) setAddress(data.display_name)
       } else {
-        const { status } = await Location.requestForegroundPermissionsAsync()
+        const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync()
         if (status !== 'granted') {
-          Alert.alert('Location access denied')
+          showPermissionDeniedAlert('location', t, canAskAgain)
           return
         }
         const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })

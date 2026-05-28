@@ -16,6 +16,7 @@ import { ArrowLeft, Send, Paperclip, MapPin, Camera, Video, X, Loader, Image as 
 import { colors, borderRadius, shadows } from '../../design-tokens'
 import { normalizeStorageUrl } from '../../utils/normalize-storage-url'
 import { useTranslation } from 'react-i18next'
+import { showPermissionDeniedAlert } from '../../utils/permissions'
 import { ChatPostCard } from './ChatPostCard'
 import { FeedVideoPlayer } from '../feed/FeedVideoPlayer'
 import { CalendarPicker } from '../create-post/CalendarPicker'
@@ -852,9 +853,9 @@ export function ChatScreen({
         return
       }
 
-      const { status } = await ImagePicker.requestCameraPermissionsAsync()
+      const { status, canAskAgain } = await ImagePicker.requestCameraPermissionsAsync()
       if (status !== 'granted') {
-        Alert.alert('Camera Permission', 'Please enable camera access in your device settings.')
+        showPermissionDeniedAlert('camera', t, canAskAgain)
         return
       }
 
@@ -916,9 +917,9 @@ export function ChatScreen({
         return
       }
 
-      const { status } = await ImagePicker.requestCameraPermissionsAsync()
+      const { status, canAskAgain } = await ImagePicker.requestCameraPermissionsAsync()
       if (status !== 'granted') {
-        Alert.alert('Camera Permission', 'Please enable camera access in your device settings.')
+        showPermissionDeniedAlert('camera', t, canAskAgain)
         return
       }
 
@@ -950,14 +951,9 @@ export function ChatScreen({
     if (!conversation || sending) return
 
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync()
+      const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync()
       if (status !== 'granted') {
-        if (Platform.OS !== 'web') {
-          Alert.alert(
-            t('chat.locationDeniedTitle'),
-            t('chat.locationDeniedMessage'),
-          )
-        }
+        showPermissionDeniedAlert('location', t, canAskAgain)
         return
       }
 

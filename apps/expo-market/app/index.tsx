@@ -1,14 +1,26 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { BackHandler, KeyboardAvoidingView, Platform, StyleSheet, Alert } from 'react-native';
+import { AppState, AppStateStatus, BackHandler, KeyboardAvoidingView, Platform, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView, WebViewMessageEvent, WebViewNavigation } from 'react-native-webview';
 import * as Linking from 'expo-linking';
+import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
 import Constants from 'expo-constants';
 
 const BASE_URL = process.env.EXPO_PUBLIC_WEB_URL || 'https://casagrown.com';
 const START_URL = `${BASE_URL}/market`;
+
+const getBaseHostname = (): string => {
+  try {
+    const { hostname } = new URL(BASE_URL);
+    return hostname;
+  } catch {
+    return 'casagrown.com';
+  }
+};
+
+const baseHostname = getBaseHostname();
 
 /** URLs matching these hostnames stay inside the WebView; everything else opens in the system browser. */
 const isInternalUrl = (url: string): boolean => {
@@ -18,9 +30,16 @@ const isInternalUrl = (url: string): boolean => {
 
     const { hostname } = new URL(url);
     return (
+      hostname === baseHostname ||
       hostname === 'casagrown.com' ||
       hostname.endsWith('.casagrown.com') ||
       hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname.endsWith('.local') ||           // Allow all local mDNS hostnames (e.g., test.local)
+      // Allow private/local IP addresses in development
+      /^192\.168\./.test(hostname) ||
+      /^10\./.test(hostname) ||
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname) ||
       hostname.endsWith('.supabase.co') ||     // Supabase auth flows
       hostname === 'checkout.stripe.com' ||    // Stripe checkout for Pro subscriptions
       hostname === 'www.facebook.com' ||       // Facebook OAuth flow
@@ -36,14 +55,12 @@ SplashScreen.preventAutoHideAsync();
 
 // Set up notification handler for foreground notifications
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+  shouldShowAlert: true,
+  shouldPlaySound: true,
+  shouldSetBadge: false,
+  shouldShowBanner: true,
+  shouldShowList: true,
+} as any);
 
 // Create default notification channel (required for Android 8+)
 if (Platform.OS === 'android') {
@@ -61,8 +78,33 @@ export default function AppShell() {
   const [currentUrl, setCurrentUrl] = useState(START_URL);
   const [canGoBack, setCanGoBack] = useState(false);
 
-  // ─── 1. Deep Linking ───
+  const checkAndSendNotificationPermission = async () => {
+    try {
+      const { status } = await Notifications.getPermissionsAsync();
+      const js = `
+        if (typeof window !== 'undefined') {
+          window.NATIVE_NOTIFICATION_PERMISSION = ${JSON.stringify(status)};
+          localStorage.setItem('casagrown_native_push_registered', ${JSON.stringify(status)});
+          window.dispatchEvent(new CustomEvent('nativeNotificationPermissionSync', { detail: ${JSON.stringify(status)} }));
+        }
+        true;
+      `;
+      webViewRef.current?.injectJavaScript(js);
+    } catch (e) {
+      console.warn('Error checking native permission:', e);
+    }
+  };
+
+  // ─── 1. Deep Linking & AppState ───
   useEffect(() => {
+    // AppState listener to sync notification permission back when returning to app
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active') {
+        checkAndSendNotificationPermission();
+      }
+    };
+    const appStateSub = AppState.addEventListener('change', handleAppStateChange);
+
     // Handle cold boot URL
     Linking.getInitialURL().then((url) => {
       if (url) handleDeepLink(url);
@@ -82,6 +124,7 @@ export default function AppShell() {
     });
 
     return () => {
+      appStateSub.remove();
       sub.remove();
       notifSub.remove();
     };
@@ -129,29 +172,106 @@ export default function AppShell() {
           }
 
           if (finalStatus !== 'granted') {
-            webViewRef.current?.injectJavaScript(`window.receiveNativeToken('DENIED'); true;`);
+            const js = `
+              if (typeof window !== 'undefined' && window.receiveNativeToken) {
+                window.receiveNativeToken('DENIED');
+                localStorage.setItem('casagrown_native_push_registered', 'denied');
+              }
+              true;
+            `;
+            webViewRef.current?.injectJavaScript(js);
             return;
           }
 
           const projectId = Constants.expoConfig?.extra?.eas?.projectId;
           if (!projectId) {
             console.error('Missing EAS projectId in app.json');
-            webViewRef.current?.injectJavaScript(`window.receiveNativeToken('DENIED'); true;`);
+            const js = `
+              if (typeof window !== 'undefined' && window.receiveNativeToken) {
+                window.receiveNativeToken('DENIED');
+                localStorage.setItem('casagrown_native_push_registered', 'denied');
+              }
+              true;
+            `;
+            webViewRef.current?.injectJavaScript(js);
             return;
           }
           const pushTokenData = await Notifications.getExpoPushTokenAsync({ projectId });
           const tokenStr = pushTokenData.data;
-          webViewRef.current?.injectJavaScript(`window.receiveNativeToken('${tokenStr}'); true;`);
+          const js = `
+            if (typeof window !== 'undefined' && window.receiveNativeToken) {
+              window.receiveNativeToken(${JSON.stringify(tokenStr)});
+              localStorage.setItem('casagrown_native_push_registered', 'granted');
+            }
+            true;
+          `;
+          webViewRef.current?.injectJavaScript(js);
         } catch (pushErr: any) {
           console.error('Push token error:', pushErr);
-          // Surface the error to the WebView for debugging
-          const errMsg = (pushErr?.message || 'Unknown push error').replace(/'/g, '');
-          webViewRef.current?.injectJavaScript(`window.receiveNativeToken('DENIED'); console.error('Native push error: ${errMsg}'); true;`);
+          const errMsg = pushErr?.message || 'Unknown push error';
+          const js = `
+            if (typeof window !== 'undefined' && window.receiveNativeToken) {
+              window.receiveNativeToken('DENIED');
+              localStorage.setItem('casagrown_native_push_registered', 'denied');
+              console.error('Native push error:', ${JSON.stringify(errMsg)});
+            }
+            true;
+          `;
+          webViewRef.current?.injectJavaScript(js);
         }
       }
 
       if (data.type === 'OPEN_APP_SETTINGS') {
         Linking.openSettings();
+      }
+
+      if (data.type === 'REQUEST_LOCATION') {
+        try {
+          // Request native location permission (registers in iOS Location Services)
+          const { status: existingStatus } = await Location.getForegroundPermissionsAsync();
+          let finalStatus = existingStatus;
+          if (existingStatus !== 'granted') {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            finalStatus = status;
+          }
+
+          if (finalStatus !== 'granted') {
+            const js = `
+              if (typeof window !== 'undefined' && window.receiveNativeLocation) {
+                window.receiveNativeLocation({ error: 'DENIED' });
+              }
+              true;
+            `;
+            webViewRef.current?.injectJavaScript(js);
+            return;
+          }
+
+          // Get current position
+          const position = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+
+          const js = `
+            if (typeof window !== 'undefined' && window.receiveNativeLocation) {
+              window.receiveNativeLocation({
+                lat: ${position.coords.latitude},
+                lng: ${position.coords.longitude}
+              });
+            }
+            true;
+          `;
+          webViewRef.current?.injectJavaScript(js);
+        } catch (locErr: any) {
+          console.error('Native location error:', locErr);
+          const errMsg = locErr?.message || 'Location unavailable';
+          const js = `
+            if (typeof window !== 'undefined' && window.receiveNativeLocation) {
+              window.receiveNativeLocation({ error: ${JSON.stringify(locErr?.message || 'Location unavailable')} });
+            }
+            true;
+          `;
+          webViewRef.current?.injectJavaScript(js);
+        }
       }
 
     } catch (e: any) {
@@ -160,8 +280,14 @@ export default function AppShell() {
   };
 
   // ─── 4. JavaScript Injection ───
+  // NOTE: When adding new bridge capabilities, always inject a capability flag here
+  // so the web page can detect support before using it. This ensures backward
+  // compatibility with older native builds (e.g. Android in review).
+  const appName = Constants.appOwnership === 'expo' ? 'Expo Go' : (Constants.expoConfig?.name || 'CasaGrown');
   const INJECTED_JAVASCRIPT = `
     window.IS_NATIVE_APP = true;
+    window.NATIVE_SUPPORTS_LOCATION = true;
+    window.NATIVE_APP_NAME = ${JSON.stringify(appName)};
     document.documentElement.classList.add('native-app');
     document.documentElement.style.setProperty('--native-bottom-inset', '0px');
     true; // note: this is required, or you'll sometimes get silent failures
@@ -172,6 +298,7 @@ export default function AppShell() {
       ref={webViewRef}
       source={{ uri: currentUrl }}
       injectedJavaScriptBeforeContentLoaded={INJECTED_JAVASCRIPT}
+      inspectable={true}
       onMessage={onMessage}
       onNavigationStateChange={(navState) => {
         setCanGoBack(navState.canGoBack);
@@ -187,11 +314,14 @@ export default function AppShell() {
       onLoadEnd={() => {
         // Hide splash screen once the webview finishes its initial load
         SplashScreen.hideAsync();
+        checkAndSendNotificationPermission();
       }}
       allowsBackForwardNavigationGestures={true}
       bounces={false}
       pullToRefreshEnabled={true}
       overScrollMode="never"
+      mediaCapturePermissionGrantType="grant"
+      allowsInlineMediaPlayback={true}
       style={styles.webview}
     />
   );

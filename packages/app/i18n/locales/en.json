@@ -1143,8 +1143,8 @@
       "body": "You previously declined notifications. Enable them in Settings to stay updated on orders, messages, and offers.",
       "step1Title": "Open Settings",
       "step1Desc": "Go to your browser/device settings",
-      "step2Title": "Find CasaGrown",
-      "step2Desc": "Look for CasaGrown in site/app settings",
+      "step2Title": "Find {{appName}}",
+      "step2Desc": "Look for {{appName}} in site/app settings",
       "step3Title": "Enable Notifications",
       "step3Desc": "Toggle Allow Notifications ON",
       "openSettings": "Open Settings"
@@ -1163,6 +1163,20 @@
       },
       "step4": "Open CasaGrown from your Home Screen",
       "step5": "Tap \"Enable Notifications\" on the prompt, then tap \"Allow\" on the iOS popup"
+    }
+  },
+  "permissions": {
+    "cancel": "Cancel",
+    "openSettings": "Open Settings",
+    "camera": {
+      "deniedTitle": "Camera Access Needed",
+      "deniedMessage": "Camera permission was denied. Please allow camera access to take photos.",
+      "blockedMessage": "Camera access is blocked. Open Settings and enable Camera for {{appName}} to take photos."
+    },
+    "location": {
+      "deniedTitle": "Location Access Needed",
+      "deniedMessage": "Location permission was denied. Please allow location access to use this feature.",
+      "blockedMessage": "Location access is blocked. Open Settings and enable Location for {{appName}}."
     }
   }
 }

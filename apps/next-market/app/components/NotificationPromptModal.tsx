@@ -48,6 +48,9 @@ export function NotificationPromptModal({
         className={`${styles.card} ${(variant === 'ios-safari' || variant === 'ios-chrome') ? styles.wide : ''}`}
         onClick={e => e.stopPropagation()}
       >
+        <button className={styles.closeBtn} onClick={onDismiss} aria-label="Close modal">
+          ✕
+        </button>
         {variant === 'first-time' && <FirstTimePrompt onEnable={onEnable} onDismiss={onDismiss} onPermanentDismiss={onPermanentDismiss} />}
         {variant === 'denied' && <DeniedPrompt onDismiss={onDismiss} onPermanentDismiss={onPermanentDismiss} onOpenSettings={onOpenSettings} />}
         {variant === 'ios-safari' && <PWAGuide browser="safari" onDismiss={onDismiss} onPermanentDismiss={onPermanentDismiss} />}
@@ -97,9 +100,34 @@ function DeniedPrompt({ onDismiss, onPermanentDismiss, onOpenSettings }: {
       </p>
       
       {onOpenSettings ? (
-        <button className={`${styles.enableBtn} ${styles.amber}`} onClick={onOpenSettings} style={{ marginTop: 16 }}>
-          ⚙️ Open Settings
-        </button>
+        <>
+          <div className={styles.stepsList}>
+            <div className={styles.stepItem}>
+              <span className={styles.stepNum}>1</span>
+              <div className={styles.stepContent}>
+                <p className={styles.stepTitle}>Open Settings</p>
+                <p className={styles.stepDesc}>Tap the button below to open your device settings</p>
+              </div>
+            </div>
+            <div className={styles.stepItem}>
+              <span className={styles.stepNum}>2</span>
+              <div className={styles.stepContent}>
+                <p className={styles.stepTitle}>Enable Notifications</p>
+                <p className={styles.stepDesc}>Tap <strong>Notifications</strong> → find <strong>{typeof window !== 'undefined' && (window as any).NATIVE_APP_NAME ? (window as any).NATIVE_APP_NAME : 'CasaGrown'}</strong> → toggle <strong>Allow Notifications</strong> on</p>
+              </div>
+            </div>
+            <div className={styles.stepItem}>
+              <span className={styles.stepNum}>3</span>
+              <div className={styles.stepContent}>
+                <p className={styles.stepTitle}>Come Back</p>
+                <p className={styles.stepDesc}>Return to CasaGrown and tap <strong>🔔 Enable Notifications</strong> in the ☰ menu</p>
+              </div>
+            </div>
+          </div>
+          <button className={`${styles.enableBtn} ${styles.amber}`} onClick={onOpenSettings} style={{ marginTop: 16 }}>
+            ⚙️ Open Settings
+          </button>
+        </>
       ) : (
         <div className={styles.stepsList}>
           <div className={styles.stepItem}>

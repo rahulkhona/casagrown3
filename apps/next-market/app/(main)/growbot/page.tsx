@@ -117,10 +117,32 @@ function renderMarkdown(text: string): React.ReactNode {
   return <>{elements}</>
 }
 
+function useKeyboardVisible() {
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null
+    if (!vv) return
+
+    const THRESHOLD = 150
+
+    const onResize = () => {
+      const heightDiff = window.innerHeight - vv.height
+      setVisible(heightDiff > THRESHOLD)
+    }
+
+    vv.addEventListener('resize', onResize)
+    return () => vv.removeEventListener('resize', onResize)
+  }, [])
+
+  return visible
+}
+
 // ─── Main Component ──────────────────────────────────────────────────
 
 export default function GrowBotChatPage() {
   const { user, loading: authLoading, refresh: refreshAuth } = useAuth()
+  const keyboardOpen = useKeyboardVisible()
   const router = useRouter()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
@@ -140,7 +162,12 @@ export default function GrowBotChatPage() {
   useEffect(() => {
     const GUEST_KEY = 'growbot_guest_sid'
     let sid = window.sessionStorage.getItem(GUEST_KEY)
-    if (!sid) { sid = crypto.randomUUID(); window.sessionStorage.setItem(GUEST_KEY, sid) }
+    if (!sid) {
+      sid = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : 'guest-' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      window.sessionStorage.setItem(GUEST_KEY, sid)
+    }
     guestSessionIdRef.current = sid
   }, [])
 
@@ -979,7 +1006,8 @@ export default function GrowBotChatPage() {
 
   return (
     <div style={{
-      display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 144px)',
+      display: 'flex', flexDirection: 'column',
+      height: keyboardOpen ? 'calc(100dvh - 64px)' : 'calc(100dvh - 144px)',
       background: 'linear-gradient(180deg, #f0fdf4 0%, #ffffff 30%)',
       maxWidth: '100vw', overflow: 'hidden',
     }}>

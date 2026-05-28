@@ -7,6 +7,7 @@ import { colors, shadows, borderRadius } from '../../../design-tokens'
 import { Image } from 'react-native'
 import * as ImagePicker from 'expo-image-picker'
 import { useTranslation } from 'react-i18next'
+import { showPermissionDeniedAlert } from '../../../utils/permissions'
 import { Alert, Platform } from 'react-native'
 import { CommunityMapWrapper } from '../../create-post/CommunityMapWrapper'
 import type { ResolveResponse } from '../../community/use-resolve-community'
@@ -227,8 +228,11 @@ export const ProfileSetupStep = () => {
       setShowCamera(true)
       return
     }
-    const { status } = await ImagePicker.requestCameraPermissionsAsync()
-    if (status !== 'granted') return
+    const { status, canAskAgain } = await ImagePicker.requestCameraPermissionsAsync()
+    if (status !== 'granted') {
+      showPermissionDeniedAlert('camera', t, canAskAgain)
+      return
+    }
 
     try {
       let result = await ImagePicker.launchCameraAsync({

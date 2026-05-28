@@ -22,6 +22,7 @@ import {
   Trash2,
 } from '@tamagui/lucide-icons'
 import * as Location from 'expo-location'
+import { showPermissionDeniedAlert } from '../../utils/permissions'
 import { colors, shadows, borderRadius } from '../../design-tokens'
 import { CalendarPicker } from '../create-post/CalendarPicker'
 import { BuyPointsSheet } from './BuyPointsSheet'
@@ -206,9 +207,9 @@ export function AcceptOfferSheet({
           setDeliveryAddress(data.display_name)
         }
       } else {
-        const { status } = await Location.requestForegroundPermissionsAsync()
+        const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync()
         if (status !== 'granted') {
-          Alert.alert(t('offers.form.locationDenied'))
+          showPermissionDeniedAlert('location', t, canAskAgain)
           return
         }
         const loc = await Location.getCurrentPositionAsync({

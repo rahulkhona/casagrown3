@@ -145,6 +145,7 @@ export default function SettingsPage() {
   const { state, dispatch } = useMarket()
   const router = useRouter()
   const { user } = useAuth()
+  const supabase = createClient()
   const [isMounted, setIsMounted] = useState(false)
   useEffect(() => { setIsMounted(true) }, [])
 
@@ -175,6 +176,19 @@ export default function SettingsPage() {
             onClick={() => dispatch({ type: 'ADD_TOAST', payload: { message: 'Push notifications enabled!', type: 'success' } })}
           />
         </div>
+        <button
+          className="btn btn-outline"
+          style={{ marginTop: 12, fontSize: 12, padding: '6px 12px', color: '#ea580c', borderColor: '#fed7aa', alignSelf: 'flex-start', display: 'inline-flex', width: 'auto' }}
+          onClick={() => {
+            localStorage.removeItem('casagrown_notif_dismissed_at')
+            localStorage.removeItem('casagrown_notif_opted_out')
+            localStorage.removeItem('casagrown_native_push_registered')
+            localStorage.removeItem('casagrown_native_push_token')
+            dispatch({ type: 'ADD_TOAST', payload: { message: 'Notification storage cleared! Refresh app to test.', type: 'success' } })
+          }}
+        >
+          ⚙️ Reset Notification Flags (Debug)
+        </button>
       </div>
 
       {/* PWA Install */}
@@ -200,10 +214,15 @@ export default function SettingsPage() {
             ✏️ Edit Profile
           </button>
           {!!user && (
-            <button className="btn btn-danger" style={{ width: '100%', justifyContent: 'flex-start' }} onClick={() => {
+            <button className="btn btn-danger" style={{ width: '100%', justifyContent: 'flex-start' }} onClick={async () => {
+              try {
+                await supabase.auth.signOut({ scope: 'local' })
+              } catch (err) {
+                console.error('Settings sign out error:', err)
+              }
               dispatch({ type: 'LOGOUT' })
               dispatch({ type: 'ADD_TOAST', payload: { message: 'Logged out', type: 'info' } })
-              router.push('/')
+              window.location.href = '/'
             }}>
               🚪 Log Out
             </button>

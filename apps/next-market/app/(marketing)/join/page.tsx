@@ -455,7 +455,27 @@ function JoinContent() {
                     </div>
                     {locationDenied && (
                       <p className="join-location-hint">
-                        🔒 Tap the lock icon in your address bar → Site settings → allow Location, then reload.
+                        {typeof window !== 'undefined' && (window as any).IS_NATIVE_APP ? (
+                          <>
+                            🔒 To enable: open your iOS/Android device <strong>Settings</strong> → <strong>Privacy &amp; Security</strong> → <strong>Location Services</strong> → find <strong>{typeof window !== 'undefined' && (window as any).NATIVE_APP_NAME ? (window as any).NATIVE_APP_NAME : 'CasaGrown'}</strong> → allow <strong>Location</strong> permissions, then restart.
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const { NativeBridge } = await import('../../../lib/nativeBridge')
+                                NativeBridge.openAppSettings()
+                              }}
+                              style={{
+                                background: 'none', border: 'none', padding: 0, margin: '4px 0 0',
+                                color: '#ea580c', textDecoration: 'underline', cursor: 'pointer',
+                                fontSize: 11, fontWeight: 600, display: 'block', textAlign: 'left'
+                              }}
+                            >
+                              ⚙️ Open Settings
+                            </button>
+                          </>
+                        ) : (
+                          <>🔒 Tap the lock icon in your address bar → Site settings → allow Location, then reload.</>
+                        )}
                       </p>
                     )}
                     <input id="join-street" type="text" placeholder="123 Main St" required

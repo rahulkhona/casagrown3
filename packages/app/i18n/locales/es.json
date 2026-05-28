@@ -888,8 +888,8 @@
       "body": "Anteriormente rechazaste las notificaciones. Actívalas en Configuración para mantenerte actualizado sobre pedidos, mensajes y ofertas.",
       "step1Title": "Abrir Configuración",
       "step1Desc": "Ve a la configuración de tu navegador/dispositivo",
-      "step2Title": "Buscar CasaGrown",
-      "step2Desc": "Busca CasaGrown en la configuración del sitio/app",
+      "step2Title": "Buscar {{appName}}",
+      "step2Desc": "Busca {{appName}} en la configuración del sitio/app",
       "step3Title": "Activar Notificaciones",
       "step3Desc": "Activa Permitir Notificaciones",
       "openSettings": "Abrir Configuración"
@@ -916,6 +916,20 @@
       "archived": "Este listado ha sido archivado debido a una restricción.",
       "categoryRestricted": "La categoría \"{{category}}\" está restringida en esta área.",
       "productRestricted": "\"{{product}}\" está restringido en esta área."
+    }
+  },
+  "permissions": {
+    "cancel": "Cancelar",
+    "openSettings": "Abrir Configuración",
+    "camera": {
+      "deniedTitle": "Se Necesita Acceso a la Cámara",
+      "deniedMessage": "Se denegó el permiso de la cámara. Por favor permite el acceso a la cámara para tomar fotos.",
+      "blockedMessage": "El acceso a la cámara está bloqueado. Abre Configuración y activa la Cámara para {{appName}} para tomar fotos."
+    },
+    "location": {
+      "deniedTitle": "Se Necesita Acceso a la Ubicación",
+      "deniedMessage": "Se denegó el permiso de ubicación. Por favor permite el acceso a la ubicación para usar esta función.",
+      "blockedMessage": "El acceso a la ubicación está bloqueado. Abre Configuración y activa la Ubicación para {{appName}}."
     }
   }
 }

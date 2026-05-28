@@ -15,6 +15,7 @@ import { Modal, Linking, Platform } from 'react-native'
 import { colors, borderRadius, shadows } from '../../design-tokens'
 import { X } from '@tamagui/lucide-icons'
 import { useTranslation } from 'react-i18next'
+import { getAppDisplayName } from '../../utils/permissions'
 
 // =============================================================================
 // Types
@@ -153,7 +154,7 @@ function DeniedPrompt({ onEnable, onDismiss, onPermanentDismiss }: {
       </Text>
       <YStack gap="$3" marginBottom="$5" alignSelf="stretch">
         <StepItem num={1} title={t('notifications.denied.step1Title')} desc={t('notifications.denied.step1Desc')} color="#f59e0b" />
-        <StepItem num={2} title={t('notifications.denied.step2Title')} desc={t('notifications.denied.step2Desc')} color="#f59e0b" />
+        <StepItem num={2} title={t('notifications.denied.step2Title', { appName: getAppDisplayName() })} desc={t('notifications.denied.step2Desc', { appName: getAppDisplayName() })} color="#f59e0b" />
         <StepItem num={3} title={t('notifications.denied.step3Title')} desc={t('notifications.denied.step3Desc')} color="#f59e0b" />
       </YStack>
       <Button

@@ -43,36 +43,33 @@
           "action": "VIEW",
           "autoVerify": true,
           "data": [
-            {
-              "scheme": "https",
-              "host": "casagrown.com",
-              "pathPrefix": "/market"
-            },
-            {
-              "scheme": "https",
-              "host": "casagrown.com",
-              "pathPrefix": "/p/"
-            },
-            {
-              "scheme": "https",
-              "host": "casagrown.com",
-              "pathPrefix": "/r/"
-            },
-            {
-              "scheme": "https",
-              "host": "casagrown.com",
-              "pathPrefix": "/orders"
-            },
-            {
-              "scheme": "https",
-              "host": "casagrown.com",
-              "pathPrefix": "/create-listing"
-            },
-            {
-              "scheme": "https",
-              "host": "casagrown.com",
-              "pathPrefix": "/join-booth"
-            }
+            { "scheme": "https", "host": "casagrown.com", "pathPrefix": "/market" },
+            { "scheme": "https", "host": "casagrown.com", "pathPrefix": "/cart" },
+            { "scheme": "https", "host": "casagrown.com", "pathPrefix": "/chat" },
+            { "scheme": "https", "host": "casagrown.com", "pathPrefix": "/community" },
+            { "scheme": "https", "host": "casagrown.com", "pathPrefix": "/create-listing" },
+            { "scheme": "https", "host": "casagrown.com", "pathPrefix": "/orders" },
+            { "scheme": "https", "host": "casagrown.com", "pathPrefix": "/messages" },
+            { "scheme": "https", "host": "casagrown.com", "pathPrefix": "/my-booth" },
+            { "scheme": "https", "host": "casagrown.com", "pathPrefix": "/my-stands" },
+            { "scheme": "https", "host": "casagrown.com", "pathPrefix": "/notifications" },
+            { "scheme": "https", "host": "casagrown.com", "pathPrefix": "/profile" },
+            { "scheme": "https", "host": "casagrown.com", "pathPrefix": "/profile-setup" },
+            { "scheme": "https", "host": "casagrown.com", "pathPrefix": "/settings" },
+            { "scheme": "https", "host": "casagrown.com", "pathPrefix": "/earnings" },
+            { "scheme": "https", "host": "casagrown.com", "pathPrefix": "/growbot" },
+            { "scheme": "https", "host": "casagrown.com", "pathPrefix": "/following" },
+            { "scheme": "https", "host": "casagrown.com", "pathPrefix": "/login" },
+            { "scheme": "https", "host": "casagrown.com", "pathPrefix": "/logout" },
+            { "scheme": "https", "host": "casagrown.com", "pathPrefix": "/join-booth" },
+            { "scheme": "https", "host": "casagrown.com", "pathPrefix": "/delete-account" },
+            { "scheme": "https", "host": "casagrown.com", "pathPrefix": "/terms" },
+            { "scheme": "https", "host": "casagrown.com", "pathPrefix": "/voice" },
+            { "scheme": "https", "host": "casagrown.com", "pathPrefix": "/quarantines" },
+            { "scheme": "https", "host": "casagrown.com", "pathPrefix": "/get-started" },
+            { "scheme": "https", "host": "casagrown.com", "pathPrefix": "/guide" },
+            { "scheme": "https", "host": "casagrown.com", "pathPrefix": "/helping" },
+            { "scheme": "https", "host": "casagrown.com", "pathPrefix": "/pro-manage" }
           ],
           "category": [
             "BROWSABLE",

@@ -297,8 +297,8 @@
       "body": "Bạn đã từ chối thông báo trước đó. Bật chúng trong Cài đặt để cập nhật về đơn hàng, tin nhắn và ưu đãi.",
       "step1Title": "Mở Cài Đặt",
       "step1Desc": "Đi đến cài đặt trình duyệt/thiết bị",
-      "step2Title": "Tìm CasaGrown",
-      "step2Desc": "Tìm CasaGrown trong cài đặt trang/ứng dụng",
+      "step2Title": "Tìm {{appName}}",
+      "step2Desc": "Tìm {{appName}} trong cài đặt trang/ứng dụng",
       "step3Title": "Bật Thông Báo",
       "step3Desc": "Bật Cho phép Thông Báo",
       "openSettings": "Mở Cài Đặt"
@@ -317,6 +317,20 @@
       },
       "step4": "Mở CasaGrown từ Màn hình chính của bạn",
       "step5": "Nhấn \"Bật Thông Báo\" trên lời nhắc, sau đó nhấn \"Cho phép\" trên cửa sổ iOS"
+    }
+  },
+  "permissions": {
+    "cancel": "Hủy",
+    "openSettings": "Mở Cài Đặt",
+    "camera": {
+      "deniedTitle": "Cần Quyền Truy Cập Máy Ảnh",
+      "deniedMessage": "Quyền truy cập máy ảnh đã bị từ chối. Vui lòng cho phép truy cập máy ảnh để chụp ảnh.",
+      "blockedMessage": "Quyền truy cập máy ảnh đã bị chặn. Mở Cài Đặt và bật Máy Ảnh cho {{appName}} để chụp ảnh."
+    },
+    "location": {
+      "deniedTitle": "Cần Quyền Truy Cập Vị Trí",
+      "deniedMessage": "Quyền truy cập vị trí đã bị từ chối. Vui lòng cho phép truy cập vị trí để sử dụng tính năng này.",
+      "blockedMessage": "Quyền truy cập vị trí đã bị chặn. Mở Cài Đặt và bật Vị Trí cho {{appName}}."
     }
   }
 }

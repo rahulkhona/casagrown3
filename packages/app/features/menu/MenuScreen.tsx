@@ -6,7 +6,6 @@ import { useRouter } from 'solito/navigation'
 import { useTranslation } from 'react-i18next'
 import { 
   User, 
-  Settings, 
   HandCoins, 
   Share2, 
   Users, 

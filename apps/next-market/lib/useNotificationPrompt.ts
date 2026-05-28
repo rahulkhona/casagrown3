@@ -10,7 +10,7 @@
  * Spread modalProps onto NotificationPromptModal.
  */
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createClient } from './supabase'
 
 // =============================================================================
@@ -230,11 +230,28 @@ export function useNotificationPrompt(userId?: string) {
   const [variant, setVariant] = useState<PromptVariant>('first-time')
   const checkingRef = useRef(false)
 
+  // Listen for native permission syncs (e.g. on load or returning from settings foreground active state)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const handleSync = (e: Event) => {
+      const status = (e as CustomEvent).detail
+      if (status === 'granted') {
+        setVisible(false)
+      } else if (status === 'denied') {
+        setVariant('denied')
+      }
+    }
+    window.addEventListener('nativeNotificationPermissionSync', handleSync)
+    return () => window.removeEventListener('nativeNotificationPermissionSync', handleSync)
+  }, [])
+
   const onEnable = useCallback(async () => {
     if (!userId) return
-    setVisible(false)
+    // Keep it open during request to avoid unmounting/remounting flash
     const success = await enableWebPush(userId)
-    if (!success) {
+    if (success) {
+      setVisible(false)
+    } else {
       const { NativeBridge } = await import('./nativeBridge')
       if (NativeBridge.isNative) {
         setVariant('denied')
@@ -257,7 +274,11 @@ export function useNotificationPrompt(userId?: string) {
     try {
       const { NativeBridge } = await import('./nativeBridge')
       if (NativeBridge.isNative) {
-        // We do not silently re-register on native; the native wrapper handles persistence.
+        // Check if we already know the native permission is granted or denied
+        const status = storageGet('casagrown_native_push_registered')
+        if (status === 'granted') {
+          return
+        }
       } else {
         if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
           if (!promptedThisSession && userId) {
@@ -276,7 +297,12 @@ export function useNotificationPrompt(userId?: string) {
       promptedThisSession = true
       
       let finalVariant = 'first-time' as PromptVariant
-      if (!NativeBridge.isNative) {
+      if (NativeBridge.isNative) {
+        const status = storageGet('casagrown_native_push_registered')
+        if (status === 'denied') {
+          finalVariant = 'denied'
+        }
+      } else {
         const pv = getPromptVariant()
         if (pv === 'none') return
         finalVariant = pv
@@ -301,8 +327,17 @@ export function useNotificationPrompt(userId?: string) {
     storageSet(OPTED_OUT_KEY, 'true')
   }, [])
 
+  const isNative = typeof window !== 'undefined' && !!window.IS_NATIVE_APP
+
   return {
     showPrompt,
-    modalProps: { visible, variant, onEnable, onDismiss, onPermanentDismiss, onOpenSettings } as NotificationModalProps,
+    modalProps: {
+      visible,
+      variant,
+      onEnable,
+      onDismiss,
+      onPermanentDismiss,
+      onOpenSettings: isNative ? onOpenSettings : undefined
+    } as NotificationModalProps,
   }
 }

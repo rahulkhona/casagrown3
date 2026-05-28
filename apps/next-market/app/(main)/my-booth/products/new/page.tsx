@@ -1781,7 +1781,27 @@ function NewProductPageInner() {
                 </button>
                 {locationDenied && (
                   <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--amber-700, #b45309)', lineHeight: 1.4 }}>
-                    🔒 Location is blocked. To enable: tap the <strong>lock icon</strong> (or ⋮) in your browser’s address bar → <strong>Site settings</strong> → set <strong>Location</strong> to Allow, then reload.
+                    {typeof window !== 'undefined' && (window as any).IS_NATIVE_APP ? (
+                      <>
+                        🔒 Location is blocked. To enable: open your iOS/Android device <strong>Settings</strong> → <strong>Privacy &amp; Security</strong> → <strong>Location Services</strong> → find <strong>{typeof window !== 'undefined' && (window as any).NATIVE_APP_NAME ? (window as any).NATIVE_APP_NAME : 'CasaGrown'}</strong> → allow <strong>Location</strong> permissions, then restart.
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const { NativeBridge } = await import('../../../../../lib/nativeBridge')
+                            NativeBridge.openAppSettings()
+                          }}
+                          style={{
+                            background: 'none', border: 'none', padding: 0, margin: '4px 0 0',
+                            color: '#ea580c', textDecoration: 'underline', cursor: 'pointer',
+                            fontSize: 12, fontWeight: 600, display: 'block', textAlign: 'left'
+                          }}
+                        >
+                          ⚙️ Open Settings
+                        </button>
+                      </>
+                    ) : (
+                      <>🔒 Location is blocked. To enable: tap the <strong>lock icon</strong> (or ⋮) in your browser’s address bar → <strong>Site settings</strong> → set <strong>Location</strong> to Allow, then reload.</>
+                    )}
                   </p>
                 )}
               </div>

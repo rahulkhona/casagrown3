@@ -16,6 +16,8 @@ import { useAuth } from '../auth/auth-hook'
 import * as ImagePicker from 'expo-image-picker'
 import { Platform, TouchableOpacity, Alert } from 'react-native'
 import { supabase } from '../../utils/supabase'
+import { useTranslation } from 'react-i18next'
+import { showPermissionDeniedAlert } from '../../utils/permissions'
 
 interface SelectedImage {
   uri: string
@@ -24,6 +26,7 @@ interface SelectedImage {
 
 export function FeedbackSubmitScreen({ initialType }: { initialType?: 'bug' | 'feature' | 'support' }) {
   const router = useRouter()
+  const { t } = useTranslation()
   const media = useMedia()
   const isDesktop = !media.sm
   const { user } = useAuth()
@@ -60,10 +63,11 @@ export function FeedbackSubmitScreen({ initialType }: { initialType?: 'bug' | 'f
   }
 
   const handleTakePhoto = async () => {
+    if (Platform.OS === 'web') return
     try {
-      const permResult = await ImagePicker.requestCameraPermissionsAsync()
-      if (!permResult.granted) {
-        Alert.alert('Camera Permission', 'Please allow camera access to take photos.')
+      const { status, canAskAgain } = await ImagePicker.requestCameraPermissionsAsync()
+      if (!status || status !== 'granted') {
+        showPermissionDeniedAlert('camera', t, canAskAgain)
         return
       }
       const result = await ImagePicker.launchCameraAsync({

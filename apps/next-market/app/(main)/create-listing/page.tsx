@@ -8,7 +8,7 @@ export const metadata = {
 
 export default function SellPage() {
   return (
-    <div style={{ backgroundColor: '#f9fafb', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ backgroundColor: '#f9fafb', minHeight: '100vh', display: 'flex', flexDirection: 'column', width: '100%', overflowX: 'hidden' }}>
       <React.Suspense fallback={<div style={{ padding: 40, textAlign: 'center' }}>Loading wizard...</div>}>
         <ProductListingWizard />
       </React.Suspense>

@@ -35,6 +35,7 @@ import { Alert, Image, Platform, TextInput, Keyboard, KeyboardAvoidingView } fro
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
 import { useTranslation } from 'react-i18next'
+import { showPermissionDeniedAlert } from '../../utils/permissions'
 import { useRouter } from 'solito/navigation'
 import { colors, shadows, borderRadius } from '../../design-tokens'
 import { useAuth, supabase } from '../auth/auth-hook'
@@ -566,8 +567,11 @@ export function ProfileScreen() {
       setShowAvatarCamera(true)
       return
     }
-    const { status } = await ImagePicker.requestCameraPermissionsAsync()
-    if (status !== 'granted') return
+    const { status, canAskAgain } = await ImagePicker.requestCameraPermissionsAsync()
+    if (status !== 'granted') {
+      showPermissionDeniedAlert('camera', t, canAskAgain)
+      return
+    }
 
     try {
       const result = await ImagePicker.launchCameraAsync({

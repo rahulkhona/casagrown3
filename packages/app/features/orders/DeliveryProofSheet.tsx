@@ -11,6 +11,7 @@ import {
 } from '@tamagui/lucide-icons'
 import { colors, borderRadius, shadows } from '../../design-tokens'
 import * as ImagePicker from 'expo-image-picker'
+import { showPermissionDeniedAlert } from '../../utils/permissions'
 import * as Location from 'expo-location'
 import { CalendarPicker } from '../create-post/CalendarPicker'
 
@@ -105,13 +106,10 @@ export function DeliveryProofSheet({
       }
 
       // Native: launch camera first, then try location
-      const { status: camStatus } =
+      const { status: camStatus, canAskAgain } =
         await ImagePicker.requestCameraPermissionsAsync()
       if (camStatus !== 'granted') {
-        Alert.alert(
-          t('orders.delivery.cameraRequired'),
-          t('orders.delivery.cameraRequiredMessage'),
-        )
+        showPermissionDeniedAlert('camera', t, canAskAgain)
         setCapturing(false)
         return
       }

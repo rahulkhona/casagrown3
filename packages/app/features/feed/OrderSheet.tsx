@@ -29,6 +29,7 @@ import { CalendarPicker } from '../create-post/CalendarPicker'
 import type { FeedPost } from './feed-service'
 import { supabase } from '../auth/auth-hook'
 import * as Location from 'expo-location'
+import { showPermissionDeniedAlert } from '../../utils/permissions'
 
 // =============================================================================
 // Types
@@ -319,9 +320,9 @@ export function OrderSheet({
         }
       } else {
         // Native: use expo-location
-        const { status } = await Location.requestForegroundPermissionsAsync()
+        const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync()
         if (status !== 'granted') {
-          Alert.alert(t('feed.orderForm.locationDenied'))
+          showPermissionDeniedAlert('location', t, canAskAgain)
           return
         }
         const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })

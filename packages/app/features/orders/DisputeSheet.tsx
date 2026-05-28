@@ -17,6 +17,7 @@ import {
 import { colors, borderRadius, shadows } from '../../design-tokens'
 import * as ImagePicker from 'expo-image-picker'
 import * as Location from 'expo-location'
+import { showPermissionDeniedAlert } from '../../utils/permissions'
 
 // =============================================================================
 // Props
@@ -71,10 +72,10 @@ export function DisputeSheet({
       if (Platform.OS === 'web') {
         capturedUri = 'https://via.placeholder.com/400x300?text=Dispute+Proof'
       } else {
-        const { status: camStatus } =
+        const { status: camStatus, canAskAgain } =
           await ImagePicker.requestCameraPermissionsAsync()
         if (camStatus !== 'granted') {
-          Alert.alert(t('orders.dispute.cameraRequired'))
+          showPermissionDeniedAlert('camera', t, canAskAgain)
           setCapturing(false)
           return
         }

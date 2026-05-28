@@ -547,7 +547,27 @@ function ProfilePageInner() {
           />
           {locationDenied && (
             <p style={{ margin: '4px 0 0', fontSize: 11, color: '#b45309', lineHeight: 1.4 }}>
-              🔒 To enable: tap the <strong>lock icon</strong> in your address bar → <strong>Site settings</strong> → allow <strong>Location</strong>, then reload.
+              {typeof window !== 'undefined' && (window as any).IS_NATIVE_APP ? (
+                <>
+                  🔒 To enable: open your iOS/Android device <strong>Settings</strong> → <strong>Privacy &amp; Security</strong> → <strong>Location Services</strong> → find <strong>{typeof window !== 'undefined' && (window as any).NATIVE_APP_NAME ? (window as any).NATIVE_APP_NAME : 'CasaGrown'}</strong> → allow <strong>Location</strong> permissions, then restart.
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const { NativeBridge } = await import('../../../lib/nativeBridge')
+                      NativeBridge.openAppSettings()
+                    }}
+                    style={{
+                      background: 'none', border: 'none', padding: 0, margin: '4px 0 0',
+                      color: '#ea580c', textDecoration: 'underline', cursor: 'pointer',
+                      fontSize: 11, fontWeight: 600, display: 'block'
+                    }}
+                  >
+                    ⚙️ Open Settings
+                  </button>
+                </>
+              ) : (
+                <>🔒 To enable: tap the <strong>lock icon</strong> in your address bar → <strong>Site settings</strong> → allow <strong>Location</strong>, then reload.</>
+              )}
             </p>
           )}
         </div>

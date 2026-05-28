@@ -21,12 +21,75 @@ import { useCommunityDigest } from '../../../lib/useCommunityDigest'
 import AddressInput from '../../components/AddressInput'
 import { type AddressFields, EMPTY_ADDRESS, toGeocodingString, formatFullAddress } from '../../../lib/address'
 import GrowBotFAB from '../../components/GrowBotFAB'
+import { NativeBridge } from '../../../lib/nativeBridge'
 import styles from './page.module.css'
 
 // ── Feature Flags ──
 // Set OFN_ENABLED to true once a partner API token is obtained from Open Food Network.
 // Until then, the OFN product fallback is suppressed (USDA remains active).
 const OFN_ENABLED = false
+
+function useKeyboardVisible() {
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const isTextInput = (el: HTMLElement | null) => {
+      if (!el) return false
+      if (el.tagName === 'TEXTAREA' || el.getAttribute('contenteditable') === 'true') {
+        return true
+      }
+      if (el.tagName === 'INPUT') {
+        const type = (el as HTMLInputElement).type || 'text'
+        const nonKeyboardTypes = ['button', 'checkbox', 'file', 'hidden', 'image', 'radio', 'reset', 'submit']
+        return !nonKeyboardTypes.includes(type.toLowerCase())
+      }
+      return false
+    }
+
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null
+    const THRESHOLD = 150
+
+    const updateVisibility = () => {
+      const activeEl = document.activeElement as HTMLElement
+      const isFocused = isTextInput(activeEl)
+      
+      let isShrunk = false
+      if (vv) {
+        const heightDiff = window.innerHeight - vv.height
+        isShrunk = heightDiff > THRESHOLD || (window.screen && (window.screen.height - vv.height > THRESHOLD * 1.5))
+      }
+      
+      setVisible(isFocused || isShrunk)
+    }
+
+    // Initialize state
+    updateVisibility()
+
+    if (vv) {
+      vv.addEventListener('resize', updateVisibility)
+    }
+
+    const handleFocusIn = () => {
+      setTimeout(updateVisibility, 0)
+    }
+    const handleFocusOut = () => {
+      setTimeout(updateVisibility, 0)
+    }
+
+    document.addEventListener('focusin', handleFocusIn)
+    document.addEventListener('focusout', handleFocusOut)
+
+    return () => {
+      if (vv) {
+        vv.removeEventListener('resize', updateVisibility)
+      }
+      document.removeEventListener('focusin', handleFocusIn)
+      document.removeEventListener('focusout', handleFocusOut)
+    }
+  }, [])
+
+  return visible
+}
 
 // ── Compact countdown timer for closed market ──
 function CountdownTimer({ targetDate, theme = 'light' }: { targetDate: Date, theme?: 'light' | 'dark' }) {
@@ -147,8 +210,22 @@ const getSearchEmoji = (query: string) => {
 function BrowseMarketPageInner() {
   const supabase = createClient()
   const { user } = useAuth()
+  const keyboardOpen = useKeyboardVisible()
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  // Debug helper to reset notification status from URL parameter (e.g. ?resetNotif=1)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && searchParams.has('resetNotif')) {
+      localStorage.removeItem('casagrown_notif_dismissed_at')
+      localStorage.removeItem('casagrown_notif_opted_out')
+      localStorage.removeItem('casagrown_native_push_registered')
+      localStorage.removeItem('casagrown_native_push_token')
+      const url = new URL(window.location.href)
+      url.searchParams.delete('resetNotif')
+      window.history.replaceState({}, '', url.pathname + url.search)
+    }
+  }, [searchParams])
 
   // Restore from localStorage if URL has no params
   const saved = typeof window !== 'undefined' && !searchParams.has('lat')
@@ -710,8 +787,48 @@ function BrowseMarketPageInner() {
   }
 
   const handleUseMyLocation = () => {
-    if (!('geolocation' in navigator)) return
-    setLocationLoading(true); setLocationError('')
+    setLocationLoading(true); setLocationError(''); setLocationDenied(false)
+
+    // ── Native app with location bridge: use expo-location via NativeBridge ──
+    // Only use native bridge if wrapper advertises support (NATIVE_SUPPORTS_LOCATION flag).
+    // Old builds (e.g. Android in review) will fall through to navigator.geolocation.
+    if (NativeBridge.supportsLocation) {
+      NativeBridge.requestLocation()
+        .then(async ({ lat: nLat, lng: nLng }) => {
+          setLat(nLat); setLng(nLng)
+          try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${nLat}&lon=${nLng}`)
+            const data = await res.json()
+            if (data?.address) {
+              const street = [data.address.house_number, data.address.road].filter(Boolean).join(' ')
+              const city = data.address.city || data.address.town || data.address.suburb || data.address.village
+              const stateMap: Record<string, string> = {
+                'California': 'CA', 'Florida': 'FL', 'New York': 'NY', 'Texas': 'TX',
+                'Oklahoma': 'OK', 'Arizona': 'AZ', 'Oregon': 'OR', 'Washington': 'WA',
+              }
+              const sc = stateMap[data.address.state] || data.address['ISO3166-2-lvl4']?.split('-')[1] || data.address.state
+              setAddress({ street: street || '', city: city || '', state: sc || '', zip: data.address.postcode || '' })
+              if (data.address.postcode) setZipCode(data.address.postcode)
+              if (sc) setBuyerStateCode(sc)
+            }
+          } catch { /* ignore reverse geocode failure */ }
+          setAddressResolved(true); setLocationLoading(false)
+        })
+        .catch((err) => {
+          const msg = err?.message || ''
+          if (msg === 'DENIED') {
+            setLocationError('Location access denied.')
+            setLocationDenied(true)
+          } else {
+            setLocationError('Could not get location. Please type your address.')
+          }
+          setLocationLoading(false)
+        })
+      return
+    }
+
+    // ── Web browser: use navigator.geolocation ──
+    if (!('geolocation' in navigator)) { setLocationLoading(false); return }
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         setLat(pos.coords.latitude); setLng(pos.coords.longitude)
@@ -721,25 +838,21 @@ function BrowseMarketPageInner() {
           if (data?.address) {
             const street = [data.address.house_number, data.address.road].filter(Boolean).join(' ')
             const city = data.address.city || data.address.town || data.address.suburb || data.address.village
-            // Map state name to abbreviation for display and filtering
             const stateMap: Record<string, string> = {
               'California': 'CA', 'Florida': 'FL', 'New York': 'NY', 'Texas': 'TX',
               'Oklahoma': 'OK', 'Arizona': 'AZ', 'Oregon': 'OR', 'Washington': 'WA',
             }
             const sc = stateMap[data.address.state] || data.address['ISO3166-2-lvl4']?.split('-')[1] || data.address.state
-            // Build full address with zip code and state abbreviation
             const parts = [street, city, sc, data.address.postcode].filter(Boolean)
-            setAddress({ street, city, state: sc || '', zip: data.address.postcode || '' })
-            // Extract zip code for category filtering and state isolation
+            setAddress({ street: street || '', city: city || '', state: sc || '', zip: data.address.postcode || '' })
             if (data.address.postcode) setZipCode(data.address.postcode)
-            // Set buyer state code for state isolation
             if (sc) setBuyerStateCode(sc)
           }
         } catch { /* ignore */ }
         setAddressResolved(true); setLocationLoading(false)
       },
       () => { setLocationError('Location access denied.'); setLocationLoading(false); setLocationDenied(true) },
-      { timeout: 5000 }
+      { timeout: 10000 }
     )
   }
 
@@ -944,13 +1057,65 @@ function BrowseMarketPageInner() {
           </div>
           {locationError && <p className="form-error" style={{ marginTop: 8 }}>{locationError}</p>}
           {locationDenied && (
-            <p style={{ marginTop: 4, fontSize: 11, color: '#b45309', lineHeight: 1.4 }}>
-              🔒 To enable: tap the <strong>lock icon</strong> in your address bar → <strong>Site settings</strong> → allow <strong>Location</strong>, then reload.
-            </p>
+            <div style={{ marginTop: 8, padding: '12px 16px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12 }}>
+              <p style={{ margin: 0, fontSize: 12, color: '#92400e', lineHeight: 1.5, fontWeight: 600 }}>
+                📍 Location access was denied
+              </p>
+              <p style={{ margin: '4px 0 0', fontSize: 12, color: '#78716c', lineHeight: 1.5 }}>
+                You can type your address above, or grant location permission and try again.
+              </p>
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                <button
+                  onClick={() => { setLocationDenied(false); handleUseMyLocation() }}
+                  style={{
+                    padding: '8px 16px', borderRadius: 999,
+                    background: '#16a34a', color: '#fff', border: 'none',
+                    fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  }}
+                >
+                  📍 Try Again
+                </button>
+                {NativeBridge.isNative && (
+                  <button
+                    onClick={() => NativeBridge.openAppSettings()}
+                    style={{
+                      padding: '8px 16px', borderRadius: 999,
+                      background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db',
+                      fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                    }}
+                  >
+                    ⚙️ Open Settings
+                  </button>
+                )}
+              </div>
+            </div>
           )}
         </div>
       </div>
 
+      {/* Vertically stacked FABs — outside container so position:fixed works in all states */}
+      {!keyboardOpen && (
+        <>
+          <Link
+            href="/create-listing"
+            id="sell-fab"
+            style={{
+              position: 'fixed', bottom: 80, right: 24,
+              background: 'linear-gradient(135deg, #16a34a, #15803d)',
+              color: '#fff', borderRadius: 28, padding: '14px 24px',
+              fontSize: 15, fontWeight: 600, textDecoration: 'none',
+              display: 'flex', alignItems: 'center', gap: 8,
+              boxShadow: '0 6px 20px rgba(22, 163, 74, 0.4)',
+              zIndex: 100, transition: 'transform 0.2s, box-shadow 0.2s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}
+          >
+            {marketIsOpen ? '🌱 Sell Something' : '🌱 List for Next Market'}
+          </Link>
+          <GrowBotFAB />
+        </>
+      )}
       </>
     )
   }
@@ -1796,24 +1961,28 @@ function BrowseMarketPageInner() {
     </div>
 
     {/* Vertically stacked FABs — outside container so position:fixed works in all states */}
-    <Link
-      href="/create-listing"
-      id="sell-fab"
-      style={{
-        position: 'fixed', bottom: 80, right: 24,
-        background: 'linear-gradient(135deg, #16a34a, #15803d)',
-        color: '#fff', borderRadius: 28, padding: '14px 24px',
-        fontSize: 15, fontWeight: 600, textDecoration: 'none',
-        display: 'flex', alignItems: 'center', gap: 8,
-        boxShadow: '0 6px 20px rgba(22, 163, 74, 0.4)',
-        zIndex: 100, transition: 'transform 0.2s, box-shadow 0.2s',
-      }}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)' }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}
-    >
-      {marketIsOpen ? '🌱 Sell Something' : '🌱 List for Next Market'}
-    </Link>
-    <GrowBotFAB />
+    {!keyboardOpen && (
+      <>
+        <Link
+          href="/create-listing"
+          id="sell-fab"
+          style={{
+            position: 'fixed', bottom: 80, right: 24,
+            background: 'linear-gradient(135deg, #16a34a, #15803d)',
+            color: '#fff', borderRadius: 28, padding: '14px 24px',
+            fontSize: 15, fontWeight: 600, textDecoration: 'none',
+            display: 'flex', alignItems: 'center', gap: 8,
+            boxShadow: '0 6px 20px rgba(22, 163, 74, 0.4)',
+            zIndex: 100, transition: 'transform 0.2s, box-shadow 0.2s',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}
+        >
+          {marketIsOpen ? '🌱 Sell Something' : '🌱 List for Next Market'}
+        </Link>
+        <GrowBotFAB />
+      </>
+    )}
   </>
   )
 }

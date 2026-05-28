@@ -7,6 +7,8 @@
 import { useCallback, useRef, useState } from "react";
 import { Platform } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import { useTranslation } from 'react-i18next'
+import { showPermissionDeniedAlert } from '../../utils/permissions'
 
 // Minimal asset shape for web-picked files
 export interface WebMediaAsset {
@@ -42,6 +44,7 @@ export interface UseMediaAssetsReturn {
 }
 
 export function useMediaAssets(): UseMediaAssetsReturn {
+    const { t } = useTranslation()
     const [mediaAssets, setMediaAssets] = useState<MediaAsset[]>([]);
     const [showMediaMenu, setShowMediaMenu] = useState(false);
     const [cameraMode, setCameraMode] = useState<"photo" | "video" | null>(
@@ -86,9 +89,9 @@ export function useMediaAssets(): UseMediaAssetsReturn {
             setCameraMode("photo");
             return;
         }
-        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        const { status, canAskAgain } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== "granted") {
-            console.warn("Camera permission denied");
+            showPermissionDeniedAlert('camera', t, canAskAgain);
             return;
         }
         try {
@@ -129,9 +132,9 @@ export function useMediaAssets(): UseMediaAssetsReturn {
             setCameraMode("video");
             return;
         }
-        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        const { status, canAskAgain } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== "granted") {
-            console.warn("Camera permission denied");
+            showPermissionDeniedAlert('camera', t, canAskAgain);
             return;
         }
         try {

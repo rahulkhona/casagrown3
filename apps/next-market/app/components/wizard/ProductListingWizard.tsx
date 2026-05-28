@@ -31,38 +31,40 @@ function WizardRouter() {
     <div className={styles.container}>
       {/* Step Numbers Header - hide on success step */}
       {state.currentStep < 6 && (
-        <div className={styles.header} style={{ overflowX: 'auto', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', minWidth: 400 }}>
-            {steps.map((step, index) => {
-              const isActive = state.currentStep === step.id
-              const isPast = state.currentStep > step.id
-              return (
-                <React.Fragment key={step.id}>
-                  <div 
-                    onClick={() => updateState({ currentStep: step.id })}
-                    style={{ 
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, 
-                      cursor: 'pointer', opacity: isActive || isPast ? 1 : 0.5 
-                    }}
-                  >
-                    <div style={{ 
-                      width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: isActive ? '#16a34a' : isPast ? '#dcfce7' : '#f3f4f6',
-                      color: isActive ? '#ffffff' : isPast ? '#16a34a' : '#9ca3af',
-                      fontWeight: 700, fontSize: 13, border: isActive || isPast ? 'none' : '1px solid #d1d5db'
-                    }}>
-                      {isPast ? '✓' : index + 1}
+        <div className={styles.header} style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'space-between', width: '100%', overflow: 'hidden' }}>
+          <div style={{ flex: 1, minWidth: 0, overflowX: 'auto', paddingBottom: 4, marginRight: 4, WebkitOverflowScrolling: 'touch' }}>
+            <div style={{ display: 'flex', alignItems: 'center', minWidth: 380 }}>
+              {steps.map((step, index) => {
+                const isActive = state.currentStep === step.id
+                const isPast = state.currentStep > step.id
+                return (
+                  <React.Fragment key={step.id}>
+                    <div 
+                      onClick={() => updateState({ currentStep: step.id })}
+                      style={{ 
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, 
+                        cursor: 'pointer', opacity: isActive || isPast ? 1 : 0.5 
+                      }}
+                    >
+                      <div style={{ 
+                        width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: isActive ? '#16a34a' : isPast ? '#dcfce7' : '#f3f4f6',
+                        color: isActive ? '#ffffff' : isPast ? '#16a34a' : '#9ca3af',
+                        fontWeight: 700, fontSize: 13, border: isActive || isPast ? 'none' : '1px solid #d1d5db'
+                      }}>
+                        {isPast ? '✓' : index + 1}
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: isActive ? '#111827' : '#6b7280' }}>
+                        {step.label}
+                      </span>
                     </div>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: isActive ? '#111827' : '#6b7280' }}>
-                      {step.label}
-                    </span>
-                  </div>
-                  {index < steps.length - 1 && (
-                    <div style={{ flex: 1, height: 2, background: isPast ? '#16a34a' : '#e5e7eb', margin: '0 8px', alignSelf: 'flex-start', marginTop: 13 }} />
-                  )}
-                </React.Fragment>
-              )
-            })}
+                    {index < steps.length - 1 && (
+                      <div style={{ flex: 1, height: 2, background: isPast ? '#16a34a' : '#e5e7eb', margin: '0 8px', alignSelf: 'flex-start', marginTop: 13 }} />
+                    )}
+                  </React.Fragment>
+                )
+              })}
+            </div>
           </div>
 
           {(isAuthenticated || state.isExistingUser || !isAuthLoading) && (
