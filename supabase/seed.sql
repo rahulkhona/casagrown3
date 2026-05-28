@@ -1873,3 +1873,12 @@ BEGIN
 
 END $helpers_seed$;
 
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Pro Testers — implicit Pro subscription bypass (no Stripe required)
+-- These accounts see all Pro features as if they had an active subscription.
+-- Used for Facebook/Apple app review testing.
+-- ═══════════════════════════════════════════════════════════════════════════
+INSERT INTO pro_testers (email, notes) VALUES
+  ('alex@test.local', 'Test account — verifies implicit Pro via pro_testers (no Stripe sub)')
+ON CONFLICT (email) DO NOTHING;
+

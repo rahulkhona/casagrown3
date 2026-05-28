@@ -34,30 +34,51 @@ export function useSubscription(): SubscriptionInfo {
 
     const supabase = createClient()
 
-    // Initial fetch
-    supabase
+    // Check both subscription status and pro_testers override in parallel
+    const subPromise = supabase
       .from('seller_subscriptions')
       .select('plan, status, trial_ends_at, current_period_end, canceled_at')
       .eq('user_id', user.id)
       .single()
-      .then(({ data, error }) => {
-        if (data && !error) {
-          const isPro =
-            data.plan === 'pro' &&
-            ['active', 'trialing'].includes(data.status)
-          setSub({
-            plan: data.plan as 'free' | 'pro',
-            status: data.status as any,
-            isPro,
-            trialEndsAt: data.trial_ends_at,
-            currentPeriodEnd: data.current_period_end,
-            canceledAt: data.canceled_at,
-            loading: false,
-          })
-        } else {
-          setSub((prev) => ({ ...prev, loading: false }))
-        }
-      })
+
+    const testerPromise = supabase
+      .from('pro_testers')
+      .select('email')
+      .eq('email', user.email ?? '')
+      .maybeSingle()
+
+    Promise.all([subPromise, testerPromise]).then(([subResult, testerResult]) => {
+      const { data, error } = subResult
+      const isProTester = !!testerResult.data
+
+      if (data && !error) {
+        const isPro =
+          (data.plan === 'pro' &&
+          ['active', 'trialing'].includes(data.status)) || isProTester
+        setSub({
+          plan: isProTester ? 'pro' : (data.plan as 'free' | 'pro'),
+          status: isProTester && data.status === 'inactive' ? 'active' : (data.status as any),
+          isPro,
+          trialEndsAt: data.trial_ends_at,
+          currentPeriodEnd: data.current_period_end,
+          canceledAt: data.canceled_at,
+          loading: false,
+        })
+      } else if (isProTester) {
+        // No subscription record at all, but user is a pro tester — grant implicit Pro
+        setSub({
+          plan: 'pro',
+          status: 'active',
+          isPro: true,
+          trialEndsAt: null,
+          currentPeriodEnd: null,
+          canceledAt: null,
+          loading: false,
+        })
+      } else {
+        setSub((prev) => ({ ...prev, loading: false }))
+      }
+    })
 
     // Listen for realtime updates from the shared system channel
     // (RealtimeNotificationListener emits this event)
