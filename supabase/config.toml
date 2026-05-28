@@ -827,3 +827,8 @@ entrypoint = "./functions/manage-subscription/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/create-pro-checkout/index.ts"
+
+[functions.messenger-webhook]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/messenger-webhook/index.ts"
