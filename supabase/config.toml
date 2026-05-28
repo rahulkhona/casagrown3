@@ -832,3 +832,8 @@ entrypoint = "./functions/create-pro-checkout/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/messenger-webhook/index.ts"
+
+[functions.stripe-subscription-webhook]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/stripe-subscription-webhook/index.ts"
