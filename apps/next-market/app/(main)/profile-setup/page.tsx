@@ -10,6 +10,7 @@ import CameraCapture from '../../../components/CameraCapture'
 import ImageCropper from '../../../components/ImageCropper'
 import { ProCarousel } from '../../components/ProCarousel'
 import { useErrorToast } from '../../components/ErrorToast'
+import { useProEnabled } from '../../../lib/useProEnabled'
 import styles from './page.module.css'
 
 function ProfileSetupPageInner() {
@@ -18,6 +19,7 @@ function ProfileSetupPageInner() {
   const redirectTo = searchParams.get('redirect')
   const supabase = createClient()
   const fileRef = useRef<HTMLInputElement>(null)
+  const proEnabled = useProEnabled()
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -564,26 +566,28 @@ function ProfileSetupPageInner() {
           </p>
 
           {/* Pro interest — optional during signup */}
-          <div style={{ marginTop: 16, marginBottom: 16 }}>
-            <ProCarousel compact />
-            <label style={{
-              display: 'flex', alignItems: 'flex-start', gap: 10,
-              marginTop: 12, padding: '12px 14px', borderRadius: 12,
-              background: '#f0fdf4', border: '1px solid #bbf7d0',
-              cursor: 'pointer', fontSize: 14, color: '#374151',
-              lineHeight: 1.5,
-            }}>
-              <input
-                type="checkbox"
-                checked={proInterest}
-                onChange={e => setProInterest(e.target.checked)}
-                style={{ marginTop: 3, width: 18, height: 18, accentColor: '#059669', flexShrink: 0 }}
-              />
-              <span>
-                ✉️ Send me details about CasaGrown Pro features and pricing
-              </span>
-            </label>
-          </div>
+          {proEnabled && (
+            <div style={{ marginTop: 16, marginBottom: 16 }}>
+              <ProCarousel compact />
+              <label style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10,
+                marginTop: 12, padding: '12px 14px', borderRadius: 12,
+                background: '#f0fdf4', border: '1px solid #bbf7d0',
+                cursor: 'pointer', fontSize: 14, color: '#374151',
+                lineHeight: 1.5,
+              }}>
+                <input
+                  type="checkbox"
+                  checked={proInterest}
+                  onChange={e => setProInterest(e.target.checked)}
+                  style={{ marginTop: 3, width: 18, height: 18, accentColor: '#059669', flexShrink: 0 }}
+                />
+                <span>
+                  ✉️ Send me details about CasaGrown Pro features and pricing
+                </span>
+              </label>
+            </div>
+          )}
 
           <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={saving}>
             {saving ? 'Saving...' : 'Continue →'}

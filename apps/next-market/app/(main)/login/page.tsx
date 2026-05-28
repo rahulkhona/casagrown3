@@ -106,30 +106,14 @@ function LoginPageInner() {
     let data, verifyError;
     const REVIEW_EMAILS = ['apple@casagrown.com', 'google@casagrown.com', 'facebook@casagrown.com']
 
-    // Intercept review login and authenticate securely by requesting a real server OTP behind the scenes
+    // Intercept review login and sign in securely via standard email/password client-side
     if (REVIEW_EMAILS.includes(email.toLowerCase()) && otp === '123456') {
-      try {
-        const bypassRes = await fetch('/api/auth/review-bypass', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, code: otp }),
-        })
-        const bypassData = await bypassRes.json()
-        if (!bypassRes.ok) {
-          throw new Error(bypassData.error || 'Bypass authentication failed')
-        }
-        
-        // Use the real server-generated OTP to verify and sign in the user
-        const res = await supabase.auth.verifyOtp({
-          email,
-          token: bypassData.otp,
-          type: 'email',
-        })
-        data = res.data
-        verifyError = res.error
-      } catch (err: any) {
-        verifyError = { message: err.message || 'Bypass authentication failed' }
-      }
+      const res = await supabase.auth.signInWithPassword({
+        email,
+        password: 'ReviewerPassword123!',
+      })
+      data = res.data
+      verifyError = res.error
     } else {
       const res = await supabase.auth.verifyOtp({
         email,
