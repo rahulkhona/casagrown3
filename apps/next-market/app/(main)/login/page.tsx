@@ -62,8 +62,9 @@ function LoginPageInner() {
     setLoading(true)
     setError('')
 
-    // Bypass OTP email sending for Store Reviewers
-    if (email.toLowerCase() === 'apple@casagrown.com') {
+    // Bypass OTP email sending for Store/Platform Reviewers
+    const REVIEW_EMAILS = ['apple@casagrown.com', 'google@casagrown.com', 'facebook@casagrown.com']
+    if (REVIEW_EMAILS.includes(email.toLowerCase())) {
       setLoading(false)
       setStep('otp')
       setResendCooldown(60)
@@ -103,15 +104,32 @@ function LoginPageInner() {
     setError('')
 
     let data, verifyError;
+    const REVIEW_EMAILS = ['apple@casagrown.com', 'google@casagrown.com', 'facebook@casagrown.com']
 
-    // Intercept review login and authenticate securely with Supabase password behind the scenes
-    if (email.toLowerCase() === 'apple@casagrown.com' && otp === '123456') {
-      const res = await supabase.auth.signInWithPassword({
-        email: 'apple@casagrown.com',
-        password: 'CasaGrownAppleReview2026!',
-      })
-      data = res.data
-      verifyError = res.error
+    // Intercept review login and authenticate securely by requesting a real server OTP behind the scenes
+    if (REVIEW_EMAILS.includes(email.toLowerCase()) && otp === '123456') {
+      try {
+        const bypassRes = await fetch('/api/auth/review-bypass', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, code: otp }),
+        })
+        const bypassData = await bypassRes.json()
+        if (!bypassRes.ok) {
+          throw new Error(bypassData.error || 'Bypass authentication failed')
+        }
+        
+        // Use the real server-generated OTP to verify and sign in the user
+        const res = await supabase.auth.verifyOtp({
+          email,
+          token: bypassData.otp,
+          type: 'email',
+        })
+        data = res.data
+        verifyError = res.error
+      } catch (err: any) {
+        verifyError = { message: err.message || 'Bypass authentication failed' }
+      }
     } else {
       const res = await supabase.auth.verifyOtp({
         email,
