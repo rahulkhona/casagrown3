@@ -5,7 +5,7 @@
  * POST: Handle incoming messages → AI-powered reply with multi-booth routing
  */
 import { serveWithCors, jsonOk, jsonError } from '../_shared/serve-with-cors.ts'
-import { sendMessengerMessage } from '../_shared/facebook.ts'
+import { sendMessengerMessage, getFbUserProfile } from '../_shared/facebook.ts'
 import {
   loadBoothContext, buildSellerSystemPrompt, loadSellerBotRules,
   loadAllSellerBooths, detectEscalation, cleanBotReply,
@@ -250,11 +250,26 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
         // Check for cross-seller memory: does this PSID have a linked CasaGrown profile?
         let knownBuyerZip: string | null = conversation?.buyer_zip || null
-        if (!knownBuyerZip) {
-          const { data: linked } = await supabase.rpc('find_profile_by_psid', { p_psid: senderPsid })
-          if (linked && linked.length > 0 && linked[0].zip_code) {
-            knownBuyerZip = linked[0].zip_code
-            console.log(`[MESSENGER] Cross-seller memory: found zip ${knownBuyerZip} for PSID ${senderPsid}`)
+        let buyerFirstName = ''
+        const { data: linked } = await supabase.rpc('find_profile_by_psid', { p_psid: senderPsid })
+        if (linked && linked.length > 0) {
+          if (linked[0].zip_code) knownBuyerZip = linked[0].zip_code
+          const { data: prof } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', linked[0].user_id)
+            .single()
+          if (prof?.full_name) {
+            buyerFirstName = prof.full_name.split(' ')[0]
+          }
+          console.log(`[MESSENGER] Cross-seller memory: found zip ${knownBuyerZip}, name ${buyerFirstName} for PSID ${senderPsid}`)
+        }
+
+        // If no linked profile name found, fetch dynamically from Facebook User Profile API
+        if (!buyerFirstName) {
+          const fbProfile = await getFbUserProfile(senderPsid, conn.fb_page_access_token)
+          if (fbProfile?.first_name) {
+            buyerFirstName = fbProfile.first_name
           }
         }
 
@@ -346,6 +361,9 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         // Build system prompt with routing context
         const sellerRules = await loadSellerBotRules(supabase)
         let systemPrompt = buildSellerSystemPrompt(ctx, sellerRules)
+
+        // Inject buyer personal details into Gemini system instructions so the bot knows who it is talking to
+        systemPrompt += `\n\nBUYER CONTEXT:\n- Buyer's First Name: ${buyerFirstName || 'Neighbor'}`
 
         // Add return-visit context if we have saved preferences
         if (knownBuyerZip && allBooths.length > 1) {

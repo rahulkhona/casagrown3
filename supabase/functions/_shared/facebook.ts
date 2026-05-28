@@ -111,6 +111,29 @@ export async function sendMessengerMessage(
   if (!res.ok) console.error(`Messenger send failed: ${await res.text()}`)
 }
 
+/** Get a buyer's basic Facebook profile details using their PSID */
+export async function getFbUserProfile(
+  psid: string,
+  pageToken: string,
+): Promise<{ first_name?: string; last_name?: string; profile_pic?: string } | null> {
+  if (pageToken.startsWith('mock_')) {
+    return { first_name: 'Neighbor', last_name: 'Test' }
+  }
+  try {
+    const res = await fetch(
+      `${getFbGraphUrl()}/${psid}?access_token=${pageToken}&fields=first_name,last_name,profile_pic`,
+    )
+    if (!res.ok) {
+      console.warn(`[FB] User profile fetch failed: ${await res.text()}`)
+      return null
+    }
+    return res.json()
+  } catch (err: any) {
+    console.error('[FB] getFbUserProfile error:', err.message)
+    return null
+  }
+}
+
 /** Publish a post to a Facebook Page feed */
 export async function publishPagePost(
   pageId: string,
