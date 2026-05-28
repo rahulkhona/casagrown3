@@ -62,6 +62,14 @@ function LoginPageInner() {
     setLoading(true)
     setError('')
 
+    // Bypass OTP email sending for Store Reviewers
+    if (email.toLowerCase() === 'apple@casagrown.com') {
+      setLoading(false)
+      setStep('otp')
+      setResendCooldown(60)
+      return
+    }
+
     const { error: otpError } = await supabase.auth.signInWithOtp({
       email,
       options: { data: getReferralData() },
@@ -94,11 +102,25 @@ function LoginPageInner() {
     setLoading(true)
     setError('')
 
-    const { data, error: verifyError } = await supabase.auth.verifyOtp({
-      email,
-      token: otp,
-      type: 'email',
-    })
+    let data, verifyError;
+
+    // Intercept review login and authenticate securely with Supabase password behind the scenes
+    if (email.toLowerCase() === 'apple@casagrown.com' && otp === '123456') {
+      const res = await supabase.auth.signInWithPassword({
+        email: 'apple@casagrown.com',
+        password: 'CasaGrownAppleReview2026!',
+      })
+      data = res.data
+      verifyError = res.error
+    } else {
+      const res = await supabase.auth.verifyOtp({
+        email,
+        token: otp,
+        type: 'email',
+      })
+      data = res.data
+      verifyError = res.error
+    }
 
     if (verifyError) {
       trackError('login_verify_failed', { error: verifyError.message })
