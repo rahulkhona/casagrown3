@@ -3,23 +3,95 @@
 
 -- Clean up previous marketing test data
 DELETE FROM public.market_schedule_policies;
-DELETE FROM public.user_analytics WHERE user_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333');
-DELETE FROM public.orders WHERE buyer_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333') OR seller_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333');
-DELETE FROM public.offers WHERE created_by IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333');
-DELETE FROM public.chat_messages WHERE sender_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333', 'f4444444-4444-4444-4444-444444444444');
-DELETE FROM public.conversations WHERE buyer_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333') OR seller_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333');
-DELETE FROM public.market_ledger WHERE user_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333', 'f4444444-4444-4444-4444-444444444444');
-DELETE FROM public.user_balances WHERE user_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333', 'f4444444-4444-4444-4444-444444444444');
-DELETE FROM public.market_orders WHERE buyer_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333') OR seller_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333');
-DELETE FROM public.market_chat_messages WHERE sender_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333');
-DELETE FROM public.market_conversations WHERE participant_a IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333') OR participant_b IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333');
-DELETE FROM public.post_comments WHERE user_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333');
-DELETE FROM public.posts WHERE author_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333', 'f4444444-4444-4444-4444-444444444444');
-DELETE FROM market_products WHERE seller_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333');
-DELETE FROM market_booths WHERE owner_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333');
-DELETE FROM public.profiles WHERE id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333', 'f4444444-4444-4444-4444-444444444444');
-DELETE FROM auth.identities WHERE user_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333', 'f4444444-4444-4444-4444-444444444444');
-DELETE FROM auth.users WHERE id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333', 'f4444444-4444-4444-4444-444444444444');
+
+-- Delete user analytics referencing profiles by email or UUID
+DELETE FROM public.user_analytics WHERE user_id IN (
+  SELECT id FROM public.profiles WHERE email IN ('sarah.m@marketing.local', 'david.c@marketing.local', 'elena.r@marketing.local', 'michael.w@marketing.local')
+) OR user_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333', 'f4444444-4444-4444-4444-444444444444');
+
+-- Delete orders referencing profiles by email or UUID
+DELETE FROM public.orders WHERE buyer_id IN (
+  SELECT id FROM public.profiles WHERE email IN ('sarah.m@marketing.local', 'david.c@marketing.local', 'elena.r@marketing.local', 'michael.w@marketing.local')
+) OR seller_id IN (
+  SELECT id FROM public.profiles WHERE email IN ('sarah.m@marketing.local', 'david.c@marketing.local', 'elena.r@marketing.local', 'michael.w@marketing.local')
+) OR buyer_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333') OR seller_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333');
+
+-- Delete offers referencing profiles by email or UUID
+DELETE FROM public.offers WHERE created_by IN (
+  SELECT id FROM public.profiles WHERE email IN ('sarah.m@marketing.local', 'david.c@marketing.local', 'elena.r@marketing.local', 'michael.w@marketing.local')
+) OR created_by IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333');
+
+-- Delete chat messages referencing profiles by email or UUID
+DELETE FROM public.chat_messages WHERE sender_id IN (
+  SELECT id FROM public.profiles WHERE email IN ('sarah.m@marketing.local', 'david.c@marketing.local', 'elena.r@marketing.local', 'michael.w@marketing.local')
+) OR sender_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333', 'f4444444-4444-4444-4444-444444444444');
+
+-- Delete conversations referencing profiles by email or UUID
+DELETE FROM public.conversations WHERE buyer_id IN (
+  SELECT id FROM public.profiles WHERE email IN ('sarah.m@marketing.local', 'david.c@marketing.local', 'elena.r@marketing.local', 'michael.w@marketing.local')
+) OR seller_id IN (
+  SELECT id FROM public.profiles WHERE email IN ('sarah.m@marketing.local', 'david.c@marketing.local', 'elena.r@marketing.local', 'michael.w@marketing.local')
+) OR buyer_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333') OR seller_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333');
+
+-- Delete ledger entries referencing profiles by email or UUID
+DELETE FROM public.market_ledger WHERE user_id IN (
+  SELECT id FROM public.profiles WHERE email IN ('sarah.m@marketing.local', 'david.c@marketing.local', 'elena.r@marketing.local', 'michael.w@marketing.local')
+) OR user_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333', 'f4444444-4444-4444-4444-444444444444');
+
+-- Delete user balances referencing profiles by email or UUID
+DELETE FROM public.user_balances WHERE user_id IN (
+  SELECT id FROM public.profiles WHERE email IN ('sarah.m@marketing.local', 'david.c@marketing.local', 'elena.r@marketing.local', 'michael.w@marketing.local')
+) OR user_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333', 'f4444444-4444-4444-4444-444444444444');
+
+-- Delete market orders referencing profiles by email or UUID
+DELETE FROM public.market_orders WHERE buyer_id IN (
+  SELECT id FROM public.profiles WHERE email IN ('sarah.m@marketing.local', 'david.c@marketing.local', 'elena.r@marketing.local', 'michael.w@marketing.local')
+) OR seller_id IN (
+  SELECT id FROM public.profiles WHERE email IN ('sarah.m@marketing.local', 'david.c@marketing.local', 'elena.r@marketing.local', 'michael.w@marketing.local')
+) OR buyer_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333') OR seller_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333');
+
+-- Delete market chat messages referencing profiles by email or UUID
+DELETE FROM public.market_chat_messages WHERE sender_id IN (
+  SELECT id FROM public.profiles WHERE email IN ('sarah.m@marketing.local', 'david.c@marketing.local', 'elena.r@marketing.local', 'michael.w@marketing.local')
+) OR sender_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333');
+
+-- Delete market conversations referencing profiles by email or UUID
+DELETE FROM public.market_conversations WHERE participant_a IN (
+  SELECT id FROM public.profiles WHERE email IN ('sarah.m@marketing.local', 'david.c@marketing.local', 'elena.r@marketing.local', 'michael.w@marketing.local')
+) OR participant_b IN (
+  SELECT id FROM public.profiles WHERE email IN ('sarah.m@marketing.local', 'david.c@marketing.local', 'elena.r@marketing.local', 'michael.w@marketing.local')
+) OR participant_a IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333') OR participant_b IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333');
+
+-- Delete post comments referencing profiles by email or UUID
+DELETE FROM public.post_comments WHERE user_id IN (
+  SELECT id FROM public.profiles WHERE email IN ('sarah.m@marketing.local', 'david.c@marketing.local', 'elena.r@marketing.local', 'michael.w@marketing.local')
+) OR user_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333');
+
+-- Delete posts referencing profiles by email or UUID
+DELETE FROM public.posts WHERE author_id IN (
+  SELECT id FROM public.profiles WHERE email IN ('sarah.m@marketing.local', 'david.c@marketing.local', 'elena.r@marketing.local', 'michael.w@marketing.local')
+) OR author_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333', 'f4444444-4444-4444-4444-444444444444');
+
+-- Delete market products referencing profiles by email or UUID
+DELETE FROM market_products WHERE seller_id IN (
+  SELECT id FROM public.profiles WHERE email IN ('sarah.m@marketing.local', 'david.c@marketing.local', 'elena.r@marketing.local', 'michael.w@marketing.local')
+) OR seller_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333');
+
+-- Delete market booths referencing profiles by email or UUID
+DELETE FROM market_booths WHERE owner_id IN (
+  SELECT id FROM public.profiles WHERE email IN ('sarah.m@marketing.local', 'david.c@marketing.local', 'elena.r@marketing.local', 'michael.w@marketing.local')
+) OR owner_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333');
+
+-- Delete profiles
+DELETE FROM public.profiles WHERE id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333', 'f4444444-4444-4444-4444-444444444444') OR email IN ('sarah.m@marketing.local', 'david.c@marketing.local', 'elena.r@marketing.local', 'michael.w@marketing.local');
+
+-- Delete from auth.identities
+DELETE FROM auth.identities WHERE user_id IN (
+  SELECT id FROM auth.users WHERE email IN ('sarah.m@marketing.local', 'david.c@marketing.local', 'elena.r@marketing.local', 'michael.w@marketing.local')
+) OR user_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333', 'f4444444-4444-4444-4444-444444444444');
+
+-- Delete from auth.users
+DELETE FROM auth.users WHERE id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333', 'f4444444-4444-4444-4444-444444444444') OR email IN ('sarah.m@marketing.local', 'david.c@marketing.local', 'elena.r@marketing.local', 'michael.w@marketing.local');
 
 -- 1. Create Auth Users
 INSERT INTO auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at, confirmation_token, recovery_token, email_change_token_new, email_change) VALUES 
@@ -55,19 +127,7 @@ ON CONFLICT (id) DO UPDATE SET
 INSERT INTO market_booths (owner_id, name, description, decorative_theme, offers_delivery, offers_pickup, delivery_radius_miles, pickup_address, delivery_windows, pickup_windows, payment_method, pickup_location) VALUES
 ('f1111111-1111-1111-1111-111111111111', 'The Heritage Harvest', 'Organically grown heirloom varieties from our family garden to your table.', 'harvest', true, true, 15, '1000 Willow Ave, San Jose, CA 95125', '[{"id":"8-12","start":"08:00","end":"12:00"}]'::jsonb, '[{"id":"9-17","start":"09:00","end":"17:00"}]'::jsonb, 'automatic', ST_SetSRID(ST_MakePoint(-121.8906, 37.3362), 4326)),
 ('f2222222-2222-2222-2222-222222222222', 'David''s Urban Apiary', 'Local, raw wildflower honey and natural beeswax products from happy backyard bees.', 'floral', true, true, 10, '1001 Willow Ave, San Jose, CA 95125', '[{"id":"10-14","start":"10:00","end":"14:00"}]'::jsonb, '[{"id":"12-18","start":"12:00","end":"18:00"}]'::jsonb, 'automatic', ST_SetSRID(ST_MakePoint(-121.8905, 37.3363), 4326)),
-('f3333333-3333-3333-3333-333333333333', 'Green Thumb Greens', 'Crisp, pesticide-free salad greens and culinary herbs harvested fresh daily.', 'modern', true, true, 5, '1002 Willow Ave, San Jose, CA 95125', '[{"id":"7-10","start":"07:00","end":"10:00"}]'::jsonb, '[{"id":"8-12","start":"08:00","end":"12:00"}]'::jsonb, 'automatic', ST_SetSRID(ST_MakePoint(-121.8904, 37.3364), 4326))
-ON CONFLICT (owner_id) DO UPDATE SET
-  name = EXCLUDED.name,
-  description = EXCLUDED.description,
-  decorative_theme = EXCLUDED.decorative_theme,
-  offers_delivery = EXCLUDED.offers_delivery,
-  offers_pickup = EXCLUDED.offers_pickup,
-  delivery_radius_miles = EXCLUDED.delivery_radius_miles,
-  pickup_address = EXCLUDED.pickup_address,
-  delivery_windows = EXCLUDED.delivery_windows,
-  pickup_windows = EXCLUDED.pickup_windows,
-  payment_method = EXCLUDED.payment_method,
-  pickup_location = EXCLUDED.pickup_location;
+('f3333333-3333-3333-3333-333333333333', 'Green Thumb Greens', 'Crisp, pesticide-free salad greens and culinary herbs harvested fresh daily.', 'modern', true, true, 5, '1002 Willow Ave, San Jose, CA 95125', '[{"id":"7-10","start":"07:00","end":"10:00"}]'::jsonb, '[{"id":"8-12","start":"08:00","end":"12:00"}]'::jsonb, 'automatic', ST_SetSRID(ST_MakePoint(-121.8904, 37.3364), 4326));
 
 -- 4. Create High-Quality Products
 INSERT INTO market_products (seller_id, market_date, name, description, category, price_usd, unit, inventory, photos, harvested_at, moderation_status, window_dates, product_delivery_windows, product_pickup_windows) VALUES
