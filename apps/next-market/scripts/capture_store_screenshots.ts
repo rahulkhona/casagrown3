@@ -8,8 +8,10 @@ const OUT_DIR = path.join(__dirname, '../../expo-market/store-assets');
 
 const TARGETS = [
   { name: 'phone', device: devices['iPhone 14 Pro'], width: 1080, height: 1920, scale: 2.7 },
+  { name: 'iphone65', width: 1284, height: 2778, isMobile: true, hasTouch: true },
   { name: 'tablet7', device: devices['iPad Mini'], width: 1200, height: 1920, scale: 1.5 },
   { name: 'tablet10', device: devices['iPad Pro 11'], width: 1600, height: 2560, scale: 1.5 },
+  { name: 'ipad129', width: 2048, height: 2732, isMobile: true, hasTouch: true },
   { name: 'chromebook', width: 1920, height: 1080, isMobile: false },
   { name: 'xr', width: 1920, height: 1080, isMobile: false }
 ];
