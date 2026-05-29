@@ -606,10 +606,27 @@ function ProfilePageInner() {
 /** Plan section — shows Pro badge or upgrade prompt */
 function PlanSection({ proInterest, setProInterest }: { proInterest: boolean; setProInterest: (v: boolean) => void }) {
   const { plan, isPro, status, trialEndsAt, currentPeriodEnd, canceledAt } = useSubscription()
-  const { user } = useAuth()
+  const { user, profileComplete } = useAuth()
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+
+  const { showSuccess } = useErrorToast()
+  const [sendingLink, setSendingLink] = useState(false)
+  const [linkSent, setLinkSent] = useState(false)
+
+  const handleSendLink = async () => {
+    setSendingLink(true)
+    try {
+      await supabase.functions.invoke('send-pro-interest-email', { body: {} })
+      setLinkSent(true)
+      showSuccess('📧 Activation link sent — check your inbox!')
+    } catch {
+      // Silently fail
+    } finally {
+      setSendingLink(false)
+    }
+  }
 
   const isCancelPending = isPro && !!canceledAt
 
@@ -795,32 +812,87 @@ function PlanSection({ proInterest, setProInterest }: { proInterest: boolean; se
     )
   }
 
+  if (!profileComplete) {
+    return (
+      <>
+        <h3 className={styles.sectionTitle}>Grow your business with CasaGrown Pro</h3>
+        <p style={{ margin: '0 0 16px 0', fontSize: 13, color: '#6b7280', lineHeight: 1.5 }}>
+          Unlock powerful growth tools to scale your homegrown produce sales:
+        </p>
+        <ProCarousel compact />
+
+        {/* Interest checkbox — triggers email on next profile save */}
+        <label style={{
+          display: 'flex', alignItems: 'flex-start', gap: 10,
+          marginTop: 16, padding: '14px 16px', borderRadius: 12,
+          background: 'var(--green-50, #f0fdf4)', border: '1px solid var(--green-200, #bbf7d0)',
+          cursor: 'pointer', fontSize: 14, color: 'var(--gray-700, #374151)',
+          lineHeight: 1.5,
+        }}>
+          <input
+            type="checkbox"
+            checked={proInterest}
+            onChange={e => setProInterest(e.target.checked)}
+            style={{ marginTop: 3, width: 18, height: 18, accentColor: '#059669', flexShrink: 0 }}
+          />
+          <span>
+            ✉️ Send me details about CasaGrown Pro features and pricing
+            <span style={{ display: 'block', fontSize: 12, color: 'var(--gray-500, #6b7280)', marginTop: 2 }}>
+              Check this box and save your profile to receive an email with everything you need to know about Pro.
+            </span>
+          </span>
+        </label>
+      </>
+    )
+  }
+
+  // When profileComplete is true, render a beautiful green container with the activation email trigger
   return (
     <>
-      <h3 className={styles.sectionTitle}>Grow your business with CasaGrown Pro</h3>
-      <ProCarousel compact />
-
-      {/* Interest checkbox — triggers email on next profile save */}
-      <label style={{
-        display: 'flex', alignItems: 'flex-start', gap: 10,
-        marginTop: 16, padding: '14px 16px', borderRadius: 12,
-        background: 'var(--green-50, #f0fdf4)', border: '1px solid var(--green-200, #bbf7d0)',
-        cursor: 'pointer', fontSize: 14, color: 'var(--gray-700, #374151)',
-        lineHeight: 1.5,
+      <h3 className={styles.sectionTitle}>CasaGrown Pro</h3>
+      <div style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 12,
+        marginTop: 16,
+        padding: '14px 16px',
+        borderRadius: 12,
+        background: 'var(--green-50, #f0fdf4)',
+        border: '1px solid var(--green-200, #bbf7d0)',
       }}>
-        <input
-          type="checkbox"
-          checked={proInterest}
-          onChange={e => setProInterest(e.target.checked)}
-          style={{ marginTop: 3, width: 18, height: 18, accentColor: '#059669', flexShrink: 0 }}
-        />
-        <span>
-          ✉️ Send me details about CasaGrown Pro features and pricing
-          <span style={{ display: 'block', fontSize: 12, color: 'var(--gray-500, #6b7280)', marginTop: 2 }}>
-            Check this box and save your profile to receive an email with everything you need to know about Pro.
+        <span style={{ fontSize: 20, marginTop: 2, flexShrink: 0 }}>✉️</span>
+        <div style={{ flex: 1 }}>
+          <button
+            type="button"
+            disabled={sendingLink || linkSent}
+            onClick={handleSendLink}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              margin: 0,
+              fontSize: 14,
+              fontWeight: 600,
+              color: 'var(--green-700)',
+              cursor: sendingLink || linkSent ? 'not-allowed' : 'pointer',
+              textAlign: 'left',
+              textDecoration: linkSent ? 'none' : 'underline',
+              display: 'block',
+            }}
+          >
+            {sendingLink ? (
+              <>⏳ Sending activation link...</>
+            ) : linkSent ? (
+              <>✅ Activation link sent — check your inbox!</>
+            ) : (
+              <>Send me activation link for CasaGrown Pro</>
+            )}
+          </button>
+          <span style={{ display: 'block', fontSize: 12, color: 'var(--gray-500, #6b7280)', marginTop: 4, lineHeight: 1.4 }}>
+            Click above to instantly receive an email with everything you need to know about Pro features, pricing, and how to activate your account.
           </span>
-        </span>
-      </label>
+        </div>
+      </div>
     </>
   )
 }

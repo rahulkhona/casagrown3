@@ -9,4 +9,5 @@
  * gated behind useSubscription/useAuth isPro — they only appear for users
  * with active subscriptions. This flag controls the *marketing* surfaces.
  */
-export const ENABLE_PRO = process.env.NEXT_PUBLIC_ENABLE_PRO === 'true'
+export const ENABLE_PRO = process.env.NEXT_PUBLIC_ENABLE_PRO !== 'false'
+

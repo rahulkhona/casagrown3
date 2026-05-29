@@ -8,7 +8,6 @@ import { createClient } from '../../../lib/supabase'
 import { LoadingSpinner } from '../../components/LoadingSpinner'
 import { StandIcon } from '../../components/icons'
 import SocialShareModal from '../../components/SocialShareModal'
-import { ProCarousel } from '../../components/ProCarousel'
 import { useProEnabled } from '../../../lib/useProEnabled'
 import { useErrorToast } from '../../components/ErrorToast'
 
@@ -34,13 +33,10 @@ export default function MyStandsPage() {
   const router = useRouter()
 
   const [stands, setStands] = useState<StandRow[]>([])
-  const [helperStands, setHelperStands] = useState<(StandRow & { owner_name: string })[]>([])
   const [loading, setLoading] = useState(true)
   const [shareStand, setShareStand] = useState<StandRow | null>(null)
   const [archiveTarget, setArchiveTarget] = useState<StandRow | null>(null)
   const [archiving, setArchiving] = useState(false)
-  const [leaveTarget, setLeaveTarget] = useState<(StandRow & { owner_name: string }) | null>(null)
-  const [leaving, setLeaving] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [proInterestSent, setProInterestSent] = useState(false)
   const [proInterestSending, setProInterestSending] = useState(false)
@@ -102,59 +98,7 @@ export default function MyStandsPage() {
       )
     }
 
-    // Fetch booths user helps at
-    const loadHelperBooths = async () => {
-      const { data: helpers } = await supabase
-        .from('booth_helpers')
-        .select('booth_id, role')
-        .eq('helper_id', user.id)
-        .eq('status', 'accepted')
-
-      if (!helpers || helpers.length === 0) return
-
-      const helperBoothIds = helpers.map(h => h.booth_id)
-      const { data: hBooths } = await supabase
-        .from('market_booths')
-        .select('*')
-        .in('id', helperBoothIds)
-
-      if (!hBooths || hBooths.length === 0) return
-
-      const ownerIds = Array.from(new Set(hBooths.map(b => b.owner_id)))
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, full_name')
-        .in('id', ownerIds)
-      const profileMap = new Map(profiles?.map(p => [p.id, p.full_name]) || [])
-
-      const { data: hProducts } = await supabase
-        .from('market_products')
-        .select('booth_id')
-        .in('booth_id', helperBoothIds)
-        .eq('is_deleted', false)
-      const hCountMap: Record<string, number> = {}
-      if (hProducts) hProducts.forEach((p: any) => { hCountMap[p.booth_id] = (hCountMap[p.booth_id] || 0) + 1 })
-
-      setHelperStands(
-        hBooths.map((b: any) => ({
-          id: b.id,
-          name: b.name || 'Unnamed Booth',
-          header_image_url: b.header_image_url,
-          is_active: b.is_open !== false,
-          offers_pickup: b.offers_pickup ?? false,
-          offers_delivery: b.offers_delivery ?? false,
-          delivery_radius_miles: b.delivery_radius_miles,
-          pickup_address: b.pickup_address,
-          delivery_zipcodes: b.delivery_zipcodes,
-          created_at: b.created_at,
-          product_count: hCountMap[b.id] || 0,
-          owner_name: profileMap.get(b.owner_id) || 'Seller',
-        }))
-      )
-    }
-
-    // Wait for both fetches before showing the page
-    Promise.all([load(), loadHelperBooths()]).then(() => setLoading(false))
+    load().then(() => setLoading(false))
   }, [user?.id, authLoading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (authLoading || !isAuthenticated) {
@@ -176,24 +120,12 @@ export default function MyStandsPage() {
     setArchiveTarget(null)
   }
 
-  const handleLeaveBooth = async () => {
-    if (!leaveTarget || !user) return
-    setLeaving(true)
-    await supabase
-      .from('booth_helpers')
-      .update({ status: 'left', updated_at: new Date().toISOString() })
-      .eq('booth_id', leaveTarget.id)
-      .eq('helper_id', user.id)
-    setHelperStands(prev => prev.filter(s => s.id !== leaveTarget.id))
-    setLeaveTarget(null)
-    setLeaving(false)
-  }
   if (loading) {
     return <LoadingSpinner message="Loading your booths..." />
   }
 
   // 0 stands — empty state
-  if (stands.length === 0 && helperStands.length === 0) {
+  if (stands.length === 0) {
     return (
       <div className={styles.page}>
         <div className={styles.emptyState}>
@@ -251,14 +183,21 @@ export default function MyStandsPage() {
               + Add New Booth 🔒
             </button>
           </div>
-          <p style={{ margin: '6px 0 0', fontSize: 12, color: '#9ca3af', textAlign: 'center', lineHeight: 1.5 }}>
-            🔒 Pro lets you create a booth for each farmers market or route — each with its own schedule, pickup location, and inventory
-          </p>
+          <div style={{ margin: '10px 0 0', textAlign: 'center', lineHeight: 1.5 }}>
+            <p style={{ margin: 0, fontSize: 12, color: '#9ca3af' }}>
+              🔒 Pro lets you create a booth for each farmers market or route — each with its own schedule, pickup location, and inventory.
+            </p>
+            <div style={{ marginTop: 6 }}>
+              <Link href="/pro-manage" style={{ fontSize: 12, color: 'var(--green-700)', fontWeight: 600, textDecoration: 'underline' }}>
+                Send me activation link for CasaGrown Pro →
+              </Link>
+            </div>
+          </div>
         </div>
       ) : null}
 
       {/* Search */}
-      {(stands.length + helperStands.length) > 3 && (
+      {stands.length > 3 && (
         <div style={{ marginBottom: 16 }}>
           <input
             type="text"
@@ -348,115 +287,7 @@ export default function MyStandsPage() {
         ))}
       </div>
 
-      {/* Pro upgrade carousel — below booth cards for non-Pro */}
-      {!isPro && proEnabled && (
-        <div style={{ marginTop: 32 }}>
-          <div className="divider" />
-          <h3 className={styles.subtitle} style={{ fontSize: 16, fontWeight: 600, color: 'var(--gray-700)', marginBottom: 16 }}>
-            Grow your business with CasaGrown Pro
-          </h3>
-          <ProCarousel compact />
 
-          {/* Interest button */}
-          <div style={{ marginTop: 16, textAlign: 'center' }}>
-            <button
-              onClick={async () => {
-                setProInterestSending(true)
-                try {
-                  const supabase = createClient()
-                  await supabase.functions.invoke('send-pro-interest-email', { body: {} })
-                  showSuccess('📧 Check your email for details about CasaGrown Pro!')
-                  setProInterestSent(true)
-                } catch {
-                  // Silently fail
-                } finally {
-                  setProInterestSending(false)
-                }
-              }}
-              disabled={proInterestSent || proInterestSending}
-              style={{
-                padding: '14px 28px', borderRadius: 12, border: 'none',
-                background: proInterestSent
-                  ? '#059669'
-                  : 'linear-gradient(135deg, #065f46 0%, #059669 100%)',
-                color: 'white', fontWeight: 700, fontSize: 15,
-                cursor: proInterestSent || proInterestSending ? 'not-allowed' : 'pointer',
-                opacity: proInterestSending ? 0.7 : 1,
-                boxShadow: proInterestSent ? 'none' : '0 4px 12px rgba(5, 150, 105, 0.3)',
-                transition: 'all 0.2s ease',
-                width: '100%', maxWidth: 400,
-              }}
-            >
-              {proInterestSending ? '✉️ Sending...' : proInterestSent ? '✅ Email sent — check your inbox!' : '🌱 I\u2019m interested in CasaGrown Pro'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Helper Stands */}
-      {helperStands.length > 0 && (
-        <>
-          <div className={styles.header} style={{ marginTop: 32 }}>
-            <h2 className={styles.title} style={{ fontSize: 20 }}>🤝 Booths I Help With</h2>
-            <p className={styles.subtitle}>You can add listings to these booths</p>
-          </div>
-          <div className={styles.standsGrid}>
-            {helperStands
-              .filter(s => !searchQuery || s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.owner_name.toLowerCase().includes(searchQuery.toLowerCase()))
-              .map(stand => (
-              <div key={stand.id} className={styles.standCard}>
-                <div className={styles.cardBanner}>
-                  {stand.header_image_url ? (
-                    <img src={stand.header_image_url} alt={stand.name} />
-                  ) : null}
-                  <span className={`${styles.statusBadge} ${styles.statusHelper}`}>
-                    🤝 Helping
-                  </span>
-                </div>
-                <div className={styles.cardBody}>
-                  <h3 className={styles.standName}>{stand.name}</h3>
-                  <div style={{ fontSize: 13, color: 'var(--gray-500)', marginBottom: 6 }}>
-                    by {stand.owner_name}
-                  </div>
-                  <div className={styles.cardMeta}>
-                    <span className={styles.metaChip}>
-                      📦 {stand.product_count || 0} products
-                    </span>
-                    {stand.offers_pickup && (
-                      <span className={styles.metaChip}>📍 Pickup</span>
-                    )}
-                    {stand.offers_delivery && (
-                      <span className={styles.metaChip}>
-                        🚗 Delivery{stand.delivery_radius_miles ? ` (${stand.delivery_radius_miles}mi)` : ''}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className={styles.cardActions}>
-                  <Link
-                    href={`/my-booth/products/new?booth=${stand.id}`}
-                    className={`${styles.cardActionBtn} ${styles.cardActionPrimary}`}
-                  >
-                    ➕ Add Listing
-                  </Link>
-                  <Link
-                    href={`/my-stands/${stand.id}`}
-                    className={`${styles.cardActionBtn} ${styles.cardActionSecondary}`}
-                  >
-                    👁️ View
-                  </Link>
-                  <button
-                    className={`${styles.cardActionBtn} ${styles.cardActionDanger}`}
-                    onClick={() => setLeaveTarget(stand)}
-                  >
-                    🚪 Leave
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
     </div>
 
       {/* Social Share Modal */}
@@ -535,55 +366,7 @@ export default function MyStandsPage() {
         </div>
       )}
 
-      {/* Leave Booth Confirmation Modal */}
-      {leaveTarget && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 100,
-          background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          animation: 'fadeIn 0.2s ease',
-        }} onClick={() => !leaving && setLeaveTarget(null)}>
-          <div onClick={e => e.stopPropagation()} style={{
-            width: '90%', maxWidth: 420, background: '#fff', borderRadius: 24,
-            padding: '32px 24px', textAlign: 'center',
-            animation: 'slideUp 0.25s ease',
-          }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>🚪</div>
-            <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
-              Leave "{leaveTarget.name}"?
-            </h3>
-            <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 24, lineHeight: 1.5 }}>
-              You will no longer be able to add listings or manage orders for this booth.
-              The booth owner can re-invite you later.
-            </p>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <button
-                onClick={() => setLeaveTarget(null)}
-                disabled={leaving}
-                style={{
-                  flex: 1, padding: '12px', borderRadius: 12, border: '1px solid #e5e7eb',
-                  background: '#fff', color: '#374151', fontSize: 14, fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleLeaveBooth}
-                disabled={leaving}
-                style={{
-                  flex: 1, padding: '12px', borderRadius: 12, border: 'none',
-                  background: '#dc2626', color: '#fff', fontSize: 14, fontWeight: 600,
-                  cursor: leaving ? 'not-allowed' : 'pointer',
-                  opacity: leaving ? 0.7 : 1,
-                }}
-              >
-                {leaving ? 'Leaving...' : 'Leave Booth'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       <style>{`
         @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
