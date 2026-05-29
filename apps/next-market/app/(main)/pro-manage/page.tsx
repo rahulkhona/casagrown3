@@ -108,7 +108,7 @@ function ProManagePageInner() {
               setProInterestSending(true)
               try {
                 await supabase.functions.invoke('send-pro-interest-email', { body: {} })
-                showSuccess('📧 Check your email for details about CasaGrown Pro!')
+                showSuccess('📧 Activation link sent — check your inbox!')
                 setProInterestSent(true)
               } catch {
                 // Silently fail
@@ -130,7 +130,7 @@ function ProManagePageInner() {
               width: '100%', maxWidth: 400,
             }}
           >
-            {proInterestSending ? '✉️ Sending...' : proInterestSent ? '✅ Email sent — check your inbox!' : '🌱 I\u2019m interested in CasaGrown Pro'}
+            {proInterestSending ? '⏳ Sending activation link...' : proInterestSent ? '✅ Activation link sent — check your inbox!' : 'Send me activation link for CasaGrown Pro'}
           </button>
         </div>
 
