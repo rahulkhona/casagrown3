@@ -304,6 +304,11 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
+  // Facebook Sync state
+  const [hasFbConnection, setHasFbConnection] = useState(false)
+  const [editSyncEnabled, setEditSyncEnabled] = useState(true)
+  const [fbConnectionId, setFbConnectionId] = useState<string | null>(null)
+
   // Catalog state
   interface CatalogItem {
     id: string
@@ -434,6 +439,31 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
       setEditWeeklyDeliveryWindows(delWin)
       setEditWeeklyPickupWindows(pickWin)
       setLoading(false)
+
+      // Fetch Facebook connection & catalog sync status
+      supabase
+        .from('seller_fb_connections')
+        .select('id, status')
+        .eq('user_id', user.id)
+        .single()
+        .then(async ({ data: conn }) => {
+          if (conn && conn.status === 'connected') {
+            setHasFbConnection(true)
+            setFbConnectionId(conn.id)
+            const { data: fbCat } = await supabase
+              .from('booth_fb_catalogs')
+              .select('sync_enabled')
+              .eq('booth_id', boothId)
+              .single()
+            if (fbCat) {
+              setEditSyncEnabled(fbCat.sync_enabled !== false)
+            } else {
+              setEditSyncEnabled(true)
+            }
+          } else {
+            setHasFbConnection(false)
+          }
+        })
 
       // Fetch products
       const { data: prods } = await supabase
@@ -754,6 +784,19 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
           .from('booth_fulfillment_windows')
           .insert(windowRows)
         if (winErr) console.error('Failed to save fulfillment windows:', winErr)
+      }
+
+      // Save Facebook Sync toggle state
+      if (hasFbConnection && fbConnectionId) {
+        const { error: fbErr } = await supabase
+          .from('booth_fb_catalogs')
+          .upsert({
+            booth_id: stand.id,
+            connection_id: fbConnectionId,
+            sync_enabled: editSyncEnabled,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'booth_id' })
+        if (fbErr) console.error('Failed to save Facebook sync toggle:', fbErr)
       }
 
       // Navigate back to My Booths
@@ -1498,6 +1541,60 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* 📘 FACEBOOK SYNC */}
+            <div style={{
+              border: '1px solid #e5e7eb',
+              borderRadius: 12,
+              padding: '16px 20px',
+              background: '#f9fafb',
+              marginBottom: 20,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 24 }}>📘</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#374151' }}>Sync to Facebook Shop</div>
+                  <div style={{ fontSize: 12, color: '#6b7280' }}>
+                    {hasFbConnection 
+                      ? "Sync active listings from this booth to your Facebook catalog and include in daily menu Page posts."
+                      : "Connect your Facebook Page in Manage Pro to enable automatic catalog sync."
+                    }
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={editSyncEnabled}
+                  disabled={!hasFbConnection}
+                  onClick={() => setEditSyncEnabled(!editSyncEnabled)}
+                  style={{
+                    position: 'relative',
+                    width: 44,
+                    height: 24,
+                    borderRadius: 12,
+                    border: 'none',
+                    background: !hasFbConnection ? '#e5e7eb' : (editSyncEnabled ? '#22c55e' : '#d1d5db'),
+                    cursor: hasFbConnection ? 'pointer' : 'not-allowed',
+                    transition: 'background 0.2s',
+                    padding: 0,
+                  }}
+                >
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: 2,
+                      left: editSyncEnabled && hasFbConnection ? 22 : 2,
+                      width: 20,
+                      height: 20,
+                      borderRadius: '50%',
+                      background: 'white',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                      transition: 'left 0.2s',
+                    }}
+                  />
+                </button>
+              </div>
             </div>
 
             {/* Save error (e.g. network failure) */}

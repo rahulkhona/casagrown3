@@ -63,6 +63,17 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
 
     if ((todayPosts || 0) >= 1) continue
 
+    // Query booth IDs with active sync enabled for this connection
+    const { data: catalogs } = await supabase
+      .from('booth_fb_catalogs')
+      .select('booth_id')
+      .eq('connection_id', conn.id)
+      .eq('sync_enabled', true)
+
+    const syncedBoothIds = catalogs?.map(c => c.booth_id) || []
+
+    if (syncedBoothIds.length === 0) continue // Skip if no booths are opted into sync
+
     // Get seller profile
     const { data: profile } = await supabase
       .from('profiles')
@@ -75,9 +86,10 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     // Get all booths with active products
     const { data: booths } = await supabase
       .from('market_booths')
-      .select('id, name, pickup_address, pickup_city, pickup_zip, offers_pickup, offers_delivery, delivery_zipcodes, weekly_pickup_windows')
+      .select('id, name, pickup_address, pickup_city, pickup_zip, offers_pickup, offers_delivery, delivery_zipcodes, delivery_radius_miles')
       .eq('owner_id', conn.user_id)
       .eq('is_open', true)
+      .in('id', syncedBoothIds)
 
     if (!booths || booths.length === 0) continue
 
@@ -107,10 +119,28 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
         }
       }
 
+      // Query booth fulfillment hours
+      const { data: windows } = await supabase
+        .from('booth_fulfillment_windows')
+        .select('window_type, day_of_week, start_time, end_time')
+        .eq('booth_id', booth.id)
+
       message += `\n📍 ${booth.name}`
       if (booth.pickup_address && booth.offers_pickup) {
-        message += ` — ${booth.pickup_address}`
+        message += `\n  🏠 Pickup location: ${booth.pickup_address}`
       }
+
+      if (booth.offers_pickup && windows) {
+        const pickupWindows = windows.filter(w => w.window_type === 'pickup')
+        if (pickupWindows.length > 0) {
+          message += `\n  🕒 Pickup hours:`
+          const grouped = groupByDay(pickupWindows)
+          for (const [day, times] of Object.entries(grouped)) {
+            message += `\n    • ${day}: ${times.join(', ')}`
+          }
+        }
+      }
+
       message += `\n`
 
       for (const p of products) {
@@ -118,8 +148,27 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
         message += `  • ${p.name} — $${price}\n`
       }
 
-      if (booth.offers_delivery && booth.delivery_zipcodes?.length > 0) {
-        message += `  🚗 Delivery: ${booth.delivery_zipcodes.join(', ')}\n`
+      if (booth.offers_delivery) {
+        let delDetails = '  🚗 Delivery: Available'
+        if (booth.delivery_radius_miles) {
+          delDetails += ` within ${booth.delivery_radius_miles} miles`
+        }
+        if (booth.delivery_zipcodes && booth.delivery_zipcodes.length > 0) {
+          delDetails += ` (Zips: ${booth.delivery_zipcodes.join(', ')})`
+        }
+        message += `\n${delDetails}`
+
+        if (windows) {
+          const deliveryWindows = windows.filter(w => w.window_type === 'delivery')
+          if (deliveryWindows.length > 0) {
+            message += `\n  🕒 Delivery hours:`
+            const grouped = groupByDay(deliveryWindows)
+            for (const [day, times] of Object.entries(grouped)) {
+              message += `\n    • ${day}: ${times.join(', ')}`
+            }
+          }
+        }
+        message += `\n`
       }
 
       boothLinks.push(`${siteUrl}/market/booth/${booth.id}`)
@@ -366,10 +415,14 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
 
         const { data: fbConn } = await supabase
           .from('seller_fb_connections')
-          .select('fb_page_name, fb_page_id')
+          .select('fb_page_name, fb_page_id, casagrown_post_enabled')
           .eq('user_id', seller.user_id)
           .limit(1)
           .maybeSingle()
+
+        if (fbConn && fbConn.casagrown_post_enabled === false) {
+          continue // Seller opted out of being featured on CasaGrown Page
+        }
 
         const name = prof?.farm_name || prof?.full_name || 'New Grower'
         const location = [prof?.city, prof?.state_code].filter(Boolean).join(', ')
@@ -446,3 +499,34 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     casagrown_failed: casagrownFailed,
   }, corsHeaders)
 })
+
+function formatTime(timeStr: string): string {
+  const [hourStr, minStr] = timeStr.split(':')
+  const hour = parseInt(hourStr)
+  const ampm = hour >= 12 ? 'PM' : 'AM'
+  const formattedHour = hour % 12 || 12
+  return `${formattedHour}:${minStr} ${ampm}`
+}
+
+function groupByDay(windows: any[]): Record<string, string[]> {
+  const dayNames: Record<string, string> = {
+    mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday',
+    fri: 'Friday', sat: 'Saturday', sun: 'Sunday'
+  }
+  const order = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+  
+  const sorted = [...windows].sort((a, b) => {
+    const dayDiff = order.indexOf(a.day_of_week) - order.indexOf(b.day_of_week)
+    if (dayDiff !== 0) return dayDiff
+    return a.start_time.localeCompare(b.start_time)
+  })
+
+  const groups: Record<string, string[]> = {}
+  for (const w of sorted) {
+    const day = dayNames[w.day_of_week] || w.day_of_week
+    if (!groups[day]) groups[day] = []
+    const timeRange = `${formatTime(w.start_time)}–${formatTime(w.end_time)}`
+    groups[day].push(timeRange)
+  }
+  return groups
+}

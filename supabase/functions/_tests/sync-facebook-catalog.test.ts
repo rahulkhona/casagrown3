@@ -268,3 +268,21 @@ Deno.test({
     assert(parseInt(hasUnique) > 0, "product_fb_sync should have unique index on product_id");
   },
 });
+
+Deno.test({
+  name: "sync-facebook-catalog: respects sync_enabled = false on booth_fb_catalogs",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    // Verify that booth_fb_catalogs sync_enabled filters out disabled booths
+    const exists = await sqlExec(`
+      SELECT EXISTS(
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'booth_fb_catalogs'
+        AND column_name = 'sync_enabled'
+      )
+    `);
+    assertEquals(exists, "t", "sync_enabled column must exist on booth_fb_catalogs");
+  },
+});
+

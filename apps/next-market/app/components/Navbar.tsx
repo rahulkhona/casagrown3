@@ -687,7 +687,7 @@ export function Navbar() {
                       </Link>
                     ))}
                     {/* Pro menu item */}
-                    {proEnabled && !subLoading && (
+                    {!subLoading && (isPro || proEnabled) && (
                       isPro ? (
                         <Link href="/pro-manage" className={`${styles.menuItem} ${pathname === '/pro-manage' ? styles.menuItemActive : ''}`}>
                           <span className={styles.menuItemIcon}>🚜</span>

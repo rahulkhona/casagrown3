@@ -256,22 +256,22 @@ export function FacebookStatus() {
         {[
           {
             field: 'auto_sync_enabled',
-            label: '📦 Auto-sync product catalog every 6 hours',
+            label: '📦 Automatic catalog sync',
             description: null,
             testId: 'toggle-auto-sync',
           },
           {
             field: 'auto_post_enabled',
-            label: '📣 Post daily product highlights to my Facebook Page',
+            label: '📣 Post daily available items to my Facebook Page',
             description:
-              'GrowBot will post one product feature per day to your Facebook Page',
+              'GrowBot will automatically post a beautiful daily update of your in-stock products, prices, pickup/delivery details, and a product photo carousel.',
             testId: 'toggle-auto-post',
           },
           {
             field: 'casagrown_post_enabled',
             label: '🌱 Allow CasaGrown to feature my products',
             description:
-              'Your products may be featured on the CasaGrown Facebook Page (up to 3x/day)',
+              'Promote your booth with free organic traffic! Your daily listings and new seller welcomes may be featured on the official CasaGrown Facebook Page.',
             testId: 'toggle-casagrown-post',
           },
         ].map(({ field, label, description, testId }) => (

@@ -73,6 +73,54 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
 
         if (!products || products.length === 0) continue
 
+        // Get booth details for fulfillment options
+        const { data: booth } = await supabase
+          .from('market_booths')
+          .select('offers_pickup, offers_delivery, pickup_address, delivery_radius_miles, delivery_zipcodes')
+          .eq('id', catalog.booth_id)
+          .single()
+
+        // Get timings from booth_fulfillment_windows
+        const { data: windows } = await supabase
+          .from('booth_fulfillment_windows')
+          .select('window_type, day_of_week, start_time, end_time')
+          .eq('booth_id', catalog.booth_id)
+
+        let fulfillmentDesc = ''
+        if (booth) {
+          fulfillmentDesc += '\n\n📦 Fulfillment Options:'
+          
+          if (booth.offers_pickup) {
+            fulfillmentDesc += `\n📍 Pickup: Available near ${booth.pickup_address || 'our neighborhood'}`
+            const pickupWindows = windows?.filter(w => w.window_type === 'pickup')
+            if (pickupWindows && pickupWindows.length > 0) {
+              fulfillmentDesc += '\n🕒 Pickup timings:'
+              const grouped = groupByDay(pickupWindows)
+              for (const [day, times] of Object.entries(grouped)) {
+                fulfillmentDesc += `\n  • ${day}: ${times.join(', ')}`
+              }
+            }
+          }
+
+          if (booth.offers_delivery) {
+            fulfillmentDesc += '\n🚗 Delivery: Available'
+            if (booth.delivery_radius_miles) {
+              fulfillmentDesc += ` within ${booth.delivery_radius_miles} miles`
+            }
+            if (booth.delivery_zipcodes && booth.delivery_zipcodes.length > 0) {
+              fulfillmentDesc += ` (Zip codes: ${booth.delivery_zipcodes.join(', ')})`
+            }
+            const deliveryWindows = windows?.filter(w => w.window_type === 'delivery')
+            if (deliveryWindows && deliveryWindows.length > 0) {
+              fulfillmentDesc += '\n🕒 Delivery timings:'
+              const grouped = groupByDay(deliveryWindows)
+              for (const [day, times] of Object.entries(grouped)) {
+                fulfillmentDesc += `\n  • ${day}: ${times.join(', ')}`
+              }
+            }
+          }
+        }
+
         // Get seller profile for brand name
         const { data: sellerProfile } = await supabase
           .from('profiles')
@@ -99,7 +147,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
           productPayloads.push({
             retailer_id: product.id,
             name: `${product.name} · ${sellerProfile?.city || ''} ${sellerProfile?.zip_code || ''}`.trim(),
-            description: product.description || product.name,
+            description: `${product.description || product.name}${fulfillmentDesc}`.substring(0, 5000),
             price: Number(product.price_usd),
             currency: 'USD',
             url: `${siteUrl}/market/product/${product.id}`,
@@ -214,4 +262,35 @@ async function computeContentHash(product: any): Promise<string> {
   return Array.from(new Uint8Array(hashBuffer))
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('')
+}
+
+function formatTime(timeStr: string): string {
+  const [hourStr, minStr] = timeStr.split(':')
+  const hour = parseInt(hourStr)
+  const ampm = hour >= 12 ? 'PM' : 'AM'
+  const formattedHour = hour % 12 || 12
+  return `${formattedHour}:${minStr} ${ampm}`
+}
+
+function groupByDay(windows: any[]): Record<string, string[]> {
+  const dayNames: Record<string, string> = {
+    mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday',
+    fri: 'Friday', sat: 'Saturday', sun: 'Sunday'
+  }
+  const order = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+  
+  const sorted = [...windows].sort((a, b) => {
+    const dayDiff = order.indexOf(a.day_of_week) - order.indexOf(b.day_of_week)
+    if (dayDiff !== 0) return dayDiff
+    return a.start_time.localeCompare(b.start_time)
+  })
+
+  const groups: Record<string, string[]> = {}
+  for (const w of sorted) {
+    const day = dayNames[w.day_of_week] || w.day_of_week
+    if (!groups[day]) groups[day] = []
+    const timeRange = `${formatTime(w.start_time)}–${formatTime(w.end_time)}`
+    groups[day].push(timeRange)
+  }
+  return groups
 }

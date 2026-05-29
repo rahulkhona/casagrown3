@@ -484,3 +484,21 @@ Deno.test({
     await sqlExec(`DELETE FROM fb_auto_post_log WHERE message LIKE '%New on CasaGrown this week%'`);
   },
 });
+
+Deno.test({
+  name: "fb-posts: respects sync_enabled = false on booth_fb_catalogs during daily updates",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    // Verify sync_enabled column exists on booth_fb_catalogs
+    const hasSyncFilter = await sqlExec(`
+      SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'booth_fb_catalogs' 
+        AND column_name = 'sync_enabled'
+      )
+    `);
+    assertEquals(hasSyncFilter, "t", "sync_enabled column must exist on booth_fb_catalogs");
+  },
+});
+

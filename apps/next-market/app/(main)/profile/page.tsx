@@ -14,11 +14,7 @@ import { useSubscription } from '../../../lib/useSubscription'
 import { UpgradePrompt } from '../../components/UpgradePrompt'
 import { ProCarousel } from '../../components/ProCarousel'
 import { useErrorToast } from '../../components/ErrorToast'
-import { ProGate } from '../../components/ProGate'
 import { useProEnabled } from '../../../lib/useProEnabled'
-import { FacebookStatus } from '../../components/FacebookStatus'
-import { WidgetEmbed } from '../../components/WidgetEmbed'
-import { GrowBotSettings } from '../../components/GrowBotSettings'
 import styles from './page.module.css'
 
 function ProfilePageInner() {
@@ -585,28 +581,7 @@ function ProfilePageInner() {
         </button>
       </form>
 
-      {/* ── Facebook Integration (Pro only) ── */}
-      <ProGate feature="Facebook catalog sync">
-        <div style={{ marginTop: 24 }}>
-          <div className="divider" />
-          <h3 className={styles.sectionTitle}>Facebook Integration</h3>
-          <FacebookStatus />
-        </div>
-      </ProGate>
 
-      {/* ── GrowBot Configuration (Pro only) ── */}
-      <ProGate feature="GrowBot AI configuration">
-        <GrowBotProfileSection />
-      </ProGate>
-
-      {/* ── Website Widget (Pro only) ── */}
-      {/* <ProGate feature="Website chat widget">
-        <div style={{ marginTop: 24 }}>
-          <div className="divider" />
-          <h3 className={styles.sectionTitle}>Website Chat Widget</h3>
-          <WidgetEmbed />
-        </div>
-      </ProGate> */}
 
       {/* Delete Account — positioned at the very bottom of the profile page */}
       <div style={{ marginTop: 32, paddingTop: 20, borderTop: '1px solid var(--gray-200)' }}>
@@ -850,49 +825,7 @@ function PlanSection({ proInterest, setProInterest }: { proInterest: boolean; se
   )
 }
 
-/** GrowBot settings section — fetches user's primary booth and renders GrowBotSettings */
-function GrowBotProfileSection() {
-  const { user } = useAuth()
-  const { isPro } = useSubscription()
-  const [boothId, setBoothId] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    if (!user) return
-    const supabase = createClient()
-    supabase
-      .from('market_booths')
-      .select('id')
-      .eq('owner_id', user.id)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-      .then(({ data }) => {
-        setBoothId(data?.id ?? null)
-        setLoading(false)
-      })
-  }, [user])
-
-  if (loading) return null
-  if (!boothId) {
-    return (
-      <div style={{ marginTop: 24 }}>
-        <div className="divider" />
-        <h3 className={styles.sectionTitle}>GrowBot AI Settings</h3>
-        <p style={{ fontSize: 13, color: '#6b7280' }}>
-          Create a booth first to configure GrowBot settings.
-        </p>
-      </div>
-    )
-  }
-
-  return (
-    <div style={{ marginTop: 24 }}>
-      <div className="divider" />
-      <GrowBotSettings userId={user!.id} isPro={isPro} />
-    </div>
-  )
-}
 
 export default function ProfilePage() {
   return (

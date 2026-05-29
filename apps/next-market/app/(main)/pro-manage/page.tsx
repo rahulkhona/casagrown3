@@ -22,23 +22,7 @@ function ProManagePageInner() {
   const [showConfirm, setShowConfirm] = useState(false)
   const [proInterestSending, setProInterestSending] = useState(false)
   const [proInterestSent, setProInterestSent] = useState(false)
-  const [receipts, setReceipts] = useState<Array<{ id: string; amount_usd: number; description: string; created_at: string; period_start: string; period_end: string; invoice_url: string | null }>>([])
-  const [receiptsLoading, setReceiptsLoading] = useState(true)
 
-  // Fetch billing history
-  useEffect(() => {
-    if (!user) return
-    supabase
-      .from('subscription_receipts')
-      .select('id, amount_usd, description, created_at, period_start, period_end, invoice_url')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(12)
-      .then(({ data }) => {
-        setReceipts(data ?? [])
-        setReceiptsLoading(false)
-      })
-  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Auth guard ──
   if (authLoading || subLoading) {
@@ -270,64 +254,7 @@ function ProManagePageInner() {
         <GrowBotSettings userId={user.id} isPro={isPro} />
       </div>
 
-      {/* ── Billing History ── */}
-      <div style={{ marginTop: 28 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 12px', color: '#111827', display: 'flex', alignItems: 'center', gap: 8 }}>
-          💳 Billing History
-        </h2>
-        {receiptsLoading ? (
-          <div style={{ padding: 12, color: '#9ca3af', fontSize: 13 }}>Loading billing history...</div>
-        ) : receipts.length === 0 ? (
-          <div style={{
-            border: '1px dashed #d1d5db', borderRadius: 12,
-            padding: 16, textAlign: 'center', color: '#9ca3af', fontSize: 13,
-          }}>
-            No billing history yet.
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {receipts.map((r) => {
-              const date = new Date(r.created_at).toLocaleDateString('en-US', {
-                month: 'short', day: 'numeric', year: 'numeric',
-              })
-              const periodEnd = r.period_end ? new Date(r.period_end).toLocaleDateString('en-US', {
-                month: 'short', day: 'numeric',
-              }) : null
-              return (
-                <div key={r.id} style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '12px 16px', background: '#f9fafb', borderRadius: 10,
-                  border: '1px solid #f3f4f6',
-                }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>
-                      {r.description}
-                    </div>
-                    <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
-                      {date}{periodEnd ? ` — Next: ${periodEnd}` : ''}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: '#065f46' }}>
-                      ${Number(r.amount_usd).toFixed(2)}
-                    </span>
-                    {r.invoice_url && (
-                      <a
-                        href={r.invoice_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ fontSize: 12, color: '#059669', fontWeight: 600, textDecoration: 'none' }}
-                      >
-                        View →
-                      </a>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
+
       {/* ── Cancel confirmation modal ── */}
       {showConfirm && (
         <div
