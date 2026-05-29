@@ -568,10 +568,16 @@ function ProfileSetupPageInner() {
           {/* Pro interest — optional during signup */}
           {proEnabled && (
             <div style={{ marginTop: 16, marginBottom: 16 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--gray-700)', marginBottom: 12 }}>
+                Grow your business with CasaGrown Pro
+              </h3>
+              <p style={{ margin: '0 0 16px 0', fontSize: 13, color: '#6b7280', lineHeight: 1.5 }}>
+                Unlock powerful growth tools to scale your homegrown produce sales:
+              </p>
               <ProCarousel compact />
               <label style={{
                 display: 'flex', alignItems: 'flex-start', gap: 10,
-                marginTop: 12, padding: '12px 14px', borderRadius: 12,
+                marginTop: 16, padding: '14px 16px', borderRadius: 12,
                 background: '#f0fdf4', border: '1px solid #bbf7d0',
                 cursor: 'pointer', fontSize: 14, color: '#374151',
                 lineHeight: 1.5,
@@ -584,6 +590,9 @@ function ProfileSetupPageInner() {
                 />
                 <span>
                   ✉️ Send me details about CasaGrown Pro features and pricing
+                  <span style={{ display: 'block', fontSize: 12, color: 'var(--gray-500, #6b7280)', marginTop: 2 }}>
+                    Check this box and continue to receive an email with everything you need to know about Pro.
+                  </span>
                 </span>
               </label>
             </div>
