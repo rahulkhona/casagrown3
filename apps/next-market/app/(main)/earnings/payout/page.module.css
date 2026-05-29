@@ -167,7 +167,18 @@
   .tabGrid { gap: 8px; }
   .tabBtn { min-width: 0; padding: 10px 12px; }
   .payoutMethodGrid { grid-template-columns: 1fr !important; }
+  .segmentedControl {
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px;
+  }
+  .segmentedBtn {
+    width: 100%;
+    justify-content: flex-start;
+    padding: 12px 14px;
+  }
 }
+
 
 /* ── Premium 3-Option Payout Grid ── */
 .payoutMethodGrid {
