@@ -540,3 +540,83 @@ Deno.test({
   },
 })
 
+// ============================================================================
+// 10. transfer.failed / transfer.reversed — wallet fallback & seller email
+// ============================================================================
+Deno.test({
+  name: 'stripe-webhook: transfer.failed triggers wallet fallback and notifies seller via email/in-app',
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    // Create a new test user to link
+    const user = await createTestUser('transfer_fail')
+    assertExists(user.id)
+
+    const stripeTransferId = `tr_test_failed_${Date.now()}`
+
+    // Create a temporary market_settlements record first
+    const day = Math.floor(Math.random() * 28) + 1
+    const month = Math.floor(Math.random() * 12) + 1
+    const uniqueDate = `2099-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    const settlement = await restPost('market_settlements', {
+      market_date: uniqueDate,
+      status: 'funds_pending',
+      total_captured_usd: 120.00,
+      stripe_payout_id: null,
+    })
+    assertExists(settlement.id)
+
+    // Insert user_settlement in 'stripe_transfer_pending' status linked to this user and stripe_transfer_id
+    const userSettlement = await restPost('user_settlements', {
+      user_id: user.id,
+      settlement_id: settlement.id,
+      net_payout_usd: 120.00,
+      status: 'stripe_transfer_pending',
+      stripe_transfer_id: stripeTransferId,
+    })
+    assertExists(userSettlement.id)
+
+    // Call the webhook simulating Stripe sending transfer.failed
+    const result = await callWebhook({
+      id: `evt_xfer_fail_${Date.now()}`,
+      type: 'transfer.failed',
+      data: {
+        object: {
+          id: stripeTransferId,
+          failure_message: 'Account restricted',
+          metadata: {
+            user_id: user.id,
+          },
+        },
+      },
+    })
+
+    assertEquals(result.status, 200)
+    assertEquals(result.data.received, true)
+    assertEquals(result.data.action, 'wallet_restored')
+    assertEquals(result.data.status, 'wallet_fallback')
+
+    // Verify user_settlements was updated to 'wallet_fallback'
+    const settlements = await restGet('user_settlements', `id=eq.${userSettlement.id}`)
+    assertEquals(settlements.length, 1)
+    assertEquals(settlements[0].status, 'wallet_fallback')
+
+    // Verify a market_ledger entry was created to reverse the payout debit
+    const ledger = await restGet('market_ledger', `user_id=eq.${user.id}`)
+    assertEquals(ledger.length > 0, true)
+    assertEquals(ledger[0].event_type, 'stripe_transfer_reversed')
+    assertEquals(Number(ledger[0].amount_usd), 120.00)
+    assertEquals(ledger[0].metadata?.error?.includes('Transfer failed: Account restricted'), true)
+
+    // Verify user_balances pending_usd was credited by $120.00
+    const balances = await restGet('user_balances', `user_id=eq.${user.id}`)
+    assertEquals(balances.length, 1)
+    assertEquals(Number(balances[0].pending_usd), 120.00)
+
+    // Verify notifications were created
+    const notifs = await restGet('notifications', `user_id=eq.${user.id}`)
+    assertEquals(notifs.length, 1)
+    assertEquals(notifs[0].content.includes('Your direct deposit of $120.00 failed'), true)
+  },
+})
+

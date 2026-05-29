@@ -11,7 +11,7 @@ import { LoadingSpinner } from '../../../components/LoadingSpinner'
  * - Sweep policy: 90 days inactivity OR balance > $500
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useAuth } from '../../../../lib/useAuth'
 import { formatUsd } from '../../../../lib/store'
@@ -76,6 +76,10 @@ export default function PayoutPage() {
   const { isAuthenticated, loading: authLoading, user } = useAuth()
   const userId = user?.id
   const supabase = useMemo(() => createClient(), [])
+  const detailsRef = useRef<HTMLDivElement>(null)
+  const [selectedPayoutMode, setSelectedPayoutMode] = useState<'stripe' | 'manual' | 'auto'>('manual')
+
+
 
   // ── Tab state ──
   const [activeTab, setActiveTab] = useState<Tab>('giftCards')
@@ -139,8 +143,8 @@ export default function PayoutPage() {
 
   // ── Stripe Connect States ──
   const [stripeInfo, setStripeInfo] = useState<{ stripe_connect_id: string | null; stripe_onboarding_completed: boolean; stripe_connect_active: boolean } | null>(null)
-  const [selectedPayoutMode, setSelectedPayoutMode] = useState<'stripe' | 'manual' | 'auto'>('manual')
   const [connectingStripe, setConnectingStripe] = useState(false)
+  const [activatingStripe, setActivatingStripe] = useState(false)
   const [loadingStripeInfo, setLoadingStripeInfo] = useState(!stripeConnectEnabled ? false : true)
   const [failedTransfer, setFailedTransfer] = useState<{ id: string; amount: number; error: string } | null>(null)
 
@@ -293,11 +297,11 @@ export default function PayoutPage() {
     const tabs: { key: Tab; icon: string; label: string }[] = []
     if (availableUsd >= GIFT_CARD_MIN || isMethodAvailable('giftcards')) tabs.push({ key: 'giftCards', icon: '🎁', label: 'Gift Cards' })
     if (isMethodAvailable('charity')) tabs.push({ key: 'donate', icon: '❤️', label: 'Donate' })
-    if (isMethodAvailable('cashout') || true) tabs.push({ key: 'cashout', icon: '💸', label: 'Venmo' })
+    if (isMethodAvailable('cashout') || true) tabs.push({ key: 'cashout', icon: '💸', label: 'Venmo / PayPal' })
     if (tabs.length === 0) {
       tabs.push({ key: 'giftCards', icon: '🎁', label: 'Gift Cards' })
       tabs.push({ key: 'donate', icon: '❤️', label: 'Donate' })
-      tabs.push({ key: 'cashout', icon: '💸', label: 'Venmo' })
+      tabs.push({ key: 'cashout', icon: '💸', label: 'Venmo / PayPal' })
     }
     return tabs
   }, [isMethodAvailable, availableUsd])
@@ -477,6 +481,10 @@ export default function PayoutPage() {
     setAutoSaving(true)
     setAutoSaved(false)
     try {
+      // Deactivate Stripe Connect direct payouts so wallet auto-sweeps take priority
+      await supabase.rpc('set_stripe_connect_active', { p_active: false })
+      setStripeInfo(prev => prev ? ({ ...prev, stripe_connect_active: false }) : null)
+
       const { data, error } = await supabase.rpc('save_auto_redemption_config', {
         p_enabled: autoConfig.enabled,
         p_method: autoConfig.method,
@@ -518,81 +526,43 @@ export default function PayoutPage() {
     }
   }, [supabase])
 
-  const handlePayoutModeSelect = useCallback(async (mode: 'stripe' | 'manual' | 'auto') => {
+  const handlePayoutModeSelect = useCallback((mode: 'stripe' | 'manual' | 'auto') => {
     trackClick('payout_mode_select', { mode })
     setError(null)
     setSuccessMsg(null)
-    
+    setSelectedPayoutMode(mode)
+  }, [])
+
+  const handleActivateStripeDirect = useCallback(async () => {
+    trackClick('activate_stripe_direct')
+    setError(null)
+    setSuccessMsg(null)
+    setActivatingStripe(true)
     try {
-      if (mode === 'stripe') {
-        if (stripeInfo?.stripe_onboarding_completed) {
-          const { error: activeErr } = await supabase.rpc('set_stripe_connect_active', { p_active: true })
-          if (activeErr) throw activeErr
-          
-          const { error: autoErr } = await supabase.rpc('save_auto_redemption_config', {
-            p_enabled: false,
-            p_method: autoConfig.method,
-            p_threshold_usd: autoConfig.threshold_usd,
-            p_cashout_payout_id: payoutStatus?.handle || autoConfig.cashout_payout_id,
-            p_gift_card_brand: autoConfig.gift_card_brand,
-            p_gift_card_amount_usd: autoConfig.gift_card_amount_usd,
-            p_charity_project_id: autoConfig.charity_project_id,
-            p_charity_project_name: autoConfig.charity_project_name,
-          })
-          if (autoErr) throw autoErr
-          
-          setAutoConfig(prev => ({ ...prev, enabled: false }))
-          setStripeInfo(prev => prev ? ({ ...prev, stripe_connect_active: true }) : null)
-          setSelectedPayoutMode('stripe')
-          setSuccessMsg('✅ Stripe Direct Payouts activated successfully!')
-        } else {
-          setSelectedPayoutMode('stripe')
-        }
-      } else if (mode === 'auto') {
-        const { error: activeErr } = await supabase.rpc('set_stripe_connect_active', { p_active: false })
-        if (activeErr) throw activeErr
-        
-        const { error: autoErr } = await supabase.rpc('save_auto_redemption_config', {
-          p_enabled: true,
-          p_method: autoConfig.method,
-          p_threshold_usd: autoConfig.threshold_usd,
-          p_cashout_payout_id: payoutStatus?.handle || autoConfig.cashout_payout_id,
-          p_gift_card_brand: autoConfig.gift_card_brand,
-          p_gift_card_amount_usd: autoConfig.gift_card_amount_usd,
-          p_charity_project_id: autoConfig.charity_project_id,
-          p_charity_project_name: autoConfig.charity_project_name,
-        })
-        if (autoErr) throw autoErr
-        
-        setAutoConfig(prev => ({ ...prev, enabled: true }))
-        setStripeInfo(prev => prev ? ({ ...prev, stripe_connect_active: false }) : null)
-        setSelectedPayoutMode('auto')
-        setSuccessMsg('✅ Automatic payouts activated.')
-      } else if (mode === 'manual') {
-        const { error: activeErr } = await supabase.rpc('set_stripe_connect_active', { p_active: false })
-        if (activeErr) throw activeErr
-        
-        const { error: autoErr } = await supabase.rpc('save_auto_redemption_config', {
-          p_enabled: false,
-          p_method: autoConfig.method,
-          p_threshold_usd: autoConfig.threshold_usd,
-          p_cashout_payout_id: payoutStatus?.handle || autoConfig.cashout_payout_id,
-          p_gift_card_brand: autoConfig.gift_card_brand,
-          p_gift_card_amount_usd: autoConfig.gift_card_amount_usd,
-          p_charity_project_id: autoConfig.charity_project_id,
-          p_charity_project_name: autoConfig.charity_project_name,
-        })
-        if (autoErr) throw autoErr
-        
-        setAutoConfig(prev => ({ ...prev, enabled: false }))
-        setStripeInfo(prev => prev ? ({ ...prev, stripe_connect_active: false }) : null)
-        setSelectedPayoutMode('manual')
-        setSuccessMsg('✅ Switched to manual payouts.')
-      }
+      const { error: activeErr } = await supabase.rpc('set_stripe_connect_active', { p_active: true })
+      if (activeErr) throw activeErr
+      
+      const { error: autoErr } = await supabase.rpc('save_auto_redemption_config', {
+        p_enabled: false,
+        p_method: autoConfig.method,
+        p_threshold_usd: autoConfig.threshold_usd,
+        p_cashout_payout_id: payoutStatus?.handle || autoConfig.cashout_payout_id,
+        p_gift_card_brand: autoConfig.gift_card_brand,
+        p_gift_card_amount_usd: autoConfig.gift_card_amount_usd,
+        p_charity_project_id: autoConfig.charity_project_id,
+        p_charity_project_name: autoConfig.charity_project_name,
+      })
+      if (autoErr) throw autoErr
+      
+      setAutoConfig(prev => ({ ...prev, enabled: false }))
+      setStripeInfo(prev => prev ? ({ ...prev, stripe_connect_active: true }) : null)
+      setSuccessMsg('✅ Stripe Direct Payouts activated successfully!')
     } catch (err: any) {
-      setError(err.message || 'Failed to update payout mode')
+      setError(err.message || 'Failed to activate Stripe Direct Payouts.')
+    } finally {
+      setActivatingStripe(false)
     }
-  }, [supabase, stripeInfo, autoConfig, payoutStatus])
+  }, [supabase, autoConfig, payoutStatus])
 
   // Auto-dismiss results
   useEffect(() => { if (redemptionResult) { const t = setTimeout(() => setRedemptionResult(null), 8000); return () => clearTimeout(t) } }, [redemptionResult])
@@ -671,118 +641,118 @@ export default function PayoutPage() {
         </div>
       )}
 
-      {/* Premium 3-Option Selection Grid */}
-      <div className={styles.payoutMethodGrid}>
-        {/* Direct Payout (Stripe Connect) — gated by feature flag */}
+      {/* Premium Segmented Control Switcher */}
+      <div className={styles.segmentedControl}>
         {stripeConnectEnabled && (
-          <div
-            className={`${styles.methodCard} ${selectedPayoutMode === 'stripe' ? styles.methodCardActive : ''}`}
+          <button
+            className={`${styles.segmentedBtn} ${selectedPayoutMode === 'stripe' ? styles.segmentedBtnActive : ''}`}
             onClick={() => handlePayoutModeSelect('stripe')}
           >
-            {stripeInfo?.stripe_connect_active && stripeInfo?.stripe_onboarding_completed && (
-              <span className={styles.methodCardBadge}>
-                ⚡ Active
-              </span>
-            )}
-            <span className={styles.methodCardIcon}>💳</span>
-            <strong className={styles.methodCardTitle}>Direct Payout (Stripe)</strong>
-            <p className={styles.methodCardDesc}>
-              Send net earnings directly to your bank account via Stripe Connect at settlement.
-            </p>
-          </div>
+            💳 Direct to Bank {stripeInfo?.stripe_connect_active && stripeInfo?.stripe_onboarding_completed && '✓'}
+          </button>
         )}
-
-        {/* Manual Wallet Payouts */}
-        <div
-          className={`${styles.methodCard} ${selectedPayoutMode === 'manual' ? styles.methodCardActive : ''}`}
-          onClick={() => handlePayoutModeSelect('manual')}
-        >
-          <span className={styles.methodCardIcon}>🖐️</span>
-          <strong className={styles.methodCardTitle}>Manual Wallet</strong>
-          <p className={styles.methodCardDesc}>
-            Keep earnings in your CasaGrown wallet and withdraw manually via Venmo, PayPal, or Gift Cards.
-          </p>
-        </div>
-
-        {/* Automatic Wallet Payouts */}
-        <div
-          className={`${styles.methodCard} ${selectedPayoutMode === 'auto' ? styles.methodCardActive : ''}`}
+        <button
+          className={`${styles.segmentedBtn} ${selectedPayoutMode === 'auto' ? styles.segmentedBtnActive : ''}`}
           onClick={() => handlePayoutModeSelect('auto')}
         >
-          <span className={styles.methodCardIcon}>⚡</span>
-          <strong className={styles.methodCardTitle}>Auto Wallet</strong>
-          <p className={styles.methodCardDesc}>
-            Automatically pay out to your Venmo, PayPal, or Gift Card once a custom threshold is met.
-          </p>
-        </div>
+          ⚡ Auto-Sweep Wallet
+        </button>
+        <button
+          className={`${styles.segmentedBtn} ${selectedPayoutMode === 'manual' ? styles.segmentedBtnActive : ''}`}
+          onClick={() => handlePayoutModeSelect('manual')}
+        >
+          🖐️ Withdraw Manually
+        </button>
       </div>
 
-      {stripeConnectEnabled && selectedPayoutMode === 'stripe' ? (
-        <div style={{ background: 'var(--white)', border: '1px solid var(--gray-200)', borderRadius: 12, padding: 20 }}>
-          {loadingStripeInfo ? (
-            <div className={styles.emptyState}>
-              <span className={styles.searchSpinner}>⏳</span>
-              <p>Loading Stripe Connect information...</p>
+      <div ref={detailsRef} style={{ scrollMarginTop: '20px' }}>
+        {stripeConnectEnabled && selectedPayoutMode === 'stripe' ? (
+          <div style={{ background: 'var(--white)', border: '1px solid var(--gray-200)', borderRadius: 12, padding: 20 }}>
+            <div className={styles.methodExplanation}>
+              Send net earnings directly to your bank account via Stripe Connect at settlement. Future sales bypass your virtual wallet entirely and deposit directly via ACH.
             </div>
-          ) : stripeInfo?.stripe_onboarding_completed ? (
-            <div className={`${styles.stripeConnectCard} ${styles.stripeLinked}`} style={{ margin: 0 }}>
-              <div className={styles.stripeHeader}>
-                <div className={styles.stripeBrand}>
-                  <span className={styles.stripeLogo}>stripe</span>
-                  <span className={styles.stripeTitle}>Direct Payouts Active</span>
+
+            {loadingStripeInfo ? (
+              <div className={styles.emptyState}>
+                <span className={styles.searchSpinner}>⏳</span>
+                <p>Loading Stripe Connect information...</p>
+              </div>
+            ) : stripeInfo?.stripe_onboarding_completed ? (
+              <div className={`${styles.stripeConnectCard} ${stripeInfo.stripe_connect_active ? styles.stripeLinked : styles.stripeUnlinked}`} style={{ margin: 0 }}>
+                <div className={styles.stripeHeader}>
+                  <div className={styles.stripeBrand}>
+                    <span className={styles.stripeLogo}>stripe</span>
+                    <span className={styles.stripeTitle}>
+                      {stripeInfo.stripe_connect_active ? 'Direct Payouts Active' : 'Stripe Account Linked'}
+                    </span>
+                  </div>
+                  <span className={`${styles.stripeStatusBadge} ${stripeInfo.stripe_connect_active ? styles.stripeStatusLinked : styles.stripeStatusUnlinked}`}>
+                    {stripeInfo.stripe_connect_active ? '✓ Connected & Active' : 'Inactive'}
+                  </span>
                 </div>
-                <span className={`${styles.stripeStatusBadge} ${styles.stripeStatusLinked}`}>
-                  ✓ Connected & Active
-                </span>
-              </div>
-              <p className={styles.stripeDesc}>
-                Your Standard Stripe account <strong>({stripeInfo.stripe_connect_id})</strong> is linked. Payouts from future settlements will bypass your virtual wallet and deposit directly to your bank account via ACH.
-              </p>
-              <div className={styles.stripeActions}>
-                <a
-                  href="https://dashboard.stripe.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={styles.stripeDashLink}
-                >
-                  View Stripe Dashboard ↗
-                </a>
-                <span style={{ color: 'var(--gray-300)' }}>|</span>
-                <button className={styles.switchManualBtn} onClick={() => handlePayoutModeSelect('manual')}>
-                  Switch to Manual Payouts
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className={`${styles.stripeConnectCard} ${styles.stripeUnlinked}`} style={{ margin: 0 }}>
-              <div className={styles.stripeHeader}>
-                <div className={styles.stripeBrand}>
-                  <span className={styles.stripeLogo}>stripe</span>
-                  <span className={styles.stripeTitle}>Direct Payouts via Stripe Connect</span>
+                <p className={styles.stripeDesc}>
+                  Your Standard Stripe account <strong>({stripeInfo.stripe_connect_id})</strong> is linked.
+                  {stripeInfo.stripe_connect_active
+                    ? ' Payouts from future settlements will bypass your virtual wallet and deposit directly to your bank account via ACH.'
+                    : ' Your bank details are verified. Activate Direct Payouts below to automatically route future settlements directly to your bank account instead of your virtual wallet.'
+                  }
+                </p>
+                <div className={styles.stripeActions}>
+                  {stripeInfo.stripe_connect_active ? (
+                    <a
+                      href="https://dashboard.stripe.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={styles.stripeDashLink}
+                    >
+                      View Stripe Dashboard ↗
+                    </a>
+                  ) : (
+                    <button className="btn btn-primary" onClick={handleActivateStripeDirect} disabled={activatingStripe}>
+                      {activatingStripe ? 'Activating...' : 'Activate Stripe Direct Payouts'}
+                    </button>
+                  )}
                 </div>
-                <span className={`${styles.stripeStatusBadge} ${styles.stripeStatusUnlinked}`}>
-                  Not Connected
-                </span>
               </div>
-              <p className={styles.stripeDesc}>
-                Connect your bank account to receive direct deposits from every settlement. Set up your Stripe Standard account in less than 3 minutes to start receiving fast, automated ACH payouts.
-              </p>
-              <div className={styles.stripeActions}>
-                <button className="btn btn-primary" onClick={handleConnectStripe} disabled={connectingStripe}>
-                  {connectingStripe ? 'Connecting to Stripe...' : 'Connect Stripe'}
-                </button>
+            ) : (
+              <div className={`${styles.stripeConnectCard} ${styles.stripeUnlinked}`} style={{ margin: 0 }}>
+                <div className={styles.stripeHeader}>
+                  <div className={styles.stripeBrand}>
+                    <span className={styles.stripeLogo}>stripe</span>
+                    <span className={styles.stripeTitle}>Direct Payouts via Stripe Connect</span>
+                  </div>
+                  <span className={`${styles.stripeStatusBadge} ${styles.stripeStatusUnlinked}`}>
+                    Not Connected
+                  </span>
+                </div>
+                <p className={styles.stripeDesc}>
+                  Connect your bank account to receive direct deposits from every settlement. Set up your Stripe Standard account in less than 3 minutes to start receiving fast, automated ACH payouts.
+                </p>
+                <div className={styles.stripeActions}>
+                  <button className="btn btn-primary" onClick={handleConnectStripe} disabled={connectingStripe}>
+                    {connectingStripe ? 'Connecting to Stripe...' : 'Connect Stripe'}
+                  </button>
+                </div>
               </div>
+            )}
+          </div>
+        ) : selectedPayoutMode === 'auto' ? (
+          /* ═══ AUTO-PAYOUT CONFIG ═══ */
+          <div className={styles.tabContent} style={{ border: '1px solid var(--green-200)', borderRadius: 12, padding: 20, background: 'var(--white)' }}>
+            <div className={styles.methodExplanation}>
+              Automatically withdraw your virtual wallet balance as soon as a custom threshold is met. Choose your trigger limit and automatic destination below.
             </div>
-          )}
-        </div>
-      ) : selectedPayoutMode === 'auto' ? (
-        /* ═══ AUTO-PAYOUT CONFIG ═══ */
-        <div className={styles.tabContent} style={{ border: '1px solid var(--green-200)', borderRadius: 12, padding: 20, background: 'var(--white)' }}>
+
+            {stripeInfo?.stripe_connect_active && (
+              <div style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--amber-50)', border: '1px solid var(--amber-200)', marginBottom: 16, fontSize: 12, color: 'var(--amber-700)', lineHeight: 1.5 }}>
+                ⚠️ <strong>Stripe Direct Payouts are currently active.</strong> Activating automatic wallet withdrawals will route your future settlements to your virtual wallet and automatically deactivate your Stripe Direct Payouts.
+              </div>
+            )}
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 6 }}>Payout Method</label>
             <div style={{ display: 'flex', gap: 8 }}>
               {[
-                { key: 'cashout', icon: '💸', label: 'Venmo', disabled: false },
+                { key: 'cashout', icon: '💸', label: 'Venmo / PayPal', disabled: false },
                 { key: 'giftcards', icon: '🎁', label: 'Gift Card', disabled: false },
                 { key: 'charity', icon: '❤️', label: 'Donate', disabled: false },
               ].map(m => (
@@ -798,7 +768,6 @@ export default function PayoutPage() {
                 >
                   <span style={{ fontSize: 20 }}>{m.icon}</span>
                   {m.label}
-                  {m.disabled && <span style={{ fontSize: 10, color: 'var(--red-500)' }}>Unverified</span>}
                 </button>
               ))}
             </div>
@@ -960,13 +929,23 @@ export default function PayoutPage() {
           )}
 
           <button className="btn btn-primary" style={{ width: '100%' }}
-            onClick={handleAutoSave} disabled={autoSaving || (autoConfig.method === 'charity' && !autoConfig.charity_project_id) || (autoConfig.method === 'giftcards' && !autoConfig.gift_card_brand) || (autoConfig.method === 'cashout' && (!payoutStatus?.verified || isChangingHandle))}
+            onClick={handleAutoSave} disabled={autoSaving || activatingStripe || (autoConfig.method === 'charity' && !autoConfig.charity_project_id) || (autoConfig.method === 'giftcards' && !autoConfig.gift_card_brand) || (autoConfig.method === 'cashout' && (!payoutStatus?.verified || isChangingHandle))}
           >{autoSaving ? 'Saving...' : autoSaved ? '✅ Saved!' : 'Save Auto-Payout Settings'}</button>
         </div>
-      ) : (
-        <>
-      {/* ═══ MANUAL PAYOUT TABS ═══ */}
-      <div className={styles.tabGrid}>
+        ) : (
+          <div>
+            <div className={styles.methodExplanation}>
+              Keep your earnings in your virtual wallet and manually cash out via Venmo, PayPal, or Gift Cards whenever you choose.
+            </div>
+
+            {stripeInfo?.stripe_connect_active && (
+              <div style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--green-50)', border: '1px solid var(--green-200)', marginBottom: 16, fontSize: 12, color: 'var(--green-700)', lineHeight: 1.5 }}>
+                ℹ️ <strong>Stripe Direct Payouts are currently active.</strong> Future sales settlements will bypass your virtual wallet and deposit directly to your bank. Existing wallet funds can be withdrawn below.
+              </div>
+            )}
+
+            {/* ═══ MANUAL PAYOUT TABS ═══ */}
+            <div className={styles.tabGrid}>
         {availableTabs.map(t => (
           <button key={t.key} onClick={() => { setActiveTab(t.key); setSelectedCard(null); setSelectedCharity(null); setError(null) }}
             className={`${styles.tabBtn} ${activeTab === t.key ? styles.tabBtnActive : ''}`}
@@ -1308,9 +1287,9 @@ export default function PayoutPage() {
           )}
         </div>
       )}
-      </>
+          </div>
       )}
-
+      </div>
 
       {/* ── Loading overlay ── */}
       {(redeeming || donating || cashingOut) && (

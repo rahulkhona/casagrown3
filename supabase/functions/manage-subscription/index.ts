@@ -293,7 +293,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       // Don't activate Pro here — wait for Stripe webhook or return URL confirmation.
       // Just store the pending checkout so we can reconcile later.
       const now = new Date().toISOString()
-      await supabase
+      const { data: upsertData, error: upsertErr } = await supabase
         .from('seller_subscriptions')
         .upsert({
           user_id: userId,
@@ -304,6 +304,12 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
           created_at: now,
           updated_at: now,
         }, { onConflict: 'user_id' })
+
+      if (upsertErr) {
+        console.error("❌ [DB-UPSERT] Database Upsert Failed:", JSON.stringify(upsertErr));
+      } else {
+        console.log("✅ [DB-UPSERT] Database Upsert Succeeded.");
+      }
 
       return jsonOk({ clientSecret: session.client_secret }, corsHeaders)
     }

@@ -56,7 +56,9 @@ export type EmailType =
     | "capture_failed"
     | "dispute_closed"
     | "subscription_receipt"
-    | "stripe_connect_onboarded";
+    | "stripe_connect_onboarded"
+    | "stripe_connect_transfer_failed"
+    | "stripe_connect_transfer_success";
 
 export interface EmailRecipient {
     email: string;
@@ -144,6 +146,8 @@ export interface NotificationPayload {
         periodStart?: string | null;
         periodEnd?: string | null;
     };
+    stripeTransferId?: string;
+    errorMessage?: string;
 }
 
 // =============================================================================
@@ -281,6 +285,10 @@ export function renderEmailByType(
                     bodyHtml: `<p>Your Stripe account has been successfully linked. All future settlements will deposit directly to your bank account.</p>`,
                 }),
             };
+        case "stripe_connect_transfer_success":
+            return renderStripeConnectTransferSuccess(payload, recipient);
+        case "stripe_connect_transfer_failed":
+            return renderStripeConnectTransferFailed(payload, recipient);
         default:
             return null;
     }
@@ -1661,6 +1669,107 @@ function renderSubscriptionReceipt(
             bodyHtml,
             headerGradient: 'linear-gradient(135deg, #15803d 0%, #16a34a 50%, #22c55e 100%)',
             headerEmoji: '🧾',
+        }),
+    };
+}
+
+// =============================================================================
+// Stripe Connect Payout Transfer Success
+// =============================================================================
+
+function renderStripeConnectTransferSuccess(
+    p: NotificationPayload,
+    r: EmailRecipient,
+): { subject: string; htmlBody: string } {
+    const greeting = `Hi ${r.name || "there"},`;
+    const subject = `💸 Direct Deposit Completed — $${(p.dollarAmount || 0).toFixed(2)} | CasaGrown`;
+
+    const bodyHtml = `
+        <p style="margin: 0 0 16px; font-size: 13px; color: #666666; line-height: 1.6;">
+            We are happy to let you know that your direct deposit has been successfully processed! Your net earnings from the recent market settlement have been transferred directly to your linked bank account via Stripe Connect.
+        </p>
+        ${infoCard([
+            { label: "Amount Deposited", value: `$${(p.dollarAmount || 0).toFixed(2)}` },
+            { label: "Payout Method", value: "Direct Deposit (Stripe Connect)" },
+            ...(p.stripeTransferId ? [{ label: "Reference ID", value: p.stripeTransferId }] : []),
+            {
+                label: "Completed At",
+                value: new Date().toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                }) + " UTC",
+            },
+        ])}
+        <p style="margin: 16px 0 0; font-size: 12px; color: #6b7280; line-height: 1.5; font-style: italic;">
+            *Standard transfers typically take 1 to 3 business days to reflect in your bank statement depending on your bank's processing times.
+        </p>
+        ${actionButton("View Earnings Dashboard", `${SITE_URL}/earnings`)}
+    `;
+
+    return {
+        subject,
+        htmlBody: wrapInBrandedTemplate({
+            title: "Direct Deposit Successful",
+            greeting,
+            bodyHtml,
+            headerGradient: "linear-gradient(135deg, #15803d 0%, #16a34a 50%, #22c55e 100%)",
+            headerEmoji: "💸",
+        }),
+    };
+}
+
+// =============================================================================
+// Stripe Connect Payout Transfer Failed / Reversed
+// =============================================================================
+
+function renderStripeConnectTransferFailed(
+    p: NotificationPayload,
+    r: EmailRecipient,
+): { subject: string; htmlBody: string } {
+    const greeting = `Hi ${r.name || "there"},`;
+    const subject = `⚠️ Action Required: Direct Deposit Failed — $${(p.dollarAmount || 0).toFixed(2)} | CasaGrown`;
+
+    const bodyHtml = `
+        <p style="margin: 0 0 16px; font-size: 13px; color: #666666; line-height: 1.6;">
+            We wanted to let you know that our recent attempt to deposit your market earnings of <strong>$${(p.dollarAmount || 0).toFixed(2)}</strong> to your bank account via Stripe Connect was unsuccessful.
+        </p>
+        <div style="margin: 0 0 16px; padding: 12px; background: #fffbeb; border: 1px solid #fef3c7; border-radius: 8px; border-left: 4px solid #f59e0b;">
+            <p style="margin: 0; font-size: 13px; color: #b45309; line-height: 1.5;">
+                <strong>Stripe/Bank Rejection Reason:</strong><br/>
+                <em>"${p.errorMessage || "Unknown account or routing block"}"</em>
+            </p>
+        </div>
+        <div style="margin: 0 0 16px; padding: 12px; background: #f0fdf4; border: 1px solid #dcfce7; border-radius: 8px; border-left: 4px solid #16a34a;">
+            <p style="margin: 0; font-size: 13px; color: #166534; line-height: 1.5;">
+                <strong>🔒 But don't worry — your funds are safe!</strong><br/>
+                We have automatically activated our payout safety net and refunded the full amount of <strong>$${(p.dollarAmount || 0).toFixed(2)}</strong> directly back into your CasaGrown virtual wallet.
+            </p>
+        </div>
+        ${infoCard([
+            { label: "Attempted Amount", value: `$${(p.dollarAmount || 0).toFixed(2)}` },
+            { label: "Status", value: "Restored to Wallet (Wallet Fallback)" },
+            { label: "Next Steps", value: "Update bank settings or withdraw manually" },
+        ])}
+        <p style="margin: 16px 0 0; font-size: 13px; color: #666666; line-height: 1.5;">
+            To claim your funds immediately, simply click the button below to withdraw your restored balance using our manual channels, such as <strong>Venmo</strong>, <strong>PayPal</strong>, or a <strong>Digital Gift Card</strong>.
+        </p>
+        <p style="margin: 12px 0 0; font-size: 12px; color: #6b7280; line-height: 1.5;">
+            *If you still wish to receive direct deposits to your bank account for future settlements, please visit your payout settings dashboard and click "Fix in Stripe Onboarding" to resolve your Stripe Connect bank details.
+        </p>
+        ${actionButton("Withdraw Wallet Balance", `${SITE_URL}/earnings/payout`)}
+    `;
+
+    return {
+        subject,
+        htmlBody: wrapInBrandedTemplate({
+            title: "Direct Deposit Unsuccessful",
+            greeting,
+            bodyHtml,
+            headerGradient: "linear-gradient(135deg, #b91c1c 0%, #dc2626 50%, #ef4444 100%)",
+            headerEmoji: "⚠️",
         }),
     };
 }

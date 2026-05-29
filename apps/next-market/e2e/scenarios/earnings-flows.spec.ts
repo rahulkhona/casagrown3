@@ -294,7 +294,11 @@ test.describe('Earnings & Financial Flows', () => {
       body.includes('Direct Payout') ||
       body.includes('Auto-Payout') ||
       body.includes('Manual Payout') ||
-      body.includes('auto-payout')
+      body.includes('auto-payout') ||
+      body.includes('Withdraw Manually') ||
+      body.includes('Auto-Sweep Wallet') ||
+      body.includes('Direct to Bank') ||
+      body.includes('auto-sweep')
     expect(hasPayoutModes).toBeTruthy()
 
     // The sweep policy text appears in the auto-config panel ("Balances exceeding $500...")

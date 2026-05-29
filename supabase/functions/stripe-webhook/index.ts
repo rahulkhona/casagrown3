@@ -1202,6 +1202,28 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                 });
             } catch (_) { /* best effort */ }
 
+            // Email notification fallback for webhook failure
+            try {
+                const { data: userData } = await supabase
+                    .from("profiles")
+                    .select("email, full_name")
+                    .eq("id", userId)
+                    .single();
+
+                if (userData?.email) {
+                    await supabase.functions.invoke("send-notification-email", {
+                        body: {
+                            type: "stripe_connect_transfer_failed",
+                            recipients: [{ email: userData.email, name: userData.full_name || "Seller" }],
+                            dollarAmount: amount,
+                            errorMessage: reversalReason,
+                        },
+                    });
+                }
+            } catch (emailErr) {
+                console.warn("[STRIPE-WEBHOOK] Failed to send seller failure email:", emailErr);
+            }
+
             // Alert admin staff about the reversal/failure
             const { data: adminStaff } = await supabase
                 .from("staff_members")
