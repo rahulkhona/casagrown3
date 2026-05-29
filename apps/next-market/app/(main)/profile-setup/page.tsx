@@ -572,7 +572,7 @@ function ProfileSetupPageInner() {
                 Grow your business with CasaGrown Pro
               </h3>
               <p style={{ margin: '0 0 16px 0', fontSize: 13, color: '#6b7280', lineHeight: 1.5 }}>
-                Unlock powerful growth tools to scale your homegrown produce sales:
+                Unlock powerful growth tools to scale your produce sales:
               </p>
               <ProCarousel compact />
               <label style={{
