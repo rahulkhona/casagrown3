@@ -620,7 +620,7 @@ function PlanSection({ proInterest, setProInterest }: { proInterest: boolean; se
     try {
       await supabase.functions.invoke('send-pro-interest-email', { body: {} })
       setLinkSent(true)
-      showSuccess('📧 Activation link sent — check your inbox!')
+      showSuccess('📧 Details sent — check your inbox!')
     } catch {
       // Silently fail
     } finally {
@@ -881,15 +881,15 @@ function PlanSection({ proInterest, setProInterest }: { proInterest: boolean; se
             }}
           >
             {sendingLink ? (
-              <>⏳ Sending activation link...</>
+              <>⏳ Sending details...</>
             ) : linkSent ? (
-              <>✅ Activation link sent — check your inbox!</>
+              <>✅ Details sent — check your inbox!</>
             ) : (
-              <>Send me activation link for CasaGrown Pro</>
+              <>Send me details about CasaGrown Pro features & pricing</>
             )}
           </button>
           <span style={{ display: 'block', fontSize: 12, color: 'var(--gray-500, #6b7280)', marginTop: 4, lineHeight: 1.4 }}>
-            Click above to instantly receive an email with everything you need to know about Pro features, pricing, and how to activate your account.
+            Click above to receive an email with everything you need to know about Pro features, pricing, and onboarding support.
           </span>
         </div>
       </div>

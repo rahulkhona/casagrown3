@@ -101,14 +101,13 @@ function ProManagePageInner() {
 
         <ProCarousel compact />
 
-        {/* Interest button — sends Pro details email */}
         <div style={{ marginTop: 20, textAlign: 'center' }}>
           <button
             onClick={async () => {
               setProInterestSending(true)
               try {
                 await supabase.functions.invoke('send-pro-interest-email', { body: {} })
-                showSuccess('📧 Activation link sent — check your inbox!')
+                showSuccess('📧 Details sent — check your inbox!')
                 setProInterestSent(true)
               } catch {
                 // Silently fail
@@ -130,7 +129,7 @@ function ProManagePageInner() {
               width: '100%', maxWidth: 400,
             }}
           >
-            {proInterestSending ? '⏳ Sending activation link...' : proInterestSent ? '✅ Activation link sent — check your inbox!' : 'Send me activation link for CasaGrown Pro'}
+            {proInterestSending ? '⏳ Sending details...' : proInterestSent ? '✅ Details sent — check your inbox!' : 'Send me details about CasaGrown Pro features & pricing'}
           </button>
         </div>
 

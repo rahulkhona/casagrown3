@@ -189,7 +189,7 @@ export default function MyStandsPage() {
             </p>
             <div style={{ marginTop: 6 }}>
               <Link href="/pro-manage" style={{ fontSize: 12, color: 'var(--green-700)', fontWeight: 600, textDecoration: 'underline' }}>
-                Send me activation link for CasaGrown Pro →
+                Send me details about CasaGrown Pro features & pricing →
               </Link>
             </div>
           </div>
