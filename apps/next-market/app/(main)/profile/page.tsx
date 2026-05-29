@@ -836,7 +836,7 @@ function PlanSection({ proInterest, setProInterest }: { proInterest: boolean; se
             style={{ marginTop: 3, width: 18, height: 18, accentColor: '#059669', flexShrink: 0 }}
           />
           <span>
-            ✉️ Send me details about CasaGrown Pro features and pricing
+            ✉️ Send me details about CasaGrown Pro features
             <span style={{ display: 'block', fontSize: 12, color: 'var(--gray-500, #6b7280)', marginTop: 2 }}>
               Check this box and save your profile to receive an email with everything you need to know about Pro.
             </span>
@@ -885,7 +885,7 @@ function PlanSection({ proInterest, setProInterest }: { proInterest: boolean; se
             ) : linkSent ? (
               <>✅ Details sent — check your inbox!</>
             ) : (
-              <>Send me details about CasaGrown Pro features & pricing</>
+              <>Send me details about CasaGrown Pro features</>
             )}
           </button>
           <span style={{ display: 'block', fontSize: 12, color: 'var(--gray-500, #6b7280)', marginTop: 4, lineHeight: 1.4 }}>

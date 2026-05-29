@@ -129,7 +129,7 @@ function ProManagePageInner() {
               width: '100%', maxWidth: 400,
             }}
           >
-            {proInterestSending ? '⏳ Sending details...' : proInterestSent ? '✅ Details sent — check your inbox!' : 'Send me details about CasaGrown Pro features & pricing'}
+            {proInterestSending ? '⏳ Sending details...' : proInterestSent ? '✅ Details sent — check your inbox!' : 'Send me details about CasaGrown Pro features'}
           </button>
         </div>
 
