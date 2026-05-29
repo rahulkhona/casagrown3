@@ -10,6 +10,7 @@ import AddressInput from '../../../components/AddressInput'
 import { formatUsd } from '../../../../lib/store'
 import { geocodeAddress, toPostgisPoint } from '../../../../lib/geocode'
 import SocialShareModal from '../../../components/SocialShareModal'
+import { useProEnabled } from '../../../../lib/useProEnabled'
 import { HelperDMModal } from '../../my-booth/components/HelperDMModal'
 import { type AddressFields, EMPTY_ADDRESS, formatFullAddress, buildAddress, toGeocodingString } from '../../../../lib/address'
 
@@ -248,6 +249,7 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
   const supabase = createClient()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const proEnabled = useProEnabled()
 
   const [stand, setStand] = useState<StandData | null>(null)
   const [products, setProducts] = useState<ProductRow[]>([])
@@ -1544,58 +1546,60 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
             </div>
 
             {/* 📘 FACEBOOK SYNC */}
-            <div style={{
-              border: '1px solid #e5e7eb',
-              borderRadius: 12,
-              padding: '16px 20px',
-              background: '#f9fafb',
-              marginBottom: 20,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{ fontSize: 24 }}>📘</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#374151' }}>Sync to Facebook Shop</div>
-                  <div style={{ fontSize: 12, color: '#6b7280' }}>
-                    {hasFbConnection 
-                      ? "Sync active listings from this booth to your Facebook catalog and include in daily menu Page posts."
-                      : "Connect your Facebook Page in Manage Pro to enable automatic catalog sync."
-                    }
+            {(proEnabled || isPro) && (
+              <div style={{
+                border: '1px solid #e5e7eb',
+                borderRadius: 12,
+                padding: '16px 20px',
+                background: '#f9fafb',
+                marginBottom: 20,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontSize: 24 }}>📘</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#374151' }}>Sync to Facebook Shop</div>
+                    <div style={{ fontSize: 12, color: '#6b7280' }}>
+                      {hasFbConnection 
+                        ? "Sync active listings from this booth to your Facebook catalog and include in daily menu Page posts."
+                        : "Connect your Facebook Page in Manage Pro to enable automatic catalog sync."
+                      }
+                    </div>
                   </div>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={editSyncEnabled}
-                  disabled={!hasFbConnection}
-                  onClick={() => setEditSyncEnabled(!editSyncEnabled)}
-                  style={{
-                    position: 'relative',
-                    width: 44,
-                    height: 24,
-                    borderRadius: 12,
-                    border: 'none',
-                    background: !hasFbConnection ? '#e5e7eb' : (editSyncEnabled ? '#22c55e' : '#d1d5db'),
-                    cursor: hasFbConnection ? 'pointer' : 'not-allowed',
-                    transition: 'background 0.2s',
-                    padding: 0,
-                  }}
-                >
-                  <span
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={editSyncEnabled}
+                    disabled={!hasFbConnection}
+                    onClick={() => setEditSyncEnabled(!editSyncEnabled)}
                     style={{
-                      position: 'absolute',
-                      top: 2,
-                      left: editSyncEnabled && hasFbConnection ? 22 : 2,
-                      width: 20,
-                      height: 20,
-                      borderRadius: '50%',
-                      background: 'white',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                      transition: 'left 0.2s',
+                      position: 'relative',
+                      width: 44,
+                      height: 24,
+                      borderRadius: 12,
+                      border: 'none',
+                      background: !hasFbConnection ? '#e5e7eb' : (editSyncEnabled ? '#22c55e' : '#d1d5db'),
+                      cursor: hasFbConnection ? 'pointer' : 'not-allowed',
+                      transition: 'background 0.2s',
+                      padding: 0,
                     }}
-                  />
-                </button>
+                  >
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: 2,
+                        left: editSyncEnabled && hasFbConnection ? 22 : 2,
+                        width: 20,
+                        height: 20,
+                        borderRadius: '50%',
+                        background: 'white',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                        transition: 'left 0.2s',
+                      }}
+                    />
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Save error (e.g. network failure) */}
             {error && (

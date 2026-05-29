@@ -10,6 +10,7 @@ import { useErrorToast } from '../../components/ErrorToast'
 import { ProCarousel } from '../../components/ProCarousel'
 import { FacebookStatus } from '../../components/FacebookStatus'
 import { GrowBotSettings } from '../../components/GrowBotSettings'
+import { useProEnabled } from '../../../lib/useProEnabled'
 
 function ProManagePageInner() {
   const router = useRouter()
@@ -17,6 +18,7 @@ function ProManagePageInner() {
   const { isPro, status, trialEndsAt, currentPeriodEnd, canceledAt, loading: subLoading } = useSubscription()
   const { showSuccess, showError } = useErrorToast()
   const supabase = createClient()
+  const proEnabled = useProEnabled()
 
   const [actionLoading, setActionLoading] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
@@ -32,6 +34,12 @@ function ProManagePageInner() {
   if (!isAuthenticated || !user) {
     router.replace('/login?redirect=/pro-manage')
     return <LoadingSpinner message="Redirecting to sign in…" />
+  }
+
+  // ── Feature flag gate ──
+  if (!proEnabled && !isPro) {
+    router.replace('/profile')
+    return <LoadingSpinner message="Redirecting..." />
   }
 
   // ── Helpers ──
