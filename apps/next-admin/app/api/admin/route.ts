@@ -51,6 +51,8 @@ const ALLOWED_TABLES = new Set([
   // Platform config
   'platform_settings',
   'platform_fees',
+  'subscription_tiers',
+  'subscription_tier_price_history',
   // Post policies
   'post_type_policies',
   // Redemption methods

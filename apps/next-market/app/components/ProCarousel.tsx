@@ -107,7 +107,7 @@ export function ProCarousel({
       .select('pro_monthly_price_usd, standard_platform_fee, pro_platform_fee, pro_free_trial_days')
       .limit(1)
       .single()
-      .then(({ data }) => {
+      .then(({ data }: { data: any }) => {
         if (data) setConfig(data as PlatformConfig)
       })
 
@@ -118,7 +118,7 @@ export function ProCarousel({
         .eq('user_id', user.id)
         .eq('status', 'active')
         .maybeSingle()
-        .then(({ data }) => {
+        .then(({ data }: { data: any }) => {
           if (data) setDiscount(data as PromoDiscount)
         })
     }

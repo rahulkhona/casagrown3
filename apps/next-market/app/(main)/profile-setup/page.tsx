@@ -59,7 +59,7 @@ function ProfileSetupPageInner() {
 
   // Pre-fill from existing profile
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }: { data: { session: any } }) => {
       const user = session?.user
       if (!user) { router.replace('/login'); return }
       setUserId(user.id)

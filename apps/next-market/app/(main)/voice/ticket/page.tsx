@@ -43,7 +43,7 @@ function VoiceTicketPageInner() {
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {
       const user = session?.user
       if (user) setUserId(user.id)
     })

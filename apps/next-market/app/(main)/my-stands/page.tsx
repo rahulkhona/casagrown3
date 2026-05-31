@@ -25,23 +25,28 @@ interface StandRow {
   delivery_zipcodes: string[] | null
   created_at: string
   product_count?: number
+  owner_name?: string
+  owner_id?: string
 }
 
 export default function MyStandsPage() {
-  const { user, loading: authLoading, isAuthenticated, isPro } = useAuth()
+  const { user, loading: authLoading, isAuthenticated } = useAuth()
   const supabase = createClient()
   const router = useRouter()
 
   const [stands, setStands] = useState<StandRow[]>([])
+  const [helperStands, setHelperStands] = useState<StandRow[]>([])
   const [loading, setLoading] = useState(true)
   const [shareStand, setShareStand] = useState<StandRow | null>(null)
   const [archiveTarget, setArchiveTarget] = useState<StandRow | null>(null)
   const [archiving, setArchiving] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [proInterestSent, setProInterestSent] = useState(false)
-  const [proInterestSending, setProInterestSending] = useState(false)
   const { showSuccess } = useErrorToast()
-  const proEnabled = useProEnabled()
+
+  // N-Tier states
+  const [maxBooths, setMaxBooths] = useState(1)
+  const [activePlan, setActivePlan] = useState<'lite' | 'pro' | 'elite'>('lite')
+  const isPro = activePlan !== 'lite'
 
   // Auth guard
   useEffect(() => {
@@ -50,52 +55,136 @@ export default function MyStandsPage() {
     }
   }, [authLoading, isAuthenticated, router])
 
-  // Fetch stands
+  // Fetch stands and active plan limits
   useEffect(() => {
     if (authLoading || !user) return
     const load = async () => {
+      // 1. Fetch Plan Details
+      const { data: subData } = await supabase
+        .from('seller_subscriptions')
+        .select('plan')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      const planName = subData?.plan === 'free' || !subData?.plan ? 'lite' : (subData.plan as 'lite' | 'pro' | 'elite')
+      setActivePlan(planName)
+
+      // 2. Fetch Tier Limits
+      const { data: tierData } = await supabase
+        .from('subscription_tiers')
+        .select('max_booths')
+        .eq('tier_name', planName)
+        .maybeSingle()
+
+      setMaxBooths(tierData?.max_booths ?? 1)
+
+      // 3. Fetch active booths
       const { data: booths } = await supabase
         .from('market_booths')
         .select('*')
         .eq('owner_id', user.id)
         .order('created_at', { ascending: false })
 
-      if (!booths || booths.length === 0) {
+      if (booths && booths.length > 0) {
+        // Fetch product counts for each stand
+        const boothIds = booths.map((b: any) => b.id)
+        const { data: products } = await supabase
+          .from('market_products')
+          .select('booth_id')
+          .in('booth_id', boothIds)
+          .eq('is_deleted', false)
+
+        const countMap: Record<string, number> = {}
+        if (products) {
+          products.forEach((p: any) => {
+            countMap[p.booth_id] = (countMap[p.booth_id] || 0) + 1
+          })
+        }
+
+        setStands(
+          booths.map((b: any) => ({
+            id: b.id,
+            name: b.name || 'Unnamed Booth',
+            header_image_url: b.header_image_url,
+            is_active: b.is_open !== false,
+            offers_pickup: b.offers_pickup ?? false,
+            offers_delivery: b.offers_delivery ?? false,
+            delivery_radius_miles: b.delivery_radius_miles,
+            pickup_address: b.pickup_address,
+            delivery_zipcodes: b.delivery_zipcodes,
+            created_at: b.created_at,
+            product_count: countMap[b.id] || 0,
+          }))
+        )
+      } else {
         setStands([])
-        setLoading(false)
-        return
       }
 
-      // Fetch product counts for each stand
-      const boothIds = booths.map(b => b.id)
-      const { data: products } = await supabase
-        .from('market_products')
+      // 4. Fetch helper booths
+      const { data: helperRelations } = await supabase
+        .from('booth_helpers')
         .select('booth_id')
-        .in('booth_id', boothIds)
-        .eq('is_deleted', false)
+        .eq('helper_id', user.id)
+        .eq('status', 'accepted')
 
-      const countMap: Record<string, number> = {}
-      if (products) {
-        products.forEach((p: any) => {
-          countMap[p.booth_id] = (countMap[p.booth_id] || 0) + 1
-        })
+      if (helperRelations && helperRelations.length > 0) {
+        const helperBoothIds = helperRelations.map((r: any) => r.booth_id)
+        const { data: hBooths } = await supabase
+          .from('market_booths')
+          .select('*')
+          .in('id', helperBoothIds)
+
+        if (hBooths && hBooths.length > 0) {
+          const hBoothIds = hBooths.map((b: any) => b.id)
+          const { data: hProducts } = await supabase
+            .from('market_products')
+            .select('booth_id')
+            .in('booth_id', hBoothIds)
+            .eq('is_deleted', false)
+
+          const hCountMap: Record<string, number> = {}
+          if (hProducts) {
+            hProducts.forEach((p: any) => {
+              hCountMap[p.booth_id] = (hCountMap[p.booth_id] || 0) + 1
+            })
+          }
+
+          const ownerIds = hBooths.map((b: any) => b.owner_id)
+          const { data: hOwners } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .in('id', ownerIds)
+
+          const ownerMap: Record<string, string> = {}
+          if (hOwners) {
+            hOwners.forEach((o: any) => {
+              ownerMap[o.id] = o.full_name || 'Seller'
+            })
+          }
+
+          setHelperStands(
+            hBooths.map((b: any) => ({
+              id: b.id,
+              name: b.name || 'Unnamed Booth',
+              header_image_url: b.header_image_url,
+              is_active: b.is_open !== false,
+              offers_pickup: b.offers_pickup ?? false,
+              offers_delivery: b.offers_delivery ?? false,
+              delivery_radius_miles: b.delivery_radius_miles,
+              pickup_address: b.pickup_address,
+              delivery_zipcodes: b.delivery_zipcodes,
+              created_at: b.created_at,
+              product_count: hCountMap[b.id] || 0,
+              owner_name: ownerMap[b.owner_id] || 'Seller',
+              owner_id: b.owner_id,
+            }))
+          )
+        } else {
+          setHelperStands([])
+        }
+      } else {
+        setHelperStands([])
       }
-
-      setStands(
-        booths.map((b: any) => ({
-          id: b.id,
-          name: b.name || 'Unnamed Booth',
-          header_image_url: b.header_image_url,
-          is_active: b.is_open !== false,
-          offers_pickup: b.offers_pickup ?? false,
-          offers_delivery: b.offers_delivery ?? false,
-          delivery_radius_miles: b.delivery_radius_miles,
-          pickup_address: b.pickup_address,
-          delivery_zipcodes: b.delivery_zipcodes,
-          created_at: b.created_at,
-          product_count: countMap[b.id] || 0,
-        }))
-      )
     }
 
     load().then(() => setLoading(false))
@@ -124,8 +213,8 @@ export default function MyStandsPage() {
     return <LoadingSpinner message="Loading your booths..." />
   }
 
-  // 0 stands — empty state
-  if (stands.length === 0) {
+  // 0 stands and helper stands — empty state
+  if (stands.length === 0 && helperStands.length === 0) {
     return (
       <div className={styles.page}>
         <div className={styles.emptyState}>
@@ -145,59 +234,63 @@ export default function MyStandsPage() {
     )
   }
 
-  // 2+ stands — show grid
+  // 1+ stands (owned or helped) — show grid
+  const totalStandsSearch = stands.length + helperStands.length
+
   return (
     <>
     <div className={styles.page}>
       <div className={styles.header}>
         <h1 className={styles.title}>My Booths</h1>
         <p className={styles.subtitle}>
-          Manage your booths and listings
+          Manage your booths and listings ({stands.length} {maxBooths < 0 ? 'active' : `/ ${maxBooths} active`})
         </p>
       </div>
 
-      {/* Action Row — Pro gets active buttons, free gets greyed + upgrade pitch */}
-      {isPro ? (
+      {/* Action Row — Gated dynamically by booth limits */}
+      <div style={{ marginBottom: 24 }}>
         <div className={styles.actionRow}>
-          <Link href="/my-stands/catalog" className={styles.actionBtnOutline}>
-            📦 Manage Product Catalog
-          </Link>
-          <Link href="/my-stands/new" className={styles.actionBtnPrimary}>
-            + Add New Booth
-          </Link>
-        </div>
-      ) : proEnabled ? (
-        <div style={{ marginBottom: 24 }}>
-          {/* Greyed-out Pro buttons */}
-          <div className={styles.actionRow}>
+          {activePlan !== 'lite' ? (
+            <Link href="/my-stands/catalog" className={styles.actionBtnOutline}>
+              📦 Manage Product Catalog
+            </Link>
+          ) : (
             <button className={styles.actionBtnOutline} disabled style={{
-              opacity: 0.5, cursor: 'not-allowed', pointerEvents: 'none',
-              filter: 'grayscale(0.5)',
+              opacity: 0.5, cursor: 'not-allowed', filter: 'grayscale(0.5)', pointerEvents: 'none'
             }}>
               📦 Manage Product Catalog 🔒
             </button>
+          )}
+
+          {maxBooths < 0 || stands.length < maxBooths ? (
+            <Link href="/my-stands/new" className={styles.actionBtnPrimary}>
+              + Add New Booth
+            </Link>
+          ) : (
             <button className={styles.actionBtnPrimary} disabled style={{
-              opacity: 0.5, cursor: 'not-allowed', pointerEvents: 'none',
-              filter: 'grayscale(0.5)',
+              opacity: 0.5, cursor: 'not-allowed', filter: 'grayscale(0.5)', pointerEvents: 'none'
             }}>
               + Add New Booth 🔒
             </button>
-          </div>
-          <div style={{ margin: '10px 0 0', textAlign: 'center', lineHeight: 1.5 }}>
-            <p style={{ margin: 0, fontSize: 12, color: '#9ca3af' }}>
-              🔒 Pro lets you create a booth for each farmers market or route — each with its own schedule, pickup location, and inventory.
+          )}
+        </div>
+
+        {maxBooths >= 0 && stands.length >= maxBooths && (
+          <div style={{ margin: '12px 0 0', textAlign: 'center', lineHeight: 1.5 }}>
+            <p style={{ margin: 0, fontSize: 13, color: '#9ca3af', fontWeight: 500 }}>
+              🔒 You have reached the booth limit of <strong>{maxBooths}</strong> for your plan tier.
             </p>
             <div style={{ marginTop: 6 }}>
-              <Link href="/pro-manage" style={{ fontSize: 12, color: 'var(--green-700)', fontWeight: 600, textDecoration: 'underline' }}>
-                Send me details about CasaGrown Pro features →
+              <Link href="/pro" style={{ fontSize: 13, color: 'var(--green-700)', fontWeight: 700, textDecoration: 'underline' }}>
+                Upgrade to Pro or Elite to launch more stands! →
               </Link>
             </div>
           </div>
-        </div>
-      ) : null}
+        )}
+      </div>
 
       {/* Search */}
-      {stands.length > 3 && (
+      {totalStandsSearch > 3 && (
         <div style={{ marginBottom: 16 }}>
           <input
             type="text"
@@ -214,80 +307,147 @@ export default function MyStandsPage() {
         </div>
       )}
 
-      <div className={styles.standsGrid}>
-        {stands
-          .filter(s => !searchQuery || s.name.toLowerCase().includes(searchQuery.toLowerCase()))
-          .map(stand => (
-          <div key={stand.id} className={styles.standCard} style={!stand.is_active ? { opacity: 0.6, filter: 'grayscale(0.4)' } : undefined}>
-            {/* Banner */}
-            <div className={styles.cardBanner}>
-              {stand.header_image_url ? (
-                <img src={stand.header_image_url} alt={stand.name} />
-              ) : null}
-              <span className={`${styles.statusBadge} ${stand.is_active ? styles.statusActive : styles.statusInactive}`}>
-                {stand.is_active ? '● Active' : '● Inactive'}
-              </span>
-            </div>
-
-            {/* Body */}
-            <div className={styles.cardBody}>
-              <h3 className={styles.standName}>{stand.name}</h3>
-              <div className={styles.cardMeta}>
-                <span className={styles.metaChip}>
-                  📦 {stand.product_count || 0} products
+      {stands.length > 0 && (
+        <div className={styles.standsGrid}>
+          {stands
+            .filter(s => !searchQuery || s.name.toLowerCase().includes(searchQuery.toLowerCase()))
+            .map(stand => (
+            <div key={stand.id} className={styles.standCard} style={!stand.is_active ? { opacity: 0.6, filter: 'grayscale(0.4)' } : undefined}>
+              {/* Banner */}
+              <div className={styles.cardBanner}>
+                {stand.header_image_url ? (
+                  <img src={stand.header_image_url} alt={stand.name} />
+                ) : null}
+                <span className={`${styles.statusBadge} ${stand.is_active ? styles.statusActive : styles.statusInactive}`}>
+                  {stand.is_active ? '● Active' : '● Inactive'}
                 </span>
-                {stand.offers_pickup && (
-                  <span className={styles.metaChip}>📍 Pickup</span>
-                )}
-                {stand.offers_delivery && (
+              </div>
+
+              {/* Body */}
+              <div className={styles.cardBody}>
+                <h3 className={styles.standName}>{stand.name}</h3>
+                <div className={styles.cardMeta}>
                   <span className={styles.metaChip}>
-                    🚗 Delivery{stand.delivery_radius_miles ? ` (${stand.delivery_radius_miles}mi)` : ''}
+                    📦 {stand.product_count || 0} products
                   </span>
+                  {stand.offers_pickup && (
+                    <span className={styles.metaChip}>📍 Pickup</span>
+                  )}
+                  {stand.offers_delivery && (
+                    <span className={styles.metaChip}>
+                      🚗 Delivery{stand.delivery_radius_miles ? ` (${stand.delivery_radius_miles}mi)` : ''}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className={styles.cardActions}>
+                <Link
+                  href={`/my-booth/products/new?booth=${stand.id}`}
+                  className={`${styles.cardActionBtn} ${styles.cardActionPrimary}`}
+                >
+                  ➕ Add Listing
+                </Link>
+                <Link
+                  href={`/my-stands/${stand.id}`}
+                  className={`${styles.cardActionBtn} ${styles.cardActionSecondary}`}
+                >
+                  👁️ View
+                </Link>
+                <Link
+                  href={`/my-stands/${stand.id}?edit=true`}
+                  className={`${styles.cardActionBtn} ${styles.cardActionSecondary}`}
+                >
+                  ✏️ Edit
+                </Link>
+                <button
+                  className={`${styles.cardActionBtn} ${styles.cardActionSecondary}`}
+                  onClick={() => setShareStand(stand)}
+                >
+                  🔗 Share
+                </button>
+                {isPro && (
+                  <button
+                    className={`${styles.cardActionBtn} ${styles.cardActionSecondary}`}
+                    onClick={() => setArchiveTarget(stand)}
+                    style={stand.is_active ? { color: '#b45309' } : { color: 'var(--green-700)' }}
+                  >
+                    {stand.is_active ? '📦 Archive' : '🔄 Reactivate'}
+                  </button>
                 )}
               </div>
             </div>
+          ))}
+        </div>
+      )}
 
-            {/* Actions */}
-            <div className={styles.cardActions}>
-              <Link
-                href={`/my-booth/products/new?booth=${stand.id}`}
-                className={`${styles.cardActionBtn} ${styles.cardActionPrimary}`}
-              >
-                ➕ Add Listing
-              </Link>
-              <Link
-                href={`/my-stands/${stand.id}`}
-                className={`${styles.cardActionBtn} ${styles.cardActionSecondary}`}
-              >
-                👁️ View
-              </Link>
-              <Link
-                href={`/my-stands/${stand.id}?edit=true`}
-                className={`${styles.cardActionBtn} ${styles.cardActionSecondary}`}
-              >
-                ✏️ Edit
-              </Link>
-              <button
-                className={`${styles.cardActionBtn} ${styles.cardActionSecondary}`}
-                onClick={() => setShareStand(stand)}
-              >
-                🔗 Share
-              </button>
-              {isPro && (
-                <button
-                  className={`${styles.cardActionBtn} ${styles.cardActionSecondary}`}
-                  onClick={() => setArchiveTarget(stand)}
-                  style={stand.is_active ? { color: '#b45309' } : { color: 'var(--green-700)' }}
-                >
-                  {stand.is_active ? '📦 Archive' : '🔄 Reactivate'}
-                </button>
-              )}
-            </div>
+      {helperStands.length > 0 && (
+        <div style={{ marginTop: 48 }}>
+          <h2 className={styles.title} style={{ fontSize: 20, marginBottom: 4 }}>Booths I Help With</h2>
+          <p className={styles.subtitle} style={{ marginBottom: 16 }}>You have been added as an assistant for these booths</p>
+          <div className={styles.standsGrid}>
+            {helperStands
+              .filter(s => !searchQuery || s.name.toLowerCase().includes(searchQuery.toLowerCase()))
+              .map(stand => (
+              <div key={stand.id} className={styles.standCard} style={!stand.is_active ? { opacity: 0.6, filter: 'grayscale(0.4)' } : undefined}>
+                {/* Banner */}
+                <div className={styles.cardBanner}>
+                  {stand.header_image_url ? (
+                    <img src={stand.header_image_url} alt={stand.name} />
+                  ) : null}
+                  <span className={`${styles.statusBadge} ${styles.statusHelper}`}>
+                    ● Helper
+                  </span>
+                </div>
+
+                {/* Body */}
+                <div className={styles.cardBody}>
+                  <h3 className={styles.standName}>{stand.name}</h3>
+                  <p style={{ fontSize: 13, color: '#6b7280', margin: '-4px 0 8px' }}>
+                    by {stand.owner_name}
+                  </p>
+                  <div className={styles.cardMeta}>
+                    <span className={styles.metaChip}>
+                      📦 {stand.product_count || 0} products
+                    </span>
+                    {stand.offers_pickup && (
+                      <span className={styles.metaChip}>📍 Pickup</span>
+                    )}
+                    {stand.offers_delivery && (
+                      <span className={styles.metaChip}>
+                        🚗 Delivery{stand.delivery_radius_miles ? ` (${stand.delivery_radius_miles}mi)` : ''}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className={styles.cardActions}>
+                  <Link
+                    href={`/my-booth/products/new?booth=${stand.id}`}
+                    className={`${styles.cardActionBtn} ${styles.cardActionPrimary}`}
+                  >
+                    ➕ Add Listing
+                  </Link>
+                  <Link
+                    href={`/my-stands/${stand.id}`}
+                    className={`${styles.cardActionBtn} ${styles.cardActionSecondary}`}
+                  >
+                    👁️ View
+                  </Link>
+                  <button
+                    className={`${styles.cardActionBtn} ${styles.cardActionSecondary}`}
+                    onClick={() => setShareStand(stand)}
+                  >
+                    🔗 Share
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-
-
+        </div>
+      )}
     </div>
 
       {/* Social Share Modal */}

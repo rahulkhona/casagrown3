@@ -281,21 +281,21 @@ function NewProductPageInner() {
 
           // Filter to same-neighborhood sellers
           if (localProducts && localProducts.length > 0) {
-            const sellerIds = Array.from(new Set(localProducts.map(p => p.seller_id)))
+            const sellerIds = Array.from(new Set(localProducts.map((p: any) => p.seller_id)))
             const { data: neighborSellers } = await supabase
               .from('profiles').select('id')
               .eq('home_community_h3_index', h3)
               .in('id', sellerIds)
 
             if (neighborSellers && neighborSellers.length > 0) {
-              const neighborIds = new Set(neighborSellers.map(s => s.id))
-              const matches = localProducts.filter(p => neighborIds.has(p.seller_id))
+              const neighborIds = new Set(neighborSellers.map((s: any) => s.id))
+              const matches = localProducts.filter((p: any) => neighborIds.has(p.seller_id))
 
               if (matches.length >= 3) {
-                const avg = matches.reduce((sum, p) => sum + Number(p.price_usd), 0) / matches.length
+                const avg = matches.reduce((sum: number, p: any) => sum + Number(p.price_usd), 0) / matches.length
                 // Most common unit
                 const unitCounts: Record<string, number> = {}
-                matches.forEach(p => { unitCounts[p.unit] = (unitCounts[p.unit] || 0) + 1 })
+                matches.forEach((p: any) => { unitCounts[p.unit] = (unitCounts[p.unit] || 0) + 1 })
                 const topUnit = Object.entries(unitCounts).sort((a, b) => b[1] - a[1])[0][0]
                 setSuggestedPrice({ price_usd: Math.round(avg * 100) / 100, unit: topUnit, source: 'neighborhood_average' })
                 setSuggestingPrice(false)
@@ -365,7 +365,7 @@ function NewProductPageInner() {
       } else {
         setHasBooth(false)
         supabase.from('profiles').select('full_name, street_address, city, state_code').eq('id', authUser.id).single()
-          .then(({ data: profile }) => {
+          .then(({ data: profile }: { data: any }) => {
             if (profile?.full_name) setInlineProfileName(profile.full_name)
             if (profile?.street_address) {
               setInlinePickupAddress([profile.street_address, profile.city, profile.state_code].filter(Boolean).join(', '))
@@ -519,7 +519,7 @@ function NewProductPageInner() {
         .from('category_restrictions')
         .select('category_name')
       if (restrictions) {
-        setRestrictedCategories(restrictions.map(r => r.category_name))
+        setRestrictedCategories(restrictions.map((r: any) => r.category_name))
       }
     }
     loadCategories()
@@ -566,7 +566,7 @@ function NewProductPageInner() {
   useEffect(() => {
     if (!authUser?.id) return
     supabase.from('profiles').select('home_community_h3_index').eq('id', authUser.id).single()
-      .then(({ data }) => { if (data?.home_community_h3_index) setUserH3Index(data.home_community_h3_index) })
+      .then(({ data }: { data: any }) => { if (data?.home_community_h3_index) setUserH3Index(data.home_community_h3_index) })
   }, [authUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Auth guards (AFTER all hooks) ──
@@ -785,7 +785,7 @@ function NewProductPageInner() {
         'mod':     ['ern', 'ular', 'ified', 'el'],
       }
 
-      const matchedBlocked = allBlocked.find(bp => {
+      const matchedBlocked = allBlocked.find((bp: any) => {
         const blockedTerm = bp.product_name.toLowerCase()
 
         // Skip single-character blocked words (too many false positives)
@@ -900,14 +900,14 @@ function NewProductPageInner() {
             category,
             photo_url: editPhotoUrls[0] || null,
           },
-        }).then(modRes => {
+        }).then((modRes: any) => {
           const modData = modRes.data as any
           if (modData?.status === 'flagged' && modData?.flags) {
             const messages = Object.values(modData.flags.issue_messages || {}) as string[]
             const reason = messages[0] || modData.flags.reason || 'Your listing was flagged for review.'
             dispatch({ type: 'ADD_TOAST', payload: { message: `⚠️ ${reason}`, type: 'error' } })
           }
-        }).catch(modErr => {
+        }).catch((modErr: any) => {
           console.warn('Moderation check failed (non-blocking):', modErr)
         })
       }
@@ -1031,14 +1031,14 @@ function NewProductPageInner() {
           category,
           photo_url: uploadedPhotoUrls[0] || null,
         },
-      }).then(modRes => {
+      }).then((modRes: any) => {
         const modData = modRes.data as any
         if (modData?.status === 'flagged' && modData?.flags) {
           const messages = Object.values(modData.flags.issue_messages || {}) as string[]
           const reason = messages[0] || modData.flags.reason || 'Your listing was flagged for review.'
           dispatch({ type: 'ADD_TOAST', payload: { message: `⚠️ ${reason}`, type: 'error' } })
         }
-      }).catch(modErr => {
+      }).catch((modErr: any) => {
         console.warn('Moderation check failed (non-blocking):', modErr)
       })
     }

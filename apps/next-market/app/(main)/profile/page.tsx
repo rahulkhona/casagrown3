@@ -72,7 +72,7 @@ function ProfilePageInner() {
       .select('full_name, street_address, city, state_code, zip_code, zip_plus4, avatar_url, phone_number, phone_verified, sms_enabled, twilio_blocked')
       .eq('id', user.id)
       .single()
-      .then(({ data, error: fetchErr }) => {
+      .then(({ data, error: fetchErr }: { data: any; error: any }) => {
         if (fetchErr) console.warn('Profile fetch error:', fetchErr.message)
         setForm({
           name: data?.full_name || '',

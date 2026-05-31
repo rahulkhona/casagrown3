@@ -209,22 +209,88 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
         customerId = cust.id
       }
 
-      // Determine price — use platform_settings for dynamic pricing
-      const { data: cfg } = await supabase
-        .from('platform_settings')
-        .select('pro_monthly_price_usd')
-        .limit(1)
-        .single()
+      // Check if upgrading/downgrading from an existing active paid plan and calculate proration credit
+      const targetPlan = body.plan || 'pro'
+      if (
+        sub &&
+        sub.stripe_subscription_id &&
+        sub.stripe_subscription_id.startsWith('sub_') &&
+        !sub.stripe_subscription_id.startsWith('sub_sim_') &&
+        ['active', 'trialing'].includes(sub.status)
+      ) {
+        const now = new Date()
+        const start = sub.current_period_start ? new Date(sub.current_period_start) : null
+        const end = sub.current_period_end ? new Date(sub.current_period_end) : null
 
-      const monthlyPriceUsd = cfg?.pro_monthly_price_usd ?? 10
+        if (start && end && end > now && now >= start) {
+          const totalDuration = end.getTime() - start.getTime()
+          const remainingDuration = end.getTime() - now.getTime()
+          const ratio = remainingDuration / totalDuration
+
+          if (ratio > 0 && ratio <= 1) {
+            // Get previous tier price
+            const { data: prevTier } = await supabase
+              .from('subscription_tiers')
+              .select('subscription_price')
+              .eq('tier_name', sub.plan)
+              .maybeSingle()
+
+            const prevPrice = prevTier?.subscription_price ?? (sub.plan === 'elite' ? 29.00 : 10.00)
+            const creditAmountUsd = prevPrice * ratio
+            const creditAmountCents = Math.round(creditAmountUsd * 100)
+
+            if (creditAmountCents > 0) {
+              console.log(`[PRORATION] Crediting customer ${customerId} with $${creditAmountUsd.toFixed(2)} for remaining ${Math.round(ratio * 100)}% of plan ${sub.plan}`)
+              try {
+                // Add balance credit to Stripe Customer (negative amount represents a credit in Stripe)
+                const balanceRes = await fetch(`${stripeBase}/v1/customers/${customerId}/balance_transactions`, {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${STRIPE_SECRET_KEY}`,
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                  },
+                  body: new URLSearchParams({
+                    amount: String(-creditAmountCents),
+                    currency: 'usd',
+                    description: `Prorated credit for remaining time on ${sub.plan} subscription switch to ${targetPlan}`,
+                  }),
+                })
+
+                if (!balanceRes.ok) {
+                  console.error('Failed to apply Stripe customer balance credit:', await balanceRes.text())
+                } else {
+                  console.log(`Successfully credited customer balance for proration: $${creditAmountUsd.toFixed(2)}`)
+                }
+              } catch (balErr) {
+                console.error('Error applying Stripe balance credit:', balErr)
+              }
+            }
+          }
+        }
+      }
+
+      // Determine plan - accept pro or elite
+      const plan = targetPlan
+
+      // Get plan price dynamically from subscription_tiers
+      const { data: tier } = await supabase
+        .from('subscription_tiers')
+        .select('subscription_price, display_name')
+        .eq('tier_name', plan)
+        .maybeSingle()
+
+      const monthlyPriceUsd = tier?.subscription_price ?? (plan === 'elite' ? 29.00 : 10.00)
+      const displayName = tier?.display_name ?? (plan === 'elite' ? 'CasaGrown Elite' : 'CasaGrown Pro')
       
-      // Check for user-specific discounts
+      // Check for user-specific active discounts for the selected plan (highest discount first)
       const { data: discounts } = await supabase
         .from('user_subscription_discounts')
-        .select('discount_pct, duration_months')
+        .select('discount_pct, duration_months, crm_promo_subscription_discounts!inner(plan)')
         .eq('user_id', userId)
-        .eq('active', true)
-        .gte('expires_at', new Date().toISOString())
+        .eq('status', 'active')
+        .eq('crm_promo_subscription_discounts.plan', plan)
+        .or(`expires_at.is.null,expires_at.gte.${new Date().toISOString()}`)
+        .order('discount_pct', { ascending: false })
         .limit(1)
 
       const discount = discounts?.[0] ?? null
@@ -233,12 +299,12 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
         : monthlyPriceUsd
       const priceInCents = Math.round(effectivePrice * 100)
 
-      // Always create price dynamically from our platform_settings
+      // Always create price dynamically
       const priceParams = new URLSearchParams({
         'unit_amount': String(priceInCents),
         'currency': 'usd',
         'recurring[interval]': 'month',
-        'product_data[name]': 'CasaGrown Pro',
+        'product_data[name]': displayName,
       })
       const priceRes = await fetch(`${stripeBase}/v1/prices`, {
         method: 'POST',
@@ -263,14 +329,25 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
         'line_items[0][quantity]': '1',
         'metadata[supabase_user_id]': userId,
         'subscription_data[metadata][supabase_user_id]': userId,
+        'subscription_data[metadata][plan]': plan,
       }
 
       // Embedded mode: renders checkout inline in the page
       params['ui_mode'] = 'embedded'
       params['return_url'] = `${siteUrl}${returnTo}?pro=success&session_id={CHECKOUT_SESSION_ID}`
 
+      // Billing cycle anchor: all users billed on the 1st of every month
+      // First charge is prorated for remainder of current month
+      const nextFirst = new Date()
+      nextFirst.setMonth(nextFirst.getMonth() + 1, 1)
+      nextFirst.setHours(0, 0, 0, 0)
+      const anchorTimestamp = Math.floor(nextFirst.getTime() / 1000)
+      params['subscription_data[billing_cycle_anchor]'] = String(anchorTimestamp)
+      params['subscription_data[proration_behavior]'] = 'create_prorations'
+
       if (trialDays > 0) {
         params['subscription_data[trial_period_days]'] = String(trialDays)
+        // After trial ends, billing anchors to the 1st of the following month
       }
 
       const checkoutRes = await fetch(`${stripeBase}/v1/checkout/sessions`, {
@@ -290,14 +367,13 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
 
       const session = await checkoutRes.json()
 
-      // Don't activate Pro here — wait for Stripe webhook or return URL confirmation.
-      // Just store the pending checkout so we can reconcile later.
+      // Store pending subscription details
       const now = new Date().toISOString()
       const { data: upsertData, error: upsertErr } = await supabase
         .from('seller_subscriptions')
         .upsert({
           user_id: userId,
-          plan: 'pro',
+          plan: plan,
           status: 'incomplete',
           stripe_customer_id: customerId,
           stripe_subscription_id: `pending_${session.id}`,
@@ -316,13 +392,22 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
 
     // ── Confirm checkout (called from return URL after payment) ──
     case 'confirm': {
+      // Get pending subscription to check which plan was selected
+      const { data: pendingSub } = await supabase
+        .from('seller_subscriptions')
+        .select('plan')
+        .eq('user_id', userId)
+        .maybeSingle()
+
+      const confirmedPlan = pendingSub?.plan || 'pro'
+
       // Get pricing info for receipt
-      const { data: cfgReceipt } = await supabase
-        .from('platform_settings')
-        .select('pro_monthly_price_usd')
-        .limit(1)
-        .single()
-      const receiptPrice = cfgReceipt?.pro_monthly_price_usd ?? 10
+      const { data: tierReceipt } = await supabase
+        .from('subscription_tiers')
+        .select('subscription_price')
+        .eq('tier_name', confirmedPlan)
+        .maybeSingle()
+      const receiptPrice = tierReceipt?.subscription_price ?? (confirmedPlan === 'elite' ? 29.00 : 10.00)
 
       let confirmed = false
       let amountPaid = receiptPrice
@@ -338,11 +423,43 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
           if (sessionData.payment_status === 'paid' || sessionData.status === 'complete') {
             const now = new Date().toISOString()
             const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+
+            const oldSubscriptionId = sub?.stripe_subscription_id
+            const newSubscriptionId = sessionData.subscription
+
+            // Cancel previous active subscription in Stripe to prevent double billing
+            if (
+              oldSubscriptionId &&
+              oldSubscriptionId.startsWith('sub_') &&
+              !oldSubscriptionId.startsWith('sub_sim_') &&
+              oldSubscriptionId !== newSubscriptionId
+            ) {
+              console.log(`[UPGRADE] Cancelling old Stripe subscription: ${oldSubscriptionId}`)
+              try {
+                const cancelOldRes = await fetch(
+                  `${stripeBase}/v1/subscriptions/${oldSubscriptionId}`,
+                  {
+                    method: 'DELETE',
+                    headers: {
+                      'Authorization': `Bearer ${STRIPE_SECRET_KEY}`,
+                    },
+                  }
+                )
+                if (!cancelOldRes.ok) {
+                  console.error('Failed to cancel old Stripe subscription:', await cancelOldRes.text())
+                } else {
+                  console.log(`Successfully cancelled old Stripe subscription: ${oldSubscriptionId}`)
+                }
+              } catch (cancelErr) {
+                console.error('Error cancelling old Stripe subscription:', cancelErr)
+              }
+            }
+
             await supabase
               .from('seller_subscriptions')
               .upsert({
                 user_id: userId,
-                plan: 'pro',
+                plan: confirmedPlan,
                 status: 'active',
                 stripe_customer_id: sessionData.customer,
                 stripe_subscription_id: sessionData.subscription || `confirmed_${session_id}`,
@@ -386,8 +503,13 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       const formattedDate = new Date().toLocaleDateString('en-US', {
         month: 'short', day: 'numeric', year: 'numeric',
       })
-      const periodEndDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-        .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+
+      // Calculate next billing date (1st of next month)
+      const nextBillingDate = new Date()
+      nextBillingDate.setMonth(nextBillingDate.getMonth() + 1, 1)
+      const nextBillingFormatted = nextBillingDate.toLocaleDateString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric',
+      })
 
       // Get profile info
       const { data: profile } = await supabase
@@ -400,10 +522,44 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       // Get email from auth
       const sellerEmail = await getUserEmail(supabase, userId)
 
+      // Check for active promotional discount on this plan
+      const { data: activeDiscount } = await supabase
+        .from('user_subscription_discounts')
+        .select('discount_pct, promotion_id, crm_promotions!inner(name)')
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .or(`expires_at.is.null,expires_at.gte.${new Date().toISOString()}`)
+        .limit(1)
+        .maybeSingle()
+
+      const promoName = (activeDiscount as any)?.crm_promotions?.name ?? null
+      const promoDiscountPct = activeDiscount?.discount_pct ?? 0
+      const isProrated = amountPaid < receiptPrice && amountPaid > 0
+
+      // Build discount row for receipt
+      let discountRow = ''
+      if (promoDiscountPct > 0 && promoName) {
+        discountRow = `
+          <tr><td style="font-size: 13px; color: #6b7280; padding: 3px 0;">Regular Price</td><td style="font-size: 13px; color: #1f2937; text-align: right; padding: 3px 0;">$${receiptPrice.toFixed(2)}/mo</td></tr>
+          <tr><td style="font-size: 13px; color: #059669; padding: 3px 0;">Promo Discount (${promoName})</td><td style="font-size: 13px; color: #059669; text-align: right; padding: 3px 0; font-weight: 600;">-${promoDiscountPct}%</td></tr>`
+      }
+
+      // Build proration row
+      let prorationRow = ''
+      if (isProrated) {
+        const today = new Date()
+        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0)
+        const prorationPeriod = `${today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${endOfMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+        prorationRow = `
+          <tr><td style="font-size: 13px; color: #6b7280; padding: 3px 0;">This Charge (prorated ${prorationPeriod})</td><td style="font-size: 13px; color: #1f2937; text-align: right; padding: 3px 0; font-weight: 600;">$${amountPaid.toFixed(2)}</td></tr>`
+      }
+
+      const planDisplayName = confirmedPlan === 'elite' ? 'CasaGrown Elite' : 'CasaGrown Pro'
+
       // 1. In-app notification
       await supabase.from('notifications').insert({
         user_id: userId,
-        content: `🎉 Welcome to CasaGrown Pro! Your payment of $${amountPaid.toFixed(2)} was processed. Enjoy lower fees, Facebook catalog sync, and GrowBot auto-replies.`,
+        content: `🎉 Welcome to ${planDisplayName}! Your payment of $${amountPaid.toFixed(2)} was processed.${promoName ? ` (${promoDiscountPct}% off via ${promoName})` : ''} You'll be billed on the 1st of every month.`,
         link_url: '/pro-manage',
       })
 
@@ -412,7 +568,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
         await supabase.functions.invoke('send-push-notification', {
           body: {
             userIds: [userId],
-            title: '🎉 Welcome to CasaGrown Pro!',
+            title: `🎉 Welcome to ${planDisplayName}!`,
             body: `Your payment of $${amountPaid.toFixed(2)} was processed. Pro features are now active.`,
             url: '/pro-manage',
           },
@@ -421,21 +577,24 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
         console.warn('[CONFIRM] Push notification failed:', pushErr)
       }
 
-      // 3. Email receipt
+      // 3. Email receipt with promotional discount and billing info
       if (sellerEmail) {
         try {
           const receiptHtml = wrapInBrandedTemplate({
             title: 'Subscription Receipt',
             greeting: `Hi ${sellerName},`,
             bodyHtml: `
-              <p style="margin: 0 0 16px; font-size: 14px; color: #374151; line-height: 1.6;">Thank you for subscribing to CasaGrown Pro! Here's your receipt.</p>
+              <p style="margin: 0 0 16px; font-size: 14px; color: #374151; line-height: 1.6;">Thank you for subscribing to ${planDisplayName}! Here's your receipt.</p>
               <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background: #f0fdf4; border: 1px solid #dcfce7; border-radius: 10px; overflow: hidden;">
                 <tr><td style="padding: 16px 20px 8px;"><p style="margin: 0 0 8px; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">Subscription Details</p>
                   <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
-                    <tr><td style="font-size: 13px; color: #6b7280; padding: 3px 0;">Plan</td><td style="font-size: 13px; color: #1f2937; text-align: right; padding: 3px 0; font-weight: 600;">CasaGrown Pro (Monthly)</td></tr>
-                    <tr><td style="font-size: 13px; color: #6b7280; padding: 3px 0;">Amount</td><td style="font-size: 13px; color: #1f2937; text-align: right; padding: 3px 0; font-weight: 600;">$${amountPaid.toFixed(2)}</td></tr>
+                    <tr><td style="font-size: 13px; color: #6b7280; padding: 3px 0;">Plan</td><td style="font-size: 13px; color: #1f2937; text-align: right; padding: 3px 0; font-weight: 600;">${planDisplayName} (Monthly)</td></tr>
+                    ${discountRow}
+                    <tr><td style="font-size: 13px; color: #6b7280; padding: 3px 0;">Your Price</td><td style="font-size: 13px; color: #1f2937; text-align: right; padding: 3px 0; font-weight: 600;">$${(receiptPrice * (1 - promoDiscountPct / 100)).toFixed(2)}/mo</td></tr>
+                    ${prorationRow}
                     <tr><td style="font-size: 13px; color: #6b7280; padding: 3px 0;">Date</td><td style="font-size: 13px; color: #1f2937; text-align: right; padding: 3px 0;">${formattedDate}</td></tr>
-                    <tr><td style="font-size: 13px; color: #6b7280; padding: 3px 0;">Next Billing</td><td style="font-size: 13px; color: #1f2937; text-align: right; padding: 3px 0;">${periodEndDate}</td></tr>
+                    <tr><td style="font-size: 13px; color: #6b7280; padding: 3px 0;">Next Billing</td><td style="font-size: 13px; color: #1f2937; text-align: right; padding: 3px 0;">${nextBillingFormatted} (1st of every month)</td></tr>
+                    <tr><td style="font-size: 13px; color: #6b7280; padding: 3px 0;">Billing Cycle</td><td style="font-size: 13px; color: #1f2937; text-align: right; padding: 3px 0;">Monthly, billed on the 1st</td></tr>
                   </table>
                 </td></tr>
               </table>

@@ -79,6 +79,7 @@ export default function CrmPromotionsBuilderPage() {
   const [showEnrollees, setShowEnrollees] = useState(false)
   const [loadingEnrollees, setLoadingEnrollees] = useState(false)
   const [proSubPrice, setProSubPrice] = useState(10)
+  const [standardFeeRate, setStandardFeeRate] = useState(0.10)
 
   const emptyForm = {
     name: '',
@@ -104,26 +105,57 @@ export default function CrmPromotionsBuilderPage() {
     credit_occurrences: '4',
     credit_start_date: new Date().toISOString().split('T')[0],
     credit_image_url: '',
-    include_sub_discount: false,
-    sub_discount_pct: '25',
-    sub_discount_duration: '' as string,
+    discounts: {} as Record<string, {
+      included: boolean
+      discount_pct: string
+      duration_months: string
+      platform_fee_reduction_pct: string
+      stripe_fee_handling_override: string
+    }>
   }
 
   // Form State
   const [form, setForm] = useState(emptyForm)
+  const [tiers, setTiers] = useState<any[]>([])
 
   const fetchPromotions = async () => {
     setLoading(true)
-    const [promoRes, lpRes, audRes, settingsRes] = await Promise.all([
+    const [promoRes, lpRes, audRes, settingsRes, tiersRes, feeRes] = await Promise.all([
       supabase.from('crm_promotions').select('*').order('created_at', { ascending: false }),
       supabase.from('crm_landing_pages').select('id, title, slug').eq('is_active', true),
       supabase.from('crm_audiences').select('id, name, estimated_count').order('name'),
-      supabase.from('platform_settings').select('pro_monthly_price_usd').limit(1).single()
+      supabase.from('platform_settings').select('pro_monthly_price_usd').limit(1).single(),
+      supabase.from('subscription_tiers').select('*').order('subscription_price', { ascending: true }),
+      supabase.from('platform_fees').select('fees').order('creation_date', { ascending: false }).limit(1).maybeSingle()
     ])
     setPromotions((promoRes.data as Promotion[]) ?? [])
     setLandingPages((lpRes.data as LandingPage[]) ?? [])
     setAudiences((audRes.data as Audience[]) ?? [])
     if (settingsRes.data?.pro_monthly_price_usd) setProSubPrice(settingsRes.data.pro_monthly_price_usd)
+    if (feeRes.data?.fees !== undefined && feeRes.data?.fees !== null) {
+      setStandardFeeRate(feeRes.data.fees)
+    }
+    
+    const activeTiers = (tiersRes.data as any[]) ?? []
+    setTiers(activeTiers)
+
+    // Populate initial default values in form.discounts
+    const initialDiscounts: Record<string, any> = {}
+    activeTiers.forEach(t => {
+      initialDiscounts[t.tier_name] = {
+        included: false,
+        discount_pct: '25',
+        duration_months: '',
+        platform_fee_reduction_pct: '0',
+        stripe_fee_handling_override: 'keep_tier'
+      }
+    })
+    
+    setForm(f => ({
+      ...f,
+      discounts: initialDiscounts
+    }))
+
     setLoading(false)
   }
 
@@ -202,14 +234,36 @@ export default function CrmPromotionsBuilderPage() {
     const { data: promo, error } = await supabase.from('crm_promotions').select(`
       *,
       crm_promo_giveaways (*),
-      crm_recurring_user_incentives_blueprint (*),
+      crm_promo_buyer_discounts (*),
       crm_promo_subscription_discounts (*)
     `).eq('id', id).single()
     
     if (promo && !error) {
       const gw = Array.isArray(promo.crm_promo_giveaways) ? promo.crm_promo_giveaways[0] : promo.crm_promo_giveaways
-      const cred = Array.isArray(promo.crm_recurring_user_incentives_blueprint) ? promo.crm_recurring_user_incentives_blueprint[0] : promo.crm_recurring_user_incentives_blueprint
-      const subDisc = Array.isArray(promo.crm_promo_subscription_discounts) ? promo.crm_promo_subscription_discounts[0] : promo.crm_promo_subscription_discounts
+      const cred = Array.isArray(promo.crm_promo_buyer_discounts) ? promo.crm_promo_buyer_discounts[0] : promo.crm_promo_buyer_discounts
+      const discountsArr = Array.isArray(promo.crm_promo_subscription_discounts)
+        ? promo.crm_promo_subscription_discounts
+        : (promo.crm_promo_subscription_discounts ? [promo.crm_promo_subscription_discounts] : [])
+
+      const discountsMap: Record<string, any> = {}
+      tiers.forEach(t => {
+        discountsMap[t.tier_name] = {
+          included: false,
+          discount_pct: '25',
+          duration_months: '',
+          platform_fee_reduction_pct: '0',
+          stripe_fee_handling_override: 'keep_tier'
+        }
+      })
+      discountsArr.forEach((d: any) => {
+        discountsMap[d.plan] = {
+          included: true,
+          discount_pct: d.discount_pct?.toString() || '0',
+          duration_months: d.duration_months?.toString() || '',
+          platform_fee_reduction_pct: d.platform_fee_reduction_pct?.toString() || '0',
+          stripe_fee_handling_override: d.stripe_fee_handling_override || 'keep_tier'
+        }
+      })
       
       const deadline = new Date(promo.enrollment_deadline)
       const now = new Date()
@@ -249,17 +303,16 @@ export default function CrmPromotionsBuilderPage() {
         giveaway_image_url: gw?.photos?.[0] || '/tote-bag-hero.png',
         
         include_credits: !!cred,
-        credit_amount: cred?.amount_usd?.toString() || '15.00',
-        credit_type: cred?.credit_type || 'universal',
-        cap_type: cred?.cap_type || 'percentage',
-        cap_value: cred?.cap_value?.toString() || '100',
+        credit_amount: cred?.discount_amount_usd?.toString() || '15.00',
+        credit_type: cred?.discount_type || 'universal',
+        cap_type: cred?.discount_cap_type || 'percentage',
+        cap_value: cred?.discount_cap_value?.toString() || '100',
         credit_frequency: cred?.frequency || 'weekly',
         credit_occurrences: cred?.occurrences?.toString() || '4',
         credit_start_date: cred?.start_date ? new Date(cred.start_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
         credit_image_url: cred?.image_url || '',
-        include_sub_discount: !!subDisc,
-        sub_discount_pct: subDisc?.discount_pct?.toString() || '25',
-        sub_discount_duration: subDisc?.duration_months?.toString() || '',
+        
+        discounts: discountsMap
       })
       
       setPromoLinks([])  // reset tracked links list for this promotion
@@ -397,10 +450,10 @@ export default function CrmPromotionsBuilderPage() {
           body: JSON.stringify({
             action: 'upsert_credits',
             promotion_id: promoId,
-            amount_usd: parseFloat(form.credit_amount),
-            credit_type: form.credit_type,
-            cap_type: form.cap_type,
-            cap_value: parseFloat(form.cap_value),
+            discount_amount_usd: parseFloat(form.credit_amount),
+            discount_type: form.credit_type,
+            discount_cap_type: form.cap_type,
+            discount_cap_value: parseFloat(form.cap_value),
             frequency: form.credit_frequency,
             occurrences: parseInt(form.credit_occurrences),
             start_date: new Date(form.credit_start_date).toISOString(),
@@ -415,25 +468,36 @@ export default function CrmPromotionsBuilderPage() {
         })
       }
 
-      // Pro Subscription Discount UPSERT or DELETE via API
-      if (form.include_sub_discount) {
-        await fetch('/api/crm/promotions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'upsert_sub_discount',
-            promotion_id: promoId,
-            discount_pct: parseInt(form.sub_discount_pct),
-            duration_months: form.sub_discount_duration ? parseInt(form.sub_discount_duration) : null,
-          }),
-        })
-      } else if (editingId) {
-        await fetch('/api/crm/promotions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'delete_sub_discount', promotion_id: promoId }),
-        })
-      }
+      // Dynamically handle discounts for all active tiers
+      const discountPromises = tiers.map(async (t) => {
+        const disc = form.discounts?.[t.tier_name]
+        if (disc && disc.included) {
+          return fetch('/api/crm/promotions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'upsert_sub_discount',
+              promotion_id: promoId,
+              plan: t.tier_name,
+              discount_pct: parseInt(disc.discount_pct) || 0,
+              duration_months: disc.duration_months ? parseInt(disc.duration_months) : null,
+              platform_fee_reduction_pct: parseInt(disc.platform_fee_reduction_pct) || 0,
+              stripe_fee_handling_override: disc.stripe_fee_handling_override || 'keep_tier'
+            }),
+          })
+        } else if (editingId) {
+          return fetch('/api/crm/promotions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'delete_sub_discount',
+              promotion_id: promoId,
+              plan: t.tier_name
+            }),
+          })
+        }
+      })
+      await Promise.all(discountPromises)
 
       // Removed legacy auto-generation of crm_campaigns and crm_landing_pages
       // Users now register Canonical Landing Pages in the Landing Pages section,
@@ -697,11 +761,10 @@ export default function CrmPromotionsBuilderPage() {
             </div>
           )}
 
+          {/* Section 3: USD Credits */}
           <hr className="divider" />
-
-          {/* Section 3: Credits */}
           <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>3. Automated Financial Incentives (Credits)</span>
+            <span>3. Recurring USD Credits Configuration</span>
             <button
                 type="button"
                 className={`crm-toggle ${form.include_credits ? 'active' : ''}`}
@@ -715,53 +778,50 @@ export default function CrmPromotionsBuilderPage() {
 
           {form.include_credits && (
             <div className="crm-form-grid" style={{ background: '#f8fafc', padding: 16, borderRadius: 8 }}>
-               <div className="crm-field">
-                <label>Credit Amount (USD)</label>
-                <input type="number" step="1.00" value={form.credit_amount} onChange={e => setForm(f => ({...f, credit_amount: e.target.value}))} />
-              </div>
               <div className="crm-field">
-                <label>Renewal Frequency</label>
-                <select value={form.credit_frequency} onChange={e => setForm(f => ({...f, credit_frequency: e.target.value as any}))} style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #d1d5db' }}>
-                    <option value="weekly">Weekly</option>
-                    <option value="monthly">Monthly</option>
-                    <option value="onetime">One-Time Only</option>
-                </select>
+                <label>Credit Amount (USD)</label>
+                <input type="number" step="0.01" value={form.credit_amount} onChange={e => setForm(f => ({...f, credit_amount: e.target.value}))} />
               </div>
               <div className="crm-field">
                 <label>Credit Type</label>
-                <select value={form.credit_type} onChange={(e) => setForm(f => ({...f, credit_type: e.target.value}))} style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #d1d5db' }}>
-                  <option value="universal">Universal (Both Purchase & Platform Fee)</option>
-                  <option value="purchase">Market Purchase Only</option>
-                  <option value="platform_fee">Platform Fee Only</option>
+                <select value={form.credit_type} onChange={e => setForm(f => ({...f, credit_type: e.target.value}))}>
+                  <option value="universal">Universal (All products)</option>
+                  <option value="category">Category-specific</option>
                 </select>
               </div>
               <div className="crm-field">
                 <label>Cap Type</label>
-                <select value={form.cap_type} onChange={(e) => setForm(f => ({...f, cap_type: e.target.value}))} style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #d1d5db' }}>
-                  <option value="percentage">Percentage (%)</option>
-                  <option value="fixed_amount">Fixed Amount ($)</option>
+                <select value={form.cap_type} onChange={e => setForm(f => ({...f, cap_type: e.target.value}))}>
+                  <option value="percentage">Percentage discount (e.g. 100%)</option>
+                  <option value="fixed">Fixed discount amount</option>
                 </select>
               </div>
               <div className="crm-field">
-                <label>Cap Value ({form.cap_type === 'percentage' ? '%' : '$'})</label>
+                <label>Cap Value</label>
                 <input type="number" value={form.cap_value} onChange={e => setForm(f => ({...f, cap_value: e.target.value}))} />
               </div>
               <div className="crm-field">
-                <label>First Credit Drop Date</label>
+                <label>Credit Frequency</label>
+                <select value={form.credit_frequency} onChange={e => setForm(f => ({...f, credit_frequency: e.target.value as any}))}>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="onetime">One-time</option>
+                </select>
+              </div>
+              <div className="crm-field">
+                <label>Occurrences (Cycles)</label>
+                <input type="number" value={form.credit_occurrences} onChange={e => setForm(f => ({...f, credit_occurrences: e.target.value}))} />
+              </div>
+              <div className="crm-field">
+                <label>Start Date</label>
                 <input type="date" value={form.credit_start_date} onChange={e => setForm(f => ({...f, credit_start_date: e.target.value}))} />
               </div>
-              {form.credit_frequency !== 'onetime' && (
-                <div className="crm-field">
-                  <label>Total Occurrences (e.g. 4 weeks)</label>
-                  <input type="number" value={form.credit_occurrences} onChange={e => setForm(f => ({...f, credit_occurrences: e.target.value}))} />
-                </div>
-              )}
-              <div className="crm-field full-width">
-                <label>Custom Image URL (Optional) <span className="crm-hint">— replaces the default 💰 icon</span></label>
+              <div className="crm-field">
+                <label>Credit Promo Image URL</label>
                 <input value={form.credit_image_url} onChange={e => setForm(f => ({...f, credit_image_url: e.target.value}))} />
               </div>
               <div className="crm-field full-width" style={{ marginTop: 8, borderTop: '1px dashed #d1d5db', paddingTop: 16 }}>
-                <label>Upload Custom Image <span className="crm-hint">— automatically saves to your Assets tab</span></label>
+                <label>Upload Credit Image</label>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                   <input type="file" accept="image/*" onChange={handleCreditImageUpload} disabled={uploadingCreditImage} style={{ flex: 1, padding: 8, background: 'white' }} />
                   {uploadingCreditImage && <span className="crm-muted" style={{ fontSize: '0.85rem', fontWeight: 600 }}>Uploading...</span>}
@@ -770,48 +830,212 @@ export default function CrmPromotionsBuilderPage() {
             </div>
           )}
 
+          {/* Section 4: Tier Subscription Discounts & Sales Fee Overrides */}
           <hr className="divider" />
+          
+          <div className="section-title">4. Subscription Tier Discounts & Sales Fee Overrides</div>
+          <p style={{ fontSize: '0.9rem', color: '#6b7280', marginBottom: '16px', lineHeight: '1.5' }}>
+            Configure active promotional discounts, duration limits, transaction fee reductions, and Stripe fee handling overrides for each subscription tier.
+          </p>
 
-          {/* Section 4: Pro Subscription Discount */}
-          <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>4. Pro Subscription Discount</span>
-            <button
-                type="button"
-                className={`crm-toggle ${form.include_sub_discount ? 'active' : ''}`}
-                onClick={() => setForm(f => ({ ...f, include_sub_discount: !f.include_sub_discount }))}
-                style={{ margin: 0, padding: '4px 8px', fontSize: '0.8rem' }}
-              >
-                <span className="toggle-dot" style={{ width: 14, height: 14 }} />
-                <span>{form.include_sub_discount ? 'Included' : 'Disabled'}</span>
-            </button>
+          <div className="crm-comparison-table-wrap" style={{ marginBottom: '24px', overflowX: 'auto', border: '1px solid #e5e7eb', borderRadius: '12px', background: '#f9fafb' }}>
+            <table className="crm-comparison-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ background: '#f3f4f6', borderBottom: '1px solid #e5e7eb' }}>
+                  <th style={{ padding: '12px 16px', fontWeight: 600, color: '#374151', width: '180px' }}>Subscription Tier</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600, color: '#374151', width: '100px', textAlign: 'center' }}>Offer Promo?</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600, color: '#374151', width: '120px' }}>Discount %</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600, color: '#374151', width: '150px' }}>Duration (Months)</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600, color: '#374151', width: '150px' }}>Sales Fee Reduction %</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600, color: '#374151', width: '220px' }}>Stripe CC Override</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600, color: '#374151' }}>Live Terms & Impact</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tiers.map((tier, idx) => {
+                  const rawDisc = form.discounts?.[tier.tier_name]
+                  const disc = {
+                    included: rawDisc?.included ?? false,
+                    discount_pct: rawDisc?.discount_pct ?? '25',
+                    duration_months: rawDisc?.duration_months ?? '',
+                    platform_fee_reduction_pct: rawDisc?.platform_fee_reduction_pct ?? '0',
+                    stripe_fee_handling_override: rawDisc?.stripe_fee_handling_override ?? 'keep_tier'
+                  }
+
+                  const basePrice = tier.subscription_price || 0
+                  const pct = parseInt(disc.discount_pct) || 0
+                  const finalPrice = basePrice * (1 - pct / 100)
+                  const savings = basePrice * pct / 100
+
+                  const baseFee = (tier.platform_fee_pct !== null && tier.platform_fee_pct !== undefined)
+                    ? tier.platform_fee_pct
+                    : (standardFeeRate * 100)
+                  const reduction = parseInt(disc.platform_fee_reduction_pct) || 0
+                  const finalFee = Math.max(0, baseFee - reduction)
+
+                  return (
+                    <tr key={tier.tier_name} style={{ borderBottom: '1px solid #e5e7eb', background: disc.included ? (idx % 2 === 0 ? '#faf5ff' : '#fdf4ff') : 'white', transition: 'background-color 0.2s' }}>
+                      {/* Tier Name & Regular Price */}
+                      <td style={{ padding: '16px', verticalAlign: 'middle' }}>
+                        <span style={{ fontWeight: 700, color: '#1a2e1a', display: 'block' }}>{tier.display_name || tier.tier_name}</span>
+                        <span style={{ fontSize: '0.8rem', color: '#6b7280' }}>Regular: ${basePrice.toFixed(2)}/mo</span>
+                      </td>
+
+                      {/* Offer Toggle (Included) */}
+                      <td style={{ padding: '16px', textAlign: 'center', verticalAlign: 'middle' }}>
+                        <button
+                          type="button"
+                          className={`crm-toggle ${disc.included ? 'active' : ''}`}
+                          onClick={() => setForm(f => {
+                            const newD = { ...f.discounts }
+                            const existing = newD[tier.tier_name] || {
+                              included: false,
+                              discount_pct: '25',
+                              duration_months: '',
+                              platform_fee_reduction_pct: '0',
+                              stripe_fee_handling_override: 'keep_tier'
+                            }
+                            newD[tier.tier_name] = { ...existing, included: !existing.included }
+                            return { ...f, discounts: newD }
+                          })}
+                          style={{ margin: '0 auto', padding: '4px 8px', fontSize: '0.78rem' }}
+                        >
+                          <span className="toggle-dot" style={{ width: 12, height: 12 }} />
+                          <span>{disc.included ? 'Yes' : 'No'}</span>
+                        </button>
+                      </td>
+
+                      {/* Discount Pct */}
+                      <td style={{ padding: '16px', verticalAlign: 'middle' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            disabled={!disc.included}
+                            value={disc.discount_pct ?? ''}
+                            onChange={e => setForm(f => {
+                              const newD = { ...f.discounts }
+                              const existing = newD[tier.tier_name] || {
+                                included: false,
+                                discount_pct: '25',
+                                duration_months: '',
+                                platform_fee_reduction_pct: '0',
+                                stripe_fee_handling_override: 'keep_tier'
+                              }
+                              newD[tier.tier_name] = { ...existing, discount_pct: e.target.value }
+                              return { ...f, discounts: newD }
+                            })}
+                            style={{ width: '65px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '0.88rem', background: !disc.included ? '#f3f4f6' : 'white' }}
+                          />
+                          <span style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: 600 }}>%</span>
+                        </div>
+                      </td>
+
+                      {/* Duration */}
+                      <td style={{ padding: '16px', verticalAlign: 'middle' }}>
+                        <input
+                          type="number"
+                          min="1"
+                          placeholder="Perpetual"
+                          disabled={!disc.included}
+                          value={disc.duration_months ?? ''}
+                          onChange={e => setForm(f => {
+                            const newD = { ...f.discounts }
+                            const existing = newD[tier.tier_name] || {
+                              included: false,
+                              discount_pct: '25',
+                              duration_months: '',
+                              platform_fee_reduction_pct: '0',
+                              stripe_fee_handling_override: 'keep_tier'
+                            }
+                            newD[tier.tier_name] = { ...existing, duration_months: e.target.value }
+                            return { ...f, discounts: newD }
+                          })}
+                          style={{ width: '110px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '0.88rem', background: !disc.included ? '#f3f4f6' : 'white' }}
+                        />
+                      </td>
+
+                      {/* Platform Sales Fee Reduction Pct */}
+                      <td style={{ padding: '16px', verticalAlign: 'middle' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            disabled={!disc.included}
+                            value={disc.platform_fee_reduction_pct ?? ''}
+                            onChange={e => setForm(f => {
+                              const newD = { ...f.discounts }
+                              const existing = newD[tier.tier_name] || {
+                                included: false,
+                                discount_pct: '25',
+                                duration_months: '',
+                                platform_fee_reduction_pct: '0',
+                                stripe_fee_handling_override: 'keep_tier'
+                              }
+                              newD[tier.tier_name] = { ...existing, platform_fee_reduction_pct: e.target.value }
+                              return { ...f, discounts: newD }
+                            })}
+                            style={{ width: '65px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '0.88rem', background: !disc.included ? '#f3f4f6' : 'white' }}
+                          />
+                          <span style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: 600 }}>%</span>
+                        </div>
+                      </td>
+
+                      {/* Stripe Override */}
+                      <td style={{ padding: '16px', verticalAlign: 'middle' }}>
+                        <select
+                          disabled={!disc.included}
+                          value={disc.stripe_fee_handling_override ?? 'keep_tier'}
+                          onChange={e => setForm(f => {
+                            const newD = { ...f.discounts }
+                            const existing = newD[tier.tier_name] || {
+                              included: false,
+                              discount_pct: '25',
+                              duration_months: '',
+                              platform_fee_reduction_pct: '0',
+                              stripe_fee_handling_override: 'keep_tier'
+                            }
+                            newD[tier.tier_name] = { ...existing, stripe_fee_handling_override: e.target.value }
+                            return { ...f, discounts: newD }
+                          })}
+                          style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '0.85rem', background: !disc.included ? '#f3f4f6' : 'white', width: '100%', outline: 'none' }}
+                        >
+                          <option value="keep_tier">Default ({tier.stripe_fee_handling === 'absorb' ? 'Absorbed' : 'Pass-through'})</option>
+                          <option value="pass_through">Pass-through</option>
+                          <option value="absorb">Absorbed</option>
+                        </select>
+                      </td>
+
+                      {/* Expected Impact Summary */}
+                      <td style={{ padding: '16px', verticalAlign: 'middle' }}>
+                        {!disc.included ? (
+                          <span style={{ fontSize: '0.85rem', color: '#9ca3af', fontStyle: 'italic' }}>Promo disabled</span>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#166534' }}>
+                              💰 {pct > 0 ? `${pct}% off ➔ $${finalPrice.toFixed(2)}/mo` : 'Full Price'} 
+                              {pct > 0 && <span style={{ fontWeight: 400, color: '#6b7280', fontSize: '0.8rem', marginLeft: '4px' }}>(saves ${savings.toFixed(2)}/mo)</span>}
+                            </span>
+                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#0369a1' }}>
+                              📉 Sales fee: {baseFee}% ➔ {finalFee}% 
+                              {reduction > 0 && <span style={{ fontWeight: 400, color: '#6b7280', fontSize: '0.8rem', marginLeft: '4px' }}>(reduced by {reduction}%)</span>}
+                            </span>
+                            {disc.duration_months && (
+                              <span style={{ fontSize: '0.78rem', color: '#7c3aed', fontWeight: 500 }}>
+                                ⏱ Active for {disc.duration_months} month{parseInt(disc.duration_months) !== 1 ? 's' : ''}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
-
-          {form.include_sub_discount && (
-            <div className="crm-form-grid" style={{ background: '#faf5ff', padding: 16, borderRadius: 8, border: '1px solid #e9d5ff' }}>
-               <div className="crm-field">
-                <label>Discount Percentage *</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <input type="number" min="1" max="100" value={form.sub_discount_pct} onChange={e => setForm(f => ({...f, sub_discount_pct: e.target.value}))} style={{ width: 120 }} />
-                  <span style={{ color: '#6b7280', fontWeight: 600 }}>% off</span>
-                </div>
-                {form.sub_discount_pct && parseInt(form.sub_discount_pct) > 0 && (
-                  <div style={{ marginTop: 8, padding: '10px 14px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #bbf7d0' }}>
-                    <span style={{ fontSize: '0.95rem', fontWeight: 600, color: '#166534' }}>
-                      💰 {form.sub_discount_pct}% off = ${(proSubPrice * (1 - parseInt(form.sub_discount_pct) / 100)).toFixed(2)}/mo
-                    </span>
-                    <span style={{ fontSize: '0.85rem', color: '#6b7280', marginLeft: 8 }}>
-                      (saves ${(proSubPrice * parseInt(form.sub_discount_pct) / 100).toFixed(2)}/mo off regular ${proSubPrice.toFixed(2)}/mo)
-                    </span>
-                  </div>
-                )}
-              </div>
-              <div className="crm-field">
-                <label>Duration (months)</label>
-                <input type="number" min="1" placeholder="Leave blank for perpetual" value={form.sub_discount_duration} onChange={e => setForm(f => ({...f, sub_discount_duration: e.target.value}))} />
-                <p style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: 4 }}>How many months the discount lasts. Blank = forever.</p>
-              </div>
-            </div>
-          )}
 
           <div className="crm-form-actions" style={{ marginTop: 24 }}>
             <button className="crm-btn-primary" onClick={handleCreate} disabled={saving || !form.name || !form.landing_page_id}>

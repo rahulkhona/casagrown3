@@ -57,7 +57,7 @@ export function BotSuggestionBar({ channel, conversationRef, onSend, onSelect, i
         schema: 'public',
         table: 'bot_reply_drafts',
         filter: `conversation_ref=eq.${conversationRef}`,
-      }, (payload) => {
+      }, (payload: any) => {
         if (payload.eventType === 'INSERT' && (payload.new as any).status === 'pending') {
           setDraft(payload.new)
         } else if (payload.eventType === 'UPDATE') {

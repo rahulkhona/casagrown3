@@ -44,24 +44,24 @@ export default function HelpingPage() {
         return
       }
 
-      const boothIds = helpers.map(h => h.booth_id)
+      const boothIds = helpers.map((h: any) => h.booth_id)
       const { data: boothRows } = await supabase
         .from('market_booths')
         .select('id, name, owner_id, is_open')
         .in('id', boothIds)
 
-      const ownerIds = Array.from(new Set(boothRows?.map(b => b.owner_id) || []))
+      const ownerIds = Array.from(new Set(boothRows?.map((b: any) => b.owner_id) || []))
       const { data: profiles } = await supabase
         .from('profiles')
         .select('id, full_name')
         .in('id', ownerIds)
 
-      const boothMap = new Map(boothRows?.map(b => [b.id, b]) || [])
-      const profileMap = new Map(profiles?.map(p => [p.id, p]) || [])
+      const boothMap = new Map(boothRows?.map((b: any) => [b.id, b]) || [])
+      const profileMap = new Map(profiles?.map((p: any) => [p.id, p]) || [])
 
-      setBooths(helpers.map(h => {
-        const booth = boothMap.get(h.booth_id)
-        const seller = booth ? profileMap.get(booth.owner_id) : null
+      setBooths(helpers.map((h: any) => {
+        const booth: any = boothMap.get(h.booth_id)
+        const seller: any = booth ? profileMap.get(booth.owner_id) : null
         return {
           id: h.id,
           booth_id: h.booth_id,
@@ -141,7 +141,7 @@ export default function HelpingPage() {
           </div>
         ) : (
           <div className={styles.boothList}>
-            {booths.map(booth => (
+            {booths.map((booth: any) => (
               <div key={booth.id} className={styles.boothCard}>
                 <div className={styles.boothCardHeader}>
                   <div className={styles.boothInfo}>

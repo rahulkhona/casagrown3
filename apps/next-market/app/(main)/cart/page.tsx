@@ -127,7 +127,7 @@ export default function CartPage() {
     // Get existing hold
     supabase.from('market_holds').select('hold_amount_cents, spent_amount_cents')
       .eq('buyer_id', user.id).eq('status', 'active').single()
-      .then(({ data }) => {
+      .then(({ data }: { data: any }) => {
         if (data) {
           setExistingHoldRemaining(Math.max(0, data.hold_amount_cents - data.spent_amount_cents))
         }

@@ -10,15 +10,16 @@ const stripePromise = loadStripe(
 
 interface StripeCheckoutModalProps {
   onClose: () => void
-  onComplete: () => void
+  onComplete?: (sessionId: string) => void
   returnPath?: string
+  plan?: 'pro' | 'elite'
 }
 
 /**
  * StripeCheckoutModal — Renders Stripe Embedded Checkout as a full-screen
  * modal overlay. The app's navigation stays visible underneath.
  */
-export function StripeCheckoutModal({ onClose, onComplete, returnPath }: StripeCheckoutModalProps) {
+export function StripeCheckoutModal({ onClose, onComplete, returnPath, plan }: StripeCheckoutModalProps) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -31,7 +32,7 @@ export function StripeCheckoutModal({ onClose, onComplete, returnPath }: StripeC
       try {
         const supabase = createClient()
         const { data, error: fnError } = await supabase.functions.invoke('manage-subscription', {
-          body: { action: 'checkout', return_path: returnPath || '/profile' },
+          body: { action: 'checkout', plan: plan || 'pro', return_path: returnPath || '/profile' },
         })
 
         if (cancelled) return
@@ -51,9 +52,14 @@ export function StripeCheckoutModal({ onClose, onComplete, returnPath }: StripeC
           return
         }
 
-        const checkout = await stripe.createEmbeddedCheckoutPage({
+        const checkoutOptions: any = {
           clientSecret: data.clientSecret,
-        })
+        }
+        if (onComplete) {
+          checkoutOptions.onComplete = onComplete
+        }
+
+        const checkout = await stripe.createEmbeddedCheckoutPage(checkoutOptions)
 
         if (cancelled) {
           checkout.destroy()

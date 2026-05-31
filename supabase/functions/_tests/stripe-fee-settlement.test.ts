@@ -192,7 +192,7 @@ Deno.test({
       status: 'active',
       stripe_customer_id: `cus_fee_test_${Date.now()}`,
       stripe_subscription_id: `sub_fee_test_${Date.now()}`,
-      absorb_stripe_fees: true,
+      absorb_stripe_fees: false,
     });
 
     // Ensure platform_settings has pass_through

@@ -104,7 +104,7 @@ export async function fetchTickets(params: {
       .eq('user_id', params.currentUserId)
       .in('feedback_id', ids)
     if (votes) {
-      const votedIds = new Set(votes.map(v => v.feedback_id))
+      const votedIds = new Set(votes.map((v: any) => v.feedback_id))
       tickets = tickets.map(t => ({ ...t, is_voted: votedIds.has(t.id) }))
     }
   }
@@ -160,7 +160,7 @@ export async function fetchTicketById(id: string, currentUserId?: string): Promi
   const { data: flags } = await supabase.from('feedback_flags').select('user_id').eq('feedback_id', id)
   if (flags) {
     flagCount = flags.length
-    if (currentUserId) isFlagged = flags.some(f => f.user_id === currentUserId)
+    if (currentUserId) isFlagged = flags.some((f: any) => f.user_id === currentUserId)
   }
 
   return {

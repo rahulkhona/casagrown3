@@ -22,7 +22,7 @@ export default function HomePage() {
   // Check auth on mount — redirect fully-set-up users to community
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }: { data: { session: any } }) => {
       const user = session?.user
       if (!user) {
         setChecking(false)

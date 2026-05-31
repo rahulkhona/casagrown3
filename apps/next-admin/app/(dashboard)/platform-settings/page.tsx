@@ -3,15 +3,15 @@
 import React, { useState, useEffect } from 'react'
 import { YStack, XStack, Text, Button, Input } from 'tamagui'
 import { colors } from '@casagrown/app/design-tokens'
-import { Plus, Trash2, Settings, Percent, DollarSign } from '@tamagui/lucide-icons'
+import { Plus, Trash2, Settings, Percent, DollarSign, CreditCard } from '@tamagui/lucide-icons'
 import { AdminDataGrid, ColumnDef } from '../../../../../packages/app/features/admin/components/AdminDataGrid'
 import { useAdminQuery } from '../../../../../packages/app/features/admin/hooks/useAdminQuery'
 import { adminApi } from '../../../lib/adminApi'
 
 export default function PlatformSettingsPage() {
-  const { data: feesData, loading: feesLoading, page, next, prev, hasMore, hasPrev, refresh: refreshFees } = useAdminQuery({
-    table: 'platform_fees',
-    defaultSortParams: { column: 'creation_date', ascending: false }
+  const { data: historyData, loading: historyLoading, page: historyPage, next: historyNext, prev: historyPrev, hasMore: historyHasMore, hasPrev: historyHasPrev, refresh: refreshHistory } = useAdminQuery({
+    table: 'subscription_tier_price_history',
+    defaultSortParams: { column: 'changed_at', ascending: false }
   })
 
   const [settings, setSettings] = useState<any>(null)
@@ -19,27 +19,224 @@ export default function PlatformSettingsPage() {
   const [gracePeriod, setGracePeriod] = useState('')
   const [savingSettings, setSavingSettings] = useState(false)
 
-  // Pro pricing state
-  const [proMonthlyPrice, setProMonthlyPrice] = useState('')
-  const [standardFee, setStandardFee] = useState('')
-  const [proFee, setProFee] = useState('')
-  const [stripeFeeHandling, setStripeFeeHandling] = useState('pass_through')
-  const [freeTrialDays, setFreeTrialDays] = useState('0')
-  const [savingPricing, setSavingPricing] = useState(false)
+  // Subscription tiers state
+  const [tiers, setTiers] = useState<any[]>([])
+  const [tiersLoading, setTiersLoading] = useState(true)
+  const [savingTiers, setSavingTiers] = useState<Record<string, boolean>>({})
 
-  const [isAddingFee, setIsAddingFee] = useState(false)
-  const [submittingFee, setSubmittingFee] = useState(false)
-  const [feePercentage, setFeePercentage] = useState('')
-  const [feeProPercentage, setFeeProPercentage] = useState('')
-  const [feeSubPrice, setFeeSubPrice] = useState('')
-  const [feeStripeHandling, setFeeStripeHandling] = useState('pass_through')
-  const [feeError, setFeeError] = useState('')
+  // Create tier state
+  const [isAddingTier, setIsAddingTier] = useState(false)
+  const [newTierName, setNewTierName] = useState('')
+  const [newTierDisplayName, setNewTierDisplayName] = useState('')
+  const [newTierPrice, setNewTierPrice] = useState('0.00')
+  const [newTierFee, setNewTierFee] = useState('10.00')
+  const [newTierMaxBooths, setNewTierMaxBooths] = useState('1')
+  const [newTierStripeHandling, setNewTierStripeHandling] = useState('pass_through')
+  const [newTierError, setNewTierError] = useState('')
+  const [submittingTier, setSubmittingTier] = useState(false)
+  const [newTierFeatures, setNewTierFeatures] = useState<Record<string, boolean>>({
+    facebook_sync: false,
+    growbot_copilot: false
+  })
+  const [newTierOffered, setNewTierOffered] = useState(true)
+
   const [toast, setToast] = useState('')
   const [toastType, setToastType] = useState<'success' | 'error'>('success')
 
   useEffect(() => {
     loadSettings()
+    loadTiers()
   }, [])
+
+  const loadTiers = async () => {
+    setTiersLoading(true)
+    try {
+      const { data, error } = await adminApi.select('subscription_tiers', '*', undefined, { order: { column: 'subscription_price', ascending: true } })
+      if (!error && data) {
+        setTiers(data)
+      }
+    } catch (e) {
+      console.error('Failed to load subscription tiers:', e)
+    } finally {
+      setTiersLoading(false)
+    }
+  }
+
+  const handleTierChange = (tierName: string, field: string, value: any) => {
+    setTiers(prev => prev.map(t => {
+      if (t.tier_name === tierName) {
+        if (field.startsWith('features.')) {
+          const featureKey = field.split('.')[1]
+          return {
+            ...t,
+            features: {
+              ...t.features,
+              [featureKey]: value
+            }
+          }
+        }
+        return { ...t, [field]: value }
+      }
+      return t
+    }))
+  }
+
+  const handleSaveTier = async (tier: any) => {
+    // Validation: at most one tier can have a blank/empty display name
+    const hasBlankDisplayName = !tier.display_name || tier.display_name.trim() === ''
+    if (hasBlankDisplayName) {
+      const alreadyHasBlank = tiers.some(t => t.tier_name !== tier.tier_name && (!t.display_name || t.display_name.trim() === ''))
+      if (alreadyHasBlank) {
+        setToast('Error: Only one subscription tier can have a blank display name.')
+        setToastType('error')
+        setTimeout(() => setToast(''), 5000)
+        return
+      }
+    }
+
+    setSavingTiers(prev => ({ ...prev, [tier.tier_name]: true }))
+    try {
+      const { error } = await adminApi.update(
+        'subscription_tiers',
+        {
+          display_name: tier.display_name.trim(),
+          subscription_price: parseFloat(tier.subscription_price),
+          platform_fee_pct: parseFloat(tier.platform_fee_pct),
+          max_booths: parseInt(tier.max_booths),
+          stripe_fee_handling: tier.stripe_fee_handling,
+          offered: tier.offered !== false, // default to true if undefined
+          features: tier.features,
+          updated_at: new Date().toISOString()
+        },
+        { eq: { tier_name: tier.tier_name } }
+      )
+      
+      if (error) {
+        setToast(`Error saving tier ${tier.display_name || tier.tier_name}: ${error}`)
+        setToastType('error')
+      } else {
+        setToast(`Tier ${tier.display_name || tier.tier_name} saved successfully!`)
+        setToastType('success')
+        
+        // Synchronize settings table standard/pro rates if they match
+        if (tier.tier_name === 'lite') {
+          await adminApi.update('platform_settings', { standard_platform_fee: parseFloat(tier.platform_fee_pct) / 100 }, { eq: { id: settings?.id } })
+        } else if (tier.tier_name === 'pro') {
+          await adminApi.update('platform_settings', { 
+            pro_platform_fee: parseFloat(tier.platform_fee_pct) / 100,
+            pro_monthly_price_usd: parseFloat(tier.subscription_price)
+          }, { eq: { id: settings?.id } })
+        }
+        loadSettings() // refresh settings values
+        refreshHistory() // refresh history grid
+      }
+    } catch (e: any) {
+      setToast(`Error saving tier: ${e.message}`)
+      setToastType('error')
+    } finally {
+      setSavingTiers(prev => ({ ...prev, [tier.tier_name]: false }))
+      setTimeout(() => setToast(''), 5000)
+    }
+  }
+
+  const handleCreateTier = async () => {
+    if (!newTierName.trim()) {
+      setNewTierError('Please enter a unique Tier Name.')
+      return
+    }
+    if (!/^[a-z0-9_]+$/.test(newTierName.trim())) {
+      setNewTierError('Tier Name must be lowercase, alphanumeric, and can contain underscores.')
+      return
+    }
+
+    // Validation: at most one tier can have a blank/empty display name
+    const hasBlankDisplayName = newTierDisplayName.trim() === ''
+    if (hasBlankDisplayName) {
+      const alreadyHasBlank = tiers.some(t => !t.display_name || t.display_name.trim() === '')
+      if (alreadyHasBlank) {
+        setNewTierError('Only one subscription tier can have a blank display name.')
+        return
+      }
+    }
+
+    setSubmittingTier(true)
+    setNewTierError('')
+
+    try {
+      const { error } = await adminApi.insert('subscription_tiers', {
+        tier_name: newTierName.trim(),
+        display_name: newTierDisplayName.trim(),
+        subscription_price: parseFloat(newTierPrice) || 0.00,
+        platform_fee_pct: parseFloat(newTierFee) || 0.00,
+        max_booths: parseInt(newTierMaxBooths) || 1,
+        stripe_fee_handling: newTierStripeHandling,
+        offered: newTierOffered,
+        features: {
+          ...newTierFeatures,
+          max_booths: parseInt(newTierMaxBooths) || 1
+        }
+      })
+
+      if (error) throw new Error(error)
+
+      setToast('Subscription tier created successfully!')
+      setToastType('success')
+      setIsAddingTier(false)
+      
+      // Reset form
+      setNewTierName('')
+      setNewTierDisplayName('')
+      setNewTierPrice('0.00')
+      setNewTierFee('10.00')
+      setNewTierMaxBooths('1')
+      setNewTierStripeHandling('pass_through')
+      setNewTierOffered(true)
+      setNewTierFeatures({
+        facebook_sync: false,
+        growbot_copilot: false
+      })
+      setNewTierError('')
+
+      loadTiers()
+      refreshHistory()
+    } catch (e: any) {
+      setNewTierError(`Failed to create tier: ${e.message}`)
+    } finally {
+      setSubmittingTier(false)
+      setTimeout(() => setToast(''), 5000)
+    }
+  }
+
+  const handleDeleteTier = async (tierName: string) => {
+    if (['lite', 'pro', 'elite'].includes(tierName)) {
+      setToast(`Error: System-critical tier "${tierName}" cannot be deleted.`)
+      setToastType('error')
+      setTimeout(() => setToast(''), 5000)
+      return
+    }
+
+    if (!window.confirm(`Are you sure you want to delete the subscription tier "${tierName}"?`)) {
+      return
+    }
+
+    try {
+      const { error } = await adminApi.delete('subscription_tiers', { eq: { tier_name: tierName } })
+      if (error) {
+        setToast(`Error deleting tier: ${error}`)
+        setToastType('error')
+      } else {
+        setToast(`Tier "${tierName}" deleted successfully!`)
+        setToastType('success')
+        loadTiers()
+        refreshHistory()
+      }
+    } catch (e: any) {
+      setToast(`Error deleting tier: ${e.message}`)
+      setToastType('error')
+    } finally {
+      setTimeout(() => setToast(''), 5000)
+    }
+  }
 
   const loadSettings = async () => {
     setSettingsLoading(true)
@@ -51,11 +248,6 @@ export default function PlatformSettingsPage() {
       if (data) {
         setSettings(data)
         setGracePeriod(((data.provider_grace_period_ms ?? 300000) / 60000).toString()) // convert to minutes
-        setProMonthlyPrice(data.pro_monthly_price_usd?.toString() || '10.00')
-        setStandardFee(((data.standard_platform_fee || 0.1) * 100).toString())
-        setProFee(((data.pro_platform_fee || 0.02) * 100).toString())
-        setStripeFeeHandling(data.pro_stripe_fee_handling || 'pass_through')
-        setFreeTrialDays((data.pro_free_trial_days ?? 0).toString())
       }
     } catch (e) {
       console.error('Failed to load platform settings:', e)
@@ -161,7 +353,92 @@ export default function PlatformSettingsPage() {
     },
   ]
 
+  const historyColumns: ColumnDef<any>[] = [
+    {
+      header: 'Tier Name',
+      accessorKey: 'tier_name',
+      flex: 0.8,
+      cell: (item) => <Text textTransform="capitalize" fontWeight="600">{item.tier_name}</Text>
+    },
+    {
+      header: 'Old Price',
+      accessorKey: 'old_price',
+      flex: 0.8,
+      cell: (item) => <Text>{item.old_price != null ? `$${parseFloat(item.old_price).toFixed(2)}/mo` : '—'}</Text>
+    },
+    {
+      header: 'New Price',
+      accessorKey: 'new_price',
+      flex: 0.8,
+      cell: (item) => <Text fontWeight="600" color={colors.green[700]}>${parseFloat(item.new_price).toFixed(2)}/mo</Text>
+    },
+    {
+      header: 'Old platform_fee %',
+      accessorKey: 'old_platform_fee',
+      flex: 1.0,
+      cell: (item) => <Text>{item.old_platform_fee != null ? `${parseFloat(item.old_platform_fee).toFixed(1)}%` : '—'}</Text>
+    },
+    {
+      header: 'New platform_fee %',
+      accessorKey: 'new_platform_fee',
+      flex: 1.0,
+      cell: (item) => <Text fontWeight="600" color={colors.green[700]}>{parseFloat(item.new_platform_fee).toFixed(1)}%</Text>
+    },
+    {
+      header: 'Change Date',
+      accessorKey: 'changed_at',
+      flex: 1.2,
+      cell: (item) => <Text>{new Date(item.changed_at).toLocaleString()}</Text>
+    },
+  ]
 
+  const renderFeatureToggle = (tier: any, key: string, label: string) => {
+    const isEnabled = tier.features?.[key] === true
+    return (
+      <XStack
+        alignItems="center" gap="$2" cursor="pointer"
+        onPress={() => handleTierChange(tier.tier_name, `features.${key}`, !isEnabled)}
+        style={{ marginBottom: 4 }}
+      >
+        <YStack
+          width={18} height={18} borderRadius={4}
+          borderWidth={2}
+          borderColor={isEnabled ? colors.green[600] : colors.gray[300]}
+          alignItems="center" justifyContent="center"
+          backgroundColor={isEnabled ? colors.green[50] : 'transparent'}
+        >
+          {isEnabled && (
+            <YStack width={10} height={10} borderRadius={2} backgroundColor={colors.green[600]} />
+          )}
+        </YStack>
+        <Text fontSize="$3" fontWeight="500" color={colors.gray[700]}>{label}</Text>
+      </XStack>
+    )
+  }
+
+  const renderNewTierFeatureToggle = (key: string, label: string) => {
+    const isEnabled = newTierFeatures[key] === true
+    return (
+      <XStack
+        alignItems="center" gap="$2" cursor="pointer"
+        onPress={() => setNewTierFeatures(prev => ({ ...prev, [key]: !isEnabled }))}
+        style={{ marginBottom: 4 }}
+      >
+        <YStack
+          width={18} height={18} borderRadius={4}
+          borderWidth={2}
+          borderColor={isEnabled ? colors.green[600] : colors.gray[300]}
+          alignItems="center" justifyContent="center"
+          backgroundColor={isEnabled ? colors.green[50] : 'transparent'}
+        >
+          {isEnabled && (
+            <YStack width={10} height={10} borderRadius={2} backgroundColor={colors.green[600]} />
+          )}
+        </YStack>
+        <Text fontSize="$3" fontWeight="500" color={colors.gray[700]}>{label}</Text>
+      </XStack>
+    )
+  }
 
   return (
     <YStack flex={1} padding="$4" gap="$6">
@@ -207,114 +484,6 @@ export default function PlatformSettingsPage() {
                 </Text>
               </YStack>
 
-              <YStack gap="$2">
-                <Text fontWeight="600" color={colors.gray[800]}>Pro Monthly Subscription Price</Text>
-                <XStack alignItems="center" gap="$2">
-                  <Text fontSize="$4" color={colors.gray[600]}>$</Text>
-                  <Input
-                    value={proMonthlyPrice}
-                    onChangeText={setProMonthlyPrice}
-                    keyboardType="numeric"
-                    placeholder="10.00"
-                    width={150}
-                  />
-                  <Text fontSize="$3" color={colors.gray[500]}>/ month</Text>
-                </XStack>
-              </YStack>
-
-              {/* Standard Platform Fee */}
-              <YStack gap="$2">
-                <Text fontWeight="600" color={colors.gray[800]}>Standard Platform Fee (non-Pro sellers)</Text>
-                <XStack alignItems="center" gap="$2">
-                  <Input
-                    value={standardFee}
-                    onChangeText={setStandardFee}
-                    keyboardType="numeric"
-                    placeholder="10"
-                    width={150}
-                  />
-                  <Text fontSize="$3" color={colors.gray[500]}>%</Text>
-                </XStack>
-                <Text fontSize="$2" color={colors.gray[500]}>Stripe processing fee is always absorbed by CasaGrown for standard sellers.</Text>
-              </YStack>
-
-              {/* Pro Platform Fee */}
-              <YStack gap="$2">
-                <Text fontWeight="600" color={colors.gray[800]}>Pro Platform Fee (Pro sellers)</Text>
-                <XStack alignItems="center" gap="$2">
-                  <Input
-                    value={proFee}
-                    onChangeText={setProFee}
-                    keyboardType="numeric"
-                    placeholder="2"
-                    width={150}
-                  />
-                  <Text fontSize="$3" color={colors.gray[500]}>%</Text>
-                </XStack>
-              </YStack>
-
-              {/* Stripe Fee Handling */}
-              <YStack gap="$2">
-                <Text fontWeight="600" color={colors.gray[800]}>Stripe Fee Handling (Pro sellers)</Text>
-                <XStack gap="$4">
-                  <XStack
-                    alignItems="center" gap="$2" cursor="pointer"
-                    onPress={() => setStripeFeeHandling('pass_through')}
-                  >
-                    <YStack
-                      width={18} height={18} borderRadius={9}
-                      borderWidth={2}
-                      borderColor={stripeFeeHandling === 'pass_through' ? colors.green[600] : colors.gray[300]}
-                      alignItems="center" justifyContent="center"
-                    >
-                      {stripeFeeHandling === 'pass_through' && (
-                        <YStack width={10} height={10} borderRadius={5} backgroundColor={colors.green[600]} />
-                      )}
-                    </YStack>
-                    <YStack>
-                      <Text fontSize="$3" fontWeight="500">Pass-through</Text>
-                      <Text fontSize="$2" color={colors.gray[500]}>Deducted from seller payout</Text>
-                    </YStack>
-                  </XStack>
-
-                  <XStack
-                    alignItems="center" gap="$2" cursor="pointer"
-                    onPress={() => setStripeFeeHandling('absorb')}
-                  >
-                    <YStack
-                      width={18} height={18} borderRadius={9}
-                      borderWidth={2}
-                      borderColor={stripeFeeHandling === 'absorb' ? colors.green[600] : colors.gray[300]}
-                      alignItems="center" justifyContent="center"
-                    >
-                      {stripeFeeHandling === 'absorb' && (
-                        <YStack width={10} height={10} borderRadius={5} backgroundColor={colors.green[600]} />
-                      )}
-                    </YStack>
-                    <YStack>
-                      <Text fontSize="$3" fontWeight="500">Absorb</Text>
-                      <Text fontSize="$2" color={colors.gray[500]}>CasaGrown absorbs the Stripe fee</Text>
-                    </YStack>
-                  </XStack>
-                </XStack>
-              </YStack>
-
-              {/* Free Trial Days */}
-              <YStack gap="$2">
-                <Text fontWeight="600" color={colors.gray[800]}>Pro Free Trial Days</Text>
-                <XStack alignItems="center" gap="$2">
-                  <Input
-                    value={freeTrialDays}
-                    onChangeText={setFreeTrialDays}
-                    keyboardType="numeric"
-                    placeholder="0"
-                    width={150}
-                  />
-                  <Text fontSize="$3" color={colors.gray[500]}>days</Text>
-                </XStack>
-                <Text fontSize="$2" color={colors.gray[500]}>Set to 0 for no free trial. Users will see "Subscribe Now" instead of "Start Free Trial".</Text>
-              </YStack>
-
               <Button 
                 alignSelf="flex-start" 
                 backgroundColor={colors.green[600]} 
@@ -326,34 +495,14 @@ export default function PlatformSettingsPage() {
                       'platform_settings',
                       {
                         provider_grace_period_ms: parseInt(gracePeriod) * 60000,
-                        pro_monthly_price_usd: parseFloat(proMonthlyPrice),
-                        standard_platform_fee: parseFloat(standardFee) / 100,
-                        pro_platform_fee: parseFloat(proFee) / 100,
-                        pro_stripe_fee_handling: stripeFeeHandling,
-                        pro_free_trial_days: parseInt(freeTrialDays) || 0,
                         updated_at: new Date().toISOString(),
                       },
                       { eq: { id: settings.id } }
                     )
                     if (error) throw new Error(typeof error === 'string' ? error : JSON.stringify(error))
 
-                    // Also append to platform_fees ledger for audit trail
-                    const { error: feeErr } = await adminApi.insert('platform_fees', {
-                      country_code: 'USA',
-                      fees: parseFloat(standardFee) / 100,
-                      free_fee_pct: parseFloat(standardFee),
-                      pro_fee_pct: parseFloat(proFee),
-                      pro_sub_price: parseFloat(proMonthlyPrice),
-                      stripe_fee_handling: stripeFeeHandling,
-                    })
-                    if (feeErr) {
-                      setToast('Settings saved, but fee ledger entry failed: ' + feeErr)
-                      setToastType('error')
-                    } else {
-                      setToast('Settings saved successfully!')
-                      setToastType('success')
-                    }
-                    refreshFees()
+                    setToast('Settings saved successfully!')
+                    setToastType('success')
                   } catch (e: any) {
                     setToast(`Error saving settings: ${e.message}`)
                     setToastType('error')
@@ -372,144 +521,368 @@ export default function PlatformSettingsPage() {
 
       <YStack height={1} backgroundColor={colors.gray[200]} marginVertical="$2" />
 
-      {/* Platform Fees Section */}
+      {/* Subscription Tiers & Packages Configuration Section */}
       <YStack gap="$4">
         <XStack justifyContent="space-between" alignItems="center">
           <XStack alignItems="center" gap="$2">
-            <Percent size={24} color={colors.blue[700]} />
+            <CreditCard size={24} color={colors.green[800]} />
             <YStack>
-              <Text fontSize="$6" fontWeight="700" color={colors.gray[900]}>Platform Fees Ledger</Text>
-              <Text fontSize="$3" color={colors.gray[600]}>Historical log of fee rates per country</Text>
+              <Text fontSize="$6" fontWeight="700" color={colors.green[900]}>Subscription Packages & Tiers</Text>
+              <Text fontSize="$3" color={colors.gray[600]}>Configure features, rates, and limits for Lite, Pro, Elite, and custom tiers</Text>
             </YStack>
           </XStack>
-          {!isAddingFee && (
+          {!isAddingTier && (
             <Button 
-              backgroundColor={colors.blue[600]} 
+              backgroundColor={colors.green[600]} 
               icon={<Plus size={16} color="white" />} 
-              onPress={() => setIsAddingFee(true)}
+              onPress={() => setIsAddingTier(true)}
             >
-              <Text color="white" fontWeight="600">Update Fee</Text>
+              <Text color="white" fontWeight="600">Create New Tier</Text>
             </Button>
           )}
         </XStack>
 
-        {isAddingFee && (
+        {isAddingTier && (
           <YStack borderWidth={1} borderColor={colors.gray[200]} padding="$4" backgroundColor="white" borderRadius="$4" elevation="$1">
             <YStack gap="$4">
-              <Text fontSize="$5" fontWeight="600" color={colors.gray[800]}>Set New Fee Rate</Text>
-              <Text fontSize="$3" color={colors.gray[600]}>
-                New fees append to the ledger. The most recent entry per country becomes active.
-              </Text>
-
-              {feeError ? (
+              <Text fontSize="$5" fontWeight="600" color={colors.green[800]}>Create New Subscription Tier</Text>
+              
+              {newTierError ? (
                 <YStack backgroundColor={colors.red[50]} padding="$2" borderRadius="$2" borderWidth={1} borderColor={colors.red[200]}>
-                  <Text color={colors.red[800]} fontSize="$3">{feeError}</Text>
+                  <Text color={colors.red[800]} fontSize="$3">{newTierError}</Text>
                 </YStack>
               ) : null}
 
-              {/* Country - fixed to USA */}
-              <YStack gap="$1">
-                <Text fontWeight="600" fontSize="$3" color={colors.gray[700]}>Country</Text>
-                <XStack alignItems="center" gap="$2">
-                  <XStack backgroundColor={colors.blue[100]} paddingHorizontal="$2" paddingVertical="$1" borderRadius="$2">
-                    <Text fontSize="$3" fontWeight="600" color={colors.blue[700]}>United States (USA)</Text>
+              <XStack flexWrap="wrap" gap="$3">
+                <YStack flex={1} minWidth={200} gap="$1">
+                  <Text fontWeight="600" fontSize="$3" color={colors.gray[700]}>Tier Name (Unique Key) *</Text>
+                  <Input
+                    value={newTierName}
+                    onChangeText={setNewTierName}
+                    placeholder="e.g. gold (lowercase only)"
+                    size="$3"
+                  />
+                </YStack>
+
+                <YStack flex={1} minWidth={200} gap="$1">
+                  <Text fontWeight="600" fontSize="$3" color={colors.gray[700]}>Display Name</Text>
+                  <Input
+                    value={newTierDisplayName}
+                    onChangeText={setNewTierDisplayName}
+                    placeholder="Optional for only one tier"
+                    size="$3"
+                  />
+                </YStack>
+              </XStack>
+
+              <XStack flexWrap="wrap" gap="$3">
+                <YStack flex={1} minWidth={150} gap="$1">
+                  <Text fontWeight="600" fontSize="$3" color={colors.gray[700]}>Monthly Price (USD)</Text>
+                  <XStack alignItems="center" gap="$2">
+                    <Text color={colors.gray[400]}>$</Text>
+                    <Input
+                      value={newTierPrice}
+                      onChangeText={setNewTierPrice}
+                      keyboardType="numeric"
+                      size="$3"
+                      flex={1}
+                    />
                   </XStack>
-                </XStack>
-              </YStack>
+                </YStack>
 
-              {/* Standard (Free) Fee Percentage */}
-              <YStack gap="$1">
-                <Text fontWeight="600" fontSize="$3" color={colors.gray[700]}>Standard Fee (non-Pro sellers)</Text>
-                <XStack alignItems="center" gap="$2">
-                  <Input
-                    value={feePercentage}
-                    onChangeText={setFeePercentage}
-                    placeholder="e.g. 10"
-                    keyboardType="numeric"
-                    width={150}
-                  />
-                  <Text fontSize="$3" color={colors.gray[500]}>%</Text>
-                </XStack>
-              </YStack>
+                <YStack flex={1} minWidth={150} gap="$1">
+                  <Text fontWeight="600" fontSize="$3" color={colors.gray[700]}>Platform Sales Fee (%)</Text>
+                  <XStack alignItems="center" gap="$2">
+                    <Input
+                      value={newTierFee}
+                      onChangeText={setNewTierFee}
+                      keyboardType="numeric"
+                      size="$3"
+                      flex={1}
+                    />
+                    <Text color={colors.gray[400]}>%</Text>
+                  </XStack>
+                </YStack>
 
-              {/* Pro Fee Percentage */}
-              <YStack gap="$1">
-                <Text fontWeight="600" fontSize="$3" color={colors.gray[700]}>Pro Fee (Pro sellers)</Text>
-                <XStack alignItems="center" gap="$2">
-                  <Input
-                    value={feeProPercentage}
-                    onChangeText={setFeeProPercentage}
-                    placeholder="e.g. 2"
-                    keyboardType="numeric"
-                    width={150}
-                  />
-                  <Text fontSize="$3" color={colors.gray[500]}>%</Text>
-                </XStack>
-              </YStack>
+              </XStack>
 
-              {/* Pro Subscription Price */}
               <YStack gap="$1">
-                <Text fontWeight="600" fontSize="$3" color={colors.gray[700]}>Pro Subscription Price</Text>
-                <XStack alignItems="center" gap="$2">
-                  <Text fontSize="$3" color={colors.gray[600]}>$</Text>
-                  <Input
-                    value={feeSubPrice}
-                    onChangeText={setFeeSubPrice}
-                    placeholder="e.g. 10"
-                    keyboardType="numeric"
-                    width={150}
-                  />
-                  <Text fontSize="$3" color={colors.gray[500]}>/ month</Text>
-                </XStack>
-              </YStack>
-
-              {/* Stripe Fee Handling */}
-              <YStack gap="$1">
-                <Text fontWeight="600" fontSize="$3" color={colors.gray[700]}>Stripe Fee Handling (Pro)</Text>
+                <Text fontWeight="600" fontSize="$3" color={colors.gray[700]}>Stripe Fee Handling</Text>
                 <XStack gap="$4">
-                  <XStack alignItems="center" gap="$2" cursor="pointer" onPress={() => setFeeStripeHandling('pass_through')}>
+                  <XStack alignItems="center" gap="$2" cursor="pointer" onPress={() => setNewTierStripeHandling('pass_through')}>
                     <YStack width={16} height={16} borderRadius={8} borderWidth={2}
-                      borderColor={feeStripeHandling === 'pass_through' ? colors.blue[600] : colors.gray[300]}
+                      borderColor={newTierStripeHandling === 'pass_through' ? colors.green[600] : colors.gray[300]}
                       alignItems="center" justifyContent="center"
                     >
-                      {feeStripeHandling === 'pass_through' && <YStack width={8} height={8} borderRadius={4} backgroundColor={colors.blue[600]} />}
+                      {newTierStripeHandling === 'pass_through' && <YStack width={8} height={8} borderRadius={4} backgroundColor={colors.green[600]} />}
                     </YStack>
-                    <Text fontSize="$3" fontWeight="500">Pass-through</Text>
+                    <Text fontSize="$3" fontWeight="500">Pass-through (Deducted from payouts)</Text>
                   </XStack>
-                  <XStack alignItems="center" gap="$2" cursor="pointer" onPress={() => setFeeStripeHandling('absorb')}>
+                  <XStack alignItems="center" gap="$2" cursor="pointer" onPress={() => setNewTierStripeHandling('absorb')}>
                     <YStack width={16} height={16} borderRadius={8} borderWidth={2}
-                      borderColor={feeStripeHandling === 'absorb' ? colors.blue[600] : colors.gray[300]}
+                      borderColor={newTierStripeHandling === 'absorb' ? colors.green[600] : colors.gray[300]}
                       alignItems="center" justifyContent="center"
                     >
-                      {feeStripeHandling === 'absorb' && <YStack width={8} height={8} borderRadius={4} backgroundColor={colors.blue[600]} />}
+                      {newTierStripeHandling === 'absorb' && <YStack width={8} height={8} borderRadius={4} backgroundColor={colors.green[600]} />}
                     </YStack>
-                    <Text fontSize="$3" fontWeight="500">Absorb</Text>
+                    <Text fontSize="$3" fontWeight="500">Absorb (Absorbed by platform)</Text>
                   </XStack>
                 </XStack>
+              </YStack>
+
+              {/* Dynamic Feature Flags & Limits */}
+              <YStack gap="$3" marginTop="$2" borderTopWidth={1} borderTopColor={colors.gray[200]} paddingTop="$3">
+                <Text fontWeight="700" fontSize="$3.5" color={colors.green[800]} letterSpacing={0.5}>PLAN LIMITS & FEATURE FLAGS</Text>
+                
+                <XStack alignItems="center" justifyContent="space-between" maxWidth={400} style={{ marginBottom: 6 }}>
+                  <Text fontSize="$3" fontWeight="600" color={colors.gray[700]}>Offer / Enable this Tier</Text>
+                  <XStack
+                    width={18} height={18} borderRadius={4}
+                    borderWidth={2}
+                    borderColor={newTierOffered ? colors.green[600] : colors.gray[300]}
+                    alignItems="center" justifyContent="center"
+                    backgroundColor={newTierOffered ? colors.green[50] : 'transparent'}
+                    cursor="pointer"
+                    onPress={() => setNewTierOffered(!newTierOffered)}
+                  >
+                    {newTierOffered && <YStack width={10} height={10} borderRadius={2} backgroundColor={colors.green[600]} />}
+                  </XStack>
+                </XStack>
+
+                <XStack alignItems="center" justifyContent="space-between" maxWidth={400} style={{ marginBottom: 6 }}>
+                  <YStack>
+                    <Text fontSize="$3" fontWeight="600" color={colors.gray[700]}>Max Booths / Stands Limit *</Text>
+                    <Text fontSize="$2.5" color={colors.gray[500]}>Enter -1 for unlimited</Text>
+                  </YStack>
+                  <Input
+                    value={newTierMaxBooths}
+                    onChangeText={setNewTierMaxBooths}
+                    keyboardType="numeric"
+                    size="$2.5"
+                    width={80}
+                    textAlign="center"
+                  />
+                </XStack>
+
+                <YStack gap="$2">
+                  {renderNewTierFeatureToggle('facebook_sync', 'Facebook Catalog Sync')}
+                  {renderNewTierFeatureToggle('growbot_copilot', 'GrowBot Copilot Auto-Replies')}
+                </YStack>
               </YStack>
 
               <XStack gap="$3" justifyContent="flex-end" marginTop="$2">
-                <Button chromeless onPress={() => { setIsAddingFee(false); setFeePercentage(''); setFeeProPercentage(''); setFeeSubPrice(''); setFeeStripeHandling('pass_through'); setFeeError('') }}>Cancel</Button>
-                <Button backgroundColor={colors.blue[600]} onPress={handleCreateFee} disabled={submittingFee}>
-                  <Text color="white" fontWeight="600">{submittingFee ? 'Applying...' : 'Apply New Rate'}</Text>
+                <Button chromeless onPress={() => { setIsAddingTier(false); setNewTierError(''); setNewTierName(''); setNewTierDisplayName(''); }}>Cancel</Button>
+                <Button backgroundColor={colors.green[600]} onPress={handleCreateTier} disabled={submittingTier}>
+                  <Text color="white" fontWeight="600">{submittingTier ? 'Creating...' : 'Create Tier'}</Text>
                 </Button>
               </XStack>
             </YStack>
           </YStack>
         )}
 
+        {tiersLoading ? (
+          <Text>Loading subscription tiers...</Text>
+        ) : (
+          <XStack flexWrap="wrap" gap="$4">
+            {tiers.map((tier) => {
+              const isSaving = savingTiers[tier.tier_name] === true
+              return (
+                <YStack 
+                  key={tier.tier_name} 
+                  flex={1} 
+                  minWidth={320} 
+                  maxWidth={380} 
+                  borderWidth={1} 
+                  borderColor={colors.gray[200]} 
+                  padding="$4" 
+                  backgroundColor="white" 
+                  borderRadius="$4" 
+                  elevation="$1"
+                  gap="$4"
+                >
+                  {/* Header Tag */}
+                  <XStack justifyContent="space-between" alignItems="center" borderBottomWidth={1} borderBottomColor={colors.gray[100]} paddingBottom="$2">
+                    <XStack alignItems="center" gap="$2">
+                      <Text fontSize="$5" fontWeight="700" color={colors.green[800]} textTransform="capitalize">
+                        {tier.tier_name}
+                      </Text>
+                      {!['lite', 'pro', 'elite'].includes(tier.tier_name) && (
+                        <Button 
+                          circular 
+                          size="$2" 
+                          chromeless 
+                          icon={<Trash2 size={14} color={colors.red[600]} />} 
+                          onPress={() => handleDeleteTier(tier.tier_name)}
+                          hoverStyle={{ backgroundColor: colors.red[50] }}
+                        />
+                      )}
+                    </XStack>
+                    <XStack 
+                      backgroundColor={tier.offered !== false ? colors.green[50] : colors.gray[100]} 
+                      paddingHorizontal="$2.5" 
+                      paddingVertical="$1" 
+                      borderRadius="$2"
+                    >
+                      <Text 
+                        fontSize="$2.5" 
+                        fontWeight="700" 
+                        color={tier.offered !== false ? colors.green[700] : colors.gray[600]}
+                      >
+                        {tier.offered !== false ? 'Active' : 'Hidden'}
+                      </Text>
+                    </XStack>
+                  </XStack>
+
+                  {/* Fields */}
+                  <YStack gap="$3">
+                    <YStack gap="$1">
+                      <Text fontSize="$2.5" fontWeight="600" color={colors.gray[500]}>Display Name</Text>
+                      <Input 
+                        value={tier.display_name} 
+                        onChangeText={(val) => handleTierChange(tier.tier_name, 'display_name', val)} 
+                        placeholder="Optional for only one tier"
+                        size="$3"
+                      />
+                    </YStack>
+
+                    <YStack gap="$1">
+                      <Text fontSize="$2.5" fontWeight="600" color={colors.gray[500]}>Monthly Price (USD)</Text>
+                      <XStack alignItems="center" gap="$2">
+                        <Text color={colors.gray[400]}>$</Text>
+                        <Input 
+                          value={tier.subscription_price?.toString()} 
+                          onChangeText={(val) => handleTierChange(tier.tier_name, 'subscription_price', val)} 
+                          keyboardType="numeric"
+                          size="$3"
+                          flex={1}
+                        />
+                        <Text fontSize="$3" color={colors.gray[400]}>/ mo</Text>
+                      </XStack>
+                    </YStack>
+
+                    <YStack gap="$1">
+                      <Text fontSize="$2.5" fontWeight="600" color={colors.gray[500]}>Platform Sales Fee (%)</Text>
+                      <XStack alignItems="center" gap="$2">
+                        <Input 
+                          value={tier.platform_fee_pct?.toString()} 
+                          onChangeText={(val) => handleTierChange(tier.tier_name, 'platform_fee_pct', val)} 
+                          keyboardType="numeric"
+                          size="$3"
+                          flex={1}
+                        />
+                        <Text fontSize="$3" color={colors.gray[400]}>%</Text>
+                      </XStack>
+                    </YStack>
+
+                    <YStack gap="$2">
+                      <Text fontSize="$2.5" fontWeight="600" color={colors.gray[500]}>Stripe Fee Handling</Text>
+                      <XStack gap="$3">
+                        <XStack alignItems="center" gap="$1.5" cursor="pointer" onPress={() => handleTierChange(tier.tier_name, 'stripe_fee_handling', 'pass_through')}>
+                          <YStack width={14} height={14} borderRadius={7} borderWidth={2}
+                            borderColor={tier.stripe_fee_handling === 'pass_through' ? colors.green[600] : colors.gray[300]}
+                            alignItems="center" justifyContent="center"
+                          >
+                            {tier.stripe_fee_handling === 'pass_through' && <YStack width={6} height={6} borderRadius={3} backgroundColor={colors.green[600]} />}
+                          </YStack>
+                          <Text fontSize="$2.5" fontWeight="500">Pass-through</Text>
+                        </XStack>
+                        <XStack alignItems="center" gap="$1.5" cursor="pointer" onPress={() => handleTierChange(tier.tier_name, 'stripe_fee_handling', 'absorb')}>
+                          <YStack width={14} height={14} borderRadius={7} borderWidth={2}
+                            borderColor={tier.stripe_fee_handling === 'absorb' ? colors.green[600] : colors.gray[300]}
+                            alignItems="center" justifyContent="center"
+                          >
+                            {tier.stripe_fee_handling === 'absorb' && <YStack width={6} height={6} borderRadius={3} backgroundColor={colors.green[600]} />}
+                          </YStack>
+                          <Text fontSize="$2.5" fontWeight="500">Absorbed</Text>
+                        </XStack>
+                      </XStack>
+                    </YStack>
+
+                    <YStack gap="$2.5" marginTop="$2" borderTopWidth={1} borderTopColor={colors.gray[100]} paddingTop="$3">
+                      <Text fontSize="$2.5" fontWeight="700" color={colors.gray[400]} letterSpacing={0.5}>PLAN LIMITS & FEATURE FLAGS</Text>
+                      
+                      <XStack alignItems="center" justifyContent="space-between" style={{ marginBottom: 6 }}>
+                        <Text fontSize="$2.5" fontWeight="600" color={colors.gray[600]}>Offer / Enable this Tier</Text>
+                        <XStack
+                          width={16} height={16} borderRadius={4}
+                          borderWidth={2}
+                          borderColor={tier.offered !== false ? colors.green[600] : colors.gray[300]}
+                          alignItems="center" justifyContent="center"
+                          backgroundColor={tier.offered !== false ? colors.green[50] : 'transparent'}
+                          cursor="pointer"
+                          onPress={() => handleTierChange(tier.tier_name, 'offered', tier.offered === false)}
+                        >
+                          {tier.offered !== false && <YStack width={8} height={8} borderRadius={2} backgroundColor={colors.green[600]} />}
+                        </XStack>
+                      </XStack>
+
+                      <XStack alignItems="center" justifyContent="space-between" style={{ marginBottom: 6 }}>
+                        <YStack>
+                          <Text fontSize="$2.5" fontWeight="600" color={colors.gray[600]}>Max Booths / Stands Limit *</Text>
+                          <Text fontSize="$2" color={colors.gray[500]}>Enter -1 for unlimited</Text>
+                        </YStack>
+                        <Input 
+                          value={tier.max_booths?.toString()} 
+                          onChangeText={(val) => {
+                            handleTierChange(tier.tier_name, 'max_booths', val);
+                            handleTierChange(tier.tier_name, 'features.max_booths', parseInt(val) || 1);
+                          }} 
+                          keyboardType="numeric"
+                          size="$2.5"
+                          width={70}
+                          textAlign="center"
+                        />
+                      </XStack>
+
+                      {renderFeatureToggle(tier, 'facebook_sync', 'Facebook Catalog Sync')}
+                      {renderFeatureToggle(tier, 'growbot_copilot', 'GrowBot Copilot Auto-Replies')}
+                    </YStack>
+                  </YStack>
+
+                  {/* Save Button */}
+                  <Button 
+                    backgroundColor={colors.green[600]} 
+                    size="$3" 
+                    onPress={() => handleSaveTier(tier)}
+                    disabled={isSaving}
+                    marginTop="auto"
+                  >
+                    <Text color="white" fontWeight="600">
+                      {isSaving ? 'Saving...' : `Save ${tier.display_name || tier.tier_name} Settings`}
+                    </Text>
+                  </Button>
+                </YStack>
+              )
+            })}
+          </XStack>
+        )}
+      </YStack>
+
+      <YStack height={1} backgroundColor={colors.gray[200]} marginVertical="$2" />
+
+      {/* Pricing Change History Section */}
+      <YStack gap="$4">
+        <XStack alignItems="center" gap="$2">
+          <DollarSign size={24} color={colors.green[800]} />
+          <YStack>
+            <Text fontSize="$6" fontWeight="700" color={colors.green[900]}>Pricing & Platform Fee History</Text>
+            <Text fontSize="$3" color={colors.gray[600]}>Audit ledger of price changes for all subscription tiers</Text>
+          </YStack>
+        </XStack>
+
         <AdminDataGrid 
-          data={feesData} 
-          columns={feeColumns} 
-          isLoading={feesLoading}
-          page={page}
-          hasMore={hasMore}
-          hasPrev={hasPrev}
-          onNextPage={next}
-          onPrevPage={prev}
-          emptyMessage="No fee records found."
+          data={historyData} 
+          columns={historyColumns} 
+          isLoading={historyLoading}
+          page={historyPage}
+          hasMore={historyHasMore}
+          hasPrev={historyHasPrev}
+          onNextPage={historyNext}
+          onPrevPage={historyPrev}
+          emptyMessage="No pricing history records found."
         />
       </YStack>
+
     </YStack>
   )
 }

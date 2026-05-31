@@ -325,7 +325,7 @@ export default function ClientPage({
         .on(
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'community_chat_messages' },
-          (payload) => {
+          (payload: any) => {
             checkNewMessages()
           }
         )
@@ -564,7 +564,7 @@ export default function ClientPage({
             author_name: profileName || 'Neighbor',
             parent_id: replyingTo?.id,
           },
-        }).then((res) => {
+        }).then((res: any) => {
           console.log('[CasaBot] Response:', res)
           // Don't call loadMessages() — the WebSocket/polling will pick up the bot reply
           // and merge it in. This prevents the full re-fetch that causes flicker.

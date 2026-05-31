@@ -66,82 +66,58 @@ serveWithCors(async (req, { supabase, corsHeaders, siteUrl }) => {
     const userName = profile.full_name || "there";
     console.log(`[Pro Interest] Sending email to ${userEmail} (${userName})`);
 
-    // 4. Fetch current pricing from platform_settings
-    const { data: cfg } = await supabase
-        .from("platform_settings")
-        .select("pro_monthly_price_usd, standard_platform_fee, pro_platform_fee, pro_free_trial_days, pro_stripe_fee_handling")
-        .limit(1)
-        .single();
+    // 4. Fetch current tiers from subscription_tiers
+    const { data: dbTiers } = await supabase
+        .from("subscription_tiers")
+        .select("*")
+        .order("subscription_price", { ascending: true });
 
-    const monthlyPrice = cfg?.pro_monthly_price_usd ?? 10;
-    const freeTrialDays = cfg?.pro_free_trial_days ?? 0;
-    // Fees stored as decimals (0.10 = 10%), convert to percentages for display
-    const standardFee = (cfg?.standard_platform_fee ?? 0.10) * 100;
-    const proFee = (cfg?.pro_platform_fee ?? 0.02) * 100;
+    const liteTier = dbTiers?.find(t => t.tier_name === 'lite') || { subscription_price: 0, platform_fee_pct: 10 };
+    const proTier = dbTiers?.find(t => t.tier_name === 'pro') || { subscription_price: 10, platform_fee_pct: 5 };
+    const eliteTier = dbTiers?.find(t => t.tier_name === 'elite') || { subscription_price: 29, platform_fee_pct: 2 };
 
-    // 5. Check for active discounts
+    // 5. Check for active discounts on Pro/Elite (highest discount first)
     const { data: discounts } = await supabase
         .from("user_subscription_discounts")
-        .select("discount_pct, duration_months, promo_name")
+        .select("discount_pct, duration_months, promo_name, crm_promo_subscription_discounts!inner(plan)")
         .eq("user_id", userId)
-        .eq("active", true)
-        .gte("expires_at", new Date().toISOString())
+        .eq("status", "active")
+        .or(`expires_at.is.null,expires_at.gte.${new Date().toISOString()}`)
+        .order("discount_pct", { ascending: false })
         .limit(1);
 
     const discount = discounts?.[0] ?? null;
 
-    // 6. Generate magic link for seamless email → web login → /pro checkout
+    // 6. Generate secure pre-filled URL to prevent session hijacking via forwarded emails
     const baseUrl = siteUrl || "https://www.casagrown.com";
-    let activateUrl = `${baseUrl}/pro`; // fallback
-
-    try {
-      const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
-        type: 'magiclink',
-        email: userEmail,
-        options: { redirectTo: `${baseUrl}/pro` },
-      });
-
-      if (linkData?.properties?.action_link && !linkError) {
-        activateUrl = linkData.properties.action_link;
-        console.log(`[Pro Interest] Magic link generated for ${userEmail}`);
-      } else {
-        console.warn(`[Pro Interest] Magic link failed, using plain URL:`, linkError?.message);
-      }
-    } catch (err) {
-      console.warn(`[Pro Interest] Magic link error, using plain URL:`, err);
-    }
+    const activateUrl = `${baseUrl}/pro?email=${encodeURIComponent(userEmail)}`;
     const subject = discount
         ? `${userName}, your CasaGrown Pro offer is ready 🎁`
         : `${userName}, here's your CasaGrown Pro info 🚜`;
 
-    // Pricing
-    const stripeFeeHandling = cfg?.pro_stripe_fee_handling ?? "pass_through";
+    // Build pricing card rows dynamically for all three tiers
     const pricingRows: Array<{ label: string; value: string }> = [
-        { label: "Monthly Price", value: `$${monthlyPrice.toFixed(2)}/mo` },
-        { label: "Platform Fee", value: `${proFee}% per sale` },
+        { label: "Lite Base Plan", value: `$${liteTier.subscription_price.toFixed(2)}/mo · ${liteTier.platform_fee_pct}% sales fee · 1 booth` },
+        { label: "CasaGrown Pro", value: `$${proTier.subscription_price.toFixed(2)}/mo · ${proTier.platform_fee_pct}% sales fee · 3 booths` },
+        { label: "CasaGrown Elite", value: `$${eliteTier.subscription_price.toFixed(2)}/mo · ${eliteTier.platform_fee_pct}% sales fee · Unlimited booths` },
     ];
-    if (stripeFeeHandling === "pass_through") {
-        pricingRows.push({ label: "Payment Processing", value: "Stripe fees (2.9% + 30¢) passed through" });
-    }
-    if (freeTrialDays > 0) {
-        pricingRows.unshift({
-            label: "Free Trial",
-            value: `${freeTrialDays} days — no charge`,
-        });
-    }
 
     // Discount section
     let discountHtml = "";
     if (discount) {
-        const discountedPrice = monthlyPrice * (1 - discount.discount_pct / 100);
+        const discountPlan = discount.crm_promo_subscription_discounts?.plan || 'pro';
+        const targetPrice = discountPlan === 'elite' ? eliteTier.subscription_price : proTier.subscription_price;
+        const targetName = discountPlan === 'elite' ? 'CasaGrown Elite' : 'CasaGrown Pro';
+        
+        const discountedPrice = targetPrice * (1 - discount.discount_pct / 100);
         discountHtml = `
 <div style="margin: 20px 0; padding: 16px 20px; background: linear-gradient(135deg, #fef3c7, #fde68a); border: 1px solid #f59e0b; border-radius: 12px;">
 <p style="margin: 0 0 4px; font-size: 14px; font-weight: 700; color: #92400e;">
 🎁 You've unlocked a special offer${discount.promo_name ? ` — ${discount.promo_name}` : ""}
 </p>
 <p style="margin: 0; font-size: 13px; color: #78350f; line-height: 1.6;">
-<strong>${discount.discount_pct}% off</strong> your first${discount.duration_months > 1 ? ` ${discount.duration_months} months` : " month"} —
-just <strong>$${discountedPrice.toFixed(2)}/mo</strong> instead of $${monthlyPrice.toFixed(2)}.
+<strong>${discount.discount_pct}% off</strong> ${targetName} —
+just <strong>$${discountedPrice.toFixed(2)}/mo</strong> instead of $${targetPrice.toFixed(2)}.
 </p>
 </div>`;
     }

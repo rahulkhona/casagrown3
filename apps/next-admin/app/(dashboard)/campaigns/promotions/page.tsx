@@ -15,10 +15,10 @@ type PromoGiveaway = {
 
 type PromoCredits = {
   id: string
-  amount_usd: number
-  credit_type: string
-  cap_type: string
-  cap_value: number
+  discount_amount_usd: number
+  discount_type: string
+  discount_cap_type: string
+  discount_cap_value: number
   frequency: string
   occurrences: number
   start_date: string
@@ -93,7 +93,7 @@ export default function PromotionsPage() {
         const ids = promos.map((p: any) => p.id)
         
         const { data: gws } = await adminApi.select('crm_promo_giveaways', '*', { in: { promotion_id: ids } })
-        const { data: crs } = await adminApi.select('crm_recurring_user_incentives_blueprint', '*', { in: { promotion_id: ids } })
+        const { data: crs } = await adminApi.select('crm_promo_buyer_discounts', '*', { in: { promotion_id: ids } })
         const { data: sds } = await adminApi.select('crm_promo_subscription_discounts', '*', { in: { promotion_id: ids } })
 
         const gwMap = (gws as any[] || []).reduce((acc, curr) => ({ ...acc, [curr.promotion_id]: curr }), {})
@@ -149,12 +149,12 @@ export default function PromotionsPage() {
 
       // 3. Create Credits if enabled
       if (hasCredits) {
-        const { error: crErr } = await adminApi.insert('crm_recurring_user_incentives_blueprint', {
+        const { error: crErr } = await adminApi.insert('crm_promo_buyer_discounts', {
           promotion_id: promoId,
-          amount_usd: parseFloat(crAmount),
-          credit_type: crType,
-          cap_type: crCapType,
-          cap_value: parseFloat(crCapValue),
+          discount_amount_usd: parseFloat(crAmount),
+          discount_type: crType,
+          discount_cap_type: crCapType,
+          discount_cap_value: parseFloat(crCapValue),
           frequency: crFreq,
           occurrences: parseInt(crOccurrences),
           start_date: new Date(crStart).toISOString()
@@ -478,7 +478,7 @@ export default function PromotionsPage() {
                     {promo.credits && (
                       <XStack backgroundColor={colors.green[50]} paddingHorizontal="$2" paddingVertical="$1" borderRadius="$2" alignSelf="flex-start" alignItems="center" gap="$2">
                         <CreditCard size={14} color={colors.green[700]} />
-                        <Text fontSize={12} fontWeight="600" color={colors.green[800]}>${promo.credits.amount_usd} {promo.credits.frequency}</Text>
+                        <Text fontSize={12} fontWeight="600" color={colors.green[800]}>${promo.credits.discount_amount_usd} {promo.credits.frequency}</Text>
                       </XStack>
                     )}
                     {promo.subDiscount && (

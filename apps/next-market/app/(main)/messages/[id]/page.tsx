@@ -393,7 +393,7 @@ export default function MessageThreadPage() {
                 .select(`*, offer_product:market_products(id, name, price_usd, photos, unit, seller_id), market_chat_reactions(user_id, emoji)`)
                 .eq('conversation_id', id)
                 .order('created_at', { ascending: true })
-                .then(({ data }) => {
+                .then(({ data }: { data: any }) => {
                    if (data && isActiveTabRef.current) {
                       const sorted = sortByTime(data)
                       setMessages(prev => {
@@ -414,7 +414,7 @@ export default function MessageThreadPage() {
       })
       
       // 3. Typing Bubble (Broadcast)
-      newChannel.on('broadcast', { event: 'typing' }, ({ payload }) => {
+      newChannel.on('broadcast', { event: 'typing' }, ({ payload }: { payload: any }) => {
         if (payload?.user_id !== user.id) {
            setIsOtherTyping(payload.isTyping)
            if (payload.isTyping) {
@@ -435,7 +435,7 @@ export default function MessageThreadPage() {
           .select(`*, offer_product:market_products(id, name, price_usd, photos, unit, seller_id), market_chat_reactions(user_id, emoji)`)
           .eq('conversation_id', id)
           .order('created_at', { ascending: true })
-          .then(({ data }) => {
+          .then(({ data }: { data: any }) => {
             if (data && isActiveTabRef.current) {
               const sorted = sortByTime(data)
               setMessages(prev => {
@@ -449,7 +449,7 @@ export default function MessageThreadPage() {
       channelRef.current = newChannel
 
       // Lock in Presence
-      newChannel.subscribe(async (status) => {
+      newChannel.subscribe(async (status: string) => {
         if (status === 'SUBSCRIBED' && isActiveTabRef.current) {
            await newChannel.track({ online_at: new Date().toISOString() })
         }
@@ -477,7 +477,7 @@ export default function MessageThreadPage() {
            .select(`*, offer_product:market_products(id, name, price_usd, photos, unit, seller_id), market_chat_reactions(user_id, emoji)`)
            .eq('conversation_id', id)
            .order('created_at', { ascending: true })
-           .then(({ data }) => {
+           .then(({ data }: { data: any }) => {
               if (data && isActiveTabRef.current) {
                  setMessages(sortByTime(data))
                  setTimeout(scrollToBottom, 150)
@@ -610,7 +610,7 @@ export default function MessageThreadPage() {
        setIsOtherTyping(true);
        setTimeout(scrollToBottom, 50);
        const userMessage = capturedMessage;
-       const history = (fetchNew || messages).map(m => ({
+       const history = (fetchNew || messages).map((m: any) => ({
          role: m.sender_id === user.id ? 'user' : 'model',
          text: m.content
        }));

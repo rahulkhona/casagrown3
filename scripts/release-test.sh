@@ -368,7 +368,7 @@ else
   log_suite "Drip Sequence Engine" "$SEQ_PASSED" "$SEQ_FAILED"
 fi
 
-# 5g: CRM Promotions RPC tests (enrollment + blueprint incentives)
+# 5g: CRM Promotions RPC tests (enrollment + buyer discounts)
 echo "  Running CRM Promotions RPC tests..."
 PROMO_OUTPUT=$(cd supabase && deno test --allow-env --allow-net --allow-run --no-check \
   functions/_tests/crm-promotions-rpcs.test.ts 2>&1)
@@ -515,6 +515,57 @@ else
   log_suite "Pro Subscription" "$PROSUB_PASSED" "$PROSUB_FAILED"
 fi
 
+# 5p: Tier Fee Verification tests
+echo "  Running Tier Fee Verification tests..."
+TIER_OUTPUT=$(npx supabase test db \
+  supabase/tests/database/55_promotion_unification.test.sql 2>&1)
+if echo "$TIER_OUTPUT" | grep -q "All tests successful"; then
+  TIER_TESTS=$(echo "$TIER_OUTPUT" | grep "Files=" | sed 's/.*Tests=\([0-9]*\).*/\1/' || echo "25")
+  echo -e "  ${GREEN}✅ Tier Fee Verification: ${TIER_TESTS} tests — ALL PASS${NC}"
+  log_suite "Tier Fee Verification" "${TIER_TESTS:-25}"
+else
+  TIER_P=$(echo "$TIER_OUTPUT" | grep -c "^ok " || echo "0")
+  TIER_F=$(echo "$TIER_OUTPUT" | grep -c "^not ok" || echo "0")
+  echo -e "  ${RED}❌ Tier Fee Verification: ${TIER_P} passed, ${TIER_F} failed${NC}"
+  echo "$TIER_OUTPUT" | grep "^not ok" | head -10 | sed 's/^/    /'
+  log_suite "Tier Fee Verification" "$TIER_P" "$TIER_F"
+fi
+
+# 5q: Billing Downgrade tests (booth archival, pending downgrade)
+echo "  Running Billing Downgrade tests..."
+DG_OUTPUT=$(npx supabase test db \
+  supabase/tests/database/56_billing_downgrade.test.sql 2>&1)
+if echo "$DG_OUTPUT" | grep -q "All tests successful"; then
+  DG_TESTS=$(echo "$DG_OUTPUT" | grep "Files=" | sed 's/.*Tests=\([0-9]*\).*/\1/' || echo "12")
+  echo -e "  ${GREEN}✅ Billing Downgrade: ${DG_TESTS} tests — ALL PASS${NC}"
+  log_suite "Billing Downgrade" "${DG_TESTS:-12}"
+else
+  DG_P=$(echo "$DG_OUTPUT" | grep -c "^ok " || echo "0")
+  DG_F=$(echo "$DG_OUTPUT" | grep -c "^not ok" || echo "0")
+  echo -e "  ${RED}❌ Billing Downgrade: ${DG_P} passed, ${DG_F} failed${NC}"
+  echo "$DG_OUTPUT" | grep "^not ok" | head -10 | sed 's/^/    /'
+  log_suite "Billing Downgrade" "$DG_P" "$DG_F"
+fi
+
+# 5r: Subscription Receipt & Billing Anchor tests
+echo "  Running Subscription Receipt & Billing Anchor tests..."
+RECEIPT_OUTPUT=$(SUPABASE_URL=http://127.0.0.1:54321 \
+  SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
+  SUPABASE_ANON_KEY="$(npx supabase status -o env 2>/dev/null | grep ANON_KEY | cut -d'"' -f2)" \
+  deno test --allow-env --allow-net --no-check \
+  supabase/functions/_tests/pro-subscription.test.ts 2>&1)
+RECEIPT_PASSED=$(echo "$RECEIPT_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
+RECEIPT_FAILED=$(echo "$RECEIPT_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
+
+if [ "${RECEIPT_FAILED:-0}" -eq 0 ] || [ -z "$RECEIPT_FAILED" ]; then
+  echo -e "  ${GREEN}✅ Receipt & Billing: ${RECEIPT_PASSED} tests — ALL PASS${NC}"
+  log_suite "Receipt & Billing" "$RECEIPT_PASSED"
+else
+  echo -e "  ${RED}❌ Receipt & Billing: ${RECEIPT_PASSED} passed, ${RECEIPT_FAILED} failed${NC}"
+  echo "$RECEIPT_OUTPUT" | grep -E "FAILED|error:|AssertionError" | head -10
+  log_suite "Receipt & Billing" "$RECEIPT_PASSED" "$RECEIPT_FAILED"
+fi
+
 # ─────────────────────────────────────────────────────────────────────────
 # PHASE 6: Shell Integration Tests (Escalation Handling)
 # ─────────────────────────────────────────────────────────────────────────
@@ -602,7 +653,7 @@ else
 
     echo "  Running $app_name Playwright E2E..."
     mkdir -p scripts/output
-    (cd "$app_dir" && env -u FORCE_COLOR NO_COLOR=1 npx playwright test --reporter=line 2>&1) | tee "$logfile"
+    (cd "$app_dir" && SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" env -u FORCE_COLOR NO_COLOR=1 npx playwright test --reporter=line 2>&1) | tee "$logfile"
     local exit_code=${PIPESTATUS[0]}
     local output
     output=$(cat "$logfile" | perl -pe 's/\x1b\[[0-9;]*[mGK]//g')

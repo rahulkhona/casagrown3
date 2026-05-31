@@ -30,7 +30,7 @@ export function useProEnabled(): boolean {
       .select('email')
       .eq('email', user.email)
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data }: { data: any }) => {
         if (data) setIsProTester(true)
       })
   }, [user?.email])

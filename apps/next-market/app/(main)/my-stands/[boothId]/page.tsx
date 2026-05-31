@@ -448,7 +448,7 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
         .select('id, status')
         .eq('user_id', user.id)
         .single()
-        .then(async ({ data: conn }) => {
+        .then(async ({ data: conn }: { data: any }) => {
           if (conn && conn.status === 'connected') {
             setHasFbConnection(true)
             setFbConnectionId(conn.id)
@@ -544,14 +544,14 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
         .order('created_at')
       if (helperRows) {
         // Fetch profile names
-        const helperIds = helperRows.map(h => h.helper_id)
+        const helperIds = helperRows.map((h: any) => h.helper_id)
         if (helperIds.length > 0) {
           const { data: profiles } = await supabase
             .from('profiles')
             .select('id, full_name')
             .in('id', helperIds)
-          const profileMap = new Map(profiles?.map(p => [p.id, p]) || [])
-          setHelpers(helperRows.map(h => ({
+          const profileMap = new Map(profiles?.map((p: any) => [p.id, p]) || [])
+          setHelpers(helperRows.map((h: any) => ({
             ...h,
             profile: profileMap.get(h.helper_id) || null,
           })))

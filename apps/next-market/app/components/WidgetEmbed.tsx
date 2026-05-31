@@ -22,7 +22,7 @@ export function WidgetEmbed() {
       .select('id, name')
       .eq('owner_id', user.id)
       .order('is_default', { ascending: false })
-      .then(({ data }) => {
+      .then(({ data }: { data: any }) => {
         setBooths(data || [])
         if (data?.[0]) setSelectedBooth(data[0].id)
       })

@@ -150,7 +150,7 @@ export function Navbar() {
     if (hasSession && !wasOnProfile) return
 
     const supabase = createClient()
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }: { data: { session: any } }) => {
       const user = session?.user
       setHasSession(!!user)
       if (user) {
@@ -173,7 +173,7 @@ export function Navbar() {
       if (document.hidden || !userId) return
       const supabase = createClient()
       supabase.from('profiles').select('full_name, avatar_url').eq('id', userId).single()
-        .then(({ data }) => {
+        .then(({ data }: { data: any }) => {
           if (data?.full_name) setProfileName(data.full_name)
           if (data?.avatar_url) setProfileAvatar(data.avatar_url)
         })
@@ -219,7 +219,7 @@ export function Navbar() {
         .limit(10)
 
       if (recentNotifs) {
-        recentNotifs.forEach(n => {
+        recentNotifs.forEach((n: any) => {
           if (!globalNotifiedIds.has(n.id)) {
             // Is the user already actively looking at the exact page this notification points to?
             if (n.link_url && pathname === n.link_url) {

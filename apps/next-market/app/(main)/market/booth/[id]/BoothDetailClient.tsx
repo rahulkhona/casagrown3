@@ -162,8 +162,8 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
   useEffect(() => {
     if (!user) return
     supabase.from('product_reminders').select('product_id').eq('user_id', user.id)
-      .then(({ data }) => {
-        if (data) setSavedProductIds(new Set(data.map(r => r.product_id)))
+      .then(({ data }: { data: any }) => {
+        if (data) setSavedProductIds(new Set(data.map((r: any) => r.product_id)))
       })
   }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 

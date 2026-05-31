@@ -22,9 +22,9 @@ test.describe("Pro Subscription — Seller (already Pro)", () => {
         }
     });
 
-    test("shows Pro badge or Manage Pro for Pro seller", async ({ page }) => {
+    test("shows Pro or Elite badge for subscribed seller", async ({ page }) => {
         const hasPro = await page
-            .locator("text=/Pro|Manage.*Pro|CasaGrown Pro|⭐/i")
+            .locator("text=/Pro|Elite|Manage.*Pro|CasaGrown Pro|CasaGrown Elite|⭐/i")
             .first()
             .isVisible()
             .catch(() => false);
@@ -32,10 +32,10 @@ test.describe("Pro Subscription — Seller (already Pro)", () => {
         expect(hasPro).toBeTruthy();
     });
 
-    test("does not show Enable Pro button for active Pro seller", async ({
+    test("does not show Enable Pro button for active Pro/Elite seller", async ({
         page,
     }) => {
-        // Pro seller should see manage, not upgrade
+        // Pro/Elite seller should see manage, not upgrade
         const hasEnablePro = await page
             .locator("text=/Enable Pro|Upgrade to Pro/i")
             .first()
@@ -43,9 +43,9 @@ test.describe("Pro Subscription — Seller (already Pro)", () => {
             .catch(() => false);
 
         // Could be visible if showing manage section, but should not show upgrade CTA
-        // This is a soft check — the key is that Pro badge IS visible
+        // This is a soft check — the key is that Pro/Elite badge IS visible
         const hasBadge = await page
-            .locator("text=/Pro|⭐/i")
+            .locator("text=/Pro|Elite|⭐/i")
             .first()
             .isVisible()
             .catch(() => false);
@@ -53,7 +53,7 @@ test.describe("Pro Subscription — Seller (already Pro)", () => {
         expect(hasBadge).toBeTruthy();
     });
 
-    test("Pro seller sees subscription management options", async ({
+    test("Pro/Elite seller sees subscription management options", async ({
         page,
     }) => {
         // Look for manage/cancel/plan details
@@ -65,9 +65,9 @@ test.describe("Pro Subscription — Seller (already Pro)", () => {
             .isVisible({ timeout: 5000 })
             .catch(() => false);
 
-        // At minimum, the profile should show the Pro status
+        // At minimum, the profile should show the Pro/Elite status
         const hasPro = await page
-            .locator("text=/Pro|⭐/i")
+            .locator("text=/Pro|Elite|⭐/i")
             .first()
             .isVisible()
             .catch(() => false);

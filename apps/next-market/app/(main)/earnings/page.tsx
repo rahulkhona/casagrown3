@@ -242,7 +242,7 @@ export default function EarningsPage() {
 
       // Load user state and tax reporting threshold
       supabase.from('profiles').select('state_code').eq('id', userId).single()
-        .then(async ({ data: profile }) => {
+        .then(async ({ data: profile }: { data: any }) => {
           const sc = profile?.state_code || null
           setUserState(sc)
           // Try state-specific threshold, fall back to _default
@@ -265,12 +265,12 @@ export default function EarningsPage() {
 
       // Check if Stripe Connect is active
       supabase.rpc('get_profile_stripe_connect_info').then(
-        ({ data, error }) => {
+        ({ data, error }: { data: any; error: any }) => {
           if (!error && data && data.length > 0) {
             setStripeConnectActive(data[0].stripe_connect_active)
           }
         },
-        (err) => {
+        (err: any) => {
           console.error('[EARNINGS] Error loading Stripe Connect info:', err)
         }
       )

@@ -332,7 +332,7 @@ function TermsPageInner() {
 
   // Check if user has already accepted current TOS (read-only mode)
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }: { data: { session: any } }) => {
       const user = session?.user
       if (!user) return
       setIsLoggedIn(true)

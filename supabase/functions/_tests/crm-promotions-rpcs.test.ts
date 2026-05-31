@@ -1,7 +1,7 @@
 /**
  * CRM Promotions RPCs — Integration Tests
  *
- * Tests: is_email_registered, crm_enroll_in_promotion (including blueprint incentive path)
+ * Tests: is_email_registered, crm_enroll_in_promotion (including buyer discounts incentive path)
  *
  * Run: cd supabase && deno test --allow-env --allow-net --no-check \
  *        functions/_tests/crm-promotions-rpcs.test.ts
@@ -128,12 +128,33 @@ Deno.test('crm_enroll_in_promotion: rejects unauthenticated calls', async () => 
   assertEquals(body.message.includes('Not authenticated'), true)
 })
 
-Deno.test({ name: 'crm_enroll_in_promotion: blueprint creates user_incentives row', sanitizeResources: false, sanitizeOps: false, fn: async () => {
+Deno.test({ name: 'crm_enroll_in_promotion: buyer discounts creates user_incentives row', sanitizeResources: false, sanitizeOps: false, fn: async () => {
   // 1. Get an access token for the seeded buyer
   const token = await getAccessToken(BUYER_EMAIL)
   if (!token) {
     console.log('Could not get access token for buyer — skipping')
     return
+  }
+
+  // Pre-cleanup: remove any leftover enrollments for this buyer (from failed prior runs)
+  const buyerProfile = await queryTable('profiles', `select=id&email=eq.${BUYER_EMAIL}`)
+  if (buyerProfile.length > 0) {
+    const buyerId = buyerProfile[0].id
+    await fetch(`${SUPABASE_URL}/rest/v1/crm_promo_enrollments?user_id=eq.${buyerId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${SERVICE_ROLE_KEY}`, 'apikey': SERVICE_ROLE_KEY },
+    })
+    // Deactivate any system-created incentives
+    await fetch(`${SUPABASE_URL}/rest/v1/user_incentives?user_id=eq.${buyerId}&created_by=is.null`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
+        'apikey': SERVICE_ROLE_KEY,
+      },
+      body: JSON.stringify({ is_active: false }),
+    })
+    console.log(`  Pre-cleanup: cleared enrollments and incentives for buyer ${buyerId}`)
   }
 
   // 2. Create a promotion with a future deadline via service_role REST API
@@ -146,7 +167,7 @@ Deno.test({ name: 'crm_enroll_in_promotion: blueprint creates user_incentives ro
       'Prefer': 'return=representation',
     },
     body: JSON.stringify({
-      name: 'E2E Blueprint Test Promo',
+      name: 'E2E Buyer Discounts Test Promo',
       enrollment_deadline: new Date(Date.now() + 86400000 * 30).toISOString(), // 30 days out
       max_enrollees: 100,
     }),
@@ -156,8 +177,8 @@ Deno.test({ name: 'crm_enroll_in_promotion: blueprint creates user_incentives ro
   assertExists(promo.id, 'Promotion ID should exist')
   console.log(`  Created promotion: ${promo.id}`)
 
-  // 3. Create a blueprint for that promotion
-  const blueprintRes = await fetch(`${SUPABASE_URL}/rest/v1/crm_recurring_user_incentives_blueprint`, {
+  // 3. Create a buyer discount for that promotion
+  const buyerDiscountRes = await fetch(`${SUPABASE_URL}/rest/v1/crm_promo_buyer_discounts`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -167,18 +188,18 @@ Deno.test({ name: 'crm_enroll_in_promotion: blueprint creates user_incentives ro
     },
     body: JSON.stringify({
       promotion_id: promo.id,
-      amount_usd: 5.00,
-      credit_type: 'purchase',
-      cap_type: 'percentage',
-      cap_value: 50,
+      discount_amount_usd: 5.00,
+      discount_type: 'purchase',
+      discount_cap_type: 'percentage',
+      discount_cap_value: 50,
       frequency: 'monthly',
       occurrences: 3,
       start_date: new Date().toISOString(),
     }),
   })
-  assertEquals(blueprintRes.status, 201, 'Failed to create blueprint')
-  const [blueprint] = await blueprintRes.json()
-  console.log(`  Created blueprint: ${blueprint.id}`)
+  assertEquals(buyerDiscountRes.status, 201, 'Failed to create buyer discount')
+  const [buyerDiscount] = await buyerDiscountRes.json()
+  console.log(`  Created buyer discount: ${buyerDiscount.id}`)
 
   // 4. Enroll as buyer — THIS is the code path that was broken
   const enrollRes = await callRpc(
@@ -212,11 +233,277 @@ Deno.test({ name: 'crm_enroll_in_promotion: blueprint creates user_incentives ro
     method: 'DELETE',
     headers: { 'Authorization': `Bearer ${SERVICE_ROLE_KEY}`, 'apikey': SERVICE_ROLE_KEY },
   })
-  await fetch(`${SUPABASE_URL}/rest/v1/crm_recurring_user_incentives_blueprint?id=eq.${blueprint.id}`, {
+  await fetch(`${SUPABASE_URL}/rest/v1/crm_promo_buyer_discounts?id=eq.${buyerDiscount.id}`, {
     method: 'DELETE',
     headers: { 'Authorization': `Bearer ${SERVICE_ROLE_KEY}`, 'apikey': SERVICE_ROLE_KEY },
   })
   await fetch(`${SUPABASE_URL}/rest/v1/crm_promotions?id=eq.${promo.id}`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${SERVICE_ROLE_KEY}`, 'apikey': SERVICE_ROLE_KEY },
+  })
+  console.log('  ✅ Cleanup complete')
+}})
+
+Deno.test({ name: 'crm_enroll_in_promotion: rejects enrollment when already enrolled', sanitizeResources: false, sanitizeOps: false, fn: async () => {
+  // 1. Get an access token for the seeded buyer
+  const token = await getAccessToken(BUYER_EMAIL)
+  if (!token) {
+    console.log('Could not get access token for buyer — skipping')
+    return
+  }
+
+  // Pre-cleanup: remove any leftover enrollments
+  const bp = await queryTable('profiles', `select=id&email=eq.${BUYER_EMAIL}`)
+  if (bp.length > 0) {
+    await fetch(`${SUPABASE_URL}/rest/v1/crm_promo_enrollments?user_id=eq.${bp[0].id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${SERVICE_ROLE_KEY}`, 'apikey': SERVICE_ROLE_KEY },
+    })
+    console.log(`  Pre-cleanup: cleared enrollments for buyer ${bp[0].id}`)
+  }
+
+  // 2. Create two promotions via service_role REST API
+  const createPromo = async (name: string) => {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/crm_promotions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
+        'apikey': SERVICE_ROLE_KEY,
+        'Prefer': 'return=representation',
+      },
+      body: JSON.stringify({
+        name,
+        enrollment_deadline: new Date(Date.now() + 86400000 * 30).toISOString(),
+        max_enrollees: 100,
+      }),
+    })
+    assertEquals(res.status, 201, `Failed to create promotion: ${name}`)
+    const [promo] = await res.json()
+    return promo
+  }
+
+  const promoA = await createPromo('E2E Reject Dup Promo A')
+  const promoB = await createPromo('E2E Reject Dup Promo B')
+  console.log(`  Created promoA: ${promoA.id}, promoB: ${promoB.id}`)
+
+  // 3. Create buyer discounts for both promotions
+  const createBuyerDiscount = async (promotionId: string) => {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/crm_promo_buyer_discounts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
+        'apikey': SERVICE_ROLE_KEY,
+        'Prefer': 'return=representation',
+      },
+      body: JSON.stringify({
+        promotion_id: promotionId,
+        discount_amount_usd: 5.00,
+        discount_type: 'purchase',
+        discount_cap_type: 'percentage',
+        discount_cap_value: 50,
+        frequency: 'monthly',
+        occurrences: 3,
+        start_date: new Date().toISOString(),
+      }),
+    })
+    assertEquals(res.status, 201, 'Failed to create buyer discount')
+    const [bd] = await res.json()
+    return bd
+  }
+
+  const bdA = await createBuyerDiscount(promoA.id)
+  const bdB = await createBuyerDiscount(promoB.id)
+
+  // 4. Enroll in promo A — should succeed
+  const enrollRes1 = await callRpc('crm_enroll_in_promotion', { p_promotion_id: promoA.id }, token)
+  const enrollBody1 = await enrollRes1.json()
+  console.log(`  First enroll response: ${enrollRes1.status} ${JSON.stringify(enrollBody1)}`)
+  assertEquals(enrollRes1.status, 200, `First enrollment failed: ${JSON.stringify(enrollBody1)}`)
+  assertEquals(enrollBody1.success, true)
+
+  // 5. Attempt to enroll in promo B — should be rejected
+  const enrollRes2 = await callRpc('crm_enroll_in_promotion', { p_promotion_id: promoB.id }, token)
+  const enrollBody2 = await enrollRes2.json()
+  console.log(`  Second enroll response: ${enrollRes2.status} ${JSON.stringify(enrollBody2)}`)
+  // Expect failure — user is already enrolled in another promotion
+  assertEquals(enrollRes2.status, 400, `Second enrollment should have been rejected: ${JSON.stringify(enrollBody2)}`)
+
+  // 6. Cleanup
+  const incentives = await queryTable('user_incentives', `select=*&order=created_at.desc&limit=5`)
+  for (const inc of incentives) {
+    await fetch(`${SUPABASE_URL}/rest/v1/user_incentives?id=eq.${inc.id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${SERVICE_ROLE_KEY}`, 'apikey': SERVICE_ROLE_KEY },
+    })
+  }
+  await fetch(`${SUPABASE_URL}/rest/v1/crm_promo_enrollments?promotion_id=eq.${promoA.id}`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${SERVICE_ROLE_KEY}`, 'apikey': SERVICE_ROLE_KEY },
+  })
+  await fetch(`${SUPABASE_URL}/rest/v1/crm_promo_enrollments?promotion_id=eq.${promoB.id}`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${SERVICE_ROLE_KEY}`, 'apikey': SERVICE_ROLE_KEY },
+  })
+  await fetch(`${SUPABASE_URL}/rest/v1/crm_promo_buyer_discounts?id=eq.${bdA.id}`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${SERVICE_ROLE_KEY}`, 'apikey': SERVICE_ROLE_KEY },
+  })
+  await fetch(`${SUPABASE_URL}/rest/v1/crm_promo_buyer_discounts?id=eq.${bdB.id}`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${SERVICE_ROLE_KEY}`, 'apikey': SERVICE_ROLE_KEY },
+  })
+  await fetch(`${SUPABASE_URL}/rest/v1/crm_promotions?id=eq.${promoA.id}`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${SERVICE_ROLE_KEY}`, 'apikey': SERVICE_ROLE_KEY },
+  })
+  await fetch(`${SUPABASE_URL}/rest/v1/crm_promotions?id=eq.${promoB.id}`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${SERVICE_ROLE_KEY}`, 'apikey': SERVICE_ROLE_KEY },
+  })
+  console.log('  ✅ Cleanup complete')
+}})
+
+Deno.test({ name: 'crm_switch_promotion: atomic switch from old to new', sanitizeResources: false, sanitizeOps: false, fn: async () => {
+  // 1. Get an access token for the seeded buyer
+  const token = await getAccessToken(BUYER_EMAIL)
+  if (!token) {
+    console.log('Could not get access token for buyer — skipping')
+    return
+  }
+
+  // Pre-cleanup: remove any leftover enrollments
+  const bp2 = await queryTable('profiles', `select=id&email=eq.${BUYER_EMAIL}`)
+  if (bp2.length > 0) {
+    await fetch(`${SUPABASE_URL}/rest/v1/crm_promo_enrollments?user_id=eq.${bp2[0].id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${SERVICE_ROLE_KEY}`, 'apikey': SERVICE_ROLE_KEY },
+    })
+    console.log(`  Pre-cleanup: cleared enrollments for buyer ${bp2[0].id}`)
+  }
+
+  // 2. Create two promotions with buyer discounts
+  const createPromoWithDiscount = async (name: string, amountUsd: number) => {
+    const promoRes = await fetch(`${SUPABASE_URL}/rest/v1/crm_promotions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
+        'apikey': SERVICE_ROLE_KEY,
+        'Prefer': 'return=representation',
+      },
+      body: JSON.stringify({
+        name,
+        enrollment_deadline: new Date(Date.now() + 86400000 * 30).toISOString(),
+        max_enrollees: 100,
+      }),
+    })
+    assertEquals(promoRes.status, 201, `Failed to create promotion: ${name}`)
+    const [promo] = await promoRes.json()
+
+    const bdRes = await fetch(`${SUPABASE_URL}/rest/v1/crm_promo_buyer_discounts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
+        'apikey': SERVICE_ROLE_KEY,
+        'Prefer': 'return=representation',
+      },
+      body: JSON.stringify({
+        promotion_id: promo.id,
+        discount_amount_usd: amountUsd,
+        discount_type: 'purchase',
+        discount_cap_type: 'percentage',
+        discount_cap_value: 50,
+        frequency: 'monthly',
+        occurrences: 3,
+        start_date: new Date().toISOString(),
+      }),
+    })
+    assertEquals(bdRes.status, 201, 'Failed to create buyer discount')
+    const [bd] = await bdRes.json()
+    return { promo, buyerDiscount: bd }
+  }
+
+  const { promo: promoOld, buyerDiscount: bdOld } = await createPromoWithDiscount('E2E Switch Old Promo', 5.00)
+  const { promo: promoNew, buyerDiscount: bdNew } = await createPromoWithDiscount('E2E Switch New Promo', 10.00)
+  console.log(`  Created promoOld: ${promoOld.id}, promoNew: ${promoNew.id}`)
+
+  // 3. Enroll in the old promotion first
+  const enrollRes = await callRpc('crm_enroll_in_promotion', { p_promotion_id: promoOld.id }, token)
+  const enrollBody = await enrollRes.json()
+  console.log(`  Enroll response: ${enrollRes.status} ${JSON.stringify(enrollBody)}`)
+  assertEquals(enrollRes.status, 200, `Enrollment failed: ${JSON.stringify(enrollBody)}`)
+  assertEquals(enrollBody.success, true)
+
+  // 4. Switch to the new promotion
+  const switchRes = await callRpc(
+    'crm_switch_promotion',
+    { p_new_promotion_id: promoNew.id },
+    token,
+  )
+  const switchBody = await switchRes.json()
+  console.log(`  Switch response: ${switchRes.status} ${JSON.stringify(switchBody)}`)
+  assertEquals(switchRes.status, 200, `Switch failed: ${JSON.stringify(switchBody)}`)
+  assertEquals(switchBody.success, true)
+
+  // 5. Verify: user_incentives — old should be deactivated, new should be active
+  // Note: user_incentives doesn't have promotion_id column, query by user_id
+  const buyerProf = await queryTable('profiles', `select=id&email=eq.${BUYER_EMAIL}`)
+  const buyerUid = buyerProf[0].id
+  const allIncentives = await queryTable(
+    'user_incentives',
+    `select=*&user_id=eq.${buyerUid}&order=created_at.desc`,
+  )
+  console.log(`  user_incentives count: ${allIncentives.length}`)
+
+  // Should have at least 2: one deactivated (old) and one active (new)
+  const activeIncentives = allIncentives.filter((i: any) => i.is_active === true)
+  const inactiveIncentives = allIncentives.filter((i: any) => i.is_active === false)
+  console.log(`  Active: ${activeIncentives.length}, Inactive: ${inactiveIncentives.length}`)
+
+  // Verify there's at least one active incentive with amount 10.00 (the new promo)
+  const newIncentive = activeIncentives.find((i: any) => Number(i.amount_usd) === 10.00)
+  assertExists(newIncentive, 'New user_incentives row should exist after switch with amount 10.00')
+  assertEquals(newIncentive.is_active, true, 'New incentive should be active')
+  console.log(`  New incentive: amount=${newIncentive.amount_usd}, is_active=${newIncentive.is_active}`)
+
+  // Verify old incentive (amount 5.00) is deactivated
+  const oldIncentive = allIncentives.find((i: any) => Number(i.amount_usd) === 5.00)
+  if (oldIncentive) {
+    assertEquals(oldIncentive.is_active, false, 'Old incentive should be deactivated after switch')
+    console.log(`  Old incentive is_active: ${oldIncentive.is_active}`)
+  }
+
+  // 7. Cleanup
+  for (const inc of allIncentives) {
+    await fetch(`${SUPABASE_URL}/rest/v1/user_incentives?id=eq.${inc.id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${SERVICE_ROLE_KEY}`, 'apikey': SERVICE_ROLE_KEY },
+    })
+  }
+  await fetch(`${SUPABASE_URL}/rest/v1/crm_promo_enrollments?promotion_id=eq.${promoOld.id}`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${SERVICE_ROLE_KEY}`, 'apikey': SERVICE_ROLE_KEY },
+  })
+  await fetch(`${SUPABASE_URL}/rest/v1/crm_promo_enrollments?promotion_id=eq.${promoNew.id}`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${SERVICE_ROLE_KEY}`, 'apikey': SERVICE_ROLE_KEY },
+  })
+  await fetch(`${SUPABASE_URL}/rest/v1/crm_promo_buyer_discounts?id=eq.${bdOld.id}`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${SERVICE_ROLE_KEY}`, 'apikey': SERVICE_ROLE_KEY },
+  })
+  await fetch(`${SUPABASE_URL}/rest/v1/crm_promo_buyer_discounts?id=eq.${bdNew.id}`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${SERVICE_ROLE_KEY}`, 'apikey': SERVICE_ROLE_KEY },
+  })
+  await fetch(`${SUPABASE_URL}/rest/v1/crm_promotions?id=eq.${promoOld.id}`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${SERVICE_ROLE_KEY}`, 'apikey': SERVICE_ROLE_KEY },
+  })
+  await fetch(`${SUPABASE_URL}/rest/v1/crm_promotions?id=eq.${promoNew.id}`, {
     method: 'DELETE',
     headers: { 'Authorization': `Bearer ${SERVICE_ROLE_KEY}`, 'apikey': SERVICE_ROLE_KEY },
   })

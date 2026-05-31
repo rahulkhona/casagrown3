@@ -60,10 +60,10 @@ export default function SharePageClient({ id }: { id: string }) {
   // Check auth state directly (this page is outside the (main) layout)
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(({ data }: { data: any }) => {
       if (data.session?.user) setUser({ id: data.session.user.id, email: data.session.user.email ?? undefined })
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
       if (session?.user) setUser({ id: session.user.id, email: session.user.email ?? undefined })
       else setUser(null)
     })
@@ -116,7 +116,7 @@ export default function SharePageClient({ id }: { id: string }) {
       if (voteData) {
         setVoteDetails(voteData)
         const c = { accurate: 0, partial: 0, inaccurate: 0 }
-        voteData.forEach(v => { c[v.rating as keyof typeof c]++ })
+        voteData.forEach((v: any) => { c[v.rating as keyof typeof c]++ })
         setVotes(c)
       }
 

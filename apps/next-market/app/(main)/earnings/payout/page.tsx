@@ -166,7 +166,7 @@ export default function PayoutPage() {
   // ── Fetch balance ──
   useEffect(() => {
     if (!userId) return
-    supabase.rpc('get_transaction_summary', {}).then(({ data }) => {
+    supabase.rpc('get_transaction_summary', {}).then(({ data }: { data: any }) => {
       if (data) {
         setAvailableUsd(data.available_usd || 0)
         setHeldBalanceUsd(data.held_balance_usd || 0)
@@ -176,7 +176,7 @@ export default function PayoutPage() {
 
   // ── Fetch active methods ──
   useEffect(() => {
-    supabase.rpc('get_active_redemption_providers').then(({ data }) => {
+    supabase.rpc('get_active_redemption_providers').then(({ data }: { data: any }) => {
       if (data) setActiveMethods(data)
     })
   }, [supabase])
@@ -184,7 +184,7 @@ export default function PayoutPage() {
   // ── Fetch payout status ──
   useEffect(() => {
     if (!userId) return
-    supabase.rpc('get_payout_status').then(({ data }) => {
+    supabase.rpc('get_payout_status').then(({ data }: { data: any }) => {
       if (data) {
         setPayoutStatus(data)
         if (data.handle) {
@@ -225,7 +225,7 @@ export default function PayoutPage() {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data }: { data: any }) => {
         if (data) {
           const isRestored = data.status === 'wallet_fallback' || data.status === 'stripe_transfer_reversed'
           setFailedTransfer({
@@ -244,7 +244,7 @@ export default function PayoutPage() {
   // ── Fetch auto-payout config ──
   useEffect(() => {
     if (!userId) return
-    supabase.rpc('get_auto_redemption_config').then(({ data }) => {
+    supabase.rpc('get_auto_redemption_config').then(({ data }: { data: any }) => {
       if (data) setAutoConfig(data)
     })
   }, [userId, supabase])

@@ -24,7 +24,7 @@ export function FacebookStatus() {
       .select('*')
       .eq('user_id', user.id)
       .single()
-      .then(({ data }) => {
+      .then(({ data }: { data: any }) => {
         setConnection(data)
         setLoading(false)
       })

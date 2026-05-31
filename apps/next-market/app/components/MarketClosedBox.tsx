@@ -90,7 +90,7 @@ export default function MarketClosedBox({ nextOpenDate, todaySchedule }: MarketC
       .eq('user_id', user.id)
       .eq('market_date', nextOpenDate.toISOString())
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data }: { data: any }) => {
         if (data) {
           setReminderSet(true)
           setReminderTime(String(data.reminder_minutes))

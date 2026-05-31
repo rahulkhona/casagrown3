@@ -171,7 +171,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
     // Fall back to profile address
     if (!user) return
     supabase.from('profiles').select('street_address, city, state_code').eq('id', user.id).single()
-      .then(({ data: profile }) => {
+      .then(({ data: profile }: { data: any }) => {
         if (profile?.street_address) {
           const addr = [profile.street_address, profile.city, profile.state_code].filter(Boolean).join(', ')
           setAddrLabel(addr)
@@ -212,7 +212,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
   useEffect(() => {
     if (!user || !productId) return
     supabase.from('product_reminders').select('id').eq('user_id', user.id).eq('product_id', productId).maybeSingle()
-      .then(({ data }) => { if (data) setReminderSet(true) })
+      .then(({ data }: { data: any }) => { if (data) setReminderSet(true) })
   }, [user, productId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-open Buy modal when returning from login flow
@@ -227,7 +227,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
     if (!fbPsid || !fbPage || !user || isDemo) return
     supabase.rpc('link_psid_to_profile', {
       p_user_id: user.id, p_psid: fbPsid, p_page_id: fbPage,
-    }).then(({ error }) => {
+    }).then(({ error }: { error: any }) => {
       if (error) console.warn('PSID link failed:', error.message)
       else console.log(`[PSID] Linked ${fbPsid} to profile ${user.id}`)
     })
@@ -237,7 +237,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
   useEffect(() => {
     if (!product || isDemo) return
     supabase.rpc('check_quarantine_for_product', { p_product_id: productId })
-      .then(({ data }) => {
+      .then(({ data }: { data: any }) => {
         if (data && data.length > 0) {
           setQuarantineInfo({ pest_name: data[0].pest_name, county_name: data[0].county_name, source_url: data[0].source_url })
         }
