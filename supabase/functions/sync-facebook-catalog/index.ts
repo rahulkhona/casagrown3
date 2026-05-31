@@ -7,6 +7,7 @@
  */
 import { serveWithCors, requireAuth, jsonOk, jsonError } from '../_shared/serve-with-cors.ts'
 import { upsertCatalogProducts, deleteCatalogProduct } from '../_shared/facebook.ts'
+import { getGoogleAccessToken, syncProductToGoogleCatalog } from '../_shared/google.ts'
 
 serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
   const auth = await requireAuth(req, supabase, corsHeaders)
@@ -189,6 +190,34 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
                   seller_error: null,
                 })
                 .eq('product_id', p.retailer_id)
+            }
+
+            // ── Google Business Profile Catalog Sync ──
+            if (sub.plan === 'elite') {
+              const { data: googleConn } = await supabase
+                .from('seller_google_connections')
+                .select('google_refresh_token, google_location_id, google_location_name, auto_sync_catalog')
+                .eq('user_id', conn.user_id)
+                .maybeSingle()
+
+              if (googleConn?.auto_sync_catalog && googleConn?.google_location_id && googleConn?.google_refresh_token) {
+                try {
+                  const googleAccessToken = await getGoogleAccessToken(googleConn.google_refresh_token)
+                  for (const p of productPayloads) {
+                    await syncProductToGoogleCatalog(googleConn.google_location_id, googleAccessToken, {
+                      retailer_id: p.retailer_id,
+                      name: p.name,
+                      description: p.description,
+                      price: p.price,
+                      image_url: p.image_url,
+                      url: p.url,
+                    })
+                  }
+                  console.log(`[GBP-CATALOG] ✅ Synced ${productPayloads.length} products to Google Maps Catalog`)
+                } catch (gbpErr: any) {
+                  console.error(`[GBP-CATALOG] ❌ Google Maps Catalog sync failed: ${gbpErr.message}`)
+                }
+              }
             }
 
             connectionProductCount += productPayloads.length

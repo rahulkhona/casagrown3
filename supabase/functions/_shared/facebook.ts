@@ -320,3 +320,295 @@ export function appendMessengerParamsToUrls(
   
   return textResult
 }
+
+/** Discovers linked IG Business Account via GET /{page-id}?fields=instagram_business_account */
+export async function getInstagramBusinessAccount(
+  pageId: string,
+  pageToken: string,
+): Promise<{ id: string; username?: string } | null> {
+  try {
+    const res = await fetch(
+      `${getFbGraphUrl()}/${pageId}?fields=instagram_business_account&access_token=${pageToken}`,
+    )
+    if (!res.ok) {
+      console.warn(`[FB-IG] Discovers IG account failed: ${await res.text()}`)
+      return null
+    }
+    const data = await res.json()
+    if (data.instagram_business_account) {
+      const igId = data.instagram_business_account.id
+      // Fetch username
+      const userRes = await fetch(
+        `${getFbGraphUrl()}/${igId}?fields=username&access_token=${pageToken}`,
+      )
+      const username = userRes.ok ? (await userRes.json()).username : null
+      return { id: igId, username }
+    }
+    return null
+  } catch (err: any) {
+    console.error('[FB-IG] getInstagramBusinessAccount error:', err.message)
+    return null
+  }
+}
+
+/** Publish a post to Instagram (Single Image) */
+export async function publishInstagramPost(
+  igAccountId: string,
+  token: string,
+  options: {
+    caption: string
+    imageUrl: string
+  },
+): Promise<{ id: string }> {
+  // Step 1: Create media container
+  const containerRes = await fetch(`${getFbGraphUrl()}/${igAccountId}/media`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      access_token: token,
+      image_url: options.imageUrl,
+      caption: options.caption,
+    }),
+  })
+  if (!containerRes.ok) {
+    throw new Error(`IG media container creation failed: ${await containerRes.text()}`)
+  }
+  const container = await containerRes.json()
+
+  // Step 2: Publish media container
+  const publishRes = await fetch(`${getFbGraphUrl()}/${igAccountId}/media_publish`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      access_token: token,
+      creation_id: container.id,
+    }),
+  })
+  if (!publishRes.ok) {
+    throw new Error(`IG media publish failed: ${await publishRes.text()}`)
+  }
+  return publishRes.json()
+}
+
+/** Publish a dynamic Reels/Video post to Instagram */
+export async function publishInstagramVideoPost(
+  igAccountId: string,
+  token: string,
+  options: {
+    caption: string
+    videoUrl: string
+  },
+): Promise<{ id: string }> {
+  // Step 1: Create media container for Video/Reels
+  const containerRes = await fetch(`${getFbGraphUrl()}/${igAccountId}/media`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      access_token: token,
+      media_type: 'REELS',
+      video_url: options.videoUrl,
+      caption: options.caption,
+    }),
+  })
+  if (!containerRes.ok) {
+    throw new Error(`IG Reels container creation failed: ${await containerRes.text()}`)
+  }
+  const container = await containerRes.json()
+
+  // Step 2: Wait for video processing on Meta servers
+  let status = 'IN_PROGRESS'
+  for (let i = 0; i < 12; i++) {
+    await new Promise((r) => setTimeout(r, 5000))
+    const statusRes = await fetch(
+      `${getFbGraphUrl()}/${container.id}?fields=status_code&access_token=${token}`,
+    )
+    if (statusRes.ok) {
+      const data = await statusRes.json()
+      status = data.status_code
+      if (status === 'FINISHED' || status === 'READY') break
+    }
+  }
+
+  // Step 3: Publish container
+  const publishRes = await fetch(`${getFbGraphUrl()}/${igAccountId}/media_publish`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      access_token: token,
+      creation_id: container.id,
+    }),
+  })
+  if (!publishRes.ok) {
+    throw new Error(`IG Reels publish failed: ${await publishRes.text()}`)
+  }
+  return publishRes.json()
+}
+
+/** Publish a multi-image carousel post to Instagram */
+export async function publishInstagramCarousel(
+  igAccountId: string,
+  token: string,
+  options: {
+    caption: string
+    imageUrls: string[]
+  },
+): Promise<{ id: string }> {
+  if (options.imageUrls.length <= 1) {
+    return publishInstagramPost(igAccountId, token, {
+      caption: options.caption,
+      imageUrl: options.imageUrls[0] || '',
+    })
+  }
+
+  // Step 1: Create container for each image item (is_carousel_item = true)
+  const itemIds: string[] = []
+  for (const url of options.imageUrls.slice(0, 10)) {
+    const itemRes = await fetch(`${getFbGraphUrl()}/${igAccountId}/media`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        access_token: token,
+        image_url: url,
+        is_carousel_item: true,
+      }),
+    })
+    if (itemRes.ok) {
+      const data = await itemRes.json()
+      if (data.id) itemIds.push(data.id)
+    }
+  }
+
+  if (itemIds.length === 0) {
+    throw new Error('All carousel item creations failed')
+  }
+
+  // Step 2: Create parent carousel container
+  const containerRes = await fetch(`${getFbGraphUrl()}/${igAccountId}/media`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      access_token: token,
+      media_type: 'CAROUSEL',
+      children: itemIds,
+      caption: options.caption,
+    }),
+  })
+  if (!containerRes.ok) {
+    throw new Error(`IG carousel container creation failed: ${await containerRes.text()}`)
+  }
+  const container = await containerRes.json()
+
+  // Step 3: Publish carousel container
+  const publishRes = await fetch(`${getFbGraphUrl()}/${igAccountId}/media_publish`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      access_token: token,
+      creation_id: container.id,
+    }),
+  })
+  if (!publishRes.ok) {
+    throw new Error(`IG carousel publish failed: ${await publishRes.text()}`)
+  }
+  return publishRes.json()
+}
+
+/** Send Instagram DM reply via the Send API */
+export async function sendInstagramMessage(
+  pageToken: string,
+  recipientId: string,
+  message: { text?: string; attachment?: unknown },
+): Promise<void> {
+  if (pageToken.startsWith('mock_')) {
+    console.log(`[MOCK IG MESSAGE] Sent to ${recipientId} via pageToken ${pageToken}:`, JSON.stringify(message))
+    return
+  }
+
+  const res = await fetch(`${getFbGraphUrl()}/me/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      access_token: pageToken,
+      recipient: { id: recipientId },
+      message,
+      messaging_type: 'RESPONSE',
+    }),
+  })
+  if (!res.ok) console.error(`Instagram DM send failed: ${await res.text()}`)
+}
+
+/** Send WhatsApp message via Cloud API */
+export async function sendWhatsAppMessage(
+  phoneNumberId: string,
+  token: string,
+  recipientPhone: string,
+  message: string,
+): Promise<{ success: boolean; error?: string }> {
+  if (token.startsWith('mock_')) {
+    console.log(`[MOCK WA MESSAGE] Sent to ${recipientPhone} via ID ${phoneNumberId}:`, message)
+    return { success: true }
+  }
+
+  // Ensure recipient phone is formatted correctly (strip leading + for WhatsApp Cloud API)
+  const cleanPhone = recipientPhone.replace('+', '')
+
+  const res = await fetch(`${getFbGraphUrl()}/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to: cleanPhone,
+      type: 'text',
+      text: { body: message },
+    }),
+  })
+
+  if (res.ok) return { success: true }
+  const errText = await res.text()
+  console.error(`WhatsApp send failed: ${errText}`)
+  return { success: false, error: errText }
+}
+
+/** Send WhatsApp template message */
+export async function sendWhatsAppTemplate(
+  phoneNumberId: string,
+  token: string,
+  recipientPhone: string,
+  templateName: string,
+  languageCode = 'en_US',
+  components: any[] = [],
+): Promise<{ success: boolean; error?: string }> {
+  if (token.startsWith('mock_')) {
+    console.log(`[MOCK WA TEMPLATE] Sent to ${recipientPhone} via ID ${phoneNumberId}: ${templateName}`)
+    return { success: true }
+  }
+
+  const cleanPhone = recipientPhone.replace('+', '')
+
+  const res = await fetch(`${getFbGraphUrl()}/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to: cleanPhone,
+      type: 'template',
+      template: {
+        name: templateName,
+        language: { code: languageCode },
+        components,
+      },
+    }),
+  })
+
+  if (res.ok) return { success: true }
+  const errText = await res.text()
+  console.error(`WhatsApp template send failed: ${errText}`)
+  return { success: false, error: errText }
+}
+

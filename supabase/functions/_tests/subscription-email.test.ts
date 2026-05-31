@@ -143,3 +143,116 @@ Deno.test({ name: 'manage-subscription: confirm rejects invalid session (not 500
   // Should return 400 (invalid session), not 500 (crash)
   assertEquals(res.status === 500, false, `Confirm with invalid session should not crash (500). Got: ${res.status}`)
 }})
+
+Deno.test({ name: 'manage-subscription: subscription trigger sends thank-you email', sanitizeResources: false, sanitizeOps: false, fn: async () => {
+  const TEST_SELLER_ID = 'a1111111-1111-1111-1111-111111111111';
+  
+  // Cleanup pre-existing
+  await fetch(`${SUPABASE_URL}/rest/v1/seller_subscriptions?user_id=eq.${TEST_SELLER_ID}`, {
+    method: 'DELETE',
+    headers: {
+      apikey: SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+    },
+  });
+
+  // Clear Mailpit messages
+  await clearMailpit();
+
+  // 1. Insert trialing Pro subscription to trigger 'signup' guide email
+  const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/seller_subscriptions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+    },
+    body: JSON.stringify({
+      user_id: TEST_SELLER_ID,
+      plan: 'pro',
+      status: 'trialing',
+      stripe_customer_id: 'cus_email_test',
+      stripe_subscription_id: 'sub_email_test',
+    }),
+  });
+  await insertRes.text();
+
+  // 2. Upgrade to Elite to trigger 'upgrade' guide email
+  const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/seller_subscriptions?user_id=eq.${TEST_SELLER_ID}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+    },
+    body: JSON.stringify({
+      plan: 'elite',
+    }),
+  });
+  await updateRes.text();
+
+  // 3. Verify in Mailpit
+  const deadline = Date.now() + 10_000;
+  let signupEmailFound = false;
+  let upgradeEmailFound = false;
+
+  while (Date.now() < deadline) {
+    const listRes = await fetch(`${MAILPIT_URL}/api/v1/messages`);
+    const data = await listRes.json();
+    const messages = data.messages || [];
+    
+    for (const msg of messages) {
+      if (msg.Subject?.includes('Welcome to CasaGrown Pro')) {
+        signupEmailFound = true;
+      }
+      if (msg.Subject?.includes('Plan Upgraded to CasaGrown Elite')) {
+        upgradeEmailFound = true;
+      }
+    }
+
+    if (signupEmailFound && upgradeEmailFound) {
+      break;
+    }
+    await new Promise(r => setTimeout(r, 500));
+  }
+
+  // Cleanup & Restore seed state to prevent test pollution for downstream E2E tests
+  await fetch(`${SUPABASE_URL}/rest/v1/seller_subscriptions?user_id=eq.${TEST_SELLER_ID}`, {
+    method: 'DELETE',
+    headers: {
+      apikey: SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+    },
+  });
+
+  // Restore profile is_pro flag
+  await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${TEST_SELLER_ID}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+    },
+    body: JSON.stringify({ is_pro: true }),
+  });
+
+  // Restore active Pro subscription
+  await fetch(`${SUPABASE_URL}/rest/v1/seller_subscriptions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+    },
+    body: JSON.stringify({
+      user_id: TEST_SELLER_ID,
+      plan: 'pro',
+      status: 'active',
+      stripe_customer_id: 'cus_test_sam_seller',
+      stripe_subscription_id: 'sub_test_sam_seller',
+    }),
+  });
+
+  assertEquals(signupEmailFound, true, 'Signup thank-you guide email should be sent');
+  assertEquals(upgradeEmailFound, true, 'Upgrade thank-you guide email should be sent');
+}})

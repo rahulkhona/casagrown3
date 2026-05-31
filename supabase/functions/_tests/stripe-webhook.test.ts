@@ -127,7 +127,9 @@ Deno.test({
     // Create a funds_pending settlement with unique date (far future to avoid collisions)
     const day = Math.floor(Math.random() * 28) + 1
     const month = Math.floor(Math.random() * 12) + 1
-    const uniqueDate = `2099-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    const year = 2099 + Math.floor(Math.random() * 100)
+    const uniqueDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    await fetch(`${SUPABASE_URL}/rest/v1/market_settlements?market_date=eq.${uniqueDate}`, { method: 'DELETE', headers: HEADERS }).catch(() => {})
     const settlement = await restPost('market_settlements', {
       market_date: uniqueDate,
       status: 'funds_pending',
@@ -557,7 +559,9 @@ Deno.test({
     // Create a temporary market_settlements record first
     const day = Math.floor(Math.random() * 28) + 1
     const month = Math.floor(Math.random() * 12) + 1
-    const uniqueDate = `2099-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    const year = 2199 + Math.floor(Math.random() * 100)
+    const uniqueDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    await fetch(`${SUPABASE_URL}/rest/v1/market_settlements?market_date=eq.${uniqueDate}`, { method: 'DELETE', headers: HEADERS }).catch(() => {})
     const settlement = await restPost('market_settlements', {
       market_date: uniqueDate,
       status: 'funds_pending',

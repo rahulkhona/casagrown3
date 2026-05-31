@@ -837,3 +837,23 @@ entrypoint = "./functions/messenger-webhook/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/stripe-subscription-webhook/index.ts"
+
+[functions.instagram-webhook]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/instagram-webhook/index.ts"
+
+[functions.whatsapp-webhook]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/whatsapp-webhook/index.ts"
+
+[functions.generate-video-post]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/generate-video-post/index.ts"
+
+[functions.connect-google]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/connect-google/index.ts"

@@ -9,6 +9,7 @@ import { serveWithCors, requireAuth, jsonOk, jsonError } from '../_shared/serve-
 import { getStripeApiBase } from '../_shared/stripe.ts'
 import { sendTransactionEmail, getUserEmail } from '../_shared/postmark.ts'
 import { wrapInBrandedTemplate } from '../_shared/email-templates.ts'
+import { createTwilioSubaccount, provisionWhatsAppNumber, releasePhoneNumber } from '../_shared/twilio.ts'
 
 serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
   const auth = await requireAuth(req, supabase, corsHeaders)
@@ -89,6 +90,9 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
         .from('seller_subscriptions')
         .update({ canceled_at: new Date().toISOString(), updated_at: new Date().toISOString() })
         .eq('user_id', userId)
+
+      // Automatically release and cleanup Twilio number if it was provisioned by us
+      await cleanupTwilioNumber(supabase, userId)
 
       return jsonOk({ success: true, canceledAt: new Date().toISOString() }, corsHeaders)
     }
@@ -471,6 +475,42 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
               }, { onConflict: 'user_id' })
 
             await supabase.from('profiles').update({ is_pro: true }).eq('id', userId)
+
+            if (confirmedPlan === 'elite') {
+              const { data: fbConn } = await supabase
+                .from('seller_fb_connections')
+                .select('twilio_wa_phone_sid, wa_number_source')
+                .eq('user_id', userId)
+                .maybeSingle()
+
+              if (!fbConn?.twilio_wa_phone_sid) {
+                try {
+                  const subAccount = await createTwilioSubaccount(`CasaGrown Seller - ${userId}`)
+                  if (subAccount.success && subAccount.sid && subAccount.authToken) {
+                    const phone = await provisionWhatsAppNumber(subAccount.sid, subAccount.authToken)
+                    if (phone.success && phone.phoneNumber && phone.phoneSid) {
+                      await supabase
+                        .from('seller_fb_connections')
+                        .upsert({
+                          user_id: userId,
+                          status: 'connected',
+                          wa_number_source: 'twilio_provisioned',
+                          twilio_sub_account_sid: subAccount.sid,
+                          twilio_wa_phone_sid: phone.phoneSid,
+                          wa_phone_number_id: phone.phoneSid,
+                          wa_display_phone: phone.phoneNumber,
+                          wa_auto_reply_enabled: true,
+                          updated_at: new Date().toISOString(),
+                        }, { onConflict: 'user_id' })
+                      console.log(`[TWILIO] Successfully provisioned phone ${phone.phoneNumber} for seller ${userId}`)
+                    }
+                  }
+                } catch (tErr: any) {
+                  console.error('[TWILIO] Failed to provision phone:', tErr.message)
+                }
+              }
+            }
+
             amountPaid = (sessionData.amount_total || receiptPrice * 100) / 100
             confirmed = true
           }
@@ -690,3 +730,38 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       return jsonError(`Unknown action: ${action}`, corsHeaders, 400)
   }
 })
+
+// Automatically release and cleanup Twilio number if it was provisioned by us
+async function cleanupTwilioNumber(supabase: any, userId: string) {
+  const { data: fbConn } = await supabase
+    .from('seller_fb_connections')
+    .select('twilio_sub_account_sid, twilio_wa_phone_sid, wa_number_source')
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (fbConn?.wa_number_source === 'twilio_provisioned' && fbConn?.twilio_wa_phone_sid) {
+    try {
+      const subSid = fbConn.twilio_sub_account_sid
+      const phoneSid = fbConn.twilio_wa_phone_sid
+      const mainToken = Deno.env.get('TWILIO_AUTH_TOKEN') || 'mock_auth_token'
+      
+      const releaseRes = await releasePhoneNumber(subSid, mainToken, phoneSid)
+      if (releaseRes.success) {
+        await supabase
+          .from('seller_fb_connections')
+          .update({
+            twilio_sub_account_sid: null,
+            twilio_wa_phone_sid: null,
+            wa_phone_number_id: null,
+            wa_display_phone: null,
+            wa_number_source: 'twilio_provisioned',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('user_id', userId)
+        console.log(`[TWILIO] Successfully released phone number for user ${userId}`)
+      }
+    } catch (err: any) {
+      console.error('[TWILIO] Failed to release phone number:', err.message)
+    }
+  }
+}

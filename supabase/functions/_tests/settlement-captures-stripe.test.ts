@@ -123,8 +123,11 @@ Deno.test({
       user_id: sellerId, available_usd: 0, pending_usd: 0, total_earned_usd: 0,
     })
 
+    const marketDate = `${2090 + Math.floor(Math.random() * 100)}-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`
+    await fetch(`${SUPABASE_URL}/rest/v1/user_settlements?settlement_id=in.(select id from market_settlements where market_date=eq.${marketDate})`, { method: 'DELETE', headers: HEADERS }).catch(() => {})
+    await fetch(`${SUPABASE_URL}/rest/v1/market_settlements?market_date=eq.${marketDate}`, { method: 'DELETE', headers: HEADERS }).catch(() => {})
     const settlement = await restPost('market_settlements', {
-      market_date: `2090-01-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`,
+      market_date: marketDate,
       status: 'funds_pending',
       total_captured_usd: 50,
     })
@@ -169,8 +172,10 @@ Deno.test({
       user_id: sellerId, available_usd: 0, pending_usd: 0, total_earned_usd: 0,
     })
 
+    const marketDate = `${2091 + Math.floor(Math.random() * 100)}-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`
+    await fetch(`${SUPABASE_URL}/rest/v1/market_settlements?market_date=eq.${marketDate}`, { method: 'DELETE', headers: HEADERS }).catch(() => {})
     const settlement = await restPost('market_settlements', {
-      market_date: `2091-01-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`,
+      market_date: marketDate,
       status: 'funds_pending',
       total_captured_usd: 100,
     })
@@ -239,8 +244,10 @@ Deno.test({
       })
     }
 
+    const marketDate = `${2089 + Math.floor(Math.random() * 100)}-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`
+    await fetch(`${SUPABASE_URL}/rest/v1/market_settlements?market_date=eq.${marketDate}`, { method: 'DELETE', headers: HEADERS }).catch(() => {})
     const settlement = await restPost('market_settlements', {
-      market_date: `2089-02-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`,
+      market_date: marketDate,
       status: 'funds_pending',
       total_captured_usd: 180,
     })
@@ -338,8 +345,10 @@ Deno.test({
       user_id: sellerId, available_usd: 0, pending_usd: 0, total_earned_usd: 0,
     })
 
+    const marketDate = `${2088 + Math.floor(Math.random() * 100)}-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`
+    await fetch(`${SUPABASE_URL}/rest/v1/market_settlements?market_date=eq.${marketDate}`, { method: 'DELETE', headers: HEADERS }).catch(() => {})
     const settlement = await restPost('market_settlements', {
-      market_date: `2088-01-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`,
+      market_date: marketDate,
       status: 'funds_pending',
       total_captured_usd: 100,
     })
@@ -471,8 +480,10 @@ Deno.test({
       user_id: sellerId, available_usd: 0, pending_usd: 0, total_earned_usd: 0,
     })
 
+    const marketDate = `${2086 + Math.floor(Math.random() * 100)}-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`
+    await fetch(`${SUPABASE_URL}/rest/v1/market_settlements?market_date=eq.${marketDate}`, { method: 'DELETE', headers: HEADERS }).catch(() => {})
     const settlement = await restPost('market_settlements', {
-      market_date: `2086-03-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`,
+      market_date: marketDate,
       status: 'funds_pending',
       total_captured_usd: 40,
     })

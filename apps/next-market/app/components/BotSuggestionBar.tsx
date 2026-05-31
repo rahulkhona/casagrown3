@@ -5,7 +5,7 @@ import { createClient } from '../../lib/supabase'
 import { useAuth } from '../../lib/useAuth'
 
 interface BotSuggestionBarProps {
-  channel: 'dm' | 'order' | 'messenger'
+  channel: 'dm' | 'order' | 'messenger' | 'instagram' | 'whatsapp'
   conversationRef: string  // conversation_id or order_id
   onSend: (text: string) => void
   onSelect?: (text: string) => void

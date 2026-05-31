@@ -22,7 +22,12 @@ import {
 import { sendTransactionEmail } from "../_shared/postmark.ts";
 import { wrapInBrandedTemplate, infoCard, actionButton } from "../_shared/email-templates.ts";
 
-const SITE_URL = Deno.env.get("SITE_URL") ?? "https://www.casagrown.com";
+// Safety guard: never use localhost URLs in production emails.
+// If Postmark token is set (production), always use the real domain.
+const _rawSiteUrl = Deno.env.get("SITE_URL") ?? "https://www.casagrown.com";
+const SITE_URL = (
+  _rawSiteUrl.includes("localhost") && Deno.env.get("POSTMARK_SERVER_TOKEN")
+) ? "https://www.casagrown.com" : _rawSiteUrl;
 
 // =============================================================================
 // Types
@@ -58,7 +63,8 @@ export type EmailType =
     | "subscription_receipt"
     | "stripe_connect_onboarded"
     | "stripe_connect_transfer_failed"
-    | "stripe_connect_transfer_success";
+    | "stripe_connect_transfer_success"
+    | "subscription_change";
 
 export interface EmailRecipient {
     email: string;
@@ -148,13 +154,16 @@ export interface NotificationPayload {
     };
     stripeTransferId?: string;
     errorMessage?: string;
+    plan?: string;
+    action?: string;
+    waNumber?: string | null;
 }
 
 // =============================================================================
 // Handler
 // =============================================================================
 
-serveWithCors(async (req, { corsHeaders, env }) => {
+serveWithCors(async (req, { supabase, corsHeaders, env }) => {
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
     const isServiceRole = token === env("SUPABASE_SERVICE_ROLE_KEY");
 
@@ -179,6 +188,24 @@ serveWithCors(async (req, { corsHeaders, env }) => {
     const results: { email: string; success: boolean; error?: string }[] = [];
 
     for (const recipient of payload.recipients) {
+        if (payload.type === 'subscription_change') {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('email', recipient.email)
+              .maybeSingle();
+            if (profile?.id) {
+              const { data: fbConn } = await supabase
+                .from('seller_fb_connections')
+                .select('wa_display_phone')
+                .eq('user_id', profile.id)
+                .eq('status', 'connected')
+                .maybeSingle();
+              if (fbConn?.wa_display_phone) {
+                payload.waNumber = fbConn.wa_display_phone;
+              }
+            }
+        }
         const rendered = renderEmailByType(payload, recipient);
         if (!rendered) {
             results.push({
@@ -289,6 +316,8 @@ export function renderEmailByType(
             return renderStripeConnectTransferSuccess(payload, recipient);
         case "stripe_connect_transfer_failed":
             return renderStripeConnectTransferFailed(payload, recipient);
+        case "subscription_change":
+            return renderSubscriptionChange(payload, recipient);
         default:
             return null;
     }
@@ -1773,6 +1802,252 @@ function renderStripeConnectTransferFailed(
         }),
     };
 }
-// cache bust
-// cache bust 2
-// cache bust 3
+
+// =============================================================================
+// (u) Subscription Change (Signup, Upgrade, Downgrade, Cancel)
+// =============================================================================
+
+function renderSubscriptionChange(
+    p: NotificationPayload,
+    r: EmailRecipient,
+): { subject: string; htmlBody: string } {
+    const plan = p.plan || 'lite';
+    const action = p.action || 'signup'; // 'signup' | 'upgrade' | 'downgrade' | 'cancel'
+    const planDisplayName = plan === 'elite' ? 'CasaGrown Elite' : plan === 'pro' ? 'CasaGrown Pro' : 'CasaGrown Lite Base';
+    
+    let subject = '';
+    let title = '';
+    let intro = '';
+    
+    if (action === 'signup') {
+        subject = `🎉 Welcome to ${planDisplayName}! | CasaGrown`;
+        title = `Welcome to ${planDisplayName}!`;
+        intro = `Thank you for signing up for the <strong>${planDisplayName}</strong> tier! We are thrilled to have you as part of our seller community. Here is your handy package user's guide to help you get started.`;
+    } else if (action === 'upgrade') {
+        subject = `🚀 Plan Upgraded to ${planDisplayName}! | CasaGrown`;
+        title = `Plan Upgraded to ${planDisplayName}!`;
+        intro = `Congratulations! You have successfully upgraded to the <strong>${planDisplayName}</strong> tier. Your new features and higher stand limits are active immediately. Check out your new user's guide below!`;
+    } else if (action === 'downgrade') {
+        subject = `🚜 Plan Switched to ${planDisplayName} | CasaGrown`;
+        title = `Plan Changed to ${planDisplayName}`;
+        intro = `Your subscription has been switched to the <strong>${planDisplayName}</strong> tier. Your stand limits and feature access have been updated accordingly. Here is your user's guide for the new plan.`;
+    } else if (action === 'cancel') {
+        subject = `🏡 Subscription Cancellation Confirmed | CasaGrown`;
+        title = `Subscription Cancellation Confirmed`;
+        intro = `Your premium subscription cancellation has been processed. At the end of your current billing period, your plan will transition to the free <strong>CasaGrown Lite Base</strong> tier. We appreciate your support, and here is a guide on how your new Lite plan will work.`;
+    }
+    
+    const guideHtml = getUserGuideHtml(plan, p.waNumber);
+    const bodyHtml = `
+        <p style="margin: 0 0 16px; font-size: 14px; color: #374151; line-height: 1.6;">${intro}</p>
+        ${guideHtml}
+        <p style="margin: 20px 0 0; font-size: 13px; color: #6b7280; line-height: 1.5; text-align: center;">
+          You can manage your subscription anytime from <a href="${SITE_URL}/pro-manage" style="color: #059669; font-weight: 600; text-decoration: none;">Pro Management</a>.
+        </p>
+    `;
+    
+    return {
+        subject,
+        htmlBody: wrapInBrandedTemplate({
+            title,
+            greeting: `Hi ${r.name || 'there'},`,
+            bodyHtml,
+            headerGradient: plan === 'elite' 
+                ? 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #60a5fa 100%)' 
+                : plan === 'pro' 
+                    ? 'linear-gradient(135deg, #15803d 0%, #16a34a 50%, #22c55e 100%)' 
+                    : 'linear-gradient(135deg, #4b5563 0%, #6b7280 50%, #9ca3af 100%)',
+            headerEmoji: plan === 'elite' ? '👑' : plan === 'pro' ? '🚀' : '🚜',
+        })
+    };
+}
+
+function getUserGuideHtml(plan: string, waNumber?: string | null): string {
+    const isElite = plan === 'elite';
+    const isPro = plan === 'pro';
+    
+    let guideContent = '';
+    
+    if (isElite) {
+        const waClean = waNumber ? waNumber.replace('+', '').replace(/\s+/g, '') : null;
+        
+        guideContent = `
+            <div style="margin-top: 24px; padding: 20px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; text-align: left;">
+                <h4 style="margin: 0 0 12px; font-size: 16px; color: #1e293b; font-weight: 700;">👑 Your CasaGrown Elite User's Guide</h4>
+                <p style="margin: 0 0 16px; font-size: 13px; color: #475569; line-height: 1.6;">
+                    Welcome to the Elite tier! You now have our full multi-channel sync, native AI cinematic video generation (Google Veo 3.1), and GrowBot copilot across all major channels.
+                </p>
+
+                <!-- WhatsApp number display -->
+                ${waNumber ? `
+                <div style="margin-bottom: 20px; padding: 14px; background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;">
+                    <strong style="display: block; font-size: 12px; color: #166534; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">🟢 Your Provisioned WhatsApp Business Line:</strong>
+                    <span style="font-size: 18px; font-weight: 800; color: #14532d; display: block; margin-bottom: 6px;">${waNumber}</span>
+                    <strong style="display: block; font-size: 11px; color: #166534; margin-bottom: 2px;">🔗 Direct link to add to your website / socials:</strong>
+                    <a href="https://wa.me/${waClean}" style="font-size: 13px; color: #059669; font-weight: 600; text-decoration: underline; word-break: break-all;">https://wa.me/${waClean}</a>
+                </div>
+                ` : ''}
+
+                <!-- Features Summary -->
+                <h5 style="margin: 16px 0 8px; font-size: 14px; color: #0f172a; font-weight: 600;">⭐️ Summarized Package Features:</h5>
+                <table cellpadding="6" cellspacing="0" style="width: 100%; border-collapse: collapse; font-size: 13px; color: #334155; margin-bottom: 20px;">
+                    <tr style="border-bottom: 1px solid #e2e8f0; background-color: #f1f5f9;">
+                        <th style="text-align: left; font-weight: 700; width: 40%;">Feature</th>
+                        <th style="text-align: left; font-weight: 700; color: #1e3a8a;">Elite Tier (Yours)</th>
+                        <th style="text-align: left; font-weight: 500; color: #64748b;">Pro Tier</th>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #e2e8f0;">
+                        <td><strong>Sales Transaction Fee:</strong></td>
+                        <td style="color: #059669; font-weight: 700;">2% (Reduced)</td>
+                        <td>5%</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #e2e8f0;">
+                        <td><strong>Active Booths Limit:</strong></td>
+                        <td style="font-weight: 700;">Unlimited Stands</td>
+                        <td>3 Stands</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #e2e8f0;">
+                        <td><strong>WhatsApp Auto-responder:</strong></td>
+                        <td style="color: #059669;">✔️ Included (Toll-free line)</td>
+                        <td>❌ Not included</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #e2e8f0;">
+                        <td><strong>Google Maps Sync & catalog:</strong></td>
+                        <td style="color: #059669;">✔️ Included (Local search sync)</td>
+                        <td>❌ Not included</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #e2e8f0;">
+                        <td><strong>Vertex AI Video Reels (Veo):</strong></td>
+                        <td style="color: #059669;">✔️ Included (Slideshow reels)</td>
+                        <td>❌ Not included</td>
+                    </tr>
+                </table>
+                
+                <h5 style="margin: 16px 0 8px; font-size: 14px; color: #0f172a; font-weight: 600;">📥 Messaging & DM Inbox Hub</h5>
+                <p style="margin: 0 0 12px; font-size: 13px; color: #475569; line-height: 1.5;">
+                    Manage buyer conversations in one unified inbox at <a href="${SITE_URL}/messages" style="color: #059669; font-weight: 600; text-decoration: none;">casagrown.com/messages</a>:
+                </p>
+                <ul style="margin: 0 0 16px; padding-left: 20px; font-size: 13px; color: #334155; line-height: 1.6;">
+                    <li style="margin-bottom: 8px;"><strong>Unified Inbox:</strong> Customer questions from Facebook Messenger, Instagram DMs, WhatsApp, and CasaGrown DMs are unified on the same page. You can read, review, and reply manually.</li>
+                    <li style="margin-bottom: 8px;"><strong>Autopilot Yielding:</strong> GrowBot automatically replies to buyers. The moment you type and send a manual response, the bot pauses and yields control so you can talk directly.</li>
+                </ul>
+
+                <h5 style="margin: 16px 0 8px; font-size: 14px; color: #0f172a; font-weight: 600;">📦 Order & Stand Management</h5>
+                <ul style="margin: 0 0 16px; padding-left: 20px; font-size: 13px; color: #334155; line-height: 1.6;">
+                    <li style="margin-bottom: 8px;"><strong>Fulfillment Center:</strong> Track and manage pending orders, pickup/delivery slots, customer details, and capture payout deposits at <a href="${SITE_URL}/orders" style="color: #059669; font-weight: 600; text-decoration: none;">casagrown.com/orders</a>.</li>
+                    <li style="margin-bottom: 8px;"><strong>Google Maps local sync:</strong> Stand products automatically sync daily. Local rich Map posts feature a blue "ORDER" button pointing straight back to your stand.</li>
+                </ul>
+
+                <h5 style="margin: 16px 0 8px; font-size: 14px; color: #0f172a; font-weight: 600;">⚙️ Configure Pro Settings</h5>
+                <p style="margin: 0 0 12px; font-size: 13px; color: #475569; line-height: 1.5;">
+                    Visit <a href="${SITE_URL}/pro-manage" style="color: #059669; font-weight: 600; text-decoration: none;">casagrown.com/pro-manage</a> to toggle individual channel bots, customize instructions, and adjust response delay sliders.
+                </p>
+            </div>
+        `;
+    } else if (isPro) {
+        guideContent = `
+            <div style="margin-top: 24px; padding: 20px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; text-align: left;">
+                <h4 style="margin: 0 0 12px; font-size: 16px; color: #1e293b; font-weight: 700;">🚀 Your CasaGrown Pro User's Guide</h4>
+                <p style="margin: 0 0 16px; font-size: 13px; color: #475569; line-height: 1.6;">
+                    Welcome to the Pro tier! You now have automatic daily Facebook posting, catalog sync, and automated GrowBot Messenger replies active.
+                </p>
+
+                <!-- Features Summary -->
+                <h5 style="margin: 16px 0 8px; font-size: 14px; color: #0f172a; font-weight: 600;">⭐️ Summarized Package Features:</h5>
+                <table cellpadding="6" cellspacing="0" style="width: 100%; border-collapse: collapse; font-size: 13px; color: #334155; margin-bottom: 20px;">
+                    <tr style="border-bottom: 1px solid #e2e8f0; background-color: #f1f5f9;">
+                        <th style="text-align: left; font-weight: 700; width: 40%;">Feature</th>
+                        <th style="text-align: left; font-weight: 700; color: #15803d;">Pro Tier (Yours)</th>
+                        <th style="text-align: left; font-weight: 500; color: #64748b;">Elite Tier</th>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #e2e8f0;">
+                        <td><strong>Sales Transaction Fee:</strong></td>
+                        <td style="color: #059669; font-weight: 700;">5%</td>
+                        <td>2% (Reduced)</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #e2e8f0;">
+                        <td><strong>Active Booths Limit:</strong></td>
+                        <td style="font-weight: 700;">3 Stands</td>
+                        <td>Unlimited Stands</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #e2e8f0;">
+                        <td><strong>GrowBot AI Auto-replies:</strong></td>
+                        <td style="color: #059669;">✔️ Messenger & CasaGrown</td>
+                        <td>✔️ All Channels + WhatsApp</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #e2e8f0;">
+                        <td><strong>Google Maps Sync & catalog:</strong></td>
+                        <td>❌ Not included</td>
+                        <td style="color: #059669;">✔️ Included</td>
+                    </tr>
+                </table>
+                
+                <h5 style="margin: 16px 0 8px; font-size: 14px; color: #0f172a; font-weight: 600;">📥 Messaging & DM Inbox Hub</h5>
+                <p style="margin: 0 0 12px; font-size: 13px; color: #475569; line-height: 1.5;">
+                    Manage your Facebook Messenger and CasaGrown DMs directly inside the unified inbox at <a href="${SITE_URL}/messages" style="color: #059669; font-weight: 600; text-decoration: none;">casagrown.com/messages</a>. 
+                    GrowBot automatically answers buyer questions but yields control the moment you write a manual reply.
+                </p>
+
+                <h5 style="margin: 16px 0 8px; font-size: 14px; color: #0f172a; font-weight: 600;">📦 Orders & Posting</h5>
+                <ul style="margin: 0 0 16px; padding-left: 20px; font-size: 13px; color: #334155; line-height: 1.6;">
+                    <li style="margin-bottom: 8px;"><strong>Fulfillment Center:</strong> Track all buyer orders, confirm pickup timings, and resolve dispute issues at <a href="${SITE_URL}/orders" style="color: #059669; font-weight: 600; text-decoration: none;">casagrown.com/orders</a>.</li>
+                    <li style="margin-bottom: 8px;"><strong>Daily Facebook Posts:</strong> Your stands' active menu items are automatically posted to your linked Facebook page daily.</li>
+                </ul>
+
+                <h5 style="margin: 16px 0 8px; font-size: 14px; color: #0f172a; font-weight: 600;">⚙️ Configure Pro Settings</h5>
+                <p style="margin: 0 0 12px; font-size: 13px; color: #475569; line-height: 1.5;">
+                    Visit <a href="${SITE_URL}/pro-manage" style="color: #059669; font-weight: 600; text-decoration: none;">casagrown.com/pro-manage</a> to write custom instructions for GrowBot, select active bot channels, adjust reply delay timers, and view Facebook link statuses.
+                </p>
+            </div>
+        `;
+    } else {
+        guideContent = `
+            <div style="margin-top: 24px; padding: 20px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; text-align: left;">
+                <h4 style="margin: 0 0 12px; font-size: 16px; color: #1e293b; font-weight: 700;">🚜 Your CasaGrown Lite User's Guide</h4>
+                <p style="margin: 0 0 16px; font-size: 13px; color: #475569; line-height: 1.6;">
+                    You are now on the Lite tier. This free base tier supports simple Facebook catalog sync and manual messaging.
+                </p>
+                <ul style="margin: 0 0 16px; padding-left: 20px; font-size: 13px; color: #334155; line-height: 1.6;">
+                    <li style="margin-bottom: 8px;"><strong>Facebook Manual Inbox:</strong> Find and respond to all customer DMs manually inside the official <a href="https://business.facebook.com" style="color: #059669; font-weight: 600; text-decoration: none;">Meta Business Suite Inbox</a>.</li>
+                    <li style="margin-bottom: 8px;"><strong>Order Board:</strong> Keep track of buyer orders and confirm pickups at <a href="${SITE_URL}/orders" style="color: #059669; font-weight: 600; text-decoration: none;">casagrown.com/orders</a>.</li>
+                </ul>
+            </div>
+        `;
+    }
+
+    // Common encouragement section for Stripe Connect and app downloads
+    guideContent += `
+        <div style="margin-top: 16px; padding: 16px; background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; text-align: left;">
+            <h5 style="margin: 0 0 8px; font-size: 14px; color: #166534; font-weight: 700;">💸 Setup Stripe Connect for Instant Deposits</h5>
+            <p style="margin: 0 0 12px; font-size: 13px; color: #14532d; line-height: 1.6;">
+                We highly encourage you to connect your bank account or debit card using our Stripe Connect onboarding wizard. Once set up, all your sales earnings will be deposited <strong>directly into your bank account automatically</strong>—bypassing manual withdrawals!
+            </p>
+            <a href="${SITE_URL}/earnings" style="display: inline-block; padding: 10px 20px; background-color: #059669; color: #ffffff; font-size: 13px; font-weight: 600; text-decoration: none; border-radius: 6px;">
+                Link Bank via Stripe Connect
+            </a>
+        </div>
+
+        <div style="margin-top: 16px; padding: 16px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; text-align: left;">
+            <h5 style="margin: 0 0 8px; font-size: 14px; color: #0f172a; font-weight: 700;">📲 Download the CasaGrown Seller App</h5>
+            <p style="margin: 0 0 12px; font-size: 13px; color: #475569; line-height: 1.5;">
+                Manage your stands, catalog items, DMs, and customer orders on the go by downloading our native mobile apps:
+            </p>
+            <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top: 8px;">
+                <tr>
+                    <td style="padding-right: 12px;">
+                        <a href="https://apps.apple.com/us/app/casagrown/id6400000000" style="display: inline-block; padding: 8px 16px; background-color: #0f172a; color: #ffffff; font-size: 12px; font-weight: 600; text-decoration: none; border-radius: 6px;">
+                            🍏 App Store (iOS)
+                        </a>
+                    </td>
+                    <td>
+                        <a href="https://play.google.com/store/apps/details?id=com.casagrown.market" style="display: inline-block; padding: 8px 16px; background-color: #0f172a; color: #ffffff; font-size: 12px; font-weight: 600; text-decoration: none; border-radius: 6px;">
+                            🤖 Google Play (Android)
+                        </a>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    `;
+
+    return guideContent;
+}

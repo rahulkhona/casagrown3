@@ -360,7 +360,7 @@ function ProManagePageInner() {
 
       {/* ── GrowBot Settings ── */}
       <div style={{ marginTop: 28 }}>
-        <GrowBotSettings userId={user.id} isPro={isPro} />
+        <GrowBotSettings userId={user.id} isPro={isPro} plan={plan} />
       </div>
 
 

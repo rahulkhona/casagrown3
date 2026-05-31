@@ -566,6 +566,41 @@ else
   log_suite "Receipt & Billing" "$RECEIPT_PASSED" "$RECEIPT_FAILED"
 fi
 
+# 5s: Subscription Email & Guide tests
+echo "  Running Subscription Email & Guide tests..."
+SUBEMAIL_OUTPUT=$(SUPABASE_URL=http://127.0.0.1:54321 \
+  SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
+  SUPABASE_ANON_KEY="$(npx supabase status -o env 2>/dev/null | grep ANON_KEY | cut -d'"' -f2)" \
+  deno test --allow-env --allow-net --no-check \
+  supabase/functions/_tests/subscription-email.test.ts 2>&1)
+SUBEMAIL_PASSED=$(echo "$SUBEMAIL_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
+SUBEMAIL_FAILED=$(echo "$SUBEMAIL_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
+
+if [ "${SUBEMAIL_FAILED:-0}" -eq 0 ] || [ -z "$SUBEMAIL_FAILED" ]; then
+  echo -e "  ${GREEN}✅ Subscription Email: ${SUBEMAIL_PASSED} tests — ALL PASS${NC}"
+  log_suite "Subscription Email" "$SUBEMAIL_PASSED"
+else
+  echo -e "  ${RED}❌ Subscription Email: ${SUBEMAIL_PASSED} passed, ${SUBEMAIL_FAILED} failed${NC}"
+  echo "$SUBEMAIL_OUTPUT" | grep -E "FAILED|error:|AssertionError" | head -10
+  log_suite "Subscription Email" "$SUBEMAIL_PASSED" "$SUBEMAIL_FAILED"
+fi
+
+# 5t: Subscription Trigger DB tests
+echo "  Running Subscription Trigger DB tests..."
+SUBTRIG_OUTPUT=$(npx supabase test db \
+  supabase/tests/database/65_subscription_change_trigger.test.sql 2>&1)
+if echo "$SUBTRIG_OUTPUT" | grep -q "All tests successful"; then
+  SUBTRIG_TESTS=$(echo "$SUBTRIG_OUTPUT" | grep "Files=" | sed 's/.*Tests=\([0-9]*\).*/\1/' || echo "4")
+  echo -e "  ${GREEN}✅ Subscription Trigger DB: ${SUBTRIG_TESTS} tests — ALL PASS${NC}"
+  log_suite "Subscription Trigger DB" "${SUBTRIG_TESTS:-4}"
+else
+  SUBTRIG_P=$(echo "$SUBTRIG_OUTPUT" | grep -c "^ok " || echo "0")
+  SUBTRIG_F=$(echo "$SUBTRIG_OUTPUT" | grep -c "^not ok" || echo "0")
+  echo -e "  ${RED}❌ Subscription Trigger DB: ${SUBTRIG_P} passed, ${SUBTRIG_F} failed${NC}"
+  echo "$SUBTRIG_OUTPUT" | grep "^not ok" | head -10 | sed 's/^/    /'
+  log_suite "Subscription Trigger DB" "$SUBTRIG_P" "$SUBTRIG_F"
+fi
+
 # ─────────────────────────────────────────────────────────────────────────
 # PHASE 6: Shell Integration Tests (Escalation Handling)
 # ─────────────────────────────────────────────────────────────────────────

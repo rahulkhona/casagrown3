@@ -26,9 +26,16 @@ const MAILPIT_URL = 'http://127.0.0.1:54324'
 
 // Seeded users
 const BUYER_ID  = 'b2222222-2222-2222-2222-222222222222'
-const SELLER_ID = 'd4444444-4444-4444-4444-444444444444'
+const SELLER_ID = 'a1111111-1111-1111-1111-111111111111'
 const BUYER_EMAIL  = 'buyer@test.local'
 const SELLER_EMAIL = 'seller@test.local'
+
+const SERVICE_HEADERS = {
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
+  'apikey': SERVICE_ROLE_KEY,
+  'Prefer': 'return=representation',
+}
 
 // ── Helpers ──
 
@@ -37,6 +44,49 @@ async function queryTable(table: string, filters = '') {
     headers: { 'Authorization': `Bearer ${SERVICE_ROLE_KEY}`, 'apikey': SERVICE_ROLE_KEY },
   })
   return res.json()
+}
+
+/**
+ * Ensures at least one completed market_order exists where seller_id = SELLER_ID.
+ * Other tests can pollute seed orders (changing status to resolved/escalated/cancelled),
+ * so we insert a known-good order if none with a qualifying status exist.
+ */
+async function ensureSellerHasCompletedOrder() {
+  // Check if the seller already has a qualifying order
+  const existing = await queryTable(
+    'market_orders',
+    `seller_id=eq.${SELLER_ID}&status=in.(completed,delivered,confirmed,pending)&limit=1`
+  )
+  if (Array.isArray(existing) && existing.length > 0) return
+
+  // Get a booth and product for the seller
+  const booths = await queryTable('market_booths', `owner_id=eq.${SELLER_ID}&limit=1`)
+  const products = await queryTable('market_products', `seller_id=eq.${SELLER_ID}&limit=1`)
+  const boothId = booths?.[0]?.id
+  const productId = products?.[0]?.id
+  const productName = products?.[0]?.name ?? 'Test Product'
+
+  // Insert a completed order for the seller
+  const orderBody: Record<string, unknown> = {
+    buyer_id: BUYER_ID,
+    seller_id: SELLER_ID,
+    product_name: productName,
+    quantity: 1,
+    unit_price_usd: 5.00,
+    subtotal_usd: 5.00,
+    tax_amount_usd: 0.46,
+    total_usd: 5.46,
+    fulfillment_type: 'pickup',
+    status: 'completed',
+  }
+  if (boothId) orderBody.booth_id = boothId
+  if (productId) orderBody.product_id = productId
+
+  await fetch(`${SUPABASE_URL}/rest/v1/market_orders`, {
+    method: 'POST',
+    headers: SERVICE_HEADERS,
+    body: JSON.stringify(orderBody),
+  })
 }
 
 async function getOtpFromMailpit(email: string, timeoutMs = 10_000): Promise<string | null> {
@@ -107,6 +157,7 @@ async function callRpc(name: string, body: unknown, token: string) {
 // ────────────────────────────────────────────────────────────
 
 Deno.test({ name: 'get_transaction_log returns sale entries for seller', sanitizeResources: false, sanitizeOps: false, fn: async () => {
+  await ensureSellerHasCompletedOrder()
   const token = await loginAs(SELLER_EMAIL)
   assertExists(token, 'Seller should be able to log in')
   const txLog = await callRpc('get_transaction_log', {}, token!)

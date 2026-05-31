@@ -8,6 +8,7 @@ import {
 } from './scenario-helpers'
 
 test.describe('Subscription Billing Flows — Upgrades, Downgrades, & 7-Day Guarantee', () => {
+  test.describe.configure({ mode: 'serial' })
   let samUserId: string
 
   test.beforeAll(async () => {
@@ -308,6 +309,147 @@ test.describe('Subscription Billing Flows — Upgrades, Downgrades, & 7-Day Guar
       DELETE FROM public.seller_subscriptions WHERE user_id = '${newUserId}';
       DELETE FROM public.profiles WHERE id = '${newUserId}';
       DELETE FROM auth.users WHERE id = '${newUserId}';
+    `)
+  })
+
+  test.afterAll(async () => {
+    // Restore Sam Seller's original Pro state and default booth matching seed.sql
+    execSql(`
+      -- 1. Clean up any leftover database state from billing-flows
+      DELETE FROM public.booth_helpers WHERE booth_id IN (SELECT id FROM public.market_booths WHERE owner_id = '${samUserId}');
+      DELETE FROM public.order_status_log WHERE order_id IN (SELECT id FROM public.market_orders WHERE booth_id IN (SELECT id FROM public.market_booths WHERE owner_id = '${samUserId}'));
+      DELETE FROM public.order_chat_messages WHERE order_id IN (SELECT id FROM public.market_orders WHERE booth_id IN (SELECT id FROM public.market_booths WHERE owner_id = '${samUserId}'));
+      DELETE FROM public.order_dispute_messages WHERE dispute_id IN (SELECT id FROM public.order_disputes WHERE order_id IN (SELECT id FROM public.market_orders WHERE booth_id IN (SELECT id FROM public.market_booths WHERE owner_id = '${samUserId}')));
+      DELETE FROM public.order_disputes WHERE order_id IN (SELECT id FROM public.market_orders WHERE booth_id IN (SELECT id FROM public.market_booths WHERE owner_id = '${samUserId}'));
+      DELETE FROM public.credit_usage_log WHERE order_id IN (SELECT id FROM public.market_orders WHERE booth_id IN (SELECT id FROM public.market_booths WHERE owner_id = '${samUserId}'));
+      DELETE FROM public.market_orders WHERE booth_id IN (SELECT id FROM public.market_booths WHERE owner_id = '${samUserId}');
+      DELETE FROM public.market_products WHERE seller_id = '${samUserId}';
+      DELETE FROM public.market_booths WHERE owner_id = '${samUserId}';
+
+      -- 2. Restore Sam's Pro subscription
+      UPDATE public.profiles SET is_pro = true, farm_name = 'Sam Greenery' WHERE id = '${samUserId}';
+      
+      INSERT INTO public.seller_subscriptions (user_id, plan, status, stripe_customer_id, stripe_subscription_id, current_period_start, current_period_end)
+      VALUES (
+        '${samUserId}', 
+        'pro', 
+        'active', 
+        'cus_test_sam_seller', 
+        'sub_test_sam_seller', 
+        now() - interval '15 days', 
+        now() + interval '15 days'
+      ) ON CONFLICT (user_id) DO UPDATE SET 
+        plan = 'pro', 
+        status = 'active', 
+        stripe_customer_id = 'cus_test_sam_seller', 
+        stripe_subscription_id = 'sub_test_sam_seller', 
+        current_period_start = now() - interval '15 days', 
+        current_period_end = now() + interval '15 days',
+        canceled_at = null;
+
+      -- 3. Re-insert Sam's default stand from seed.sql
+      INSERT INTO public.market_booths (owner_id, name, description, decorative_theme, offers_delivery, offers_pickup, delivery_radius_miles, pickup_address, delivery_windows, pickup_windows, payment_method, pickup_location, is_default, helper_passcode, status) 
+      VALUES (
+        '${samUserId}', 
+        'Test Seller''s Garden', 
+        'Fresh garden produce from local backyard', 
+        'harvest',
+        true, 
+        true, 
+        5, 
+        '1168 Lincoln Ave, San Jose, CA 95125',
+        '[{"id":"8-10","start":"08:00","end":"10:00"}]'::jsonb,
+        '[{"id":"8-10","start":"08:00","end":"10:00"}]'::jsonb,
+        'automatic', 
+        public.ST_SetSRID(public.ST_MakePoint(-121.8977, 37.3084), 4326), 
+        true,
+        'HELP42',
+        'published'
+      );
+    `)
+
+    // 4. Re-insert Sam's products from seed.sql
+    execSql(`
+      INSERT INTO public.market_products (seller_id, booth_id, market_date, name, description, category, price_usd, unit, inventory, photos, harvested_at, moderation_status, is_active) 
+      SELECT '${samUserId}', id, CURRENT_DATE, 'Heirloom Peppers', 'Mixed hot and sweet peppers', 'produce', 4.50, 'basket', 10, '{}', now(), 'approved', true FROM public.market_booths WHERE owner_id = '${samUserId}' AND is_default = true ON CONFLICT DO NOTHING;
+
+      INSERT INTO public.market_products (seller_id, booth_id, market_date, name, description, category, price_usd, unit, inventory, photos, harvested_at, moderation_status, is_active) 
+      SELECT '${samUserId}', id, CURRENT_DATE, 'Sweet Corn', 'Golden bantam corn, picked today', 'produce', 3.00, 'each', 20, '{}', now(), 'approved', true FROM public.market_booths WHERE owner_id = '${samUserId}' AND is_default = true ON CONFLICT DO NOTHING;
+
+      INSERT INTO public.market_products (seller_id, booth_id, market_date, name, description, category, price_usd, unit, inventory, photos, harvested_at, moderation_status, is_active) 
+      SELECT '${samUserId}', id, CURRENT_DATE, 'Fresh Eggs', 'Free-range eggs from happy chickens', 'eggs', 6.00, 'dozen', 8, '{}', now(), 'approved', true FROM public.market_booths WHERE owner_id = '${samUserId}' AND is_default = true ON CONFLICT DO NOTHING;
+
+      INSERT INTO public.market_products (seller_id, booth_id, market_date, name, description, category, price_usd, unit, inventory, photos, harvested_at, moderation_status, is_active) 
+      SELECT '${samUserId}', id, CURRENT_DATE, 'Organic Honey', 'Raw wildflower honey, unfiltered', 'honey', 10.00, 'jar', 5, '{}', NULL, 'approved', true FROM public.market_booths WHERE owner_id = '${samUserId}' AND is_default = true ON CONFLICT DO NOTHING;
+
+      INSERT INTO public.market_products (seller_id, booth_id, market_date, name, description, category, price_usd, unit, inventory, photos, harvested_at, moderation_status, is_active) 
+      SELECT '${samUserId}', id, CURRENT_DATE, 'Sunflower Bouquet', 'Bright cheerful sunflowers from our garden', 'flowers', 8.00, 'bunch', 6, '{}', now(), 'approved', true FROM public.market_booths WHERE owner_id = '${samUserId}' AND is_default = true ON CONFLICT DO NOTHING;
+    `)
+
+    // 5. Restore helper relationships
+    execSql(`
+      INSERT INTO public.booth_helpers (booth_id, helper_id, status)
+      SELECT b.id, p.id, 'accepted'
+      FROM public.market_booths b, public.profiles p
+      WHERE b.owner_id = '${samUserId}' AND b.is_default = true AND p.email = 'buyer@test.local'
+      ON CONFLICT (booth_id, helper_id) DO UPDATE SET status = 'accepted';
+
+      INSERT INTO public.booth_helpers (booth_id, helper_id, status)
+      SELECT b.id, p.id, 'accepted'
+      FROM public.market_booths b, public.profiles p
+      WHERE b.owner_id = '${samUserId}' AND b.is_default = true AND p.email = 'maria@test.local'
+      ON CONFLICT (booth_id, helper_id) DO UPDATE SET status = 'accepted';
+    `)
+
+    // 6. Restore Sam's seeded orders
+    execSql(`
+      -- S1: Pending delivery
+      INSERT INTO public.market_orders (buyer_id, seller_id, booth_id, product_id, product_name, quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd, fulfillment_type, status)
+      SELECT 'b2222222-2222-2222-2222-222222222222', '${samUserId}', b.id, p.id, 'Heirloom Peppers', 3, 4.50, 13.50, 1.25, 14.75, 'delivery', 'pending'
+      FROM public.market_booths b, public.market_products p
+      WHERE b.owner_id = '${samUserId}' AND b.is_default = true AND p.seller_id = '${samUserId}' AND p.name = 'Heirloom Peppers';
+      
+      -- S2: Pending pickup
+      INSERT INTO public.market_orders (buyer_id, seller_id, booth_id, product_id, product_name, quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd, fulfillment_type, status)
+      SELECT 'b2222222-2222-2222-2222-222222222222', '${samUserId}', b.id, p.id, 'Heirloom Peppers', 2, 4.50, 9.00, 0.83, 9.83, 'pickup', 'pending'
+      FROM public.market_booths b, public.market_products p
+      WHERE b.owner_id = '${samUserId}' AND b.is_default = true AND p.seller_id = '${samUserId}' AND p.name = 'Heirloom Peppers';
+      
+      -- M2: Pending pickup from Maria
+      INSERT INTO public.market_orders (buyer_id, seller_id, booth_id, product_id, product_name, quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd, fulfillment_type, status)
+      SELECT 'c3333333-3333-3333-3333-333333333333', '${samUserId}', b.id, p.id, 'Heirloom Peppers', 1, 4.50, 4.50, 0.42, 4.92, 'pickup', 'pending'
+      FROM public.market_booths b, public.market_products p
+      WHERE b.owner_id = '${samUserId}' AND b.is_default = true AND p.seller_id = '${samUserId}' AND p.name = 'Heirloom Peppers';
+      
+      -- S3: Pending delivery
+      INSERT INTO public.market_orders (buyer_id, seller_id, booth_id, product_id, product_name, quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd, fulfillment_type, status)
+      SELECT 'b2222222-2222-2222-2222-222222222222', '${samUserId}', b.id, p.id, 'Heirloom Peppers', 2, 4.50, 9.00, 0.83, 9.83, 'delivery', 'pending'
+      FROM public.market_booths b, public.market_products p
+      WHERE b.owner_id = '${samUserId}' AND b.is_default = true AND p.seller_id = '${samUserId}' AND p.name = 'Heirloom Peppers';
+
+      -- S2b: Pending pickup Heritage Tomatoes
+      INSERT INTO public.market_orders (buyer_id, seller_id, booth_id, product_id, product_name, quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd, fulfillment_type, status)
+      SELECT 'b2222222-2222-2222-2222-222222222222', '${samUserId}', b.id, p.id, 'Heritage Tomatoes', 3, 5.00, 15.00, 1.39, 16.39, 'pickup', 'pending'
+      FROM public.market_booths b, public.market_products p
+      WHERE b.owner_id = '${samUserId}' AND b.is_default = true AND p.name = 'Heritage Tomatoes' LIMIT 1;
+      
+      -- M1: Pending pickup from Maria
+      INSERT INTO public.market_orders (buyer_id, seller_id, booth_id, product_id, product_name, quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd, fulfillment_type, status)
+      SELECT 'c3333333-3333-3333-3333-333333333333', '${samUserId}', b.id, p.id, 'Heritage Tomatoes', 2, 5.00, 10.00, 0.93, 10.93, 'pickup', 'pending'
+      FROM public.market_booths b, public.market_products p
+      WHERE b.owner_id = '${samUserId}' AND b.is_default = true AND p.name = 'Heritage Tomatoes' LIMIT 1;
+
+      -- S2c: Pending pickup Meyer Lemons
+      INSERT INTO public.market_orders (buyer_id, seller_id, booth_id, product_id, product_name, quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd, fulfillment_type, status)
+      SELECT 'b2222222-2222-2222-2222-222222222222', '${samUserId}', b.id, p.id, 'Meyer Lemons', 4, 3.50, 14.00, 1.30, 15.30, 'pickup', 'pending'
+      FROM public.market_booths b, public.market_products p
+      WHERE b.owner_id = '${samUserId}' AND b.is_default = true AND p.name = 'Meyer Lemons' LIMIT 1;
+      
+      -- M3: Pending delivery from Maria
+      INSERT INTO public.market_orders (buyer_id, seller_id, booth_id, product_id, product_name, quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd, fulfillment_type, status)
+      SELECT 'c3333333-3333-3333-3333-333333333333', '${samUserId}', b.id, p.id, 'Meyer Lemons', 3, 3.50, 10.50, 0.97, 11.47, 'delivery', 'pending'
+      FROM public.market_booths b, public.market_products p
+      WHERE b.owner_id = '${samUserId}' AND b.is_default = true AND p.name = 'Meyer Lemons' LIMIT 1;
     `)
   })
 })

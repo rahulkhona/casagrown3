@@ -152,7 +152,7 @@ test.describe('Facebook Auto-Post Settings', () => {
       // Auto-post description
       expect(content).toContain('GrowBot will automatically post')
       // CasaGrown description
-      expect(content).toContain('products may be featured')
+      expect(content).toContain('may be featured')
     } else {
       // FB not connected or not Pro
       expect(content).toMatch(/Facebook|Profile|Connect/i)

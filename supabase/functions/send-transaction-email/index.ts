@@ -20,8 +20,11 @@ import {
 import { sendTransactionEmail } from "../_shared/postmark.ts";
 import { wrapInBrandedTemplate } from "../_shared/email-templates.ts";
 
-// Site URL for logo
-const SITE_URL = Deno.env.get("SITE_URL") ?? "https://www.casagrown.com";
+// Safety guard: never use localhost URLs in production emails
+const _rawSiteUrl = Deno.env.get("SITE_URL") ?? "https://www.casagrown.com";
+const SITE_URL = (
+  _rawSiteUrl.includes("localhost") && Deno.env.get("POSTMARK_SERVER_TOKEN")
+) ? "https://www.casagrown.com" : _rawSiteUrl;
 
 interface Recipient {
   email: string;

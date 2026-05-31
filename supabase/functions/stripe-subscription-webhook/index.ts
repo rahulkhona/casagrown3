@@ -94,12 +94,35 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
       // Activate Pro flag on profile
       await supabase.from('profiles').update({ is_pro: true }).eq('id', targetUserId)
 
-      // Notify user
+      // Notify user (in-app)
       await supabase.from('notifications').insert({
         user_id: targetUserId,
         content: '🎉 Welcome to CasaGrown Pro! Your subscription is active. Enjoy lower fees, Facebook catalog sync, and more.',
         link_url: '/profile',
       })
+
+      // ── Send subscription_change welcome email with user guide ──
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name, email')
+          .eq('id', targetUserId)
+          .single()
+
+        if (profile?.email) {
+          await supabase.functions.invoke('send-notification-email', {
+            body: {
+              type: 'subscription_change',
+              recipients: [{ email: profile.email, name: profile.full_name || 'there' }],
+              plan: 'pro',
+              action: 'signup',
+            },
+          })
+          console.log(`[SUB-WEBHOOK] Welcome email sent to ${profile.email} for Pro signup`)
+        }
+      } catch (emailErr) {
+        console.warn('[SUB-WEBHOOK] Welcome email failed:', emailErr)
+      }
 
       console.log(`[SUB-WEBHOOK] Activated Pro for user ${targetUserId}`)
       return jsonOk({ received: true, action: 'activated' }, corsHeaders)
@@ -336,6 +359,29 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           link_url: '/profile',
         })
 
+        // ── Send cancellation confirmation email with Lite guide ──
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name, email')
+            .eq('id', sub.user_id)
+            .single()
+
+          if (profile?.email) {
+            await supabase.functions.invoke('send-notification-email', {
+              body: {
+                type: 'subscription_change',
+                recipients: [{ email: profile.email, name: profile.full_name || 'there' }],
+                plan: 'lite',
+                action: 'cancel',
+              },
+            })
+            console.log(`[SUB-WEBHOOK] Cancellation email sent to ${profile.email}`)
+          }
+        } catch (emailErr) {
+          console.warn('[SUB-WEBHOOK] Cancellation email failed:', emailErr)
+        }
+
         console.log(`[SUB-WEBHOOK] Revoked Pro for user ${sub.user_id}, archived non-default booths`)
       }
 
@@ -388,6 +434,10 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         const isActive = ['active', 'trialing'].includes(status) && stripePlan !== 'lite'
         await supabase.from('profiles').update({ is_pro: isActive }).eq('id', sub.user_id)
 
+        // Detect plan change direction for email
+        const oldPlan = sub.plan || 'lite'
+        const planChanged = oldPlan !== stripePlan
+
         // If downgrading to Lite or if plan revoked, archive all non-default booths
         if (stripePlan === 'lite' || !isActive) {
           await supabase
@@ -408,6 +458,34 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           
           if (updatedBooths && updatedBooths.length > 0) {
             console.log(`[SUB-WEBHOOK] Rollover downgrade completed for user ${sub.user_id}: archived ${updatedBooths.length} stands marked for archival`)
+          }
+        }
+
+        // ── Send subscription_change email on plan upgrade/downgrade ──
+        if (planChanged && ['active', 'trialing'].includes(status)) {
+          try {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('full_name, email')
+              .eq('id', sub.user_id)
+              .single()
+
+            if (profile?.email) {
+              const planRank: Record<string, number> = { lite: 0, pro: 1, elite: 2 }
+              const action = (planRank[stripePlan] || 0) > (planRank[oldPlan] || 0) ? 'upgrade' : 'downgrade'
+
+              await supabase.functions.invoke('send-notification-email', {
+                body: {
+                  type: 'subscription_change',
+                  recipients: [{ email: profile.email, name: profile.full_name || 'there' }],
+                  plan: stripePlan,
+                  action,
+                },
+              })
+              console.log(`[SUB-WEBHOOK] ${action} email sent to ${profile.email}: ${oldPlan} → ${stripePlan}`)
+            }
+          } catch (emailErr) {
+            console.warn('[SUB-WEBHOOK] Subscription change email failed:', emailErr)
           }
         }
       }
