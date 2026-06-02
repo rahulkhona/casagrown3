@@ -128,6 +128,14 @@ async function mockPromoEndpoints(page: import('@playwright/test').Page) {
   await page.route('**/rest/v1/user_subscription_discounts*', async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })
   })
+  // Mock pro_testers to make test user see all tiers (bypasses ENABLE_ELITE=false)
+  await page.route('**/rest/v1/pro_testers*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([{ email: 'seller@test.local' }]),
+    })
+  })
   await page.route('**/rest/v1/profiles*', async (route) => {
     const method = route.request().method()
     if (method === 'GET') {
@@ -163,6 +171,7 @@ test.describe('Subscription Upgrade/Downgrade — /pro Page', () => {
 
     await page.goto('/pro')
     await page.waitForTimeout(3000)
+    await page.waitForSelector('text=Lite Base', { timeout: 15000 })
 
     // Should see all three tier cards
     const body = await page.textContent('body')
@@ -185,6 +194,7 @@ test.describe('Subscription Upgrade/Downgrade — /pro Page', () => {
 
     await page.goto('/pro')
     await page.waitForTimeout(3000)
+    await page.waitForSelector('text=Lite Base', { timeout: 15000 })
 
     const body = await page.textContent('body')
 
@@ -209,6 +219,7 @@ test.describe('Subscription Upgrade/Downgrade — /pro Page', () => {
 
     await page.goto('/pro')
     await page.waitForTimeout(3000)
+    await page.waitForSelector('text=/GrowBot/i', { timeout: 15000 })
 
     const body = await page.textContent('body')
 
@@ -383,7 +394,8 @@ test.describe('Subscription Upgrade/Downgrade — /pro Page', () => {
     await mockPromoEndpoints(page)
 
     await page.goto('/pro')
-    await page.waitForTimeout(3000)
+    await page.waitForTimeout(5000)
+    await page.waitForSelector('text=/\/mo/i', { timeout: 15000 })
 
     // Paid tier prices should show "/mo" suffix
     const body = await page.textContent('body')

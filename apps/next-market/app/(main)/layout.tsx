@@ -6,6 +6,7 @@ import { MarketProvider } from '../../lib/store'
 import { CartProvider } from '../../lib/useCart'
 import { useAuth } from '../../lib/useAuth'
 import { BootstrapProvider } from '../../lib/useBootstrap'
+import { QuickSetupProvider, useQuickSetup } from '../../lib/useQuickSetup'
 import { Navbar } from '../components/Navbar'
 import { BottomNav } from '../components/BottomNav'
 import { RatingReminder } from '../components/RatingReminder'
@@ -57,18 +58,18 @@ const BROWSABLE_ROUTES = ['/', '/market', '/community', '/get-started', '/voice'
 
 /**
  * Routes that require full onboarding (ToS + profile).
- * If a logged-in user without a completed profile navigates here,
- * they get redirected to /profile-setup.
+ * Guests and incomplete users see the QuickSetupModal instead of being redirected.
  */
 const PROTECTED_ROUTES = [
   '/my-booth', '/my-stands', '/orders', '/earnings', '/chat', '/helping',
   '/following', '/notifications', '/settings', '/profile', '/cart',
+  '/messages', '/pro-manage', '/join-booth',
 ]
 
 function OnboardingGate({ children }: { children: React.ReactNode }) {
   const { user, loading, tosAccepted, profileComplete } = useAuth()
+  const { requireAuth } = useQuickSetup()
   const pathname = usePathname()
-  const router = useRouter()
 
   const isExempt = GATE_EXEMPT.some(p => pathname.startsWith(p))
   const isBrowsable = BROWSABLE_ROUTES.some(p =>
@@ -76,28 +77,23 @@ function OnboardingGate({ children }: { children: React.ReactNode }) {
   )
   const isProtected = PROTECTED_ROUTES.some(p => pathname.startsWith(p))
 
-  // Determine if the user needs onboarding
+  // Determine gate conditions
+  const isGuest = !loading && !user
   const needsToS = !loading && !!user && tosAccepted === false
   const needsProfile = !loading && !!user && tosAccepted === true && profileComplete === false
-  const needsOnboarding = needsToS || needsProfile
+  const needsOnboarding = isGuest || needsToS || needsProfile
 
   useEffect(() => {
-    if (loading || !user || isExempt) return
+    if (loading || isExempt) return
 
-    // Enforce ToS only on protected routes (allow browsing without ToS)
-    if (needsToS && isProtected) {
-      router.replace('/terms')
-      return
+    // On protected routes, auto-open the QuickSetupModal for guests and incomplete users
+    if (isProtected && needsOnboarding) {
+      requireAuth({ trigger: 'protected_route' })
     }
+  }, [loading, isExempt, isProtected, needsOnboarding, requireAuth])
 
-    // For protected routes, redirect to profile-setup
-    if (needsProfile && isProtected) {
-      router.replace('/profile-setup')
-    }
-  }, [loading, user, needsToS, needsProfile, isExempt, isProtected, router])
-
-  // Block content on protected routes when onboarding is needed
-  if (needsOnboarding && isProtected && !isExempt) {
+  // Block content on protected routes when onboarding is needed (show loading while modal is up)
+  if (!loading && needsOnboarding && isProtected && !isExempt) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
         <LoadingSpinner />
@@ -140,7 +136,9 @@ function MainLayoutInner({ children }: { children: React.ReactNode }) {
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   return (
     <BootstrapProvider>
-      <MainLayoutInner>{children}</MainLayoutInner>
+      <QuickSetupProvider>
+        <MainLayoutInner>{children}</MainLayoutInner>
+      </QuickSetupProvider>
     </BootstrapProvider>
   )
 }

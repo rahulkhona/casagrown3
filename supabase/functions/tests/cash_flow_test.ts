@@ -22,6 +22,7 @@ async function invoke(name: string, body: unknown, token?: string) {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15000),
   })
   const data = await res.json().catch(() => null)
   return { status: res.status, data }
@@ -37,6 +38,7 @@ Deno.test('[execute-settlement-captures] rejects unauthenticated requests', asyn
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ settlement_id: '00000000-0000-0000-0000-000000000001' }),
+    signal: AbortSignal.timeout(15000),
   })
   const status = res.status
   await res.text() // drain body
@@ -142,6 +144,7 @@ Deno.test('[stripe-webhook] handles payout.paid event structure', async () => {
       'Authorization': `Bearer ${ANON_KEY}`,
     },
     body,
+    signal: AbortSignal.timeout(15000),
   })
   // 200 (processed/ignored), 401 (signature), or 500 (parse) are acceptable
   if (![200, 401, 500].includes(res.status)) {
@@ -171,6 +174,7 @@ Deno.test('[stripe-webhook] handles payout.failed event structure', async () => 
       'Authorization': `Bearer ${ANON_KEY}`,
     },
     body,
+    signal: AbortSignal.timeout(15000),
   })
   if (![200, 401, 500].includes(res.status)) {
     await res.body?.cancel()
@@ -201,6 +205,7 @@ Deno.test('[stripe-webhook] handles charge.dispute.created event structure', asy
       'Authorization': `Bearer ${ANON_KEY}`,
     },
     body,
+    signal: AbortSignal.timeout(15000),
   })
   if (![200, 401, 500].includes(res.status)) {
     await res.body?.cancel()
@@ -231,6 +236,7 @@ Deno.test('[stripe-webhook] handles charge.dispute.closed event structure', asyn
       'Authorization': `Bearer ${ANON_KEY}`,
     },
     body,
+    signal: AbortSignal.timeout(15000),
   })
   if (![200, 401, 500].includes(res.status)) {
     await res.body?.cancel()

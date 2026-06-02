@@ -50,6 +50,7 @@ function NewMessageTrafficCopInner() {
 
     const initConversation = async () => {
       const supabase = createClient()
+      const productId = searchParams.get('productId')
 
       // Normalize participant order to avoid duplicate conversations
       const [pA, pB] = [user.id, targetUserId].sort()
@@ -69,7 +70,7 @@ function NewMessageTrafficCopInner() {
 
       if (existing) {
         // Conversation exists! Route directly to it.
-        router.replace(`/messages/${existing.id}`)
+        router.replace(`/messages/${existing.id}${productId ? `?productId=${productId}` : ''}`)
         return
       }
 
@@ -93,7 +94,7 @@ function NewMessageTrafficCopInner() {
           .maybeSingle()
         
         if (retryConv) {
-          router.replace(`/messages/${retryConv.id}`)
+          router.replace(`/messages/${retryConv.id}${productId ? `?productId=${productId}` : ''}`)
           return
         }
         
@@ -103,7 +104,7 @@ function NewMessageTrafficCopInner() {
       }
 
       if (newConv) {
-        router.replace(`/messages/${newConv.id}`)
+        router.replace(`/messages/${newConv.id}${productId ? `?productId=${productId}` : ''}`)
       }
     }
 

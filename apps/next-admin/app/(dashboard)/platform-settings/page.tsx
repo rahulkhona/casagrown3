@@ -36,7 +36,18 @@ export default function PlatformSettingsPage() {
   const [submittingTier, setSubmittingTier] = useState(false)
   const [newTierFeatures, setNewTierFeatures] = useState<Record<string, boolean>>({
     facebook_sync: false,
-    growbot_copilot: false
+    facebook_posts: false,
+    instagram_posts: false,
+    instagram_sync: false,
+    whatsapp_sync: false,
+    growbot_copilot: false,
+    facebook_chat: false,
+    facebook_comments: false,
+    instagram_chat: false,
+    instagram_comments: false,
+    whatsapp_chat: false,
+    video_posts: false,
+    google_places: false
   })
   const [newTierOffered, setNewTierOffered] = useState(true)
 
@@ -193,7 +204,18 @@ export default function PlatformSettingsPage() {
       setNewTierOffered(true)
       setNewTierFeatures({
         facebook_sync: false,
-        growbot_copilot: false
+        facebook_posts: false,
+        instagram_posts: false,
+        instagram_sync: false,
+        whatsapp_sync: false,
+        growbot_copilot: false,
+        facebook_chat: false,
+        facebook_comments: false,
+        instagram_chat: false,
+        instagram_comments: false,
+        whatsapp_chat: false,
+        video_posts: false,
+        google_places: false
       })
       setNewTierError('')
 
@@ -663,10 +685,29 @@ export default function PlatformSettingsPage() {
                     textAlign="center"
                   />
                 </XStack>
-
-                <YStack gap="$2">
+                <YStack gap="$2" style={{ textAlign: 'left' }}>
+                  <Text fontSize="$2.5" fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>CATALOG SYNCS</Text>
                   {renderNewTierFeatureToggle('facebook_sync', 'Facebook Catalog Sync')}
-                  {renderNewTierFeatureToggle('growbot_copilot', 'GrowBot Copilot Auto-Replies')}
+                  {renderNewTierFeatureToggle('instagram_sync', 'Instagram Catalog Sync')}
+                  {renderNewTierFeatureToggle('whatsapp_sync', 'WhatsApp Catalog Sync')}
+
+                  <Text fontSize="$2.5" fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>AUTO POSTING</Text>
+                  {renderNewTierFeatureToggle('facebook_posts', 'Facebook Auto-Posting')}
+                  {renderNewTierFeatureToggle('instagram_posts', 'Instagram Auto-Posting')}
+
+                  <Text fontSize="$2.5" fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>AUTO RESPONDERS & AI</Text>
+                  {renderNewTierFeatureToggle('growbot_copilot', 'CasaGrown DM Auto-Replies')}
+                  {renderNewTierFeatureToggle('facebook_chat', 'Facebook DM Auto-Replies')}
+                  {renderNewTierFeatureToggle('facebook_comments', 'Facebook Comment Auto-Replies')}
+                  {renderNewTierFeatureToggle('instagram_chat', 'Instagram DM Auto-Replies')}
+                  {renderNewTierFeatureToggle('instagram_comments', 'Instagram Comment Auto-Replies')}
+                  {renderNewTierFeatureToggle('whatsapp_chat', 'WhatsApp DM Auto-Replies')}
+
+                  <Text fontSize="$2.5" fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>VIDEO POSTS</Text>
+                  {renderNewTierFeatureToggle('video_posts', 'Video Auto-Posting (FB & IG)')}
+
+                  <Text fontSize="$2.5" fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>GOOGLE PLACES API</Text>
+                  {renderNewTierFeatureToggle('google_places', 'Post to Google Maps / Places')}
                 </YStack>
               </YStack>
 
@@ -834,8 +875,28 @@ export default function PlatformSettingsPage() {
                         />
                       </XStack>
 
+                      <Text fontSize="$2.5" fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>CATALOG SYNCS</Text>
                       {renderFeatureToggle(tier, 'facebook_sync', 'Facebook Catalog Sync')}
-                      {renderFeatureToggle(tier, 'growbot_copilot', 'GrowBot Copilot Auto-Replies')}
+                      {renderFeatureToggle(tier, 'instagram_sync', 'Instagram Catalog Sync')}
+                      {renderFeatureToggle(tier, 'whatsapp_sync', 'WhatsApp Catalog Sync')}
+
+                      <Text fontSize="$2.5" fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>AUTO POSTING</Text>
+                      {renderFeatureToggle(tier, 'facebook_posts', 'Facebook Auto-Posting')}
+                      {renderFeatureToggle(tier, 'instagram_posts', 'Instagram Auto-Posting')}
+
+                      <Text fontSize="$2.5" fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>AUTO RESPONDERS & AI</Text>
+                      {renderFeatureToggle(tier, 'growbot_copilot', 'CasaGrown DM Auto-Replies')}
+                      {renderFeatureToggle(tier, 'facebook_chat', 'Facebook DM Auto-Replies')}
+                      {renderFeatureToggle(tier, 'facebook_comments', 'Facebook Comment Auto-Replies')}
+                      {renderFeatureToggle(tier, 'instagram_chat', 'Instagram DM Auto-Replies')}
+                      {renderFeatureToggle(tier, 'instagram_comments', 'Instagram Comment Auto-Replies')}
+                      {renderFeatureToggle(tier, 'whatsapp_chat', 'WhatsApp DM Auto-Replies')}
+
+                      <Text fontSize="$2.5" fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>VIDEO POSTS</Text>
+                      {renderFeatureToggle(tier, 'video_posts', 'Video Auto-Posting (FB & IG)')}
+
+                      <Text fontSize="$2.5" fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>GOOGLE PLACES API</Text>
+                      {renderFeatureToggle(tier, 'google_places', 'Post to Google Maps / Places')}
                     </YStack>
                   </YStack>
 

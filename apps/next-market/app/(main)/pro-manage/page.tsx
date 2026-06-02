@@ -1,452 +1,676 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '../../../lib/useAuth'
 import { createClient } from '../../../lib/supabase'
 import { useSubscription } from '../../../lib/useSubscription'
 import { LoadingSpinner } from '../../components/LoadingSpinner'
 import { useErrorToast } from '../../components/ErrorToast'
 import { ProCarousel } from '../../components/ProCarousel'
-import { FacebookStatus } from '../../components/FacebookStatus'
-import { GrowBotSettings } from '../../components/GrowBotSettings'
+import { GrowBotAlertPreferences } from '../../components/GrowBotAlertPreferences'
 import { useProEnabled } from '../../../lib/useProEnabled'
 
+/* ───────────────────────────────────────────────────────
+   Types
+   ─────────────────────────────────────────────────────── */
+interface ChannelConfig { enabled: boolean; delayMinutes: number }
+type ChannelKey = 'messenger' | 'dm' | 'instagram' | 'whatsapp' | 'comments'
+
+/* ───────────────────────────────────────────────────────
+   Inner page component
+   ─────────────────────────────────────────────────────── */
 function ProManagePageInner() {
   const router = useRouter()
   const { user, loading: authLoading, isAuthenticated } = useAuth()
-  const { isPro, plan, status, trialEndsAt, currentPeriodEnd, canceledAt, loading: subLoading } = useSubscription()
-  const { showSuccess, showError } = useErrorToast()
+  const { isPro, plan, status, loading: subLoading } = useSubscription()
+  const { showSuccess } = useErrorToast()
   const supabase = createClient()
 
-  const [actionLoading, setActionLoading] = useState(false)
-  const [showConfirm, setShowConfirm] = useState(false)
+  /* ── Local state ── */
   const [proInterestSending, setProInterestSending] = useState(false)
   const [proInterestSent, setProInterestSent] = useState(false)
 
-  // ── Auth guard ──
-  if (authLoading || subLoading) {
-    return <LoadingSpinner message="Loading subscription…" />
-  }
+  // Seller connections
+  const [fbConn, setFbConn] = useState<any>(null)
+  const [googleConn, setGoogleConn] = useState<any>(null)
+  const [dataLoading, setDataLoading] = useState(true)
+  const [savingField, setSavingField] = useState<string | null>(null)
 
-  if (!isAuthenticated || !user) {
-    router.replace('/login?redirect=/pro-manage')
-    return <LoadingSpinner message="Redirecting to sign in…" />
-  }
+  // FB / Google connect flow
+  const [connecting, setConnecting] = useState('')
+  const [connectError, setConnectError] = useState('')
+  const [disconnecting, setDisconnecting] = useState('')
 
-  // ── Helpers ──
-  const isCancelPending = isPro && !!canceledAt
+  // WhatsApp phone
+  const [waPhoneInput, setWaPhoneInput] = useState('')
+  const [waSaving, setWaSaving] = useState(false)
+  const [waCopied, setWaCopied] = useState(false)
+  const [waZipCode, setWaZipCode] = useState('')
+  const [waProvisioning, setWaProvisioning] = useState(false)
+  const [waProvisionError, setWaProvisionError] = useState('')
 
-  const handleCancel = async () => {
-    setActionLoading(true)
-    try {
-      const { error } = await supabase.functions.invoke('manage-subscription', {
-        body: { action: 'cancel' },
-      })
-      if (error) throw error
-      setShowConfirm(false)
-      showSuccess(`Your ${plan === 'elite' ? 'Elite' : 'Pro'} subscription has been scheduled for cancellation.`)
-      setTimeout(() => window.location.reload(), 1200)
-    } catch (err: any) {
-      console.error('Cancel failed:', err)
-      showError('Failed to cancel subscription. Please try again.')
-      setActionLoading(false)
-      setShowConfirm(false)
+  // GrowBot channels
+  const [botChannels, setBotChannels] = useState<Record<ChannelKey, ChannelConfig>>({
+    messenger: { enabled: true, delayMinutes: 0 },
+    instagram: { enabled: true, delayMinutes: 0 },
+    whatsapp: { enabled: true, delayMinutes: 0 },
+    comments: { enabled: true, delayMinutes: 0 },
+    dm: { enabled: true, delayMinutes: 5 },
+  })
+  const [botInstructions, setBotInstructions] = useState('')
+  const [botSaving, setBotSaving] = useState(false)
+  const [botSaved, setBotSaved] = useState(false)
+
+  /* ── Load all data ── */
+  useEffect(() => {
+    if (!user) return
+    const load = async () => {
+      const [fbRes, googleRes, profileRes] = await Promise.all([
+        supabase.from('seller_fb_connections').select('*').eq('user_id', user.id).maybeSingle(),
+        supabase.from('seller_google_connections').select('*').eq('user_id', user.id).maybeSingle(),
+        supabase.from('profiles').select('bot_instructions, bot_channels, zip_code').eq('id', user.id).single(),
+      ])
+      setFbConn(fbRes.data)
+      setGoogleConn(googleRes.data)
+      if (fbRes.data?.wa_display_phone) setWaPhoneInput(fbRes.data.wa_display_phone)
+      if (profileRes.data) {
+        setBotInstructions(profileRes.data.bot_instructions || '')
+        if (profileRes.data.zip_code) setWaZipCode(profileRes.data.zip_code)
+        if (profileRes.data.bot_channels) {
+          const bc = profileRes.data.bot_channels as Record<string, any>
+          setBotChannels(prev => ({
+            messenger: { ...prev.messenger, ...bc.messenger },
+            instagram: { ...prev.instagram, ...bc.instagram },
+            whatsapp: { ...prev.whatsapp, ...bc.whatsapp },
+            comments: { ...prev.comments, ...bc.comments },
+            dm: { ...prev.dm, ...bc.dm },
+          }))
+        }
+      }
+      setDataLoading(false)
     }
+    load()
+  }, [user])
+
+  /* ── Helpers ── */
+  const isElite = plan === 'elite'
+
+  const toggleFbField = async (field: string, currentValue: boolean) => {
+    const newVal = !currentValue
+    setSavingField(field)
+    setFbConn((prev: any) => ({ ...prev, [field]: newVal }))
+    await supabase.from('seller_fb_connections').update({ [field]: newVal }).eq('user_id', user!.id)
+    setSavingField(null)
   }
 
-  const handleResume = async () => {
-    setActionLoading(true)
+  const toggleGoogleField = async (field: string, currentValue: boolean) => {
+    const newVal = !currentValue
+    setSavingField(field)
+    setGoogleConn((prev: any) => ({ ...prev, [field]: newVal }))
+    await supabase.from('seller_google_connections').update({ [field]: newVal }).eq('user_id', user!.id)
+    setSavingField(null)
+  }
+
+  const updateBotChannel = (key: ChannelKey, patch: Partial<ChannelConfig>) => {
+    setBotChannels(prev => ({ ...prev, [key]: { ...prev[key], ...patch } }))
+  }
+
+  const handleBotSave = async () => {
+    setBotSaving(true)
+    await supabase.from('profiles').update({ bot_instructions: botInstructions || null, bot_channels: botChannels }).eq('id', user!.id)
+    setBotSaving(false)
+    setBotSaved(true)
+    setTimeout(() => setBotSaved(false), 2000)
+  }
+
+  const handleFbConnect = async () => {
+    setConnecting('fb')
+    setConnectError('')
     try {
-      const { error } = await supabase.functions.invoke('manage-subscription', {
-        body: { action: 'resume' },
-      })
-      if (error) throw error
-      showSuccess(`Your ${plan === 'elite' ? 'Elite' : 'Pro'} subscription has been resumed! 🎉`)
-      setTimeout(() => window.location.reload(), 1200)
-    } catch (err: any) {
-      console.error('Resume failed:', err)
-      showError('Failed to resume subscription. Please try again.')
-      setActionLoading(false)
-    }
+      const { data, error } = await supabase.functions.invoke('connect-facebook', { body: { return_path: '/pro-manage' } })
+      if (error || !data?.url) { setConnectError('Failed to start Facebook connection.'); setConnecting(''); return }
+      window.location.href = data.url
+    } catch { setConnectError('Something went wrong.'); setConnecting('') }
   }
 
-  const formatDate = (dateStr: string) =>
-    new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-    })
+  const handleFbDisconnect = async () => {
+    if (!confirm('Disconnect Facebook? Catalogs and posting will stop.')) return
+    setDisconnecting('fb')
+    await supabase.from('seller_fb_connections').update({ status: 'disconnected', auto_sync_enabled: false }).eq('user_id', user!.id)
+    setFbConn(null)
+    setDisconnecting('')
+  }
 
-  // ── 1. Lite (Non-Pro) view ──
+  const handleGoogleConnect = async () => {
+    setConnecting('google')
+    setConnectError('')
+    try {
+      const { data, error } = await supabase.functions.invoke('connect-google', { body: { return_path: '/pro-manage' } })
+      if (error || !data?.url) { setConnectError('Failed to start Google connection.'); setConnecting(''); return }
+      window.location.href = data.url
+    } catch { setConnectError('Something went wrong.'); setConnecting('') }
+  }
+
+  const handleGoogleDisconnect = async () => {
+    if (!confirm('Disconnect Google Business? Syncing and auto-posting will stop.')) return
+    setDisconnecting('google')
+    await supabase.from('seller_google_connections').delete().eq('user_id', user!.id)
+    setGoogleConn(null)
+    setDisconnecting('')
+  }
+
+  const handleWaSavePhone = async () => {
+    if (!waPhoneInput.trim()) return
+    setWaSaving(true)
+    await supabase.from('seller_fb_connections').update({ wa_display_phone: waPhoneInput.trim(), wa_number_source: 'seller_provided' }).eq('user_id', user!.id)
+    setFbConn((prev: any) => ({ ...prev, wa_display_phone: waPhoneInput.trim(), wa_number_source: 'seller_provided' }))
+    setWaSaving(false)
+  }
+
+  const handleWaSourceChange = async (source: string) => {
+    setFbConn((prev: any) => ({ ...prev, wa_number_source: source }))
+    await supabase.from('seller_fb_connections').update({ wa_number_source: source }).eq('user_id', user!.id)
+  }
+
+  /* ── Auth guard ── */
+  const proEnabled = useProEnabled()
+  if (authLoading || subLoading) return <LoadingSpinner message="Loading…" />
+  if (!proEnabled) { router.replace('/'); return <LoadingSpinner message="Redirecting…" /> }
+  if (!isAuthenticated || !user) { router.replace('/login?redirect=/pro-manage'); return <LoadingSpinner message="Redirecting…" /> }
+
+  /* ── Lite view ── */
   if (!isPro) {
     return (
       <div style={{ maxWidth: 520, margin: '0 auto', padding: '40px 20px' }}>
-        {/* Header */}
         <div style={{ marginBottom: 24 }}>
-          <h1 style={{ fontSize: 24, fontWeight: 800, margin: '0 0 4px', color: '#111827', letterSpacing: '-0.5px' }}>
-            Subscription Settings
-          </h1>
-          <p style={{ fontSize: 14, color: '#6b7280', margin: 0 }}>
-            Manage your packages and subscription settings
-          </p>
+          <h1 style={{ fontSize: 24, fontWeight: 800, margin: '0 0 4px', color: '#111827' }}>Manage Features</h1>
+          <p style={{ fontSize: 14, color: '#6b7280', margin: 0 }}>Unlock powerful growth tools to scale your produce sales</p>
         </div>
-
-        {/* Current Plan Card */}
-        <div style={{
-          background: 'rgba(255,255,255,0.6)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          border: '1px solid rgba(229, 231, 235, 0.5)',
-          borderRadius: 20,
-          padding: 24,
-          marginBottom: 28,
-          boxShadow: '0 10px 30px rgba(0,0,0,0.04)'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#047857', background: '#ecfdf5', padding: '4px 12px', borderRadius: 9999 }}>
-              🚜 Active Plan
-            </span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#6b7280' }}>$0/mo</span>
-          </div>
-          <h3 style={{ fontSize: 20, fontWeight: 800, color: '#111827', margin: '0 0 8px' }}>Lite Base Plan</h3>
-          <p style={{ fontSize: 14, color: '#4b5563', margin: '0 0 16px', lineHeight: 1.5 }}>
-            Includes 1 active produce stand with standard checkout and a 10% platform sales fee. Upgrade anytime to unlock advanced features!
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13, color: '#4b5563', borderTop: '1px dashed #e5e7eb', paddingTop: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Sales Platform Fee:</span>
-              <strong style={{ color: '#111827' }}>10%</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Active Stands Limit:</span>
-              <strong style={{ color: '#111827' }}>1 Stand</strong>
-            </div>
-          </div>
-        </div>
-
-        {/* Upgrade Call to Action */}
-        <div style={{
-          background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
-          borderRadius: 20,
-          padding: 24,
-          border: '1px solid #a7f3d0',
-          boxShadow: '0 10px 30px rgba(4, 120, 87, 0.08)',
-          marginBottom: 28
-        }}>
-          <h3 style={{ fontSize: 18, fontWeight: 800, color: '#065f46', margin: '0 0 8px' }}>⚡ Upgrade to Pro or Elite</h3>
-          <p style={{ fontSize: 14, color: '#047857', margin: '0 0 20px', lineHeight: 1.5 }}>
-            Unlock multiple stands (up to Unlimited!), dynamic platform fee reductions down to **2%**, GrowBot AI Sales Copilot, and automated Facebook marketplace catalog syncing!
-          </p>
-          <button
-            onClick={() => router.push('/pro?ref=pro-manage')}
-            style={{
-              padding: '14px 28px', borderRadius: 14, border: 'none',
-              background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-              color: 'white', fontWeight: 800, fontSize: 15,
-              cursor: 'pointer',
-              boxShadow: '0 8px 20px rgba(5, 150, 105, 0.3)',
-              transition: 'all 0.2s ease',
-              width: '100%',
-            }}
-          >
-            Explore Premium Tiers →
-          </button>
-        </div>
-
-        {/* Carousel features summary */}
-        <ProCarousel compact />
-
-        <div style={{ marginTop: 24, textAlign: 'center' }}>
-          <button
-            onClick={async () => {
-              setProInterestSending(true)
-              try {
-                await supabase.functions.invoke('send-pro-interest-email', { body: {} })
-                showSuccess('📧 Details sent — check your inbox!')
-                setProInterestSent(true)
-              } catch {
-                // Silently fail
-              } finally {
-                setProInterestSending(false)
-              }
-            }}
-            disabled={proInterestSent || proInterestSending}
-            style={{
-              background: 'none', border: 'none', color: '#059669', fontWeight: 600, fontSize: 13,
-              cursor: proInterestSent || proInterestSending ? 'not-allowed' : 'pointer',
-              textDecoration: 'underline'
-            }}
-          >
-            {proInterestSending ? 'Sending features guide...' : proInterestSent ? 'Guide sent — check your inbox!' : 'Send me the features guide via email'}
+        <div style={{ marginBottom: 28 }}><ProCarousel compact /></div>
+        <div style={{ background: 'linear-gradient(135deg, #ecfdf5, #d1fae5)', borderRadius: 20, padding: 24, border: '1px solid #a7f3d0' }}>
+          <h3 style={{ fontSize: 18, fontWeight: 800, color: '#065f46', margin: '0 0 16px', textAlign: 'center' }}>⚡ Learn About Pro or Elite Features</h3>
+          <button onClick={async () => { setProInterestSending(true); try { await supabase.functions.invoke('send-pro-interest-email', { body: {} }); showSuccess('📧 Details sent!'); setProInterestSent(true) } catch {} finally { setProInterestSending(false) } }} disabled={proInterestSent || proInterestSending} style={{ padding: '14px 28px', borderRadius: 14, background: proInterestSent ? '#ecfdf5' : 'linear-gradient(135deg, #059669, #047857)', color: proInterestSent ? '#047857' : 'white', fontWeight: 800, fontSize: 15, cursor: proInterestSent ? 'not-allowed' : 'pointer', width: '100%', border: proInterestSent ? '1px solid #a7f3d0' : 'none' }}>
+            {proInterestSending ? 'Sending…' : proInterestSent ? 'Guide sent — check your inbox! 📧' : 'Email me about Pro & Elite capabilities →'}
           </button>
         </div>
       </div>
     )
   }
 
-  // ── 2. Paid (Pro/Elite) view ──
-  const isElitePlan = plan === 'elite'
-  const planDisplayName = isElitePlan ? 'Elite grower' : 'Pro grower'
-  const planHeaderTitle = isElitePlan ? '🚜 CasaGrown Elite' : '🚜 CasaGrown Pro'
-  const planFeeLabel = isElitePlan ? '2%' : '5%'
-  const planStandsLimitLabel = isElitePlan ? 'Unlimited Stands' : '3 Stands'
-  const planPriceLabel = isElitePlan ? '$29/mo' : '$10/mo'
+  /* ── Pro/Elite view ── */
+  if (dataLoading) return <LoadingSpinner message="Loading features…" />
+
+  const fbConnected = fbConn && fbConn.status === 'connected'
+  const igConnected = !!fbConn?.ig_business_account_id
+  const waConnected = !!fbConn?.wa_phone_number_id || !!fbConn?.wa_display_phone
+  const googleConnected = !!googleConn?.google_location_id
+  const isWaSellerProvided = fbConn?.wa_number_source === 'seller_provided'
 
   return (
     <div style={{ maxWidth: 520, margin: '0 auto', padding: '40px 20px' }}>
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 4px', color: '#111827' }}>
-          Manage Subscription
-        </h1>
-        <p style={{ fontSize: 14, color: '#6b7280', margin: 0 }}>
-          Your CasaGrown subscription and premium settings
+        <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 4px', color: '#111827' }}>Manage Features</h1>
+        <p style={{ fontSize: 14, color: '#6b7280', margin: 0 }}>Your features and settings</p>
+      </div>
+
+      {/* Status card */}
+      <div style={{ background: isElite ? 'linear-gradient(135deg, #1e3a8a, #3b82f6)' : 'linear-gradient(135deg, #065f46, #059669)', borderRadius: 16, padding: 20, color: 'white', boxShadow: '0 4px 16px rgba(0,0,0,0.12)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 18, fontWeight: 700 }}>{isElite ? '🚜 CasaGrown Elite' : '🚜 CasaGrown Pro'}</span>
+          <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: 'rgba(255,255,255,0.2)' }}>{status === 'trialing' ? '🎉 Trial' : '✓ Active'}</span>
+        </div>
+      </div>
+
+      {/* ═══════════════════════════════════════════
+          SECTION 1: CasaGrown (Pro + Elite)
+         ═══════════════════════════════════════════ */}
+      <SectionHeader emoji="🌱" title="CasaGrown" />
+      <SectionCard>
+        <BotChannelToggle
+          icon="✉️" label="GrowBot Auto-Reply — CasaGrown DMs"
+          desc="Auto-reply to direct messages on CasaGrown"
+          config={botChannels.dm}
+          onToggle={(enabled) => updateBotChannel('dm', { enabled })}
+          onDelay={(d) => updateBotChannel('dm', { delayMinutes: d })}
+          hasDelay
+        />
+      </SectionCard>
+
+      {/* ═══════════════════════════════════════════
+          SECTION 2: Facebook (Pro + Elite)
+         ═══════════════════════════════════════════ */}
+      <SectionHeader emoji="📘" title="Facebook" />
+      <SectionCard>
+        {/* Connect */}
+        {!fbConnected ? (
+          <div style={{ textAlign: 'center', padding: '8px 0' }}>
+            <p style={{ margin: '0 0 8px', fontSize: 14, color: '#6b7280' }}>Connect your Facebook Page to get started.</p>
+            <button onClick={handleFbConnect} disabled={connecting === 'fb'} style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: '#1877f2', color: 'white', fontWeight: 600, fontSize: 14, cursor: connecting === 'fb' ? 'wait' : 'pointer', opacity: connecting === 'fb' ? 0.7 : 1 }}>
+              {connecting === 'fb' ? '🔗 Connecting…' : '🔗 Connect Facebook'}
+            </button>
+            {connectError && <p style={{ margin: '8px 0 0', fontSize: 12, color: '#dc2626' }}>⚠️ {connectError}</p>}
+          </div>
+        ) : (
+          <>
+            {/* Connection status */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <span style={{ fontWeight: 600, fontSize: 14 }}>{fbConn.fb_page_name || 'Facebook Page'}</span>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <StatusBadge connected />
+                <button onClick={handleFbDisconnect} disabled={disconnecting === 'fb'} style={{ fontSize: 11, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Disconnect</button>
+              </div>
+            </div>
+
+            <Divider />
+
+            {/* Toggles */}
+            <ToggleRow label="📦 Sync product catalog" desc="Sync your CasaGrown inventory to your Facebook Page shop — never your personal profile." value={!!fbConn.auto_sync_enabled} saving={savingField === 'auto_sync_enabled'} onToggle={() => toggleFbField('auto_sync_enabled', !!fbConn.auto_sync_enabled)} />
+            {fbConn.auto_sync_enabled && (
+              <div style={{ marginLeft: 54, marginBottom: 8, padding: '8px 12px', borderRadius: 8, background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: 11, color: '#1e40af', lineHeight: 1.5 }}>
+                Your products appear in your <strong>Facebook Shop</strong> tab and are <strong>updated daily</strong> so customers always see current availability and prices.
+              </div>
+            )}
+            <ToggleRow label="📣 Post daily listings" desc="GrowBot posts your available products to your Facebook Page — never to your personal profile." value={!!fbConn.auto_post_enabled} saving={savingField === 'auto_post_enabled'} onToggle={() => toggleFbField('auto_post_enabled', !!fbConn.auto_post_enabled)} />
+            {fbConn.auto_post_enabled && (
+              <div style={{ marginLeft: 54 }}>
+                <ToggleRow label="🎬 Include video posts" desc="Generate AI video content from your product photos." value={!!fbConn.video_posts_enabled} saving={savingField === 'video_posts_enabled'} onToggle={() => toggleFbField('video_posts_enabled', !!fbConn.video_posts_enabled)} />
+              </div>
+            )}
+
+            <Divider />
+
+            {/* GrowBot — Messenger */}
+            <BotChannelToggle
+              icon="💬" label="GrowBot Auto-Reply — Messenger"
+              desc="Auto-reply to buyers messaging your Facebook Page"
+              config={botChannels.messenger}
+              onToggle={(enabled) => updateBotChannel('messenger', { enabled })}
+              onDelay={(d) => updateBotChannel('messenger', { delayMinutes: d })}
+              hasDelay
+            />
+            {/* Scan comments */}
+            <BotChannelToggle
+              icon="🔍" label="Scan Comments & Respond"
+              desc="Auto-reply to Facebook comments and send checkout DMs on buying intent"
+              config={botChannels.comments}
+              onToggle={(enabled) => updateBotChannel('comments', { enabled })}
+              onDelay={() => {}}
+              hasDelay={false}
+            />
+          </>
+        )}
+      </SectionCard>
+
+      {/* ═══════════════════════════════════════════
+          SECTION 3: Instagram (Elite only)
+         ═══════════════════════════════════════════ */}
+      {isElite && (
+        <>
+          <SectionHeader emoji="📸" title="Instagram" />
+          <SectionCard>
+            {!igConnected ? (
+              <div style={{ padding: '8px 0', textAlign: 'center' }}>
+                <p style={{ margin: '0 0 4px', fontSize: 14, color: '#6b7280' }}>Instagram connects through your Facebook Page.</p>
+                <p style={{ margin: 0, fontSize: 12, color: '#9ca3af' }}>{fbConnected ? 'No Instagram Business account detected on your Facebook Page.' : 'Connect Facebook first — Instagram will be detected automatically.'}</p>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>@{fbConn.ig_username || 'Instagram'}</span>
+                  <StatusBadge connected />
+                </div>
+                <Divider />
+                <ToggleRow label="📦 Sync product catalog" desc="Sync your catalog to your Instagram Business or Creator account — not your personal profile." value={!!fbConn.ig_messenger_enabled} saving={savingField === 'ig_messenger_enabled'} onToggle={() => toggleFbField('ig_messenger_enabled', !!fbConn.ig_messenger_enabled)} />
+                {fbConn.ig_messenger_enabled && (
+                  <div style={{ marginLeft: 54, marginBottom: 8, padding: '8px 12px', borderRadius: 8, background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: 11, color: '#1e40af', lineHeight: 1.5 }}>
+                    Your products appear in your <strong>Instagram Shop</strong> tab and are <strong>updated daily</strong> so customers always see current availability.
+                  </div>
+                )}
+                <ToggleRow label="📣 Post daily listings" desc="GrowBot posts daily to your Instagram Business or Creator account — never to your personal feed." value={!!fbConn.ig_auto_post_enabled} saving={savingField === 'ig_auto_post_enabled'} onToggle={() => toggleFbField('ig_auto_post_enabled', !!fbConn.ig_auto_post_enabled)} />
+                {fbConn.ig_auto_post_enabled && (
+                  <div style={{ marginLeft: 54 }}>
+                    <ToggleRow label="🎬 Include video posts" desc="Generate AI Reels from your product photos." value={!!fbConn.ig_video_posts_enabled} saving={savingField === 'ig_video_posts_enabled'} onToggle={() => toggleFbField('ig_video_posts_enabled', !!fbConn.ig_video_posts_enabled)} />
+                  </div>
+                )}
+                <Divider />
+                <BotChannelToggle
+                  icon="📸" label="GrowBot Auto-Reply — Instagram DMs"
+                  desc="Auto-reply to buyers messaging your Instagram"
+                  config={botChannels.instagram}
+                  onToggle={(enabled) => updateBotChannel('instagram', { enabled })}
+                  onDelay={(d) => updateBotChannel('instagram', { delayMinutes: d })}
+                  hasDelay
+                />
+                <BotChannelToggle
+                  icon="🔍" label="Scan Comments & Respond"
+                  desc="Auto-reply to Instagram comments and send checkout DMs"
+                  config={botChannels.comments}
+                  onToggle={(enabled) => updateBotChannel('comments', { enabled })}
+                  onDelay={() => {}}
+                  hasDelay={false}
+                />
+              </>
+            )}
+          </SectionCard>
+        </>
+      )}
+
+      {/* ═══════════════════════════════════════════
+          SECTION 4: WhatsApp (Elite only)
+         ═══════════════════════════════════════════ */}
+      {isElite && (
+        <>
+          <SectionHeader emoji="📱" title="WhatsApp" />
+          <SectionCard>
+            {/* Phone number config */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 8 }}>WhatsApp Number</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, cursor: 'pointer', border: !isWaSellerProvided ? '2px solid #059669' : '1px solid #e5e7eb', background: !isWaSellerProvided ? '#f0fdf4' : '#fff' }}>
+                  <input type="radio" name="wa_src" checked={!isWaSellerProvided} onChange={() => handleWaSourceChange('twilio_provisioned')} style={{ accentColor: '#059669' }} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: '#111827' }}>Use CasaGrown-provisioned number</div>
+                    <div style={{ fontSize: 11, color: '#6b7280' }}>We assign a dedicated WhatsApp number for your business</div>
+                  </div>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, cursor: 'pointer', border: isWaSellerProvided ? '2px solid #059669' : '1px solid #e5e7eb', background: isWaSellerProvided ? '#f0fdf4' : '#fff' }}>
+                  <input type="radio" name="wa_src" checked={isWaSellerProvided} onChange={() => handleWaSourceChange('seller_provided')} style={{ accentColor: '#059669' }} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: '#111827' }}>Use my own WhatsApp Business number</div>
+                    <div style={{ fontSize: 11, color: '#6b7280' }}>Connect your existing WhatsApp Business number</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* Provisioned number — request flow or display */}
+            {!isWaSellerProvided && (
+              fbConn?.wa_display_phone ? (
+                /* Number already provisioned — show it */
+                <div style={{ padding: '14px 16px', borderRadius: 12, marginBottom: 10, background: 'linear-gradient(135deg, #065f46, #059669)', color: 'white' }}>
+                  <div style={{ fontSize: 11, opacity: 0.8, marginBottom: 4 }}>Your Local WhatsApp Business Number</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 1 }}>{fbConn.wa_display_phone}</span>
+                    <button onClick={() => { navigator.clipboard.writeText(fbConn.wa_display_phone); setWaCopied(true); setTimeout(() => setWaCopied(false), 2000) }} style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.15)', color: 'white', fontSize: 12, cursor: 'pointer' }}>
+                      {waCopied ? '✓ Copied!' : '📋 Copy'}
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 11, opacity: 0.7, marginTop: 6 }}>No separate login needed — this number was set up for you by CasaGrown.</div>
+                </div>
+              ) : (
+                /* No number yet — request provisioning with zip code */
+                <div style={{ padding: '14px 16px', borderRadius: 12, marginBottom: 10, border: '1px solid #d1fae5', background: '#f0fdf4' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#065f46', marginBottom: 6 }}>📞 Get a Local WhatsApp Number</div>
+                  <div style={{ fontSize: 12, color: '#065f46', marginBottom: 10, lineHeight: 1.5 }}>
+                    We&apos;ll provision a local phone number based on your area so customers see a familiar area code.
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                    <input type="text" value={waZipCode} onChange={(e) => setWaZipCode(e.target.value.replace(/\D/g, '').slice(0, 5))} placeholder="Enter your zip code" maxLength={5} style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid #d1d5db', fontSize: 14, background: 'white', textAlign: 'center', letterSpacing: 2, fontWeight: 600 }} />
+                    <button onClick={async () => {
+                      if (waZipCode.length < 5) return
+                      setWaProvisioning(true)
+                      setWaProvisionError('')
+                      try {
+                        const { data, error } = await supabase.functions.invoke('provision-wa-number', { body: { zipCode: waZipCode } })
+                        if (error) throw error
+                        if (data?.phoneNumber) {
+                          setFbConn((prev: any) => ({ ...prev, wa_display_phone: data.phoneNumber, wa_phone_number_id: data.phoneNumberId || 'provisioned' }))
+                        }
+                      } catch (err: any) {
+                        setWaProvisionError(err.message || 'Failed to provision number. Please try again.')
+                      } finally {
+                        setWaProvisioning(false)
+                      }
+                    }} disabled={waProvisioning || waZipCode.length < 5} style={{ padding: '10px 18px', borderRadius: 10, border: 'none', background: waProvisioning || waZipCode.length < 5 ? '#9ca3af' : '#059669', color: 'white', fontSize: 13, fontWeight: 600, cursor: waProvisioning || waZipCode.length < 5 ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
+                      {waProvisioning ? '⏳ Provisioning…' : 'Get My Number'}
+                    </button>
+                  </div>
+                  {waProvisionError && <div style={{ fontSize: 12, color: '#dc2626', marginTop: 4 }}>⚠️ {waProvisionError}</div>}
+                  <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>We&apos;ll assign a number with your local area code. No separate login or verification needed.</div>
+                </div>
+              )
+            )}
+
+            {/* Own number input */}
+            {isWaSellerProvided && (
+              <>
+                <div style={{ marginBottom: 10, display: 'flex', gap: 8 }}>
+                  <input type="tel" value={waPhoneInput} onChange={(e) => setWaPhoneInput(e.target.value)} placeholder="+1 (555) 123-4567" style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid #d1d5db', fontSize: 14, background: '#f9fafb' }} />
+                  <button onClick={handleWaSavePhone} disabled={waSaving || !waPhoneInput.trim()} style={{ padding: '10px 18px', borderRadius: 10, border: 'none', background: '#059669', color: 'white', fontSize: 13, fontWeight: 600, cursor: waSaving ? 'wait' : 'pointer', opacity: waSaving || !waPhoneInput.trim() ? 0.6 : 1 }}>
+                    {waSaving ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+
+                {/* Business verification steps */}
+                <div style={{ padding: '12px 14px', borderRadius: 10, background: '#fef3c7', border: '1px solid #fcd34d', marginBottom: 12 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#92400e', marginBottom: 6 }}>⚠️ Business Verification Required</div>
+                  <div style={{ fontSize: 12, color: '#92400e', lineHeight: 1.7 }}>
+                    <div style={{ marginBottom: 4 }}>To use your own number with WhatsApp Business API, you must complete Meta Business Verification:</div>
+                    <div style={{ marginBottom: 4, paddingLeft: 8 }}><strong>1.</strong> Go to <a href="https://business.facebook.com/settings/security" target="_blank" rel="noopener noreferrer" style={{ color: '#92400e', fontWeight: 600 }}>Meta Business Suite → Security Center</a></div>
+                    <div style={{ marginBottom: 4, paddingLeft: 8 }}><strong>2.</strong> Click <strong>&quot;Start Verification&quot;</strong> and submit your business documents (license, utility bill, or bank statement)</div>
+                    <div style={{ marginBottom: 4, paddingLeft: 8 }}><strong>3.</strong> Meta reviews in 2–5 business days</div>
+                    <div style={{ paddingLeft: 8 }}><strong>4.</strong> Once verified, your number can send messages via WhatsApp Business API</div>
+                  </div>
+                  <div style={{ fontSize: 11, color: '#78350f', marginTop: 6, fontStyle: 'italic' }}>
+                    💡 Don&apos;t want to verify? Choose &quot;CasaGrown-provisioned number&quot; above — we handle all verification for you.
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* How to use WhatsApp Pro — always visible */}
+            <div style={{ padding: '12px 14px', borderRadius: 10, background: '#f0fdf4', border: '1px solid #d1fae5', marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#065f46', marginBottom: 8 }}>📖 How WhatsApp Pro works</div>
+              <div style={{ fontSize: 12, color: '#065f46', lineHeight: 1.7 }}>
+                <div style={{ marginBottom: 6 }}><strong>1. Share your number</strong> — Add it to your social media bios, business cards, signage, and email signature. Send it to your existing customers so they can reach you on WhatsApp too.</div>
+                <div style={{ marginBottom: 6 }}><strong>2. Customers message you</strong> — When someone texts your number, they can browse your product catalog and ask about availability, pricing, or delivery.</div>
+                <div style={{ marginBottom: 6 }}><strong>3. GrowBot handles it</strong> — GrowBot auto-replies with product info, prices, and checkout links. When something needs your attention, you get notified.</div>
+                <div style={{ marginBottom: 6 }}><strong>4. You step in when needed</strong> — For custom orders, complaints, or complex questions, GrowBot pauses and you take over the conversation.</div>
+              </div>
+            </div>
+
+            {/* Inventory visibility info */}
+            <div style={{ padding: '12px 14px', borderRadius: 10, background: '#eff6ff', border: '1px solid #bfdbfe', marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#1e40af', marginBottom: 6 }}>📦 Where your inventory appears</div>
+              <div style={{ fontSize: 12, color: '#1e40af', lineHeight: 1.7 }}>
+                <div style={{ marginBottom: 4 }}>Your product catalog is visible to customers directly inside the WhatsApp chat when they message your number.</div>
+                <div>Your inventory is <strong>updated daily</strong> — any changes you make to your products, prices, or availability on CasaGrown are automatically synced to WhatsApp so customers always see what&apos;s currently available.</div>
+              </div>
+            </div>
+
+            <Divider />
+
+            {/* Inventory note */}
+            <ToggleRow label="📦 Share product catalog on WhatsApp" desc="Your product catalog is shared with customers when they message your WhatsApp number." value={true} onToggle={() => {}} />
+
+            {/* GrowBot — WhatsApp */}
+            <BotChannelToggle
+              icon="🟢" label="GrowBot Auto-Reply — WhatsApp"
+              desc="Auto-reply to buyers messaging your WhatsApp number"
+              config={botChannels.whatsapp}
+              onToggle={(enabled) => updateBotChannel('whatsapp', { enabled })}
+              onDelay={(d) => updateBotChannel('whatsapp', { delayMinutes: d })}
+              hasDelay
+            />
+          </SectionCard>
+        </>
+      )}
+
+      {/* ═══════════════════════════════════════════
+          SECTION 5: Google Places (Elite only)
+         ═══════════════════════════════════════════ */}
+      {isElite && (
+        <>
+          <SectionHeader emoji="📍" title="Google Business Profile" />
+          <SectionCard>
+            {!googleConnected ? (
+              <div>
+                {/* Setup guide */}
+                <div style={{ padding: '12px 14px', borderRadius: 10, background: '#f0fdf4', border: '1px solid #d1fae5', marginBottom: 14 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#065f46', marginBottom: 8 }}>📖 How Google Business Profile works with CasaGrown</div>
+                  <div style={{ fontSize: 12, color: '#065f46', lineHeight: 1.7 }}>
+                    <div style={{ marginBottom: 4 }}>When connected, your CasaGrown product catalog automatically syncs to your Google Business Profile so customers searching for local produce on Google Maps and Search can find you.</div>
+                  </div>
+                </div>
+
+                {/* Step-by-step: create profile if needed */}
+                <div style={{ padding: '12px 14px', borderRadius: 10, background: '#eff6ff', border: '1px solid #bfdbfe', marginBottom: 14 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#1e40af', marginBottom: 8 }}>🆕 Don&apos;t have a Google Business Profile?</div>
+                  <div style={{ fontSize: 12, color: '#1e40af', lineHeight: 1.8 }}>
+                    <div style={{ marginBottom: 4, paddingLeft: 4 }}><strong>1.</strong> Go to <a href="https://business.google.com/create" target="_blank" rel="noopener noreferrer" style={{ color: '#1e40af', fontWeight: 600, textDecoration: 'underline' }}>business.google.com/create</a></div>
+                    <div style={{ marginBottom: 4, paddingLeft: 4 }}><strong>2.</strong> Enter your farm or business name</div>
+                    <div style={{ marginBottom: 4, paddingLeft: 4 }}><strong>3.</strong> Choose category: <strong>&quot;Farm&quot;</strong>, <strong>&quot;Farmers Market&quot;</strong>, or <strong>&quot;Produce Market&quot;</strong></div>
+                    <div style={{ marginBottom: 4, paddingLeft: 4 }}><strong>4.</strong> Add your address or service area (delivery zone)</div>
+                    <div style={{ marginBottom: 4, paddingLeft: 4 }}><strong>5.</strong> Google will send a verification postcard or call — this takes 3–5 days</div>
+                    <div style={{ paddingLeft: 4 }}><strong>6.</strong> Once verified, come back here and click <strong>&quot;Connect&quot;</strong></div>
+                  </div>
+                  <div style={{ fontSize: 11, color: '#6b7280', marginTop: 8, fontStyle: 'italic' }}>
+                    💡 Setting up takes about 5 minutes. Google verification takes 3–5 business days. Need help? Contact us and we&apos;ll walk you through it.
+                  </div>
+                </div>
+
+                {/* Connect button for users who already have a profile */}
+                <div style={{ textAlign: 'center' }}>
+                  <p style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 600, color: '#374151' }}>Already have a Google Business Profile?</p>
+                  <button onClick={handleGoogleConnect} disabled={connecting === 'google'} style={{ padding: '10px 24px', borderRadius: 10, border: 'none', background: '#4285f4', color: 'white', fontWeight: 600, fontSize: 14, cursor: connecting === 'google' ? 'wait' : 'pointer', opacity: connecting === 'google' ? 0.7 : 1 }}>
+                    {connecting === 'google' ? '🔗 Connecting…' : '🔗 Connect My Google Business'}
+                  </button>
+                  {connectError && <p style={{ margin: '8px 0 0', fontSize: 12, color: '#dc2626' }}>⚠️ {connectError}</p>}
+                </div>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>{googleConn.google_location_name || 'Google Business'}</span>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <StatusBadge connected />
+                    <button onClick={handleGoogleDisconnect} disabled={disconnecting === 'google'} style={{ fontSize: 11, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Disconnect</button>
+                  </div>
+                </div>
+                <Divider />
+                <ToggleRow label="📦 Sync products to Google catalog" desc="Keep your Google Business product catalog in sync." value={!!googleConn.auto_sync_catalog} saving={savingField === 'auto_sync_catalog'} onToggle={() => toggleGoogleField('auto_sync_catalog', !!googleConn.auto_sync_catalog)} />
+              </>
+            )}
+          </SectionCard>
+        </>
+      )}
+
+      {/* ═══════════════════════════════════════════
+          SECTION 6: Notification Preferences (Pro + Elite)
+         ═══════════════════════════════════════════ */}
+      <SectionHeader emoji="🔔" title="Notification Preferences" />
+      <GrowBotAlertPreferences />
+
+      {/* ═══════════════════════════════════════════
+          GrowBot Custom Instructions + Save
+         ═══════════════════════════════════════════ */}
+      <SectionHeader emoji="🤖" title="GrowBot Custom Instructions" />
+      <SectionCard>
+        <p style={{ margin: '0 0 8px', fontSize: 13, color: '#374151', lineHeight: 1.6 }}>
+          Write any special instructions in <strong>plain English</strong> for GrowBot to follow when replying to customers. These rules apply across all channels (Facebook, Instagram, WhatsApp, CasaGrown).
         </p>
-      </div>
+        <textarea value={botInstructions} onChange={(e) => setBotInstructions(e.target.value)}
+          placeholder={"Examples of instructions you can write:\n\n• We only do pickups on Saturdays at the Riverside Farmers Market, 8am–1pm.\n• We don't deliver on Sundays.\n• If someone asks about organic certification, tell them we are USDA Certified Organic.\n• Always greet customers by name if available.\n• For wholesale orders over $100, ask them to call me directly at (555) 123-4567."}
+          style={{ width: '100%', minHeight: 100, padding: '10px 12px', borderRadius: 10, border: '1px solid #d1d5db', fontSize: 13, resize: 'vertical', boxSizing: 'border-box', background: '#f9fafb' }} />
+        <p style={{ margin: '4px 0 0', fontSize: 12, color: '#9ca3af' }}>Leave blank if you have no special instructions — GrowBot will use your product info and booth details automatically.</p>
+        <button onClick={handleBotSave} disabled={botSaving} style={{ marginTop: 12, padding: '12px', borderRadius: 10, border: 'none', background: botSaved ? '#059669' : 'linear-gradient(135deg, #065f46, #059669)', color: 'white', fontSize: 14, fontWeight: 700, cursor: botSaving ? 'wait' : 'pointer', width: '100%' }}>
+          {botSaving ? 'Saving…' : botSaved ? '✓ Saved!' : 'Save GrowBot Settings'}
+        </button>
+      </SectionCard>
 
-      {/* Subscription status card */}
-      <div style={{
-        background: isCancelPending
-          ? 'linear-gradient(135deg, #92400e, #b45309)'
-          : isElitePlan
-            ? 'linear-gradient(135deg, #1e3a8a, #3b82f6)'
-            : 'linear-gradient(135deg, #065f46, #059669)',
-        borderRadius: 16, padding: 20, color: 'white',
-        boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-      }}>
-        {/* Badge + action row */}
-        <div style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          flexWrap: 'wrap', gap: 12,
-        }}>
-          <div>
-            <span style={{ fontSize: 18, fontWeight: 700 }}>{planHeaderTitle}</span>
-            <span style={{
-              marginLeft: 8, fontSize: 11, padding: '2px 8px', borderRadius: 6,
-              background: 'rgba(255,255,255,0.2)',
-            }}>
-              {isCancelPending
-                ? '⏳ Cancels soon'
-                : status === 'trialing' ? '🎉 Trial' : '✓ Active'}
-            </span>
-          </div>
-
-          {isCancelPending ? (
-            <button
-              onClick={handleResume}
-              disabled={actionLoading}
-              style={{
-                padding: '8px 18px', borderRadius: 8, border: 'none',
-                background: 'white', color: isElitePlan ? '#1e3a8a' : '#065f46',
-                fontSize: 13, fontWeight: 700,
-                cursor: actionLoading ? 'wait' : 'pointer',
-                opacity: actionLoading ? 0.7 : 1,
-              }}
-            >
-              {actionLoading ? 'Resuming…' : `↩ Resume ${isElitePlan ? 'Elite' : 'Pro'}`}
-            </button>
-          ) : (
-            <button
-              onClick={() => setShowConfirm(true)}
-              disabled={actionLoading}
-              style={{
-                padding: '8px 18px', borderRadius: 8,
-                border: '1px solid rgba(255,255,255,0.3)',
-                background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.8)',
-                fontSize: 13, cursor: actionLoading ? 'wait' : 'pointer',
-              }}
-            >
-              Cancel Subscription
-            </button>
-          )}
-        </div>
-
-        {/* Plan configuration info */}
-        <div style={{
-          margin: '16px 0 0', padding: '12px 14px', borderRadius: 12,
-          background: 'rgba(255,255,255,0.12)', fontSize: 13,
-          display: 'flex', flexDirection: 'column', gap: 8
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>Monthly Subscription Fee:</span>
-            <strong style={{ fontWeight: 700 }}>{planPriceLabel}</strong>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>Sales Platform Fee:</span>
-            <strong style={{ fontWeight: 700 }}>{planFeeLabel}</strong>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>Active Stands Limit:</span>
-            <strong style={{ fontWeight: 700 }}>{planStandsLimitLabel}</strong>
-          </div>
-        </div>
-
-        {/* Cancel pending info */}
-        {isCancelPending && currentPeriodEnd && (
-          <div style={{
-            margin: '16px 0 0', padding: '14px 16px', borderRadius: 12,
-            background: 'rgba(255,255,255,0.15)', fontSize: 13,
-          }}>
-            <div style={{ marginBottom: 8 }}>
-              ⚠️ Your premium subscription will <strong>permanently cancel on{' '}
-              {formatDate(currentPeriodEnd)}</strong>
-            </div>
-            <div style={{ fontSize: 12, opacity: 0.9, marginBottom: 8 }}>
-              After that date, premium features will be disabled and your booth creation limit will revert to 1.
-            </div>
-            <div style={{ fontSize: 12, opacity: 0.8 }}>
-              Changed your mind? Click <strong>&quot;↩ Resume&quot;</strong> above
-              to keep your premium subscription active.
-            </div>
-          </div>
-        )}
-
-        {/* Trial info */}
-        {!isCancelPending && status === 'trialing' && trialEndsAt && (
-          <div style={{
-            margin: '12px 0 0', padding: '10px 14px', borderRadius: 10,
-            background: 'rgba(255,255,255,0.12)', fontSize: 13,
-          }}>
-            🎉 Your trial ends on <strong>{formatDate(trialEndsAt)}</strong>
-          </div>
-        )}
-
-        {/* Active billing info */}
-        {!isCancelPending && currentPeriodEnd && status === 'active' && (
-          <div style={{
-            margin: '12px 0 0', padding: '10px 14px', borderRadius: 10,
-            background: 'rgba(255,255,255,0.12)', fontSize: 13,
-          }}>
-            Next billing date: <strong>{formatDate(currentPeriodEnd)}</strong>
-          </div>
-        )}
-      </div>
-
-      {/* Elite Upgrade pitch if they are currently on Pro */}
-      {plan === 'pro' && !isCancelPending && (
-        <div style={{
-          background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
-          borderRadius: 16,
-          padding: 20,
-          border: '1px solid #bfdbfe',
-          boxShadow: '0 4px 16px rgba(30, 58, 138, 0.05)',
-          marginTop: 24,
-        }}>
-          <h3 style={{ fontSize: 15, fontWeight: 800, color: '#1e3a8a', margin: '0 0 6px' }}>👑 Upgrade to Elite Package</h3>
-          <p style={{ fontSize: 13, color: '#2563eb', margin: '0 0 14px', lineHeight: 1.4 }}>
-            Reduce your transaction sales fee from 5% to just **2%**, unlock **Unlimited stands/booths**, and enable custom store branding!
-          </p>
-          <button
-            onClick={() => router.push('/pro?ref=pro-manage')}
-            style={{
-              padding: '10px 20px', borderRadius: 10, border: 'none',
-              background: '#2563eb', color: 'white', fontWeight: 700, fontSize: 13,
-              cursor: 'pointer', transition: 'all 0.2s ease', width: '100%'
-            }}
-          >
-            Upgrade to Elite for $29/mo →
-          </button>
-        </div>
-      )}
-
-      {/* ── Facebook Page Connection ── */}
-      <div style={{ marginTop: 28 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 12px', color: '#111827', display: 'flex', alignItems: 'center', gap: 8 }}>
-          📘 Facebook Page
-        </h2>
-        <FacebookStatus />
-      </div>
-
-      {/* ── GrowBot Settings ── */}
-      <div style={{ marginTop: 28 }}>
-        <GrowBotSettings userId={user.id} isPro={isPro} plan={plan} />
-      </div>
-
-
-      {/* ── Cancel confirmation modal ── */}
-      {showConfirm && (
-        <div
-          style={{
-            position: 'fixed', inset: 0, zIndex: 9999,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
-            padding: 16, animation: 'fadeIn 0.2s ease',
-          }}
-          onClick={() => setShowConfirm(false)}
-        >
-          <div
-            style={{
-              background: 'white', borderRadius: 20, padding: '28px 24px',
-              maxWidth: 360, width: '100%', textAlign: 'center',
-              boxShadow: '0 25px 50px rgba(0,0,0,0.25)',
-              animation: 'slideUp 0.3s ease',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{
-              width: 64, height: 64, borderRadius: '50%', margin: '0 auto 16px',
-              background: '#fef2f2', display: 'flex', alignItems: 'center',
-              justifyContent: 'center', fontSize: 28,
-            }}>
-              😢
-            </div>
-            <h3 style={{
-              fontSize: 18, fontWeight: 700, margin: '0 0 8px', color: '#111827',
-            }}>
-              Cancel Subscription?
-            </h3>
-            <div style={{
-              textAlign: 'left', fontSize: 13, color: '#6b7280', lineHeight: 1.6,
-              margin: '16px 0', padding: '12px 16px',
-              background: '#f9fafb', borderRadius: 12,
-            }}>
-              <div style={{ marginBottom: 6 }}>✓ Premium features stay active until your billing period ends</div>
-              <div style={{ marginBottom: 6 }}>✓ You can resume anytime before the period ends</div>
-              <div>✓ Full refund available within the first 7 days</div>
-            </div>
-            <button
-              onClick={handleCancel}
-              disabled={actionLoading}
-              style={{
-                width: '100%', padding: 14, border: 'none', borderRadius: 9999,
-                background: '#dc2626', color: 'white', fontSize: 15, fontWeight: 600,
-                cursor: actionLoading ? 'wait' : 'pointer',
-                opacity: actionLoading ? 0.7 : 1,
-                marginBottom: 8,
-              }}
-            >
-              {actionLoading ? 'Cancelling…' : 'Yes, Cancel Premium'}
-            </button>
-            <button
-              onClick={() => setShowConfirm(false)}
-              style={{
-                width: '100%', padding: 10, border: 'none', borderRadius: 9999,
-                background: 'transparent', color: '#9ca3af', fontSize: 13,
-                fontWeight: 500, cursor: 'pointer',
-              }}
-            >
-              Never mind, keep active
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Animations ── */}
-      <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateY(16px) scale(0.97); }
-          to { opacity: 1; transform: translateY(0) scale(1); }
-        }
-      `}</style>
+      {/* Plan management */}
+      <button onClick={() => router.push('/manage-plan')} style={{ marginTop: 24, padding: '12px 20px', borderRadius: 12, background: isElite ? 'linear-gradient(135deg, #1e3a8a, #3b82f6)' : 'linear-gradient(135deg, #065f46, #059669)', border: 'none', color: 'white', fontWeight: 700, fontSize: 14, cursor: 'pointer', width: '100%' }}>
+        Manage My Plan →
+      </button>
     </div>
   )
 }
 
+/* ───────────────────────────────────────────────────────
+   Reusable sub-components
+   ─────────────────────────────────────────────────────── */
+
+function SectionHeader({ emoji, title, badge }: { emoji: string; title: string; badge?: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 28, marginBottom: 10 }}>
+      <span style={{ fontSize: 18 }}>{emoji}</span>
+      <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: '#111827' }}>{title}</h2>
+      {badge && <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: '#eff6ff', color: '#2563eb', fontWeight: 600 }}>{badge}</span>}
+    </div>
+  )
+}
+
+function SectionCard({ children }: { children: React.ReactNode }) {
+  return <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 16 }}>{children}</div>
+}
+
+function StatusBadge({ connected }: { connected: boolean }) {
+  return (
+    <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: connected ? '#dcfce7' : '#f3f4f6', color: connected ? '#15803d' : '#9ca3af' }}>
+      {connected ? '✓ Connected' : 'Not connected'}
+    </span>
+  )
+}
+
+function Divider() {
+  return <div style={{ borderTop: '1px solid #f3f4f6', margin: '12px 0' }} />
+}
+
+function ToggleRow({ label, desc, value, saving, onToggle }: { label: string; desc: string; value: boolean; saving?: boolean; onToggle: () => void }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 8 }}>
+      <button type="button" role="switch" aria-checked={value} onClick={onToggle} style={{ position: 'relative', width: 44, height: 24, borderRadius: 12, border: 'none', background: value ? '#22c55e' : '#d1d5db', cursor: 'pointer', flexShrink: 0, transition: 'background 0.2s', padding: 0, marginTop: 1 }}>
+        <span style={{ position: 'absolute', top: 2, left: value ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s' }} />
+      </button>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>
+          {label}
+          {saving && <span style={{ marginLeft: 6, fontSize: 11, color: '#9ca3af' }}>Saving…</span>}
+        </div>
+        <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{desc}</div>
+      </div>
+    </div>
+  )
+}
+
+function BotChannelToggle({ icon, label, desc, config, onToggle, onDelay, hasDelay }: {
+  icon: string; label: string; desc: string;
+  config: ChannelConfig; onToggle: (enabled: boolean) => void; onDelay: (d: number) => void; hasDelay: boolean
+}) {
+  return (
+    <div style={{ borderRadius: 10, overflow: 'hidden', border: config.enabled ? '2px solid #059669' : '1px solid #e5e7eb', background: config.enabled ? '#f0fdf4' : '#fafafa', transition: 'all 0.2s', marginBottom: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px' }}>
+        <span style={{ fontSize: 18, flexShrink: 0 }}>{icon}</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: config.enabled ? '#065f46' : '#6b7280' }}>{label}</div>
+          <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>{desc}</div>
+        </div>
+        <div onClick={() => onToggle(!config.enabled)} style={{ width: 40, height: 22, borderRadius: 11, cursor: 'pointer', background: config.enabled ? '#059669' : '#d1d5db', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+          <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: config.enabled ? 20 : 2, transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+        </div>
+      </div>
+      {config.enabled && hasDelay && (
+        <div style={{ padding: '0 12px 10px', borderTop: '1px solid rgba(5,150,105,0.15)' }}>
+          <div style={{ marginTop: 8 }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>
+              Wait before auto-reply: <strong style={{ color: '#059669' }}>{config.delayMinutes === 0 ? 'Instant' : `${config.delayMinutes} min`}</strong>
+            </label>
+            <input type="range" min={0} max={15} step={1} value={config.delayMinutes} onChange={(e) => onDelay(parseInt(e.target.value))} style={{ width: '100%', accentColor: '#059669', marginTop: 4 }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#9ca3af' }}>
+              <span>Instant</span><span>15 min</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ───────────────────────────────────────────────────────
+   Export with Suspense
+   ─────────────────────────────────────────────────────── */
 export default function ProManagePage() {
   return (
     <Suspense fallback={<div style={{ padding: 80, textAlign: 'center' }}>Loading...</div>}>

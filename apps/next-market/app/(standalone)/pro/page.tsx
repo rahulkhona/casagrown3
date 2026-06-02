@@ -4,6 +4,7 @@ import React, { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
+import { ENABLE_ELITE } from '../../../lib/featureFlags'
 import { TERMS_SECTIONS, PRIVACY_SECTIONS } from '../../(main)/terms/page'
 import { StripeCheckoutModal } from '../../components/StripeCheckoutModal'
 
@@ -104,6 +105,7 @@ function ProContent() {
   const [errorMsg, setErrorMsg] = useState('')
   const [isMounted, setIsMounted] = useState(false)
   const [isExistingUser, setIsExistingUser] = useState(false)
+  const [isEmailFlow, setIsEmailFlow] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
 
   // Wizard steps: 'initial' | 'profile' | 'otp' | 'promo_choice' | 'payment' | 'success'
@@ -136,8 +138,29 @@ function ProContent() {
   const [checkoutSessionId, setCheckoutSessionId] = useState<string | null>(null)
 
   const [locating, setLocating] = useState(false)
+  const [isProTester, setIsProTester] = useState(false)
 
   const supabase = createClient()
+
+  // Check if user is a pro_tester (sees all tiers regardless of flags)
+  useEffect(() => {
+    if (ENABLE_ELITE) return // flag is on, no need to check
+    const checkTester = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user?.email) {
+        const { data } = await supabase
+          .from('pro_testers')
+          .select('email')
+          .eq('email', session.user.email)
+          .maybeSingle()
+        if (data) setIsProTester(true)
+      }
+    }
+    checkTester()
+  }, [])
+
+  const eliteVisible = ENABLE_ELITE || isProTester
+  const visibleTierKeys = eliteVisible ? ['lite', 'pro', 'elite'] : ['lite', 'pro']
 
   const loadUserBooths = async (userId: string) => {
     try {
@@ -212,6 +235,12 @@ function ProContent() {
       setEmail(emailParam)
     }
 
+    // Detect if arriving from an email link (existing user flow)
+    const utmSource = searchParams.get('utm_source') || ''
+    if (utmSource.toLowerCase().includes('email') && isCurrent) {
+      setIsEmailFlow(true)
+    }
+
     async function prefillSession() {
       try {
         const { data: { session } } = await supabase.auth.getSession()
@@ -232,7 +261,7 @@ function ProContent() {
 
           if (profile && isCurrent) {
             setName(profile.full_name || session.user.user_metadata?.full_name || '')
-            setPhone(profile.phone || session.user.user_metadata?.phone || '')
+            setPhone(profile.phone_number || profile.phone || session.user.user_metadata?.phone || '')
             if (profile.street_address) {
               const parts = profile.street_address.split(',')
               if (parts.length >= 3) {
@@ -243,10 +272,19 @@ function ProContent() {
                   setState(stateZip[0].trim())
                   setZip(stateZip[1].trim())
                 }
+              } else {
+                setStreet(profile.street_address)
               }
             }
+            // Fallback: read separate address columns if combined parsing missed them
+            if (profile.city && !city) setCity(profile.city)
+            if (profile.state_code && !state) setState(profile.state_code)
+            if (profile.zip_plus4 && !zip) setZip(profile.zip_plus4)
             if (profile.farm_name) {
               setFarmName(profile.farm_name)
+            }
+            if (profile.tos_accepted_at) {
+              setTosAccepted(true)
             }
           }
         }
@@ -322,11 +360,11 @@ function ProContent() {
       const s = ["th", "st", "nd", "rd"]
       const v = day % 100
       const suffix = s[(v - 20) % 10] || s[v] || s[0]
-      return `Credits renewed on the ${day}${suffix} of every month`
+      return `Discounts renewed on the ${day}${suffix} of every month`
     }
     if (promo.buyer_discounts.frequency === 'weekly') {
       const dayName = date.toLocaleDateString('en-US', { weekday: 'long' })
-      return `Credits renewed every ${dayName}`
+      return `Discounts renewed every ${dayName}`
     }
     return `First cycle begins ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
   }
@@ -468,37 +506,87 @@ function ProContent() {
           setSelectedPlan(saved.selectedPlan || 'pro')
           setTosAccepted(true)
           
-          setCheckoutSessionId(sessionIdParam)
-          setStep('otp')
-          
           localStorage.removeItem('casagrown_promo_onboarding')
-          
-          const triggerOtp = async () => {
-            setSubmitting(true)
-            setErrorMsg('')
-            try {
-              const fullAddress = `${saved.street}, ${saved.city}, ${saved.state} ${saved.zip}`
-              const { error: otpErr } = await supabase.auth.signInWithOtp({
-                email: saved.email,
-                options: {
-                  data: { 
-                    full_name: saved.name, 
-                    street_address: fullAddress, 
-                    phone: saved.phone, 
-                    sms_consent: saved.smsConsent ?? true, 
-                    tos_accepted: true,
-                    farm_name: saved.farmName
-                  }
+
+          // Check if user is already authenticated (email flow — they verified before payment)
+          const completeAfterAuth = async () => {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (session?.user) {
+              // Already logged in — skip OTP, confirm subscription directly
+              setCheckoutSessionId(sessionIdParam)
+              setSubmitting(true)
+              setErrorMsg('')
+              try {
+                await supabase.functions.invoke('manage-subscription', {
+                  body: { action: 'confirm', session_id: sessionIdParam },
+                })
+
+                if (promo) {
+                  await supabase.rpc('crm_enroll_in_promotion', { 
+                    p_promotion_id: promo.id,
+                    p_campaign_id: campaign_id || null
+                  })
                 }
-              })
-              if (otpErr) throw otpErr
-            } catch (err: any) {
-              setErrorMsg(err.message || 'Payment accepted but failed to send login verification code.')
-            } finally {
-              setSubmitting(false)
+
+                const fullAddress = `${saved.street}, ${saved.city}, ${saved.state} ${saved.zip}`
+                await supabase
+                  .from('profiles')
+                  .update({
+                    full_name: saved.name,
+                    street_address: saved.street,
+                    city: saved.city,
+                    state_code: saved.state,
+                    zip_code: saved.zip,
+                    phone: saved.phone,
+                    sms_consent: saved.smsConsent ?? true,
+                    farm_name: saved.farmName,
+                    is_pro: true
+                  })
+                  .eq('id', session.user.id)
+
+                setSuccessMessage("🎉 Payment Successful! Your new plan has been activated. Let's set up your Pro features!")
+                setStep('success')
+                setTimeout(() => {
+                  router.push('/pro-manage')
+                }, 3000)
+              } catch (err: any) {
+                setErrorMsg(err.message || 'Payment completed but failed to activate plan.')
+              } finally {
+                setSubmitting(false)
+              }
+            } else {
+              // Not logged in — need OTP verification first
+              setCheckoutSessionId(sessionIdParam)
+              setStep('otp')
+              setSubmitting(true)
+              setErrorMsg('')
+              try {
+                const fullAddress = `${saved.street}, ${saved.city}, ${saved.state} ${saved.zip}`
+                const { error: otpErr } = await supabase.auth.signInWithOtp({
+                  email: saved.email,
+                  options: {
+                    data: { 
+                      full_name: saved.name, 
+                      street_address: saved.street, 
+                      city: saved.city, 
+                      state_code: saved.state, 
+                      zip_code: saved.zip, 
+                      phone: saved.phone, 
+                      sms_consent: saved.smsConsent ?? true, 
+                      tos_accepted: true,
+                      farm_name: saved.farmName
+                    }
+                  }
+                })
+                if (otpErr) throw otpErr
+              } catch (err: any) {
+                setErrorMsg(err.message || 'Payment accepted but failed to send login verification code.')
+              } finally {
+                setSubmitting(false)
+              }
             }
           }
-          triggerOtp()
+          completeAfterAuth()
         } catch (e) {
           console.error('Failed to restore onboarding state:', e)
         }
@@ -562,6 +650,14 @@ function ProContent() {
 
         if (data.is_registered) {
           setIsExistingUser(true)
+          // Email flow: existing user from email link → send OTP first, fill profile after
+          if (isEmailFlow) {
+            const { error: otpErr } = await supabase.auth.signInWithOtp({ email })
+            if (otpErr) throw otpErr
+            setStep('otp')
+            setSubmitting(false)
+            return
+          }
         } else {
           setIsExistingUser(false)
         }
@@ -569,6 +665,14 @@ function ProContent() {
         // Standard user login check if no promo active
         const { data: userExists } = await supabase.rpc('is_email_registered', { p_email: email })
         setIsExistingUser(!!userExists)
+        // Email flow: existing user from email link → send OTP first, fill profile after
+        if (isEmailFlow && userExists) {
+          const { error: otpErr } = await supabase.auth.signInWithOtp({ email })
+          if (otpErr) throw otpErr
+          setStep('otp')
+          setSubmitting(false)
+          return
+        }
       }
       setStep('profile')
     } catch (err: any) {
@@ -585,7 +689,7 @@ function ProContent() {
 
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!name || !street || !city || !state || !zip || !phone || !tosAccepted) return
+    if (!name || !street || !city || !state || !zip || !tosAccepted) return
     
     if (selectedPlan !== 'lite' && !farmName.trim()) {
       setErrorMsg('Business/Farm Name is required for Pro and Elite tiers.')
@@ -706,12 +810,13 @@ function ProContent() {
       if (isCorrectUser) {
         await saveBoothArchivalStatuses(session.user.id)
 
-        // Query active promotion discount
+        // Query active promotion discount (exclude expired ones)
         const { data: discData } = await supabase
           .from('user_subscription_discounts')
           .select('*, crm_promotions(id, name)')
           .eq('user_id', session.user.id)
           .eq('status', 'active')
+          .or(`expires_at.is.null,expires_at.gte.${new Date().toISOString()}`)
           .limit(1)
 
         const existingDiscount = discData && discData.length > 0 ? discData[0] : null
@@ -761,7 +866,10 @@ function ProContent() {
             .from('profiles')
             .update({
               full_name: name,
-              street_address: fullAddress,
+              street_address: street,
+              city: city,
+              state_code: state,
+              zip_code: zip,
               phone,
               sms_consent: smsConsent,
               farm_name: null,
@@ -793,7 +901,10 @@ function ProContent() {
             .from('profiles')
             .update({
               full_name: name,
-              street_address: fullAddress,
+              street_address: street,
+              city: city,
+              state_code: state,
+              zip_code: zip,
               phone,
               sms_consent: smsConsent,
               farm_name: farmName,
@@ -832,7 +943,7 @@ function ProContent() {
           const { error } = await supabase.auth.signInWithOtp({
             email,
             options: {
-              data: { full_name: name, street_address: fullAddress, phone, sms_consent: smsConsent, tos_accepted: true }
+              data: { full_name: name, street_address: street, city, state_code: state, zip_code: zip, phone, sms_consent: smsConsent, tos_accepted: true }
             }
           })
           if (error) throw error
@@ -844,13 +955,13 @@ function ProContent() {
           const { error } = await supabase.auth.signInWithOtp({
             email,
             options: {
-              data: { full_name: name, street_address: fullAddress, phone, sms_consent: smsConsent, tos_accepted: true, farm_name: farmName }
+              data: { full_name: name, street_address: street, city, state_code: state, zip_code: zip, phone, sms_consent: smsConsent, tos_accepted: true, farm_name: farmName }
             }
           })
           if (error) throw error
           setStep('otp')
         }
-        // 3. New paid subscribers save state and mount StripeEmbeddedCheckout
+        // 3. New paid subscribers: OTP first, then payment after verification
         else {
           const stateToSave = {
             email,
@@ -865,8 +976,15 @@ function ProContent() {
             selectedPlan
           }
           localStorage.setItem('casagrown_promo_onboarding', JSON.stringify(stateToSave))
-          setStep('payment')
-          setShowCheckout(true)
+          const fullAddress = `${street}, ${city}, ${state} ${zip}`
+          const { error } = await supabase.auth.signInWithOtp({
+            email,
+            options: {
+              data: { full_name: name, street_address: street, city, state_code: state, zip_code: zip, phone, sms_consent: smsConsent, tos_accepted: true, farm_name: farmName }
+            }
+          })
+          if (error) throw error
+          setStep('otp')
         }
       }
     } catch (err: any) {
@@ -888,7 +1006,10 @@ function ProContent() {
         options: {
           data: { 
             full_name: name, 
-            street_address: fullAddress, 
+            street_address: street, 
+            city, 
+            state_code: state, 
+            zip_code: zip, 
             phone, 
             sms_consent: smsConsent, 
             tos_accepted: true,
@@ -913,7 +1034,7 @@ function ProContent() {
 
     try {
       await supabase.functions.invoke('manage-subscription', {
-        body: { action: 'confirm', session_id: sessionId },
+        body: { action: 'confirm', session_id: sessionId, plan: selectedPlan },
       })
 
       if (promo) {
@@ -928,7 +1049,10 @@ function ProContent() {
         .from('profiles')
         .update({
           full_name: name,
-          street_address: fullAddress,
+          street_address: street,
+          city: city,
+          state_code: state,
+          zip_code: zip,
           phone,
           sms_consent: smsConsent,
           farm_name: farmName,
@@ -936,10 +1060,10 @@ function ProContent() {
         })
         .eq('id', (await supabase.auth.getUser()).data.user?.id || '')
 
-      setSuccessMessage("🎉 Payment Successful! Your new plan has been successfully activated with your promotional discounts. Let's create your first listing!")
+      setSuccessMessage("🎉 Payment Successful! Your new plan has been successfully activated. Let's set up your Pro features!")
       setStep('success')
       setTimeout(() => {
-        router.push('/create-listing')
+        router.push('/pro-manage')
       }, 3000)
     } catch (err: any) {
       setErrorMsg(err.message || 'Payment completed but failed to update details.')
@@ -1143,11 +1267,52 @@ function ProContent() {
         await saveBoothArchivalStatuses(session.user.id)
       }
 
+      // Email flow: after OTP, pre-fill profile from DB and go to profile step for review
+      if (isEmailFlow && isExistingUser && session?.user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .maybeSingle()
+
+        if (profile) {
+          setName(profile.full_name || '')
+          setPhone(profile.phone_number || profile.phone || '')
+          setFarmName(profile.farm_name || '')
+          setSmsConsent(profile.sms_consent ?? true)
+          // Existing user verified via OTP — auto-accept ToS
+          setTosAccepted(true)
+          if (profile.street_address) {
+            const parts = profile.street_address.split(',')
+            if (parts.length >= 3) {
+              setStreet(parts[0].trim())
+              setCity(parts[1].trim())
+              const stateZip = parts[2].trim().split(' ')
+              if (stateZip.length >= 2) {
+                setState(stateZip[0].trim())
+                setZip(stateZip[1].trim())
+              }
+            } else {
+              setStreet(profile.street_address)
+            }
+          }
+          // Fallback: read separate address columns if combined parsing missed them
+          if (profile.city) setCity(profile.city)
+          if (profile.state_code) setState(profile.state_code)
+          if (profile.zip_plus4) setZip(profile.zip_plus4)
+        }
+        setStep('profile')
+        setSubmitting(false)
+        return
+      }
+
+      // Query active promotion discount (exclude expired ones)
       const { data: discData } = await supabase
         .from('user_subscription_discounts')
         .select('*, crm_promotions(id, name)')
         .eq('user_id', session?.user?.id || '')
         .eq('status', 'active')
+        .or(`expires_at.is.null,expires_at.gte.${new Date().toISOString()}`)
         .limit(1)
 
       const existingDiscount = discData && discData.length > 0 ? discData[0] : null
@@ -1228,7 +1393,7 @@ function ProContent() {
       else {
         if (checkoutSessionId) {
           await supabase.functions.invoke('manage-subscription', {
-            body: { action: 'confirm', session_id: checkoutSessionId },
+            body: { action: 'confirm', session_id: checkoutSessionId, plan: selectedPlan },
           })
           if (!skipPromo && promo) {
             await supabase.rpc('crm_enroll_in_promotion', { 
@@ -1284,18 +1449,18 @@ function ProContent() {
       {promo?.buyer_discounts && (
         <div className="incentive-item credits-item">
           {promo.buyer_discounts.image_url ? (
-            <img src={promo.buyer_discounts.image_url} alt="Credit Bonus" className="incentive-photo" />
+            <img src={promo.buyer_discounts.image_url} alt="Discount Bonus" className="incentive-photo" />
           ) : (
             <span className="incentive-icon">💰</span>
           )}
           <div className="incentive-text">
-            <strong>${promo.buyer_discounts.discount_amount_usd} Purchase Credit</strong>
+            <strong>${promo.buyer_discounts.discount_amount_usd} Shopping Discount</strong>
             <p>Issued {promo.buyer_discounts.frequency === 'monthly' ? 'once a month' : `every ${promo.buyer_discounts.frequency}`} for {promo.buyer_discounts.occurrences} {promo.buyer_discounts.occurrences === 1 ? 'month' : 'months'}.</p>
             <ul className="credit-rules">
               {getRenewalText() && <li>✓ {getRenewalText()}</li>}
               <li>✓ Valid towards purchases and fees on casagrown.com</li>
               <li>✓ Covers up to {promo.buyer_discounts.discount_cap_type === 'percentage' ? `${promo.buyer_discounts.discount_cap_value}%` : `$${promo.buyer_discounts.discount_cap_value}`} per order</li>
-              <li>✓ Credits expire after 1 {promo.buyer_discounts.frequency === 'monthly' ? 'month' : promo.buyer_discounts.frequency === 'weekly' ? 'week' : promo.buyer_discounts.frequency.replace('ly', '')}</li>
+              <li>✓ Discounts expire after 1 {promo.buyer_discounts.frequency === 'monthly' ? 'month' : promo.buyer_discounts.frequency === 'weekly' ? 'week' : promo.buyer_discounts.frequency.replace('ly', '')}</li>
             </ul>
           </div>
         </div>
@@ -1414,7 +1579,7 @@ function ProContent() {
                     
                     {/* Selectable Pricing Tiers Grid */}
                     <div className="tier-cards-grid">
-                      {['lite', 'pro', 'elite'].map((tierKey) => {
+                      {visibleTierKeys.map((tierKey) => {
                         const tier = tiers.find(t => t.tier_name === tierKey) || DEFAULT_TIERS.find(t => t.tier_name === tierKey)!
                         const details = getTierDiscountDetails(tierKey as 'lite' | 'pro' | 'elite')!
                         const isSelected = selectedPlan === tierKey
@@ -1423,27 +1588,96 @@ function ProContent() {
                           <div 
                             key={tierKey} 
                             onClick={() => setSelectedPlan(tierKey as 'lite' | 'pro' | 'elite')}
-                            className={`tier-card ${isSelected ? 'selected' : ''}`}
+                            className={`tier-card tier-card-${tierKey} ${isSelected ? 'selected' : ''}`}
                           >
+                            {tierKey === 'pro' && (
+                              <div className="tier-popular-badge">⭐ MOST POPULAR</div>
+                            )}
                             {details.hasDiscount && (
                               <div className="tier-discount-badge">{details.discountPct}% Off</div>
                             )}
-                            <h3 className="tier-card-title">{tier.display_name}</h3>
-                            <div className="tier-card-price">
-                              {details.hasDiscount ? (
-                                <>
-                                  <span className="price-strike">${details.regularPrice.toFixed(2)}</span>
-                                  <span className="price-active">${details.finalPrice.toFixed(2)}<span className="price-period">/mo</span></span>
-                                </>
-                              ) : (
-                                <span className="price-active">${tier.subscription_price.toFixed(2)}{tier.subscription_price > 0 && <span className="price-period">/mo</span>}</span>
+                            <div className="tier-card-header">
+                              <h3 className="tier-card-title">{tier.display_name}</h3>
+                              <div className="tier-card-price">
+                                {details.hasDiscount ? (
+                                  <>
+                                    <span className="price-active">${details.finalPrice.toFixed(2)}<span className="price-period">/mo</span></span>
+                                    <span className="price-strike">${details.regularPrice.toFixed(2)}/mo</span>
+                                  </>
+                                ) : (
+                                  <span className="price-active">${tier.subscription_price.toFixed(2)}{tier.subscription_price > 0 && <span className="price-period">/mo</span>}</span>
+                                )}
+                              </div>
+                              <div className="tier-card-meta">
+                                <span>Platform fee: <strong>{details.platformFee}%</strong></span>
+                                <span>Booths: <strong>{tier.max_booths < 0 ? 'Unlimited' : tier.max_booths}</strong></span>
+                              </div>
+                              <p className="tier-card-headline">
+                                {tierKey === 'lite' && 'Perfect for home gardeners with extra harvest'}
+                                {tierKey === 'pro' && 'Never miss a sale — even when you\u2019re not there'}
+                                {tierKey === 'elite' && 'Sell everywhere your buyers already are'}
+                              </p>
+                              {tierKey === 'pro' && (
+                                <p className="tier-card-callout">GrowBot engages buyers, answers questions, and closes sales while you&apos;re at the farm, driving, or asleep</p>
+                              )}
+                              {tierKey === 'elite' && (
+                                <p className="tier-card-callout">Post your inventory to Facebook, Instagram, WhatsApp &amp; Google Maps — generate pre-purchased orders that drive foot traffic to your booth</p>
                               )}
                             </div>
-                            <div className="tier-card-details">
-                              <div>✓ platform fee: <strong>{details.platformFee}%</strong></div>
-                              <div>✓ max booths: <strong>{tier.max_booths < 0 ? 'Unlimited' : tier.max_booths}</strong></div>
-                              {tierKey === 'pro' && <div className="tier-extra-feat">✓ includes GrowBot assistant</div>}
-                              {tierKey === 'elite' && <div className="tier-extra-feat">✓ premium custom branding</div>}
+                            <div className="tier-card-benefits">
+                              {tierKey === 'lite' && (
+                                <>
+                                  <div className="tier-benefits-section">
+                                    <div className="tier-benefit-item">💰 <strong>Guaranteed orders</strong> — buyers pre-pay before you pick or pack. No wasted harvest, no no-shows</div>
+                                    <div className="tier-benefit-item">🤝 <strong>Hassle-free handoff</strong> — buyers choose delivery or pickup with time windows. No back-and-forth coordination via text or DMs</div>
+                                    <div className="tier-benefit-item">🛡️ <strong>Safe transactions</strong> — Stripe handles payments, photo proof confirms delivery, and disputes are resolved by our team</div>
+                                  </div>
+                                  <div className="tier-features-compact">
+                                    <span>✓ Secure checkout</span>
+                                    <span>✓ {tier.max_booths < 0 ? 'Unlimited' : tier.max_booths} booth</span>
+                                    <span>✓ Photo listings</span>
+                                    <span>✓ Delivery &amp; pickup scheduling</span>
+                                  </div>
+                                </>
+                              )}
+                              {tierKey === 'pro' && (
+                                <>
+                                  <div className="tier-benefits-section">
+                                    <div className="tier-benefit-item">🤖 <strong>Never miss a sale</strong> — GrowBot engages buyers, answers questions &amp; closes deals while you&apos;re away</div>
+                                    <div className="tier-benefit-item">👀 <strong>Monitor &amp; respond</strong> — AI watches your FB comments and DMs so no lead slips through</div>
+                                    <div className="tier-benefit-item">🔔 <strong>Urgent alerts</strong> — get notified when a buyer needs your personal attention</div>
+                                    <div className="tier-benefit-item">🚀 <strong>Drive foot traffic</strong> — post inventory to Facebook, generate pre-purchased orders that bring buyers to your booth</div>
+                                  </div>
+                                  <div className="tier-features-compact">
+                                    <span>✓ GrowBot AI Copilot</span>
+                                    <span>✓ Facebook catalog &amp; auto-post</span>
+                                    <span>✓ Messenger &amp; comment auto-replies</span>
+                                    <span>✓ Up to {tier.max_booths < 0 ? 'Unlimited' : tier.max_booths} booths</span>
+                                    <span>✓ Product Catalog</span>
+                                    <span>✓ Lower all-in fees (incl. credit card processing)</span>
+                                    <span>✓ 7-day refund guarantee</span>
+                                  </div>
+                                </>
+                              )}
+                              {tierKey === 'elite' && (
+                                <>
+                                  <div className="tier-benefits-section">
+                                    <div className="tier-benefit-item">📣 <strong>Sell everywhere</strong> — post inventory to Facebook + Instagram + WhatsApp + Google Maps automatically</div>
+                                    <div className="tier-benefit-item">🛒 <strong>Pre-purchased orders</strong> — more channels = more pre-sales = more foot traffic to your booths</div>
+                                    <div className="tier-benefit-item">🤖 <strong>AI on every channel</strong> — GrowBot closes sales in DMs and comments across all platforms</div>
+                                    <div className="tier-benefit-item">📱 <strong>WhatsApp without the chaos</strong> — right now, your WhatsApp groups expose every customer&apos;s phone number to each other, you&apos;re tracking orders in Google Sheets, and there&apos;s no way to sync payments. With your own WhatsApp Business line, all of that is gone: customers browse your catalog, ask questions (answered automatically by GrowBot), and place &amp; pay for orders — all inside WhatsApp, all synced to your CasaGrown dashboard. Your personal number stays completely private</div>
+                                  </div>
+                                  <div className="tier-features-compact">
+                                    <span>✓ Everything in Pro</span>
+                                    <span>✓ Instagram auto-post &amp; Reels</span>
+                                    <span>✓ WhatsApp Business phone (provisioned)</span>
+                                    <span>✓ Google Maps listing</span>
+                                    <span>✓ Unlimited booths</span>
+                                    <span>✓ Premium branding</span>
+                                    <span>✓ Lowest all-in fees (incl. credit card processing)</span>
+                                  </div>
+                                </>
+                              )}
                             </div>
                           </div>
                         )
@@ -1517,7 +1751,7 @@ function ProContent() {
                     </div>
                     <div className="input-group">
                       <label>Phone Number</label>
-                      <input type="tel" required value={phone} onChange={e => setPhone(e.target.value)} placeholder="(555) 555-5555" />
+                      <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="(555) 555-5555" />
                     </div>
                     <label className="checkbox-wrap" style={{ marginBottom: '16px' }}>
                       <input type="checkbox" checked={smsConsent} onChange={e => setSmsConsent(e.target.checked)} />
@@ -1597,8 +1831,8 @@ function ProContent() {
                         I agree to the <button type="button" className="link-button" onClick={(e) => { e.preventDefault(); setModalContent('tos') }}>Terms of Service</button> & <button type="button" className="link-button" onClick={(e) => { e.preventDefault(); setModalContent('privacy') }}>Privacy Policy</button>
                       </span>
                     </label>
-                    <button type="submit" disabled={submitting || !name || !street || !city || !state || !zip || !phone || !tosAccepted || (userBooths.length > (selectedPlan === 'lite' ? 1 : selectedPlan === 'pro' ? 3 : 100) && selectedBoothsToKeep.length !== (selectedPlan === 'lite' ? 1 : selectedPlan === 'pro' ? 3 : 100))} className="btn-action">
-                      {submitting ? 'Processing...' : (selectedPlan === 'lite' || isExistingUser) ? 'Send Login Code' : 'Proceed to Checkout'}
+                    <button type="submit" disabled={submitting || !name || !street || !city || !state || !zip || !tosAccepted || (userBooths.length > (selectedPlan === 'lite' ? 1 : selectedPlan === 'pro' ? 3 : 100) && selectedBoothsToKeep.length !== (selectedPlan === 'lite' ? 1 : selectedPlan === 'pro' ? 3 : 100))} className="btn-action">
+                      {submitting ? 'Processing...' : (isEmailFlow && isExistingUser) ? 'Continue' : (selectedPlan === 'lite' || isExistingUser) ? 'Send Login Code' : 'Proceed to Checkout'}
                     </button>
                   </form>
                 )}
@@ -1875,96 +2109,215 @@ function ProContent() {
           color: #166534;
         }
 
-        /* Selectable Tier Cards */
+        /* Selectable Tier Cards — Vertical Stack Layout */
         .tier-cards-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 12px;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
           margin-bottom: 24px;
         }
         .tier-card {
-          background: rgba(248, 250, 252, 0.8);
+          background: rgba(248, 250, 252, 0.9);
           border: 2px solid #e2e8f0;
           border-radius: 16px;
-          padding: 16px;
+          padding: 20px 24px;
           cursor: pointer;
           position: relative;
           transition: all 0.25s ease;
           display: flex;
           flex-direction: column;
+          gap: 12px;
+          overflow: hidden;
         }
         .tier-card:hover {
           transform: translateY(-2px);
           border-color: #cbd5e1;
-          box-shadow: 0 8px 20px rgba(0,0,0,0.04);
+          box-shadow: 0 8px 24px rgba(0,0,0,0.06);
         }
         .tier-card.selected {
           border-color: #22c55e;
-          background: #f0fdf4;
-          box-shadow: 0 12px 24px rgba(34,197,94,0.08);
+          background: rgba(240, 253, 244, 0.95);
+          box-shadow: 0 12px 28px rgba(34,197,94,0.12);
+        }
+        /* Pro card — green gradient border */
+        .tier-card-pro {
+          border: 2px solid transparent;
+          background-image: linear-gradient(rgba(248,250,252,0.9), rgba(248,250,252,0.9)), linear-gradient(135deg, #22c55e, #16a34a, #15803d);
+          background-origin: border-box;
+          background-clip: padding-box, border-box;
+        }
+        .tier-card-pro.selected {
+          background-image: linear-gradient(rgba(240,253,244,0.95), rgba(240,253,244,0.95)), linear-gradient(135deg, #22c55e, #16a34a, #15803d);
+          background-origin: border-box;
+          background-clip: padding-box, border-box;
+          box-shadow: 0 12px 28px rgba(34,197,94,0.18);
+        }
+        /* MOST POPULAR badge */
+        .tier-popular-badge {
+          position: absolute;
+          top: -12px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: linear-gradient(135deg, #22c55e, #16a34a);
+          color: white;
+          font-size: 11px;
+          font-weight: 800;
+          padding: 4px 16px;
+          border-radius: 20px;
+          box-shadow: 0 4px 12px rgba(34,197,94,0.3);
+          white-space: nowrap;
+          letter-spacing: 0.5px;
+          z-index: 2;
+        }
+        .tier-discount-badge {
+          position: absolute;
+          top: -10px;
+          right: 12px;
+          background: #a855f7;
+          color: white;
+          font-size: 10px;
+          font-weight: 800;
+          padding: 3px 10px;
+          border-radius: 10px;
+          box-shadow: 0 4px 10px rgba(168,85,247,0.25);
+          z-index: 2;
+        }
+        /* Header — left side */
+        .tier-card-header {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
         }
         .tier-card-title {
-          font-size: 14px;
+          font-size: 18px;
           font-weight: 800;
           color: #334155;
-          margin-bottom: 6px;
+          margin-bottom: 2px;
         }
         .tier-card.selected .tier-card-title {
           color: #14532d;
         }
         .tier-card-price {
-          margin-bottom: 12px;
           display: flex;
           flex-direction: column;
-        }
-        .price-strike {
-          font-size: 11px;
-          color: #94a3b8;
-          text-decoration: line-through;
-          line-height: 1;
-          margin-bottom: 2px;
+          margin-bottom: 6px;
         }
         .price-active {
-          font-size: 18px;
+          font-size: 24px;
           font-weight: 800;
           color: #1e293b;
+          line-height: 1.2;
         }
         .tier-card.selected .price-active {
           color: #166534;
         }
+        .price-strike {
+          font-size: 12px;
+          color: #94a3b8;
+          text-decoration: line-through;
+          line-height: 1;
+          margin-top: 2px;
+        }
         .price-period {
-          font-size: 11px;
+          font-size: 13px;
           font-weight: 500;
           color: #64748b;
         }
-        .tier-card-details {
-          font-size: 11px;
+        .tier-card-meta {
+          display: flex;
+          gap: 12px;
+          font-size: 12px;
           color: #64748b;
-          line-height: 1.5;
-          margin-top: auto;
+          margin-bottom: 8px;
         }
-        .tier-card.selected .tier-card-details {
+        .tier-card-headline {
+          font-size: 13px;
+          font-weight: 600;
+          color: #475569;
+          line-height: 1.4;
+          margin: 0;
+        }
+        .tier-card.selected .tier-card-headline {
           color: #166534;
         }
-        .tier-extra-feat {
+        .tier-card-callout {
+          font-size: 12px;
           font-weight: 600;
-          margin-top: 4px;
-          color: #a855f7;
+          color: #047857;
+          line-height: 1.4;
+          margin: 4px 0 0;
+          padding: 6px 10px;
+          background: rgba(220, 252, 231, 0.6);
+          border-radius: 8px;
+          border-left: 3px solid #22c55e;
         }
-        .tier-card.selected .tier-extra-feat {
-          color: #7e22ce;
+        /* Benefits — right side */
+        .tier-card-benefits {
+          flex: 1;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
         }
-        .tier-discount-badge {
-          position: absolute;
-          top: -10px;
-          right: 10px;
-          background: #a855f7;
-          color: white;
-          font-size: 10px;
-          font-weight: 800;
-          padding: 2px 8px;
-          border-radius: 10px;
-          box-shadow: 0 4px 10px rgba(168,85,247,0.25);
+        .tier-benefits-section {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .tier-benefit-item {
+          font-size: 13px;
+          color: #374151;
+          line-height: 1.5;
+          padding: 6px 10px;
+          background: rgba(240, 253, 244, 0.5);
+          border-radius: 8px;
+          border-left: 3px solid #86efac;
+        }
+        .tier-card.selected .tier-benefit-item {
+          background: rgba(220, 252, 231, 0.6);
+          border-left-color: #22c55e;
+        }
+        .tier-features-compact {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          padding-top: 8px;
+          border-top: 1px dashed #e5e7eb;
+        }
+        .tier-features-compact span {
+          font-size: 11px;
+          color: #64748b;
+          background: #f1f5f9;
+          padding: 3px 10px;
+          border-radius: 20px;
+          white-space: nowrap;
+        }
+        .tier-card.selected .tier-features-compact span {
+          background: #dcfce7;
+          color: #166534;
+        }
+        .tier-feat-highlight {
+          font-weight: 700;
+          color: #047857;
+        }
+        .tier-card.selected .tier-features-grid {
+          color: #166534;
+        }
+
+        /* Mobile: stack vertically */
+        @media (max-width: 640px) {
+          .tier-card {
+            flex-direction: column;
+            gap: 12px;
+            padding: 16px;
+          }
+          .tier-card-header {
+            flex: none;
+            width: 100%;
+          }
+          .tier-features-grid {
+            grid-template-columns: 1fr;
+          }
         }
 
         /* Incentive Items */

@@ -569,7 +569,7 @@ export default function CrmPromotionsBuilderPage() {
   }
 
   const deletePromo = async (id: string) => {
-    if (!confirm('WARNING: Deleting this promotion will instantly cancel any ongoing recurring credits for enrolled users, and permanently delete the physical giveaway offer! \n\n(The Canonical Landing Page will NOT be deleted). \n\nThis action cannot be undone. Are you absolutely sure?')) return
+    if (!confirm('WARNING: Deleting this promotion will instantly cancel any ongoing recurring buying discounts for enrolled users, and permanently delete the physical giveaway offer! \n\n(The Canonical Landing Page will NOT be deleted). \n\nThis action cannot be undone. Are you absolutely sure?')) return
     await supabase.from('crm_promotions').delete().eq('id', id)
     fetchPromotions()
     toast('Promotion permanently deleted.')
@@ -581,7 +581,7 @@ export default function CrmPromotionsBuilderPage() {
         <div>
           <h1 className="crm-title">Promotions Builder</h1>
           <p className="crm-subtitle">
-            Instantly spin up complex Marketing Campaigns mapped to a live Landing Page with automated physical giveaways and recurring USD credits.
+            Instantly spin up complex Marketing Campaigns mapped to a live Landing Page with automated physical giveaways and recurring USD buying discounts.
           </p>
         </div>
         {!creating && (
@@ -761,10 +761,10 @@ export default function CrmPromotionsBuilderPage() {
             </div>
           )}
 
-          {/* Section 3: USD Credits */}
+          {/* Section 3: USD Buying Discounts */}
           <hr className="divider" />
           <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>3. Recurring USD Credits Configuration</span>
+            <span>3. Recurring USD Buying Discounts Configuration</span>
             <button
                 type="button"
                 className={`crm-toggle ${form.include_credits ? 'active' : ''}`}
@@ -779,11 +779,11 @@ export default function CrmPromotionsBuilderPage() {
           {form.include_credits && (
             <div className="crm-form-grid" style={{ background: '#f8fafc', padding: 16, borderRadius: 8 }}>
               <div className="crm-field">
-                <label>Credit Amount (USD)</label>
+                <label>Discount Amount (USD)</label>
                 <input type="number" step="0.01" value={form.credit_amount} onChange={e => setForm(f => ({...f, credit_amount: e.target.value}))} />
               </div>
               <div className="crm-field">
-                <label>Credit Type</label>
+                <label>Discount Type</label>
                 <select value={form.credit_type} onChange={e => setForm(f => ({...f, credit_type: e.target.value}))}>
                   <option value="universal">Universal (All products)</option>
                   <option value="category">Category-specific</option>
@@ -801,7 +801,7 @@ export default function CrmPromotionsBuilderPage() {
                 <input type="number" value={form.cap_value} onChange={e => setForm(f => ({...f, cap_value: e.target.value}))} />
               </div>
               <div className="crm-field">
-                <label>Credit Frequency</label>
+                <label>Discount Frequency</label>
                 <select value={form.credit_frequency} onChange={e => setForm(f => ({...f, credit_frequency: e.target.value as any}))}>
                   <option value="weekly">Weekly</option>
                   <option value="monthly">Monthly</option>
@@ -817,11 +817,11 @@ export default function CrmPromotionsBuilderPage() {
                 <input type="date" value={form.credit_start_date} onChange={e => setForm(f => ({...f, credit_start_date: e.target.value}))} />
               </div>
               <div className="crm-field">
-                <label>Credit Promo Image URL</label>
+                <label>Discount Promo Image URL</label>
                 <input value={form.credit_image_url} onChange={e => setForm(f => ({...f, credit_image_url: e.target.value}))} />
               </div>
               <div className="crm-field full-width" style={{ marginTop: 8, borderTop: '1px dashed #d1d5db', paddingTop: 16 }}>
-                <label>Upload Credit Image</label>
+                <label>Upload Discount Image</label>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                   <input type="file" accept="image/*" onChange={handleCreditImageUpload} disabled={uploadingCreditImage} style={{ flex: 1, padding: 8, background: 'white' }} />
                   {uploadingCreditImage && <span className="crm-muted" style={{ fontSize: '0.85rem', fontWeight: 600 }}>Uploading...</span>}

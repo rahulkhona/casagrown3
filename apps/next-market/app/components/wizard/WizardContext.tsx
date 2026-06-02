@@ -351,6 +351,14 @@ export function WizardProvider({ children }: { children: ReactNode }) {
             if (!rpcErr && rpcData) {
               boothId = typeof rpcData === 'string' ? rpcData : rpcData.id || rpcData
               rpcWorked = true
+
+              // RPC only sets name — update with fulfillment options
+              await supabase.from('market_booths').update({
+                offers_delivery: state.offersDelivery,
+                offers_pickup: state.offersPickup,
+                delivery_radius_miles: state.deliveryRadius,
+                pickup_address: state.offersPickup ? state.pickupAddress || null : null,
+              }).eq('id', boothId)
             }
           } catch { /* RPC may not exist yet — fallback below */ }
 

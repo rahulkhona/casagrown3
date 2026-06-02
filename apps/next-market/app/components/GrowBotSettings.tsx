@@ -164,20 +164,22 @@ export function GrowBotSettings({ userId, isPro, plan }: GrowBotSettingsProps) {
         opacity: isPro ? 1 : 0.5,
         pointerEvents: isPro ? 'auto' : 'none',
       }}>
-        {CHANNELS.map((ch) => {
+        {CHANNELS.filter((ch) => {
+          // Hide Elite-only channels if user is not on Elite plan
+          if ('requiresElite' in ch && ch.requiresElite && !isElite) return false
+          return true
+        }).map((ch) => {
           const cfg = configs[ch.key]
           const isAlwaysCopilot = 'isAlwaysCopilot' in ch && ch.isAlwaysCopilot
           const isEnabled = isAlwaysCopilot ? true : cfg?.enabled
-          
-          const isDisabled = 'requiresElite' in ch && ch.requiresElite && !isElite
 
           return (
             <div
               key={ch.key}
               style={{
                 borderRadius: 12, overflow: 'hidden',
-                border: isDisabled ? '1px solid #e5e7eb' : isEnabled ? '2px solid #059669' : '1px solid #e5e7eb',
-                background: isDisabled ? '#f9fafb' : isEnabled ? '#f0fdf4' : '#fafafa',
+                border: isEnabled ? '2px solid #059669' : '1px solid #e5e7eb',
+                background: isEnabled ? '#f0fdf4' : '#fafafa',
                 transition: 'all 0.2s',
               }}
             >
@@ -188,29 +190,13 @@ export function GrowBotSettings({ userId, isPro, plan }: GrowBotSettingsProps) {
               }}>
                 <span style={{ fontSize: 22, flexShrink: 0 }}>{ch.icon}</span>
                 <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: isDisabled ? '#9ca3af' : isEnabled ? '#065f46' : '#6b7280' }}>
-                      {ch.label}
-                    </div>
-                    {isDisabled && (
-                      <span style={{ fontSize: 9, background: '#1e3a8a', color: 'white', padding: '2px 6px', borderRadius: 6, fontWeight: 700 }}>⭐ Elite</span>
-                    )}
+                  <div style={{ fontSize: 14, fontWeight: 600, color: isEnabled ? '#065f46' : '#6b7280' }}>
+                    {ch.label}
                   </div>
                   <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>{ch.desc}</div>
                 </div>
-                {/* Toggle or Co-pilot Badge or Lock */}
-                {isDisabled ? (
-                  <button
-                    onClick={() => router.push('/pro?ref=growbot-upgrade')}
-                    style={{
-                      fontSize: 10, fontWeight: 700, color: '#1e3a8a',
-                      background: '#dbeafe', border: '1px solid #bfdbfe',
-                      padding: '4px 10px', borderRadius: 8, cursor: 'pointer',
-                    }}
-                  >
-                    🔒 Upgrade
-                  </button>
-                ) : isAlwaysCopilot ? (
+                {/* Toggle or Co-pilot Badge */}
+                {isAlwaysCopilot ? (
                   <span style={{
                     fontSize: 10, fontWeight: 700, color: '#047857',
                     background: '#d1fae5', padding: '4px 10px', borderRadius: 8,
@@ -238,8 +224,8 @@ export function GrowBotSettings({ userId, isPro, plan }: GrowBotSettingsProps) {
                 )}
               </div>
 
-              {/* Settings — shown when enabled & not disabled */}
-              {isEnabled && !isDisabled && (
+              {/* Settings — shown when enabled */}
+              {isEnabled && (
                 <div style={{ padding: '0 14px 12px', borderTop: '1px solid rgba(5,150,105,0.15)' }}>
                   {/* Delay slider — only for DM and Orders, not Messenger */}
                   {ch.hasDelay && (

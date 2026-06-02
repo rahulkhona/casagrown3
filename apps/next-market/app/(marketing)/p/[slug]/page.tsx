@@ -4,6 +4,7 @@ import React, { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase'
+import { ENABLE_ELITE } from '../../../../lib/featureFlags'
 import { TERMS_SECTIONS, PRIVACY_SECTIONS } from '../../../(main)/terms/page'
 import { StripeCheckoutModal } from '../../../components/StripeCheckoutModal'
 
@@ -131,6 +132,7 @@ function PromoContent() {
   const [checkoutSessionId, setCheckoutSessionId] = useState<string | null>(null)
 
   const [locating, setLocating] = useState(false)
+  const [isProTester, setIsProTester] = useState(false)
 
   const handleUseCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -195,16 +197,36 @@ function PromoContent() {
       const s = ["th", "st", "nd", "rd"]
       const v = day % 100
       const suffix = s[(v - 20) % 10] || s[v] || s[0]
-      return `Credits renewed on the ${day}${suffix} of every month`
+      return `Discounts renewed on the ${day}${suffix} of every month`
     }
     if (promo.buyer_discounts.frequency === 'weekly') {
       const dayName = date.toLocaleDateString('en-US', { weekday: 'long' })
-      return `Credits renewed every ${dayName}`
+      return `Discounts renewed every ${dayName}`
     }
     return `First cycle begins ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
   }
 
   const supabase = createClient()
+
+  // Check if user is a pro_tester (sees all tiers regardless of flags)
+  useEffect(() => {
+    if (ENABLE_ELITE) return
+    const checkTester = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user?.email) {
+        const { data } = await supabase
+          .from('pro_testers')
+          .select('email')
+          .eq('email', session.user.email)
+          .maybeSingle()
+        if (data) setIsProTester(true)
+      }
+    }
+    checkTester()
+  }, [])
+
+  const eliteVisible = ENABLE_ELITE || isProTester
+  const visibleTierKeys = eliteVisible ? ['lite', 'pro', 'elite'] : ['lite', 'pro']
 
   const loadUserBooths = async (userId: string) => {
     try {
@@ -419,7 +441,10 @@ function PromoContent() {
                 options: {
                   data: { 
                     full_name: saved.name, 
-                    street_address: fullAddress, 
+                    street_address: saved.street, 
+                    city: saved.city,
+                    state_code: saved.state,
+                    zip_code: saved.zip,
                     phone: saved.phone, 
                     sms_consent: saved.smsConsent ?? true, 
                     tos_accepted: true,
@@ -629,12 +654,13 @@ function PromoContent() {
       if (isCorrectUser) {
         await saveBoothArchivalStatuses(session.user.id)
 
-        // Query active promotion discount
+        // Query active promotion discount (exclude expired ones)
         const { data: discData } = await supabase
           .from('user_subscription_discounts')
           .select('*, crm_promotions(id, name)')
           .eq('user_id', session.user.id)
           .eq('status', 'active')
+          .or(`expires_at.is.null,expires_at.gte.${new Date().toISOString()}`)
           .limit(1)
 
         const existingDiscount = discData && discData.length > 0 ? discData[0] : null
@@ -684,7 +710,10 @@ function PromoContent() {
             .from('profiles')
             .update({
               full_name: name,
-              street_address: fullAddress,
+              street_address: street,
+              city: city,
+              state_code: state,
+              zip_code: zip,
               phone,
               sms_consent: smsConsent,
               farm_name: null,
@@ -716,7 +745,10 @@ function PromoContent() {
             .from('profiles')
             .update({
               full_name: name,
-              street_address: fullAddress,
+              street_address: street,
+              city: city,
+              state_code: state,
+              zip_code: zip,
               phone,
               sms_consent: smsConsent,
               farm_name: farmName,
@@ -755,7 +787,7 @@ function PromoContent() {
           const { error } = await supabase.auth.signInWithOtp({
             email,
             options: {
-              data: { full_name: name, street_address: fullAddress, phone, sms_consent: smsConsent, tos_accepted: true }
+              data: { full_name: name, street_address: street, city: city, state_code: state, zip_code: zip, phone, sms_consent: smsConsent, tos_accepted: true }
             }
           })
           if (error) throw error
@@ -767,7 +799,7 @@ function PromoContent() {
           const { error } = await supabase.auth.signInWithOtp({
             email,
             options: {
-              data: { full_name: name, street_address: fullAddress, phone, sms_consent: smsConsent, tos_accepted: true, farm_name: farmName }
+              data: { full_name: name, street_address: street, city: city, state_code: state, zip_code: zip, phone, sms_consent: smsConsent, tos_accepted: true, farm_name: farmName }
             }
           })
           if (error) throw error
@@ -811,7 +843,10 @@ function PromoContent() {
         options: {
           data: { 
             full_name: name, 
-            street_address: fullAddress, 
+            street_address: street, 
+            city: city,
+            state_code: state,
+            zip_code: zip,
             phone, 
             sms_consent: smsConsent, 
             tos_accepted: true,
@@ -852,7 +887,10 @@ function PromoContent() {
         .from('profiles')
         .update({
           full_name: name,
-          street_address: fullAddress,
+          street_address: street,
+          city: city,
+          state_code: state,
+          zip_code: zip,
           phone,
           sms_consent: smsConsent,
           farm_name: farmName,
@@ -1069,12 +1107,13 @@ function PromoContent() {
         await saveBoothArchivalStatuses(session.user.id)
       }
 
-      // Query active promotion discount
+      // Query active promotion discount (exclude expired ones)
       const { data: discData } = await supabase
         .from('user_subscription_discounts')
         .select('*, crm_promotions(id, name)')
         .eq('user_id', session?.user?.id || '')
         .eq('status', 'active')
+        .or(`expires_at.is.null,expires_at.gte.${new Date().toISOString()}`)
         .limit(1)
 
       const existingDiscount = discData && discData.length > 0 ? discData[0] : null
@@ -1219,18 +1258,18 @@ function PromoContent() {
       {promo.buyer_discounts && (
         <div className="incentive-item credits-item">
           {promo.buyer_discounts.image_url ? (
-            <img src={promo.buyer_discounts.image_url} alt="Credit Bonus" className="incentive-photo" />
+            <img src={promo.buyer_discounts.image_url} alt="Discount Bonus" className="incentive-photo" />
           ) : (
             <span className="incentive-icon">💰</span>
           )}
           <div className="incentive-text">
-            <strong>${promo.buyer_discounts.discount_amount_usd} Purchase Credit</strong>
+            <strong>${promo.buyer_discounts.discount_amount_usd} Shopping Discount</strong>
             <p>Issued {promo.buyer_discounts.frequency === 'monthly' ? 'once a month' : `every ${promo.buyer_discounts.frequency}`} for {promo.buyer_discounts.occurrences} {promo.buyer_discounts.occurrences === 1 ? 'month' : 'months'}.</p>
             <ul className="credit-rules">
               {getRenewalText() && <li>✓ {getRenewalText()}</li>}
               <li>✓ Valid towards purchases and fees on casagrown.com</li>
               <li>✓ Covers up to {promo.buyer_discounts.discount_cap_type === 'percentage' ? `${promo.buyer_discounts.discount_cap_value}%` : `$${promo.buyer_discounts.discount_cap_value}`} per order</li>
-              <li>✓ Credits expire after 1 {promo.buyer_discounts.frequency === 'monthly' ? 'month' : promo.buyer_discounts.frequency === 'weekly' ? 'week' : promo.buyer_discounts.frequency.replace('ly', '')}</li>
+              <li>✓ Discounts expire after 1 {promo.buyer_discounts.frequency === 'monthly' ? 'month' : promo.buyer_discounts.frequency === 'weekly' ? 'week' : promo.buyer_discounts.frequency.replace('ly', '')}</li>
             </ul>
           </div>
         </div>
@@ -1359,7 +1398,7 @@ function PromoContent() {
                     
                     {/* Selectable Pricing Tiers Grid */}
                     <div className="tier-cards-grid">
-                      {['lite', 'pro', 'elite'].map((tierKey) => {
+                      {visibleTierKeys.map((tierKey) => {
                         const tier = tiers.find(t => t.tier_name === tierKey) || DEFAULT_TIERS.find(t => t.tier_name === tierKey)!
                         const details = getTierDiscountDetails(tierKey as 'lite' | 'pro' | 'elite')!
                         const isSelected = selectedPlan === tierKey
@@ -1385,10 +1424,42 @@ function PromoContent() {
                               )}
                             </div>
                             <div className="tier-card-details">
-                              <div>✓ platform fee: <strong>{details.platformFee}%</strong></div>
-                              <div>✓ max booths: <strong>{tier.max_booths}</strong></div>
-                              {tierKey === 'pro' && <div className="tier-extra-feat">✓ includes GrowBot assistant</div>}
-                              {tierKey === 'elite' && <div className="tier-extra-feat">✓ premium custom branding</div>}
+                              <div style={{ marginBottom: '6px' }}>✓ platform fee: <strong>{details.platformFee}%</strong></div>
+                              <div style={{ marginBottom: '8px' }}>✓ max booths: <strong>{tier.max_booths < 0 ? 'Unlimited' : tier.max_booths}</strong></div>
+                              
+                              {tierKey === 'lite' && (
+                                <div className="tier-extra-feats" style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.85rem', color: '#4b5563', borderTop: '1px dashed #e5e7eb', paddingTop: '8px', textAlign: 'left' }}>
+                                  <div>✓ Standard Checkout</div>
+                                  <div>✓ Basic Listing Tools</div>
+                                </div>
+                              )}
+
+                              {tierKey === 'pro' && (
+                                <div className="tier-extra-feats" style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.85rem', color: '#047857', borderTop: '1px dashed #e5e7eb', paddingTop: '8px', textAlign: 'left' }}>
+                                  <div style={{ fontWeight: 600 }}>✓ GrowBot AI Assistant</div>
+                                  <div>✓ Facebook Catalog Sync</div>
+                                  <div>✓ Facebook Auto-Posting</div>
+                                  <div>✓ Facebook DM Auto-Replies</div>
+                                  <div>✓ Facebook Comment Auto-Replies</div>
+                                  <div>✓ 7-Day Guarantee Refund</div>
+                                </div>
+                              )}
+
+                              {tierKey === 'elite' && (
+                                <div className="tier-extra-feats" style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.85rem', color: '#1e3a8a', borderTop: '1px dashed #e5e7eb', paddingTop: '8px', textAlign: 'left' }}>
+                                  <div style={{ fontWeight: 600 }}>✓ Everything in Pro</div>
+                                  <div>✓ Instagram Auto-Posting</div>
+                                  <div>✓ Instagram Catalog Sync</div>
+                                  <div>✓ Instagram DM Auto-Replies</div>
+                                  <div>✓ Instagram Comment Auto-Replies</div>
+                                  <div>✓ WhatsApp Catalog Sync</div>
+                                  <div>✓ WhatsApp DM Auto-Replies</div>
+                                  <div>✓ WhatsApp business phone provisioned</div>
+                                  <div>✓ Video Auto-Posts (Insta & FB)</div>
+                                  <div>✓ Post to Google Maps / Places</div>
+                                  <div>✓ Custom premium branding</div>
+                                </div>
+                              )}
                             </div>
                           </div>
                         )

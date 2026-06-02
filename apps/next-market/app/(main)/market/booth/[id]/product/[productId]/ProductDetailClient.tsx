@@ -20,6 +20,7 @@ import { ProductQA } from '../../../../../../components/ProductQA'
 import { NotificationPromptModal } from '../../../../../../components/NotificationPromptModal'
 import { useErrorToast } from '../../../../../../components/ErrorToast'
 import { useNotificationPrompt } from '../../../../../../../lib/useNotificationPrompt'
+import { useQuickSetup } from '../../../../../../../lib/useQuickSetup'
 import { useCart } from '../../../../../../../lib/useCart'
 import styles from './page.module.css'
 
@@ -45,6 +46,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
   const { user, isAuthenticated, profileComplete } = useAuth()
   const { isOpen: marketIsOpen, isScheduleOpen, nextOpenDate, loading: marketLoading } = useMarketStatus()
   const autoBuy = searchParams.get('autoBuy') === 'true'
+  const { requireAuth } = useQuickSetup()
   // Messenger PSID linking — capture from URL, link to profile for cross-seller memory
   const fbPsid = searchParams.get('fb_psid')
   const fbPage = searchParams.get('fb_page')
@@ -66,6 +68,12 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
   const { showSuccess, showInfo, showError } = useErrorToast()
   const [sellerRating, setSellerRating] = useState<{ avg: number; count: number } | null>(null)
   const [sellerFirstName, setSellerFirstName] = useState<string | null>(null)
+  const [sellerBiz, setSellerBiz] = useState<{
+    farmName?: string; businessType?: string; sellerBio?: string;
+    businessLicense?: string; foodHandlerPermit?: string;
+    cottageFoodPermit?: string; insuranceProvider?: string;
+  }>({})
+  const [waPhone, setWaPhone] = useState<string | null>(null)
 
 
   const cart = useCart()
@@ -122,7 +130,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
         // Fetch seller profile for rating + pickup address fallback
         const { data: profileData } = await supabase
           .from('profiles')
-          .select('seller_avg_rating, seller_rating_count, full_name, street_address, city, state_code, zip_plus4')
+          .select('seller_avg_rating, seller_rating_count, full_name, street_address, city, state_code, zip_plus4, farm_name, business_type, seller_bio, business_license, food_handler_permit, cottage_food_permit, insurance_provider')
           .eq('id', boothData.owner_id)
           .single()
         if (profileData?.full_name) {
@@ -130,6 +138,27 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
         }
         if (profileData && profileData.seller_rating_count >= 5) {
           setSellerRating({ avg: profileData.seller_avg_rating, count: profileData.seller_rating_count })
+        }
+        // Business info
+        setSellerBiz({
+          farmName: profileData?.farm_name || undefined,
+          businessType: profileData?.business_type || undefined,
+          sellerBio: profileData?.seller_bio || undefined,
+          businessLicense: profileData?.business_license || undefined,
+          foodHandlerPermit: profileData?.food_handler_permit || undefined,
+          cottageFoodPermit: profileData?.cottage_food_permit || undefined,
+          insuranceProvider: profileData?.insurance_provider || undefined,
+        })
+        // Fetch WhatsApp phone if enabled
+        const { data: fbConn } = await supabase
+          .from('seller_fb_connections')
+          .select('wa_display_phone, wa_auto_reply_enabled')
+          .eq('user_id', boothData.owner_id)
+          .eq('status', 'connected')
+          .limit(1)
+          .maybeSingle()
+        if (fbConn?.wa_display_phone && fbConn?.wa_auto_reply_enabled) {
+          setWaPhone(fbConn.wa_display_phone)
         }
         // Derive pickup address from seller profile if not set on booth
         if (!boothData.pickup_address && profileData?.street_address) {
@@ -333,11 +362,17 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
   // Toggle product reminder
   const toggleReminder = async () => {
     if (!user) {
-      router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
+      requireAuth({
+        trigger: 'product_reminder',
+        onReady: () => toggleReminder(),
+      })
       return
     }
     if (profileComplete !== true) {
-      router.push('/profile-setup')
+      requireAuth({
+        trigger: 'product_reminder',
+        onReady: () => toggleReminder(),
+      })
       return
     }
 
@@ -548,14 +583,94 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
             )}
           </div>
           <h1 className={styles.productName}>{product.name}</h1>
-          {sellerRating && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, marginBottom: 4 }}>
-              <span style={{ fontSize: 14 }}>⭐</span>
-              <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--gray-700)' }}>{sellerRating.avg}</span>
-              <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>({sellerRating.count} ratings)</span>
-              <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>• Seller</span>
-            </div>
-          )}
+
+          {/* Seller / Booth Info */}
+          <div style={{
+            padding: '12px 14px', marginTop: 8, marginBottom: 4,
+            background: 'var(--gray-50, #f9fafb)', borderRadius: 12,
+            border: '1px solid var(--gray-100, #f3f4f6)',
+          }}>
+            <Link
+              href={`/market/booth/${boothId}`}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                textDecoration: 'none', color: 'inherit',
+              }}
+            >
+              <div style={{
+                width: 36, height: 36, borderRadius: '50%',
+                background: 'linear-gradient(135deg, #dcfce7, #bbf7d0)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 18, flexShrink: 0,
+              }}>🌱</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--gray-800)' }}>
+                  {sellerBiz.farmName || booth.name}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>
+                  {sellerFirstName ? `by ${sellerFirstName}` : 'View booth'} →
+                </div>
+              </div>
+              {sellerRating && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                  <span style={{ fontSize: 13 }}>⭐</span>
+                  <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--gray-700)' }}>{sellerRating.avg}</span>
+                  <span style={{ fontSize: 11, color: 'var(--gray-400)' }}>({sellerRating.count})</span>
+                </div>
+              )}
+            </Link>
+
+            {/* Bio */}
+            {sellerBiz.sellerBio && (
+              <p style={{ fontSize: 12, color: 'var(--gray-600)', margin: '8px 0 0', lineHeight: 1.5 }}>
+                {sellerBiz.sellerBio.length > 120 ? sellerBiz.sellerBio.slice(0, 120) + '…' : sellerBiz.sellerBio}
+              </p>
+            )}
+
+            {/* Business Type */}
+            {sellerBiz.businessType && (
+              <div style={{ marginTop: 6 }}>
+                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: '#ecfdf5', color: '#065f46', fontWeight: 600 }}>
+                  {({ hobby_gardener: '🌱 Hobby Gardener', small_farm: '🚜 Small Farm', cottage_food: '🏠 Cottage Food', urban_farm: '🏙️ Urban Farm', homestead: '🌾 Homestead', community_garden: '🌻 Community Garden', gardening_service: '🌿 Gardening Service', landscaping_service: '🏡 Landscaping Service', commercial: '🏢 Commercial' } as Record<string, string>)[sellerBiz.businessType] || sellerBiz.businessType}
+                </span>
+              </div>
+            )}
+
+            {/* Trust Badges */}
+            {(sellerBiz.businessLicense || sellerBiz.foodHandlerPermit || sellerBiz.cottageFoodPermit || sellerBiz.insuranceProvider) && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                {sellerBiz.businessLicense && (
+                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: '#dbeafe', color: '#1e40af', fontWeight: 600 }}>✓ Licensed</span>
+                )}
+                {sellerBiz.foodHandlerPermit && (
+                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: '#fef3c7', color: '#92400e', fontWeight: 600 }}>✓ Food Handler</span>
+                )}
+                {sellerBiz.cottageFoodPermit && (
+                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: '#f0fdf4', color: '#166534', fontWeight: 600 }}>✓ Cottage Food</span>
+                )}
+                {sellerBiz.insuranceProvider && (
+                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: '#f3e8ff', color: '#6b21a8', fontWeight: 600 }}>✓ Insured</span>
+                )}
+              </div>
+            )}
+
+            {/* WhatsApp button */}
+            {waPhone && (
+              <a
+                href={`https://wa.me/${waPhone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi! I'm interested in your ${product.name} on CasaGrown.`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  marginTop: 8, padding: '8px 12px', borderRadius: 8,
+                  background: '#25D366', color: 'white', fontSize: 13, fontWeight: 600,
+                  textDecoration: 'none', transition: 'opacity 0.15s',
+                }}
+              >
+                💬 WhatsApp {waPhone}
+              </a>
+            )}
+          </div>
           <p className={styles.productPrice}>
             {product.price_usd === 0 ? <span className="price price-large" style={{ color: '#16a34a' }}>Free</span> : <><span className="price price-large">{formatUsd(product.price_usd)}</span><span className={styles.unit}>/ {product.unit}</span></>}
           </p>
@@ -706,17 +821,23 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                   <p style={{ margin: '0 0 12px', fontSize: 14, color: '#166534' }}>
                     Want to see real listings like this? Start selling to your neighbors!
                   </p>
-                  <Link
-                    href={user ? '/my-stands' : '/login?redirect=%2Fmy-stands'}
+                  <button
+                    onClick={() => {
+                      requireAuth({
+                        trigger: 'start_selling',
+                        onReady: () => router.push('/my-stands'),
+                      })
+                    }}
                     style={{
                       display: 'inline-block', padding: '12px 28px', borderRadius: 12,
                       background: 'linear-gradient(135deg, #16a34a, #15803d)',
                       color: '#fff', fontWeight: 600, fontSize: 15,
-                      textDecoration: 'none', boxShadow: '0 4px 12px rgba(22,163,74,0.3)',
+                      border: 'none', cursor: 'pointer',
+                      boxShadow: '0 4px 12px rgba(22,163,74,0.3)',
                     }}
                   >
                     🌱 Start Selling →
-                  </Link>
+                  </button>
                 </div>
               </div>
             ) : (
@@ -920,12 +1041,11 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                           className="btn btn-primary btn-lg"
                           style={{ flex: 1, fontSize: 14, padding: '12px 8px' }}
                           onClick={() => {
-                            if (!isAuthenticated) {
-                              router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
-                              return
-                            }
-                            if (profileComplete !== true) {
-                              router.push('/profile-setup')
+                            if (!isAuthenticated || profileComplete !== true) {
+                              requireAuth({
+                                trigger: 'buy_now',
+                                onReady: () => setShowBuy(true),
+                              })
                               return
                             }
                             setShowBuy(true)
@@ -949,12 +1069,35 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                         transition: 'all 0.2s',
                       }}
                       onClick={() => {
-                        if (!isAuthenticated) {
-                          router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
-                          return
-                        }
-                        if (profileComplete !== true) {
-                          router.push('/profile-setup')
+                        if (!isAuthenticated || profileComplete !== true) {
+                          requireAuth({
+                            trigger: 'add_to_cart',
+                            onReady: () => {
+                              cart.addItem(
+                          {
+                            id: product.id,
+                            name: product.name,
+                            price_usd: product.price_usd,
+                            unit: product.unit,
+                            inventory: product.inventory,
+                            photos: product.photos,
+                            category: product.category,
+                          },
+                          {
+                            id: booth.id,
+                            name: booth.name,
+                            offers_delivery: productOffersDelivery,
+                            offers_pickup: productOffersPickup,
+                            pickup_address: booth.pickup_address,
+                            delivery_radius_miles: booth.delivery_radius_miles,
+                          },
+                          cartQty,
+                          selectedFulfillment || (productOffersPickup ? 'pickup' : 'delivery')
+                        )
+                        setCartToast(existingCartQty > 0 ? `Cart updated! (${cartQty} ${product.unit}${cartQty > 1 ? 's' : ''})` : `Added to cart! 🛒`)
+                        setTimeout(() => setCartToast(null), 3000)
+                            },
+                          })
                           return
                         }
                         cart.addItem(
@@ -1018,21 +1161,27 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
       {/* Message Seller — below Q&A so users can check answers first */}
       {!isDemo && user?.id !== product.seller_id && (
         <div style={{ padding: '0 0 16px' }}>
-          <Link
-            href={isAuthenticated
-              ? `/messages/new?userId=${product.seller_id}&productId=${product.id}&name=${encodeURIComponent(booth.name || 'Seller')}`
-              : `/login?redirect=${encodeURIComponent(`/messages/new?userId=${product.seller_id}&productId=${product.id}&name=${encodeURIComponent(booth.name || 'Seller')}`)}`
-            }
+          <button
+            onClick={() => {
+              if (!isAuthenticated) {
+                requireAuth({
+                  trigger: 'dm_seller',
+                  onReady: () => router.push(`/messages/new?userId=${product.seller_id}&productId=${product.id}&name=${encodeURIComponent(booth.name || 'Seller')}`),
+                })
+                return
+              }
+              router.push(`/messages/new?userId=${product.seller_id}&productId=${product.id}&name=${encodeURIComponent(booth.name || 'Seller')}`)
+            }}
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               width: '100%', padding: '12px 20px',
               border: '2px solid var(--green-200, #bbf7d0)', borderRadius: 'var(--radius-md, 12px)',
               background: 'var(--green-50, #f0fdf4)', color: 'var(--green-700, #15803d)', textAlign: 'center',
-              fontSize: 16, fontWeight: 600, textDecoration: 'none', cursor: 'pointer',
+              fontSize: 16, fontWeight: 600, cursor: 'pointer',
             }}
           >
             💬 DM {sellerFirstName || 'Seller'}
-          </Link>
+          </button>
         </div>
       )}
 
@@ -1044,6 +1193,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
         currentProductId={productId}
         isDemo={isDemo}
       />
+
 
       {/* Buy Modal — never shown for demo */}
       {showBuy && !isDemo && (

@@ -11,6 +11,7 @@ import {
   loadAllSellerBooths, detectEscalation, cleanBotReply,
   type BoothSummary,
 } from '../_shared/growbot-seller.ts'
+import { extractMessengerReferral, lookupProductById, buildProductContextPrompt } from '../_shared/product-context.ts'
 
 serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   // ── GET: Webhook Verification ──
@@ -118,6 +119,9 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
         if (!userMessage) continue
 
+        // ── Extract product context from referral (catalog, marketplace, post) ──
+        const referral = extractMessengerReferral(event)
+
         const senderPsid = event.sender?.id
         const pageId = entry.id
 
@@ -145,8 +149,20 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           .eq('user_id', conn.user_id)
           .single()
 
-        if (!sub || sub.plan !== 'pro' || !['active', 'trialing'].includes(sub.status)) {
-          console.warn(`[MESSENGER] Seller ${conn.user_id} not Pro, skipping`)
+        if (!sub || !['active', 'trialing'].includes(sub.status)) {
+          console.warn(`[MESSENGER] Seller ${conn.user_id} does not have an active subscription, skipping`)
+          continue
+        }
+
+        // Check if Facebook Messenger Auto-Responder is enabled in subscription tier features
+        const { data: tier } = await supabase
+          .from('subscription_tiers')
+          .select('features')
+          .eq('tier_name', sub.plan)
+          .single()
+
+        if (!tier?.features?.facebook_chat) {
+          console.warn(`[MESSENGER] Seller ${conn.user_id} does not have Facebook Auto-Responder enabled in subscription tier, skipping`)
           continue
         }
 
@@ -375,6 +391,27 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             systemPrompt += `\n- Matched to booth: "${matchedBooth.name}"`
           }
           systemPrompt += `\n- This is a return visitor. If they seem to be looking for a different location, offer to help find another booth.`
+        }
+
+        // Inject product context if buyer messaged from a product listing
+        if (referral.productId) {
+          const productCtx = await lookupProductById(supabase, referral.productId)
+          if (productCtx) {
+            systemPrompt += buildProductContextPrompt(productCtx)
+            console.log(`[MESSENGER] Product context: ${productCtx.name} (source: ${referral.source})`)
+          }
+          // Save to conversation for future messages in this thread
+          if (conversation) {
+            await supabase.from('messenger_conversations')
+              .update({ last_product_id: referral.productId })
+              .eq('id', conversation.id)
+          }
+        } else if (conversation?.last_product_id) {
+          // Continuing conversation — load previously identified product
+          const productCtx = await lookupProductById(supabase, conversation.last_product_id)
+          if (productCtx) {
+            systemPrompt += buildProductContextPrompt(productCtx)
+          }
         }
 
         // Instruct bot to append PSID tracking to all links (for cross-seller memory)

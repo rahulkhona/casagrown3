@@ -14,15 +14,26 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     return jsonError('Missing seller_id', corsHeaders, 400)
   }
 
-  // 1. Verify seller has active Elite subscription
+  // 1. Verify seller has active subscription
   const { data: sub } = await supabase
     .from('seller_subscriptions')
     .select('plan, status')
     .eq('user_id', seller_id)
     .single()
 
-  if (!sub || sub.plan !== 'elite' || !['active', 'trialing'].includes(sub.status)) {
-    return jsonError('Seller does not have an active Elite tier subscription', corsHeaders, 403)
+  if (!sub || !['active', 'trialing'].includes(sub.status)) {
+    return jsonError('Seller does not have an active subscription', corsHeaders, 403)
+  }
+
+  // Load subscription tier's features dynamically
+  const { data: tier } = await supabase
+    .from('subscription_tiers')
+    .select('features')
+    .eq('tier_name', sub.plan)
+    .single()
+
+  if (!tier?.features?.video_posts) {
+    return jsonError('Seller does not have the Video Auto-Posting feature enabled in their subscription tier', corsHeaders, 403)
   }
 
   // 2. Fetch Booth details

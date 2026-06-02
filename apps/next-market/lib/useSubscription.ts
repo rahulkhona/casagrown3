@@ -56,10 +56,10 @@ export function useSubscription(): SubscriptionInfo {
       if (data && !error) {
         const rawPlan = data.plan === 'free' || !data.plan ? 'lite' : (data.plan as 'lite' | 'pro' | 'elite')
         const isPro = ['pro', 'elite'].includes(rawPlan) && ['active', 'trialing'].includes(data.status) || isProTester
-        const isElite = rawPlan === 'elite' && ['active', 'trialing'].includes(data.status)
+        const isElite = (rawPlan === 'elite' && ['active', 'trialing'].includes(data.status)) || isProTester
 
         setSub({
-          plan: isProTester && rawPlan === 'lite' ? 'pro' : rawPlan,
+          plan: isProTester && rawPlan === 'lite' ? 'elite' : rawPlan,
           status: isProTester && data.status === 'inactive' ? 'active' : (data.status as any),
           isPro,
           isElite,
@@ -71,10 +71,10 @@ export function useSubscription(): SubscriptionInfo {
       } else if (isProTester) {
         // No subscription record at all, but user is a pro tester — grant implicit Pro
         setSub({
-          plan: 'pro',
+          plan: 'elite',
           status: 'active',
           isPro: true,
-          isElite: false,
+          isElite: true,
           trialEndsAt: null,
           currentPeriodEnd: null,
           canceledAt: null,

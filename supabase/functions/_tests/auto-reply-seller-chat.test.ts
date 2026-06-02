@@ -148,15 +148,21 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
   async fn() {
-    const { data } = await callAutoReply({
-      type: "dm",
-      messageId: "fake-id",
-      senderId: BUYER_ID,
-      recipientId: SELLER_ID,
-      isBot: true,
-    });
-    assertEquals(data.skipped, true);
-    assertEquals(data.reason, "bot_message");
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    try {
+      const { data } = await callAutoReply({
+        type: "dm",
+        messageId: "fake-id",
+        senderId: BUYER_ID,
+        recipientId: SELLER_ID,
+        isBot: true,
+      });
+      assertEquals(data.skipped, true);
+      assertEquals(data.reason, "bot_message");
+    } finally {
+      clearTimeout(timeout);
+    }
   },
 });
 

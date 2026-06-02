@@ -370,6 +370,35 @@ export default function MyStandsPage() {
                 {isPro && (
                   <button
                     className={`${styles.cardActionBtn} ${styles.cardActionSecondary}`}
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(`/api/marketplace-csv?boothId=${stand.id}`, {
+                          headers: { Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` },
+                        })
+                        if (!res.ok) {
+                          const err = await res.json().catch(() => ({ error: 'Download failed' }))
+                          alert(err.error || 'Download failed')
+                          return
+                        }
+                        const blob = await res.blob()
+                        const url = URL.createObjectURL(blob)
+                        const a = document.createElement('a')
+                        a.href = url
+                        a.download = `marketplace-listings-${stand.name.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}.csv`
+                        a.click()
+                        URL.revokeObjectURL(url)
+                        showSuccess('Marketplace spreadsheet downloaded!')
+                      } catch {
+                        alert('Failed to download spreadsheet')
+                      }
+                    }}
+                  >
+                    📥 Marketplace CSV
+                  </button>
+                )}
+                {isPro && (
+                  <button
+                    className={`${styles.cardActionBtn} ${styles.cardActionSecondary}`}
                     onClick={() => setArchiveTarget(stand)}
                     style={stand.is_active ? { color: '#b45309' } : { color: 'var(--green-700)' }}
                   >

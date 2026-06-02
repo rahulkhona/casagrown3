@@ -7,6 +7,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useMarket, isMarketOpen } from '../../lib/store'
 import { useAuth } from '../../lib/useAuth'
 import { useBootstrap } from '../../lib/useBootstrap'
+import { useQuickSetup } from '../../lib/useQuickSetup'
 import { createClient } from '../../lib/supabase'
 import styles from './Navbar.module.css'
 import { resetTour } from './GuidedTour'
@@ -92,12 +93,13 @@ let globalFirstLoad = true
 
 export function Navbar() {
   const { state, dispatch } = useMarket()
-  const { profileComplete } = useAuth()
+  const { user: authUser, profileComplete } = useAuth()
   const { data: bootstrapData } = useBootstrap()
+  const { requireAuth } = useQuickSetup()
   const pathname = usePathname()
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [hasSession, setHasSession] = useState(false)
+  const hasSession = !!authUser
   const [userId, setUserId] = useState<string | null>(null)
   const [profileName, setProfileName] = useState('')
   const [profileEmail, setProfileEmail] = useState('')
@@ -112,8 +114,10 @@ export function Navbar() {
   // Profile gate: grey out nav items unless fully onboarded (logged in + profile complete)
   const isProfileLocked = profileComplete !== true
 
-  // Where to send locked clicks
-  const lockRedirect = hasSession ? '/profile-setup' : '/login'
+  // Locked clicks now open the QuickSetupModal
+  const handleLockedClick = useCallback(() => {
+    requireAuth({ trigger: 'nav_locked' })
+  }, [requireAuth])
 
   // Notification panel state
   const [notifOpen, setNotifOpen] = useState(false)
@@ -140,32 +144,36 @@ export function Navbar() {
 
   const open = isMarketOpen(state.marketSchedule, state.marketNeverCloses)
 
-  // Check actual Supabase session + fetch profile name (on mount + after profile edit)
+  // Fetch profile name/email/avatar when auth user changes or after profile edit
   const prevPath = useRef(pathname)
   useEffect(() => {
     const wasOnProfile = prevPath.current === '/profile'
     prevPath.current = pathname
 
-    // Skip re-fetch unless first mount or leaving profile page
-    if (hasSession && !wasOnProfile) return
+    // Skip re-fetch if we already have profile data (unless leaving /profile)
+    if (profileName && !wasOnProfile && userId === authUser?.id) return
 
+    if (!authUser) {
+      setUserId(null)
+      setProfileName('')
+      setProfileEmail('')
+      setProfileAvatar(null)
+      return
+    }
+
+    setUserId(authUser.id)
+    setProfileEmail(authUser.email || '')
     const supabase = createClient()
-    supabase.auth.getSession().then(async ({ data: { session } }: { data: { session: any } }) => {
-      const user = session?.user
-      setHasSession(!!user)
-      if (user) {
-        setUserId(user.id)
-        setProfileEmail(user.email || '')
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('full_name, avatar_url')
-          .eq('id', user.id)
-          .single()
+    supabase
+      .from('profiles')
+      .select('full_name, avatar_url')
+      .eq('id', authUser.id)
+      .single()
+      .then(({ data: profile }: { data: any }) => {
         if (profile?.full_name) setProfileName(profile.full_name)
         if (profile?.avatar_url) setProfileAvatar(profile.avatar_url)
-      }
-    })
-  }, [pathname]) // runs on navigation, but skips fetch unless leaving /profile
+      })
+  }, [pathname, authUser]) // runs on navigation AND auth state changes
 
   // Re-fetch profile when tab regains focus (catches cross-device edits)
   useEffect(() => {
@@ -400,7 +408,7 @@ export function Navbar() {
               <button
                 key={item.href}
                 className={`${styles.navLink} ${styles.navLinkLocked}`}
-                onClick={() => router.push(lockRedirect)}
+                onClick={handleLockedClick}
                 title="Complete your profile to unlock"
                 data-tour={item.tour}
               >
@@ -469,8 +477,7 @@ export function Navbar() {
             <button
               className={`${styles.iconBtn} ${isProfileLocked ? styles.iconBtnLocked : ''}`}
               onClick={() => {
-                if (!hasSession) { router.push('/login?redirect=/notifications'); return }
-                if (isProfileLocked) { router.push(lockRedirect); return }
+                if (!hasSession || isProfileLocked) { handleLockedClick(); return }
                 setNotifOpen(!notifOpen); if (menuOpen) setMenuOpen(false)
               }}
               aria-label="Notifications"
@@ -625,10 +632,10 @@ export function Navbar() {
                 {/* Auth - Sign In at top when logged out */}
                 {!hasSession && (
                   <div className={styles.menuSection}>
-                    <Link href="/login" className={styles.menuItem} style={{ fontWeight: 600, color: 'var(--green-700)' }}>
+                    <button className={styles.menuItem} style={{ fontWeight: 600, color: 'var(--green-700)', background: 'none', border: 'none', cursor: 'pointer', width: '100%', textAlign: 'left' }} onClick={() => { setMenuOpen(false); requireAuth({ trigger: 'sign_in' }) }}>
                       <span className={styles.menuItemIcon}>🔑</span>
                       <span>Sign In</span>
-                    </Link>
+                    </button>
                   </div>
                 )}
 
@@ -656,7 +663,7 @@ export function Navbar() {
                         <button
                           key={item.href}
                           className={`${styles.menuItem} ${styles.menuItemLocked}`}
-                          onClick={() => { setMenuOpen(false); router.push(lockRedirect) }}
+                          onClick={() => { setMenuOpen(false); handleLockedClick() }}
                         >
                           <span className={styles.menuItemIcon}>
                             {item.href === '/my-stands' ? <StandIcon size={18} /> : item.icon}
@@ -687,16 +694,16 @@ export function Navbar() {
                       </Link>
                     ))}
                     {/* Pro menu item */}
-                    {!subLoading && (isPro || proEnabled) && (
+                    {!subLoading && proEnabled && (
                       isPro ? (
                         <Link href="/pro-manage" className={`${styles.menuItem} ${pathname === '/pro-manage' ? styles.menuItemActive : ''}`}>
                           <span className={styles.menuItemIcon}>🚜</span>
-                          <span>Manage Pro</span>
+                          <span>Manage Features</span>
                         </Link>
                       ) : (
                         <Link href="/pro-manage" className={styles.menuItem}>
                           <span className={styles.menuItemIcon}>🚜</span>
-                          <span>CasaGrown Pro</span>
+                          <span>Manage Features</span>
                         </Link>
                       )
                     )}
@@ -714,17 +721,17 @@ export function Navbar() {
                   <div className={styles.menuSectionLabel}>Support & Legal</div>
                   {isProfileLocked ? (
                     <>
-                      <button className={`${styles.menuItem} ${styles.menuItemLocked}`} onClick={() => { setMenuOpen(false); router.push(lockRedirect) }}>
+                      <button className={`${styles.menuItem} ${styles.menuItemLocked}`} onClick={() => { setMenuOpen(false); handleLockedClick() }}>
                         <span className={styles.menuItemIcon}>📋</span>
                         <span>Contact Support</span>
                         <span className={styles.lockIcon}>🔒</span>
                       </button>
-                      <button className={`${styles.menuItem} ${styles.menuItemLocked}`} onClick={() => { setMenuOpen(false); router.push(lockRedirect) }}>
+                      <button className={`${styles.menuItem} ${styles.menuItemLocked}`} onClick={() => { setMenuOpen(false); handleLockedClick() }}>
                         <span className={styles.menuItemIcon}>📄</span>
                         <span>Terms of Use</span>
                         <span className={styles.lockIcon}>🔒</span>
                       </button>
-                      <button className={`${styles.menuItem} ${styles.menuItemLocked}`} onClick={() => { setMenuOpen(false); router.push(lockRedirect) }}>
+                      <button className={`${styles.menuItem} ${styles.menuItemLocked}`} onClick={() => { setMenuOpen(false); handleLockedClick() }}>
                         <span className={styles.menuItemIcon}>🔒</span>
                         <span>Privacy Policy</span>
                         <span className={styles.lockIcon}>🔒</span>
@@ -734,7 +741,7 @@ export function Navbar() {
                     <>
                       <Link href="/guide" className={`${styles.menuItem} ${pathname === '/guide' ? styles.menuItemActive : ''}`}>
                         <span className={styles.menuItemIcon}>📖</span>
-                        <span>How It Works</span>
+                        <span>User Guide</span>
                       </Link>
                       <button className={styles.menuItem} onClick={() => { setMenuOpen(false); resetTour() }}>
                         <span className={styles.menuItemIcon}>🔄</span>

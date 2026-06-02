@@ -39,7 +39,7 @@ VALUES
     0.00, 
     10.00, 
     1, 
-    '{"facebook_sync": false, "growbot_copilot": false, "custom_branding": false, "sms_notifications": true}'::jsonb
+    '{"facebook_sync": false, "facebook_posts": false, "growbot_copilot": false, "facebook_chat": false, "facebook_comments": false, "instagram_sync": false, "instagram_posts": false, "instagram_chat": false, "instagram_comments": false, "whatsapp_sync": false, "whatsapp_chat": false, "video_posts": false, "google_places": false, "custom_branding": false, "sms_notifications": true}'::jsonb
   ),
   (
     'pro', 
@@ -47,7 +47,7 @@ VALUES
     10.00, 
     5.00, 
     3, 
-    '{"facebook_sync": true, "growbot_copilot": true, "custom_branding": false, "sms_notifications": true}'::jsonb
+    '{"facebook_sync": true, "facebook_posts": true, "growbot_copilot": true, "facebook_chat": true, "facebook_comments": true, "instagram_sync": false, "instagram_posts": false, "instagram_chat": false, "instagram_comments": false, "whatsapp_sync": false, "whatsapp_chat": false, "video_posts": false, "google_places": false, "custom_branding": false, "sms_notifications": true}'::jsonb
   ),
   (
     'elite', 
@@ -55,7 +55,7 @@ VALUES
     29.00, 
     2.00, 
     100, 
-    '{"facebook_sync": true, "growbot_copilot": true, "custom_branding": true, "sms_notifications": true}'::jsonb
+    '{"facebook_sync": true, "facebook_posts": true, "growbot_copilot": true, "facebook_chat": true, "facebook_comments": true, "instagram_sync": true, "instagram_posts": true, "instagram_chat": true, "instagram_comments": true, "whatsapp_sync": true, "whatsapp_chat": true, "video_posts": true, "google_places": true, "custom_branding": true, "sms_notifications": true}'::jsonb
   )
 ON CONFLICT (tier_name) DO UPDATE 
 SET subscription_price = EXCLUDED.subscription_price,

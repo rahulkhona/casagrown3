@@ -1,7 +1,7 @@
 .page {
   min-height: calc(100vh - 64px);
   background: linear-gradient(135deg, var(--green-50) 0%, #fff 50%, var(--emerald-100) 100%);
-  padding: 40px 20px 100px;
+  padding: 40px 20px 140px;
 }
 
 .container {
@@ -67,7 +67,7 @@
 
 /* Accept bar */
 .acceptBar {
-  position: fixed; bottom: 64px; left: 0; right: 0;
+  position: fixed; bottom: 0; left: 0; right: 0;
   background: #fff; border-top: 1px solid var(--gray-200);
   padding: 14px 24px; display: flex; align-items: center;
   justify-content: center; gap: 20px; z-index: 200;

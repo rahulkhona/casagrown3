@@ -451,13 +451,15 @@ test.describe('Navigation Interactions', () => {
     
     // Navigate to terms via link or URL
     await page.goto(`${BASE}/terms`)
-    await expect(page.locator('body')).toBeVisible()
+    // Wait for hydrated content before reading body text (avoids RSC payload)
+    await page.waitForSelector('text=Terms', { timeout: 15000 })
     const termsBody = await page.locator('body').textContent()
     expect(termsBody).toContain('Terms')
     
     // Navigate to login
     await page.goto(`${BASE}/login`)
-    await expect(page.locator('body')).toBeVisible()
+    // Wait for hydrated content before reading body text (avoids RSC payload)
+    await page.waitForSelector('text=Email', { timeout: 15000 })
     const loginBody = await page.locator('body').textContent()
     expect(loginBody).toContain('Email')
   })

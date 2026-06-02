@@ -90,10 +90,10 @@ serveWithCors(async (req, { supabase, corsHeaders, siteUrl }) => {
 
     // 6. Generate secure pre-filled URL to prevent session hijacking via forwarded emails
     const baseUrl = siteUrl || "https://www.casagrown.com";
-    const activateUrl = `${baseUrl}/pro?email=${encodeURIComponent(userEmail)}`;
+    const activateUrl = `${baseUrl}/pro?utm_source=pro_interest_email&utm_medium=email`;
     const subject = discount
-        ? `${userName}, your CasaGrown Pro offer is ready 🎁`
-        : `${userName}, here's your CasaGrown Pro info 🚜`;
+        ? `${userName}, your CasaGrown Pro & Elite offer is ready 🎁`
+        : `${userName}, here's your CasaGrown Pro & Elite info 🚜`;
 
     // Build pricing card rows dynamically for all three tiers
     const pricingRows: Array<{ label: string; value: string }> = [
@@ -140,15 +140,20 @@ But right now, it probably looks more like this:
 </ul>
 
 <p style="margin: 0 0 24px; font-size: 13px; color: #666666; line-height: 1.6;" class="email-text">
-<strong>CasaGrown Pro</strong> fixes all of that. Here's how:
+<strong>CasaGrown Pro & Elite</strong> fix all of that. Here's how:
 </p>
 
+<!-- ═══ PRO FEATURES ═══ -->
+<div style="margin: 0 0 8px; padding: 10px 16px; background: #166534; border-radius: 10px 10px 0 0;">
+<p style="margin: 0; font-size: 13px; font-weight: 700; color: #ffffff; letter-spacing: 0.5px;">🚜 CASAGROWN PRO</p>
+</div>
+
 <!-- HERO BENEFIT 1 -->
-<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin: 0 0 16px;">
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin: 0 0 2px; border-left: 1px solid #86efac; border-right: 1px solid #86efac;">
 <tr>
-<td style="width: 4px; background: #22c55e; border-radius: 4px 0 0 4px;"></td>
+<td style="width: 4px; background: #22c55e; border-radius: 0;"></td>
 <td style="padding: 14px 16px;">
-<p style="margin: 0 0 6px; font-size: 15px; font-weight: 700; color: #22c55e;">
+<p style="margin: 0 0 6px; font-size: 15px; font-weight: 700; color: #4ade80;">
 📦 Confirmed Pre-Sales, Zero Chaos
 </p>
 <p style="margin: 0; font-size: 13px; color: #9ca3af; line-height: 1.6;" class="email-text">
@@ -159,26 +164,26 @@ No more tracking WhatsApp replies or chasing down who wanted what. Buyers <stron
 </table>
 
 <!-- HERO BENEFIT 2 -->
-<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin: 0 0 16px;">
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin: 0 0 2px; border-left: 1px solid #86efac; border-right: 1px solid #86efac;">
 <tr>
-<td style="width: 4px; background: #3b82f6; border-radius: 4px 0 0 4px;"></td>
+<td style="width: 4px; background: #3b82f6; border-radius: 0;"></td>
 <td style="padding: 14px 16px;">
-<p style="margin: 0 0 6px; font-size: 15px; font-weight: 700; color: #60a5fa;">
+<p style="margin: 0 0 6px; font-size: 15px; font-weight: 700; color: #93c5fd;">
 📘 Your Facebook Page Becomes a Storefront
 </p>
 <p style="margin: 0; font-size: 13px; color: #9ca3af; line-height: 1.6;" class="email-text">
-Every item you add is <strong style="color: #e5e7eb;">automatically posted to your Facebook page</strong> — a live catalog that updates itself. Followers browse and buy directly, no DMs or text threads needed.
+Every item you add is <strong style="color: #e5e7eb;">automatically posted to your Facebook page</strong> — a live catalog that updates itself. Followers browse and buy directly, no DMs or text threads needed. GrowBot auto-replies to Messenger DMs and detects buying intent in post comments.
 </p>
 </td>
 </tr>
 </table>
 
 <!-- HERO BENEFIT 3 -->
-<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin: 0 0 16px;">
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin: 0 0 0; border-left: 1px solid #86efac; border-right: 1px solid #86efac; border-bottom: 1px solid #86efac; border-radius: 0 0 10px 10px;">
 <tr>
-<td style="width: 4px; background: #a855f7; border-radius: 4px 0 0 4px;"></td>
+<td style="width: 4px; background: #a855f7; border-radius: 0 0 0 10px;"></td>
 <td style="padding: 14px 16px;">
-<p style="margin: 0 0 6px; font-size: 15px; font-weight: 700; color: #c084fc;">
+<p style="margin: 0 0 6px; font-size: 15px; font-weight: 700; color: #d8b4fe;">
 🤖 GrowBot Sells While You're Busy
 </p>
 <p style="margin: 0; font-size: 13px; color: #9ca3af; line-height: 1.6;" class="email-text">
@@ -188,13 +193,68 @@ Stop losing sales because you couldn't reply in time. GrowBot <strong style="col
 </tr>
 </table>
 
-<!-- CTA -->
-${actionButton("Start Growing with Pro →", activateUrl)}
-
-<!-- COMPACT EXTRAS -->
-<p style="margin: 20px 0 0; font-size: 12px; color: #9ca3af; line-height: 1.8; text-align: center;" class="email-text">
-Also included: 📱 WhatsApp booth sharing · 🏪 Multiple booths · 🌱 Gardening service provider tools · 💰 Just ${proFee}% platform fee
+<!-- Also included - Pro -->
+<p style="margin: 12px 0 24px; font-size: 12px; color: #9ca3af; line-height: 1.8; text-align: center;" class="email-text">
+Also in Pro: 🏪 Up to 3 booths · 📋 Product catalog · 💰 ${proTier.platform_fee_pct}% platform fee
 </p>
+
+<!-- ═══ ELITE FEATURES ═══ -->
+<div style="margin: 0 0 8px; padding: 10px 16px; background: #1e3a8a; border-radius: 10px 10px 0 0;">
+<p style="margin: 0; font-size: 13px; font-weight: 700; color: #ffffff; letter-spacing: 0.5px;">👑 CASAGROWN ELITE — Everything in Pro, plus:</p>
+</div>
+
+<!-- ELITE BENEFIT 1 -->
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin: 0 0 2px; border-left: 1px solid #93c5fd; border-right: 1px solid #93c5fd;">
+<tr>
+<td style="width: 4px; background: #e879f9; border-radius: 0;"></td>
+<td style="padding: 14px 16px;">
+<p style="margin: 0 0 6px; font-size: 15px; font-weight: 700; color: #f0abfc;">
+📸 Instagram Becomes Your Produce Shop
+</p>
+<p style="margin: 0; font-size: 13px; color: #9ca3af; line-height: 1.6;" class="email-text">
+Auto-post listings to Instagram, sync your product catalog, and let GrowBot <strong style="color: #e5e7eb;">handle DMs and comment replies</strong> on your behalf. Plus, automatically create Reels and Stories from your product photos.
+</p>
+</td>
+</tr>
+</table>
+
+<!-- ELITE BENEFIT 2 -->
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin: 0 0 2px; border-left: 1px solid #93c5fd; border-right: 1px solid #93c5fd;">
+<tr>
+<td style="width: 4px; background: #34d399; border-radius: 0;"></td>
+<td style="padding: 14px 16px;">
+<p style="margin: 0 0 6px; font-size: 15px; font-weight: 700; color: #6ee7b7;">
+📱 WhatsApp Business on Autopilot
+</p>
+<p style="margin: 0; font-size: 13px; color: #9ca3af; line-height: 1.6;" class="email-text">
+Get a <strong style="color: #e5e7eb;">dedicated WhatsApp Business phone number</strong> provisioned for your account. Your product catalog syncs automatically, and GrowBot handles customer messages — all visible in your CasaGrown inbox.
+</p>
+</td>
+</tr>
+</table>
+
+<!-- ELITE BENEFIT 3 -->
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin: 0 0 0; border-left: 1px solid #93c5fd; border-right: 1px solid #93c5fd; border-bottom: 1px solid #93c5fd; border-radius: 0 0 10px 10px;">
+<tr>
+<td style="width: 4px; background: #f59e0b; border-radius: 0 0 0 10px;"></td>
+<td style="padding: 14px 16px;">
+<p style="margin: 0 0 6px; font-size: 15px; font-weight: 700; color: #fcd34d;">
+📍 Sell on Google Maps
+</p>
+<p style="margin: 0; font-size: 13px; color: #9ca3af; line-height: 1.6;" class="email-text">
+Post your produce listings to Google Maps and Google Places — let local customers <strong style="color: #e5e7eb;">discover your booth through Google Search</strong> without any extra effort.
+</p>
+</td>
+</tr>
+</table>
+
+<!-- Also included - Elite -->
+<p style="margin: 12px 0 24px; font-size: 12px; color: #9ca3af; line-height: 1.8; text-align: center;" class="email-text">
+Also in Elite: 🏪 Unlimited booths · 🎬 Video auto-posts · 💬 Comment scanning · 💰 ${eliteTier.platform_fee_pct}% platform fee
+</p>
+
+<!-- CTA -->
+${actionButton("Upgrade Now →", activateUrl)}
 
 ${discountHtml}
 
@@ -204,12 +264,12 @@ ${infoCard(pricingRows)}
 <!-- URGENCY -->
 <div style="margin: 16px 0; padding: 14px 16px; text-align: center; border-radius: 8px; border: 1px dashed #22c55e;">
 <p style="margin: 0; font-size: 13px; color: #22c55e; font-weight: 600;" class="email-text">
-🌱 We're just launching Pro — early adopters lock in this price forever.
+🌱 We're just launching Pro & Elite — early adopters lock in this price forever.
 </p>
 </div>
 
 <!-- FINAL CTA -->
-${actionButton("Activate CasaGrown Pro", activateUrl)}
+${actionButton("Get Started Today", activateUrl)}
 
 <!-- GUARANTEE -->
 <p style="margin: 16px 0 0; font-size: 12px; color: #9ca3af; text-align: center; line-height: 1.6;">
@@ -217,7 +277,7 @@ ${actionButton("Activate CasaGrown Pro", activateUrl)}
 </p>`;
 
     const htmlBody = wrapInBrandedTemplate({
-        title: "CasaGrown Pro",
+        title: "CasaGrown Pro & Elite",
         greeting: `Hi ${userName}!`,
         bodyHtml,
         headerEmoji: "🚜",

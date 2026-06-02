@@ -317,10 +317,11 @@ export async function provisionWhatsAppNumber(
     areaCode = "844", // Default to Toll-Free for easy instant verification
 ): Promise<ProvisionedPhone> {
     if (subaccountSid.startsWith("ACsubaccount_mock_")) {
-        console.log(`[MOCK TWILIO] Provisioned toll-free phone number on subaccount ${subaccountSid}`);
+        const mockLocal = `+1${areaCode}555${String(Math.floor(1000 + Math.random() * 9000))}`;
+        console.log(`[MOCK TWILIO] Provisioned local phone number ${mockLocal} (area ${areaCode}) on subaccount ${subaccountSid}`);
         return {
             success: true,
-            phoneNumber: "+18449813229", // Standard approved test number
+            phoneNumber: mockLocal,
             phoneSid: `PNphone_mock_${Date.now()}`,
             subaccountSid,
             subaccountToken,
@@ -330,18 +331,32 @@ export async function provisionWhatsAppNumber(
     const credentials = btoa(`${subaccountSid}:${subaccountToken}`);
 
     try {
-        // 1. Search for available toll-free or local numbers
-        const searchUrl = `https://api.twilio.com/2010-04-01/Accounts/${subaccountSid}/AvailablePhoneNumbers/US/TollFree.json`;
-        const searchRes = await fetch(searchUrl, {
+        // 1. Search for available local numbers matching the area code
+        let searchUrl = `https://api.twilio.com/2010-04-01/Accounts/${subaccountSid}/AvailablePhoneNumbers/US/Local.json?AreaCode=${areaCode}&SmsEnabled=true&VoiceEnabled=true&Limit=1`;
+        let searchRes = await fetch(searchUrl, {
             headers: { Authorization: `Basic ${credentials}` },
         });
 
         if (!searchRes.ok) {
-            throw new Error(`Failed to search numbers: ${await searchRes.text()}`);
+            throw new Error(`Failed to search local numbers: ${await searchRes.text()}`);
         }
 
-        const searchData = await searchRes.json();
-        const availableNumber = searchData.available_phone_numbers?.[0];
+        let searchData = await searchRes.json();
+        let availableNumber = searchData.available_phone_numbers?.[0];
+
+        // Fallback: if no local number found, try nearby area codes then toll-free
+        if (!availableNumber) {
+            console.log(`[TWILIO] No local numbers for area code ${areaCode}, trying toll-free fallback`);
+            searchUrl = `https://api.twilio.com/2010-04-01/Accounts/${subaccountSid}/AvailablePhoneNumbers/US/TollFree.json?SmsEnabled=true&Limit=1`;
+            searchRes = await fetch(searchUrl, {
+                headers: { Authorization: `Basic ${credentials}` },
+            });
+            if (!searchRes.ok) {
+                throw new Error(`Failed to search toll-free numbers: ${await searchRes.text()}`);
+            }
+            searchData = await searchRes.json();
+            availableNumber = searchData.available_phone_numbers?.[0];
+        }
 
         if (!availableNumber) {
             throw new Error("No available phone numbers found matching criteria");

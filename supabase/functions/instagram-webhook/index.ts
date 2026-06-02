@@ -10,6 +10,7 @@ import {
   loadBoothContext, buildSellerSystemPrompt, loadSellerBotRules,
   loadAllSellerBooths, detectEscalation, cleanBotReply,
 } from '../_shared/growbot-seller.ts'
+import { extractInstagramReferral, lookupProductById, buildProductContextPrompt } from '../_shared/product-context.ts'
 
 serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   // ── GET: Webhook Verification ──
@@ -115,6 +116,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
         if (!userMessage) continue
 
+        const referral = extractInstagramReferral(event)
+
         const senderIgsid = event.sender?.id
         const igAccountId = entry.id
 
@@ -142,8 +145,20 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           .eq('user_id', conn.user_id)
           .single()
 
-        if (!sub || sub.plan !== 'elite' || !['active', 'trialing'].includes(sub.status)) {
-          console.warn(`[INSTAGRAM] Seller ${conn.user_id} not Elite, skipping`)
+        if (!sub || !['active', 'trialing'].includes(sub.status)) {
+          console.warn(`[INSTAGRAM] Seller ${conn.user_id} does not have an active subscription, skipping`)
+          continue
+        }
+
+        // Check if Instagram Auto-Responder is enabled in subscription tier features
+        const { data: tier } = await supabase
+          .from('subscription_tiers')
+          .select('features')
+          .eq('tier_name', sub.plan)
+          .single()
+
+        if (!tier?.features?.instagram_chat) {
+          console.warn(`[INSTAGRAM] Seller ${conn.user_id} does not have Instagram Auto-Responder enabled in subscription tier, skipping`)
           continue
         }
 
@@ -317,6 +332,25 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           }
           if (matchedBooth) {
             systemPrompt += `\n- Matched to booth: "${matchedBooth.name}"`
+          }
+        }
+
+        // Product context injection from referral or conversation history
+        if (referral.productId) {
+          const productCtx = await lookupProductById(supabase, referral.productId)
+          if (productCtx) {
+            systemPrompt += buildProductContextPrompt(productCtx)
+            console.log(`[INSTAGRAM] Product context: ${productCtx.name} (source: ${referral.source})`)
+          }
+          if (conversation) {
+            await supabase.from('ig_conversations')
+              .update({ last_product_id: referral.productId })
+              .eq('id', conversation.id)
+          }
+        } else if (conversation?.last_product_id) {
+          const productCtx = await lookupProductById(supabase, conversation.last_product_id)
+          if (productCtx) {
+            systemPrompt += buildProductContextPrompt(productCtx)
           }
         }
 

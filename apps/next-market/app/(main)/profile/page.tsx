@@ -10,11 +10,7 @@ import AddressInput from '../../components/AddressInput'
 import type { AddressFields } from '../../../lib/address'
 import { useNotificationPrompt, isNotificationsEnabled } from '../../../lib/useNotificationPrompt'
 import { NotificationPromptModal } from '../../components/NotificationPromptModal'
-import { useSubscription } from '../../../lib/useSubscription'
-import { UpgradePrompt } from '../../components/UpgradePrompt'
-import { ProCarousel } from '../../components/ProCarousel'
 import { useErrorToast } from '../../components/ErrorToast'
-import { useProEnabled } from '../../../lib/useProEnabled'
 import styles from './page.module.css'
 
 function ProfilePageInner() {
@@ -59,17 +55,28 @@ function ProfilePageInner() {
   const [showCamera, setShowCamera] = useState(false)
   const [cropSrc, setCropSrc] = useState<string | null>(null)
 
-  // Pro interest checkbox
-  const [proInterest, setProInterest] = useState(false)
-  const [proEmailSending, setProEmailSending] = useState(false)
+  // Business profile fields
+  const [hasBooth, setHasBooth] = useState(false)
+  const [showBusiness, setShowBusiness] = useState(false)
+  const [biz, setBiz] = useState({
+    farmName: '',
+    businessType: '',
+    sellerBio: '',
+    businessLicense: '',
+    foodHandlerPermit: '',
+    cottageFoodPermit: '',
+    insuranceProvider: '',
+  })
+
   const { showSuccess: showToastSuccess } = useErrorToast()
 
   // Fetch actual profile from Supabase
   useEffect(() => {
     if (!user) return
+    // Fetch profile
     supabase
       .from('profiles')
-      .select('full_name, street_address, city, state_code, zip_code, zip_plus4, avatar_url, phone_number, phone_verified, sms_enabled, twilio_blocked')
+      .select('full_name, street_address, city, state_code, zip_code, zip_plus4, avatar_url, phone_number, phone_verified, sms_enabled, twilio_blocked, farm_name, business_type, seller_bio, business_license, food_handler_permit, cottage_food_permit, insurance_provider')
       .eq('id', user.id)
       .single()
       .then(({ data, error: fetchErr }: { data: any; error: any }) => {
@@ -93,8 +100,26 @@ function ProfilePageInner() {
           setSmsEnabled(!!data.sms_enabled)
           setTwilioBlocked(!!data.twilio_blocked)
         }
+        // Business fields
+        setBiz({
+          farmName: data?.farm_name || '',
+          businessType: data?.business_type || '',
+          sellerBio: data?.seller_bio || '',
+          businessLicense: data?.business_license || '',
+          foodHandlerPermit: data?.food_handler_permit || '',
+          cottageFoodPermit: data?.cottage_food_permit || '',
+          insuranceProvider: data?.insurance_provider || '',
+        })
+        // Auto-expand if any business field is already filled
+        if (data?.farm_name || data?.business_type || data?.seller_bio || data?.business_license || data?.food_handler_permit || data?.cottage_food_permit || data?.insurance_provider) {
+          setShowBusiness(true)
+        }
         setLoading(false)
       })
+    // Check if user has a booth
+    supabase.from('market_booths').select('id').eq('owner_id', user.id).limit(1).then(({ data }: { data: any }) => {
+      if (data && data.length > 0) setHasBooth(true)
+    })
   }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -191,7 +216,15 @@ function ProfilePageInner() {
         zip_code: validatedZipPlus4.split('-')[0],
         county,
         avatar_url: avatarUrl || null,
-        sms_enabled: smsEnabled
+        sms_enabled: smsEnabled,
+        // Business fields
+        farm_name: biz.farmName || null,
+        business_type: biz.businessType || null,
+        seller_bio: biz.sellerBio || null,
+        business_license: biz.businessLicense || null,
+        food_handler_permit: biz.foodHandlerPermit || null,
+        cottage_food_permit: biz.cottageFoodPermit || null,
+        insurance_provider: biz.insuranceProvider || null,
       }
       if (phone.trim() && phoneVerified) {
         profileUpdate.phone_number = phone.startsWith('+') ? phone.trim() : `+1${phone.replace(/\D/g, '')}`
@@ -219,23 +252,6 @@ function ProfilePageInner() {
       }
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
-
-      // Send Pro interest email if checkbox is checked (after successful save)
-      if (proInterest) {
-        console.log('[Pro Interest] Sending pro interest email...')
-        try {
-          const { error: fnError } = await supabase.functions.invoke('send-pro-interest-email', { body: {} })
-          if (fnError) {
-            console.error('[Pro Interest] Edge function error:', fnError)
-          } else {
-            console.log('[Pro Interest] Email sent successfully')
-            showToastSuccess('📧 Check your email for details about CasaGrown Pro!')
-            setProInterest(false)
-          }
-        } catch (err) {
-          console.error('[Pro Interest] Failed to invoke function:', err)
-        }
-      }
     } catch (err: any) {
       setError('Save failed: ' + (err.message || 'Unknown error'))
     } finally {
@@ -276,7 +292,7 @@ function ProfilePageInner() {
       { enableHighAccuracy: true, timeout: 10000 }
     )
   }
-  const proEnabled = useProEnabled()
+
 
   // ── Phone Verification ──
   const handleSendOtp = async () => {
@@ -568,12 +584,102 @@ function ProfilePageInner() {
           )}
         </div>
 
-        {/* ── My Plan / Upgrade ── */}
-        {proEnabled && (
-          <div id="my-plan" style={{ marginTop: 16 }}>
+        {/* ── Business Profile (sellers only) ── */}
+        {hasBooth && (
+          <>
             <div className="divider" />
-            <PlanSection proInterest={proInterest} setProInterest={setProInterest} />
-          </div>
+            {!showBusiness ? (
+              <button
+                type="button"
+                onClick={() => setShowBusiness(true)}
+                style={{
+                  width: '100%', padding: '14px 16px', background: 'var(--gray-50, #f9fafb)',
+                  border: '1.5px dashed var(--gray-300, #d1d5db)', borderRadius: 12,
+                  cursor: 'pointer', fontSize: 14, color: 'var(--gray-600)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  transition: 'all 0.15s',
+                }}
+              >
+                🏢 Add Business Profile <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>(Optional)</span>
+              </button>
+            ) : (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 className={styles.sectionTitle}>Business Profile</h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowBusiness(false)}
+                    style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--gray-400)', cursor: 'pointer' }}
+                  >
+                    Collapse ▲
+                  </button>
+                </div>
+                <p style={{ fontSize: 12, color: 'var(--gray-500)', margin: '0 0 14px', lineHeight: 1.4 }}>
+                  Optional — adds credibility to your booth. Verified credentials may display as trust badges.
+                </p>
+
+                <div className="form-group">
+                  <label className="label" htmlFor="farmName">Farm / Business Name</label>
+                  <input id="farmName" className="input" value={biz.farmName} onChange={e => setBiz({ ...biz, farmName: e.target.value })} placeholder="e.g., Green Valley Farm" />
+                </div>
+
+                <div className="form-group">
+                  <label className="label" htmlFor="businessType">Business Type</label>
+                  <select id="businessType" className="input" value={biz.businessType} onChange={e => setBiz({ ...biz, businessType: e.target.value })} style={{ appearance: 'auto' }}>
+                    <option value="">Select...</option>
+                    <option value="hobby_gardener">🌱 Hobby Gardener</option>
+                    <option value="small_farm">🚜 Small Farm</option>
+                    <option value="cottage_food">🏠 Cottage Food Operation</option>
+                    <option value="urban_farm">🏙️ Urban Farm</option>
+                    <option value="homestead">🌾 Homestead</option>
+                    <option value="community_garden">🌻 Community Garden</option>
+                    <option value="gardening_service">🌿 Gardening Service Provider</option>
+                    <option value="landscaping_service">🏡 Landscaping Service Provider</option>
+                    <option value="commercial">🏢 Commercial / Licensed</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="label" htmlFor="sellerBio">About / Bio</label>
+                  <textarea
+                    id="sellerBio"
+                    className="input"
+                    value={biz.sellerBio}
+                    onChange={e => setBiz({ ...biz, sellerBio: e.target.value })}
+                    placeholder="Tell buyers about your growing practices, experience, etc."
+                    rows={3}
+                    style={{ resize: 'vertical', minHeight: 72 }}
+                  />
+                </div>
+
+                <div style={{ background: 'var(--gray-50)', borderRadius: 10, padding: 14, marginBottom: 14, border: '1px solid var(--gray-100)' }}>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-500)', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    📄 Licenses & Permits
+                  </p>
+
+                  <div className="form-group" style={{ marginBottom: 10 }}>
+                    <label className="label" htmlFor="businessLicense" style={{ fontSize: 12 }}>Business License #</label>
+                    <input id="businessLicense" className="input" value={biz.businessLicense} onChange={e => setBiz({ ...biz, businessLicense: e.target.value })} placeholder="Optional" style={{ fontSize: 13 }} />
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 10 }}>
+                    <label className="label" htmlFor="foodHandlerPermit" style={{ fontSize: 12 }}>Food Handler Permit #</label>
+                    <input id="foodHandlerPermit" className="input" value={biz.foodHandlerPermit} onChange={e => setBiz({ ...biz, foodHandlerPermit: e.target.value })} placeholder="Optional" style={{ fontSize: 13 }} />
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 10 }}>
+                    <label className="label" htmlFor="cottageFoodPermit" style={{ fontSize: 12 }}>Cottage Food Permit #</label>
+                    <input id="cottageFoodPermit" className="input" value={biz.cottageFoodPermit} onChange={e => setBiz({ ...biz, cottageFoodPermit: e.target.value })} placeholder="Optional" style={{ fontSize: 13 }} />
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="label" htmlFor="insuranceProvider" style={{ fontSize: 12 }}>Insurance Provider</label>
+                    <input id="insuranceProvider" className="input" value={biz.insuranceProvider} onChange={e => setBiz({ ...biz, insuranceProvider: e.target.value })} placeholder="Optional" style={{ fontSize: 13 }} />
+                  </div>
+                </div>
+              </>
+            )}
+          </>
         )}
 
         <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%', marginTop: 16 }} disabled={saving}>
@@ -602,302 +708,6 @@ function ProfilePageInner() {
     </div>
   )
 }
-
-/** Plan section — shows Pro badge or upgrade prompt */
-function PlanSection({ proInterest, setProInterest }: { proInterest: boolean; setProInterest: (v: boolean) => void }) {
-  const { plan, isPro, status, trialEndsAt, currentPeriodEnd, canceledAt } = useSubscription()
-  const { user, profileComplete } = useAuth()
-  const supabase = createClient()
-  const [loading, setLoading] = useState(false)
-  const [showConfirm, setShowConfirm] = useState(false)
-
-  const { showSuccess } = useErrorToast()
-  const [sendingLink, setSendingLink] = useState(false)
-  const [linkSent, setLinkSent] = useState(false)
-
-  const handleSendLink = async () => {
-    setSendingLink(true)
-    try {
-      await supabase.functions.invoke('send-pro-interest-email', { body: {} })
-      setLinkSent(true)
-      showSuccess('📧 Details sent — check your inbox!')
-    } catch {
-      // Silently fail
-    } finally {
-      setSendingLink(false)
-    }
-  }
-
-  const isCancelPending = isPro && !!canceledAt
-
-  const handleCancelPro = async () => {
-    setLoading(true)
-    try {
-      const { error } = await supabase.functions.invoke('manage-subscription', {
-        body: { action: 'cancel' },
-      })
-      if (error) throw error
-      setShowConfirm(false)
-      window.location.reload()
-    } catch (err) {
-      console.error('Cancel failed:', err)
-      setLoading(false)
-      setShowConfirm(false)
-    }
-  }
-
-  const handleResumePro = async () => {
-    setLoading(true)
-    try {
-      const { error } = await supabase.functions.invoke('manage-subscription', {
-        body: { action: 'resume' },
-      })
-      if (error) throw error
-      window.location.reload()
-    } catch (err) {
-      console.error('Resume failed:', err)
-      setLoading(false)
-    }
-  }
-
-  if (isPro) {
-    return (
-      <>
-      <h3 className={styles.sectionTitle}>My Plan</h3>
-      <div style={{
-        background: isCancelPending
-          ? 'linear-gradient(135deg, #92400e, #b45309)'
-          : 'linear-gradient(135deg, #065f46, #059669)',
-        borderRadius: 12, padding: 16, color: 'white',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <span style={{ fontSize: 18, fontWeight: 700 }}>🚜 CasaGrown Pro</span>
-            <span style={{
-              marginLeft: 8, fontSize: 11, padding: '2px 8px', borderRadius: 6,
-              background: 'rgba(255,255,255,0.2)',
-            }}>
-              {isCancelPending
-                ? '⏳ Cancels soon'
-                : status === 'trialing' ? '🎉 Trial' : '✓ Active'}
-            </span>
-          </div>
-          {isCancelPending ? (
-            <button
-              onClick={handleResumePro}
-              disabled={loading}
-              style={{
-                padding: '6px 14px', borderRadius: 6, border: 'none',
-                background: 'white', color: '#065f46',
-                fontSize: 12, fontWeight: 700, cursor: loading ? 'wait' : 'pointer',
-              }}
-            >
-              {loading ? 'Resuming...' : '↩ Resume Pro'}
-            </button>
-          ) : (
-            <button
-              onClick={() => setShowConfirm(true)}
-              disabled={loading}
-              style={{
-                padding: '6px 14px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.3)',
-                background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.8)',
-                fontSize: 12, cursor: loading ? 'wait' : 'pointer',
-              }}
-            >
-              Cancel Pro
-            </button>
-          )}
-        </div>
-
-        {/* Status info */}
-        {isCancelPending && currentPeriodEnd && (
-          <div style={{
-            margin: '12px 0 0', padding: '12px 14px', borderRadius: 10,
-            background: 'rgba(255,255,255,0.15)', fontSize: 13,
-          }}>
-            <div style={{ marginBottom: 6 }}>
-              ⚠️ Your Pro subscription will <strong>permanently cancel on {new Date(currentPeriodEnd).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</strong>
-            </div>
-            <div style={{ fontSize: 12, opacity: 0.9, marginBottom: 6 }}>
-              After that date, Pro features will be disabled and you'll need to sign up again to re-activate.
-            </div>
-            <div style={{ fontSize: 12, opacity: 0.8 }}>
-              Changed your mind? Click <strong>"↩ Resume Pro"</strong> above to keep your subscription going.
-            </div>
-          </div>
-        )}
-        {!isCancelPending && status === 'trialing' && trialEndsAt && (
-          <p style={{ margin: '8px 0 0', fontSize: 12, opacity: 0.8 }}>
-            Trial ends {new Date(trialEndsAt).toLocaleDateString()}
-          </p>
-        )}
-        {!isCancelPending && currentPeriodEnd && status === 'active' && (
-          <p style={{ margin: '8px 0 0', fontSize: 12, opacity: 0.8 }}>
-            Next billing: {new Date(currentPeriodEnd).toLocaleDateString()}
-          </p>
-        )}
-
-        {/* Manage link */}
-        <div style={{ marginTop: 12, textAlign: 'center' }}>
-          <a href="/pro-manage" style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)', textDecoration: 'underline' }}>
-            Manage your Pro subscription →
-          </a>
-        </div>
-      </div>
-
-      {/* Styled cancel confirmation */}
-      {showConfirm && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 9999,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(0,0,0,0.5)', padding: 16,
-          animation: 'fadeIn 0.2s ease',
-        }}
-        onClick={() => setShowConfirm(false)}
-        >
-          <div
-            style={{
-              background: 'white', borderRadius: 20, padding: '28px 24px',
-              maxWidth: 360, width: '100%', textAlign: 'center',
-              boxShadow: '0 25px 50px rgba(0,0,0,0.25)',
-              animation: 'slideUp 0.3s ease',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{
-              width: 64, height: 64, borderRadius: '50%', margin: '0 auto 16px',
-              background: '#fef2f2', display: 'flex', alignItems: 'center',
-              justifyContent: 'center', fontSize: 28,
-            }}>
-              😢
-            </div>
-            <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 8px', color: '#111827' }}>
-              Cancel CasaGrown Pro?
-            </h3>
-            <div style={{
-              textAlign: 'left', fontSize: 13, color: '#6b7280', lineHeight: 1.6,
-              margin: '16px 0', padding: '12px 16px',
-              background: '#f9fafb', borderRadius: 12,
-            }}>
-              <div style={{ marginBottom: 6 }}>✓ Pro features stay active until your billing period ends</div>
-              <div style={{ marginBottom: 6 }}>✓ You can resume anytime before the period ends</div>
-              <div>✓ Full refund available within the first 7 days</div>
-            </div>
-            <button
-              onClick={handleCancelPro}
-              disabled={loading}
-              style={{
-                width: '100%', padding: 14, border: 'none', borderRadius: 9999,
-                background: '#dc2626', color: 'white', fontSize: 15, fontWeight: 600,
-                cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.7 : 1,
-                marginBottom: 8,
-              }}
-            >
-              {loading ? 'Cancelling...' : 'Yes, Cancel Pro'}
-            </button>
-            <button
-              onClick={() => setShowConfirm(false)}
-              style={{
-                width: '100%', padding: 10, border: 'none', borderRadius: 9999,
-                background: 'transparent', color: '#9ca3af', fontSize: 13,
-                fontWeight: 500, cursor: 'pointer',
-              }}
-            >
-              Never mind, keep Pro
-            </button>
-          </div>
-        </div>
-      )}
-      </>
-    )
-  }
-
-  if (!profileComplete) {
-    return (
-      <>
-        <h3 className={styles.sectionTitle}>Grow your business with CasaGrown Pro</h3>
-        <p style={{ margin: '0 0 16px 0', fontSize: 13, color: '#6b7280', lineHeight: 1.5 }}>
-          Unlock powerful growth tools to scale your produce sales:
-        </p>
-        <ProCarousel compact />
-
-        {/* Interest checkbox — triggers email on next profile save */}
-        <label style={{
-          display: 'flex', alignItems: 'flex-start', gap: 10,
-          marginTop: 16, padding: '14px 16px', borderRadius: 12,
-          background: 'var(--green-50, #f0fdf4)', border: '1px solid var(--green-200, #bbf7d0)',
-          cursor: 'pointer', fontSize: 14, color: 'var(--gray-700, #374151)',
-          lineHeight: 1.5,
-        }}>
-          <input
-            type="checkbox"
-            checked={proInterest}
-            onChange={e => setProInterest(e.target.checked)}
-            style={{ marginTop: 3, width: 18, height: 18, accentColor: '#059669', flexShrink: 0 }}
-          />
-          <span>
-            ✉️ Send me details about CasaGrown Pro features
-            <span style={{ display: 'block', fontSize: 12, color: 'var(--gray-500, #6b7280)', marginTop: 2 }}>
-              Check this box and save your profile to receive an email with everything you need to know about Pro.
-            </span>
-          </span>
-        </label>
-      </>
-    )
-  }
-
-  // When profileComplete is true, render a beautiful green container with the activation email trigger
-  return (
-    <>
-      <h3 className={styles.sectionTitle}>CasaGrown Pro</h3>
-      <div style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 12,
-        marginTop: 16,
-        padding: '14px 16px',
-        borderRadius: 12,
-        background: 'var(--green-50, #f0fdf4)',
-        border: '1px solid var(--green-200, #bbf7d0)',
-      }}>
-        <span style={{ fontSize: 20, marginTop: 2, flexShrink: 0 }}>✉️</span>
-        <div style={{ flex: 1 }}>
-          <button
-            type="button"
-            disabled={sendingLink || linkSent}
-            onClick={handleSendLink}
-            style={{
-              background: 'none',
-              border: 'none',
-              padding: 0,
-              margin: 0,
-              fontSize: 14,
-              fontWeight: 600,
-              color: 'var(--green-700)',
-              cursor: sendingLink || linkSent ? 'not-allowed' : 'pointer',
-              textAlign: 'left',
-              textDecoration: linkSent ? 'none' : 'underline',
-              display: 'block',
-            }}
-          >
-            {sendingLink ? (
-              <>⏳ Sending details...</>
-            ) : linkSent ? (
-              <>✅ Details sent — check your inbox!</>
-            ) : (
-              <>Send me details about CasaGrown Pro features</>
-            )}
-          </button>
-          <span style={{ display: 'block', fontSize: 12, color: 'var(--gray-500, #6b7280)', marginTop: 4, lineHeight: 1.4 }}>
-            Click above to receive an email with everything you need to know about Pro features, pricing, and onboarding support.
-          </span>
-        </div>
-      </div>
-    </>
-  )
-}
-
-
 
 export default function ProfilePage() {
   return (

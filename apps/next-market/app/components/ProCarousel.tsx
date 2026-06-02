@@ -166,27 +166,15 @@ export function ProCarousel({
         <button
           type="button"
           onClick={prevSlide}
-          style={{
-            position: 'absolute', left: 8, top: '38%',
-            zIndex: 2, background: 'rgba(255,255,255,0.9)',
-            border: '1px solid var(--border)', borderRadius: 'var(--radius-full)',
-            width: 32, height: 32, display: 'flex', alignItems: 'center',
-            justifyContent: 'center', cursor: 'pointer', fontSize: 16,
-            color: 'var(--gray-600)', boxShadow: 'var(--shadow-sm)',
-          }}
+          className="carousel-nav-btn"
+          style={{ left: 12 }}
         >‹</button>
         {/* Right arrow */}
         <button
           type="button"
           onClick={nextSlide}
-          style={{
-            position: 'absolute', right: 8, top: '38%',
-            zIndex: 2, background: 'rgba(255,255,255,0.9)',
-            border: '1px solid var(--border)', borderRadius: 'var(--radius-full)',
-            width: 32, height: 32, display: 'flex', alignItems: 'center',
-            justifyContent: 'center', cursor: 'pointer', fontSize: 16,
-            color: 'var(--gray-600)', boxShadow: 'var(--shadow-sm)',
-          }}
+          className="carousel-nav-btn"
+          style={{ right: 12 }}
         >›</button>
         <div
           key={slideIndex}
@@ -236,15 +224,12 @@ export function ProCarousel({
             key={i}
             type="button"
             onClick={() => setSlideIndex(i)}
+            className="carousel-dot"
             style={{
-              width: i === slideIndex ? 20 : 8,
-              height: 8,
-              borderRadius: 4,
-              border: 'none',
-              background: i === slideIndex ? 'var(--green-500)' : 'var(--gray-200)',
-              cursor: 'pointer',
-              transition: 'all 0.3s ease',
-              padding: 0,
+              width: i === slideIndex ? 24 : 10,
+              height: 10,
+              borderRadius: 5,
+              background: i === slideIndex ? 'var(--green-600)' : 'var(--gray-300)',
             }}
           />
         ))}
@@ -304,6 +289,46 @@ export function ProCarousel({
         @keyframes slideUp {
           from { opacity: 0; transform: translateY(12px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+        .carousel-nav-btn {
+          position: absolute;
+          top: 32%;
+          transform: translateY(-50%);
+          z-index: 10;
+          background: var(--green-600) !important;
+          color: white !important;
+          border: none !important;
+          border-radius: 50% !important;
+          width: 38px;
+          height: 38px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          font-size: 24px;
+          font-weight: bold;
+          box-shadow: 0 4px 10px rgba(22, 163, 74, 0.35);
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          padding: 0;
+          outline: none;
+        }
+        .carousel-nav-btn:hover {
+          background: var(--green-700) !important;
+          transform: translateY(-50%) scale(1.12);
+          box-shadow: 0 6px 14px rgba(22, 163, 74, 0.45);
+        }
+        .carousel-nav-btn:active {
+          transform: translateY(-50%) scale(0.92);
+        }
+        .carousel-dot {
+          cursor: pointer;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          padding: 0;
+          border: none;
+        }
+        .carousel-dot:hover {
+          transform: scale(1.25);
+          background: var(--green-600) !important;
         }
       `}</style>
     </div>

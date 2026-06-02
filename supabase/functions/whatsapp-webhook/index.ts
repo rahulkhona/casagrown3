@@ -10,6 +10,7 @@ import {
   loadBoothContext, buildSellerSystemPrompt, loadSellerBotRules,
   loadAllSellerBooths, detectEscalation, cleanBotReply,
 } from '../_shared/growbot-seller.ts'
+import { extractWhatsAppProductRef, lookupProductById, buildProductContextPrompt } from '../_shared/product-context.ts'
 
 serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   // ── GET: Webhook Verification ──
@@ -68,8 +69,20 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           .eq('user_id', conn.user_id)
           .single()
 
-        if (!sub || sub.plan !== 'elite' || !['active', 'trialing'].includes(sub.status)) {
-          console.warn(`[WHATSAPP] Seller ${conn.user_id} not Elite, skipping`)
+        if (!sub || !['active', 'trialing'].includes(sub.status)) {
+          console.warn(`[WHATSAPP] Seller ${conn.user_id} does not have an active subscription, skipping`)
+          continue
+        }
+
+        // Check if WhatsApp Auto-Responder is enabled in subscription tier features
+        const { data: tier } = await supabase
+          .from('subscription_tiers')
+          .select('features')
+          .eq('tier_name', sub.plan)
+          .single()
+
+        if (!tier?.features?.whatsapp_chat) {
+          console.warn(`[WHATSAPP] Seller ${conn.user_id} does not have WhatsApp Auto-Responder enabled in subscription tier, skipping`)
           continue
         }
 
@@ -98,7 +111,13 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
           if (!userMessage) continue
 
-          console.log(`[WHATSAPP] Message from ${userPhone} on Phone ID ${phoneNumberId}: "${userMessage.slice(0, 100)}"`)
+          // ── Extract product context from catalog, referred_product, or wa.me link ──
+          const waProductRef = extractWhatsAppProductRef(message, userMessage)
+          if (waProductRef.cleanedMessage) {
+            userMessage = waProductRef.cleanedMessage  // Strip ref tag from display
+          }
+
+          console.log(`[WHATSAPP] Message from ${userPhone} on Phone ID ${phoneNumberId}: "${userMessage.slice(0, 100)}"${waProductRef.productId ? ` [product: ${waProductRef.productId}]` : ''}`)
 
           // Retrieve buyer profile name if provided by Meta
           const buyerContact = contacts.find((c: any) => c.wa_id === userPhone)
@@ -260,6 +279,27 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             }
             if (matchedBooth) {
               systemPrompt += `\n- Matched to booth: "${matchedBooth.name}"`
+            }
+          }
+
+          // Inject product context if buyer messaged from a catalog/product link
+          if (waProductRef.productId) {
+            const productCtx = await lookupProductById(supabase, waProductRef.productId)
+            if (productCtx) {
+              systemPrompt += buildProductContextPrompt(productCtx)
+              console.log(`[WHATSAPP] Product context: ${productCtx.name} (source: ${waProductRef.source})`)
+            }
+            // Save to conversation for future messages in this thread
+            if (conversation) {
+              await supabase.from('wa_conversations')
+                .update({ last_product_id: waProductRef.productId })
+                .eq('id', conversation.id)
+            }
+          } else if (conversation?.last_product_id) {
+            // Continuing conversation — load previously identified product
+            const productCtx = await lookupProductById(supabase, conversation.last_product_id)
+            if (productCtx) {
+              systemPrompt += buildProductContextPrompt(productCtx)
             }
           }
 

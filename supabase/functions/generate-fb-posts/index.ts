@@ -40,6 +40,18 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     return jsonOk({ seller_posts: 0, casagrown_posts: 0, message: 'No active connections' }, corsHeaders)
   }
 
+  // Load subscription tiers to check features dynamically
+  const { data: tiersData } = await supabase
+    .from('subscription_tiers')
+    .select('tier_name, features')
+
+  const tierFeatures: Record<string, any> = {}
+  if (tiersData) {
+    for (const t of tiersData) {
+      tierFeatures[t.tier_name] = t.features || {}
+    }
+  }
+
   let sellerPostsPublished = 0
   let sellerPostsFailed = 0
   let casagrownPublished = 0
@@ -52,6 +64,9 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     const sub = (conn as any).seller_subscriptions
     if (!sub || !['active', 'trialing'].includes(sub.status)) continue
     if (!conn.fb_page_access_token || !conn.fb_page_id) continue
+
+    const features = tierFeatures[sub.plan] || {}
+    if (!features.facebook_posts) continue
 
     const autoPostEnabled = (conn as any).auto_post_enabled === true
     if (!autoPostEnabled) continue
@@ -80,7 +95,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     // Get seller profile
     const { data: profile } = await supabase
       .from('profiles')
-      .select('full_name, farm_name')
+      .select('full_name, farm_name, business_type')
       .eq('id', conn.user_id)
       .single()
 
@@ -96,8 +111,20 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
 
     if (!booths || booths.length === 0) continue
 
+    // Business type labels
+    const bizTypeLabels: Record<string, string> = {
+      hobby_gardener: '🌱 Hobby Gardener', small_farm: '🚜 Small Farm',
+      cottage_food: '🏠 Cottage Food Operation', urban_farm: '🏙️ Urban Farm',
+      homestead: '🌾 Homestead', community_garden: '🌻 Community Garden',
+      gardening_service: '🌿 Gardening Service', landscaping_service: '🏡 Landscaping Service',
+      commercial: '🏢 Commercial / Licensed',
+    }
+
     // Build the daily menu post grouped by booth
     let message = `🌱 What's fresh today from ${sellerName}!\n`
+    if (profile?.business_type && bizTypeLabels[profile.business_type]) {
+      message += `${bizTypeLabels[profile.business_type]}\n`
+    }
     let hasProducts = false
     const allProductPhotos: string[] = []
     const boothLinks: string[] = []
@@ -179,7 +206,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
 
     if (!hasProducts) continue
 
-    if (sub.plan === 'elite' && conn.wa_display_phone) {
+    if (features.whatsapp_chat && conn.wa_display_phone) {
       const cleanWaPhone = conn.wa_display_phone.replace(/\D/g, '')
       if (cleanWaPhone) {
         const waLink = `https://wa.me/${cleanWaPhone}?text=Hi!%20I%20saw%20your%20post%20on%20social%20media%20and%20would%20love%20to%20order%20some%20fresh%20produce!`
@@ -211,7 +238,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       })
 
       // ── Instagram posting for Elite sellers ──
-      if (sub.plan === 'elite' && conn.ig_auto_post_enabled && conn.ig_business_account_id) {
+      if (features.instagram_posts && conn.ig_auto_post_enabled && conn.ig_business_account_id) {
         try {
           const igResult = allProductPhotos.length > 1
             ? await publishInstagramCarousel(conn.ig_business_account_id, conn.fb_page_access_token, {
@@ -242,7 +269,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       }
 
       // ── Google Business Profile posting for Elite sellers ──
-      if (sub.plan === 'elite') {
+      if (features.google_places) {
         const { data: googleConn } = await supabase
           .from('seller_google_connections')
           .select('google_refresh_token, google_location_id, google_location_name, auto_post_specials')

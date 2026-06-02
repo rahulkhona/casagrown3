@@ -24,6 +24,10 @@ export function StripeCheckoutModal({ onClose, onComplete, returnPath, plan }: S
   const [loading, setLoading] = useState(true)
   const containerRef = useRef<HTMLDivElement>(null)
   const checkoutRef = useRef<any>(null)
+  const sessionIdRef = useRef<string>('')
+
+  const isElite = plan === 'elite'
+  const planLabel = isElite ? 'CasaGrown Elite' : 'CasaGrown Pro'
 
   useEffect(() => {
     let cancelled = false
@@ -43,6 +47,12 @@ export function StripeCheckoutModal({ onClose, onComplete, returnPath, plan }: S
           return
         }
 
+        // Extract session ID from client secret (format: cs_test_xxx_secret_yyy)
+        const secretIdx = data.clientSecret.indexOf('_secret_')
+        if (secretIdx > 0) {
+          sessionIdRef.current = data.clientSecret.substring(0, secretIdx)
+        }
+
         const stripe = await stripePromise
         if (!stripe || cancelled) {
           if (!cancelled) {
@@ -56,7 +66,10 @@ export function StripeCheckoutModal({ onClose, onComplete, returnPath, plan }: S
           clientSecret: data.clientSecret,
         }
         if (onComplete) {
-          checkoutOptions.onComplete = onComplete
+          // Stripe's onComplete doesn't pass sessionId, so we wrap it
+          checkoutOptions.onComplete = () => {
+            onComplete(sessionIdRef.current)
+          }
         }
 
         const checkout = await stripe.createEmbeddedCheckoutPage(checkoutOptions)
@@ -117,13 +130,15 @@ export function StripeCheckoutModal({ onClose, onComplete, returnPath, plan }: S
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           padding: '16px 20px',
           borderBottom: '1px solid #e5e7eb',
-          background: 'linear-gradient(135deg, #065f46, #059669)',
+          background: isElite
+            ? 'linear-gradient(135deg, #1e3a8a, #3b82f6)'
+            : 'linear-gradient(135deg, #065f46, #059669)',
           borderRadius: '20px 20px 0 0',
           color: 'white',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 20 }}>🚜</span>
-            <span style={{ fontSize: 16, fontWeight: 700 }}>CasaGrown Pro</span>
+            <span style={{ fontSize: 16, fontWeight: 700 }}>{planLabel}</span>
           </div>
           <button
             onClick={onClose}

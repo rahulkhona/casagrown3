@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { createClient } from '../../../../../lib/supabase'
 import { formatUsd } from '../../../../../lib/store'
 import { useAuth } from '../../../../../lib/useAuth'
+import { useQuickSetup } from '../../../../../lib/useQuickSetup'
 import { useMarketStatus } from '../../../../../lib/useMarketStatus'
 import { hasValidWindows } from '../../../../../lib/windowUtils'
 import { useRouter, usePathname } from 'next/navigation'
@@ -24,6 +25,7 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
   const router = useRouter()
   const pathname = usePathname()
   const { user, isAuthenticated, profileComplete } = useAuth()
+  const { requireAuth } = useQuickSetup()
   const { isOpen: marketIsOpen, isScheduleOpen, nextOpenDate, loading: marketLoading } = useMarketStatus()
   const [booth, setBooth] = useState<any>(null)
   const [products, setProducts] = useState<any[]>([])
@@ -36,6 +38,13 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
   const [following, setFollowing] = useState(false)
   const [followerCount, setFollowerCount] = useState(0)
   const [sellerRating, setSellerRating] = useState<{ avg: number; count: number } | null>(null)
+  const [sellerBiz, setSellerBiz] = useState<{
+    farmName?: string; businessType?: string; sellerBio?: string;
+    businessLicense?: string; foodHandlerPermit?: string;
+    cottageFoodPermit?: string; insuranceProvider?: string;
+  }>({})
+  const [sellerFirstName, setSellerFirstName] = useState<string | null>(null)
+  const [waPhone, setWaPhone] = useState<string | null>(null)
   const [deliveryWindows, setDeliveryWindows] = useState<any[]>([])
   const [pickupWindows, setPickupWindows] = useState<any[]>([])
   const { showPrompt, modalProps } = useNotificationPrompt(user?.id)
@@ -88,13 +97,37 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
             .order('created_at', { ascending: true }),
           supabase
             .from('profiles')
-            .select('seller_avg_rating, seller_rating_count')
+            .select('seller_avg_rating, seller_rating_count, full_name, farm_name, business_type, seller_bio, business_license, food_handler_permit, cottage_food_permit, insurance_provider')
             .eq('id', boothData.owner_id)
             .single(),
         ])
         if (prods) setProducts(prods)
         if (profileData && profileData.seller_rating_count >= 5) {
           setSellerRating({ avg: profileData.seller_avg_rating, count: profileData.seller_rating_count })
+        }
+        if (profileData?.full_name) {
+          setSellerFirstName(profileData.full_name.split(' ')[0])
+        }
+        setSellerBiz({
+          farmName: profileData?.farm_name || undefined,
+          businessType: profileData?.business_type || undefined,
+          sellerBio: profileData?.seller_bio || undefined,
+          businessLicense: profileData?.business_license || undefined,
+          foodHandlerPermit: profileData?.food_handler_permit || undefined,
+          cottageFoodPermit: profileData?.cottage_food_permit || undefined,
+          insuranceProvider: profileData?.insurance_provider || undefined,
+        })
+
+        // Fetch WhatsApp connection
+        const { data: fbConn } = await supabase
+          .from('seller_fb_connections')
+          .select('wa_display_phone, wa_auto_reply_enabled')
+          .eq('user_id', boothData.owner_id)
+          .eq('status', 'connected')
+          .limit(1)
+          .maybeSingle()
+        if (fbConn?.wa_display_phone && fbConn?.wa_auto_reply_enabled) {
+          setWaPhone(fbConn.wa_display_phone)
         }
 
         // Fetch fulfillment windows from relational table
@@ -219,8 +252,10 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
   const toggleProductReminder = async (productId: string, e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    if (!user) { router.push(`/login?redirect=${encodeURIComponent(pathname)}`); return }
-    if (profileComplete !== true) { router.push('/profile-setup'); return }
+    if (!user || profileComplete !== true) {
+      requireAuth({ trigger: 'booth_action', onReady: () => toggleProductReminder(productId, e) })
+      return
+    }
 
     const isSaved = savedProductIds.has(productId)
     if (isSaved) {
@@ -236,6 +271,18 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
       setSavedProductIds(prev => new Set(prev).add(productId))
       showSuccess('🔔 Saved! We\'ll notify you when market opens')
     }
+  }
+
+  const BUSINESS_TYPE_LABELS: Record<string, string> = {
+    hobby_gardener: '🌱 Hobby Gardener',
+    small_farm: '🚜 Small Farm',
+    cottage_food: '🏠 Cottage Food',
+    urban_farm: '🏙️ Urban Farm',
+    homestead: '🌾 Homestead',
+    community_garden: '🌻 Community Garden',
+    gardening_service: '🌿 Gardening Service',
+    landscaping_service: '🏡 Landscaping Service',
+    commercial: '🏢 Commercial',
   }
 
   const themeColors: Record<string, { bg: string; border: string }> = {
@@ -282,7 +329,13 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
             <img src={booth.header_image_url} alt={booth.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
         )}
+        {sellerBiz.farmName && sellerBiz.farmName !== booth.name && (
+          <div style={{ fontSize: 13, color: 'var(--gray-500)', marginBottom: 2 }}>{sellerBiz.farmName}</div>
+        )}
         <h1 className={styles.boothName}>{booth.name}</h1>
+        {sellerFirstName && (
+          <div style={{ fontSize: 14, color: 'var(--gray-500)', marginBottom: 4 }}>by {sellerFirstName}</div>
+        )}
         {sellerRating && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
             <span style={{ fontSize: 16 }}>⭐</span>
@@ -290,12 +343,52 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
             <span style={{ fontSize: 13, color: 'var(--gray-500)' }}>({sellerRating.count} reviews)</span>
           </div>
         )}
+        {sellerBiz.businessType && BUSINESS_TYPE_LABELS[sellerBiz.businessType] && (
+          <span style={{
+            display: 'inline-block', fontSize: 12, fontWeight: 600,
+            padding: '3px 10px', borderRadius: 12, marginBottom: 6,
+            background: 'var(--green-50, #f0fdf4)', color: 'var(--green-700, #15803d)',
+            border: '1px solid var(--green-200, #bbf7d0)',
+          }}>
+            {BUSINESS_TYPE_LABELS[sellerBiz.businessType]}
+          </span>
+        )}
         <div className={styles.boothStats}>
           <span>{products.length} products</span>
           {booth.offers_delivery && <><span>•</span><span>🚗 Delivery</span></>}
           {booth.offers_pickup && <><span>•</span><span>📍 Pickup</span></>}
         </div>
         {booth.description && <p className={styles.boothDesc}>{booth.description}</p>}
+        {sellerBiz.sellerBio && (
+          <p style={{ fontSize: 14, color: 'var(--gray-600)', margin: '8px 0 0', lineHeight: 1.5 }}>
+            {sellerBiz.sellerBio}
+          </p>
+        )}
+        {/* Trust Badges */}
+        {(sellerBiz.businessLicense || sellerBiz.foodHandlerPermit || sellerBiz.cottageFoodPermit || sellerBiz.insuranceProvider) && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+            {sellerBiz.businessLicense && (
+              <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 12, background: '#dbeafe', color: '#1e40af', border: '1px solid #93c5fd' }}>
+                ✅ Licensed
+              </span>
+            )}
+            {sellerBiz.foodHandlerPermit && (
+              <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 12, background: '#fef9c3', color: '#92400e', border: '1px solid #fde68a' }}>
+                🍽️ Food Handler
+              </span>
+            )}
+            {sellerBiz.cottageFoodPermit && (
+              <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 12, background: '#dcfce7', color: '#166534', border: '1px solid #86efac' }}>
+                🏠 Cottage Food
+              </span>
+            )}
+            {sellerBiz.insuranceProvider && (
+              <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 12, background: '#ede9fe', color: '#5b21b6', border: '1px solid #c4b5fd' }}>
+                🛡️ Insured
+              </span>
+            )}
+          </div>
+        )}
         {/* Follow & Message actions */}
         {isAuthenticated && user?.id !== booth.owner_id && (
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
@@ -304,7 +397,7 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
               style={{ flex: 1 }}
               onClick={async () => {
                 if (profileComplete !== true) {
-                  router.push('/profile-setup')
+                  requireAuth({ trigger: 'booth_action' })
                   return
                 }
                 if (following) {
@@ -329,6 +422,21 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
             >
               💬 Message Farm
             </Link>
+            {waPhone && (
+              <a
+                href={`https://wa.me/${waPhone.replace(/[^0-9]/g, '')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.followBtn}
+                style={{
+                  flex: 1, textDecoration: 'none', textAlign: 'center',
+                  background: '#25D366', color: '#fff', border: '1px solid #1ebe57',
+                  fontWeight: 600,
+                }}
+              >
+                💬 WhatsApp
+              </a>
+            )}
           </div>
         )}
         {followerCount > 0 && (
@@ -512,13 +620,8 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
                       onClick={(e) => {
                         e.preventDefault(); e.stopPropagation()
                         if (!hasValidWindows(p.window_dates, p.product_delivery_windows, p.product_pickup_windows)) return
-                        if (!isAuthenticated) {
-                          const productUrl = `/market/booth/${id}/product/${p.id}`
-                          router.push(`/login?redirect=${encodeURIComponent(productUrl)}`)
-                          return
-                        }
-                        if (profileComplete !== true) {
-                          router.push(`/profile-setup`)
+                        if (!isAuthenticated || profileComplete !== true) {
+                          requireAuth({ trigger: 'booth_action', onReady: () => setBuyProduct(p) })
                           return
                         }
                         setBuyProduct(p)

@@ -157,6 +157,7 @@ export interface NotificationPayload {
     plan?: string;
     action?: string;
     waNumber?: string | null;
+    tierData?: Record<string, { display_name: string; subscription_price: number; platform_fee_pct: number; max_booths: number; features: Record<string, boolean> }>;
 }
 
 // =============================================================================
@@ -188,21 +189,49 @@ serveWithCors(async (req, { supabase, corsHeaders, env }) => {
     const results: { email: string; success: boolean; error?: string }[] = [];
 
     for (const recipient of payload.recipients) {
-        if (payload.type === 'subscription_change') {
+        if (payload.type === 'subscription_change' || payload.type === 'welcome') {
             const { data: profile } = await supabase
               .from('profiles')
               .select('id')
               .eq('email', recipient.email)
               .maybeSingle();
             if (profile?.id) {
-              const { data: fbConn } = await supabase
-                .from('seller_fb_connections')
-                .select('wa_display_phone')
-                .eq('user_id', profile.id)
-                .eq('status', 'connected')
-                .maybeSingle();
-              if (fbConn?.wa_display_phone) {
-                payload.waNumber = fbConn.wa_display_phone;
+              if (payload.type === 'subscription_change') {
+                const { data: fbConn } = await supabase
+                  .from('seller_fb_connections')
+                  .select('wa_display_phone')
+                  .eq('user_id', profile.id)
+                  .eq('status', 'connected')
+                  .maybeSingle();
+                if (fbConn?.wa_display_phone) {
+                  payload.waNumber = fbConn.wa_display_phone;
+                }
+              }
+              if (payload.type === 'welcome') {
+                const { data: sub } = await supabase
+                  .from('seller_subscriptions')
+                  .select('plan')
+                  .eq('user_id', profile.id)
+                  .in('status', ['active', 'trialing'])
+                  .maybeSingle();
+                payload.plan = sub?.plan || 'lite';
+
+                // Fetch all subscription tiers so email can use dynamic fees/limits
+                const { data: tiers } = await supabase
+                  .from('subscription_tiers')
+                  .select('tier_name, display_name, subscription_price, platform_fee_pct, max_booths, features');
+                if (tiers && tiers.length > 0) {
+                  payload.tierData = {};
+                  for (const t of tiers) {
+                    payload.tierData[t.tier_name] = {
+                      display_name: t.display_name,
+                      subscription_price: t.subscription_price,
+                      platform_fee_pct: t.platform_fee_pct,
+                      max_booths: t.max_booths,
+                      features: t.features || {},
+                    };
+                  }
+                }
               }
             }
         }
@@ -1074,6 +1103,114 @@ function renderWelcomeEmail(
     // Rely on SITE_URL for absolute image path
     const heroImage = `${SITE_URL}/emails/welcome-hero.png`;
 
+    const userPlan = p.plan || 'lite';
+    let upsellHtml = "";
+    let guideHtml = "";
+    let planIncludesHtml = "";
+
+    // Dynamic tier data from DB (with sensible fallbacks)
+    const td = p.tierData || {};
+    const liteTier  = td['lite']  || { display_name: 'Lite Base',       subscription_price: 0,  platform_fee_pct: 10, max_booths: 1,   features: {} };
+    const proTier   = td['pro']   || { display_name: 'CasaGrown Pro',   subscription_price: 10, platform_fee_pct: 5,  max_booths: 3,   features: {} };
+    const eliteTier = td['elite'] || { display_name: 'CasaGrown Elite', subscription_price: 29, platform_fee_pct: 2,  max_booths: 100, features: {} };
+
+    const fmtFee = (pct: number) => pct % 1 === 0 ? `${pct}%` : `${pct.toFixed(1)}%`;
+    const fmtBooths = (n: number) => n >= 100 ? 'Unlimited' : `${n}`;
+
+    if (userPlan === 'elite') {
+        // Plan confirmation card for Elite
+        planIncludesHtml = `
+<div style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 1px solid #93c5fd; border-radius: 12px; padding: 24px; margin: 24px 0 8px;">
+  <h3 style="margin: 0 0 16px; font-size: 17px; font-weight: 700; color: #1e3a8a;">✅ Your Elite Plan Includes</h3>
+  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="font-size: 13px; line-height: 1.5; color: #1e40af;">
+    <tr><td style="padding: 3px 8px 3px 0;">✓ Everything in Pro</td><td style="padding: 3px 0 3px 8px;">✓ Instagram Auto-Posting</td></tr>
+    <tr><td style="padding: 3px 8px 3px 0;">✓ Instagram Catalog Sync</td><td style="padding: 3px 0 3px 8px;">✓ Instagram DM Auto-Replies</td></tr>
+    <tr><td style="padding: 3px 8px 3px 0;">✓ Instagram Comment Auto-Replies</td><td style="padding: 3px 0 3px 8px;">✓ WhatsApp Catalog Sync</td></tr>
+    <tr><td style="padding: 3px 8px 3px 0;">✓ WhatsApp DM Auto-Replies</td><td style="padding: 3px 0 3px 8px;">✓ WhatsApp Business Phone</td></tr>
+    <tr><td style="padding: 3px 8px 3px 0;">✓ Video Auto-Posts (Reels)</td><td style="padding: 3px 0 3px 8px;">✓ Post to Google Maps</td></tr>
+  </table>
+  <div style="display: flex; gap: 16px; margin-top: 16px; padding-top: 12px; border-top: 1px dashed rgba(0,0,0,0.1); font-size: 13px; font-weight: 600; color: #1e3a8a;">
+    <span>📦 ${fmtBooths(eliteTier.max_booths)} Booths</span>
+    <span>💰 ${fmtFee(eliteTier.platform_fee_pct)} Platform Fee</span>
+  </div>
+</div>`;
+
+        upsellHtml = `
+<div style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 1px solid #bfdbfe; border-radius: 12px; padding: 24px; margin-top: 32px;">
+  <h3 style="margin: 0 0 12px; font-size: 18px; color: #1e3a8a;">👑 Welcome to ${eliteTier.display_name}!</h3>
+  <p style="margin: 0 0 16px; font-size: 15px; color: #1e40af; line-height: 1.6;">
+    You are enrolled in our highest tier, unlocking first-class features to run your produce empire. Set up your Twilio WhatsApp Business Number and connect your Instagram comments auto-replies.
+  </p>
+  ${actionButton("Configure Your Elite Suite", `${SITE_URL}/pro-manage?utm_source=welcome_email&utm_medium=email&utm_campaign=onboarding_elite`)}
+</div>`;
+
+        guideHtml = `
+<h3 style="margin: 32px 0 12px; font-size: 18px; color: #111827;">Your Guide to Getting Started 📖</h3>
+<p style="margin: 0 0 16px; font-size: 15px; color: #4b5563; line-height: 1.6;">
+  Access your customized, step-by-step Elite Seller Video Guide to verify your Twilio-provisioned number, connect Instagram comments, and launch unlimited booths:
+</p>
+<div style="margin: 16px 0 24px; text-align: center;">
+  ${actionButton("Open Elite Seller Guide", `${SITE_URL}/guide?plan=elite&utm_source=welcome_email&utm_medium=email&utm_campaign=elite_guide`)}
+</div>`;
+    } else if (userPlan === 'pro') {
+        // Plan confirmation card for Pro
+        planIncludesHtml = `
+<div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 1px solid #86efac; border-radius: 12px; padding: 24px; margin: 24px 0 8px;">
+  <h3 style="margin: 0 0 16px; font-size: 17px; font-weight: 700; color: #166534;">✅ Your Pro Plan Includes</h3>
+  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="font-size: 13px; line-height: 1.5; color: #15803d;">
+    <tr><td style="padding: 3px 8px 3px 0;">✓ GrowBot AI Assistant</td><td style="padding: 3px 0 3px 8px;">✓ Facebook Catalog Sync</td></tr>
+    <tr><td style="padding: 3px 8px 3px 0;">✓ Facebook Auto-Posting</td><td style="padding: 3px 0 3px 8px;">✓ Facebook DM Auto-Replies</td></tr>
+    <tr><td style="padding: 3px 8px 3px 0;">✓ Facebook Comment Auto-Replies</td><td style="padding: 3px 0 3px 8px;">✓ 7-Day Guarantee Refund</td></tr>
+  </table>
+  <div style="display: flex; gap: 16px; margin-top: 16px; padding-top: 12px; border-top: 1px dashed rgba(0,0,0,0.1); font-size: 13px; font-weight: 600; color: #166534;">
+    <span>📦 Up to ${fmtBooths(proTier.max_booths)} Booths</span>
+    <span>💰 ${fmtFee(proTier.platform_fee_pct)} Platform Fee</span>
+  </div>
+</div>`;
+
+        upsellHtml = `
+<div style="background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border: 1px solid #f59e0b; border-radius: 12px; padding: 24px; margin-top: 32px;">
+  <h3 style="margin: 0 0 12px; font-size: 18px; color: #92400e;">👑 Supercharge with ${eliteTier.display_name}</h3>
+  <p style="margin: 0 0 16px; font-size: 15px; color: #78350f; line-height: 1.6;">
+    Ready to take your business even further? ${eliteTier.display_name} unlocks full WhatsApp and Instagram auto-responders and reduces your transaction platform fees down to a record-low ${fmtFee(eliteTier.platform_fee_pct)}!
+  </p>
+  ${actionButton("Explore Elite Capabilities", `${SITE_URL}/pro-manage?utm_source=welcome_email&utm_medium=email&utm_campaign=onboarding_pro_to_elite`)}
+</div>`;
+
+        guideHtml = `
+<h3 style="margin: 32px 0 12px; font-size: 18px; color: #111827;">Your Guide to Getting Started 📖</h3>
+<p style="margin: 0 0 16px; font-size: 15px; color: #4b5563; line-height: 1.6;">
+  Access your step-by-step Pro Seller Video Guide to enable your automated selling tools, configure GrowBot AI, and sync your Facebook catalogs:
+</p>
+<div style="margin: 16px 0 24px; text-align: center;">
+  ${actionButton("Open Pro Seller Guide", `${SITE_URL}/guide?plan=pro&utm_source=welcome_email&utm_medium=email&utm_campaign=pro_guide`)}
+</div>`;
+    } else {
+        upsellHtml = `
+<div style="background: #ffffff; border: 2px solid #86efac; border-radius: 12px; padding: 24px; margin-top: 32px;">
+  <h3 style="margin: 0 0 12px; font-size: 18px; color: #065f46;">🚜 Are You a Local Farmer or Gardening Pro?</h3>
+  <p style="margin: 0 0 12px; font-size: 15px; color: #374151; line-height: 1.6;">
+    If you're a <strong>local farmer selling at farmers markets</strong>, a <strong>gardening service professional</strong>, or anyone looking to <strong>turn your harvest into a serious income stream</strong> — ${proTier.display_name} &amp; ${eliteTier.display_name} are built for you:
+  </p>
+  <ul style="margin: 0 0 16px; padding-left: 20px; font-size: 14px; color: #374151; line-height: 1.7;">
+    <li><strong>GrowBot AI</strong> — Automatically respond to customers</li>
+    <li><strong>Facebook Auto-Posting</strong> — Syndicate listings to local groups</li>
+    <li><strong>Multi-Booth Management</strong> — Run up to ${fmtBooths(proTier.max_booths)} stands (Pro) or ${fmtBooths(eliteTier.max_booths).toLowerCase()} (Elite)</li>
+    <li><strong>Lower Fees</strong> — Drop from ${fmtFee(liteTier.platform_fee_pct)} down to ${fmtFee(proTier.platform_fee_pct)} (Pro) or ${fmtFee(eliteTier.platform_fee_pct)} (Elite)</li>
+  </ul>
+  ${actionButton("Explore Pro & Elite Plans", `${SITE_URL}/pro-manage?utm_source=welcome_email&utm_medium=email&utm_campaign=onboarding_lite_to_pro`)}
+</div>`;
+
+        guideHtml = `
+<h3 style="margin: 32px 0 12px; font-size: 18px; color: #111827;">Your Guide to Getting Started 📖</h3>
+<p style="margin: 0 0 16px; font-size: 15px; color: #4b5563; line-height: 1.6;">
+  Access our comprehensive, step-by-step User Guide covering user profile setup, stand configurations, and local trading:
+</p>
+<div style="margin: 16px 0 24px; text-align: center;">
+  ${actionButton("Open User Guide", `${SITE_URL}/guide?plan=lite&utm_source=welcome_email&utm_medium=email&utm_campaign=lite_guide`)}
+</div>`;
+    }
+
     const bodyHtml = `
 <div style="text-align: center; margin-bottom: 32px;">
   <img src="${heroImage}" alt="Thank You" style="width: 100%; max-width: 600px; border-radius: 12px; margin-bottom: 24px;" />
@@ -1087,14 +1224,18 @@ function renderWelcomeEmail(
   By participating in CasaGrown, you are directly helping us reduce produce waste, make fresh and healthy food more accessible for all our neighbors, and convert backyard waste into real savings.
 </p>
 
+${planIncludesHtml}
+
 <h3 style="margin: 32px 0 12px; font-size: 18px; color: #111827;">Explore the Platform Highlights 🌟</h3>
-<p style="margin: 0 0 12px; font-size: 15px; color: #4b5563; line-height: 1.6;">
+<p style="margin: 0 0 16px; font-size: 15px; color: #4b5563; line-height: 1.6;">
   As you get settled, we encourage you to try out some of our favorite novelties:
 </p>
-<ul style="margin: 0 0 24px; padding-left: 20px; font-size: 15px; color: #4b5563; line-height: 1.6;">
-  <li><strong>The Gardening Community</strong>: Connect with local growers, share harvests, and swap stories.</li>
-  <li><strong>CasaBot AI Assistant</strong>: Your personalized gardening companion! Ask CasaBot for hyper-local gardening tips, planting schedules, and harvesting advice.</li>
+<ul style="margin: 0 0 24px; padding-left: 20px; font-size: 15px; color: #4b5563; line-height: 1.8;">
+  <li style="margin-bottom: 8px;">🏡 <strong>The Gardening Community</strong>: Connect with local growers, share harvests, and swap stories.</li>
+  <li style="margin-bottom: 8px;">🤖 <strong>CasaBot AI Assistant</strong>: Your personalized gardening companion! Ask CasaBot for hyper-local gardening tips, planting schedules, and harvesting advice.</li>
 </ul>
+
+${guideHtml}
 
 <h3 style="margin: 32px 0 12px; font-size: 18px; color: #111827;">Your Safety is our Top Priority 🔒</h3>
 <p style="margin: 0 0 12px; font-size: 15px; color: #4b5563; line-height: 1.6;">
@@ -1111,9 +1252,11 @@ function renderWelcomeEmail(
   We've built a unified economy! With our advanced <strong>Market Netting</strong> feature, your balances are automatically settled across the platform. You only ever pay the difference between the produce you sell and the produce you buy.
 </p>
 
-<div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 24px; margin-top: 32px; text-align: center;">
-  <h3 style="margin: 0 0 12px; font-size: 18px; color: #166534;">Invite Your Neighbors! 🏡</h3>
-  <p style="margin: 0 0 20px; font-size: 15px; color: #15803d; line-height: 1.6;">
+${upsellHtml}
+
+<div style="background: #ffffff; border: 2px solid #86efac; border-radius: 12px; padding: 24px; margin-top: 32px; text-align: center;">
+  <h3 style="margin: 0 0 12px; font-size: 18px; color: #065f46;">Invite Your Neighbors! 🏡</h3>
+  <p style="margin: 0 0 20px; font-size: 15px; color: #374151; line-height: 1.6;">
     CasaGrown thrives on local network effects. As the size of our community grows, everyone benefits! A larger neighborhood means more delicious, fresh options available to buy, and significantly higher demand to quickly sell any excess produce you might have.
   </p>
   ${actionButton("Invite Your Neighbors Today", `${SITE_URL}/community?share=true&utm_source=welcome_email&utm_medium=email&utm_campaign=onboarding`)}

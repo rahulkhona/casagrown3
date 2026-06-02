@@ -137,6 +137,20 @@ vi.mock('../../../lib/useMarketStatus', () => marketStatusMock)
 vi.mock('../../../../lib/useMarketStatus', () => marketStatusMock)
 vi.mock('../../../../../lib/useMarketStatus', () => marketStatusMock)
 
+// Mock useQuickSetup at all depths
+const quickSetupMock = { useQuickSetup: () => ({ requireAuth: () => {} }), QuickSetupProvider: ({ children }: any) => children }
+vi.mock('../../lib/useQuickSetup', () => quickSetupMock)
+vi.mock('../../../lib/useQuickSetup', () => quickSetupMock)
+vi.mock('../../../../lib/useQuickSetup', () => quickSetupMock)
+vi.mock('../../../../../lib/useQuickSetup', () => quickSetupMock)
+
+// Mock useProEnabled at all depths
+const proEnabledMock = { useProEnabled: () => false }
+vi.mock('../../lib/useProEnabled', () => proEnabledMock)
+vi.mock('../../../lib/useProEnabled', () => proEnabledMock)
+vi.mock('../../../../lib/useProEnabled', () => proEnabledMock)
+vi.mock('../../../../../lib/useProEnabled', () => proEnabledMock)
+
 // Mock components used by dynamic route pages
 vi.mock('../../components/BuyModal', () => ({ default: () => null }))
 vi.mock('../../components/FlagModal', () => ({ FlagModal: () => null }))

@@ -427,6 +427,52 @@ Deno.test({
   },
 });
 
+// ══════════════════════════════════════════════════════════════
+// Rejected when whatsapp_chat Feature Flag is False
+// ══════════════════════════════════════════════════════════════
+
+Deno.test({
+  name: "whatsapp-webhook: rejected when whatsapp_chat feature flag is false",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    // 1. Temporarily disable whatsapp_chat feature flag on elite plan
+    await sqlExec(`
+      UPDATE subscription_tiers
+      SET features = jsonb_set(COALESCE(features, '{}'::jsonb), '{whatsapp_chat}', 'false'::jsonb)
+      WHERE tier_name = 'elite'
+    `);
+
+    const uniquePhone = "16505550066";
+    const res = await callWebhook("POST", {}, makeWaPayload(
+      "test_wa_phone_id_e2e",
+      "16505559999",
+      uniquePhone,
+      "WhatsApp Chat Disabled User",
+      "Should be skipped because whatsapp_chat feature flag is off",
+      "test_wa_business_account_e2e",
+    ));
+
+    assertEquals(res.status, 200);
+
+    // Wait for async processing
+    await new Promise((r) => setTimeout(r, 2000));
+
+    // Verify no conversation was created
+    const count = await sqlExec(
+      `SELECT count(*) FROM wa_conversations WHERE wa_sender_phone = '${uniquePhone}'`,
+    );
+    assertEquals(parseInt(count), 0, "No conversation should be created when whatsapp_chat feature is false");
+
+    // 2. Restore whatsapp_chat feature flag to true on elite plan
+    await sqlExec(`
+      UPDATE subscription_tiers
+      SET features = jsonb_set(COALESCE(features, '{}'::jsonb), '{whatsapp_chat}', 'true'::jsonb)
+      WHERE tier_name = 'elite'
+    `);
+  },
+});
+
 Deno.test({
   name: "whatsapp-webhook: disabled channel skipped",
   sanitizeResources: false,

@@ -143,6 +143,14 @@ async function mockMiscRest(page: any) {
   await page.route('**/rest/v1/market_booths*', async (route: any) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })
   })
+  // Mock pro_testers to make Elite tiers visible (bypasses ENABLE_ELITE=false)
+  await page.route('**/rest/v1/pro_testers*', async (route: any) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([{ email: 'test@test.local' }]),
+    })
+  })
 }
 
 const SLUG = 'tier-test-farm'
@@ -294,7 +302,7 @@ test.describe('Promo Landing Page — Tier & Incentive Rendering', () => {
     // Credits item should be visible
     const creditsCard = page.locator('.credits-item').first()
     await expect(creditsCard).toBeVisible()
-    await expect(creditsCard).toContainText('$15 Purchase Credit')
+    await expect(creditsCard).toContainText('$15 Shopping Discount')
     await expect(creditsCard).toContainText('once a month')
     await expect(creditsCard).toContainText('3 months')
     await expect(creditsCard).toContainText('100%')

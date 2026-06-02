@@ -601,6 +601,22 @@ else
   log_suite "Subscription Trigger DB" "$SUBTRIG_P" "$SUBTRIG_F"
 fi
 
+# 5u: RLS Restricted Tables tests (stripe_connect_audit_log, public_profiles, catalog_item_allocations)
+echo "  Running RLS Restricted Tables tests..."
+RLS_OUTPUT=$(npx supabase test db \
+  supabase/tests/database/66_rls_restricted_tables.test.sql 2>&1)
+if echo "$RLS_OUTPUT" | grep -q "All tests successful"; then
+  RLS_TESTS=$(echo "$RLS_OUTPUT" | grep "Files=" | sed 's/.*Tests=\([0-9]*\).*/\1/' || echo "19")
+  echo -e "  ${GREEN}✅ RLS Restricted Tables: ${RLS_TESTS} tests — ALL PASS${NC}"
+  log_suite "RLS Restricted Tables" "${RLS_TESTS:-19}"
+else
+  RLS_P=$(echo "$RLS_OUTPUT" | grep -c "^ok " || echo "0")
+  RLS_F=$(echo "$RLS_OUTPUT" | grep -c "^not ok" || echo "0")
+  echo -e "  ${RED}❌ RLS Restricted Tables: ${RLS_P} passed, ${RLS_F} failed${NC}"
+  echo "$RLS_OUTPUT" | grep "^not ok" | head -10 | sed 's/^/    /'
+  log_suite "RLS Restricted Tables" "$RLS_P" "$RLS_F"
+fi
+
 # ─────────────────────────────────────────────────────────────────────────
 # PHASE 6: Shell Integration Tests (Escalation Handling)
 # ─────────────────────────────────────────────────────────────────────────

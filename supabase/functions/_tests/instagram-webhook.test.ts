@@ -439,6 +439,64 @@ Deno.test({
 });
 
 // ══════════════════════════════════════════════════════════════
+// Rejected when instagram_chat Feature Flag is False
+// ══════════════════════════════════════════════════════════════
+
+Deno.test({
+  name: "instagram-webhook: rejected when instagram_chat feature flag is false",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    // 1. Temporarily disable instagram_chat feature on elite plan
+    await sqlExec(`
+      UPDATE subscription_tiers
+      SET features = jsonb_set(COALESCE(features, '{}'::jsonb), '{instagram_chat}', 'false'::jsonb)
+      WHERE tier_name = 'elite'
+    `);
+
+    const uniqueSender = "ig_chat_disabled_" + Date.now();
+    const res = await callWebhook("POST", {}, {
+      object: "instagram",
+      entry: [
+        {
+          id: "test_ig_account_e2e",
+          time: Date.now(),
+          messaging: [
+            {
+              sender: { id: uniqueSender },
+              recipient: { id: "test_ig_account_e2e" },
+              timestamp: Date.now(),
+              message: {
+                mid: "mid_ig_chat_disabled_" + Date.now(),
+                text: "Should be skipped because feature flag is off",
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    assertEquals(res.status, 200);
+
+    // Wait for async processing
+    await new Promise((r) => setTimeout(r, 2000));
+
+    // Verify no conversation was created
+    const convCount = await sqlExec(
+      `SELECT count(*) FROM ig_conversations WHERE ig_sender_id = '${uniqueSender}'`,
+    );
+    assertEquals(convCount, "0", "No conversation should be created when instagram_chat feature is false");
+
+    // 2. Restore instagram_chat feature to true on elite plan
+    await sqlExec(`
+      UPDATE subscription_tiers
+      SET features = jsonb_set(COALESCE(features, '{}'::jsonb), '{instagram_chat}', 'true'::jsonb)
+      WHERE tier_name = 'elite'
+    `);
+  },
+});
+
+// ══════════════════════════════════════════════════════════════
 // Disabled Channel Skipped
 // ══════════════════════════════════════════════════════════════
 

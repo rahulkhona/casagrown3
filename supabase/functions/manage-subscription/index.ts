@@ -171,13 +171,6 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       } catch { /* admin API may not be available */ }
 
       if (!userEmail) {
-        // Fallback: get email from auth.users via service role
-        const { data: authRow } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('id', userId)
-          .single()
-        // Try raw SQL query for auth.users
         const { data: emailRow } = await supabase.rpc('get_user_email', { uid: userId }).maybeSingle()
         userEmail = emailRow?.email ?? `${userId}@placeholder.local`
       }
@@ -289,7 +282,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       // Check for user-specific active discounts for the selected plan (highest discount first)
       const { data: discounts } = await supabase
         .from('user_subscription_discounts')
-        .select('discount_pct, duration_months, crm_promo_subscription_discounts!inner(plan)')
+        .select('id, discount_pct, duration_months, discount_id, crm_promo_subscription_discounts!inner(plan, stripe_coupon_id)')
         .eq('user_id', userId)
         .eq('status', 'active')
         .eq('crm_promo_subscription_discounts.plan', plan)
@@ -298,12 +291,9 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
         .limit(1)
 
       const discount = discounts?.[0] ?? null
-      const effectivePrice = discount
-        ? monthlyPriceUsd * (1 - discount.discount_pct / 100)
-        : monthlyPriceUsd
-      const priceInCents = Math.round(effectivePrice * 100)
+      const priceInCents = Math.round(monthlyPriceUsd * 100)
 
-      // Always create price dynamically
+      // Always create Stripe Price at FULL price — discounts are handled via Stripe Coupons
       const priceParams = new URLSearchParams({
         'unit_amount': String(priceInCents),
         'currency': 'usd',
@@ -325,6 +315,66 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       const priceData = await priceRes.json()
       const priceId = priceData.id
 
+      // If discount exists, create or reuse a Stripe Coupon
+      let stripeCouponId: string | null = null
+      if (discount) {
+        const blueprint = (discount as any).crm_promo_subscription_discounts
+        stripeCouponId = blueprint?.stripe_coupon_id ?? null
+
+        if (!stripeCouponId) {
+          // Create a new Stripe Coupon for this promotion blueprint
+          const couponParams: Record<string, string> = {
+            'percent_off': String(discount.discount_pct),
+            'currency': 'usd',
+            'name': `${displayName} — ${discount.discount_pct}% off`,
+          }
+
+          if (discount.duration_months) {
+            // Add +1 month to cover the prorated partial first billing month
+            // User sees "3 months" but coupon lasts 4 invoices so they get at least 3 full months
+            couponParams['duration'] = 'repeating'
+            couponParams['duration_in_months'] = String(discount.duration_months + 1)
+          } else {
+            // NULL duration = perpetual discount
+            couponParams['duration'] = 'forever'
+          }
+
+          const couponRes = await fetch(`${stripeBase}/v1/coupons`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${STRIPE_SECRET_KEY}`,
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams(couponParams),
+          })
+
+          if (couponRes.ok) {
+            const couponData = await couponRes.json()
+            stripeCouponId = couponData.id
+            console.log(`[CHECKOUT] Created Stripe Coupon ${stripeCouponId}: ${discount.discount_pct}% off for ${discount.duration_months ? discount.duration_months + 1 : 'forever'} months`)
+
+            // Store the coupon ID back on the blueprint for reuse
+            if (discount.discount_id) {
+              await supabase
+                .from('crm_promo_subscription_discounts')
+                .update({ stripe_coupon_id: stripeCouponId })
+                .eq('id', discount.discount_id)
+            }
+          } else {
+            console.error('[CHECKOUT] Failed to create Stripe Coupon:', await couponRes.text())
+            // Fall through — checkout will proceed without coupon (full price)
+          }
+        }
+
+        // Also store coupon ID on the user's discount record
+        if (stripeCouponId) {
+          await supabase
+            .from('user_subscription_discounts')
+            .update({ stripe_coupon_id: stripeCouponId })
+            .eq('id', discount.id)
+        }
+      }
+
       // Build checkout session params
       const params: Record<string, string> = {
         'mode': 'subscription',
@@ -334,6 +384,12 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
         'metadata[supabase_user_id]': userId,
         'subscription_data[metadata][supabase_user_id]': userId,
         'subscription_data[metadata][plan]': plan,
+      }
+
+      // Attach Stripe Coupon if available — Stripe handles duration/expiration automatically
+      if (stripeCouponId) {
+        params['discounts[0][coupon]'] = stripeCouponId
+        console.log(`[CHECKOUT] Attaching coupon ${stripeCouponId} to checkout for user ${userId}`)
       }
 
       // Embedded mode: renders checkout inline in the page
@@ -366,29 +422,47 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       if (!checkoutRes.ok) {
         const errText = await checkoutRes.text()
         console.error('Stripe checkout failed:', errText)
-        return jsonError('Failed to create checkout session', corsHeaders)
+        let errMsg = 'Failed to create checkout session'
+        try { errMsg = JSON.parse(errText)?.error?.message || errMsg } catch {}
+        return jsonError(errMsg, corsHeaders)
       }
 
       const session = await checkoutRes.json()
 
-      // Store pending subscription details
+      // Store pending checkout — don't overwrite an active subscription's plan/status
       const now = new Date().toISOString()
-      const { data: upsertData, error: upsertErr } = await supabase
+      const { data: existingSub } = await supabase
         .from('seller_subscriptions')
-        .upsert({
-          user_id: userId,
-          plan: plan,
-          status: 'incomplete',
-          stripe_customer_id: customerId,
-          stripe_subscription_id: `pending_${session.id}`,
-          created_at: now,
-          updated_at: now,
-        }, { onConflict: 'user_id' })
+        .select('status')
+        .eq('user_id', userId)
+        .maybeSingle()
 
-      if (upsertErr) {
-        console.error("❌ [DB-UPSERT] Database Upsert Failed:", JSON.stringify(upsertErr));
+      if (existingSub && ['active', 'trialing'].includes(existingSub.status)) {
+        // User already has an active sub — just store the pending session for confirmation
+        const { error: updateErr } = await supabase
+          .from('seller_subscriptions')
+          .update({
+            stripe_customer_id: customerId,
+            updated_at: now,
+          })
+          .eq('user_id', userId)
+        if (updateErr) console.error("❌ [DB-UPDATE] Failed:", JSON.stringify(updateErr))
+        else console.log("✅ [DB-UPDATE] Kept active sub, stored customer ID.")
       } else {
-        console.log("✅ [DB-UPSERT] Database Upsert Succeeded.");
+        // No active sub — create pending record
+        const { error: upsertErr } = await supabase
+          .from('seller_subscriptions')
+          .upsert({
+            user_id: userId,
+            plan: plan,
+            status: 'inactive',
+            stripe_customer_id: customerId,
+            stripe_subscription_id: `pending_${session.id}`,
+            created_at: now,
+            updated_at: now,
+          }, { onConflict: 'user_id' })
+        if (upsertErr) console.error("❌ [DB-UPSERT] Failed:", JSON.stringify(upsertErr))
+        else console.log("✅ [DB-UPSERT] Created pending subscription.")
       }
 
       return jsonOk({ clientSecret: session.client_secret }, corsHeaders)
@@ -403,7 +477,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
         .eq('user_id', userId)
         .maybeSingle()
 
-      const confirmedPlan = pendingSub?.plan || 'pro'
+      // Use plan from: 1) request body, 2) existing subscription, 3) fallback to 'pro'
+      let confirmedPlan = body.plan || pendingSub?.plan || 'pro'
 
       // Get pricing info for receipt
       const { data: tierReceipt } = await supabase
@@ -424,6 +499,10 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
 
         if (sessionRes.ok) {
           const sessionData = await sessionRes.json()
+          // Extract plan from Stripe session/subscription metadata (most authoritative source)
+          if (sessionData.metadata?.plan) {
+            confirmedPlan = sessionData.metadata.plan
+          }
           if (sessionData.payment_status === 'paid' || sessionData.status === 'complete') {
             const now = new Date().toISOString()
             const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
@@ -724,6 +803,180 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       }
 
       return jsonOk({ success: true, isPro: true }, corsHeaders)
+    }
+
+    // ── Downgrade plan ──
+    case 'downgrade': {
+      if (!sub || sub.status !== 'active') {
+        return jsonError('No active subscription to downgrade', corsHeaders, 400)
+      }
+
+      const targetPlan = body.plan
+      const keepBoothIds: string[] = body.keep_booth_ids || []
+
+      if (!targetPlan || !['lite', 'pro'].includes(targetPlan)) {
+        return jsonError('Invalid target plan', corsHeaders, 400)
+      }
+
+      // Validate: can only downgrade, not upgrade
+      const planOrder: Record<string, number> = { lite: 0, pro: 1, elite: 2 }
+      if (planOrder[targetPlan] >= planOrder[sub.plan]) {
+        return jsonError(`Cannot downgrade from ${sub.plan} to ${targetPlan}`, corsHeaders, 400)
+      }
+
+      // Booth limits per plan
+      const boothLimits: Record<string, number> = { lite: 1, pro: 3, elite: 999 }
+      const maxBooths = boothLimits[targetPlan]
+
+      // Get user's non-archived booths
+      const { data: booths } = await supabase
+        .from('market_booths')
+        .select('id, name')
+        .eq('owner_id', userId)
+        .eq('is_open', true)
+
+      const activeBoothCount = booths?.length || 0
+
+      // If user has more booths than new limit, they must pick which to keep
+      if (activeBoothCount > maxBooths) {
+        if (keepBoothIds.length === 0) {
+          // Return booth list so frontend can show picker
+          return jsonOk({
+            needs_booth_selection: true,
+            max_booths: maxBooths,
+            active_booths: booths,
+            message: `You have ${activeBoothCount} active booths but ${targetPlan} plan allows only ${maxBooths}. Please select which booths to keep.`,
+          }, corsHeaders)
+        }
+
+        if (keepBoothIds.length > maxBooths) {
+          return jsonError(`You can only keep ${maxBooths} booth(s) on the ${targetPlan} plan`, corsHeaders, 400)
+        }
+
+        // Validate that all keepBoothIds are actually owned by user
+        const validIds = new Set((booths || []).map((b: any) => b.id))
+        for (const id of keepBoothIds) {
+          if (!validIds.has(id)) {
+            return jsonError(`Booth ${id} not found or not owned by you`, corsHeaders, 400)
+          }
+        }
+
+        // Archive excess booths by setting to draft
+        const archiveIds = (booths || [])
+          .filter((b: any) => !keepBoothIds.includes(b.id))
+          .map((b: any) => b.id)
+
+        if (archiveIds.length > 0) {
+          const { error: archiveErr } = await supabase
+            .from('market_booths')
+            .update({ is_open: false })
+            .in('id', archiveIds)
+
+          if (archiveErr) {
+            console.error('[DOWNGRADE] Failed to archive booths:', archiveErr)
+            return jsonError('Failed to archive excess booths', corsHeaders, 500)
+          }
+          console.log(`[DOWNGRADE] Archived ${archiveIds.length} booths for user ${userId}`)
+        }
+      }
+
+      // Cancel Stripe subscription and apply proration credit
+      const isRealStripeSub = sub.stripe_subscription_id?.startsWith('sub_') && !sub.stripe_subscription_id?.startsWith('sub_sim_')
+      let creditApplied = 0
+
+      if (isRealStripeSub && sub.stripe_subscription_id) {
+        // Calculate prorated credit for remaining time
+        const now = new Date()
+        const start = sub.current_period_start ? new Date(sub.current_period_start) : null
+        const end = sub.current_period_end ? new Date(sub.current_period_end) : null
+
+        if (start && end && end > now && now >= start) {
+          const totalDuration = end.getTime() - start.getTime()
+          const remainingDuration = end.getTime() - now.getTime()
+          const ratio = remainingDuration / totalDuration
+
+          if (ratio > 0 && ratio <= 1) {
+            const prevPrice = sub.plan === 'elite' ? 29.00 : 10.00
+            const creditAmountUsd = prevPrice * ratio
+            const creditAmountCents = Math.round(creditAmountUsd * 100)
+            creditApplied = creditAmountUsd
+
+            if (creditAmountCents > 0 && sub.stripe_customer_id) {
+              console.log(`[DOWNGRADE] Crediting customer ${sub.stripe_customer_id} with $${creditAmountUsd.toFixed(2)}`)
+              try {
+                await fetch(`${stripeBase}/v1/customers/${sub.stripe_customer_id}/balance_transactions`, {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${STRIPE_SECRET_KEY}`,
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                  },
+                  body: new URLSearchParams({
+                    amount: String(-creditAmountCents),
+                    currency: 'usd',
+                    description: `Prorated credit for downgrade from ${sub.plan} to ${targetPlan}`,
+                  }),
+                })
+              } catch (creditErr) {
+                console.error('[DOWNGRADE] Failed to apply credit:', creditErr)
+              }
+            }
+          }
+        }
+
+        // Cancel the current subscription immediately
+        try {
+          await fetch(`${stripeBase}/v1/subscriptions/${sub.stripe_subscription_id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${STRIPE_SECRET_KEY}` },
+          })
+          console.log(`[DOWNGRADE] Cancelled Stripe subscription ${sub.stripe_subscription_id}`)
+        } catch (stripeErr) {
+          console.error('[DOWNGRADE] Failed to cancel Stripe subscription:', stripeErr)
+        }
+      }
+
+      // Switch plan immediately in DB
+      const updateFields: Record<string, any> = {
+        plan: targetPlan,
+        downgrade_to_plan: null,
+        downgrade_booth_ids: null,
+        downgrade_effective_at: null,
+        canceled_at: null,
+        updated_at: new Date().toISOString(),
+      }
+
+      // If downgrading to Lite (free), clear subscription IDs
+      if (targetPlan === 'lite') {
+        updateFields.status = 'inactive'
+        updateFields.stripe_subscription_id = null
+      }
+
+      const { error: updateErr } = await supabase
+        .from('seller_subscriptions')
+        .update(updateFields)
+        .eq('user_id', userId)
+
+      if (updateErr) {
+        console.error('[DOWNGRADE] DB update failed:', updateErr)
+        return jsonError('Failed to downgrade plan', corsHeaders, 500)
+      }
+
+      // If downgrading from Elite, cleanup WhatsApp number
+      if (sub.plan === 'elite' && targetPlan !== 'elite') {
+        await cleanupTwilioNumber(supabase, userId)
+      }
+
+      const archivedNames = activeBoothCount > maxBooths
+        ? (booths || []).filter((b: any) => !keepBoothIds.includes(b.id)).map((b: any) => b.name)
+        : []
+
+      return jsonOk({
+        success: true,
+        new_plan: targetPlan,
+        archived_booths: archivedNames,
+        credit_applied: creditApplied > 0 ? `$${creditApplied.toFixed(2)}` : null,
+        message: `Plan changed to ${targetPlan === 'lite' ? 'Free' : 'Pro'}.${archivedNames.length > 0 ? ` ${archivedNames.length} booth(s) archived.` : ''}${creditApplied > 0 ? ` $${creditApplied.toFixed(2)} credit applied to your account.` : ''}`,
+      }, corsHeaders)
     }
 
     default:

@@ -187,3 +187,48 @@ export async function syncProductToGoogleCatalog(
     console.warn(`[GBP-CATALOG] Catalog sync warning: ${await res.text()}`);
   }
 }
+
+/** Update Google Business Profile metadata (description, phone, etc.) */
+export async function updateGoogleBusinessProfile(
+  locationId: string,
+  accessToken: string,
+  updates: {
+    description?: string;
+    additionalPhone?: string;
+  },
+): Promise<void> {
+  if (accessToken.startsWith('mock_')) {
+    console.log(`[MOCK GBP] Update profile for ${locationId}:`, updates);
+    return;
+  }
+
+  const updateMask: string[] = [];
+  const body: Record<string, any> = {};
+
+  if (updates.description) {
+    body.profile = { description: updates.description };
+    updateMask.push('profile.description');
+  }
+
+  if (updates.additionalPhone) {
+    body.phoneNumbers = { additionalPhones: [updates.additionalPhone] };
+    updateMask.push('phoneNumbers.additionalPhones');
+  }
+
+  if (updateMask.length === 0) return;
+
+  const url = `${GOOGLE_API_URL}/${locationId}?updateMask=${updateMask.join(',')}`;
+
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    console.warn(`[GBP] Profile update warning: ${await res.text()}`);
+  }
+}
