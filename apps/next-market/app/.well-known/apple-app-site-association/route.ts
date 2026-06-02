@@ -43,6 +43,11 @@ export async function GET() {
             { '/': '/gardener', exclude: true },
             { '/': '/gardener/*', exclude: true },
             // App routes — open in native app
+            // NOTE: /market (exact) is excluded because the native app's WebView
+            // loads this URL on launch. If included, iOS intercepts the WebView
+            // navigation and opens Safari instead. /market/* still works for
+            // deep links to specific booths and products.
+            { '/': '/market', exclude: true },
             { '/': '/market/*' },
             { '/': '/cart' },
             { '/': '/cart/*' },
